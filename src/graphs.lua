@@ -223,52 +223,48 @@ end
 ---@return table distances Map of {vertex -> shortest distance from start}
 ---@return table previous Map of {vertex -> previous vertex in shortest path}
 function Graph:dijkstra(start, target)
+    local heaps = require("src.heaps")
     local distances = {}
     local previous = {}
-    local unvisited = {}
+    local visited = {}
 
     -- Initialize distances
     for _, vertex in ipairs(self:getVertices()) do
         distances[vertex] = math.huge
-        unvisited[vertex] = true
     end
     distances[start] = 0
 
-    while next(unvisited) do
-        -- Find vertex with minimum distance
-        local current = nil
-        local minDistance = math.huge
+    local heap = heaps.newMinHeap(function(a, b) return a[1] < b[1] end)
+    heap:push({0, start})
 
-        for vertex in pairs(unvisited) do
-            if distances[vertex] < minDistance then
-                minDistance = distances[vertex]
-                current = vertex
-            end
+    while not heap:isEmpty() do
+        local current = heap:pop()
+        local dist, vertex = current[1], current[2]
+
+        if visited[vertex] then
+            goto continue
         end
 
-        if not current or minDistance == math.huge then
+        visited[vertex] = true
+
+        if target and vertex == target then
             break
         end
 
-        -- If we reached the target, we can stop
-        if target and current == target then
-            break
-        end
-
-        unvisited[current] = nil
-
-        -- Update distances to neighbors
-        for _, neighbor in ipairs(self:getNeighbors(current)) do
-            if unvisited[neighbor] then
-                local weight = self:getWeight(current, neighbor)
-                local alt = distances[current] + weight
+        for _, neighbor in ipairs(self:getNeighbors(vertex)) do
+            if not visited[neighbor] then
+                local weight = self:getWeight(vertex, neighbor)
+                local alt = dist + weight
 
                 if alt < distances[neighbor] then
                     distances[neighbor] = alt
-                    previous[neighbor] = current
+                    previous[neighbor] = vertex
+                    heap:push({alt, neighbor})
                 end
             end
         end
+
+        ::continue::
     end
 
     return distances, previous
