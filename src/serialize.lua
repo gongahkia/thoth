@@ -243,9 +243,13 @@ function serialize.fromJSON(json)
                 pos = pos + 1
             elseif char == "e" or char == "E" then
                 pos = pos + 1
-                if json:sub(pos, pos) == "+" or json:sub(pos, pos) == "-" then
+                if pos <= #json and (json:sub(pos, pos) == "+" or json:sub(pos, pos) == "-") then
                     pos = pos + 1
                 end
+                while pos <= #json and json:sub(pos, pos):match("[0-9]") do
+                    pos = pos + 1
+                end
+                break
             else
                 break
             end
