@@ -1,3 +1,4 @@
+-- All vectors and positions use array indices: {[1]=x, [2]=y}
 local math2DModule = {}
 
 -- @param entity1 table with coordinates {x,y}, entity2 table with coordinates {x,y}
