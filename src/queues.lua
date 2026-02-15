@@ -40,6 +40,15 @@ function queueModule.pop(queue)
 end
 
 -- @param queue
+-- @return front element without removing it
+function queueModule.peek(queue)
+    if queueModule.isEmpty(queue) then
+        error("Queue is empty")
+    end
+    return queue[queue.first]
+end
+
+-- @param queue
 -- @return queue size
 function queueModule.size(queue)
     return queue.last - queue.first + 1
