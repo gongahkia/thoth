@@ -110,6 +110,7 @@ LRUCache.__index = LRUCache
 ---@param capacity number Maximum number of items
 ---@return LRUCache
 function LRUCache.new(capacity)
+    assert(capacity and capacity > 0, "LRUCache capacity must be greater than 0")
     local self = setmetatable({}, LRUCache)
     self.capacity = capacity or 100
     self.size = 0
@@ -348,6 +349,7 @@ TTLCache.__index = TTLCache
 ---@param ttl number Time to live in seconds
 ---@return TTLCache
 function TTLCache.new(ttl)
+    assert(ttl and ttl > 0, "TTLCache ttl must be greater than 0")
     local self = setmetatable({}, TTLCache)
     self.data = {}
     self.ttl = ttl or 60
