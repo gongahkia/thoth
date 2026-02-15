@@ -44,13 +44,17 @@ end
 -- @param value to be remapped, lower bound of original range, upper bound of original range, lower bound of target range, upper bound of target range
 -- @return value remapped within target range.
 function mathModule.ScaleBy(val, fromMin, fromMax, toMin, toMax)
-    return toMin+ (toMax - toMin) * ((val - fromMin) / (fromMax- fromMin))
+    local denom = fromMax - fromMin
+    if denom == 0 then return nil, "division by zero: fromMax equals fromMin" end
+    return toMin + (toMax - toMin) * ((val - fromMin) / denom)
 end
 
 -- @param lower bound of interpolation range, upper bound of interpolation range, value to be interpolated
 -- @return interpolated value 
 function mathModule.Smooth(low, upp, val)
-    val = mathModule.Clamp((val - low) / (upp - low), 0, 1)
+    local denom = upp - low
+    if denom == 0 then return nil, "division by zero: upp equals low" end
+    val = mathModule.Clamp((val - low) / denom, 0, 1)
     return val * val * (3 - 2 * val)
 end
 
