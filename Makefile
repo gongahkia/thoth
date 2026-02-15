@@ -10,7 +10,7 @@ up:
 clean:
 	rm -rf .git .gitignore $(TEST_DIR) Makefile README.md
 
-test: testMath testMath2D testStringify testTables testLinks testQueues testStacks testTrees
+test: testMath testMath2D testStringify testTables testLinks testQueues testStacks testTrees testCache testEvents testGraphs testHeaps testTries testValidate testSerialize testPerformance
 
 testMath:
 	@echo "Running math tests..."
@@ -44,4 +44,36 @@ testTrees:
 	@echo "Running trees tests..."
 	$(TEST_RUNNER) $(TEST_DIR)/testTrees.lua
 
-.PHONY: all up clean test testMath testMath2D testStringify testTables testLinks testQueues testStacks testTrees
+testCache:
+	@echo "Running cache tests..."
+	$(TEST_RUNNER) $(TEST_DIR)/testCache.lua
+
+testEvents:
+	@echo "Running events tests..."
+	$(TEST_RUNNER) $(TEST_DIR)/testEvents.lua
+
+testGraphs:
+	@echo "Running graphs tests..."
+	$(TEST_RUNNER) $(TEST_DIR)/testGraphs.lua
+
+testHeaps:
+	@echo "Running heaps tests..."
+	$(TEST_RUNNER) $(TEST_DIR)/testHeaps.lua
+
+testTries:
+	@echo "Running tries tests..."
+	$(TEST_RUNNER) $(TEST_DIR)/testTries.lua
+
+testValidate:
+	@echo "Running validate tests..."
+	$(TEST_RUNNER) $(TEST_DIR)/testValidate.lua
+
+testSerialize:
+	@echo "Running serialize tests..."
+	$(TEST_RUNNER) $(TEST_DIR)/testSerialize.lua
+
+testPerformance:
+	@echo "Running performance tests..."
+	$(TEST_RUNNER) $(TEST_DIR)/testPerformance.lua
+
+.PHONY: all up clean test testMath testMath2D testStringify testTables testLinks testQueues testStacks testTrees testCache testEvents testGraphs testHeaps testTries testValidate testSerialize testPerformance
