@@ -13,7 +13,7 @@ end
 -- @param table
 -- @return last value of table
 function tableModule.Pop(tbl)
-    val = table.remove(tbl)
+    local val = table.remove(tbl)
     return val
 end
 
@@ -43,8 +43,8 @@ end
 
 -- @param value to be added to start of table
 -- @return new table
-function tableModule.Unshift(tbl)
-    table.insert(tbl, 1, 0)
+function tableModule.Unshift(tbl, val)
+    table.insert(tbl, 1, val)
     return tbl
 end
 
