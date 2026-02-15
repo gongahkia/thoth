@@ -93,9 +93,18 @@ function EventEmitter:emit(eventName, ...)
         listenersCopy[i] = listener
     end
 
+    local errors = {}
     for _, listener in ipairs(listenersCopy) do
-        listener(...)
+        local ok, err = pcall(listener, ...)
+        if not ok then
+            table.insert(errors, err)
+            if self.onError then
+                self.onError(err, eventName)
+            end
+        end
     end
+
+    return errors
 end
 
 ---Get listener count for an event
