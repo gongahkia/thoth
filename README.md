@@ -1,7 +1,8 @@
 [![](https://img.shields.io/badge/thoth_1.0.0-passing-light_green)](https://github.com/gongahkia/thoth/releases/tag/1.0.0) 
 [![](https://img.shields.io/badge/thoth_2.0.0-passing-green)](https://github.com/gongahkia/thoth/releases/tag/2.0.0) 
+[![](https://img.shields.io/badge/thoth_3.0.0-passing-green)](https://github.com/gongahkia/thoth/releases/tag/3.0.0) 
 
-<h1 align='center'><code>love2d helpers</code></h1>
+<h1 align='center'><code>thoth</code></h1>
 <div align='center'>
 <p>
   <i>Functional lua pocket knife.</i>
