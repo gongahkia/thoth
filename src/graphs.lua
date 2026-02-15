@@ -375,23 +375,35 @@ function Graph:topologicalSort()
     end
 
     local visited = {}
+    local inStack = {}
     local stack = {}
+    local hasCycle = false
 
     local function topologicalSortUtil(vertex)
+        if hasCycle then return end
         visited[vertex] = true
+        inStack[vertex] = true
 
         for _, neighbor in ipairs(self:getNeighbors(vertex)) do
             if not visited[neighbor] then
                 topologicalSortUtil(neighbor)
+                if hasCycle then return end
+            elseif inStack[neighbor] then
+                hasCycle = true
+                return
             end
         end
 
+        inStack[vertex] = false
         table.insert(stack, 1, vertex)
     end
 
     for _, vertex in ipairs(self:getVertices()) do
         if not visited[vertex] then
             topologicalSortUtil(vertex)
+            if hasCycle then
+                return nil, "cycle detected"
+            end
         end
     end
 
