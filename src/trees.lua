@@ -50,6 +50,36 @@ local function searchNode(root, val)
     end
 end
 
+local function findMin(root)
+    while root.left do
+        root = root.left
+    end
+    return root
+end
+
+local function deleteNode(root, val)
+    if root == nil then
+        return nil
+    end
+    if val < root.val then
+        root.left = deleteNode(root.left, val)
+    elseif val > root.val then
+        root.right = deleteNode(root.right, val)
+    else
+        -- Node found
+        if root.left == nil then
+            return root.right
+        elseif root.right == nil then
+            return root.left
+        end
+        -- Two children: replace with in-order successor
+        local successor = findMin(root.right)
+        root.val = successor.val
+        root.right = deleteNode(root.right, successor.val)
+    end
+    return root
+end
+
 -- @param nil
 -- @return empty binary search tree
 function binarySearchTreeModule.new()
@@ -75,6 +105,12 @@ function binarySearchTreeModule.inorderTraversal(bst)
     local result = {}
     inorderTraversal(bst.root, result)
     return result
+end
+
+-- @param binary search tree, value to delete
+-- @return updated binary search tree
+function binarySearchTreeModule.delete(bst, val)
+    return {root = deleteNode(bst.root, val)}
 end
 
 return binarySearchTreeModule
