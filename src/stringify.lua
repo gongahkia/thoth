@@ -11,7 +11,7 @@ function stringModule.Strip(str, substr)
         local pattern = "^" .. substr .. "*(.-)" .. substr .. "*$"
         return str:match(pattern)
     else
-        return str:match("^%s*(.-)%s*$"):match("%S.*%S") or ""
+        return str:match("^%s*(.-)%s*$")
     end
 end
 
