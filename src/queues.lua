@@ -31,6 +31,11 @@ function queueModule.pop(queue)
     local val = queue[first]
     queue[first] = nil
     queue.first = first + 1
+    -- Compact when queue becomes empty
+    if queue.first > queue.last then
+        queue.first = 0
+        queue.last = -1
+    end
     return val, queue
 end
 
