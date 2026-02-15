@@ -10,7 +10,11 @@ end
 -- @return the nth fibonnaci number
 function mathModule.Fibonacci(n)
     if n <= 1 then return n end
-    return mathModule.Fibonacci(n - 1) + mathModule.Fibonacci(n - 2)
+    local a, b = 0, 1
+    for i = 2, n do
+        a, b = b, a + b
+    end
+    return b
 end
 
 -- @param start value for interpolation, end value for interpolation, interpolation factor (usually between 0 and 1)
