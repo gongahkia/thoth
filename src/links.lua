@@ -76,4 +76,18 @@ function linkedListModule.search(list, val)
     return false
 end
 
+-- @param linked list
+-- @return number of nodes in the linked list
+function linkedListModule.size(list)
+    local count = 0
+    local current = list.head
+    while current do
+        count = count + 1
+        current = current.next
+    end
+    return count
+end
+
+linkedListModule.length = linkedListModule.size
+
 return linkedListModule
