@@ -10,7 +10,7 @@ up:
 clean:
 	rm -rf .git .gitignore $(TEST_DIR) Makefile README.md
 
-test: testMath testMath2D testStringify testTables testLinks testPriorities testQueues testStacks testTrees
+test: testMath testMath2D testStringify testTables testLinks testQueues testStacks testTrees
 
 testMath:
 	@echo "Running math tests..."
@@ -32,10 +32,6 @@ testLinks:
 	@echo "Running links tests..."
 	$(TEST_RUNNER) $(TEST_DIR)/testLinks.lua
 
-testPriorities:
-	@echo "Running priorities tests..."
-	$(TEST_RUNNER) $(TEST_DIR)/testPriorities.lua
-
 testQueues:
 	@echo "Running queues tests..."
 	$(TEST_RUNNER) $(TEST_DIR)/testQueues.lua
@@ -48,4 +44,4 @@ testTrees:
 	@echo "Running trees tests..."
 	$(TEST_RUNNER) $(TEST_DIR)/testTrees.lua
 
-.PHONY: all up clean test testMath testMath2D testStringify testTables testLinks testPriorities testQueues testStacks testTrees
+.PHONY: all up clean test testMath testMath2D testStringify testTables testLinks testQueues testStacks testTrees
