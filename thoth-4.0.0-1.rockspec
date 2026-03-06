@@ -2,7 +2,7 @@ package = "thoth"
 version = "4.0.0-1"
 source = {
    url = "git+https://github.com/gongahkia/thoth.git",
-   tag = "v4.0.0"
+   tag = "4.0.0"
 }
 description = {
    summary = "Functional Lua pocket knife with cross-framework game runtime adapters",
