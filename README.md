@@ -1,11 +1,9 @@
-<<<<<<< HEAD
-# thoth v4
-=======
-[![](https://img.shields.io/badge/thoth_1.0.0-passing-%23004D00)](https://github.com/gongahkia/thoth/releases/tag/1.0.0) 
-[![](https://img.shields.io/badge/thoth_2.0.0-passing-%23228B22)](https://github.com/gongahkia/thoth/releases/tag/2.0.0) 
+[![](https://img.shields.io/badge/thoth_1.0.0-passing-%23004D00)](https://github.com/gongahkia/thoth/releases/tag/1.0.0)
+[![](https://img.shields.io/badge/thoth_2.0.0-passing-%23228B22)](https://github.com/gongahkia/thoth/releases/tag/2.0.0)
 [![](https://img.shields.io/badge/thoth_3.0.0-passing-%2332CD32)](https://github.com/gongahkia/thoth/releases/tag/3.0.0)
 ![](https://github.com/gongahkia/thoth/actions/workflows/ci.yml/badge.svg)
->>>>>>> cbe71f765f272b08864ce0b401edb6cb94093030
+
+# thoth v4
 
 Functional Lua pocket knife with a framework-agnostic game runtime.
 
