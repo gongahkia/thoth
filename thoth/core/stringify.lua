@@ -41,9 +41,32 @@ end
 -- @return table of substrings split by specified delimiter
 function stringModule.Split(str, delim)
     local fin = {}
-    local pattern = string.format("([^%s]+)", delim)
-    for word in string.gmatch(str, pattern) do
-        table.insert(fin, word)
+    assert(type(str) == "string", "Split expects str to be a string")
+    assert(type(delim) == "string", "Split expects delim to be a string")
+
+    if delim == "" then
+        for i = 1, #str do
+            table.insert(fin, str:sub(i, i))
+        end
+        return fin
+    end
+
+    local start = 1
+    while true do
+        local i, j = str:find(delim, start, true)
+        if not i then
+            local tail = str:sub(start)
+            if tail ~= "" then
+                table.insert(fin, tail)
+            end
+            break
+        end
+
+        local part = str:sub(start, i - 1)
+        if part ~= "" then
+            table.insert(fin, part)
+        end
+        start = j + 1
     end
     return fin
 end
