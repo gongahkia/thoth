@@ -272,7 +272,6 @@ end
 function EventQueue:process()
     while self.head <= #self.queue do
         local event = self.queue[self.head]
-        self.queue[self.head] = nil
         self.head = self.head + 1
         self.emitter:emit(event.name, unpackValues(event.data))
     end
@@ -289,7 +288,6 @@ function EventQueue:processN(count)
         end
 
         local event = self.queue[self.head]
-        self.queue[self.head] = nil
         self.head = self.head + 1
         self.emitter:emit(event.name, unpackValues(event.data))
     end
