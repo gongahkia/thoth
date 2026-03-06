@@ -119,6 +119,8 @@ function pathfinding.findPathGrid(grid, start, goal, options)
     local rows = #grid
     local cols = #grid[1]
     local walkable = options.walkable or function(value) return value ~= 0 and value ~= false end
+    local allowDiagonal = options.diagonal == true
+    local costFn = options.cost
 
     local function inBounds(x, y)
         return x >= 1 and x <= cols and y >= 1 and y <= rows
@@ -130,22 +132,42 @@ function pathfinding.findPathGrid(grid, start, goal, options)
         {x = 0, y = 1},
         {x = 0, y = -1},
     }
+    if allowDiagonal then
+        table.insert(directions, {x = 1, y = 1})
+        table.insert(directions, {x = 1, y = -1})
+        table.insert(directions, {x = -1, y = 1})
+        table.insert(directions, {x = -1, y = -1})
+    end
 
     return pathfinding.astar({
         start = start,
         goal = goal,
         key = function(node) return node.x .. ":" .. node.y end,
         heuristic = options.heuristic or function(a, b)
-            return math.abs(a.x - b.x) + math.abs(a.y - b.y)
+            local dx = math.abs(a.x - b.x)
+            local dy = math.abs(a.y - b.y)
+            if allowDiagonal then
+                return math.max(dx, dy)
+            end
+            return dx + dy
         end,
         neighbors = function(node)
             local neighbors = {}
             for _, dir in ipairs(directions) do
                 local nx, ny = node.x + dir.x, node.y + dir.y
-                if inBounds(nx, ny) and walkable(grid[ny][nx]) then
+                local cell = inBounds(nx, ny) and grid[ny][nx] or nil
+                if inBounds(nx, ny) and walkable(cell) then
+                    local baseCost = (dir.x ~= 0 and dir.y ~= 0) and math.sqrt(2) or 1
+                    local stepCost = baseCost
+                    if type(costFn) == "function" then
+                        local custom = costFn(node, {x = nx, y = ny}, cell, grid, baseCost)
+                        if type(custom) == "number" then
+                            stepCost = custom
+                        end
+                    end
                     table.insert(neighbors, {
                         node = {x = nx, y = ny},
-                        cost = 1
+                        cost = stepCost
                     })
                 end
             end
