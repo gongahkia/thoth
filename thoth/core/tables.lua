@@ -41,6 +41,12 @@ function tableModule.Shift(tbl)
     return tbl
 end
 
+-- @param table
+-- @return removed first element of table
+function tableModule.ShiftValue(tbl)
+    return table.remove(tbl, 1)
+end
+
 -- @param value to be added to start of table
 -- @return new table
 function tableModule.Unshift(tbl, val)
