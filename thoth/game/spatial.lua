@@ -9,6 +9,16 @@ local function intersects(a, b)
     )
 end
 
+local function distanceSqToRect(x, y, rect)
+    local maxX = rect.x + rect.width
+    local maxY = rect.y + rect.height
+    local closestX = math.max(rect.x, math.min(x, maxX))
+    local closestY = math.max(rect.y, math.min(y, maxY))
+    local dx = x - closestX
+    local dy = y - closestY
+    return dx * dx + dy * dy
+end
+
 local SpatialHash = {}
 SpatialHash.__index = SpatialHash
 
@@ -105,6 +115,34 @@ end
 function SpatialHash:clear()
     self.buckets = {}
     self.objects = {}
+end
+
+function SpatialHash:queryNearest(x, y, radius, limit)
+    radius = radius or self.cellSize
+    local limitCount = limit or math.huge
+    local candidates = self:queryRange(x - radius, y - radius, radius * 2, radius * 2)
+    local maxDistanceSq = radius * radius
+    local matches = {}
+
+    for _, candidate in ipairs(candidates) do
+        local distanceSq = distanceSqToRect(x, y, candidate)
+        if distanceSq <= maxDistanceSq then
+            matches[#matches + 1] = {
+                rect = candidate,
+                distanceSq = distanceSq
+            }
+        end
+    end
+
+    table.sort(matches, function(a, b)
+        return a.distanceSq < b.distanceSq
+    end)
+
+    local results = {}
+    for i = 1, math.min(#matches, limitCount) do
+        results[#results + 1] = matches[i].rect
+    end
+    return results
 end
 
 local Quadtree = {}
