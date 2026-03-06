@@ -4,6 +4,7 @@
 -- =============================================
 
 local events = {}
+local unpackValues = table.unpack or unpack
 
 -- =============================================
 -- Event Emitter (Observer Pattern)
@@ -270,7 +271,7 @@ end
 function EventQueue:process()
     while #self.queue > 0 do
         local event = table.remove(self.queue, 1)
-        self.emitter:emit(event.name, table.unpack(event.data))
+        self.emitter:emit(event.name, unpackValues(event.data))
     end
 end
 
@@ -283,7 +284,7 @@ function EventQueue:processN(count)
         end
 
         local event = table.remove(self.queue, 1)
-        self.emitter:emit(event.name, table.unpack(event.data))
+        self.emitter:emit(event.name, unpackValues(event.data))
     end
 end
 

@@ -4,6 +4,7 @@
 -- =============================================
 
 local validate = {}
+local unpackValues = table.unpack or unpack
 
 -- =============================================
 -- Type Checking
@@ -355,7 +356,7 @@ function validate.contract(func, precondition, postcondition)
             end
         end
 
-        return table.unpack(results)
+        return unpackValues(results)
     end
 end
 

@@ -163,24 +163,20 @@ function Graph:bfs(start, callback)
         local vertex = current.vertex
         local distance = current.distance
 
-        if visited[vertex] then
-            goto continue
-        end
+        if not visited[vertex] then
+            visited[vertex] = distance
 
-        visited[vertex] = distance
+            if callback then
+                callback(vertex, distance)
+            end
 
-        if callback then
-            callback(vertex, distance)
-        end
-
-        -- Add neighbors to queue
-        for _, neighbor in ipairs(self:getNeighbors(vertex)) do
-            if not visited[neighbor] then
-                table.insert(queue, {vertex = neighbor, distance = distance + 1})
+            -- Add neighbors to queue
+            for _, neighbor in ipairs(self:getNeighbors(vertex)) do
+                if not visited[neighbor] then
+                    table.insert(queue, {vertex = neighbor, distance = distance + 1})
+                end
             end
         end
-
-        ::continue::
     end
 
     return visited
@@ -241,30 +237,26 @@ function Graph:dijkstra(start, target)
         local current = heap:pop()
         local dist, vertex = current[1], current[2]
 
-        if visited[vertex] then
-            goto continue
-        end
+        if not visited[vertex] then
+            visited[vertex] = true
 
-        visited[vertex] = true
+            if target and vertex == target then
+                break
+            end
 
-        if target and vertex == target then
-            break
-        end
+            for _, neighbor in ipairs(self:getNeighbors(vertex)) do
+                if not visited[neighbor] then
+                    local weight = self:getWeight(vertex, neighbor)
+                    local alt = dist + weight
 
-        for _, neighbor in ipairs(self:getNeighbors(vertex)) do
-            if not visited[neighbor] then
-                local weight = self:getWeight(vertex, neighbor)
-                local alt = dist + weight
-
-                if alt < distances[neighbor] then
-                    distances[neighbor] = alt
-                    previous[neighbor] = vertex
-                    heap:push({alt, neighbor})
+                    if alt < distances[neighbor] then
+                        distances[neighbor] = alt
+                        previous[neighbor] = vertex
+                        heap:push({alt, neighbor})
+                    end
                 end
             end
         end
-
-        ::continue::
     end
 
     return distances, previous

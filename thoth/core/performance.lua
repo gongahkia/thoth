@@ -4,6 +4,7 @@
 -- =============================================
 
 local performance = {}
+local unpackValues = table.unpack or unpack
 
 -- =============================================
 -- Timer for measuring execution time
@@ -70,7 +71,7 @@ function performance.Benchmark(func, iterations, ...)
 
     for i = 1, iterations do
         local timer = Timer.new()
-        func(table.unpack(args))
+        func(unpackValues(args))
         local elapsed = timer:stop()
 
         times[i] = elapsed
@@ -102,7 +103,7 @@ function performance.Compare(functions, iterations)
         local func = entry.func
         local args = entry.args or {}
 
-        local benchmark = performance.Benchmark(func, iterations, table.unpack(args))
+        local benchmark = performance.Benchmark(func, iterations, unpackValues(args))
         benchmark.name = name
         table.insert(results, benchmark)
     end
