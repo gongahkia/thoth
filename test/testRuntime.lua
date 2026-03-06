@@ -2,7 +2,7 @@ local runtimeModule = require("thoth.game.runtime")
 local contract = require("thoth.adapters.contract")
 
 local adapter = contract.nullAdapter()
-local runtime = runtimeModule.new(adapter, {fixedDelta = 0.1})
+local runtime = runtimeModule.new(adapter, {fixedDelta = 0.1, maxFrameDelta = 1})
 
 runtime.input:bind("jump", "space")
 

@@ -1,25 +1,14 @@
-local stringModule = require("../src/stringify")
+local s = require("thoth.core.stringify")
 
--- Test Strip function
-print("Testing Strip:")
-print(stringModule.Strip("   Hello, world!   "))  -- Expected output: "Hello, world!"
-print(stringModule.Strip("###watermelon###", "#"))  -- Expected output: "watermelon"
+assert(s.Strip("   hi   ") == "hi")
+assert(s.Lstrip("   hi   ") == "hi   ")
+assert(s.Rstrip("   hi   ") == "   hi")
 
--- Test Lstrip function
-print("\nTesting Lstrip:")
-print(stringModule.Lstrip("   Hello, world!   "))  -- Expected output: "Hello, world!   "
-print(stringModule.Lstrip("###watermelon###", "#"))  -- Expected output: "watermelon###"
+local parts = s.Split("a,b,c", ",")
+assert(#parts == 3 and parts[1] == "a" and parts[3] == "c")
 
--- Test Rstrip function
-print("\nTesting Rstrip:")
-print(stringModule.Rstrip("   Hello, world!   "))  -- Expected output: "   Hello, world!"
-print(stringModule.Rstrip("###watermelon###", "#"))  -- Expected output: "###watermelon"
-
--- Test Split function
-print("\nTesting Split:")
-local resultSplit = stringModule.Split("apple,banana,cherry", ",")
-for _, word in ipairs(resultSplit) do
-    print(word)  -- Expected output: "apple", "banana", "cherry"
-end
-
-print("\nAll tests passed successfully!")
+assert(s.StartsWith("hello", "he"))
+assert(s.EndsWith("hello", "lo"))
+assert(s.Contains("hello", "ell"))
+assert(s.Replace("a-b-c", "-", ":") == "a:b:c")
+assert(s.Interpolate("${a}+${b}", {a = 1, b = 2}) == "1+2")

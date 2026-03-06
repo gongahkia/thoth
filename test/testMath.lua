@@ -1,44 +1,25 @@
-local mathModule = require("../src/math")
+local mathModule = require("thoth.core.math")
 
--- Test Clamp function
-print("Testing Clamp:")
-print(mathModule.Clamp(10, 0, 20))  -- Expected output: 10
-print(mathModule.Clamp(-5, 0, 20))  -- Expected output: 0
-print(mathModule.Clamp(30, 0, 20))  -- Expected output: 20
+assert(mathModule.Clamp(10, 0, 20) == 10)
+assert(mathModule.Clamp(-5, 0, 20) == 0)
+assert(mathModule.Clamp(30, 0, 20) == 20)
 
--- Test Fibonacci function
-print("\nTesting Fibonacci:")
-print(mathModule.Fibonacci(0))  -- Expected output: 0
-print(mathModule.Fibonacci(1))  -- Expected output: 1
-print(mathModule.Fibonacci(5))  -- Expected output: 5
+assert(mathModule.Fibonacci(0) == 0)
+assert(mathModule.Fibonacci(1) == 1)
+assert(mathModule.Fibonacci(10) == 55)
 
--- Test Lerp function
-print("\nTesting Lerp:")
-print(mathModule.Lerp(0, 10, 0.5))  -- Expected output: 5
-print(mathModule.Lerp(-5, 5, 0.3))  -- Expected output: -3
+assert(math.abs(mathModule.Lerp(0, 10, 0.5) - 5) < 1e-9)
+assert(math.abs(mathModule.DegreeToRadian(180) - math.pi) < 1e-9)
+assert(math.abs(mathModule.RadianToDegree(math.pi) - 180) < 1e-9)
 
--- Test DegreeToRadian function
-print("\nTesting DegreeToRadian:")
-print(mathModule.DegreeToRadian(180))  -- Expected output: 3.14159...
+local r = mathModule.RandRange(1, 2)
+assert(r >= 1 and r <= 2)
 
--- Test RadianToDegree function
-print("\nTesting RadianToDegree:")
-print(mathModule.RadianToDegree(math.pi))  -- Expected output: 180
+local scaled = mathModule.ScaleBy(5, 0, 10, 0, 100)
+assert(scaled == 50)
 
--- Test RandRange function
-print("\nTesting RandRange:")
-for i = 1, 5 do
-    print(mathModule.RandRange(1, 10))  -- Expected output: Random number between 1 and 10
-end
+local smooth = mathModule.Smooth(0, 10, 5)
+assert(math.abs(smooth - 0.5) < 1e-9)
 
--- Test ScaleBy function
-print("\nTesting ScaleBy:")
-print(mathModule.ScaleBy(5, 0, 10, 0, 100))  -- Expected output: 50
-print(mathModule.ScaleBy(10, 0, 100, 0, 1))  -- Expected output: 0.1
-
--- Test Smooth function
-print("\nTesting Smooth:")
-print(mathModule.Smooth(0, 10, 5))  -- Expected output: Approximately 0.5
-print(mathModule.Smooth(0, 1, 0.75))  -- Expected output: Approximately 0.9328
-
-print("\nAll tests passed successfully!")
+local v, err = mathModule.ScaleBy(1, 2, 2, 0, 1)
+assert(v == nil and err)

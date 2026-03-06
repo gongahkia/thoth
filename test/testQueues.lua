@@ -1,31 +1,16 @@
-local queueModule = require("../src/queues")
+local q = require("thoth.core.queues")
 
--- Test new function
-local queue = queueModule.new()
-print("Testing new function:")
-assert(type(queue) == "table" and queue.first == 0 and queue.last == -1, "Test failed: new function")
+local queue = q.new()
+assert(q.isEmpty(queue))
+assert(queue.first == 1 and queue.last == 0)
 
--- Test isEmpty function
-print("\nTesting isEmpty function:")
-assert(queueModule.isEmpty(queue) == true, "Test failed: isEmpty function (empty queue)")
+q.push(queue, 10)
+q.push(queue, 20)
+q.push(queue, 30)
+assert(q.size(queue) == 3)
+assert(q.peek(queue) == 10)
 
--- Test push function
-print("\nTesting push function:")
-queue = queueModule.push(queue, 10)
-queue = queueModule.push(queue, 20)
-queue = queueModule.push(queue, 30)
-assert(queue.last == 2, "Test failed: push function (last index)")
-assert(queue[1] == 10 and queue[2] == 20 and queue[3] == 30, "Test failed: push function (values)")
-
--- Test pop function
-print("\nTesting pop function:")
-local poppedValue, updatedQueue = queueModule.pop(queue)
-assert(poppedValue == 10, "Test failed: pop function (popped value)")
-assert(updatedQueue.first == 1 and updatedQueue[1] == 20 and updatedQueue[2] == 30, "Test failed: pop function (updated queue)")
-
--- Test size function
-print("\nTesting size function:")
-local queueSize = queueModule.size(queue)
-assert(queueSize == 2, "Test failed: size function")
-
-print("\nAll tests passed successfully!")
+local value = q.pop(queue)
+assert(value == 10)
+assert(q.size(queue) == 2)
+assert(q.peek(queue) == 20)
