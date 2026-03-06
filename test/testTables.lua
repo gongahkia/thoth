@@ -10,6 +10,11 @@ assert(arr[3] == 9)
 
 local shifted = t.Shift(arr)
 assert(shifted[1] == 2)
+assert(shifted == arr)
+
+local shiftedValue = t.ShiftValue(arr)
+assert(shiftedValue == 2)
+assert(arr[1] == 9)
 
 t.Unshift(arr, 1)
 assert(arr[1] == 1)
