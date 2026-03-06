@@ -18,4 +18,20 @@ local ok, err = serialize.saveLua(file, {v = 42}, "data")
 assert(ok, err)
 local loaded, loadErr = serialize.loadLua(file)
 assert(loaded and loaded.v == 42, loadErr)
+
+local safeLoaded, safeErr = serialize.loadLuaSafe(file)
+assert(safeLoaded and safeLoaded.v == 42, safeErr)
+
+local unsafeFile = "test_tmp_serialize_unsafe.lua"
+local f = io.open(unsafeFile, "w")
+assert(f)
+f:write("return { has_os = os ~= nil, has_io = io ~= nil, token = token }")
+f:close()
+
+local sandboxed = assert(serialize.loadLuaSafe(unsafeFile, {token = "ok"}))
+assert(sandboxed.has_os == false)
+assert(sandboxed.has_io == false)
+assert(sandboxed.token == "ok")
+
+os.remove(unsafeFile)
 os.remove(file)

@@ -11,6 +11,24 @@ local function cloneActionState(state)
     }
 end
 
+local function deepCopy(value, seen)
+    if type(value) ~= "table" then
+        return value
+    end
+
+    seen = seen or {}
+    if seen[value] then
+        return seen[value]
+    end
+
+    local out = {}
+    seen[value] = out
+    for key, item in pairs(value) do
+        out[deepCopy(key, seen)] = deepCopy(item, seen)
+    end
+    return out
+end
+
 local function callAdapter(adapter, methodName, ...)
     if not adapter then
         return nil
@@ -28,7 +46,11 @@ Manager.__index = Manager
 function Manager.new(adapter)
     local self = setmetatable({}, Manager)
     self.adapter = adapter
-    self.bindings = {}
+    self.contexts = {
+        default = {}
+    }
+    self.contextStack = {"default"}
+    self.bindings = self.contexts.default
     self.current = {}
     self.previous = {}
     return self
@@ -92,13 +114,143 @@ local function normalizeBindings(bindingSpec)
     return normalized
 end
 
+function Manager:_activeContextName()
+    return self.contextStack[#self.contextStack] or "default"
+end
+
+function Manager:_ensureContext(name)
+    assert(type(name) == "string" and #name > 0, "Context name must be a non-empty string")
+    if not self.contexts[name] then
+        self.contexts[name] = {}
+    end
+    return self.contexts[name]
+end
+
+function Manager:_resolveBindings()
+    local resolved = {}
+    for _, contextName in ipairs(self.contextStack) do
+        local contextBindings = self.contexts[contextName]
+        if contextBindings then
+            for action, binding in pairs(contextBindings) do
+                resolved[action] = binding
+            end
+        end
+    end
+    return resolved
+end
+
+function Manager:_syncStates()
+    local activeBindings = self:_resolveBindings()
+
+    for action in pairs(self.current) do
+        if not activeBindings[action] then
+            self.current[action] = nil
+            self.previous[action] = nil
+        end
+    end
+
+    for action in pairs(activeBindings) do
+        if not self.current[action] then
+            self.current[action] = {down = false, value = 0}
+        end
+        if not self.previous[action] then
+            self.previous[action] = {down = false, value = 0}
+        end
+    end
+
+    return activeBindings
+end
+
+function Manager:setContext(name)
+    self:_ensureContext(name)
+    self.contextStack = {name}
+    self.bindings = self.contexts[name]
+    self:_syncStates()
+    return self
+end
+
+function Manager:pushContext(name)
+    self:_ensureContext(name)
+    table.insert(self.contextStack, name)
+    self.bindings = self.contexts[name]
+    self:_syncStates()
+    return self
+end
+
+function Manager:popContext()
+    if #self.contextStack <= 1 then
+        return self:_activeContextName()
+    end
+
+    local removed = table.remove(self.contextStack)
+    self.bindings = self.contexts[self:_activeContextName()]
+    self:_syncStates()
+    return removed
+end
+
+function Manager:getContextStack()
+    return deepCopy(self.contextStack)
+end
+
+function Manager:exportBindings()
+    return {
+        contexts = deepCopy(self.contexts),
+        contextStack = deepCopy(self.contextStack)
+    }
+end
+
+function Manager:importBindings(profile, replace)
+    assert(type(profile) == "table", "Binding profile must be a table")
+
+    local incomingContexts = profile.contexts
+    if type(incomingContexts) ~= "table" then
+        incomingContexts = {default = {}}
+    end
+
+    if replace == nil or replace == true then
+        self.contexts = {}
+    end
+
+    for contextName, contextBindings in pairs(incomingContexts) do
+        self.contexts[contextName] = deepCopy(contextBindings)
+    end
+
+    if not next(self.contexts) then
+        self.contexts.default = {}
+    end
+
+    local incomingStack = profile.contextStack
+    local stack = {}
+    if type(incomingStack) == "table" and #incomingStack > 0 then
+        for _, contextName in ipairs(incomingStack) do
+            if type(contextName) == "string" and #contextName > 0 then
+                self:_ensureContext(contextName)
+                stack[#stack + 1] = contextName
+            end
+        end
+    end
+
+    if #stack == 0 then
+        stack = {"default"}
+        self:_ensureContext("default")
+    end
+
+    self.contextStack = stack
+    self.bindings = self.contexts[self:_activeContextName()]
+    self:_syncStates()
+    return self
+end
+
 function Manager:setAdapter(adapter)
     self.adapter = adapter
     return self
 end
 
 function Manager:bind(action, bindingSpec)
-    self.bindings[action] = normalizeBindings(bindingSpec)
+    local context = self:_ensureContext(self:_activeContextName())
+    context[action] = normalizeBindings(bindingSpec)
+    self.bindings = context
+
     if not self.current[action] then
         self.current[action] = {down = false, value = 0}
     end
@@ -109,9 +261,12 @@ function Manager:bind(action, bindingSpec)
 end
 
 function Manager:unbind(action)
-    self.bindings[action] = nil
-    self.current[action] = nil
-    self.previous[action] = nil
+    local context = self:_ensureContext(self:_activeContextName())
+    context[action] = nil
+    if context == self.bindings then
+        self.bindings[action] = nil
+    end
+    self:_syncStates()
 end
 
 function Manager:_digitalDown(binding)
@@ -146,7 +301,8 @@ function Manager:update()
         self.previous[action] = cloneActionState(state)
     end
 
-    for action, bindings in pairs(self.bindings) do
+    local activeBindings = self:_syncStates()
+    for action, bindings in pairs(activeBindings) do
         local down = false
         local axisValue = 0
 
@@ -210,6 +366,30 @@ end
 
 function input.unbind(...)
     return defaultManager:unbind(...)
+end
+
+function input.setContext(...)
+    return defaultManager:setContext(...)
+end
+
+function input.pushContext(...)
+    return defaultManager:pushContext(...)
+end
+
+function input.popContext(...)
+    return defaultManager:popContext(...)
+end
+
+function input.getContextStack(...)
+    return defaultManager:getContextStack(...)
+end
+
+function input.exportBindings(...)
+    return defaultManager:exportBindings(...)
+end
+
+function input.importBindings(...)
+    return defaultManager:importBindings(...)
 end
 
 function input.update(...)

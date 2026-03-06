@@ -253,6 +253,7 @@ EventQueue.__index = EventQueue
 function EventQueue.new()
     local self = setmetatable({}, EventQueue)
     self.queue = {}
+    self.head = 1
     self.emitter = EventEmitter.new()
     return self
 end
@@ -261,42 +262,62 @@ end
 ---@param eventName string Event name
 ---@param ... any Event data
 function EventQueue:enqueue(eventName, ...)
-    table.insert(self.queue, {
+    self.queue[#self.queue + 1] = {
         name = eventName,
         data = {...}
-    })
+    }
 end
 
 ---Process all queued events
 function EventQueue:process()
-    while #self.queue > 0 do
-        local event = table.remove(self.queue, 1)
+    while self.head <= #self.queue do
+        local event = self.queue[self.head]
+        self.head = self.head + 1
         self.emitter:emit(event.name, unpackValues(event.data))
     end
+    self.queue = {}
+    self.head = 1
 end
 
 ---Process a specific number of events
 ---@param count number Number of events to process
 function EventQueue:processN(count)
     for i = 1, count do
-        if #self.queue == 0 then
+        if self.head > #self.queue then
             break
         end
 
-        local event = table.remove(self.queue, 1)
+        local event = self.queue[self.head]
+        self.head = self.head + 1
         self.emitter:emit(event.name, unpackValues(event.data))
+    end
+
+    if self.head > #self.queue then
+        self.queue = {}
+        self.head = 1
+    elseif self.head > 64 and self.head > (#self.queue / 2) then
+        local compacted = {}
+        for i = self.head, #self.queue do
+            compacted[#compacted + 1] = self.queue[i]
+        end
+        self.queue = compacted
+        self.head = 1
     end
 end
 
 ---Get queue size
 ---@return number size
 function EventQueue:size()
-    return #self.queue
+    if self.head > #self.queue then
+        return 0
+    end
+    return #self.queue - self.head + 1
 end
 
 ---Clear the queue
 function EventQueue:clear()
     self.queue = {}
+    self.head = 1
 end
 
 ---Register an event listener

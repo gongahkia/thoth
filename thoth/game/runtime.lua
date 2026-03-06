@@ -44,9 +44,21 @@ function Runtime:registerSystem(system)
     assert(type(system) == "table", "System must be a table")
     assert(type(system.update) == "function" or type(system.fixedUpdate) == "function" or type(system.draw) == "function",
         "System must provide at least one of: update, fixedUpdate, draw")
+    if system.enabled == nil then
+        system.enabled = true
+    end
     table.insert(self.systems, system)
     sortSystems(self.systems)
     return system
+end
+
+function Runtime:enableSystem(name, enabled)
+    local system = self:getSystem(name)
+    if not system then
+        return false
+    end
+    system.enabled = enabled ~= false
+    return true
 end
 
 function Runtime:removeSystem(name)
@@ -81,14 +93,14 @@ function Runtime:update(dt)
 
     self.scheduler:advance(dt, function(stepDt, stepIndex)
         for _, system in ipairs(self.systems) do
-            if type(system.fixedUpdate) == "function" then
+            if system.enabled ~= false and type(system.fixedUpdate) == "function" then
                 system.fixedUpdate(self, stepDt, stepIndex)
             end
         end
     end)
 
     for _, system in ipairs(self.systems) do
-        if type(system.update) == "function" then
+        if system.enabled ~= false and type(system.update) == "function" then
             system.update(self, dt)
         end
     end
@@ -97,7 +109,7 @@ end
 function Runtime:draw(...)
     self.state:draw(...)
     for _, system in ipairs(self.systems) do
-        if type(system.draw) == "function" then
+        if system.enabled ~= false and type(system.draw) == "function" then
             system.draw(self, ...)
         end
     end
@@ -105,7 +117,7 @@ end
 
 function Runtime:dispatchInput(eventName, ...)
     for _, system in ipairs(self.systems) do
-        if type(system.onInput) == "function" then
+        if system.enabled ~= false and type(system.onInput) == "function" then
             system.onInput(self, eventName, ...)
         end
     end

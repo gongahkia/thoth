@@ -1,6 +1,7 @@
 [![](https://img.shields.io/badge/thoth_1.0.0-passing-%23004D00)](https://github.com/gongahkia/thoth/releases/tag/1.0.0)
 [![](https://img.shields.io/badge/thoth_2.0.0-passing-%23228B22)](https://github.com/gongahkia/thoth/releases/tag/2.0.0)
 [![](https://img.shields.io/badge/thoth_3.0.0-passing-%2332CD32)](https://github.com/gongahkia/thoth/releases/tag/3.0.0)
+[![](https://img.shields.io/badge/thoth_4.0.0-passing-%233CB371)](https://github.com/gongahkia/thoth/releases/tag/4.0.0)
 ![](https://github.com/gongahkia/thoth/actions/workflows/ci.yml/badge.svg)
 
 <h1 align='center'><code>thoth</code></h1>
@@ -76,28 +77,25 @@ $ make test
 </details>
 
 <details>
-<summary><b>Love2D Game Development</b></summary>
+<summary><b>Game Runtime & Adapters</b></summary>
 
-#### Animation & Tweening
-- **Love2DAnimation** - Sprite sheets, frame-based animation, property tweening with 12+ easing functions (linear, quad, cubic, sine, elastic, bounce)
+#### Runtime
+- **thoth.game.runtime** - Fixed + variable timestep runtime with ordered systems, tasks, tween timeline, and state manager integration
+- **thoth.game.frame** - Deterministic frame scheduler with accumulator and interpolation alpha
+- **thoth.game.state** - Stack-based scene/state manager with lifecycle callbacks
+- **thoth.game.tasks** - Coroutine task scheduler with delayed and repeating jobs
 
-#### Collision Detection
-- **Love2DCollision** - Circle, rectangle, and convex polygon collision using SAT (Separating Axis Theorem)
+#### Input, Motion & Space
+- **thoth.game.input** - Action-based input manager with digital + axis bindings
+- **thoth.game.tween** - Tween/timer/timeline utilities with easing
+- **thoth.game.pathfinding** - A* pathfinding for graph and grid use cases
+- **thoth.game.spatial** - Spatial hash and quadtree broad-phase helpers
 
-#### Rendering
-- **Love2DDraw** - Simple shape and text rendering helpers
-
-#### Point Testing
-- **Love2DPointIn** - Point-in-circle and point-in-rectangle containment checks
-
-#### Input Handling
-- **Love2DInput** - Keyboard and mouse input management with frame-based event detection, text input capture
-
-#### Entity-Component System
-- **Love2DEcs** - Full ECS architecture with entity queries, component management, and system processing
-
-#### State Management
-- **Love2DStates** - Game state/scene management with transitions, state stacking (push/pop), and lifecycle callbacks
+#### Engine Adapters
+- **thoth.adapters.love2d** - Love2D adapter for lifecycle hooks + input polling
+- **thoth.adapters.defold** - Defold adapter for runtime updates + input event bridging
+- **thoth.adapters.solar2d** - Solar2D adapter for frame/input bridge integration
+- **thoth.adapters.contract** - Adapter contract validation + null adapter for tests/headless usage
 
 </details>
 
@@ -105,10 +103,20 @@ $ make test
 
 ```lua
 -- eg usage
-local s = require("src.stringify")
+local s = require("thoth.core.stringify")
 print(s.Lstrip("###watermelon", "#"))
 
 -- or load all modules at once
-local thoth = require("init")
-print(thoth.stringify.Lstrip("###watermelon", "#"))
+local thoth = require("thoth")
+print(thoth.core.stringify.Lstrip("###watermelon", "#"))
+
+-- runtime + adapter usage
+local runtime = thoth.game.runtime.new(thoth.adapters.love2d.new(love))
+runtime.input:bind("jump", "space")
 ```
+
+## migration
+
+`thoth` v4 removes `src.*` imports in favor of `thoth.core.*`, `thoth.game.*`, and `thoth.adapters.*`.
+
+See [`MIGRATION.md`](MIGRATION.md) for the full import map.

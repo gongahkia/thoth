@@ -1,0 +1,13 @@
+.cache/
+*.rock
+*.log
+luacov.report.out
+luacov.stats.out
+
+# temporary files
+*.tmp
+*.swp
+*~
+
+# test artifacts
+test_tmp_*.lua

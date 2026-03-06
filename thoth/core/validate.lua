@@ -232,16 +232,19 @@ end
 ---@return boolean valid Whether validation passed
 ---@return string|nil error Error message if validation failed
 function validate.schema(value, schema)
+    -- Required/optional handling first
+    if value == nil then
+        if schema.required then
+            return false, "Value is required but got nil"
+        end
+        return true
+    end
+
     -- Type validation
     if schema.type then
         if type(value) ~= schema.type then
             return false, string.format("Expected type %s, got %s", schema.type, type(value))
         end
-    end
-
-    -- Required validation
-    if schema.required and value == nil then
-        return false, "Value is required but got nil"
     end
 
     -- Number validations
