@@ -1,4 +1,4 @@
-name: CI
+name: Thoth CI/CD on push
 
 on:
   push:
