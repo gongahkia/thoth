@@ -33,3 +33,19 @@ assert(fixedCount == 4, "Re-enabled system should run again")
 assert(updateCount == 2, "Re-enabled system should run variable update")
 
 assert(runtime:enableSystem("missing-system", false) == false)
+
+runtime.input:setContext("default")
+runtime.input:bind("confirm", "space")
+runtime.input:pushContext("menu")
+runtime.input:bind("confirm", "return")
+local stack = runtime.input:getContextStack()
+assert(#stack == 2 and stack[2] == "menu")
+
+local profile = runtime.input:exportBindings()
+assert(profile.contexts.default.confirm ~= nil)
+assert(profile.contexts.menu.confirm ~= nil)
+
+runtime.input:setContext("default")
+runtime.input:importBindings(profile, true)
+local importedStack = runtime.input:getContextStack()
+assert(#importedStack == 2 and importedStack[1] == "default" and importedStack[2] == "menu")
