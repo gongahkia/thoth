@@ -540,4 +540,53 @@ function serialize.loadLua(filename)
     return result
 end
 
+---Load a table from a Lua file in a restricted environment
+---@param filename string File path
+---@param env table|nil Optional environment overrides
+---@return table|nil data Loaded data or nil on error
+---@return string|nil error Error message if failed
+function serialize.loadLuaSafe(filename, env)
+    local baseEnv = {
+        ipairs = ipairs,
+        next = next,
+        pairs = pairs,
+        tonumber = tonumber,
+        tostring = tostring,
+        type = type,
+        unpack = table.unpack or unpack,
+        math = math,
+        string = string,
+        table = table,
+    }
+
+    local safeEnv = {}
+    for key, value in pairs(baseEnv) do
+        safeEnv[key] = value
+    end
+    for key, value in pairs(env or {}) do
+        safeEnv[key] = value
+    end
+
+    local chunk, err
+    if _VERSION == "Lua 5.1" then
+        chunk, err = loadfile(filename)
+        if chunk and setfenv then
+            setfenv(chunk, safeEnv)
+        end
+    else
+        chunk, err = loadfile(filename, "t", safeEnv)
+    end
+
+    if not chunk then
+        return nil, err
+    end
+
+    local success, result = pcall(chunk)
+    if not success then
+        return nil, result
+    end
+
+    return result
+end
+
 return serialize
