@@ -22,3 +22,17 @@ queue:enqueue("job")
 queue:processN(1)
 assert(processed == 1)
 assert(queue:size() == 1)
+queue:process()
+assert(processed == 2)
+assert(queue:size() == 0)
+
+local ordered = {}
+for i = 1, 200 do
+    queue:enqueue("job", i)
+end
+queue:on("job", function(v)
+    ordered[#ordered + 1] = v
+end)
+queue:process()
+assert(#ordered == 200)
+assert(ordered[1] == 1 and ordered[200] == 200)
