@@ -114,9 +114,3 @@ print(thoth.core.stringify.Lstrip("###watermelon", "#"))
 local runtime = thoth.game.runtime.new(thoth.adapters.love2d.new(love))
 runtime.input:bind("jump", "space")
 ```
-
-## migration
-
-`thoth` v4 removes `src.*` imports in favor of `thoth.core.*`, `thoth.game.*`, and `thoth.adapters.*`.
-
-See [`MIGRATION.md`](MIGRATION.md) for the full import map.
