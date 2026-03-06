@@ -21,3 +21,15 @@ runtime:registerSystem({
 runtime:update(0.35)
 assert(fixedCount == 3, "Expected 3 fixed updates with dt=0.35 and step=0.1")
 assert(updateCount == 1, "Expected one variable update call per frame")
+
+assert(runtime:enableSystem("counter", false))
+runtime:update(0.2)
+assert(fixedCount == 3, "Disabled systems should not run fixedUpdate")
+assert(updateCount == 1, "Disabled systems should not run update")
+
+assert(runtime:enableSystem("counter", true))
+runtime:update(0.1)
+assert(fixedCount == 4, "Re-enabled system should run again")
+assert(updateCount == 2, "Re-enabled system should run variable update")
+
+assert(runtime:enableSystem("missing-system", false) == false)
