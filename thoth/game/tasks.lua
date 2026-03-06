@@ -26,9 +26,17 @@ function Scheduler:spawn(fn, name, ...)
     local co = coroutine.create(fn)
     local id = self.nextId
     self.nextId = self.nextId + 1
-    local task = makeTask(id, name, co, self.time)
-    task.args = {...}
-    self.tasks[id] = task
+
+    local ok, yielded = coroutine.resume(co, ...)
+    if not ok then
+        error("Task '" .. tostring(name or id) .. "' failed during spawn: " .. tostring(yielded))
+    end
+
+    if coroutine.status(co) ~= "dead" then
+        local waitTime = tonumber(yielded) or 0
+        local task = makeTask(id, name, co, self.time + math.max(0, waitTime))
+        self.tasks[id] = task
+    end
     return id
 end
 
@@ -75,8 +83,7 @@ function Scheduler:update(dt)
         if task.cancelled then
             self.tasks[id] = nil
         elseif self.time >= task.wakeTime then
-            local ok, yielded = coroutine.resume(task.coroutine, table.unpack(task.args or {}))
-            task.args = nil
+            local ok, yielded = coroutine.resume(task.coroutine)
 
             if not ok then
                 error("Task '" .. task.name .. "' failed: " .. tostring(yielded))

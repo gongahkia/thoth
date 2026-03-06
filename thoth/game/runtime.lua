@@ -3,6 +3,7 @@ local inputModule = require("thoth.game.input")
 local stateModule = require("thoth.game.state")
 local tweenModule = require("thoth.game.tween")
 local tasksModule = require("thoth.game.tasks")
+local contract = require("thoth.adapters.contract")
 
 local runtime = {}
 
@@ -22,6 +23,11 @@ end
 
 function Runtime.new(adapter, options)
     options = options or {}
+    if adapter == nil then
+        adapter = contract.nullAdapter()
+    end
+    contract.assertValid(adapter)
+
     local self = setmetatable({}, Runtime)
     self.adapter = adapter
     self.scheduler = frame.new(options)

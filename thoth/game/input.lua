@@ -73,7 +73,7 @@ local function normalizeBindings(bindingSpec)
     if bindingSpec.axis then
         if type(bindingSpec.axis) == "string" then
             table.insert(normalized.axis, {name = bindingSpec.axis})
-        elseif type(bindingSpec.axis) == "table" and bindingSpec.axis.name then
+        elseif type(bindingSpec.axis) == "table" and (bindingSpec.axis.name or bindingSpec.axis.positive or bindingSpec.axis.negative) then
             table.insert(normalized.axis, bindingSpec.axis)
         elseif hasValues(bindingSpec.axis) then
             for _, axisBinding in ipairs(bindingSpec.axis) do

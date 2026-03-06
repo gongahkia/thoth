@@ -183,6 +183,7 @@ end
 ---@param word string Word to delete
 ---@return boolean success Whether the word was found and deleted
 function Trie:delete(word)
+    local deleted = false
     local function deleteRecursive(node, word, depth)
         if depth == #word then
             if not node.isEndOfWord then
@@ -191,6 +192,7 @@ function Trie:delete(word)
 
             node.isEndOfWord = false
             node.value = nil
+            deleted = true
 
             -- Check if node has no children
             return next(node.children) == nil
@@ -214,7 +216,8 @@ function Trie:delete(word)
         return false
     end
 
-    return deleteRecursive(self.root, word, 0)
+    deleteRecursive(self.root, word, 0)
+    return deleted
 end
 
 ---Get all words in the trie
