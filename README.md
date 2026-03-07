@@ -20,8 +20,7 @@
 
 ```console
 $ luarocks install thoth
-$ git clone https://github.com/gongahkia/thoth
-$ cd thoth
+$ git clone https://github.com/gongahkia/thoth && cd thoth
 $ make test
 ```
 
