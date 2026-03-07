@@ -30,52 +30,49 @@ $ make test
 <summary><b>Core Library</b></summary>
 
 #### Data Structures
-- **stacks** - LIFO stack with push/pop/peek operations
-- **queues** - FIFO queue with enqueue/dequeue functionality  
-- **links** - Singly-linked list implementation
-- **trees** - Binary search tree with insert/search/delete
-- **heaps** - Min/max heaps and priority queues with O(log n) operations
-- **tries** - Prefix tree for autocomplete and pattern matching with wildcard support
-- **graphs** - Directed/undirected weighted graphs with BFS, DFS, Dijkstra pathfinding
+- **stacks** - LIFO stack helpers with `push`, `pop`, `peek`, and `size`
+- **queues** - FIFO queue helpers with `push`, `pop`, `peek`, and `size`
+- **deques** - Double-ended queue with front/back insertion, removal, and inspection
+- **ringbuffers** - Fixed-capacity circular buffer with overwrite-on-full semantics
+- **links** - Singly-linked list with insert, delete, search, and size helpers
+- **sets** - Set container with membership tests plus union, intersection, and difference
+- **orderedmaps** - Insertion-ordered key/value map with stable key iteration
+- **trees** - Binary search tree with insert, search, delete, and inorder traversal
+- **heaps** - Min heap, max heap, priority queue, and heap-sort helpers
+- **tries** - Prefix tree with autocomplete, longest-common-prefix, delete, and wildcard pattern search
+- **graphs** - Directed/undirected weighted graphs with BFS, DFS, shortest paths, connectivity checks, cycle detection, and topological sort
+- **unionfind** - Disjoint-set / union-find structure for grouping and connectivity queries
 
 #### Mathematics
-- **math** - Common utilities: clamp, lerp, smoothstep, angle conversions, random ranges
-- **math2D** - 2D vector operations: add, subtract, scale, normalize, distance calculations (Euclidean & Manhattan)
+- **math** - Clamp, Fibonacci, lerp, range scaling, smoothing, angle conversion, and random range helpers
+- **math2d** / **math2D** - 2D vector math, normalization, scaling, angles, and Euclidean/Manhattan distance helpers
 
 #### String Manipulation
-- **stringify** - Comprehensive string utilities: strip, split, pad, truncate, word wrap, Levenshtein distance, template interpolation, case conversion
+- **stringify** - String trimming, splitting, joining, padding, centering, truncation, wrapping, replacement, similarity checks, template interpolation, and case conversion
 
 #### Table Operations  
-- **tables** - Functional programming helpers: map, filter, reduce, push/pop, shift/unshift
+- **tables** - Count, shallow copy, `map`, `filter`, `reduce`, `push`/`pop`, and `shift`/`unshift` helpers
 
 #### Validation
-- **validate** - Runtime type checking, schema validation, contract programming with pre/postconditions
+- **validate** - Primitive and collection validators, range/pattern checks, schema validation, contract wrappers, and validator builders
 
 #### Serialization
-- **serialize** - JSON and Lua table encoding/decoding with file I/O, deep copy with circular reference handling
+- **serialize** - Deep copy, JSON encode/decode, Lua table serialization, file save/load helpers, and sandboxed Lua loading
 
 #### Caching & Memoization
-- **cache** - Multiple cache implementations:
-  - Simple unbounded cache
-  - LRU (Least Recently Used) cache with bounded capacity
-  - TTL (Time-To-Live) cache with expiration
-  - Function memoization with LRU eviction
+- **cache** - Simple caches, LRU caches, TTL caches, memoization, and LRU-bounded memoization
 
 #### Event System
-- **events** - Full event-driven architecture:
-  - EventEmitter with on/once/off/emit
-  - Global EventBus for publish/subscribe
-  - EventQueue for deferred/batched processing
-  - Signal system for simplified single-listener patterns
+- **events** - Event emitter, event bus, deferred event queue, cancellable event objects, signal helper, and global publish/subscribe shortcuts
 
 #### Performance & Profiling
-- **performance** - Benchmarking and profiling tools:
-  - Timer for execution measurement
-  - Benchmark runner with statistics
-  - Function comparison utilities
-  - Call-level profiler
-  - Memory usage tracking
-  - FPS counter
+- **performance** - Timers, benchmarks, function comparisons, profiler, memory measurement, FPS counter, and formatting helpers
+
+#### Platform Utilities
+- **config** - Shallow config merging, environment variable lookup, and `.env` file loading
+- **datetime** - Unix timestamp helpers, ISO-8601 formatting, table conversion, and second-based time arithmetic
+- **logging** - Leveled structured logger with pluggable sink functions
+- **path** - Path join, normalize, basename, dirname, and extension helpers
 
 </details>
 
@@ -83,22 +80,32 @@ $ make test
 <summary><b>Game Runtime & Adapters</b></summary>
 
 #### Runtime
-- **thoth.game.runtime** - Fixed + variable timestep runtime with ordered systems, tasks, tween timeline, and state manager integration
-- **thoth.game.frame** - Deterministic frame scheduler with accumulator and interpolation alpha
-- **thoth.game.state** - Stack-based scene/state manager with lifecycle callbacks
-- **thoth.game.tasks** - Coroutine task scheduler with delayed and repeating jobs
+- **thoth.game.runtime** - Adapter-driven game loop with fixed-step simulation, per-frame update/draw phases, ordered systems, shared context, deterministic RNG, metrics/trace collection, debug HUD rendering, recording/replay, snapshots, and rollback support
+- **thoth.game.frame** - Deterministic accumulator scheduler exposing fixed-step counts and interpolation alpha
+- **thoth.game.random** - Seeded deterministic random generator with save/restore state and choice helpers
+- **thoth.game.state** - Stack-based scene/state manager with enter/exit/update/draw/dispatch hooks plus snapshot/restore support
+- **thoth.game.tasks** - Coroutine scheduler with spawned jobs, delayed jobs, repeating jobs, cancellation, inspection, and observer hooks
+- **thoth.game.tween** - Tween, timer, and timeline primitives with easing, pause/resume, completion callbacks, and timeline inspection
 
-#### Input, Motion & Space
-- **thoth.game.input** - Action-based input manager with digital + axis bindings
-- **thoth.game.tween** - Tween/timer/timeline utilities with easing
-- **thoth.game.pathfinding** - A* pathfinding for graph and grid use cases
-- **thoth.game.spatial** - Spatial hash and quadtree broad-phase helpers
+#### Input & Gameplay Primitives
+- **thoth.game.input** - Action-based input manager with keyboard, mouse, gamepad, touch, and axis bindings; deadzones/curves/scaling; layered contexts; import/export; and frame capture/apply for replay
+- **thoth.game.animation** - Lightweight state-machine animation controller with enter/exit hooks and conditional transitions
+- **thoth.game.behavior** - Behavior-tree helpers for conditions, actions, sequences, selectors, inversion, and repeat-until-failure flows
+- **thoth.game.ecs** - Minimal table-oriented ECS helpers for querying, grouping, batch updates, and removals
+- **thoth.game.camera** - 2D camera with viewport, zoom, bounds, target following, shake, and world/screen conversion
+- **thoth.game.collision** - Rect/circle helpers plus point tests, overlap tests, segment intersection, and simple raycasts
+
+#### World & Navigation
+- **thoth.game.tilemap** - Layered tilemap storage with cell/world conversions, mutation helpers, and walkability checks
+- **thoth.game.navigation** - Tilemap-to-grid and tilemap-to-waypoint-graph helpers built on top of pathfinding + core graphs
+- **thoth.game.pathfinding** - A* pathfinding for weighted graphs and grids with custom heuristics, costs, and optional diagonal movement
+- **thoth.game.spatial** - Spatial hash and quadtree broad-phase helpers with range, nearest-neighbor, update, and clear operations
 
 #### Engine Adapters
-- **thoth.adapters.love2d** - Love2D adapter for lifecycle hooks + input polling
-- **thoth.adapters.defold** - Defold adapter for runtime updates + input event bridging
-- **thoth.adapters.solar2d** - Solar2D adapter for frame/input bridge integration
-- **thoth.adapters.contract** - Adapter contract validation + null adapter for tests/headless usage
+- **thoth.adapters.love2d** - Love2D adapter for lifecycle registration, keyboard/mouse/touch/gamepad/window polling, and optional debug draw support
+- **thoth.adapters.defold** - Defold adapter for runtime lifecycle registration, input-event bridging, and axis state tracking
+- **thoth.adapters.solar2d** - Solar2D adapter for frame, key, touch, and axis event integration
+- **thoth.adapters.contract** - Adapter capability contract, validation helpers, support assertions, and a null/headless adapter for tests or offline simulation
 
 </details>
 
