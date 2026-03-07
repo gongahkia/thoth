@@ -38,6 +38,7 @@ build = {
       ["thoth.game.frame"] = "thoth/game/frame.lua",
       ["thoth.game.input"] = "thoth/game/input.lua",
       ["thoth.game.pathfinding"] = "thoth/game/pathfinding.lua",
+      ["thoth.game.random"] = "thoth/game/random.lua",
       ["thoth.game.runtime"] = "thoth/game/runtime.lua",
       ["thoth.game.spatial"] = "thoth/game/spatial.lua",
       ["thoth.game.state"] = "thoth/game/state.lua",

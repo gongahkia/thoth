@@ -2,6 +2,7 @@ local modules = {
     frame = "thoth.game.frame",
     input = "thoth.game.input",
     pathfinding = "thoth.game.pathfinding",
+    random = "thoth.game.random",
     runtime = "thoth.game.runtime",
     spatial = "thoth.game.spatial",
     state = "thoth.game.state",
