@@ -11,13 +11,18 @@ function api.withSnakeCaseAliases(module, aliases)
         return module
     end
 
+    local generated = {}
     for key, value in pairs(module) do
         if type(key) == "string" and key:match("^[A-Z]") then
             local alias = camelToSnake(key)
             if alias ~= key and module[alias] == nil then
-                module[alias] = value
+                generated[alias] = value
             end
         end
+    end
+
+    for alias, value in pairs(generated) do
+        module[alias] = value
     end
 
     if aliases then
