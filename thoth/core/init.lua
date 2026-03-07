@@ -1,5 +1,7 @@
 local modules = {
     cache = "thoth.core.cache",
+    config = "thoth.core.config",
+    datetime = "thoth.core.datetime",
     deques = "thoth.core.deques",
     events = "thoth.core.events",
     graphs = "thoth.core.graphs",
@@ -8,7 +10,9 @@ local modules = {
     orderedmaps = "thoth.core.orderedmaps",
     math = "thoth.core.math",
     math2D = "thoth.core.math2D",
+    logging = "thoth.core.logging",
     performance = "thoth.core.performance",
+    path = "thoth.core.path",
     queues = "thoth.core.queues",
     ringbuffers = "thoth.core.ringbuffers",
     serialize = "thoth.core.serialize",
