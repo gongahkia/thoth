@@ -1,5 +1,6 @@
 local frame = require("thoth.game.frame")
 local inputModule = require("thoth.game.input")
+local randomModule = require("thoth.game.random")
 local stateModule = require("thoth.game.state")
 local tweenModule = require("thoth.game.tween")
 local tasksModule = require("thoth.game.tasks")
@@ -9,6 +10,14 @@ local runtime = {}
 
 local Runtime = {}
 Runtime.__index = Runtime
+
+local function shallowCopy(tbl)
+    local copy = {}
+    for key, value in pairs(tbl) do
+        copy[key] = value
+    end
+    return copy
+end
 
 local function sortSystems(systems)
     table.sort(systems, function(a, b)
@@ -33,11 +42,42 @@ function Runtime.new(adapter, options)
     self.scheduler = frame.new(options)
     self.systems = {}
     self.input = inputModule.new(adapter)
+    self.random = randomModule.new(options.seed)
     self.state = stateModule.new()
     self.timeline = tweenModule.newTimeline()
     self.tasks = tasksModule.new()
     self.context = options.context or {}
+    self.frameInfo = {
+        index = 0,
+        time = 0,
+        fixedIndex = 0,
+        fixedTime = 0,
+        lastDelta = 0,
+        fixedDelta = self.scheduler.fixedDelta,
+        fixedStepsLastFrame = 0,
+        alpha = 0,
+    }
     return self
+end
+
+function Runtime:getFrameInfo()
+    return shallowCopy(self.frameInfo)
+end
+
+function Runtime:getSeed()
+    return self.random:getInitialSeed()
+end
+
+function Runtime:setSeed(seed)
+    return self.random:setSeed(seed)
+end
+
+function Runtime:randomNumber(min, max)
+    return self.random:random(min, max)
+end
+
+function Runtime:randomChoice(values)
+    return self.random:choice(values)
 end
 
 function Runtime:registerSystem(system)
@@ -85,19 +125,27 @@ function Runtime:update(dt)
         dt = self.adapter:delta()
     end
     dt = dt or self.scheduler.fixedDelta
+    self.frameInfo.index = self.frameInfo.index + 1
+    self.frameInfo.lastDelta = dt
+    self.frameInfo.time = self.frameInfo.time + dt
+    self.frameInfo.fixedDelta = self.scheduler.fixedDelta
 
     self.input:update()
     self.tasks:update(dt)
     self.timeline:update(dt)
     self.state:update(dt)
 
-    self.scheduler:advance(dt, function(stepDt, stepIndex)
+    local steps, alpha = self.scheduler:advance(dt, function(stepDt, stepIndex)
+        self.frameInfo.fixedIndex = self.frameInfo.fixedIndex + 1
+        self.frameInfo.fixedTime = self.frameInfo.fixedTime + stepDt
         for _, system in ipairs(self.systems) do
             if system.enabled ~= false and type(system.fixedUpdate) == "function" then
                 system.fixedUpdate(self, stepDt, stepIndex)
             end
         end
     end)
+    self.frameInfo.fixedStepsLastFrame = steps
+    self.frameInfo.alpha = alpha
 
     for _, system in ipairs(self.systems) do
         if system.enabled ~= false and type(system.update) == "function" then
