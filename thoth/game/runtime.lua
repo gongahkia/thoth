@@ -26,6 +26,19 @@ local function normalizeRecording(recording)
     return recording
 end
 
+local function callSnapshotHook(target, runtime)
+    if target and type(target.snapshot) == "function" then
+        return target:snapshot(runtime)
+    end
+    return nil
+end
+
+local function callRestoreHook(target, runtime, snapshot)
+    if target and snapshot ~= nil and type(target.restore) == "function" then
+        target:restore(runtime, snapshot)
+    end
+end
+
 local function sortSystems(systems)
     table.sort(systems, function(a, b)
         local pa = a.priority or 0
@@ -118,14 +131,15 @@ function Runtime:stopRecording()
     return recording
 end
 
-function Runtime:loadReplay(recording)
+function Runtime:loadReplay(recording, options)
+    options = options or {}
     recording = normalizeRecording(serialize.deepCopy(recording))
     self.recording = nil
     self.replay = {
         recording = recording,
         cursor = 1,
     }
-    if recording.seed ~= nil then
+    if recording.seed ~= nil and options.restoreSeed ~= false then
         self:setSeed(recording.seed)
     end
     if type(recording.fixedDelta) == "number" and recording.fixedDelta > 0 then
@@ -150,6 +164,119 @@ function Runtime:stopReplay()
     local replay = self.replay and serialize.deepCopy(self.replay.recording) or nil
     self.replay = nil
     return replay
+end
+
+function Runtime:snapshot()
+    local systemSnapshots = {}
+    local taskSnapshot = callSnapshotHook(self.tasks, self)
+    local timelineSnapshot = callSnapshotHook(self.timeline, self)
+
+    for index, system in ipairs(self.systems) do
+        if type(system.snapshot) == "function" then
+            local key = system.name or tostring(index)
+            systemSnapshots[key] = system:snapshot(self)
+        end
+    end
+
+    return {
+        version = 1,
+        seed = self:getSeed(),
+        random = self.random:getState(),
+        frameInfo = shallowCopy(self.frameInfo),
+        scheduler = self.scheduler:getState(),
+        context = serialize.deepCopy(self.context),
+        input = self.input:snapshot(),
+        state = self.state:snapshot(),
+        systems = systemSnapshots,
+        services = {
+            tasks = taskSnapshot,
+            timeline = timelineSnapshot,
+        },
+    }
+end
+
+function Runtime:restore(snapshot)
+    assert(type(snapshot) == "table", "Runtime snapshot must be a table")
+
+    if snapshot.random then
+        self.random:setState(snapshot.random)
+    elseif snapshot.seed ~= nil then
+        self:setSeed(snapshot.seed)
+    end
+
+    if snapshot.scheduler then
+        self.scheduler:setState(snapshot.scheduler)
+    end
+
+    if snapshot.frameInfo then
+        self.frameInfo = shallowCopy(snapshot.frameInfo)
+    else
+        self.frameInfo.fixedDelta = self.scheduler.fixedDelta
+    end
+    self.frameInfo.fixedDelta = self.scheduler.fixedDelta
+
+    self.context = serialize.deepCopy(snapshot.context or {})
+
+    if snapshot.input then
+        self.input:restore(snapshot.input)
+    end
+
+    if snapshot.state then
+        self.state:restore(snapshot.state)
+    end
+
+    for index, system in ipairs(self.systems) do
+        local key = system.name or tostring(index)
+        if snapshot.systems and snapshot.systems[key] ~= nil and type(system.restore) == "function" then
+            system:restore(self, snapshot.systems[key])
+        end
+    end
+
+    if snapshot.services then
+        callRestoreHook(self.tasks, self, snapshot.services.tasks)
+        callRestoreHook(self.timeline, self, snapshot.services.timeline)
+    end
+
+    return self
+end
+
+function Runtime:saveSnapshot(filename, snapshot, varName)
+    return serialize.saveLua(filename, snapshot or self:snapshot(), varName or "snapshot")
+end
+
+function Runtime:loadSnapshot(filename, env)
+    local snapshot, err = serialize.loadLuaSafe(filename, env)
+    if not snapshot then
+        return nil, err
+    end
+    self:restore(snapshot)
+    return snapshot
+end
+
+function Runtime:rollback(snapshot, recording, fromFrame)
+    self:restore(snapshot)
+
+    if recording then
+        local replay = normalizeRecording(serialize.deepCopy(recording))
+        local startFrame = fromFrame
+        if startFrame == nil and snapshot.frameInfo and snapshot.frameInfo.index then
+            startFrame = snapshot.frameInfo.index + 1
+        end
+
+        if startFrame then
+            local slicedFrames = {}
+            for i = startFrame, #replay.frames do
+                slicedFrames[#slicedFrames + 1] = replay.frames[i]
+            end
+            replay.frames = slicedFrames
+        end
+
+        self:loadReplay(replay, {
+            restoreSeed = not (startFrame and startFrame > 1),
+        })
+    end
+
+    return self
 end
 
 function Runtime:registerSystem(system)

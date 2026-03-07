@@ -42,6 +42,32 @@ function Scheduler:reset()
     self.alpha = 0
 end
 
+function Scheduler:getState()
+    return {
+        fixedDelta = self.fixedDelta,
+        maxSubsteps = self.maxSubsteps,
+        maxFrameDelta = self.maxFrameDelta,
+        accumulator = self.accumulator,
+        alpha = self.alpha,
+    }
+end
+
+function Scheduler:setState(state)
+    assert(type(state) == "table", "Scheduler state must be a table")
+    if type(state.fixedDelta) == "number" and state.fixedDelta > 0 then
+        self.fixedDelta = state.fixedDelta
+    end
+    if type(state.maxSubsteps) == "number" and state.maxSubsteps > 0 then
+        self.maxSubsteps = state.maxSubsteps
+    end
+    if type(state.maxFrameDelta) == "number" and state.maxFrameDelta > 0 then
+        self.maxFrameDelta = state.maxFrameDelta
+    end
+    self.accumulator = tonumber(state.accumulator) or 0
+    self.alpha = tonumber(state.alpha) or 0
+    return self
+end
+
 function frame.new(options)
     return Scheduler.new(options)
 end

@@ -364,6 +364,46 @@ function Manager:applyRecordedFrame(frame)
     end
 end
 
+function Manager:snapshot()
+    return {
+        contexts = deepCopy(self.contexts),
+        contextStack = deepCopy(self.contextStack),
+        current = deepCopy(self.current),
+        previous = deepCopy(self.previous),
+    }
+end
+
+function Manager:restore(snapshot)
+    assert(type(snapshot) == "table", "Input snapshot must be a table")
+
+    self.contexts = deepCopy(snapshot.contexts or {})
+    if not next(self.contexts) then
+        self.contexts.default = {}
+    end
+
+    local restoredStack = {}
+    if type(snapshot.contextStack) == "table" and #snapshot.contextStack > 0 then
+        for _, contextName in ipairs(snapshot.contextStack) do
+            if type(contextName) == "string" and #contextName > 0 then
+                self:_ensureContext(contextName)
+                restoredStack[#restoredStack + 1] = contextName
+            end
+        end
+    end
+
+    if #restoredStack == 0 then
+        restoredStack = {"default"}
+        self:_ensureContext("default")
+    end
+
+    self.contextStack = restoredStack
+    self.bindings = self.contexts[self:_activeContextName()]
+    self.current = deepCopy(snapshot.current or {})
+    self.previous = deepCopy(snapshot.previous or {})
+    self:_syncStates()
+    return self
+end
+
 function Manager:down(action)
     return self.current[action] and self.current[action].down or false
 end
@@ -439,6 +479,14 @@ end
 
 function input.applyRecordedFrame(...)
     return defaultManager:applyRecordedFrame(...)
+end
+
+function input.snapshot(...)
+    return defaultManager:snapshot(...)
+end
+
+function input.restore(...)
+    return defaultManager:restore(...)
 end
 
 function input.down(...)
