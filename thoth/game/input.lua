@@ -297,6 +297,7 @@ function Manager:_axisValue(binding)
 end
 
 function Manager:update()
+    self.previous = {}
     for action, state in pairs(self.current) do
         self.previous[action] = cloneActionState(state)
     end
@@ -324,6 +325,42 @@ function Manager:update()
             down = down or (axisValue ~= 0),
             value = axisValue
         }
+    end
+end
+
+function Manager:captureFrame()
+    return {
+        actions = deepCopy(self.current),
+        contextStack = deepCopy(self.contextStack),
+    }
+end
+
+function Manager:applyRecordedFrame(frame)
+    assert(type(frame) == "table", "Recorded frame must be a table")
+
+    local restoredStack = {}
+    if type(frame.contextStack) == "table" and #frame.contextStack > 0 then
+        for _, contextName in ipairs(frame.contextStack) do
+            if type(contextName) == "string" and #contextName > 0 then
+                self:_ensureContext(contextName)
+                restoredStack[#restoredStack + 1] = contextName
+            end
+        end
+    end
+
+    if #restoredStack > 0 then
+        self.contextStack = restoredStack
+        self.bindings = self.contexts[self:_activeContextName()]
+    end
+
+    self.previous = {}
+    for action, state in pairs(self.current) do
+        self.previous[action] = cloneActionState(state)
+    end
+
+    self.current = {}
+    for action, state in pairs(frame.actions or {}) do
+        self.current[action] = cloneActionState(state)
     end
 end
 
@@ -394,6 +431,14 @@ end
 
 function input.update(...)
     return defaultManager:update(...)
+end
+
+function input.captureFrame(...)
+    return defaultManager:captureFrame(...)
+end
+
+function input.applyRecordedFrame(...)
+    return defaultManager:applyRecordedFrame(...)
 end
 
 function input.down(...)

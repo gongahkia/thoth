@@ -1,4 +1,5 @@
 local frame = require("thoth.game.frame")
+local serialize = require("thoth.core.serialize")
 local inputModule = require("thoth.game.input")
 local randomModule = require("thoth.game.random")
 local stateModule = require("thoth.game.state")
@@ -17,6 +18,12 @@ local function shallowCopy(tbl)
         copy[key] = value
     end
     return copy
+end
+
+local function normalizeRecording(recording)
+    assert(type(recording) == "table", "Recording must be a table")
+    assert(type(recording.frames) == "table", "Recording must include a frames array")
+    return recording
 end
 
 local function sortSystems(systems)
@@ -57,6 +64,8 @@ function Runtime.new(adapter, options)
         fixedStepsLastFrame = 0,
         alpha = 0,
     }
+    self.recording = nil
+    self.replay = nil
     return self
 end
 
@@ -78,6 +87,69 @@ end
 
 function Runtime:randomChoice(values)
     return self.random:choice(values)
+end
+
+function Runtime:startRecording(metadata)
+    self.replay = nil
+    self.recording = {
+        version = 1,
+        seed = self:getSeed(),
+        fixedDelta = self.scheduler.fixedDelta,
+        metadata = serialize.deepCopy(metadata or {}),
+        frames = {},
+    }
+    return self:getRecording()
+end
+
+function Runtime:isRecording()
+    return self.recording ~= nil
+end
+
+function Runtime:getRecording()
+    if not self.recording then
+        return nil
+    end
+    return serialize.deepCopy(self.recording)
+end
+
+function Runtime:stopRecording()
+    local recording = self:getRecording()
+    self.recording = nil
+    return recording
+end
+
+function Runtime:loadReplay(recording)
+    recording = normalizeRecording(serialize.deepCopy(recording))
+    self.recording = nil
+    self.replay = {
+        recording = recording,
+        cursor = 1,
+    }
+    if recording.seed ~= nil then
+        self:setSeed(recording.seed)
+    end
+    if type(recording.fixedDelta) == "number" and recording.fixedDelta > 0 then
+        self.scheduler.fixedDelta = recording.fixedDelta
+        self.frameInfo.fixedDelta = recording.fixedDelta
+    end
+    return self
+end
+
+function Runtime:isReplaying()
+    return self.replay ~= nil
+end
+
+function Runtime:getReplayCursor()
+    if not self.replay then
+        return nil
+    end
+    return self.replay.cursor
+end
+
+function Runtime:stopReplay()
+    local replay = self.replay and serialize.deepCopy(self.replay.recording) or nil
+    self.replay = nil
+    return replay
 end
 
 function Runtime:registerSystem(system)
@@ -121,6 +193,18 @@ function Runtime:getSystem(name)
 end
 
 function Runtime:update(dt)
+    local replayFrame = nil
+    if self.replay then
+        replayFrame = self.replay.recording.frames[self.replay.cursor]
+        if not replayFrame then
+            self.replay = nil
+            return false
+        end
+        if dt == nil then
+            dt = replayFrame.dt
+        end
+    end
+
     if dt == nil and self.adapter and type(self.adapter.delta) == "function" then
         dt = self.adapter:delta()
     end
@@ -130,7 +214,17 @@ function Runtime:update(dt)
     self.frameInfo.time = self.frameInfo.time + dt
     self.frameInfo.fixedDelta = self.scheduler.fixedDelta
 
-    self.input:update()
+    if replayFrame then
+        self.input:applyRecordedFrame(replayFrame.input or {})
+    else
+        self.input:update()
+        if self.recording then
+            self.recording.frames[#self.recording.frames + 1] = {
+                dt = dt,
+                input = self.input:captureFrame(),
+            }
+        end
+    end
     self.tasks:update(dt)
     self.timeline:update(dt)
     self.state:update(dt)
@@ -150,6 +244,13 @@ function Runtime:update(dt)
     for _, system in ipairs(self.systems) do
         if system.enabled ~= false and type(system.update) == "function" then
             system.update(self, dt)
+        end
+    end
+
+    if self.replay then
+        self.replay.cursor = self.replay.cursor + 1
+        if self.replay.cursor > #self.replay.recording.frames then
+            self.replay = nil
         end
     end
 end
