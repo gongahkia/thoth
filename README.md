@@ -4,7 +4,7 @@
 [![](https://img.shields.io/badge/thoth_4.0.0-passing-%233CB371)](https://github.com/gongahkia/thoth/releases/tag/4.0.0)
 ![](https://github.com/gongahkia/thoth/actions/workflows/ci.yml/badge.svg)
 
-<h1 align='center'><code>thoth</code></h1>
+<h1 align='center'><code>Thoth</code></h1>
 <div align='center'>
 <p>
   <i>Functional lua pocket knife.</i>
@@ -12,7 +12,11 @@
 <img src='https://github.com/gongahkia/thoth/assets/117062305/276628d5-aefa-442c-ad3e-5df51b4357b3' width=50% height=50%></img>
 </div>
 
-## installation
+## Rationale
+
+
+
+## Installation
 
 ```console
 $ luarocks install thoth
@@ -21,7 +25,7 @@ $ cd thoth
 $ make test
 ```
 
-## `thoth` provides....
+## `Thoth` provides....
 
 <details>
 <summary><b>Core Library</b></summary>
@@ -99,7 +103,7 @@ $ make test
 
 </details>
 
-## usage
+## Usage
 
 ```lua
 -- eg usage
