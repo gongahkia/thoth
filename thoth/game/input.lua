@@ -1,3 +1,4 @@
+local contract = require("thoth.adapters.contract")
 local input = {}
 
 local function hasValues(tbl)
@@ -270,13 +271,19 @@ function Manager:unbind(action)
 end
 
 function Manager:_digitalDown(binding)
+    local capability = binding.kind == "mouse" and "mouse" or "keyboard"
+    if not contract.supports(self.adapter, capability) then
+        return false
+    end
     return callAdapter(self.adapter, "isDown", binding) == true
 end
 
 function Manager:_axisValue(binding)
-    local value = callAdapter(self.adapter, "getAxis", binding)
-    if type(value) == "number" then
-        return value
+    if contract.supports(self.adapter, "axis") then
+        local value = callAdapter(self.adapter, "getAxis", binding)
+        if type(value) == "number" then
+            return value
+        end
     end
 
     local positiveDown = false

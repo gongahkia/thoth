@@ -1,3 +1,4 @@
+local contract = require("thoth.adapters.contract")
 local defold = {}
 
 local Adapter = {}
@@ -11,11 +12,16 @@ function Adapter.new()
         mouse = {},
         axes = {},
     }
-    self.capabilities = {
-        lifecycle = true,
-        rendering = false,
-        input = true
-    }
+    self.capabilities = contract.capabilities({
+        clock = true,
+        lifecycle = {
+            supported = true,
+            hooks = {"update", "on_input", "on_message", "draw"},
+        },
+        keyboard = true,
+        mouse = true,
+        axis = true,
+    })
     return self
 end
 

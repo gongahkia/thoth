@@ -1,3 +1,4 @@
+local contract = require("thoth.adapters.contract")
 local solar2d = {}
 
 local Adapter = {}
@@ -12,11 +13,15 @@ function Adapter.new()
         mouse = {},
         axes = {},
     }
-    self.capabilities = {
-        lifecycle = true,
-        rendering = true,
-        input = true
-    }
+    self.capabilities = contract.capabilities({
+        clock = true,
+        lifecycle = {
+            supported = true,
+            hooks = {"enterFrame", "key", "axis", "draw"},
+        },
+        keyboard = true,
+        axis = true,
+    })
     return self
 end
 

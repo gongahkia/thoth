@@ -401,7 +401,7 @@ function Runtime:dispatchInput(eventName, ...)
 end
 
 function Runtime:attachLifecycle(options)
-    if not self.adapter or type(self.adapter.registerLifecycle) ~= "function" then
+    if not contract.supports(self.adapter, "lifecycle") then
         return nil
     end
     return self.adapter:registerLifecycle(self, options or {})
