@@ -79,6 +79,20 @@ function Runtime.new(adapter, options)
     }
     self.recording = nil
     self.replay = nil
+    self.traceLimit = options.traceLimit or 64
+    self.metricsHistoryLimit = options.metricsHistoryLimit or 32
+    self.traceLog = {}
+    self.metrics = {
+        lastFrame = nil,
+        history = {},
+    }
+
+    self.tasks:setObserver(function(eventName, data)
+        self:_trace("tasks." .. eventName, data)
+    end)
+    self.timeline:setObserver(function(eventName, data)
+        self:_trace("timeline." .. eventName, data)
+    end)
     return self
 end
 
@@ -100,6 +114,103 @@ end
 
 function Runtime:randomChoice(values)
     return self.random:choice(values)
+end
+
+function Runtime:_trace(eventName, data)
+    self.traceLog[#self.traceLog + 1] = {
+        frame = self.frameInfo.index,
+        event = eventName,
+        data = serialize.deepCopy(data or {}),
+    }
+
+    if #self.traceLog > self.traceLimit then
+        table.remove(self.traceLog, 1)
+    end
+end
+
+function Runtime:_recordFrameMetrics(metrics)
+    self.metrics.lastFrame = metrics
+    self.metrics.history[#self.metrics.history + 1] = metrics
+    if #self.metrics.history > self.metricsHistoryLimit then
+        table.remove(self.metrics.history, 1)
+    end
+end
+
+function Runtime:getMetrics()
+    return serialize.deepCopy(self.metrics)
+end
+
+function Runtime:getTrace()
+    return serialize.deepCopy(self.traceLog)
+end
+
+function Runtime:clearTrace()
+    self.traceLog = {}
+end
+
+function Runtime:inspectTasks()
+    return self.tasks:inspect()
+end
+
+function Runtime:inspectTimeline()
+    return self.timeline:inspect()
+end
+
+function Runtime:getDebugHudLines()
+    local frameInfo = self.frameInfo
+    local metrics = self.metrics.lastFrame or {
+        systems = {},
+        input = 0,
+        tasks = 0,
+        timeline = 0,
+        state = 0,
+        total = 0,
+    }
+    local timeline = self:inspectTimeline()
+    local lines = {
+        string.format("frame=%d fixed=%d steps=%d alpha=%.3f dt=%.4f", frameInfo.index, frameInfo.fixedIndex, frameInfo.fixedStepsLastFrame, frameInfo.alpha, frameInfo.lastDelta),
+        string.format("input=%.3fms tasks=%.3fms timeline=%.3fms state=%.3fms total=%.3fms", metrics.input * 1000, metrics.tasks * 1000, metrics.timeline * 1000, metrics.state * 1000, metrics.total * 1000),
+        string.format("active_tasks=%d active_tweens=%d active_timers=%d trace=%d", #self:inspectTasks(), #timeline.tweens, #timeline.timers, #self.traceLog),
+    }
+
+    local names = {}
+    for name in pairs(metrics.systems or {}) do
+        names[#names + 1] = name
+    end
+    table.sort(names)
+    for _, name in ipairs(names) do
+        local item = metrics.systems[name]
+        lines[#lines + 1] = string.format("%s fixed=%.3fms update=%.3fms draw=%.3fms",
+            name,
+            (item.fixed or 0) * 1000,
+            (item.update or 0) * 1000,
+            (item.draw or 0) * 1000)
+    end
+
+    return lines
+end
+
+function Runtime:drawDebugHud(drawText, x, y, lineHeight)
+    local lines = self:getDebugHudLines()
+    x = x or 8
+    y = y or 8
+    lineHeight = lineHeight or 14
+
+    if type(drawText) == "function" then
+        for i, line in ipairs(lines) do
+            drawText(line, x, y + ((i - 1) * lineHeight))
+        end
+        return true
+    end
+
+    if contract.supports(self.adapter, "debugDraw") and type(self.adapter.debugDraw) == "function" then
+        for i, line in ipairs(lines) do
+            self.adapter:debugDraw("text", line, x, y + ((i - 1) * lineHeight))
+        end
+        return true
+    end
+
+    return false
 end
 
 function Runtime:startRecording(metadata)
@@ -336,11 +447,26 @@ function Runtime:update(dt)
         dt = self.adapter:delta()
     end
     dt = dt or self.scheduler.fixedDelta
+    local frameStart = os.clock()
+    local metrics = {
+        dt = dt,
+        systems = {},
+        input = 0,
+        tasks = 0,
+        timeline = 0,
+        state = 0,
+        total = 0,
+    }
     self.frameInfo.index = self.frameInfo.index + 1
     self.frameInfo.lastDelta = dt
     self.frameInfo.time = self.frameInfo.time + dt
     self.frameInfo.fixedDelta = self.scheduler.fixedDelta
+    self:_trace("update.start", {
+        dt = dt,
+        replay = replayFrame ~= nil,
+    })
 
+    local inputStart = os.clock()
     if replayFrame then
         self.input:applyRecordedFrame(replayFrame.input or {})
     else
@@ -352,16 +478,34 @@ function Runtime:update(dt)
             }
         end
     end
+    metrics.input = os.clock() - inputStart
+
+    local tasksStart = os.clock()
     self.tasks:update(dt)
+    metrics.tasks = os.clock() - tasksStart
+
+    local timelineStart = os.clock()
     self.timeline:update(dt)
+    metrics.timeline = os.clock() - timelineStart
+
+    local stateStart = os.clock()
     self.state:update(dt)
+    metrics.state = os.clock() - stateStart
 
     local steps, alpha = self.scheduler:advance(dt, function(stepDt, stepIndex)
+        self:_trace("fixed_step", {
+            dt = stepDt,
+            index = stepIndex,
+        })
         self.frameInfo.fixedIndex = self.frameInfo.fixedIndex + 1
         self.frameInfo.fixedTime = self.frameInfo.fixedTime + stepDt
         for _, system in ipairs(self.systems) do
             if system.enabled ~= false and type(system.fixedUpdate) == "function" then
+                local name = system.name or "<anonymous>"
+                metrics.systems[name] = metrics.systems[name] or {fixed = 0, update = 0, draw = 0}
+                local started = os.clock()
                 system.fixedUpdate(self, stepDt, stepIndex)
+                metrics.systems[name].fixed = metrics.systems[name].fixed + (os.clock() - started)
             end
         end
     end)
@@ -370,7 +514,11 @@ function Runtime:update(dt)
 
     for _, system in ipairs(self.systems) do
         if system.enabled ~= false and type(system.update) == "function" then
+            local name = system.name or "<anonymous>"
+            metrics.systems[name] = metrics.systems[name] or {fixed = 0, update = 0, draw = 0}
+            local started = os.clock()
             system.update(self, dt)
+            metrics.systems[name].update = metrics.systems[name].update + (os.clock() - started)
         end
     end
 
@@ -380,18 +528,37 @@ function Runtime:update(dt)
             self.replay = nil
         end
     end
+
+    metrics.total = os.clock() - frameStart
+    self:_recordFrameMetrics(metrics)
+    self:_trace("update.end", {
+        dt = dt,
+        fixedSteps = steps,
+    })
 end
 
 function Runtime:draw(...)
+    local drawMetrics = self.metrics.lastFrame
     self.state:draw(...)
     for _, system in ipairs(self.systems) do
         if system.enabled ~= false and type(system.draw) == "function" then
-            system.draw(self, ...)
+            if drawMetrics then
+                local name = system.name or "<anonymous>"
+                drawMetrics.systems[name] = drawMetrics.systems[name] or {fixed = 0, update = 0, draw = 0}
+                local started = os.clock()
+                system.draw(self, ...)
+                drawMetrics.systems[name].draw = drawMetrics.systems[name].draw + (os.clock() - started)
+            else
+                system.draw(self, ...)
+            end
         end
     end
 end
 
 function Runtime:dispatchInput(eventName, ...)
+    self:_trace("input.dispatch", {
+        event = eventName,
+    })
     for _, system in ipairs(self.systems) do
         if system.enabled ~= false and type(system.onInput) == "function" then
             system.onInput(self, eventName, ...)

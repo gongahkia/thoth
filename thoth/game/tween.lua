@@ -126,16 +126,28 @@ function Timeline.new()
     local self = setmetatable({}, Timeline)
     self.tweens = {}
     self.timers = {}
+    self.observer = nil
     return self
 end
 
 function Timeline:addTween(item)
     table.insert(self.tweens, item)
+    if self.observer then
+        self.observer("tween_added", {
+            duration = item.duration,
+        })
+    end
     return item
 end
 
 function Timeline:addTimer(item)
     table.insert(self.timers, item)
+    if self.observer then
+        self.observer("timer_added", {
+            duration = item.duration,
+            repeatCount = item.repeatCount,
+        })
+    end
     return item
 end
 
@@ -143,6 +155,11 @@ function Timeline:update(dt)
     local i = 1
     while i <= #self.tweens do
         if self.tweens[i]:update(dt) then
+            if self.observer then
+                self.observer("tween_complete", {
+                    duration = self.tweens[i].duration,
+                })
+            end
             table.remove(self.tweens, i)
         else
             i = i + 1
@@ -152,6 +169,12 @@ function Timeline:update(dt)
     local j = 1
     while j <= #self.timers do
         if self.timers[j]:update(dt) then
+            if self.observer then
+                self.observer("timer_complete", {
+                    duration = self.timers[j].duration,
+                    repeatCount = self.timers[j].repeatCount,
+                })
+            end
             table.remove(self.timers, j)
         else
             j = j + 1
@@ -162,6 +185,39 @@ end
 function Timeline:clear()
     self.tweens = {}
     self.timers = {}
+end
+
+function Timeline:setObserver(observer)
+    self.observer = observer
+    return self
+end
+
+function Timeline:inspect()
+    local snapshot = {
+        tweens = {},
+        timers = {},
+    }
+
+    for i, item in ipairs(self.tweens) do
+        snapshot.tweens[i] = {
+            elapsed = item.elapsed,
+            duration = item.duration,
+            playing = item.playing,
+        }
+    end
+
+    for i, item in ipairs(self.timers) do
+        snapshot.timers[i] = {
+            elapsed = item.elapsed,
+            duration = item.duration,
+            repeatCount = item.repeatCount,
+            runs = item.runs,
+            done = item.done,
+            playing = item.playing,
+        }
+    end
+
+    return snapshot
 end
 
 tween.Tween = Tween
