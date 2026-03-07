@@ -1,3 +1,4 @@
+local contract = require("thoth.adapters.contract")
 local love2d = {}
 
 local function keyboardDown(env, key)
@@ -24,13 +25,27 @@ function Adapter.new(loveEnv)
     self.state = {
         keys = {},
         mouse = {},
-        axes = {}
+        axes = {},
+        gamepad = {
+            buttons = {},
+            axes = {},
+        },
+        touch = {},
     }
-    self.capabilities = {
-        lifecycle = true,
-        rendering = true,
-        input = true
-    }
+    self.capabilities = contract.capabilities({
+        clock = true,
+        lifecycle = {
+            supported = true,
+            hooks = {"update", "draw", "keypressed", "keyreleased", "mousepressed", "mousereleased", "textinput"},
+        },
+        keyboard = true,
+        mouse = true,
+        axis = true,
+        textInput = true,
+        touch = true,
+        gamepad = true,
+        window = true,
+    })
     return self
 end
 
@@ -56,6 +71,17 @@ function Adapter:isDown(binding)
         return mouseDown(self.love, id)
     end
 
+    if kind == "gamepad" then
+        return self.state.gamepad.buttons[id] == true
+    end
+
+    if kind == "touch" then
+        if id ~= nil then
+            return self.state.touch[id] == true
+        end
+        return next(self.state.touch) ~= nil
+    end
+
     if self.state.keys[id] ~= nil then
         return self.state.keys[id]
     end
@@ -63,6 +89,10 @@ function Adapter:isDown(binding)
 end
 
 function Adapter:getAxis(binding)
+    if binding.device == "gamepad" and binding.name and self.state.gamepad.axes[binding.name] ~= nil then
+        return self.state.gamepad.axes[binding.name]
+    end
+
     if binding.name and self.state.axes[binding.name] ~= nil then
         return self.state.axes[binding.name]
     end
@@ -79,6 +109,25 @@ end
 
 function Adapter:setAxis(name, value)
     self.state.axes[name] = value
+end
+
+function Adapter:setGamepadAxis(name, value)
+    self.state.gamepad.axes[name] = value
+end
+
+function Adapter:setTouch(id, down)
+    if down then
+        self.state.touch[id] = true
+    else
+        self.state.touch[id] = nil
+    end
+end
+
+function Adapter:getWindowSize()
+    if self.love and self.love.graphics and type(self.love.graphics.getDimensions) == "function" then
+        return self.love.graphics.getDimensions()
+    end
+    return nil, nil
 end
 
 function Adapter:registerLifecycle(runtime, _options)
@@ -107,6 +156,22 @@ function Adapter:registerLifecycle(runtime, _options)
         mousereleased = function(_x, _y, button)
             adapter.state.mouse[button] = false
             runtime:dispatchInput("mousereleased", button)
+        end,
+        gamepadpressed = function(_joystick, button)
+            adapter.state.gamepad.buttons[button] = true
+            runtime:dispatchInput("gamepadpressed", button)
+        end,
+        gamepadreleased = function(_joystick, button)
+            adapter.state.gamepad.buttons[button] = false
+            runtime:dispatchInput("gamepadreleased", button)
+        end,
+        touchpressed = function(id)
+            adapter:setTouch(id, true)
+            runtime:dispatchInput("touchpressed", id)
+        end,
+        touchreleased = function(id)
+            adapter:setTouch(id, false)
+            runtime:dispatchInput("touchreleased", id)
         end,
         textinput = function(text)
             runtime:dispatchInput("textinput", text)

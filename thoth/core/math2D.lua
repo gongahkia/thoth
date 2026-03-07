@@ -1,4 +1,6 @@
 -- All vectors and positions use array indices: {[1]=x, [2]=y}
+local api = require("thoth.core.api")
+
 local math2DModule = {}
 
 local function atan2(y, x)
@@ -72,4 +74,4 @@ function math2DModule.VectorSubtract(vec1, vec2)
     return {vec1[1] - vec2[1], vec1[2] - vec2[2]}
 end
 
-return math2DModule
+return api.withSnakeCaseAliases(math2DModule)

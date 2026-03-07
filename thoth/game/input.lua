@@ -1,3 +1,5 @@
+local contract = require("thoth.adapters.contract")
+local serialize = require("thoth.core.serialize")
 local input = {}
 
 local function hasValues(tbl)
@@ -38,6 +40,64 @@ local function callAdapter(adapter, methodName, ...)
         return nil
     end
     return fn(adapter, ...)
+end
+
+local function clampAxis(value)
+    if value > 1 then
+        return 1
+    end
+    if value < -1 then
+        return -1
+    end
+    return value
+end
+
+local function withAxisOptions(axisBinding, bindingSpec)
+    local normalized = deepCopy(axisBinding)
+    if normalized.deadzone == nil and type(bindingSpec.deadzone) == "number" then
+        normalized.deadzone = bindingSpec.deadzone
+    end
+    if normalized.scale == nil and type(bindingSpec.scale) == "number" then
+        normalized.scale = bindingSpec.scale
+    end
+    if normalized.curve == nil then
+        normalized.curve = bindingSpec.curve
+    end
+    if normalized.invert == nil and type(bindingSpec.invert) == "boolean" then
+        normalized.invert = bindingSpec.invert
+    end
+    return normalized
+end
+
+local function applyAxisModifiers(value, binding)
+    local magnitude = math.abs(value)
+    local sign = value < 0 and -1 or 1
+
+    if type(binding.deadzone) == "number" and binding.deadzone > 0 then
+        if magnitude <= binding.deadzone then
+            return 0
+        end
+        magnitude = (magnitude - binding.deadzone) / math.max(1 - binding.deadzone, 1e-9)
+    end
+
+    local curve = binding.curve
+    if curve == "square" then
+        magnitude = magnitude * magnitude
+    elseif curve == "cube" then
+        magnitude = magnitude * magnitude * magnitude
+    elseif type(curve) == "number" and curve > 0 then
+        magnitude = magnitude ^ curve
+    end
+
+    local output = magnitude * sign
+    if binding.invert then
+        output = -output
+    end
+    if type(binding.scale) == "number" then
+        output = output * binding.scale
+    end
+
+    return clampAxis(output)
 end
 
 local Manager = {}
@@ -92,23 +152,50 @@ local function normalizeBindings(bindingSpec)
         end
     end
 
+    if bindingSpec.gamepadButton then
+        table.insert(normalized.digital, {kind = "gamepad", id = bindingSpec.gamepadButton})
+    end
+
+    if hasValues(bindingSpec.gamepadButtons) then
+        for _, button in ipairs(bindingSpec.gamepadButtons) do
+            table.insert(normalized.digital, {kind = "gamepad", id = button})
+        end
+    end
+
+    if bindingSpec.touch ~= nil then
+        if type(bindingSpec.touch) == "table" then
+            table.insert(normalized.digital, {kind = "touch", id = bindingSpec.touch.id})
+        elseif bindingSpec.touch == true then
+            table.insert(normalized.digital, {kind = "touch"})
+        else
+            table.insert(normalized.digital, {kind = "touch", id = bindingSpec.touch})
+        end
+    end
+
     if bindingSpec.axis then
         if type(bindingSpec.axis) == "string" then
-            table.insert(normalized.axis, {name = bindingSpec.axis})
+            table.insert(normalized.axis, withAxisOptions({name = bindingSpec.axis}, bindingSpec))
         elseif type(bindingSpec.axis) == "table" and (bindingSpec.axis.name or bindingSpec.axis.positive or bindingSpec.axis.negative) then
-            table.insert(normalized.axis, bindingSpec.axis)
+            table.insert(normalized.axis, withAxisOptions(bindingSpec.axis, bindingSpec))
         elseif hasValues(bindingSpec.axis) then
             for _, axisBinding in ipairs(bindingSpec.axis) do
-                table.insert(normalized.axis, axisBinding)
+                table.insert(normalized.axis, withAxisOptions(axisBinding, bindingSpec))
             end
         end
     end
 
+    if bindingSpec.gamepadAxis then
+        table.insert(normalized.axis, withAxisOptions({
+            name = bindingSpec.gamepadAxis,
+            device = "gamepad",
+        }, bindingSpec))
+    end
+
     if bindingSpec.positive or bindingSpec.negative then
-        table.insert(normalized.axis, {
+        table.insert(normalized.axis, withAxisOptions({
             positive = bindingSpec.positive,
             negative = bindingSpec.negative
-        })
+        }, bindingSpec))
     end
 
     return normalized
@@ -260,6 +347,10 @@ function Manager:bind(action, bindingSpec)
     return self
 end
 
+function Manager:rebind(action, bindingSpec)
+    return self:bind(action, bindingSpec)
+end
+
 function Manager:unbind(action)
     local context = self:_ensureContext(self:_activeContextName())
     context[action] = nil
@@ -270,13 +361,26 @@ function Manager:unbind(action)
 end
 
 function Manager:_digitalDown(binding)
+    local capability = "keyboard"
+    if binding.kind == "mouse" then
+        capability = "mouse"
+    elseif binding.kind == "gamepad" then
+        capability = "gamepad"
+    elseif binding.kind == "touch" then
+        capability = "touch"
+    end
+    if not contract.supports(self.adapter, capability) then
+        return false
+    end
     return callAdapter(self.adapter, "isDown", binding) == true
 end
 
 function Manager:_axisValue(binding)
-    local value = callAdapter(self.adapter, "getAxis", binding)
-    if type(value) == "number" then
-        return value
+    if contract.supports(self.adapter, "axis") then
+        local value = callAdapter(self.adapter, "getAxis", binding)
+        if type(value) == "number" then
+            return value
+        end
     end
 
     local positiveDown = false
@@ -293,10 +397,11 @@ function Manager:_axisValue(binding)
     elseif negativeDown and not positiveDown then
         return -1
     end
-    return 0
+    return applyAxisModifiers(0, binding)
 end
 
 function Manager:update()
+    self.previous = {}
     for action, state in pairs(self.current) do
         self.previous[action] = cloneActionState(state)
     end
@@ -314,7 +419,7 @@ function Manager:update()
         end
 
         for _, axisBinding in ipairs(bindings.axis) do
-            local value = self:_axisValue(axisBinding)
+            local value = applyAxisModifiers(self:_axisValue(axisBinding), axisBinding)
             if math.abs(value) > math.abs(axisValue) then
                 axisValue = value
             end
@@ -325,6 +430,95 @@ function Manager:update()
             value = axisValue
         }
     end
+end
+
+function Manager:captureFrame()
+    return {
+        actions = deepCopy(self.current),
+        contextStack = deepCopy(self.contextStack),
+    }
+end
+
+function Manager:applyRecordedFrame(frame)
+    assert(type(frame) == "table", "Recorded frame must be a table")
+
+    local restoredStack = {}
+    if type(frame.contextStack) == "table" and #frame.contextStack > 0 then
+        for _, contextName in ipairs(frame.contextStack) do
+            if type(contextName) == "string" and #contextName > 0 then
+                self:_ensureContext(contextName)
+                restoredStack[#restoredStack + 1] = contextName
+            end
+        end
+    end
+
+    if #restoredStack > 0 then
+        self.contextStack = restoredStack
+        self.bindings = self.contexts[self:_activeContextName()]
+    end
+
+    self.previous = {}
+    for action, state in pairs(self.current) do
+        self.previous[action] = cloneActionState(state)
+    end
+
+    self.current = {}
+    for action, state in pairs(frame.actions or {}) do
+        self.current[action] = cloneActionState(state)
+    end
+end
+
+function Manager:snapshot()
+    return {
+        contexts = deepCopy(self.contexts),
+        contextStack = deepCopy(self.contextStack),
+        current = deepCopy(self.current),
+        previous = deepCopy(self.previous),
+    }
+end
+
+function Manager:restore(snapshot)
+    assert(type(snapshot) == "table", "Input snapshot must be a table")
+
+    self.contexts = deepCopy(snapshot.contexts or {})
+    if not next(self.contexts) then
+        self.contexts.default = {}
+    end
+
+    local restoredStack = {}
+    if type(snapshot.contextStack) == "table" and #snapshot.contextStack > 0 then
+        for _, contextName in ipairs(snapshot.contextStack) do
+            if type(contextName) == "string" and #contextName > 0 then
+                self:_ensureContext(contextName)
+                restoredStack[#restoredStack + 1] = contextName
+            end
+        end
+    end
+
+    if #restoredStack == 0 then
+        restoredStack = {"default"}
+        self:_ensureContext("default")
+    end
+
+    self.contextStack = restoredStack
+    self.bindings = self.contexts[self:_activeContextName()]
+    self.current = deepCopy(snapshot.current or {})
+    self.previous = deepCopy(snapshot.previous or {})
+    self:_syncStates()
+    return self
+end
+
+function Manager:saveBindings(filename)
+    return serialize.saveLua(filename, self:exportBindings(), "bindings")
+end
+
+function Manager:loadBindings(filename, replace)
+    local profile, err = serialize.loadLuaSafe(filename)
+    if not profile then
+        return nil, err
+    end
+    self:importBindings(profile, replace)
+    return profile
 end
 
 function Manager:down(action)
@@ -394,6 +588,34 @@ end
 
 function input.update(...)
     return defaultManager:update(...)
+end
+
+function input.captureFrame(...)
+    return defaultManager:captureFrame(...)
+end
+
+function input.applyRecordedFrame(...)
+    return defaultManager:applyRecordedFrame(...)
+end
+
+function input.snapshot(...)
+    return defaultManager:snapshot(...)
+end
+
+function input.restore(...)
+    return defaultManager:restore(...)
+end
+
+function input.rebind(...)
+    return defaultManager:rebind(...)
+end
+
+function input.saveBindings(...)
+    return defaultManager:saveBindings(...)
+end
+
+function input.loadBindings(...)
+    return defaultManager:loadBindings(...)
 end
 
 function input.down(...)

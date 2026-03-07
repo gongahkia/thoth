@@ -1,3 +1,5 @@
+local api = require("thoth.core.api")
+
 local tableModule = {}
 
 -- @param table
@@ -94,4 +96,4 @@ function tableModule.Reduce(aggFunc, arr, initial)
     return fin
 end
 
-return tableModule
+return api.withSnakeCaseAliases(tableModule)

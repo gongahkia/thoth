@@ -1,3 +1,4 @@
+local contract = require("thoth.adapters.contract")
 local solar2d = {}
 
 local Adapter = {}
@@ -11,12 +12,18 @@ function Adapter.new()
         keys = {},
         mouse = {},
         axes = {},
+        touch = {},
     }
-    self.capabilities = {
-        lifecycle = true,
-        rendering = true,
-        input = true
-    }
+    self.capabilities = contract.capabilities({
+        clock = true,
+        lifecycle = {
+            supported = true,
+            hooks = {"enterFrame", "key", "axis", "touch", "draw"},
+        },
+        keyboard = true,
+        axis = true,
+        touch = true,
+    })
     return self
 end
 
@@ -33,6 +40,12 @@ function Adapter:isDown(binding)
     local id = binding.id
     if kind == "mouse" then
         return self.state.mouse[id] == true
+    end
+    if kind == "touch" then
+        if id ~= nil then
+            return self.state.touch[id] == true
+        end
+        return next(self.state.touch) ~= nil
     end
     return self.state.keys[id] == true
 end
@@ -76,6 +89,18 @@ function Adapter:onAxisEvent(event)
     self.state.axes[event.axis.name or event.axis.id or "axis"] = event.normalizedValue or event.value or 0
 end
 
+function Adapter:onTouchEvent(event)
+    if not event or not event.id then
+        return
+    end
+    local phase = event.phase
+    if phase == "began" or phase == "moved" then
+        self.state.touch[event.id] = true
+    elseif phase == "ended" or phase == "cancelled" then
+        self.state.touch[event.id] = nil
+    end
+end
+
 function Adapter:registerLifecycle(runtime, _options)
     local adapter = self
 
@@ -97,6 +122,10 @@ function Adapter:registerLifecycle(runtime, _options)
         axis = function(event)
             adapter:onAxisEvent(event)
             runtime:dispatchInput("axis", event)
+        end,
+        touch = function(event)
+            adapter:onTouchEvent(event)
+            runtime:dispatchInput("touch", event)
         end,
         draw = function(...)
             runtime:draw(...)

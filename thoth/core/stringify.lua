@@ -1,3 +1,5 @@
+local api = require("thoth.core.api")
+
 local stringModule = {}
 
 -- =============================================
@@ -349,4 +351,4 @@ function stringModule.Lines(str)
     return lines
 end
 
-return stringModule
+return api.withSnakeCaseAliases(stringModule)

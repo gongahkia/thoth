@@ -401,7 +401,17 @@ function serialize.fromJSON(json)
         return nil, "Unexpected character: " .. char
     end
 
-    return parseValue()
+    local value, err = parseValue()
+    if err then
+        return nil, err
+    end
+
+    skipWhitespace()
+    if pos <= #json then
+        return nil, "Unexpected trailing content"
+    end
+
+    return value
 end
 
 -- =============================================
