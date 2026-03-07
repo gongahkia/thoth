@@ -1,3 +1,4 @@
+local contract = require("thoth.adapters.contract")
 local love2d = {}
 
 local function keyboardDown(env, key)
@@ -26,11 +27,18 @@ function Adapter.new(loveEnv)
         mouse = {},
         axes = {}
     }
-    self.capabilities = {
-        lifecycle = true,
-        rendering = true,
-        input = true
-    }
+    self.capabilities = contract.capabilities({
+        clock = true,
+        lifecycle = {
+            supported = true,
+            hooks = {"update", "draw", "keypressed", "keyreleased", "mousepressed", "mousereleased", "textinput"},
+        },
+        keyboard = true,
+        mouse = true,
+        axis = true,
+        textInput = true,
+        window = true,
+    })
     return self
 end
 
@@ -79,6 +87,13 @@ end
 
 function Adapter:setAxis(name, value)
     self.state.axes[name] = value
+end
+
+function Adapter:getWindowSize()
+    if self.love and self.love.graphics and type(self.love.graphics.getDimensions) == "function" then
+        return self.love.graphics.getDimensions()
+    end
+    return nil, nil
 end
 
 function Adapter:registerLifecycle(runtime, _options)
