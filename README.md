@@ -14,19 +14,7 @@
 
 ## Rationale
 
-Deterministic Lua runtime and toolkit for real-time systems.
-
-`thoth` is a small Lua library with two strong layers:
-
-- `thoth.core`: data structures, validation, serialization, events, caching, graphs, tries, math, strings, and profiling utilities.
-- `thoth.game` + `thoth.adapters`: a lightweight runtime for fixed-step simulation, ordered systems, input contexts, tasks, tweens, pathfinding, spatial queries, and cross-framework adapter wiring.
-
-The project is strongest when those layers are used together: headless simulation in tests, shared gameplay logic, and thin engine-specific integration.
-
-- Deterministic-friendly runtime foundation with fixed timesteps and ordered systems.
-- Cross-framework game loop integration for Love2D, Defold, and Solar2D.
-- Broad core utility surface without pulling in external dependencies.
-- Lightweight module boundaries that stay usable in plain Lua scripts.
+`Thoth` is a [Lua](https://www.lua.org/) library for [deterministic](https://dictionary.cambridge.org/dictionary/english/deterministic) [real-time systems](https://www.intel.com/content/www/us/en/learn/what-is-a-real-time-system.html), served in [2 layers](#thoth-provides).
 
 ## Installation
 
