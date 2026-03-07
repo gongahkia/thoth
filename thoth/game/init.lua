@@ -1,4 +1,7 @@
 local modules = {
+    animation = "thoth.game.animation",
+    camera = "thoth.game.camera",
+    collision = "thoth.game.collision",
     frame = "thoth.game.frame",
     input = "thoth.game.input",
     pathfinding = "thoth.game.pathfinding",
