@@ -17,6 +17,8 @@ assert(contract.supports(a1, "lifecycle"))
 assert(contract.supports(a1, "keyboard"))
 assert(contract.supports(a1, "mouse"))
 assert(contract.supports(a1, "textInput"))
+assert(contract.supports(a1, "touch"))
+assert(contract.supports(a1, "gamepad"))
 assert(contract.supports(a1, "window"))
 
 assert(contract.supports(a2, "lifecycle"))
@@ -25,6 +27,7 @@ assert(not contract.supports(a2, "textInput"))
 
 assert(contract.supports(a3, "lifecycle"))
 assert(contract.supports(a3, "keyboard"))
+assert(contract.supports(a3, "touch"))
 assert(not contract.supports(a3, "mouse"))
 
 assert(contract.supports(a4, "clock"))

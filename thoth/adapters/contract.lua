@@ -148,6 +148,8 @@ function contract.nullAdapter()
             keyboard = true,
             mouse = true,
             axis = true,
+            touch = true,
+            gamepad = true,
         })
     }
 
