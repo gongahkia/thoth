@@ -1,3 +1,5 @@
+local api = require("thoth.core.api")
+
 local mathModule = {}
 
 -- @param specified value to be clamped, minimum value of the clamp range, maximum value of the clamp range
@@ -58,4 +60,4 @@ function mathModule.Smooth(low, upp, val)
     return val * val * (3 - 2 * val)
 end
 
-return mathModule
+return api.withSnakeCaseAliases(mathModule)

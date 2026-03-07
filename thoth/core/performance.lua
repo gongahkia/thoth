@@ -3,6 +3,8 @@
 -- Benchmarking, profiling, and performance monitoring utilities
 -- =============================================
 
+local api = require("thoth.core.api")
+
 local performance = {}
 local unpackValues = table.unpack or unpack
 
@@ -329,4 +331,4 @@ function performance.FormatMemory(kb)
     end
 end
 
-return performance
+return api.withSnakeCaseAliases(performance)

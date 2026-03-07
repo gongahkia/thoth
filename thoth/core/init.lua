@@ -1,4 +1,5 @@
 local modules = {
+    math2d = "thoth.core.math2d",
     cache = "thoth.core.cache",
     config = "thoth.core.config",
     datetime = "thoth.core.datetime",

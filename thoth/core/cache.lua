@@ -3,6 +3,8 @@
 -- Memoization and LRU cache implementations
 -- =============================================
 
+local api = require("thoth.core.api")
+
 local cache = {}
 
 -- =============================================
@@ -442,4 +444,4 @@ cache.Fibonacci = cache.Memoize(function(n)
     return cache.Fibonacci(n - 1) + cache.Fibonacci(n - 2)
 end)
 
-return cache
+return api.withSnakeCaseAliases(cache)
