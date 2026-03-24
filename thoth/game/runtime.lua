@@ -79,6 +79,7 @@ function Runtime.new(adapter, options)
     }
     self.recording = nil
     self.replay = nil
+    self.extensions = {}
     self.traceLimit = options.traceLimit or 64
     self.metricsHistoryLimit = options.metricsHistoryLimit or 32
     self.traceLog = {}
@@ -277,15 +278,47 @@ function Runtime:stopReplay()
     return replay
 end
 
+function Runtime:use(name, extension, options)
+    assert(type(name) == "string" and #name > 0, "Extension name must be a non-empty string")
+    assert(type(extension) == "table", "Extension must be a table")
+    assert(type(extension.install) == "function", "Extension must provide install(runtime, options)")
+    assert(self.extensions[name] == nil, "Extension '" .. name .. "' is already installed")
+
+    local handle = extension.install(self, options or {})
+    if handle == nil then
+        handle = {}
+    end
+
+    self.extensions[name] = {
+        extension = extension,
+        handle = handle,
+    }
+
+    return handle
+end
+
+function Runtime:getExtension(name)
+    local entry = self.extensions[name]
+    return entry and entry.handle or nil
+end
+
 function Runtime:snapshot()
     local systemSnapshots = {}
     local taskSnapshot = callSnapshotHook(self.tasks, self)
     local timelineSnapshot = callSnapshotHook(self.timeline, self)
+    local extensionSnapshots = {}
 
     for index, system in ipairs(self.systems) do
         if type(system.snapshot) == "function" then
             local key = system.name or tostring(index)
             systemSnapshots[key] = system:snapshot(self)
+        end
+    end
+
+    for name, entry in pairs(self.extensions) do
+        local extension = entry.extension
+        if type(extension.snapshot) == "function" then
+            extensionSnapshots[name] = serialize.deepCopy(extension.snapshot(entry.handle, self))
         end
     end
 
@@ -299,6 +332,7 @@ function Runtime:snapshot()
         input = self.input:snapshot(),
         state = self.state:snapshot(),
         systems = systemSnapshots,
+        extensions = extensionSnapshots,
         services = {
             tasks = taskSnapshot,
             timeline = timelineSnapshot,
@@ -340,6 +374,15 @@ function Runtime:restore(snapshot)
         local key = system.name or tostring(index)
         if snapshot.systems and snapshot.systems[key] ~= nil and type(system.restore) == "function" then
             system:restore(self, snapshot.systems[key])
+        end
+    end
+
+    if snapshot.extensions then
+        for name, data in pairs(snapshot.extensions) do
+            local entry = self.extensions[name]
+            if entry and type(entry.extension.restore) == "function" then
+                entry.extension.restore(entry.handle, self, data)
+            end
         end
     end
 
