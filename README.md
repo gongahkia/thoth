@@ -107,6 +107,14 @@ $ make test
 - **thoth.adapters.solar2d** - Solar2D adapter for frame, key, touch, and axis event integration
 - **thoth.adapters.contract** - Adapter capability contract, validation helpers, support assertions, and a null/headless adapter for tests or offline simulation
 
+#### Official Add-ons
+- **thoth.addons** - Namespace for official extension packs layered on top of the deterministic runtime
+- **thoth.addons.gameplay** - Installer for deterministic gameplay services covering resources, cooldowns, status effects, and command queues
+- **thoth.addons.gameplay.resources** - Bounded resource pools with clamped mutation plus snapshot/restore support
+- **thoth.addons.gameplay.cooldowns** - Named cooldown timers with deterministic ticking plus snapshot/restore support
+- **thoth.addons.gameplay.status** - Timed status-effect manager with tags, stacking, expiry, and snapshot/restore support
+- **thoth.addons.gameplay.commands** - Snapshot-safe command queue with enqueue/schedule/cancel/inspect helpers and deterministic execution
+
 </details>
 
 ## Usage
