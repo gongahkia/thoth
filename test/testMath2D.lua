@@ -1,4 +1,7 @@
 local math2D = require("thoth.core.math2D")
+local math2d = require("thoth.core.math2d")
+
+assert(math2d == math2D)
 
 assert(math.abs(math2D.AngleBetween({0, 0}, {1, 0}) - 0) < 1e-9)
 assert(math.abs(math2D.AngleBetween({0, 0}, {0, 1}) - (math.pi / 2)) < 1e-9)
