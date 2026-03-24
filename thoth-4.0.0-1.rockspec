@@ -17,6 +17,7 @@ build = {
    modules = {
       ["thoth"] = "thoth.lua",
       ["init"] = "init.lua",
+      ["thoth.addons"] = "thoth/addons/init.lua",
       ["thoth.core"] = "thoth/core/init.lua",
       ["thoth.core.api"] = "thoth/core/api.lua",
       ["thoth.core.cache"] = "thoth/core/cache.lua",

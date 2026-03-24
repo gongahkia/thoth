@@ -8,6 +8,7 @@ local lazy = {
     core = lazyRequire("thoth.core"),
     game = lazyRequire("thoth.game"),
     adapters = lazyRequire("thoth.adapters"),
+    addons = lazyRequire("thoth.addons"),
 }
 
 local thoth = {}

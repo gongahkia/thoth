@@ -9,3 +9,8 @@ assert(type(runtime.new) == "function", "thoth.game.runtime should expose .new")
 
 local love2d = require("thoth.adapters.love2d")
 assert(type(love2d.new) == "function", "thoth.adapters.love2d should expose .new")
+
+local addons = require("thoth.addons")
+assert(type(addons) == "table", "thoth.addons should return a table namespace")
+
+assert(type(thoth.addons) == "table", "require('thoth') should expose the addons namespace")
