@@ -20,6 +20,7 @@ build = {
       ["thoth.addons"] = "thoth/addons/init.lua",
       ["thoth.addons.gameplay.cooldowns"] = "thoth/addons/gameplay/cooldowns.lua",
       ["thoth.addons.gameplay.resources"] = "thoth/addons/gameplay/resources.lua",
+      ["thoth.addons.gameplay.status"] = "thoth/addons/gameplay/status.lua",
       ["thoth.core"] = "thoth/core/init.lua",
       ["thoth.core.api"] = "thoth/core/api.lua",
       ["thoth.core.cache"] = "thoth/core/cache.lua",
