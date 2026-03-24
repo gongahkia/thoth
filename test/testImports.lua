@@ -14,3 +14,6 @@ local addons = require("thoth.addons")
 assert(type(addons) == "table", "thoth.addons should return a table namespace")
 
 assert(type(thoth.addons) == "table", "require('thoth') should expose the addons namespace")
+
+local gameplay = require("thoth.addons.gameplay")
+assert(type(gameplay.install) == "function", "thoth.addons.gameplay should expose install")

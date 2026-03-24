@@ -18,6 +18,7 @@ build = {
       ["thoth"] = "thoth.lua",
       ["init"] = "init.lua",
       ["thoth.addons"] = "thoth/addons/init.lua",
+      ["thoth.addons.gameplay"] = "thoth/addons/gameplay/init.lua",
       ["thoth.addons.gameplay.commands"] = "thoth/addons/gameplay/commands.lua",
       ["thoth.addons.gameplay.cooldowns"] = "thoth/addons/gameplay/cooldowns.lua",
       ["thoth.addons.gameplay.resources"] = "thoth/addons/gameplay/resources.lua",
