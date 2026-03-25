@@ -24,6 +24,12 @@ $ git clone https://github.com/gongahkia/thoth && cd thoth
 $ make test
 ```
 
+## Supported engines
+
+* [Löve2D](https://love2d.org/)
+* [Solar2D](https://solar2d.com/)
+* [Defold](https://defold.com/)
+
 ## `Thoth` provides....
 
 <details>
