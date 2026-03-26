@@ -16,6 +16,25 @@ function config.merge(defaults, overrides)
     return result
 end
 
+function config.deepMerge(defaults, overrides) -- recursive merge with nested table support
+    if type(defaults) ~= "table" then
+        if overrides == nil then return defaults end
+        return overrides
+    end
+    local merged = {}
+    for key, value in pairs(defaults) do
+        merged[key] = config.deepMerge(value, type(overrides) == "table" and overrides[key] or nil)
+    end
+    if type(overrides) == "table" then
+        for key, value in pairs(overrides) do
+            if merged[key] == nil then
+                merged[key] = value
+            end
+        end
+    end
+    return merged
+end
+
 function config.getenv(name, default, env)
     env = env or {}
     local value = env[name]

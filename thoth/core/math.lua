@@ -60,4 +60,36 @@ function mathModule.Smooth(low, upp, val)
     return val * val * (3 - 2 * val)
 end
 
+function mathModule.Approach(value, target, delta) -- move value toward target by at most delta
+    if value < target then
+        return math.min(value + delta, target)
+    end
+    if value > target then
+        return math.max(value - delta, target)
+    end
+    return target
+end
+
+function mathModule.Round(value) -- symmetric rounding (banker's)
+    if value >= 0 then
+        return math.floor(value + 0.5)
+    end
+    return math.ceil(value - 0.5)
+end
+
+function mathModule.Sign(value) -- returns -1, 0, or 1
+    if value > 0 then return 1 end
+    if value < 0 then return -1 end
+    return 0
+end
+
+function mathModule.WrapAngle(angle) -- normalize angle to [0, 2π)
+    local tau = math.pi * 2
+    angle = angle % tau
+    if angle < 0 then
+        angle = angle + tau
+    end
+    return angle
+end
+
 return api.withSnakeCaseAliases(mathModule)

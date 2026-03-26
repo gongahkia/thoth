@@ -4,6 +4,7 @@ local modules = {
     camera = "thoth.game.camera",
     collision = "thoth.game.collision",
     ecs = "thoth.game.ecs",
+    fog = "thoth.game.fog",
     frame = "thoth.game.frame",
     input = "thoth.game.input",
     navigation = "thoth.game.navigation",

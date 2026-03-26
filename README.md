@@ -50,8 +50,8 @@ $ make test
 - **unionfind** - Disjoint-set / union-find structure for grouping and connectivity queries
 
 #### Mathematics
-- **math** - Clamp, Fibonacci, lerp, range scaling, smoothing, angle conversion, and random range helpers
-- **math2d** / **math2D** - 2D vector math, normalization, scaling, angles, and Euclidean/Manhattan distance helpers
+- **math** - Clamp, Fibonacci, lerp, approach, round, sign, range scaling, smoothing, angle conversion, angle wrapping, and random range helpers
+- **math2d** / **math2D** - 2D vector math, normalization, scaling, angles, Euclidean/Manhattan distance, point-to-segment distance, line sampling, segment normals, cardinal facing, and coordinate hashing helpers
 
 #### String Manipulation
 - **stringify** - String trimming, splitting, joining, padding, centering, truncation, wrapping, replacement, similarity checks, template interpolation, and case conversion
@@ -75,7 +75,7 @@ $ make test
 - **performance** - Timers, benchmarks, function comparisons, profiler, memory measurement, FPS counter, and formatting helpers
 
 #### Platform Utilities
-- **config** - Shallow config merging, environment variable lookup, and `.env` file loading
+- **config** - Shallow and deep config merging, environment variable lookup, and `.env` file loading
 - **datetime** - Unix timestamp helpers, ISO-8601 formatting, table conversion, and second-based time arithmetic
 - **logging** - Leveled structured logger with pluggable sink functions
 - **path** - Path join, normalize, basename, dirname, and extension helpers
@@ -106,6 +106,7 @@ $ make test
 - **thoth.game.navigation** - Tilemap-to-grid and tilemap-to-waypoint-graph helpers built on top of pathfinding + core graphs
 - **thoth.game.pathfinding** - A* pathfinding for weighted graphs and grids with custom heuristics, costs, and optional diagonal movement
 - **thoth.game.spatial** - Spatial hash and quadtree broad-phase helpers with range, nearest-neighbor, update, and clear operations
+- **thoth.game.fog** - Grid-based fog-of-war with circular and rectangular reveal, visibility queries, and snapshot/restore support
 
 #### Engine Adapters
 - **thoth.adapters.love2d** - Love2D adapter for lifecycle registration, keyboard/mouse/touch/gamepad/window polling, and optional debug draw support
@@ -115,11 +116,14 @@ $ make test
 
 #### Official Add-ons
 - **thoth.addons** - Namespace for official extension packs layered on top of the deterministic runtime
-- **thoth.addons.gameplay** - Installer for deterministic gameplay services covering resources, cooldowns, status effects, and command queues
+- **thoth.addons.gameplay** - Installer for deterministic gameplay services covering resources, cooldowns, status effects, command queues, inventory, scoring, and skills
 - **thoth.addons.gameplay.resources** - Bounded resource pools with clamped mutation plus snapshot/restore support
 - **thoth.addons.gameplay.cooldowns** - Named cooldown timers with deterministic ticking plus snapshot/restore support
 - **thoth.addons.gameplay.status** - Timed status-effect manager with tags, stacking, expiry, and snapshot/restore support
 - **thoth.addons.gameplay.commands** - Snapshot-safe command queue with enqueue/schedule/cancel/inspect helpers and deterministic execution
+- **thoth.addons.gameplay.inventory** - Data-driven inventory manager with stackable items, weight tracking, perishable decay, condition adjustment, and snapshot/restore support
+- **thoth.addons.gameplay.scoring** - Configurable combo/style scoring with technique variety bonuses, idle decay, rank thresholds, and snapshot/restore support
+- **thoth.addons.gameplay.skills** - Leveled skill progression with XP accumulation, auto-level-up, configurable caps, and snapshot/restore support
 
 </details>
 
