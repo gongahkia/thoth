@@ -9,6 +9,7 @@ local modules = {
     input = "thoth.game.input",
     navigation = "thoth.game.navigation",
     pathfinding = "thoth.game.pathfinding",
+    terrain = "thoth.game.terrain",
     tilemap = "thoth.game.tilemap",
     random = "thoth.game.random",
     runtime = "thoth.game.runtime",

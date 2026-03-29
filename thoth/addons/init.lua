@@ -1,5 +1,6 @@
 local modules = {
     gameplay = "thoth.addons.gameplay",
+    terrain = "thoth.addons.terrain",
 }
 
 local addons = {}

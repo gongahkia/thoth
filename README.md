@@ -14,7 +14,7 @@
 
 ## Rationale
 
-`Thoth` is a [Lua](https://www.lua.org/) library for [deterministic](https://dictionary.cambridge.org/dictionary/english/deterministic) [real-time systems](https://www.intel.com/content/www/us/en/learn/what-is-a-real-time-system.html), served in [2 layers](#thoth-provides).
+`Thoth` is a [Lua](https://www.lua.org/) library for [deterministic](https://dictionary.cambridge.org/dictionary/english/deterministic) [real-time systems](https://www.intel.com/content/www/us/en/learn/what-is-a-real-time-system.html), served in [3 layers](#thoth-provides).
 
 ## Installation
 
@@ -124,6 +124,25 @@ $ make test
 - **thoth.addons.gameplay.inventory** - Data-driven inventory manager with stackable items, weight tracking, perishable decay, condition adjustment, and snapshot/restore support
 - **thoth.addons.gameplay.scoring** - Configurable combo/style scoring with technique variety bonuses, idle decay, rank thresholds, and snapshot/restore support
 - **thoth.addons.gameplay.skills** - Leveled skill progression with XP accumulation, auto-level-up, configurable caps, and snapshot/restore support
+
+</details>
+
+<details>
+<summary><b>Terrain Generation</b></summary>
+
+#### Terrain API
+- **thoth.game.terrain** - Library-first terrain facade with `list`, `describe`, and `generate` helpers for deterministic terrain generation
+- **thoth.game.terrain.grid** - Grid helpers, cellular automata, Voronoi sampling, connectivity checks, and tilemap conversion
+- **thoth.game.terrain.simulation** - Rule-based post-generation terrain evolution with deterministic stepping plus snapshot/restore-friendly state
+- **thoth.game.terrain.evolution** - Genetic parameter search across terrain generators with genome persistence and fitness scoring
+- **thoth.game.terrain.export** - Plain-Lua JSON and CSV export helpers for generated terrain grids
+- **thoth.game.terrain.palette** - Shared symbol-to-color mappings for terrain rendering and tooling
+
+#### Runtime Integration
+- **thoth.addons.terrain** - Runtime extension for terrain state, generation metadata, simulation sessions, evolution sessions, and snapshot/restore support
+
+#### Supported Generators
+- **terrain generators** - `apocalypse`, `archipelago`, `badlands`, `canyon`, `cave`, `coast`, `coral`, `desert`, `farm`, `forest`, `glacier`, `island`, `mega`, `mountain`, `river`, `swamp`, `temple`, `tundra`, `urban`, and `volcano`
 
 </details>
 
