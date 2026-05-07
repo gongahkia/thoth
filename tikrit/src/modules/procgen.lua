@@ -4,23 +4,33 @@ local Utils = require("modules/utils")
 
 local ProcGen = {}
 
-local function newGrid()
+local function gridHeight(grid)
+    return #grid
+end
+
+local function gridWidth(grid)
+    return #(grid[1] or {})
+end
+
+local function newGrid(width, height)
+    width = width or CONFIG.WORLD_GRID_WIDTH or CONFIG.GRID_WIDTH
+    height = height or CONFIG.WORLD_GRID_HEIGHT or CONFIG.GRID_HEIGHT
     local grid = {}
-    for y = 1, CONFIG.GRID_HEIGHT do
+    for y = 1, height do
         grid[y] = {}
-        for x = 1, CONFIG.GRID_WIDTH do
+        for x = 1, width do
             grid[y][x] = "snow"
         end
     end
     return grid
 end
 
-local function inBounds(x, y)
-    return x >= 1 and x <= CONFIG.GRID_WIDTH and y >= 1 and y <= CONFIG.GRID_HEIGHT
+local function inBounds(grid, x, y)
+    return x >= 1 and x <= gridWidth(grid) and y >= 1 and y <= gridHeight(grid)
 end
 
 local function setTile(grid, x, y, tile)
-    if inBounds(x, y) then
+    if inBounds(grid, x, y) then
         grid[y][x] = tile
     end
 end
@@ -48,13 +58,15 @@ local function carvePath(grid, x1, y1, x2, y2)
 end
 
 local function buildBorder(grid)
-    for x = 1, CONFIG.GRID_WIDTH do
+    local width = gridWidth(grid)
+    local height = gridHeight(grid)
+    for x = 1, width do
         setTile(grid, x, 1, x % 2 == 0 and "rock" or "tree")
-        setTile(grid, x, CONFIG.GRID_HEIGHT, x % 2 == 0 and "tree" or "rock")
+        setTile(grid, x, height, x % 2 == 0 and "tree" or "rock")
     end
-    for y = 1, CONFIG.GRID_HEIGHT do
+    for y = 1, height do
         setTile(grid, 1, y, y % 2 == 0 and "rock" or "tree")
-        setTile(grid, CONFIG.GRID_WIDTH, y, y % 2 == 0 and "tree" or "rock")
+        setTile(grid, width, y, y % 2 == 0 and "tree" or "rock")
     end
 end
 
@@ -238,7 +250,7 @@ end
 
 local function placeLake(grid)
     local weakIceTiles = {}
-    local lakeArea = {x = 11, y = 10, w = 8, h = 6}
+    local lakeArea = {x = 22, y = 19, w = 18, h = 12}
 
     fillRect(grid, lakeArea.x, lakeArea.y, lakeArea.w, lakeArea.h, "ice")
 
@@ -250,7 +262,7 @@ local function placeLake(grid)
     end
     Utils.shuffle(candidates)
 
-    local weakIceCount = math.random(CONFIG.WEAK_ICE_MIN, CONFIG.WEAK_ICE_MAX)
+    local weakIceCount = math.random(math.max(CONFIG.WEAK_ICE_MIN, 14), math.max(CONFIG.WEAK_ICE_MAX, 22))
     for index = 1, weakIceCount do
         local tile = candidates[index]
         setTile(grid, tile.x, tile.y, "weak_ice")
@@ -353,8 +365,8 @@ local function generateProceduralRunData(difficultyName)
 
     local woodTarget = math.random(CONFIG.RESOURCE_WOOD_MIN, CONFIG.RESOURCE_WOOD_MAX)
     local woodCandidates = {}
-    for y = 2, CONFIG.GRID_HEIGHT - 1 do
-        for x = 2, CONFIG.GRID_WIDTH - 1 do
+    for y = 2, gridHeight(grid) - 1 do
+        for x = 2, gridWidth(grid) - 1 do
             if canPlaceResource(grid, x, y) and math.abs(x - 15) + math.abs(y - 13) > 6 then
                 table.insert(woodCandidates, {x = x, y = y})
             end
@@ -512,7 +524,8 @@ local function collectComponents(symbolGrid, symbol)
                     for _, direction in ipairs(directions) do
                         local nextX = current.x + direction[1]
                         local nextY = current.y + direction[2]
-                        if inBounds(nextX, nextY)
+                        if nextX >= 1 and nextX <= CONFIG.GRID_WIDTH
+                            and nextY >= 1 and nextY <= CONFIG.GRID_HEIGHT
                             and symbolGrid[nextY][nextX] == symbol
                             and not visited[nextY][nextX] then
                             visited[nextY][nextX] = true
@@ -594,7 +607,7 @@ end
 
 local function generateEditorRunData(difficultyName, layout)
     local symbolGrid = normalizeLayout(layout)
-    local grid = newGrid()
+    local grid = newGrid(CONFIG.GRID_WIDTH, CONFIG.GRID_HEIGHT)
     local structures = {}
     local resourceNodes = {}
     local safeSleepSpots = {}
