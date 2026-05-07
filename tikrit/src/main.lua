@@ -55,6 +55,7 @@ local applyPendingShake
 local refreshCraftMenu
 local isVisibleTile
 local isMappedTile
+local updateCamera
 
 local SETTINGS_DEFS = {
     audio = {
@@ -248,6 +249,27 @@ local function buildReplayContext(run)
     }
 end
 
+local function worldPixelSize(run)
+    local grid = run and run.world and run.world.grid or {}
+    return #(grid[1] or {}) * CONFIG.TILE_SIZE, #grid * CONFIG.TILE_SIZE
+end
+
+updateCamera = function(run)
+    if not run then
+        return
+    end
+
+    run.runtime.camera = run.runtime.camera or {x = 0, y = 0}
+    local worldWidth, worldHeight = worldPixelSize(run)
+    local maxX = math.max(0, worldWidth - CONFIG.WINDOW_WIDTH)
+    local maxY = math.max(0, worldHeight - CONFIG.WINDOW_HEIGHT)
+    local desiredX = run.player.coord[1] + (CONFIG.TILE_SIZE / 2) - (CONFIG.WINDOW_WIDTH / 2)
+    local desiredY = run.player.coord[2] + (CONFIG.TILE_SIZE / 2) - (CONFIG.WINDOW_HEIGHT / 2)
+
+    run.runtime.camera.x = Utils.clamp(desiredX, 0, maxX)
+    run.runtime.camera.y = Utils.clamp(desiredY, 0, maxY)
+end
+
 local function refreshReplayEntries()
     local entries = {}
     for _, file in ipairs(Replay.listReplays()) do
@@ -338,6 +360,10 @@ local function createRun(generated, difficultyName, options)
             currentStation = nil,
             discoveryToast = "",
             discoveryToastTimer = 0,
+            camera = {
+                x = 0,
+                y = 0,
+            },
         },
         finished = false,
         replayMode = options.replayMode or false,
@@ -359,6 +385,7 @@ local function createRun(generated, difficultyName, options)
     run.world.mappedTiles = run.world.mappedTiles or {}
     run.world.pointsOfInterest = run.world.pointsOfInterest or {}
     run.world.discoveredPOIs = run.world.discoveredPOIs or {}
+    run.world.goals = run.world.goals or {}
 
     if options.context then
         local context = options.context
@@ -396,6 +423,11 @@ local function discoverPointOfInterest(run, poi)
         return false
     end
     run.world.discoveredPOIs[key] = true
+    for _, goal in ipairs(run.world.goals or {}) do
+        if goal.poi == poi.name then
+            goal.completed = true
+        end
+    end
     run.runtime.discoveryToast = poi.name or "Point of interest"
     run.runtime.discoveryToastTimer = 2.4
     SoundEvents.play("poi_discovery")
@@ -495,6 +527,7 @@ local function startNewRun(options)
     run.seed = seed
     game.run = run
     game.input.heldKeys = {}
+    updateCamera(run)
     updateVisibility()
     refreshCraftMenu()
     updateRunSignals()
@@ -1095,6 +1128,7 @@ local function simulateHours(hours, sleeping)
         applyPendingShake()
     end
     updateVisibility()
+    updateCamera(game.run)
     refreshCraftMenu()
     updateRunSignals()
     if game.run.player.condition <= 0 or not game.run.player.alive then
@@ -1274,6 +1308,7 @@ local function updateGame(dt)
     setDoorState()
     applyPendingShake()
     updateVisibility()
+    updateCamera(run)
     refreshCraftMenu()
     updateRunSignals()
 
@@ -1289,12 +1324,14 @@ end
 local function drawWorld()
     local run = game.run
     local world = run.world
+    updateCamera(run)
 
     love.graphics.clear(0.02, 0.05, 0.08, 1)
     love.graphics.push()
     if Effects.screenShake.active then
         love.graphics.translate(Effects.screenShake.offsetX, Effects.screenShake.offsetY)
     end
+    love.graphics.translate(-run.runtime.camera.x, -run.runtime.camera.y)
 
     for y = 1, #world.grid do
         for x = 1, #world.grid[y] do

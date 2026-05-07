@@ -279,95 +279,170 @@ local function generateProceduralRunData(difficultyName)
     buildBorder(grid)
 
     local structures = {
-        addCabin(grid, 3, 4, "Ranger Cabin"),
-        addCabin(grid, 21, 20, "Trapline Cabin"),
-        addCave(grid, 20, 4),
+        addCabin(grid, 6, 7, "Ranger Cabin"),
+        addCabin(grid, 58, 66, "Trapline Cabin"),
+        addCave(grid, 46, 12, 9, 6),
+        addCabin(grid, 78, 72, "Weather Station", 8, 6),
     }
 
     local weakIceTiles, lakeArea = placeLake(grid)
-    fillRect(grid, 6, 15, 4, 3, "fire_safe")
+    fillRect(grid, 12, 36, 7, 4, "fire_safe")
+    fillRect(grid, 50, 48, 12, 7, "fire_safe")
 
-    carvePath(grid, structures[1].door.x, structures[1].door.y, 8, 16)
-    carvePath(grid, 8, 16, 11, 13)
-    carvePath(grid, 18, 13, 24, 13)
-    carvePath(grid, 24, 13, structures[3].mouth.x, structures[3].mouth.y)
-    carvePath(grid, 18, 15, structures[2].door.x, structures[2].door.y)
-
-    for x = 7, 9 do
-        for y = 19, 23 do
-            if grid[y][x] == "snow" then
-                setTile(grid, x, y, (x + y) % 2 == 0 and "tree" or "rock")
+    for y = 48, 82 do
+        for x = 8, 34 do
+            if grid[y][x] == "snow" and (x + y) % 3 ~= 0 then
+                setTile(grid, x, y, "tree")
             end
         end
     end
+    for y = 8, 34 do
+        for x = 58, 84 do
+            if grid[y][x] == "snow" and (x * 2 + y) % 5 ~= 0 then
+                setTile(grid, x, y, (x + y) % 7 == 0 and "rock" or "tree")
+            end
+        end
+    end
+    for y = 37, 44 do
+        for x = 34, 56 do
+            if grid[y][x] == "snow" and (x + y) % 4 == 0 then
+                setTile(grid, x, y, "rock")
+            end
+        end
+    end
+
+    local route = {
+        structures[1].door,
+        {x = 14, y = 20},
+        {x = 20, y = 24},
+        {x = 22, y = 34},
+        {x = 37, y = 34},
+        {x = 44, y = 20},
+        structures[3].mouth,
+        {x = 54, y = 28},
+        {x = 58, y = 42},
+        {x = 54, y = 56},
+        structures[2].door,
+        {x = 70, y = 70},
+        structures[4].door,
+    }
+    for index = 1, #route - 1 do
+        carvePath(grid, route[index].x, route[index].y, route[index + 1].x, route[index + 1].y)
+    end
+    carvePath(grid, 20, 24, lakeArea.x + 2, lakeArea.y + 4)
+    carvePath(grid, lakeArea.x + lakeArea.w - 2, lakeArea.y + 4, 44, 20)
+    carvePath(grid, 22, 62, structures[2].door.x, structures[2].door.y)
 
     local resourceNodes = {}
     local safeSleepSpots = {
         worldCoord(structures[1].bed.x, structures[1].bed.y),
         worldCoord(structures[2].bed.x, structures[2].bed.y),
         worldCoord(structures[3].bed.x, structures[3].bed.y),
+        worldCoord(structures[4].bed.x, structures[4].bed.y),
+    }
+    local ridgeZone = makeZone(36, 35, 22, 10)
+    local exposedFlats = makeZone(48, 46, 18, 12)
+    local denseWoods = makeZone(8, 48, 27, 35)
+    local wolfTerritory = makeZone(56, 20, 26, 24)
+    local hazardZones = {
+        {type = "weak_ice", name = "Frozen Lake", zone = lakeArea},
+        {type = "ridge", name = "Windbreak Ridge", zone = ridgeZone, sprainMultiplier = 1.35},
+        {type = "exposed_blizzard", name = "Blizzard Flats", zone = exposedFlats, exposureModifier = -5},
+        {type = "wolf_territory", name = "Old Growth Wolf Range", zone = wolfTerritory},
+        {type = "dense_woods", name = "Deep Woods", zone = denseWoods, visibilityPenalty = 2},
     }
     local temperatureBands = {
-        {type = "shelter", zone = makeZone(3, 4, 6, 5), modifier = 8},
-        {type = "shelter", zone = makeZone(21, 20, 6, 5), modifier = 8},
-        {type = "cave", zone = makeZone(20, 4, 7, 5), modifier = 10},
+        {type = "shelter", zone = makeZone(structures[1].x, structures[1].y, structures[1].w, structures[1].h), modifier = 8},
+        {type = "shelter", zone = makeZone(structures[2].x, structures[2].y, structures[2].w, structures[2].h), modifier = 8},
+        {type = "cave", zone = makeZone(structures[3].x, structures[3].y, structures[3].w, structures[3].h), modifier = 10},
+        {type = "shelter", zone = makeZone(structures[4].x, structures[4].y, structures[4].w, structures[4].h), modifier = 7},
         {type = "lake", zone = lakeArea, modifier = -6},
+        {type = "exposed_blizzard", zone = exposedFlats, modifier = -5},
     }
     local workbenches = {
         makeWorkbench(structures[1].workbench.x, structures[1].workbench.y, "Ranger Workbench"),
         makeWorkbench(structures[2].workbench.x, structures[2].workbench.y, "Trapline Workbench"),
+        makeWorkbench(structures[4].workbench.x, structures[4].workbench.y, "Weather Station Workbench"),
     }
     local curingStations = {
         makeCuringStation(structures[1].workbench.x, structures[1].workbench.y, "Ranger Curing Rack"),
         makeCuringStation(structures[2].workbench.x, structures[2].workbench.y, "Trapline Curing Rack"),
     }
     local fishingSpots = {
-        makeFishingSpot(lakeArea.x + 1, lakeArea.y + 2, "Lower Fishing Hole"),
-        makeFishingSpot(lakeArea.x + lakeArea.w - 2, lakeArea.y + 3, "North Fishing Hole"),
+        makeFishingSpot(lakeArea.x + 2, lakeArea.y + 4, "South Fishing Hole"),
+        makeFishingSpot(lakeArea.x + lakeArea.w - 3, lakeArea.y + 7, "North Fishing Hole"),
     }
     local climbNodes = {
-        makeClimbNode(18, 7, 10, 4, "Ridge Rope"),
+        makeClimbNode(39, 38, 45, 17, "Ridge Rope"),
+        makeClimbNode(57, 40, 53, 56, "Weathered Rope"),
     }
     local mapNodes = {
-        makeMapNode(10, 4, "Frozen Overlook"),
+        makeMapNode(16, 20, "Ranger Overlook"),
+        makeMapNode(42, 37, "Windbreak Ridge Overlook"),
         makeMapNode(structures[3].mouth.x, structures[3].mouth.y, "Cave Mouth Overlook"),
+        makeMapNode(60, 52, "Blizzard Flats Survey Point"),
+        makeMapNode(82, 70, "Weather Station Antenna"),
     }
     local carcasses = {
-        makeCarcass("deer", 22, 24),
+        makeCarcass("deer", 50, 61),
+        makeCarcass("rabbit", 24, 70),
     }
     local pointsOfInterest = {
         {name = "Ranger Cabin", coord = worldCoord(structures[1].bed.x, structures[1].bed.y)},
-        {name = "Trapline Cabin", coord = worldCoord(structures[2].bed.x, structures[2].bed.y)},
-        {name = "Frozen Lake", coord = worldCoord(lakeArea.x + 3, lakeArea.y + 2)},
+        {name = "Frozen Lake", coord = worldCoord(lakeArea.x + 8, lakeArea.y + 6)},
+        {name = "Windbreak Ridge", coord = worldCoord(42, 38)},
         {name = "North Cave", coord = worldCoord(structures[3].mouth.x, structures[3].mouth.y)},
+        {name = "Deep Woods", coord = worldCoord(22, 62)},
+        {name = "Trapline Cabin", coord = worldCoord(structures[2].bed.x, structures[2].bed.y)},
+        {name = "Blizzard Flats", coord = worldCoord(56, 51)},
+        {name = "Weather Station", coord = worldCoord(structures[4].bed.x, structures[4].bed.y)},
+        {name = "Emergency Cache", coord = worldCoord(84, 78)},
     }
 
     addResourceNode(resourceNodes, "cache", structures[1].x + 3, structures[1].y + 2, {loot = randomLoot()})
     addResourceNode(resourceNodes, "cache", structures[2].x + 3, structures[2].y + 2, {loot = randomLoot()})
-    addResourceNode(resourceNodes, "loot", 8, 16, {loot = randomLoot()})
-    addResourceNode(resourceNodes, "loot", 24, 13, {loot = randomLoot()})
-    addResourceNode(resourceNodes, "loot", 22, 6, {loot = randomLoot()})
-    addResourceNode(resourceNodes, "loot", 24, 22, {loot = randomLoot()})
+    addResourceNode(resourceNodes, "cache", structures[4].x + 5, structures[4].y + 3, {loot = randomLoot()})
+    addResourceNode(resourceNodes, "cache", 84, 78, {
+        loot = {
+            Items.create("canned_food", 2),
+            Items.create("water", 1),
+            Items.create("matches", 4),
+            Items.create("charcoal", 1),
+        },
+    })
 
-    local lootTarget = math.max(CONFIG.RESOURCE_LOOT_MIN, math.floor(CONFIG.RESOURCE_LOOT_MAX * difficulty.lootMultiplier))
+    local routeLoot = {
+        {14, 20}, {19, 32}, {35, 33}, {48, 18}, {56, 42},
+        {52, 55}, {61, 68}, {72, 70}, {82, 74}, {28, 66},
+    }
+    for _, coord in ipairs(routeLoot) do
+        addResourceNode(resourceNodes, "loot", coord[1], coord[2], {loot = randomLoot()})
+    end
+
+    local lootTarget = math.max(16, math.floor(22 * difficulty.lootMultiplier))
     local lootCandidates = {
-        {x = 14, y = 8}, {x = 16, y = 19}, {x = 11, y = 20},
-        {x = 18, y = 23}, {x = 9, y = 9}, {x = 26, y = 10},
+        {x = 12, y = 31}, {x = 29, y = 17}, {x = 36, y = 27}, {x = 42, y = 44},
+        {x = 16, y = 57}, {x = 31, y = 76}, {x = 48, y = 66}, {x = 65, y = 61},
+        {x = 73, y = 27}, {x = 80, y = 18}, {x = 75, y = 50}, {x = 86, y = 82},
     }
     Utils.shuffle(lootCandidates)
-    while #resourceNodes < lootTarget + 2 do
+    while #resourceNodes < lootTarget + 4 do
         local candidate = table.remove(lootCandidates)
         if not candidate then
             break
         end
-        addResourceNode(resourceNodes, "loot", candidate.x, candidate.y, {loot = randomLoot()})
+        if canPlaceResource(grid, candidate.x, candidate.y) then
+            addResourceNode(resourceNodes, "loot", candidate.x, candidate.y, {loot = randomLoot()})
+        end
     end
 
-    local woodTarget = math.random(CONFIG.RESOURCE_WOOD_MIN, CONFIG.RESOURCE_WOOD_MAX)
+    local woodTarget = math.random(22, 32)
     local woodCandidates = {}
     for y = 2, gridHeight(grid) - 1 do
         for x = 2, gridWidth(grid) - 1 do
-            if canPlaceResource(grid, x, y) and math.abs(x - 15) + math.abs(y - 13) > 6 then
+            if canPlaceResource(grid, x, y)
+                and math.abs(x - structures[1].door.x) + math.abs(y - structures[1].door.y) > 8
+                and math.abs(x - structures[4].door.x) + math.abs(y - structures[4].door.y) > 5 then
                 table.insert(woodCandidates, {x = x, y = y})
             end
         end
@@ -386,12 +461,11 @@ local function generateProceduralRunData(difficultyName)
         end
     end
 
-    local wolfTerritory = makeZone(17, 10, 10, 9)
     local wolves = {}
     for index = 1, difficulty.wolfCount do
         table.insert(wolves, {
             kind = "wolf",
-            coord = worldCoord(20 + index * 2, 12 + index),
+            coord = worldCoord(62 + index * 4, 24 + index * 3),
             territory = wolfTerritory,
             territoryCenter = zoneCenter(wolfTerritory),
             state = "roam",
@@ -401,10 +475,11 @@ local function generateProceduralRunData(difficultyName)
     end
 
     local rabbitZones = {
-        makeZone(4, 9, 5, 4),
-        makeZone(5, 22, 5, 4),
+        makeZone(11, 18, 8, 6),
+        makeZone(20, 67, 12, 10),
+        makeZone(55, 58, 8, 8),
     }
-    local deerZone = makeZone(19, 23, 7, 4)
+    local deerZone = makeZone(44, 56, 18, 12)
 
     local rabbits = {}
     for _, zone in ipairs(rabbitZones) do
@@ -441,6 +516,10 @@ local function generateProceduralRunData(difficultyName)
         curing = {},
         mappedTiles = {},
         pointsOfInterest = pointsOfInterest,
+        goals = {
+            {id = "survey_weather_station", label = "Survey the weather station", poi = "Weather Station", completed = false},
+            {id = "recover_emergency_cache", label = "Recover the emergency cache", poi = "Emergency Cache", completed = false},
+        },
         wildlife = {
             wolves = wolves,
             rabbits = rabbits,
@@ -453,6 +532,7 @@ local function generateProceduralRunData(difficultyName)
         timeOfDay = 8,
         dayCount = 1,
         temperatureBands = temperatureBands,
+        hazardZones = hazardZones,
         safeSleepSpots = safeSleepSpots,
         weakIceTiles = weakIceTiles,
         snowShelters = {},
@@ -460,7 +540,8 @@ local function generateProceduralRunData(difficultyName)
         rabbitZones = rabbitZones,
         deerZone = deerZone,
         carcassSites = {
-            {coord = worldCoord(22, 24), kind = "deer"},
+            {coord = worldCoord(50, 61), kind = "deer"},
+            {coord = worldCoord(24, 70), kind = "rabbit"},
         },
         source = "procedural",
     }

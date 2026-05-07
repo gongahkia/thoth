@@ -89,13 +89,14 @@ local function drawWeather(settings, run)
     local color = weather == "blizzard" and {0.86, 0.94, 1.0, 0.42}
         or weather == "wind" and {0.82, 0.9, 0.98, 0.24}
         or {0.88, 0.94, 1.0, 0.28}
+    local camera = run.runtime and run.runtime.camera or {x = 0, y = 0}
 
     Accessibility.setColor(settings, color[1], color[2], color[3], color[4])
     for index = 1, lines do
         local x = (index * 43 + math.floor(Effects.elapsed * 110) * 7) % CONFIG.WINDOW_WIDTH
         local y = (index * 27 + math.floor(Effects.elapsed * 70) * 11) % CONFIG.WINDOW_HEIGHT
         local length = weather == "blizzard" and 12 or 8
-        love.graphics.line(x, y, x - length, y + length)
+        love.graphics.line(x + camera.x, y + camera.y, x - length + camera.x, y + length + camera.y)
     end
 end
 

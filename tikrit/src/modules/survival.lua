@@ -253,6 +253,30 @@ local function roomTemperatureModifier(run, coord)
     return 0
 end
 
+local function coordInZone(coord, zone)
+    if not coord or not zone then
+        return false
+    end
+    local gx, gy = Utils.pixelToGrid(coord[1], coord[2])
+    local tileX = gx + 1
+    local tileY = gy + 1
+    local width = zone.width or zone.w
+    local height = zone.height or zone.h
+    return zone.x and zone.y and width and height
+        and tileX >= zone.x and tileX < zone.x + width
+        and tileY >= zone.y and tileY < zone.y + height
+end
+
+local function activeHazards(run, coord)
+    local hazards = {}
+    for _, hazard in ipairs(run.world.hazardZones or {}) do
+        if coordInZone(coord or run.player.coord, hazard.zone) then
+            table.insert(hazards, hazard)
+        end
+    end
+    return hazards
+end
+
 local function markMappedTiles(run, centerCoord, radius)
     run.world.mappedTiles = run.world.mappedTiles or {}
     local gx, gy = Utils.pixelToGrid(centerCoord[1], centerCoord[2])
@@ -369,9 +393,22 @@ local function updateAfflictions(run, hours, options, sheltered, peakWetness)
         setDeathCause(run, "hypothermia")
     end
 
+    local ridgeRisk = 0
+    for _, hazard in ipairs(activeHazards(run, player.coord)) do
+        if hazard.type == "ridge" and (options.sprinting or math.max(0, player.carryWeight - player.carryCapacity) > 0) then
+            ridgeRisk = ridgeRisk + (hazard.sprainMultiplier or 1)
+        end
+    end
+
     if options.sprinting and math.max(0, player.carryWeight - player.carryCapacity) > 0 then
         afflictions.sprainRisk = (afflictions.sprainRisk or 0)
             + (CONFIG.SPRAIN_RISK_PER_HOUR * hours * difficulty.afflictionMultiplier)
+        if afflictions.sprainRisk >= 12 then
+            afflictions.sprain = true
+        end
+    elseif ridgeRisk > 0 then
+        afflictions.sprainRisk = (afflictions.sprainRisk or 0)
+            + (CONFIG.SPRAIN_RISK_PER_HOUR * hours * difficulty.afflictionMultiplier * ridgeRisk * 0.45)
         if afflictions.sprainRisk >= 12 then
             afflictions.sprain = true
         end
@@ -549,6 +586,13 @@ function Survival.visibleRadius(run)
     end
     if Survival.isSheltered(run, run.player.coord) then
         radius = radius + CONFIG.VISIBLE_RADIUS_SHELTER_BONUS
+    end
+    for _, hazard in ipairs(activeHazards(run, run.player.coord)) do
+        if hazard.type == "dense_woods" then
+            radius = radius - (hazard.visibilityPenalty or 2)
+        elseif hazard.type == "exposed_blizzard" and weather == "blizzard" then
+            radius = radius - 1
+        end
     end
     if run.player.equippedLight and run.player.equippedLightHours > 0 then
         radius = radius + CONFIG.VISIBLE_RADIUS_LIGHT_BONUS
