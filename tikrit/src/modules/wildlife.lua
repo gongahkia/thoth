@@ -6,7 +6,8 @@ local Utils = require("modules/utils")
 local Wildlife = {}
 
 local function isWalkable(tile)
-    return tile ~= "tree"
+    return tile ~= nil
+        and tile ~= "tree"
         and tile ~= "rock"
         and tile ~= "lake"
         and tile ~= "cabin_wall"

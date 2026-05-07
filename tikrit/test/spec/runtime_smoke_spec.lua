@@ -379,6 +379,29 @@ describe("Runtime Smoke", function()
             rectangleCalls = 0
             love.draw()
             TestRunner.assertTrue(rectangleCalls > 0)
+
+            state.screen = "title"
+            state.titleIndex = 1
+            love.keypressed("return")
+            run = state.run
+            TestRunner.assertEqual(#run.world.grid, 90)
+            TestRunner.assertEqual(#run.world.grid[1], 90)
+
+            run.player.coord = {1200, 1200}
+            run.player.lastSafeCoord = {1200, 1200}
+            love.draw()
+            TestRunner.assertTrue(run.runtime.camera.x > 0)
+            TestRunner.assertTrue(run.runtime.camera.y > 0)
+
+            run.player.coord = {0, 0}
+            love.draw()
+            TestRunner.assertEqual(run.runtime.camera.x, 0)
+            TestRunner.assertEqual(run.runtime.camera.y, 0)
+
+            run.player.coord = {89 * 20, 89 * 20}
+            love.draw()
+            TestRunner.assertEqual(run.runtime.camera.x, 1200)
+            TestRunner.assertEqual(run.runtime.camera.y, 1200)
         end)
         _G.love = originalLove
         if not ok then

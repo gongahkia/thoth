@@ -390,7 +390,7 @@ local function generateProceduralRunData(difficultyName)
     local pointsOfInterest = {
         {name = "Ranger Cabin", coord = worldCoord(structures[1].bed.x, structures[1].bed.y)},
         {name = "Frozen Lake", coord = worldCoord(lakeArea.x + 8, lakeArea.y + 6)},
-        {name = "Windbreak Ridge", coord = worldCoord(42, 38)},
+        {name = "Windbreak Ridge", coord = worldCoord(42, 34)},
         {name = "North Cave", coord = worldCoord(structures[3].mouth.x, structures[3].mouth.y)},
         {name = "Deep Woods", coord = worldCoord(22, 62)},
         {name = "Trapline Cabin", coord = worldCoord(structures[2].bed.x, structures[2].bed.y)},

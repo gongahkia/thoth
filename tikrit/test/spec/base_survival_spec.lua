@@ -3,6 +3,7 @@ local CONFIG = require("config")
 local Items = require("items")
 local Replay = require("replay")
 local Survival = require("survival")
+local Utils = require("utils")
 local Wildlife = require("wildlife")
 
 local describe = TestRunner.describe
@@ -144,6 +145,7 @@ describe("Base Survival", function()
     end)
 
     it("supports trapping, fishing, bow hunting, and carcass harvesting", function()
+        Utils.setGameSeed(false, 4242)
         local run = buildRun("snow")
         run.world.rabbitZones = {{x = 1, y = 1, width = 3, height = 3}}
         run.world.fishingSpots = {{coord = {20, 20}}}
@@ -151,7 +153,7 @@ describe("Base Survival", function()
             {kind = "rabbit", coord = {60, 20}, zone = {x = 1, y = 1, width = 3, height = 3}, speed = 20},
         }
         run.world.wildlife.deer = {
-            {kind = "deer", coord = {80, 20}, zone = {x = 1, y = 1, width = 4, height = 4}, speed = 20},
+            {kind = "deer", coord = {80, 80}, zone = {x = 1, y = 1, width = 4, height = 4}, speed = 20},
         }
 
         Items.add(run.player.inventory, "snare", 1)
