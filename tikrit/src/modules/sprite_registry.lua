@@ -28,6 +28,7 @@ function SpriteRegistry.load()
             loot = safeLoad("sprite/resource-loot.png") or safeLoad("sprite/potion-1.png"),
             wood = safeLoad("sprite/resource-wood.png"),
             bow = safeLoad("sprite/item-bow.png"),
+            sword = safeLoad("sprite/item-sword.png"),
             arrow = safeLoad("sprite/item-arrow.png"),
             knife = safeLoad("sprite/item-knife.png"),
             hatchet = safeLoad("sprite/item-hatchet.png"),
@@ -68,10 +69,14 @@ function SpriteRegistry.load()
             wolf = safeLoad("sprite/wildlife-wolf.png"),
             rabbit = safeLoad("sprite/wildlife-rabbit.png"),
             deer = safeLoad("sprite/wildlife-deer.png"),
+            raider = safeLoad("sprite/wildlife-raider.png"),
         },
         tiles = {
             snow = safeLoad("sprite/terrain-snow.png"),
             path = safeLoad("sprite/terrain-path.png"),
+            ash = safeLoad("sprite/terrain-ash.png"),
+            moss = safeLoad("sprite/terrain-moss.png"),
+            shale = safeLoad("sprite/terrain-shale.png"),
             fire_safe = safeLoad("sprite/terrain-fire-safe.png"),
             ice = safeLoad("sprite/terrain-ice.png"),
             weak_ice = safeLoad("sprite/terrain-weak-ice.png"),
@@ -101,6 +106,14 @@ function SpriteRegistry.drawTile(bundle, tile, x, y, settings)
         drawFallbackRect(settings, x, y, {0.92, 0.95, 1, 1}, 0)
     elseif tile == "path" then
         drawFallbackRect(settings, x, y, {0.78, 0.82, 0.85, 1}, 0)
+    elseif tile == "ash" then
+        drawFallbackRect(settings, x, y, {0.46, 0.46, 0.5, 1}, 0)
+    elseif tile == "moss" then
+        drawFallbackRect(settings, x, y, {0.54, 0.64, 0.52, 1}, 0)
+    elseif tile == "shale" then
+        drawFallbackRect(settings, x, y, {0.58, 0.58, 0.64, 1}, 0)
+        Accessibility.setColor(settings, 0.42, 0.42, 0.46, 0.8)
+        love.graphics.line(x + 3, y + 15, x + 16, y + 5)
     elseif tile == "fire_safe" then
         drawFallbackRect(settings, x, y, {0.92, 0.95, 1, 1}, 0)
         Accessibility.setColor(settings, 0.76, 0.82, 0.88, 0.45)
@@ -191,6 +204,10 @@ function SpriteRegistry.drawWildlife(bundle, animal, settings)
         love.graphics.circle("fill", animal.coord[1] + 10, animal.coord[2] + 10, 4)
     elseif animal.kind == "deer" then
         drawFallbackRect(settings, animal.coord[1], animal.coord[2], {0.56, 0.34, 0.18, 1}, 2)
+    elseif animal.kind == "raider" then
+        drawFallbackRect(settings, animal.coord[1], animal.coord[2], {0.52, 0.18, 0.16, 1}, 2)
+        Accessibility.setColor(settings, 0.92, 0.84, 0.7, 1)
+        love.graphics.rectangle("fill", animal.coord[1] + 6, animal.coord[2] + 4, 8, 12)
     end
 end
 

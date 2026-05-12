@@ -53,8 +53,8 @@ describe("UI", function()
         settings.gameplay.showHints = true
         UI.drawTitleScreen(state, fonts, settings)
         joined = table.concat(printed, " | ")
-        TestRunner.assertTrue(joined:find("C craft, X context, H repair, T treat, M map", 1, true) ~= nil)
-        TestRunner.assertTrue(joined:find("B ready bow, Space fire bow", 1, true) ~= nil)
+        TestRunner.assertTrue(joined:find("C craft, X context, H repair, T treat, M map, Q dodge", 1, true) ~= nil)
+        TestRunner.assertTrue(joined:find("V ready sword, B ready bow, Space attack", 1, true) ~= nil)
 
         printed = {}
         UI.drawHUD({
@@ -66,6 +66,8 @@ describe("UI", function()
                 maxCondition = 100,
                 warmth = 80,
                 fatigue = 70,
+                stamina = 85,
+                maxStamina = 100,
                 thirst = 60,
                 calories = 1200,
                 carryWeight = 5,
@@ -130,6 +132,8 @@ describe("UI", function()
                 maxCondition = 100,
                 warmth = 18,
                 fatigue = 55,
+                stamina = 40,
+                maxStamina = 100,
                 thirst = 44,
                 calories = 900,
                 carryWeight = 12,

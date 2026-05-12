@@ -489,6 +489,11 @@ function Survival.createPlayer(feats)
         calories = 1800,
         carryWeight = 0,
         carryCapacity = CONFIG.CARRY_CAPACITY,
+        stamina = CONFIG.PLAYER_MAX_STAMINA,
+        maxStamina = CONFIG.PLAYER_MAX_STAMINA,
+        staminaRegenDelay = 0,
+        invulnTimer = 0,
+        attackState = nil,
         clothing = createDefaultClothing(),
         inventory = {},
         bedrollDeployed = false,
@@ -496,6 +501,9 @@ function Survival.createPlayer(feats)
         equippedLightHours = 0,
         equippedTool = "knife",
         equippedWeapon = nil,
+        equippedMeleeWeapon = nil,
+        combatFacingX = CONFIG.PLAYER_ATTACK_FACING_FALLBACK_X,
+        combatFacingY = 0,
         weakIceHours = 0,
         frostbiteHours = 0,
         frostbiteCount = 0,
@@ -820,6 +828,9 @@ function Survival.consumeInventoryIndex(run, index)
         return true, "Equipped " .. Items.describe(item.kind) .. "."
     elseif definition.equipSlot == "weapon" then
         run.player.equippedWeapon = item.kind
+        if definition.weaponClass == "melee" then
+            run.player.equippedMeleeWeapon = item.kind
+        end
         return true, "Readied " .. Items.describe(item.kind) .. "."
     end
 

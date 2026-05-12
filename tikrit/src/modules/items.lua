@@ -100,6 +100,7 @@ Items.definitions = {
     bedroll = {label = "Bedroll", weight = 1.2, stackable = false},
     knife = {label = "Knife", weight = 0.4, stackable = false, equipSlot = "tool"},
     hatchet = {label = "Hatchet", weight = 0.8, stackable = false, equipSlot = "tool"},
+    sword = {label = "Sword", weight = 1.1, stackable = false, equipSlot = "weapon", weaponClass = "melee"},
     bow = {label = "Bow", weight = 0.9, stackable = false, equipSlot = "weapon"},
     arrow = {label = "Arrow", weight = 0.08, stackable = true},
     snare = {label = "Snare", weight = 0.35, stackable = true},

@@ -96,6 +96,94 @@ local function carcassDrops(kind)
     return {}
 end
 
+local function hostileDropLoot(kind)
+    if kind == "raider" then
+        return {
+            Items.create("arrow", math.random(1, 2)),
+            Items.create("bandage", 1),
+        }
+    end
+    if kind == "wolf" then
+        return {
+            Items.create("raw_meat", 1),
+        }
+    end
+    return {}
+end
+
+local function ensureHostile(hostile)
+    hostile.kind = hostile.kind or "wolf"
+    if hostile.kind == "wolf" then
+        hostile.health = hostile.health or CONFIG.WOLF_MAX_HEALTH
+        hostile.contactDamage = hostile.contactDamage or CONFIG.WOLF_ATTACK_DAMAGE
+        hostile.weaponRange = hostile.weaponRange or CONFIG.WOLF_WEAPON_RANGE_TILES
+        hostile.aggroRadius = hostile.aggroRadius or CONFIG.WOLF_DETECTION_RADIUS_TILES
+        hostile.attackWindup = hostile.attackWindup or CONFIG.WOLF_ATTACK_WINDUP
+        hostile.attackRecovery = hostile.attackRecovery or CONFIG.WOLF_ATTACK_RECOVERY
+        hostile.speed = hostile.speed or CONFIG.WOLF_ROAM_SPEED
+    elseif hostile.kind == "raider" then
+        hostile.health = hostile.health or CONFIG.RAIDER_MAX_HEALTH
+        hostile.contactDamage = hostile.contactDamage or CONFIG.RAIDER_ATTACK_DAMAGE
+        hostile.weaponRange = hostile.weaponRange or CONFIG.RAIDER_WEAPON_RANGE_TILES
+        hostile.aggroRadius = hostile.aggroRadius or CONFIG.RAIDER_AGGRO_RADIUS_TILES
+        hostile.attackWindup = hostile.attackWindup or CONFIG.RAIDER_ATTACK_WINDUP
+        hostile.attackRecovery = hostile.attackRecovery or CONFIG.RAIDER_ATTACK_RECOVERY
+        hostile.speed = hostile.speed or CONFIG.RAIDER_WALK_SPEED
+    end
+    hostile.attackTimer = hostile.attackTimer or 0
+    hostile.staggerTimer = hostile.staggerTimer or 0
+end
+
+local function dropHostileLoot(run, hostile)
+    run.world.resourceNodes = run.world.resourceNodes or {}
+    table.insert(run.world.resourceNodes, {
+        type = "loot",
+        coord = {hostile.coord[1], hostile.coord[2]},
+        opened = false,
+        loot = hostileDropLoot(hostile.kind),
+    })
+end
+
+local function removeHostile(run, listName, index)
+    local hostile = (run.world.wildlife[listName] or {})[index]
+    if not hostile then
+        return false
+    end
+    dropHostileLoot(run, hostile)
+    table.remove(run.world.wildlife[listName], index)
+    return true
+end
+
+local function attackDirection(player)
+    local x = player.combatFacingX or player.lastMoveX
+    local y = player.combatFacingY or player.lastMoveY
+    if (x == 0 or x == nil) and (y == 0 or y == nil) then
+        return CONFIG.PLAYER_ATTACK_FACING_FALLBACK_X, 0
+    end
+    local length = math.max(1, math.sqrt((x * x) + (y * y)))
+    return x / length, y / length
+end
+
+local function damageHostile(run, listName, index, amount)
+    local hostile = (run.world.wildlife[listName] or {})[index]
+    if not hostile then
+        return false
+    end
+    ensureHostile(hostile)
+    hostile.health = hostile.health - amount
+    hostile.staggerTimer = CONFIG.HOSTILE_STAGGER_SECONDS
+    hostile.state = "stagger"
+    hostile.target = nil
+    run.runtime.pendingPulse = {
+        kind = "impact",
+        coord = {hostile.coord[1], hostile.coord[2]},
+    }
+    if hostile.health <= 0 then
+        removeHostile(run, listName, index)
+    end
+    return true
+end
+
 function Wildlife.spawnCarcass(run, kind, coord)
     run.world.carcasses = run.world.carcasses or {}
     table.insert(run.world.carcasses, {
@@ -107,6 +195,11 @@ function Wildlife.spawnCarcass(run, kind, coord)
 end
 
 local function resolveStruggle(run, wolf)
+    if (run.player.invulnTimer or 0) > 0 then
+        wolf.state = "recover"
+        wolf.attackTimer = wolf.attackRecovery or CONFIG.WOLF_ATTACK_RECOVERY
+        return
+    end
     local damage = CONFIG.WOLF_STRUGGLE_BASE_DAMAGE
     if run.player.equippedTool == "knife" then
         damage = damage - 4
@@ -138,68 +231,108 @@ local function resolveStruggle(run, wolf)
         kind = "impact",
         coord = {run.player.coord[1], run.player.coord[2]},
     }
-    wolf.state = "retreat"
-    wolf.fearHours = 0.75
-    run.stats.wolvesRepelled = run.stats.wolvesRepelled + 1
+    wolf.state = "recover"
+    wolf.attackTimer = wolf.attackRecovery or CONFIG.WOLF_ATTACK_RECOVERY
 end
 
-local function updateWolf(run, wolf, hours)
+local function updateHostile(run, hostile, hours)
+    ensureHostile(hostile)
+    local seconds = hours * (CONFIG.DAY_DURATION_SECONDS / 24)
     local player = run.player
-    local distance = Utils.distance(player.coord[1], player.coord[2], wolf.coord[1], wolf.coord[2])
+    local distance = Utils.distance(player.coord[1], player.coord[2], hostile.coord[1], hostile.coord[2])
     local lightRadius = playerDeterrenceRadius(player)
     local lightDeterrent = lightRadius > 0 and distance <= lightRadius
-    local fireDeterrent = fireDetersWolf(run, wolf)
+    local fireDeterrent = hostile.kind == "wolf" and fireDetersWolf(run, hostile)
 
-    if wolf.state == "retreat" then
-        wolf.fearHours = math.max(0, (wolf.fearHours or 0) - hours)
-        if not wolf.target then
-            wolf.target = {
-                wolf.territoryCenter[1] + math.random(-3, 3) * CONFIG.TILE_SIZE,
-                wolf.territoryCenter[2] + math.random(-3, 3) * CONFIG.TILE_SIZE,
-            }
-        end
-        moveEntity(wolf, CONFIG.WOLF_RETREAT_SPEED, hours, run.world.grid)
-        if wolf.fearHours <= 0 and distance > CONFIG.WOLF_DETECTION_RADIUS_TILES * CONFIG.TILE_SIZE then
-            wolf.state = "roam"
-            wolf.target = nil
+    if hostile.staggerTimer > 0 then
+        hostile.staggerTimer = math.max(0, hostile.staggerTimer - seconds)
+        hostile.state = "stagger"
+        return
+    end
+
+    if hostile.state == "recover" then
+        hostile.attackTimer = math.max(0, (hostile.attackTimer or 0) - seconds)
+        if hostile.attackTimer <= 0 then
+            hostile.state = "stalk"
         end
         return
     end
 
-    if fireDeterrent or lightDeterrent then
-        wolf.state = "retreat"
-        wolf.fearHours = 0.8
+    if hostile.state == "windup" then
+        hostile.attackTimer = math.max(0, (hostile.attackTimer or 0) - seconds)
+        if hostile.attackTimer <= 0 then
+            if hostile.kind == "wolf" then
+                resolveStruggle(run, hostile)
+            elseif (run.player.invulnTimer or 0) <= 0 then
+                run.player.condition = Utils.clamp(run.player.condition - hostile.contactDamage, 0, run.player.maxCondition)
+                run.player.warmth = Utils.clamp(run.player.warmth - 6, 0, CONFIG.MAX_WARMTH)
+                run.runtime.causeOfDeath = "raider attack"
+                run.runtime.pendingShake = {
+                    intensity = CONFIG.SCREEN_SHAKE_INTENSITY,
+                    duration = CONFIG.SCREEN_SHAKE_DURATION,
+                }
+                run.runtime.pendingPulse = {
+                    kind = "impact",
+                    coord = {run.player.coord[1], run.player.coord[2]},
+                }
+            end
+            hostile.state = "recover"
+            hostile.attackTimer = hostile.attackRecovery
+        end
+        return
+    end
+
+    if hostile.state == "retreat" then
+        hostile.fearHours = math.max(0, (hostile.fearHours or 0) - hours)
+        if not hostile.target then
+            hostile.target = {
+                hostile.territoryCenter[1] + math.random(-3, 3) * CONFIG.TILE_SIZE,
+                hostile.territoryCenter[2] + math.random(-3, 3) * CONFIG.TILE_SIZE,
+            }
+        end
+        moveEntity(hostile, CONFIG.WOLF_RETREAT_SPEED, hours, run.world.grid)
+        if hostile.fearHours <= 0 and distance > hostile.aggroRadius * CONFIG.TILE_SIZE then
+            hostile.state = "roam"
+            hostile.target = nil
+        end
+        return
+    end
+
+    if hostile.kind == "wolf" and (fireDeterrent or lightDeterrent) then
+        hostile.state = "retreat"
+        hostile.fearHours = 0.8
         run.stats.wolvesRepelled = run.stats.wolvesRepelled + 1
         return
     end
 
-    if distance <= CONFIG.WOLF_CONTACT_RADIUS_TILES * CONFIG.TILE_SIZE then
-        resolveStruggle(run, wolf)
+    if distance <= hostile.weaponRange * CONFIG.TILE_SIZE then
+        hostile.state = "windup"
+        hostile.attackTimer = hostile.attackWindup
         return
     end
 
-    if distance <= CONFIG.WOLF_CHARGE_RADIUS_TILES * CONFIG.TILE_SIZE then
-        wolf.state = "charge"
-        wolf.target = {player.coord[1], player.coord[2]}
-        moveEntity(wolf, CONFIG.WOLF_CHARGE_SPEED, hours, run.world.grid)
+    local chargeSpeed = hostile.kind == "wolf" and CONFIG.WOLF_CHARGE_SPEED or CONFIG.RAIDER_CHARGE_SPEED
+    if distance <= hostile.aggroRadius * CONFIG.TILE_SIZE then
+        hostile.state = "charge"
+        hostile.target = {player.coord[1], player.coord[2]}
+        moveEntity(hostile, chargeSpeed, hours, run.world.grid)
         return
     end
 
-    if distance <= CONFIG.WOLF_DETECTION_RADIUS_TILES * CONFIG.TILE_SIZE then
-        wolf.state = "stalk"
-        wolf.target = {player.coord[1], player.coord[2]}
-        moveEntity(wolf, CONFIG.WOLF_STALK_SPEED, hours, run.world.grid)
-        return
-    end
-
-    wolf.state = "roam"
-    if not wolf.target or math.random() < 0.03 then
-        wolf.target = {
-            wolf.territoryCenter[1] + math.random(-4, 4) * CONFIG.TILE_SIZE,
-            wolf.territoryCenter[2] + math.random(-4, 4) * CONFIG.TILE_SIZE,
+    hostile.state = "roam"
+    if not hostile.target or math.random() < 0.03 then
+        hostile.target = {
+            hostile.territoryCenter[1] + math.random(-4, 4) * CONFIG.TILE_SIZE,
+            hostile.territoryCenter[2] + math.random(-4, 4) * CONFIG.TILE_SIZE,
         }
     end
-    moveEntity(wolf, CONFIG.WOLF_ROAM_SPEED, hours, run.world.grid)
+    moveEntity(hostile, hostile.speed, hours, run.world.grid)
+end
+
+local function updateWolf(run, wolf, hours)
+    local player = run.player
+    player = player
+    updateHostile(run, wolf, hours)
 end
 
 local function setFleeTarget(entity, playerCoord)
@@ -312,6 +445,43 @@ function Wildlife.harvestNearbyCarcass(run)
     return true, "You harvest the carcass."
 end
 
+function Wildlife.playerMeleeAttack(run)
+    if run.player.equippedWeapon ~= "sword" then
+        return false, "You need a sword ready."
+    end
+
+    local aimX, aimY = attackDirection(run.player)
+    local bestList
+    local bestIndex
+    local bestDistance = math.huge
+
+    local function considerHostiles(listName)
+        for index, hostile in ipairs(run.world.wildlife[listName] or {}) do
+            local dx = hostile.coord[1] - run.player.coord[1]
+            local dy = hostile.coord[2] - run.player.coord[2]
+            local distance = math.sqrt((dx * dx) + (dy * dy))
+            if distance <= CONFIG.PLAYER_MELEE_RANGE_TILES * CONFIG.TILE_SIZE then
+                local dot = ((dx / math.max(1, distance)) * aimX) + ((dy / math.max(1, distance)) * aimY)
+                if dot >= 0.55 and distance < bestDistance then
+                    bestList = listName
+                    bestIndex = index
+                    bestDistance = distance
+                end
+            end
+        end
+    end
+
+    considerHostiles("wolves")
+    considerHostiles("raiders")
+
+    if bestList and bestIndex then
+        damageHostile(run, bestList, bestIndex, CONFIG.PLAYER_MELEE_DAMAGE)
+        return true, "Your sword connects."
+    end
+
+    return false, "Your sword cuts empty air."
+end
+
 function Wildlife.fireBow(run)
     if run.player.equippedWeapon ~= "bow" then
         return false, "You need a bow ready."
@@ -320,24 +490,25 @@ function Wildlife.fireBow(run)
         return false, "You have no arrows."
     end
 
-    local aimX = run.player.lastMoveX ~= 0 and run.player.lastMoveX or 1
-    local aimY = run.player.lastMoveY
+    local aimX, aimY = attackDirection(run.player)
     local bestTarget
     local bestDistance = math.huge
 
-    local function consider(list, kind)
-        for index, animal in ipairs(list or {}) do
-            local dx = animal.coord[1] - run.player.coord[1]
-            local dy = animal.coord[2] - run.player.coord[2]
+    local function consider(list, kind, listName)
+        for index, target in ipairs(list or {}) do
+            local dx = target.coord[1] - run.player.coord[1]
+            local dy = target.coord[2] - run.player.coord[2]
             local distance = math.sqrt((dx * dx) + (dy * dy))
             if distance <= CONFIG.ARROW_RANGE_TILES * CONFIG.TILE_SIZE then
                 local dot = ((dx / math.max(1, distance)) * aimX) + ((dy / math.max(1, distance)) * aimY)
                 if dot >= 0.82 and distance < bestDistance then
                     bestTarget = {
                         list = list,
+                        listName = listName,
                         index = index,
                         kind = kind,
-                        coord = {animal.coord[1], animal.coord[2]},
+                        coord = {target.coord[1], target.coord[2]},
+                        hostile = kind == "wolf" or kind == "raider",
                     }
                     bestDistance = distance
                 end
@@ -345,8 +516,10 @@ function Wildlife.fireBow(run)
         end
     end
 
-    consider(run.world.wildlife.rabbits, "rabbit")
-    consider(run.world.wildlife.deer, "deer")
+    consider(run.world.wildlife.raiders, "raider", "raiders")
+    consider(run.world.wildlife.wolves, "wolf", "wolves")
+    consider(run.world.wildlife.rabbits, "rabbit", "rabbits")
+    consider(run.world.wildlife.deer, "deer", "deer")
 
     Items.remove(run.player.inventory, "arrow", 1)
     Survival.updateCarryWeight(run.player)
@@ -363,13 +536,18 @@ function Wildlife.fireBow(run)
         return false, "The arrow vanishes into the snow."
     end
 
-    table.remove(bestTarget.list, bestTarget.index)
-    Wildlife.spawnCarcass(run, bestTarget.kind, bestTarget.coord)
+    if bestTarget.hostile then
+        damageHostile(run, bestTarget.listName, bestTarget.index, CONFIG.PLAYER_BOW_DAMAGE)
+    else
+        table.remove(bestTarget.list, bestTarget.index)
+        Wildlife.spawnCarcass(run, bestTarget.kind, bestTarget.coord)
+    end
     run.runtime.pendingPulse = {
         kind = "impact",
         coord = {bestTarget.coord[1], bestTarget.coord[2]},
     }
-    return true, "Your arrow drops the " .. bestTarget.kind .. "."
+    return true, bestTarget.hostile and ("Your arrow hits the " .. bestTarget.kind .. ".")
+        or ("Your arrow drops the " .. bestTarget.kind .. ".")
 end
 
 function Wildlife.fish(run)
@@ -406,6 +584,9 @@ end
 function Wildlife.update(run, hours)
     for _, wolf in ipairs(run.world.wildlife.wolves or {}) do
         updateWolf(run, wolf, hours)
+    end
+    for _, raider in ipairs(run.world.wildlife.raiders or {}) do
+        updateHostile(run, raider, hours)
     end
     for _, rabbit in ipairs(run.world.wildlife.rabbits or {}) do
         updatePassive(rabbit, hours, run.world.grid, run.player.coord)

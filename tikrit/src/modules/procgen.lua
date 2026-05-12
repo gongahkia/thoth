@@ -195,10 +195,26 @@ local function randomLoot()
         {"arrow", 2},
         {"fishing_tackle", 1},
         {"bow", 1},
+        {"sword", 1},
         {"snare", 1},
     }
     local choice = options[math.random(#options)]
     return {Items.create(choice[1], choice[2])}
+end
+
+local function zoneContainsTile(zone, x, y)
+    local width = zone.width or zone.w
+    local height = zone.height or zone.h
+    return x >= zone.x and x < zone.x + width and y >= zone.y and y < zone.y + height
+end
+
+local function biomeForTile(biomes, x, y)
+    for _, biome in ipairs(biomes or {}) do
+        if zoneContainsTile(biome.zone, x, y) then
+            return biome
+        end
+    end
+    return nil
 end
 
 local function makeFishingSpot(x, y, name)
@@ -344,12 +360,48 @@ local function generateProceduralRunData(difficultyName)
     local exposedFlats = makeZone(48, 46, 18, 12)
     local denseWoods = makeZone(8, 48, 27, 35)
     local wolfTerritory = makeZone(56, 20, 26, 24)
+    local ashBarrens = makeZone(68, 58, 20, 26)
+    local biomes = {
+        {
+            id = "frozen_wetlands",
+            name = "Frozen Wetlands",
+            zone = lakeArea,
+            hazardType = "weak_ice",
+            spawnTables = {loot = "survival_cache", wildlife = {"deer"}},
+            traversalTags = {"slick", "exposed"},
+        },
+        {
+            id = "boreal_forest",
+            name = "Boreal Forest",
+            zone = denseWoods,
+            hazardType = "dense_woods",
+            spawnTables = {loot = "forager", wildlife = {"rabbit", "wolf"}},
+            traversalTags = {"cover", "wood-rich"},
+        },
+        {
+            id = "rocky_highlands",
+            name = "Rocky Highlands",
+            zone = ridgeZone,
+            hazardType = "ridge",
+            spawnTables = {loot = "climber", wildlife = {"wolf"}},
+            traversalTags = {"chokepoint", "elevation"},
+        },
+        {
+            id = "ash_barrens",
+            name = "Ash Barrens",
+            zone = ashBarrens,
+            hazardType = "ash_barrens",
+            spawnTables = {loot = "combat", wildlife = {"raider"}},
+            traversalTags = {"open", "high-risk"},
+        },
+    }
     local hazardZones = {
         {type = "weak_ice", name = "Frozen Lake", zone = lakeArea},
         {type = "ridge", name = "Windbreak Ridge", zone = ridgeZone, sprainMultiplier = 1.35},
         {type = "exposed_blizzard", name = "Blizzard Flats", zone = exposedFlats, exposureModifier = -5},
         {type = "wolf_territory", name = "Old Growth Wolf Range", zone = wolfTerritory},
         {type = "dense_woods", name = "Deep Woods", zone = denseWoods, visibilityPenalty = 2},
+        {type = "ash_barrens", name = "Ash Barrens", zone = ashBarrens, visibilityPenalty = 1, exposureModifier = -3},
     }
     local temperatureBands = {
         {type = "shelter", zone = makeZone(structures[1].x, structures[1].y, structures[1].w, structures[1].h), modifier = 8},
@@ -358,7 +410,30 @@ local function generateProceduralRunData(difficultyName)
         {type = "shelter", zone = makeZone(structures[4].x, structures[4].y, structures[4].w, structures[4].h), modifier = 7},
         {type = "lake", zone = lakeArea, modifier = -6},
         {type = "exposed_blizzard", zone = exposedFlats, modifier = -5},
+        {type = "ash_barrens", zone = ashBarrens, modifier = -4},
     }
+
+    for y = denseWoods.y, denseWoods.y + denseWoods.height - 1 do
+        for x = denseWoods.x, denseWoods.x + denseWoods.width - 1 do
+            if grid[y][x] == "snow" then
+                setTile(grid, x, y, "moss")
+            end
+        end
+    end
+    for y = ridgeZone.y, ridgeZone.y + ridgeZone.height - 1 do
+        for x = ridgeZone.x, ridgeZone.x + ridgeZone.width - 1 do
+            if grid[y][x] == "snow" and (x + y) % 3 ~= 0 then
+                setTile(grid, x, y, "shale")
+            end
+        end
+    end
+    for y = ashBarrens.y, ashBarrens.y + ashBarrens.height - 1 do
+        for x = ashBarrens.x, ashBarrens.x + ashBarrens.width - 1 do
+            if grid[y][x] == "snow" then
+                setTile(grid, x, y, "ash")
+            end
+        end
+    end
     local workbenches = {
         makeWorkbench(structures[1].workbench.x, structures[1].workbench.y, "Ranger Workbench"),
         makeWorkbench(structures[2].workbench.x, structures[2].workbench.y, "Trapline Workbench"),
@@ -388,27 +463,30 @@ local function generateProceduralRunData(difficultyName)
         makeCarcass("rabbit", 24, 70),
     }
     local pointsOfInterest = {
-        {name = "Ranger Cabin", coord = worldCoord(structures[1].bed.x, structures[1].bed.y)},
-        {name = "Frozen Lake", coord = worldCoord(lakeArea.x + 8, lakeArea.y + 6)},
-        {name = "Windbreak Ridge", coord = worldCoord(42, 34)},
-        {name = "North Cave", coord = worldCoord(structures[3].mouth.x, structures[3].mouth.y)},
-        {name = "Deep Woods", coord = worldCoord(22, 62)},
-        {name = "Trapline Cabin", coord = worldCoord(structures[2].bed.x, structures[2].bed.y)},
-        {name = "Blizzard Flats", coord = worldCoord(56, 51)},
-        {name = "Weather Station", coord = worldCoord(structures[4].bed.x, structures[4].bed.y)},
-        {name = "Emergency Cache", coord = worldCoord(84, 78)},
+        {name = "Ranger Cabin", coord = worldCoord(structures[1].bed.x, structures[1].bed.y), biome = "Frozen Wetlands", rewardTier = "safe"},
+        {name = "Frozen Lake", coord = worldCoord(lakeArea.x + 8, lakeArea.y + 6), biome = "Frozen Wetlands", rewardTier = "medium"},
+        {name = "Windbreak Ridge", coord = worldCoord(42, 34), biome = "Rocky Highlands", rewardTier = "medium"},
+        {name = "North Cave", coord = worldCoord(structures[3].mouth.x, structures[3].mouth.y), biome = "Rocky Highlands", rewardTier = "safe"},
+        {name = "Deep Woods", coord = worldCoord(22, 62), biome = "Boreal Forest", rewardTier = "medium"},
+        {name = "Trapline Cabin", coord = worldCoord(structures[2].bed.x, structures[2].bed.y), biome = "Boreal Forest", rewardTier = "safe"},
+        {name = "Blizzard Flats", coord = worldCoord(56, 51), biome = "Frozen Wetlands", rewardTier = "high"},
+        {name = "Weather Station", coord = worldCoord(structures[4].bed.x, structures[4].bed.y), biome = "Ash Barrens", rewardTier = "high"},
+        {name = "Emergency Cache", coord = worldCoord(84, 78), biome = "Ash Barrens", rewardTier = "high"},
     }
 
-    addResourceNode(resourceNodes, "cache", structures[1].x + 3, structures[1].y + 2, {loot = randomLoot()})
-    addResourceNode(resourceNodes, "cache", structures[2].x + 3, structures[2].y + 2, {loot = randomLoot()})
-    addResourceNode(resourceNodes, "cache", structures[4].x + 5, structures[4].y + 3, {loot = randomLoot()})
+    addResourceNode(resourceNodes, "cache", structures[1].x + 3, structures[1].y + 2, {loot = randomLoot(), biome = "Frozen Wetlands", rewardTier = "safe"})
+    addResourceNode(resourceNodes, "cache", structures[2].x + 3, structures[2].y + 2, {loot = randomLoot(), biome = "Boreal Forest", rewardTier = "safe"})
+    addResourceNode(resourceNodes, "cache", structures[4].x + 5, structures[4].y + 3, {loot = randomLoot(), biome = "Ash Barrens", rewardTier = "high"})
     addResourceNode(resourceNodes, "cache", 84, 78, {
         loot = {
             Items.create("canned_food", 2),
             Items.create("water", 1),
             Items.create("matches", 4),
             Items.create("charcoal", 1),
+            Items.create("sword", 1),
         },
+        biome = "Ash Barrens",
+        rewardTier = "high",
     })
 
     local routeLoot = {
@@ -416,7 +494,12 @@ local function generateProceduralRunData(difficultyName)
         {52, 55}, {61, 68}, {72, 70}, {82, 74}, {28, 66},
     }
     for _, coord in ipairs(routeLoot) do
-        addResourceNode(resourceNodes, "loot", coord[1], coord[2], {loot = randomLoot()})
+        local biome = biomeForTile(biomes, coord[1], coord[2])
+        addResourceNode(resourceNodes, "loot", coord[1], coord[2], {
+            loot = randomLoot(),
+            biome = biome and biome.name or "Frontier",
+            rewardTier = biome and (biome.id == "ash_barrens" and "high" or "medium") or "medium",
+        })
     end
 
     local lootTarget = math.max(16, math.floor(22 * difficulty.lootMultiplier))
@@ -432,7 +515,12 @@ local function generateProceduralRunData(difficultyName)
             break
         end
         if canPlaceResource(grid, candidate.x, candidate.y) then
-            addResourceNode(resourceNodes, "loot", candidate.x, candidate.y, {loot = randomLoot()})
+            local biome = biomeForTile(biomes, candidate.x, candidate.y)
+            addResourceNode(resourceNodes, "loot", candidate.x, candidate.y, {
+                loot = randomLoot(),
+                biome = biome and biome.name or "Frontier",
+                rewardTier = biome and (biome.id == "ash_barrens" and "high" or "medium") or "medium",
+            })
         end
     end
 
@@ -451,12 +539,15 @@ local function generateProceduralRunData(difficultyName)
     for index = 1, woodTarget do
         local candidate = woodCandidates[index]
         if candidate then
+            local biome = biomeForTile(biomes, candidate.x, candidate.y)
             addResourceNode(resourceNodes, "wood", candidate.x, candidate.y, {
                 loot = {
                     Items.create("sticks", math.random(2, 4)),
                     Items.create("firewood", 1),
                     Items.create("snow", 1),
                 },
+                biome = biome and biome.name or "Frontier",
+                rewardTier = "safe",
             })
         end
     end
@@ -473,6 +564,16 @@ local function generateProceduralRunData(difficultyName)
             fearHours = 0,
         })
     end
+    local raiders = {
+        {
+            kind = "raider",
+            coord = worldCoord(76, 64),
+            territory = ashBarrens,
+            territoryCenter = zoneCenter(ashBarrens),
+            state = "roam",
+            target = nil,
+        },
+    }
 
     local rabbitZones = {
         makeZone(11, 18, 8, 6),
@@ -524,6 +625,7 @@ local function generateProceduralRunData(difficultyName)
             wolves = wolves,
             rabbits = rabbits,
             deer = deer,
+            raiders = raiders,
         },
         weather = {
             current = "clear",
@@ -536,6 +638,7 @@ local function generateProceduralRunData(difficultyName)
         safeSleepSpots = safeSleepSpots,
         weakIceTiles = weakIceTiles,
         snowShelters = {},
+        biomes = biomes,
         wolfTerritory = wolfTerritory,
         rabbitZones = rabbitZones,
         deerZone = deerZone,
@@ -712,7 +815,7 @@ local function generateEditorRunData(difficultyName, layout)
         table.insert(safeSleepSpots, worldCoord(cabin.bed.x, cabin.bed.y))
         table.insert(workbenches, makeWorkbench(cabin.workbench.x, cabin.workbench.y, string.format("Editor Workbench %d", cabinCount)))
         table.insert(curingStations, makeCuringStation(cabin.workbench.x, cabin.workbench.y, string.format("Editor Curing Rack %d", cabinCount)))
-        table.insert(pointsOfInterest, {name = cabin.name, coord = worldCoord(cabin.bed.x, cabin.bed.y)})
+        table.insert(pointsOfInterest, {name = cabin.name, coord = worldCoord(cabin.bed.x, cabin.bed.y), biome = "Editor Frontier", rewardTier = "safe"})
         table.insert(temperatureBands, {
             type = "shelter",
             zone = makeZone(bounds.x, bounds.y, bounds.width, bounds.height),
@@ -725,7 +828,7 @@ local function generateEditorRunData(difficultyName, layout)
         local cave = addCave(grid, bounds.x, bounds.y, bounds.width, bounds.height)
         table.insert(structures, cave)
         table.insert(safeSleepSpots, worldCoord(cave.bed.x, cave.bed.y))
-        table.insert(pointsOfInterest, {name = "Editor Cave", coord = worldCoord(cave.mouth.x, cave.mouth.y)})
+        table.insert(pointsOfInterest, {name = "Editor Cave", coord = worldCoord(cave.mouth.x, cave.mouth.y), biome = "Editor Frontier", rewardTier = "medium"})
         table.insert(temperatureBands, {
             type = "cave",
             zone = makeZone(bounds.x, bounds.y, bounds.width, bounds.height),
@@ -863,6 +966,7 @@ local function generateEditorRunData(difficultyName, layout)
             wolves = wolves,
             rabbits = rabbits,
             deer = deer,
+            raiders = {},
         },
         weather = {
             current = "clear",
@@ -874,6 +978,15 @@ local function generateEditorRunData(difficultyName, layout)
         safeSleepSpots = safeSleepSpots,
         weakIceTiles = weakIceTiles,
         snowShelters = snowShelters,
+        biomes = {
+            {
+                id = "editor_frontier",
+                name = "Editor Frontier",
+                zone = makeZone(2, 2, CONFIG.GRID_WIDTH - 2, CONFIG.GRID_HEIGHT - 2),
+                spawnTables = {loot = "editor", wildlife = {"wolf", "rabbit", "deer"}},
+                traversalTags = {"editor"},
+            },
+        },
         wolfTerritory = wolfZones[1],
         rabbitZones = rabbitZones,
         deerZone = deerZones[1],

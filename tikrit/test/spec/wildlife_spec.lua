@@ -44,11 +44,40 @@ describe("Wildlife", function()
     it("moves wolves from roaming into stalking and charging", function()
         local run = buildRun()
         Wildlife.update(run, 0.001)
-        TestRunner.assertTrue(run.world.wildlife.wolves[1].state == "stalk" or run.world.wildlife.wolves[1].state == "charge")
+        TestRunner.assertTrue(
+            run.world.wildlife.wolves[1].state == "stalk"
+            or run.world.wildlife.wolves[1].state == "charge"
+            or run.world.wildlife.wolves[1].state == "windup"
+        )
 
         run.player.coord = {42, 40}
         Wildlife.update(run, 0.001)
-        TestRunner.assertTrue(run.world.wildlife.wolves[1].state == "charge" or run.world.wildlife.wolves[1].state == "retreat")
+        TestRunner.assertTrue(
+            run.world.wildlife.wolves[1].state == "charge"
+            or run.world.wildlife.wolves[1].state == "retreat"
+            or run.world.wildlife.wolves[1].state == "windup"
+            or run.world.wildlife.wolves[1].state == "recover"
+        )
+    end)
+
+    it("lets dodging avoid a hostile windup and supports raider updates", function()
+        local run = buildRun()
+        run.player.invulnTimer = 1
+        run.world.wildlife.wolves[1].coord = {40, 40}
+        Wildlife.update(run, 0.01)
+        TestRunner.assertEqual(run.player.condition, Survival.createPlayer({}).condition)
+
+        run.world.wildlife.raiders = {
+            {
+                kind = "raider",
+                coord = {20, 40},
+                territory = {x = 1, y = 1, width = 4, height = 4},
+                territoryCenter = {40, 40},
+                state = "roam",
+            },
+        }
+        Wildlife.update(run, 0.01)
+        TestRunner.assertTrue(run.world.wildlife.raiders[1].state == "charge" or run.world.wildlife.raiders[1].state == "windup" or run.world.wildlife.raiders[1].state == "recover")
     end)
 
     it("repels wolves with fire and applies struggle damage on contact", function()
@@ -64,6 +93,7 @@ describe("Wildlife", function()
         local struggleRun = buildRun()
         struggleRun.player.coord = {40, 40}
         local startCondition = struggleRun.player.condition
+        Wildlife.update(struggleRun, 0.1)
         Wildlife.update(struggleRun, 0.1)
         TestRunner.assertTrue(struggleRun.player.condition < startCondition)
     end)

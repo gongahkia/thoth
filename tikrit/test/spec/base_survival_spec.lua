@@ -173,6 +173,8 @@ describe("Base Survival", function()
         Items.add(run.player.inventory, "bow", 1)
         Items.add(run.player.inventory, "arrow", 2)
         run.player.equippedWeapon = "bow"
+        run.player.combatFacingX = 1
+        run.player.combatFacingY = 0
         run.player.lastMoveX = 1
         run.player.lastMoveY = 0
         ok = Wildlife.fireBow(run)
@@ -191,6 +193,46 @@ describe("Base Survival", function()
             end
         end
         TestRunner.assertTrue(caught)
+    end)
+
+    it("supports sword combat and hostile bow hits", function()
+        local run = buildRun("snow")
+        run.world.wildlife.wolves = {
+            {
+                kind = "wolf",
+                coord = {40, 20},
+                territory = {x = 1, y = 1, width = 4, height = 4},
+                territoryCenter = {40, 20},
+                state = "stalk",
+                health = 18,
+            },
+        }
+        run.world.wildlife.raiders = {
+            {
+                kind = "raider",
+                coord = {80, 20},
+                territory = {x = 1, y = 1, width = 5, height = 5},
+                territoryCenter = {80, 20},
+                state = "stalk",
+                health = 20,
+            },
+        }
+
+        Items.add(run.player.inventory, "sword", 1)
+        run.player.equippedWeapon = "sword"
+        run.player.equippedMeleeWeapon = "sword"
+        run.player.combatFacingX = 1
+        run.player.combatFacingY = 0
+        local ok = Wildlife.playerMeleeAttack(run)
+        TestRunner.assertTrue(ok)
+        TestRunner.assertEqual(#run.world.wildlife.wolves, 0)
+
+        Items.add(run.player.inventory, "bow", 1)
+        Items.add(run.player.inventory, "arrow", 1)
+        run.player.equippedWeapon = "bow"
+        ok = Wildlife.fireBow(run)
+        TestRunner.assertTrue(ok)
+        TestRunner.assertEqual(#run.world.wildlife.raiders, 0)
     end)
 
     it("uses renamed experience modes and preserves extended replay context", function()

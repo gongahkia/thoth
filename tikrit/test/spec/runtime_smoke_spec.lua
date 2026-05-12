@@ -64,6 +64,7 @@ describe("Runtime Smoke", function()
             local currentTime = 0
             local currentFont = nil
             local rectangleCalls = 0
+            local windowMode
             local run
 
             local function countEvent(events, target)
@@ -108,7 +109,13 @@ describe("Runtime Smoke", function()
             _G.love = {
                 window = {
                     setTitle = function() end,
-                    setMode = function() end,
+                    setMode = function(width, height, options)
+                        windowMode = {
+                            width = width,
+                            height = height,
+                            options = options or {},
+                        }
+                    end,
                 },
                 filesystem = {
                     createDirectory = function(path)
@@ -156,6 +163,9 @@ describe("Runtime Smoke", function()
                     end,
                     getFont = function()
                         return currentFont
+                    end,
+                    getDimensions = function()
+                        return 1600, 900
                     end,
                     newImage = function(path)
                         return {
@@ -229,6 +239,9 @@ describe("Runtime Smoke", function()
             local Items = require("modules/items")
             local SoundEvents = require("modules/sound_events")
             love.load()
+            TestRunner.assertTrue(windowMode ~= nil)
+            TestRunner.assertTrue(windowMode.options.fullscreen)
+            TestRunner.assertEqual(windowMode.options.fullscreentype, "desktop")
 
             love.keypressed("f5")
             Editor.setLayout(buildEditorLayout())
@@ -369,6 +382,8 @@ describe("Runtime Smoke", function()
             Items.add(run.player.inventory, "arrow", 1)
             love.keypressed("b")
             love.keypressed("space")
+            currentTime = currentTime + 0.3
+            love.update(0.3)
             TestRunner.assertTrue(countEvent(SoundEvents.getEventLog(), "bow_ready") > 0)
             TestRunner.assertTrue(countEvent(SoundEvents.getEventLog(), "bow_fire") > 0)
             TestRunner.assertTrue(countEvent(SoundEvents.getEventLog(), "arrow_hit") > 0)
@@ -403,8 +418,8 @@ describe("Runtime Smoke", function()
 
             run.player.coord = {89 * 20, 89 * 20}
             love.draw()
-            TestRunner.assertEqual(run.runtime.camera.x, 1200)
-            TestRunner.assertEqual(run.runtime.camera.y, 1200)
+            TestRunner.assertEqual(run.runtime.camera.x, 200)
+            TestRunner.assertEqual(run.runtime.camera.y, 900)
         end)
         _G.love = originalLove
         if not ok then

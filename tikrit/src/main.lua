@@ -71,7 +71,7 @@ local SETTINGS_DEFS = {
         {path = "accessibility.colorblindMode", label = "Colorblind", kind = "enum", values = {"none", "protanopia", "deuteranopia", "tritanopia"}},
         {path = "accessibility.highContrast", label = "High Contrast", kind = "bool"},
         {path = "accessibility.slowMode", label = "Slow Mode", kind = "bool"},
-        {path = "accessibility.fontScale", label = "Font Scale", kind = "float", min = 0.8, max = 1.5, step = 0.1},
+        {path = "accessibility.fontScale", label = "Font Scale", kind = "float", min = 1.0, max = 2.5, step = 0.1},
         {path = "accessibility.visualAlerts", label = "Visual Alerts", kind = "bool"},
     },
 }
@@ -102,8 +102,28 @@ local function rebuildFonts()
     fonts.large = love.graphics.newFont(math.floor(CONFIG.FONT_SIZE_LARGE * scale))
     fonts.medium = love.graphics.newFont(math.floor(CONFIG.FONT_SIZE_MEDIUM * scale))
     fonts.small = love.graphics.newFont(math.floor(CONFIG.FONT_SIZE_SMALL * scale))
-    fonts.hud = love.graphics.newFont(math.max(12, math.floor(14 * scale)))
-    fonts.tiny = love.graphics.newFont(math.max(10, math.floor(11 * scale)))
+    fonts.hud = love.graphics.newFont(math.max(18, math.floor(CONFIG.FONT_SIZE_HUD * scale)))
+    fonts.tiny = love.graphics.newFont(math.max(14, math.floor(CONFIG.FONT_SIZE_TINY * scale)))
+end
+
+local function configureWindow()
+    love.window.setMode(CONFIG.WINDOW_WIDTH, CONFIG.WINDOW_HEIGHT, {
+        fullscreen = true,
+        fullscreentype = "desktop",
+    })
+
+    local width = CONFIG.WINDOW_WIDTH
+    local height = CONFIG.WINDOW_HEIGHT
+    if love.graphics and love.graphics.getDimensions then
+        width, height = love.graphics.getDimensions()
+    elseif love.window and love.window.getDesktopDimensions then
+        width, height = love.window.getDesktopDimensions(1)
+    end
+
+    CONFIG.WINDOW_WIDTH = width
+    CONFIG.WINDOW_HEIGHT = height
+    CONFIG.GRID_WIDTH = math.floor(width / CONFIG.TILE_SIZE)
+    CONFIG.GRID_HEIGHT = math.floor(height / CONFIG.TILE_SIZE)
 end
 
 local function buildTitleItems()
@@ -245,8 +265,32 @@ local function buildReplayContext(run)
             carryCapacity = run.player.carryCapacity,
             equippedTool = run.player.equippedTool,
             equippedWeapon = run.player.equippedWeapon,
+            equippedMeleeWeapon = run.player.equippedMeleeWeapon,
         },
     }
+end
+
+local function coordInZone(coord, zone)
+    if not coord or not zone then
+        return false
+    end
+    local gx, gy = Utils.pixelToGrid(coord[1], coord[2])
+    local tileX = gx + 1
+    local tileY = gy + 1
+    local width = zone.width or zone.w
+    local height = zone.height or zone.h
+    return zone.x and zone.y and width and height
+        and tileX >= zone.x and tileX < zone.x + width
+        and tileY >= zone.y and tileY < zone.y + height
+end
+
+local function currentBiomeRegion(run, coord)
+    for _, biome in ipairs(run.world.biomes or {}) do
+        if coordInZone(coord or run.player.coord, biome.zone) then
+            return biome
+        end
+    end
+    return nil
 end
 
 local function worldPixelSize(run)
@@ -364,6 +408,7 @@ local function createRun(generated, difficultyName, options)
                 x = 0,
                 y = 0,
             },
+            currentBiome = nil,
         },
         finished = false,
         replayMode = options.replayMode or false,
@@ -386,6 +431,7 @@ local function createRun(generated, difficultyName, options)
     run.world.pointsOfInterest = run.world.pointsOfInterest or {}
     run.world.discoveredPOIs = run.world.discoveredPOIs or {}
     run.world.goals = run.world.goals or {}
+    run.world.biomes = run.world.biomes or {}
 
     if options.context then
         local context = options.context
@@ -405,9 +451,12 @@ local function createRun(generated, difficultyName, options)
             run.player.carryCapacity = context.player.carryCapacity or run.player.carryCapacity
             run.player.equippedTool = context.player.equippedTool or run.player.equippedTool
             run.player.equippedWeapon = context.player.equippedWeapon or run.player.equippedWeapon
+            run.player.equippedMeleeWeapon = context.player.equippedMeleeWeapon or run.player.equippedMeleeWeapon
             run.player.condition = math.min(run.player.condition, run.player.maxCondition)
         end
     end
+
+    run.runtime.currentBiome = currentBiomeRegion(run, run.player.coord) and currentBiomeRegion(run, run.player.coord).name or nil
 
     return run
 end
@@ -660,8 +709,105 @@ local function getMoveSpeed(isSprinting)
     return Accessibility.getAdjustedSpeed(game.settings, speed)
 end
 
+local function consumeStamina(player, amount)
+    if (player.stamina or 0) < amount then
+        return false
+    end
+    player.stamina = math.max(0, player.stamina - amount)
+    player.staminaRegenDelay = CONFIG.PLAYER_STAMINA_REGEN_DELAY
+    return true
+end
+
+local function combatFacing(player)
+    if player.lastMoveX ~= 0 or player.lastMoveY ~= 0 then
+        return player.lastMoveX, player.lastMoveY
+    end
+    return player.combatFacingX or CONFIG.PLAYER_ATTACK_FACING_FALLBACK_X, player.combatFacingY or 0
+end
+
+local function queueAttack(kind)
+    local player = game.run.player
+    if player.attackState then
+        return false, "You are already committed to an action."
+    end
+
+    if kind == "bow" then
+        if player.equippedWeapon ~= "bow" then
+            return false, "You need a bow ready."
+        end
+        if Items.count(player.inventory, "arrow") < 1 then
+            return false, "You have no arrows."
+        end
+        if not consumeStamina(player, CONFIG.PLAYER_BOW_COST) then
+            return false, "Too winded to draw the bow."
+        end
+        player.attackState = {
+            kind = "bow",
+            timer = CONFIG.PLAYER_BOW_WINDUP,
+            recovery = CONFIG.PLAYER_BOW_RECOVERY,
+            resolved = false,
+        }
+        return true, "You draw the bow."
+    end
+
+    if player.equippedWeapon ~= "sword" then
+        return false, "You need a sword ready."
+    end
+    if not consumeStamina(player, CONFIG.PLAYER_MELEE_COST) then
+        return false, "Too winded to swing."
+    end
+    player.attackState = {
+        kind = "melee",
+        timer = CONFIG.PLAYER_MELEE_WINDUP,
+        recovery = CONFIG.PLAYER_MELEE_RECOVERY,
+        resolved = false,
+    }
+    return true, "You commit to a sword slash."
+end
+
+local function performDodge()
+    local player = game.run.player
+    if player.attackState then
+        return false, "You are mid-action."
+    end
+    if not consumeStamina(player, CONFIG.PLAYER_DODGE_COST) then
+        return false, "Too exhausted to dodge."
+    end
+
+    local dx, dy = combatFacing(player)
+    local length = math.sqrt((dx * dx) + (dy * dy))
+    if length <= 0 then
+        dx, dy = 0, 1
+        length = 1
+    end
+    dx = dx / length
+    dy = dy / length
+    local dodgeDistance = CONFIG.PLAYER_DODGE_DISTANCE_TILES * CONFIG.TILE_SIZE
+    local target = {
+        player.coord[1] + (dx * dodgeDistance),
+        player.coord[2] + (dy * dodgeDistance),
+    }
+    if canOccupy(target) then
+        player.coord = target
+    end
+    player.invulnTimer = CONFIG.PLAYER_DODGE_DURATION
+    player.combatFacingX = dx
+    player.combatFacingY = dy
+    game.run.runtime.pendingPulse = {
+        kind = "impact",
+        coord = {player.coord[1], player.coord[2]},
+    }
+    updateCamera(game.run)
+    updateVisibility()
+    return true, "You dodge through the opening."
+end
+
 local function movePlayer(dt)
     local player = game.run.player
+    if player.attackState and player.attackState.timer > 0 then
+        SoundEvents.stop("walking")
+        return false
+    end
     local dx, dy = 0, 0
     if isMovementKeyDown("w", "up") then
         dy = dy - 1
@@ -691,6 +837,8 @@ local function movePlayer(dt)
     dy = dy / length
     player.lastMoveX = dx
     player.lastMoveY = dy
+    player.combatFacingX = dx
+    player.combatFacingY = dy
 
     local speed = getMoveSpeed(sprinting)
     local previous = {player.coord[1], player.coord[2]}
@@ -867,12 +1015,14 @@ updateRunSignals = function()
     local climbNode = findNearbyCoordEntry(run.world.climbNodes)
     local mapNode = findNearbyCoordEntry(run.world.mapNodes)
     local currentStation = run.runtime.currentStation
+    local currentBiome = currentBiomeRegion(run, run.player.coord)
     local alerts = {
         wolfThreat = 0,
         blizzard = 0,
         fireRisk = 0,
         weakIce = 0,
     }
+    run.runtime.currentBiome = currentBiome and currentBiome.name or nil
 
     local tile = Survival.currentTile(run)
     if tile == "weak_ice" or (run.player.weakIceHours or 0) > 0 then
@@ -894,16 +1044,18 @@ updateRunSignals = function()
     end
 
     local wolfAlertDistance = CONFIG.WOLF_DETECTION_RADIUS_TILES * CONFIG.TILE_SIZE
-    for _, wolf in ipairs(run.world.wildlife.wolves or {}) do
-        local distance = Utils.distance(run.player.coord[1], run.player.coord[2], wolf.coord[1], wolf.coord[2])
-        if distance <= wolfAlertDistance then
-            local intensity = Utils.clamp(1 - (distance / wolfAlertDistance), 0.2, 1)
-            if wolf.state == "charge" then
-                intensity = 1
-            elseif wolf.state == "stalk" then
-                intensity = math.max(intensity, 0.65)
+    for _, listName in ipairs({"wolves", "raiders"}) do
+        for _, hostile in ipairs(run.world.wildlife[listName] or {}) do
+            local distance = Utils.distance(run.player.coord[1], run.player.coord[2], hostile.coord[1], hostile.coord[2])
+            if distance <= wolfAlertDistance then
+                local intensity = Utils.clamp(1 - (distance / wolfAlertDistance), 0.2, 1)
+                if hostile.state == "charge" or hostile.state == "windup" then
+                    intensity = 1
+                elseif hostile.state == "stalk" then
+                    intensity = math.max(intensity, 0.65)
+                end
+                alerts.wolfThreat = math.max(alerts.wolfThreat, intensity)
             end
-            alerts.wolfThreat = math.max(alerts.wolfThreat, intensity)
         end
     end
 
@@ -950,7 +1102,9 @@ updateRunSignals = function()
     elseif Survival.canSleepAt(run) then
         run.runtime.interactionHint = "R rest here."
     elseif run.player.equippedWeapon == "bow" and Items.count(run.player.inventory, "arrow") > 0 then
-        run.runtime.interactionHint = "Space loose an arrow."
+        run.runtime.interactionHint = "Space fire, Q dodge."
+    elseif run.player.equippedWeapon == "sword" then
+        run.runtime.interactionHint = "Space slash, Q dodge."
     elseif run.world.weather.current == "blizzard" and not sheltered then
         run.runtime.interactionHint = "Find shelter or light a fire."
     else
@@ -1190,6 +1344,25 @@ local function toggleBow()
     return false
 end
 
+local function toggleSword()
+    if game.run.player.equippedWeapon == "sword" then
+        game.run.player.equippedWeapon = nil
+        game.run.player.equippedMeleeWeapon = "sword"
+        setRunMessage("You lower the sword.")
+        return true
+    end
+
+    if Items.count(game.run.player.inventory, "sword") > 0 then
+        game.run.player.equippedWeapon = "sword"
+        game.run.player.equippedMeleeWeapon = "sword"
+        setRunMessage("You ready the sword.")
+        return true
+    end
+
+    setRunMessage("No sword in your pack.")
+    return false
+end
+
 local function handleGameplayActionKey(key)
     if key == "e" then
         interact()
@@ -1226,18 +1399,26 @@ local function handleGameplayActionKey(key)
         if ok then
             SoundEvents.play("map_reveal")
         end
+    elseif key == "q" then
+        local ok, message = performDodge()
+        setRunMessage(message)
+        applyPendingShake()
+        updateRunSignals()
     elseif key == "b" then
         toggleBow()
+    elseif key == "v" then
+        toggleSword()
     elseif key == "space" then
-        local canFireBow = game.run.player.equippedWeapon == "bow" and Items.count(game.run.player.inventory, "arrow") > 0
-        local ok, message = Wildlife.fireBow(game.run)
+        local weapon = game.run.player.equippedWeapon
+        local ok, message
+        if weapon == "bow" then
+            ok, message = queueAttack("bow")
+        elseif weapon == "sword" then
+            ok, message = queueAttack("melee")
+        else
+            ok, message = false, "Ready a sword or bow first."
+        end
         setRunMessage(message)
-        if canFireBow then
-            SoundEvents.play("bow_fire")
-        end
-        if ok then
-            SoundEvents.play("arrow_hit")
-        end
     else
         local index = tonumber(key)
         if index then
@@ -1254,6 +1435,48 @@ local function applyReplayInput(input)
         handleGameplayActionKey(input.key)
     elseif input.type == "keyup" then
         game.input.heldKeys[input.key] = nil
+    end
+end
+
+local function updateCombatState(run, dt)
+    local player = run.player
+
+    if (player.invulnTimer or 0) > 0 then
+        player.invulnTimer = math.max(0, player.invulnTimer - dt)
+    end
+
+    if player.attackState then
+        player.attackState.timer = player.attackState.timer - dt
+        if player.attackState.timer <= 0 and not player.attackState.resolved then
+            local ok, message
+            if player.attackState.kind == "bow" then
+                ok, message = Wildlife.fireBow(run, true)
+                SoundEvents.play("bow_fire")
+                if ok then
+                    SoundEvents.play("arrow_hit")
+                end
+            else
+                ok, message = Wildlife.playerMeleeAttack(run)
+                if ok then
+                    SoundEvents.play("harvest")
+                end
+            end
+            player.attackState.resolved = true
+            player.attackState.timer = player.attackState.recovery
+            setRunMessage(message)
+            applyPendingShake()
+        elseif player.attackState.timer <= 0 and player.attackState.resolved then
+            player.attackState = nil
+        end
+    end
+
+    if (player.staminaRegenDelay or 0) > 0 then
+        player.staminaRegenDelay = math.max(0, player.staminaRegenDelay - dt)
+    elseif not player.attackState then
+        player.stamina = math.min(
+            player.maxStamina,
+            player.stamina + (CONFIG.PLAYER_STAMINA_REGEN_PER_SECOND * dt)
+        )
     end
 end
 
@@ -1292,6 +1515,7 @@ local function updateGame(dt)
     end
 
     Effects.update(dt)
+    updateCombatState(run, dt)
 
     if run.runtime.craftMenuOpen then
         updateVisibility()
@@ -1437,6 +1661,12 @@ local function drawWorld()
             SpriteRegistry.drawWildlife(sprites, deer, game.settings)
         end
     end
+    for _, raider in ipairs(world.wildlife.raiders or {}) do
+        local gx, gy = Utils.pixelToGrid(raider.coord[1], raider.coord[2])
+        if isVisibleTile(gx + 1, gy + 1) then
+            SpriteRegistry.drawWildlife(sprites, raider, game.settings)
+        end
+    end
 
     love.graphics.setFont(fonts.small)
     for _, poi in ipairs(world.pointsOfInterest or {}) do
@@ -1491,7 +1721,7 @@ end
 
 function love.load()
     love.window.setTitle(string.format("%s v%s", CONFIG.WINDOW_TITLE, CONFIG.VERSION))
-    love.window.setMode(CONFIG.WINDOW_WIDTH, CONFIG.WINDOW_HEIGHT)
+    configureWindow()
 
     game.settings = Settings.load()
     Progression.load()

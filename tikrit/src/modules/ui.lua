@@ -16,14 +16,15 @@ local SKILL_ICON_KEYS = {
 local EQUIPMENT_ICON_KEYS = {
     knife = "knife",
     hatchet = "hatchet",
+    sword = "sword",
     bow = "bow",
     torch = "loot",
     flare = "loot",
 }
 
-local PANEL_HEIGHT = 74
-local PANEL_GAP = 8
-local PANEL_Y = 8
+local PANEL_HEIGHT = 80
+local PANEL_GAP = 10
+local PANEL_Y = 10
 
 local function drawCentered(font, text, y, settings, color)
     Accessibility.setColor(settings, color[1], color[2], color[3], color[4] or 1)
@@ -167,18 +168,18 @@ local function skillSummary(skills, keys)
 end
 
 function UI.drawTitleScreen(state, fonts, settings)
-    drawCentered(fonts.large, "TIKRIT", 36, settings, {0.93, 0.95, 0.98, 1})
-    drawCentered(fonts.small, "Cold-weather survival", 112, settings, {0.7, 0.78, 0.86, 1})
-    drawMenu(state.titleItems, state.titleIndex, 180, fonts, settings)
+    drawCentered(fonts.large, "TIKRIT", 52, settings, {0.93, 0.95, 0.98, 1})
+    drawCentered(fonts.small, "Cold-weather survival", 138, settings, {0.7, 0.78, 0.86, 1})
+    drawMenu(state.titleItems, state.titleIndex, 220, fonts, settings)
 
     if settings.gameplay.showHints then
         local help = {
             "WASD move, Left Shift sprint, E interact, F fire, R rest",
-            "C craft, X context, H repair, T treat, M map",
-            "Number keys use items, B ready bow, Space fire bow, Esc pauses",
+            "C craft, X context, H repair, T treat, M map, Q dodge",
+            "V ready sword, B ready bow, Space attack, Esc pauses",
         }
         for index, line in ipairs(help) do
-            drawCentered(fonts.small, line, 500 + ((index - 1) * 22), settings, {0.56, 0.6, 0.66, 1})
+            drawCentered(fonts.small, line, CONFIG.WINDOW_HEIGHT - 160 + ((index - 1) * 36), settings, {0.56, 0.6, 0.66, 1})
         end
     end
 end
@@ -199,7 +200,7 @@ function UI.drawSettingsScreen(screenState, fonts, settings)
         love.graphics.print(string.format("%s: %s", item.label, tostring(item.value)), 80, 170 + ((index - 1) * 36))
     end
 
-    drawCentered(fonts.small, "Left/Right adjust values, Tab changes category, Esc returns", 548, settings, {0.55, 0.58, 0.65, 1})
+    drawCentered(fonts.small, "Left/Right adjust values, Tab changes category, Esc returns", CONFIG.WINDOW_HEIGHT - 50, settings, {0.55, 0.58, 0.65, 1})
 end
 
 function UI.drawReplayScreen(screenState, fonts, settings)
@@ -217,7 +218,7 @@ function UI.drawReplayScreen(screenState, fonts, settings)
             love.graphics.print(entry.details, 92, 180 + ((index - 1) * 54))
         end
     end
-    drawCentered(fonts.small, "Enter plays, R refreshes, Esc returns", 552, settings, {0.55, 0.58, 0.65, 1})
+    drawCentered(fonts.small, "Enter plays, R refreshes, Esc returns", CONFIG.WINDOW_HEIGHT - 50, settings, {0.55, 0.58, 0.65, 1})
 end
 
 function UI.drawProfileScreen(profile, fonts, settings)
@@ -252,7 +253,7 @@ function UI.drawProfileScreen(profile, fonts, settings)
         featY = featY + 24
     end
 
-    drawCentered(fonts.small, "Esc returns", 552, settings, {0.55, 0.58, 0.65, 1})
+    drawCentered(fonts.small, "Esc returns", CONFIG.WINDOW_HEIGHT - 50, settings, {0.55, 0.58, 0.65, 1})
 end
 
 function UI.drawPauseScreen(options, selectedIndex, fonts, settings)
@@ -271,6 +272,7 @@ function UI.drawHUD(run, fonts, settings, sprites)
     local skillIcons = itemSprites.skills or {}
     local hudFont = fonts.hud or fonts.small
     local tinyFont = fonts.tiny or fonts.small
+    local staminaPercent = math.floor((((player.stamina or 0) / math.max(1, player.maxStamina or 1)) * 100) + 0.5)
     local panelWidth = math.floor((CONFIG.WINDOW_WIDTH - (PANEL_GAP * 4)) / 3)
     local panelOneX = PANEL_GAP
     local panelTwoX = panelOneX + panelWidth + PANEL_GAP
@@ -299,6 +301,7 @@ function UI.drawHUD(run, fonts, settings, sprites)
         math.floor(((world.timeOfDay or 0) % 1) * 60),
         string.upper((((world.weather or {}).current or "clear"):sub(1, 3)))
     )
+    local biomeText = runtime.currentBiome and string.format("Biome %s", runtime.currentBiome) or nil
     local stationText = nil
     if runtime.currentStation and runtime.currentStation.label then
         local stationName = runtime.currentStation.label
@@ -317,16 +320,20 @@ function UI.drawHUD(run, fonts, settings, sprites)
     Accessibility.setColor(settings, 0.9, 0.95, 1, 1)
     love.graphics.setFont(hudFont)
     love.graphics.print(fitText(hudFont, weatherText, panelWidth - 16), panelOneX + 8, PANEL_Y + 6)
+    if biomeText then
+        Accessibility.setColor(settings, 0.76, 0.88, 0.96, 1)
+        love.graphics.print(fitText(tinyFont, biomeText, panelWidth - 16), panelOneX + 8, PANEL_Y + 20)
+    end
     if runtime.currentPOI then
         Accessibility.setColor(settings, 0.75, 0.86, 0.96, 1)
-        love.graphics.print(fitText(tinyFont, "POI " .. runtime.currentPOI, panelWidth - 16), panelOneX + 8, PANEL_Y + 22)
+        love.graphics.print(fitText(tinyFont, "POI " .. runtime.currentPOI, panelWidth - 16), panelOneX + 8, PANEL_Y + 32)
     end
     if stationText then
         Accessibility.setColor(settings, 0.7, 0.84, 0.9, 1)
         love.graphics.print(
             fitText(tinyFont, stationText, panelWidth - 16),
             panelOneX + 8,
-            PANEL_Y + 34
+            PANEL_Y + 44
         )
     end
 
@@ -334,23 +341,23 @@ function UI.drawHUD(run, fonts, settings, sprites)
     love.graphics.print(
         fitText(tinyFont, string.format("Condition %s  Warmth %s", formatPercent((player.condition / player.maxCondition) * 100), formatPercent(player.warmth)), panelWidth - 16),
         panelOneX + 8,
-        PANEL_Y + 48
+        PANEL_Y + 56
     )
     love.graphics.print(
-        fitText(tinyFont, string.format("Fatigue %s  Thirst %s", formatPercent(player.fatigue), formatPercent(player.thirst)), panelWidth - 16),
+        fitText(tinyFont, string.format("Fatigue %s  Thirst %s  Stam %d%%", formatPercent(player.fatigue), formatPercent(player.thirst), staminaPercent), panelWidth - 16),
         panelOneX + 8,
-        PANEL_Y + 60
+        PANEL_Y + 68
     )
 
     Accessibility.setColor(settings, 0.9, 0.95, 1, 1)
     love.graphics.setFont(hudFont)
     love.graphics.print(fitText(hudFont, string.format("Calories %d", math.floor(player.calories)), panelWidth - 16), panelTwoX + 8, PANEL_Y + 6)
-    love.graphics.print(fitText(hudFont, string.format("Carry %.1f / %.1f", player.carryWeight, player.carryCapacity), panelWidth - 16), panelTwoX + 8, PANEL_Y + 24)
-    love.graphics.print(fitText(tinyFont, string.format("Fire %d  Repelled %d", run.stats.firesLit, run.stats.wolvesRepelled), panelWidth - 16), panelTwoX + 8, PANEL_Y + 42)
+    love.graphics.print(fitText(hudFont, string.format("Carry %.1f / %.1f", player.carryWeight, player.carryCapacity), panelWidth - 16), panelTwoX + 8, PANEL_Y + 20)
+    love.graphics.print(fitText(tinyFont, string.format("Fire %d  Repelled %d", run.stats.firesLit, run.stats.wolvesRepelled), panelWidth - 16), panelTwoX + 8, PANEL_Y + 44)
 
     love.graphics.setFont(tinyFont)
     local inventoryText = inventorySummary(player.inventory)
-    love.graphics.print(fitText(tinyFont, "Inv " .. inventoryText, panelWidth - 16), panelTwoX + 8, PANEL_Y + 58)
+    love.graphics.print(fitText(tinyFont, "Inv " .. inventoryText, panelWidth - 16), panelTwoX + 8, PANEL_Y + 60)
 
     local afflictions = {}
     if afflictionsState.hypothermia then
@@ -383,10 +390,10 @@ function UI.drawHUD(run, fonts, settings, sprites)
     local function drawEquipment(kind, x, maxWidth)
         local iconKey = EQUIPMENT_ICON_KEYS[kind]
         if iconKey then
-            drawIcon(itemSprites[iconKey] or itemSprites.loot, x, equipmentY, settings, 0.95, 10)
+            drawIcon(itemSprites[iconKey] or itemSprites.loot, x, equipmentY, settings, 0.95, 12)
         end
         Accessibility.setColor(settings, 0.86, 0.9, 0.96, 1)
-        love.graphics.print(fitText(tinyFont, kind and Items.describe(kind) or "-", maxWidth - 14), x + 14, equipmentY)
+        love.graphics.print(fitText(tinyFont, kind and Items.describe(kind) or "-", maxWidth - 16), x + 16, equipmentY)
     end
     drawEquipment(player.equippedTool, panelThreeX + 8, equipmentWidth)
     drawEquipment(player.equippedWeapon, panelThreeX + 8 + equipmentWidth, equipmentWidth)
@@ -401,18 +408,18 @@ function UI.drawHUD(run, fonts, settings, sprites)
         return labels
     end)(), ", ") or "none"
     if #afflictions > 0 then
-        drawIcon(afflictions[1].icon, panelThreeX + 8, PANEL_Y + 28, settings, 0.95, 10)
+        drawIcon(afflictions[1].icon, panelThreeX + 8, PANEL_Y + 26, settings, 0.95, 12)
     end
     Accessibility.setColor(settings, 0.84, 0.88, 0.94, 1)
-    love.graphics.print(fitText(tinyFont, "Aff " .. afflictionText, panelThreeWidth - 22), panelThreeX + 22, PANEL_Y + 26)
+    love.graphics.print(fitText(tinyFont, "Aff " .. afflictionText, panelThreeWidth - 20), panelThreeX + 22, PANEL_Y + 24)
 
     local skillOrder = {
-        {"FireStarting", panelThreeX + 8, PANEL_Y + 48},
-        {"Cooking", panelThreeX + 68, PANEL_Y + 48},
-        {"Fishing", panelThreeX + 128, PANEL_Y + 48},
-        {"Harvesting", panelThreeX + 8, PANEL_Y + 61},
-        {"Mending", panelThreeX + 68, PANEL_Y + 61},
-        {"Archery", panelThreeX + 128, PANEL_Y + 61},
+        {"FireStarting", panelThreeX + 8, PANEL_Y + 50},
+        {"Cooking", panelThreeX + 68, PANEL_Y + 50},
+        {"Fishing", panelThreeX + 128, PANEL_Y + 50},
+        {"Harvesting", panelThreeX + 8, PANEL_Y + 63},
+        {"Mending", panelThreeX + 68, PANEL_Y + 63},
+        {"Archery", panelThreeX + 128, PANEL_Y + 63},
     }
     for _, entry in ipairs(skillOrder) do
         local key = entry[1]
@@ -489,7 +496,7 @@ function UI.drawDeathScreen(run, fonts, settings)
     drawCentered(fonts.medium, string.format("Fires lit: %d", run.stats.firesLit), 254, settings, {0.8, 0.84, 0.9, 1})
     drawCentered(fonts.medium, string.format("Cause of death: %s", run.runtime.causeOfDeath or "exposure"), 298, settings, {0.8, 0.84, 0.9, 1})
     local prompt = run.replayMode and "Enter returns to title" or "S saves replay, Enter returns to title"
-    drawCentered(fonts.small, prompt, 520, settings, {0.56, 0.6, 0.66, 1})
+    drawCentered(fonts.small, prompt, CONFIG.WINDOW_HEIGHT - 80, settings, {0.56, 0.6, 0.66, 1})
 end
 
 return UI
