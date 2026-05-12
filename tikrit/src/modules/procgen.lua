@@ -1,6 +1,7 @@
 local CONFIG = require("config")
 local Items = require("modules/items")
 local Utils = require("modules/utils")
+local World = require("modules/world")
 
 local ProcGen = {}
 
@@ -193,9 +194,13 @@ local function randomLoot()
         {"accelerant", 1},
         {"charcoal", 1},
         {"arrow", 2},
+        {"rope_bolt", 1},
+        {"signal_bolt", 1},
         {"fishing_tackle", 1},
         {"bow", 1},
         {"sword", 1},
+        {"bridge_kit", 1},
+        {"survey_kit", 1},
         {"snare", 1},
     }
     local choice = options[math.random(#options)]
@@ -288,210 +293,760 @@ local function placeLake(grid)
     return weakIceTiles, lakeArea
 end
 
+local function noiseValue(x, y, seed)
+    local value = math.sin((x * 127.1) + (y * 311.7) + ((seed or 1) * 17.13)) * 43758.5453
+    return value - math.floor(value)
+end
+
+local function makeDataGrid(grid)
+    local data = {}
+    for y = 1, #grid do
+        data[y] = {}
+        for x = 1, #(grid[y] or {}) do
+            data[y][x] = 0
+        end
+    end
+    return data
+end
+
+local function countLayerTiles(level)
+    local counts = {}
+    for y = 1, #level.grid do
+        for x = 1, #(level.grid[y] or {}) do
+            local tile = level.grid[y][x]
+            counts[tile] = (counts[tile] or 0) + 1
+        end
+    end
+    return counts
+end
+
+local function makeLayerGrid(width, height, floorTile, wallTile, seed, wallThreshold)
+    local grid = newGrid(width, height)
+    for y = 1, height do
+        for x = 1, width do
+            local border = x == 1 or y == 1 or x == width or y == height
+            if border then
+                grid[y][x] = wallTile
+            else
+                local edge = math.max(math.abs(x - (width / 2)) / (width / 2), math.abs(y - (height / 2)) / (height / 2))
+                local roughness = (noiseValue(x, y, seed) * 0.55)
+                    + (noiseValue(math.floor(x / 3), math.floor(y / 3), seed + 13) * 0.35)
+                    + (edge * 0.25)
+                grid[y][x] = roughness > wallThreshold and wallTile or floorTile
+            end
+        end
+    end
+    return grid
+end
+
+local function smoothLayer(grid, floorTile, wallTile, passes)
+    local directions = {
+        {-1, -1}, {0, -1}, {1, -1},
+        {-1, 0},           {1, 0},
+        {-1, 1},  {0, 1},  {1, 1},
+    }
+
+    for _ = 1, passes do
+        local nextGrid = {}
+        for y = 1, gridHeight(grid) do
+            nextGrid[y] = {}
+            for x = 1, gridWidth(grid) do
+                if x == 1 or y == 1 or x == gridWidth(grid) or y == gridHeight(grid) then
+                    nextGrid[y][x] = wallTile
+                else
+                    local walls = 0
+                    for _, direction in ipairs(directions) do
+                        local tile = grid[y + direction[2]] and grid[y + direction[2]][x + direction[1]]
+                        if tile == wallTile or tile == nil then
+                            walls = walls + 1
+                        end
+                    end
+                    if walls >= 5 then
+                        nextGrid[y][x] = wallTile
+                    elseif walls <= 2 then
+                        nextGrid[y][x] = floorTile
+                    else
+                        nextGrid[y][x] = grid[y][x]
+                    end
+                end
+            end
+        end
+        grid = nextGrid
+    end
+    return grid
+end
+
+local function paintNoisePatch(grid, area, tile, seed, threshold)
+    for y = area.y, area.y + area.height - 1 do
+        for x = area.x, area.x + area.width - 1 do
+            if inBounds(grid, x, y) and noiseValue(x, y, seed) >= threshold then
+                setTile(grid, x, y, tile)
+            end
+        end
+    end
+end
+
+local function addLayerResource(nodes, nodeType, x, y, loot, label)
+    addResourceNode(nodes, nodeType, x, y, {
+        loot = loot,
+        biome = label,
+        rewardTier = nodeType == "cache" and "high" or "medium",
+    })
+end
+
+local function makeLayerBase(depth, name, grid, payload)
+    payload = payload or {}
+    payload.depth = depth
+    payload.name = name
+    payload.grid = grid
+    payload.data = makeDataGrid(grid)
+    payload.entities = payload.entities or {}
+    payload.tileEntities = payload.tileEntities or {}
+    payload.spawnRules = payload.spawnRules or {}
+    payload.discovered = payload.discovered or {}
+    payload.structures = payload.structures or {}
+    payload.resourceNodes = payload.resourceNodes or {}
+    payload.pointsOfInterest = payload.pointsOfInterest or {}
+    payload.safeSleepSpots = payload.safeSleepSpots or {}
+    payload.hazardZones = payload.hazardZones or {}
+    payload.biomes = payload.biomes or {}
+    payload.workbenches = payload.workbenches or {}
+    payload.curingStations = payload.curingStations or {}
+    payload.mapNodes = payload.mapNodes or {}
+    payload.climbNodes = payload.climbNodes or {}
+    payload.fishingSpots = payload.fishingSpots or {}
+    payload.carcasses = payload.carcasses or {}
+    payload.snowShelters = payload.snowShelters or {}
+    payload.fires = payload.fires or {}
+    payload.traps = payload.traps or {}
+    payload.curing = payload.curing or {}
+    payload.gates = payload.gates or {}
+    payload.npcEncounters = payload.npcEncounters or {}
+    payload.wildlife = payload.wildlife or {wolves = {}, rabbits = {}, deer = {}, raiders = {}}
+    return payload
+end
+
+local function makeIceCaveLevel(width, height, seed)
+    local grid = smoothLayer(makeLayerGrid(width, height, "cave_floor", "cave_wall", seed, 0.66), "cave_floor", "cave_wall", 2)
+    local entrance = {x = 80, y = 22}
+    local descent = {x = 82, y = 24}
+    local warmPocket = makeZone(72, 17, 14, 10)
+    local icePocket = makeZone(54, 31, 24, 14)
+
+    fillRect(grid, warmPocket.x, warmPocket.y, warmPocket.width, warmPocket.height, "cave_floor")
+    fillRect(grid, icePocket.x, icePocket.y, icePocket.width, icePocket.height, "ice")
+    paintNoisePatch(grid, icePocket, "weak_ice", seed + 1, 0.76)
+    carvePath(grid, entrance.x, entrance.y, descent.x, descent.y)
+    carvePath(grid, entrance.x, entrance.y, 60, 36)
+    carvePath(grid, 60, 36, 72, 22)
+    fillRect(grid, 76, 19, 5, 4, "fire_safe")
+    setTile(grid, entrance.x, entrance.y, "stair_up")
+    setTile(grid, descent.x, descent.y, "stair_down")
+
+    local resourceNodes = {}
+    addLayerResource(resourceNodes, "loot", 74, 21, {Items.create("charcoal", 2), Items.create("torch", 1)}, "Ice Caves")
+    addLayerResource(resourceNodes, "cache", 60, 36, {Items.create("matches", 2), Items.create("cloth", 1), Items.create("water", 1)}, "Ice Caves")
+    addLayerResource(resourceNodes, "loot", 84, 26, {Items.create("firewood", 1), Items.create("tinder", 2)}, "Ice Caves")
+
+    return makeLayerBase(-1, "Ice Caves", grid, {
+        resourceNodes = resourceNodes,
+        safeSleepSpots = {worldCoord(78, 21)},
+        pointsOfInterest = {
+            {name = "Ice Cave Mouth", coord = worldCoord(entrance.x, entrance.y), biome = "Ice Caves", rewardTier = "route", depth = -1},
+            {name = "Coal Pocket", coord = worldCoord(74, 21), biome = "Ice Caves", rewardTier = "medium", depth = -1},
+            {name = "Lower Descent", coord = worldCoord(descent.x, descent.y), biome = "Ice Caves", rewardTier = "route", depth = -1},
+        },
+        hazardZones = {
+            {type = "weak_ice", name = "Subglacial Pool", zone = icePocket},
+            {type = "cave_cold", name = "Ice Caves", zone = makeZone(2, 2, width - 2, height - 2), exposureModifier = -4},
+        },
+        temperatureBands = {
+            {type = "warm_pocket", zone = warmPocket, modifier = 5},
+        },
+        biomes = {
+            {id = "ice_caves", name = "Ice Caves", zone = makeZone(2, 2, width - 2, height - 2), hazardType = "cave_cold", traversalTags = {"underground", "scarce"}},
+        },
+        links = {
+            {kind = "stair", fromDepth = -1, toDepth = 0, x = entrance.x, y = entrance.y},
+            {kind = "stair", fromDepth = -1, toDepth = -2, x = descent.x, y = descent.y},
+        },
+    })
+end
+
+local function makeDeepRuinsLevel(width, height, seed)
+    local grid = smoothLayer(makeLayerGrid(width, height, "shale", "cave_wall", seed, 0.62), "shale", "cave_wall", 2)
+    local ascent = {x = 82, y = 24}
+    local cache = {x = 94, y = 34}
+    local fissureZone = makeZone(88, 28, 18, 12)
+    local ruinZone = makeZone(72, 22, 28, 20)
+
+    fillRect(grid, ruinZone.x, ruinZone.y, ruinZone.width, ruinZone.height, "shale")
+    paintNoisePatch(grid, fissureZone, "thermal_fissure", seed + 7, 0.68)
+    carvePath(grid, ascent.x, ascent.y, cache.x, cache.y)
+    carvePath(grid, cache.x, cache.y, 72, 42)
+    setTile(grid, ascent.x, ascent.y, "stair_up")
+    fillRect(grid, 90, 31, 5, 4, "fire_safe")
+
+    local resourceNodes = {}
+    addLayerResource(resourceNodes, "cache", cache.x, cache.y, {
+        Items.create("signal_bolt", 1),
+        Items.create("charcoal", 2),
+        Items.create("accelerant", 1),
+    }, "Deep Ruins")
+    addLayerResource(resourceNodes, "loot", 72, 42, {Items.create("antiseptic", 1), Items.create("arrow", 2)}, "Deep Ruins")
+
+    return makeLayerBase(-2, "Deep Ruins", grid, {
+        resourceNodes = resourceNodes,
+        safeSleepSpots = {worldCoord(92, 32)},
+        pointsOfInterest = {
+            {name = "Deep Ruin Ascent", coord = worldCoord(ascent.x, ascent.y), biome = "Deep Ruins", rewardTier = "route", depth = -2},
+            {name = "Thermal Cache", coord = worldCoord(cache.x, cache.y), biome = "Deep Ruins", rewardTier = "high", depth = -2},
+        },
+        hazardZones = {
+            {type = "thermal_fissure", name = "Thermal Fissures", zone = fissureZone, exposureModifier = 4},
+            {type = "deep_dark", name = "Deep Ruins", zone = makeZone(2, 2, width - 2, height - 2), visibilityPenalty = 2, exposureModifier = -5},
+        },
+        temperatureBands = {
+            {type = "thermal_fissure", zone = fissureZone, modifier = 8},
+        },
+        biomes = {
+            {id = "deep_ruins", name = "Deep Ruins", zone = makeZone(2, 2, width - 2, height - 2), hazardType = "deep_dark", traversalTags = {"underground", "high-risk"}},
+        },
+        links = {
+            {kind = "stair", fromDepth = -2, toDepth = -1, x = ascent.x, y = ascent.y},
+        },
+    })
+end
+
+local function makeRidgeLevel(width, height, seed)
+    local grid = makeLayerGrid(width, height, "snow", "rock", seed, 0.78)
+    local entry = {x = 100, y = 20}
+    local station = {x = 112, y = 28}
+    local ridgeZone = makeZone(94, 14, 30, 24)
+
+    fillRect(grid, ridgeZone.x, ridgeZone.y, ridgeZone.width, ridgeZone.height, "snow")
+    paintNoisePatch(grid, ridgeZone, "rock", seed + 11, 0.82)
+    paintNoisePatch(grid, makeZone(100, 22, 22, 14), "tree", seed + 12, 0.9)
+    carvePath(grid, entry.x, entry.y, station.x, station.y)
+    carvePath(grid, station.x, station.y, 120, 36)
+    setTile(grid, entry.x, entry.y, "stair_down")
+    fillRect(grid, station.x - 2, station.y - 2, 7, 5, "cabin_floor")
+    setTile(grid, station.x + 1, station.y, "cabin_workbench")
+    setTile(grid, station.x + 2, station.y, "cabin_stove")
+
+    local resourceNodes = {}
+    addLayerResource(resourceNodes, "cache", station.x + 2, station.y + 1, {
+        Items.create("survey_kit", 1),
+        Items.create("water", 1),
+        Items.create("canned_food", 1),
+    }, "Exposed Ridge")
+    addLayerResource(resourceNodes, "loot", 120, 36, {Items.create("flare", 1), Items.create("charcoal", 1)}, "Exposed Ridge")
+
+    return makeLayerBase(1, "Exposed Ridge", grid, {
+        resourceNodes = resourceNodes,
+        safeSleepSpots = {worldCoord(station.x, station.y)},
+        pointsOfInterest = {
+            {name = "Ridge Approach", coord = worldCoord(entry.x, entry.y), biome = "Exposed Ridge", rewardTier = "route", depth = 1},
+            {name = "Ridge Weather Station", coord = worldCoord(station.x, station.y), biome = "Exposed Ridge", rewardTier = "endgame", depth = 1},
+        },
+        hazardZones = {
+            {type = "exposed_blizzard", name = "Exposed Ridge", zone = ridgeZone, exposureModifier = -8, visibilityPenalty = 1},
+        },
+        temperatureBands = {
+            {type = "shelter", zone = makeZone(station.x - 2, station.y - 2, 7, 5), modifier = 7},
+        },
+        biomes = {
+            {id = "exposed_ridge", name = "Exposed Ridge", zone = ridgeZone, hazardType = "exposed_blizzard", traversalTags = {"endgame", "open"}},
+        },
+        links = {
+            {kind = "stair", fromDepth = 1, toDepth = 0, x = entry.x, y = entry.y},
+        },
+        goals = {
+            {id = "activate_ridge_weather_station", label = "Activate the ridge weather station", poi = "Ridge Weather Station", completed = false},
+        },
+    })
+end
+
+local function makeSurfaceLevel(generated)
+    return makeLayerBase(0, "Frozen Surface", generated.grid, {
+        data = makeDataGrid(generated.grid),
+        structures = generated.structures,
+        resourceNodes = generated.resourceNodes,
+        fires = generated.fires,
+        traps = generated.traps,
+        carcasses = generated.carcasses,
+        fishingSpots = generated.fishingSpots,
+        climbNodes = generated.climbNodes,
+        mapNodes = generated.mapNodes,
+        workbenches = generated.workbenches,
+        curingStations = generated.curingStations,
+        curing = generated.curing,
+        snowShelters = generated.snowShelters,
+        gates = generated.gates,
+        npcEncounters = generated.npcEncounters,
+        wildlife = generated.wildlife,
+        pointsOfInterest = generated.pointsOfInterest,
+        safeSleepSpots = generated.safeSleepSpots,
+        hazardZones = generated.hazardZones,
+        temperatureBands = generated.temperatureBands,
+        biomes = generated.biomes,
+        links = {
+            {kind = "stair", fromDepth = 0, toDepth = -1, x = 80, y = 22},
+            {kind = "stair", fromDepth = 0, toDepth = 1, x = 100, y = 20},
+        },
+    })
+end
+
+local function buildLayeredLevels(generated, width, height)
+    local seed = math.random(100000, 999999)
+    local levels = {
+        [0] = makeSurfaceLevel(generated),
+        [-1] = makeIceCaveLevel(width, height, seed + 1),
+        [-2] = makeDeepRuinsLevel(width, height, seed + 2),
+        [1] = makeRidgeLevel(width, height, seed + 3),
+    }
+
+    setTile(levels[0].grid, 80, 22, "stair_down")
+    setTile(levels[0].grid, 100, 20, "stair_up")
+    return levels
+end
+
 local function generateProceduralRunData(difficultyName)
     local difficultyKey = CONFIG.DIFFICULTY_ALIASES[difficultyName] or difficultyName
     local difficulty = CONFIG.DIFFICULTY_SETTINGS[difficultyKey] or CONFIG.DIFFICULTY_SETTINGS.voyageur
-    local grid = newGrid()
+    local width = CONFIG.WORLD_GRID_WIDTH
+    local height = CONFIG.WORLD_GRID_HEIGHT
+    local grid = newGrid(width, height)
     buildBorder(grid)
 
-    local structures = {
-        addCabin(grid, 6, 7, "Ranger Cabin"),
-        addCabin(grid, 58, 66, "Trapline Cabin"),
-        addCave(grid, 46, 12, 9, 6),
-        addCabin(grid, 78, 72, "Weather Station", 8, 6),
+    local frontierZone = makeZone(6, 8, 22, 18)
+    local wetlandZone = makeZone(30, 8, 24, 24)
+    local highlandZone = makeZone(58, 8, 24, 20)
+    local glacierZone = makeZone(88, 8, 28, 20)
+    local forestZone = makeZone(14, 42, 28, 30)
+    local basinZone = makeZone(52, 40, 32, 28)
+    local ashZone = makeZone(90, 42, 32, 26)
+    local hiddenValeZone = makeZone(108, 78, 24, 18)
+
+    local regions = {
+        {
+            id = "frontier_reach",
+            name = "Frontier Reach",
+            biome = "Boreal Forest",
+            role = "safe_fringe",
+            zone = frontierZone,
+            shelterDensity = "high",
+            visibilityPressure = 1,
+            hazardIntensity = 1,
+            traversalRequirements = {},
+        },
+        {
+            id = "frozen_wetlands",
+            name = "Frozen Wetlands",
+            biome = "Frozen Wetlands",
+            role = "hostile_transit",
+            zone = wetlandZone,
+            shelterDensity = "low",
+            visibilityPressure = 2,
+            hazardIntensity = 3,
+            traversalRequirements = {},
+        },
+        {
+            id = "ravine_highlands",
+            name = "Ravine Highlands",
+            biome = "Rocky Highlands",
+            role = "landmark",
+            zone = highlandZone,
+            shelterDensity = "medium",
+            visibilityPressure = 2,
+            hazardIntensity = 3,
+            traversalRequirements = {},
+        },
+        {
+            id = "glacial_step",
+            name = "Glacial Step",
+            biome = "Glacial Shelf",
+            role = "hostile_transit",
+            zone = glacierZone,
+            shelterDensity = "low",
+            visibilityPressure = 3,
+            hazardIntensity = 4,
+            traversalRequirements = {},
+        },
+        {
+            id = "old_forest",
+            name = "Old Forest",
+            biome = "Boreal Forest",
+            role = "resource_dead_end",
+            zone = forestZone,
+            shelterDensity = "medium",
+            visibilityPressure = 2,
+            hazardIntensity = 2,
+            traversalRequirements = {},
+        },
+        {
+            id = "shattered_basin",
+            name = "Shattered Basin",
+            biome = "Shale Basin",
+            role = "resource_dead_end",
+            zone = basinZone,
+            shelterDensity = "low",
+            visibilityPressure = 2,
+            hazardIntensity = 4,
+            traversalRequirements = {"rope_bolt", "bridge_kit"},
+        },
+        {
+            id = "ash_barrens",
+            name = "Ash Barrens",
+            biome = "Ash Barrens",
+            role = "landmark",
+            zone = ashZone,
+            shelterDensity = "low",
+            visibilityPressure = 1,
+            hazardIntensity = 5,
+            traversalRequirements = {},
+        },
+        {
+            id = "hidden_vale",
+            name = "Hidden Vale",
+            biome = "Hidden Vale",
+            role = "gated_shortcut",
+            zone = hiddenValeZone,
+            shelterDensity = "low",
+            visibilityPressure = 1,
+            hazardIntensity = 3,
+            traversalRequirements = {"signal_bolt"},
+        },
     }
 
-    local weakIceTiles, lakeArea = placeLake(grid)
-    fillRect(grid, 12, 36, 7, 4, "fire_safe")
-    fillRect(grid, 50, 48, 12, 7, "fire_safe")
+    local biomes = {
+        {
+            id = "boreal_forest",
+            name = "Boreal Forest",
+            zone = forestZone,
+            hazardType = "dense_woods",
+            spawnTables = {loot = "forager", wildlife = {"rabbit", "wolf"}, npc = {"injured_survivor", "roaming_trader"}},
+            traversalTags = {"cover", "wood-rich"},
+        },
+        {
+            id = "frontier_boreal",
+            name = "Boreal Frontier",
+            zone = frontierZone,
+            hazardType = "shelter",
+            spawnTables = {loot = "starter", wildlife = {"rabbit"}, npc = {"rumor_giver"}},
+            traversalTags = {"safe", "mapped"},
+        },
+        {
+            id = "frozen_wetlands",
+            name = "Frozen Wetlands",
+            zone = wetlandZone,
+            hazardType = "weak_ice",
+            spawnTables = {loot = "survival_cache", wildlife = {"deer"}, npc = {"rival_explorer"}},
+            traversalTags = {"slick", "exposed"},
+        },
+        {
+            id = "rocky_highlands",
+            name = "Rocky Highlands",
+            zone = highlandZone,
+            hazardType = "ridge",
+            spawnTables = {loot = "climber", wildlife = {"wolf"}, npc = {"rumor_giver"}},
+            traversalTags = {"chokepoint", "elevation"},
+        },
+        {
+            id = "glacial_shelf",
+            name = "Glacial Shelf",
+            zone = glacierZone,
+            hazardType = "exposed_blizzard",
+            spawnTables = {loot = "survey", wildlife = {"wolf"}, npc = {"rival_explorer"}},
+            traversalTags = {"open", "survey"},
+        },
+        {
+            id = "shale_basin",
+            name = "Shale Basin",
+            zone = basinZone,
+            hazardType = "ridge",
+            spawnTables = {loot = "bridge", wildlife = {"raider"}, npc = {"scavenger"}},
+            traversalTags = {"broken", "scarce"},
+        },
+        {
+            id = "ash_barrens",
+            name = "Ash Barrens",
+            zone = ashZone,
+            hazardType = "ash_barrens",
+            spawnTables = {loot = "combat", wildlife = {"raider"}, npc = {"roaming_trader", "scavenger"}},
+            traversalTags = {"open", "high-risk"},
+        },
+        {
+            id = "hidden_vale",
+            name = "Hidden Vale",
+            zone = hiddenValeZone,
+            hazardType = "hidden_vale",
+            spawnTables = {loot = "cache", wildlife = {"deer"}, npc = {"injured_survivor"}},
+            traversalTags = {"hidden", "reward"},
+        },
+    }
 
-    for y = 48, 82 do
-        for x = 8, 34 do
-            if grid[y][x] == "snow" and (x + y) % 3 ~= 0 then
+    local function paintZone(zone, tile)
+        fillRect(grid, zone.x, zone.y, zone.width, zone.height, tile)
+    end
+
+    paintZone(frontierZone, "snow")
+    paintZone(wetlandZone, "snow")
+    paintZone(highlandZone, "shale")
+    paintZone(glacierZone, "ice")
+    paintZone(forestZone, "moss")
+    paintZone(basinZone, "shale")
+    paintZone(ashZone, "ash")
+    paintZone(hiddenValeZone, "moss")
+
+    local weakIceTiles = {}
+    for y = wetlandZone.y + 2, wetlandZone.y + wetlandZone.height - 3 do
+        for x = wetlandZone.x + 2, wetlandZone.x + wetlandZone.width - 3 do
+            if (x + y) % 4 == 0 then
+                setTile(grid, x, y, "ice")
+            end
+            if (x * 3 + y) % 11 == 0 then
+                setTile(grid, x, y, "weak_ice")
+                table.insert(weakIceTiles, {x = x, y = y})
+            end
+        end
+    end
+    for y = forestZone.y, forestZone.y + forestZone.height - 1 do
+        for x = forestZone.x, forestZone.x + forestZone.width - 1 do
+            if (x + y) % 3 == 0 then
                 setTile(grid, x, y, "tree")
             end
         end
     end
-    for y = 8, 34 do
-        for x = 58, 84 do
-            if grid[y][x] == "snow" and (x * 2 + y) % 5 ~= 0 then
-                setTile(grid, x, y, (x + y) % 7 == 0 and "rock" or "tree")
+    for y = frontierZone.y + 1, frontierZone.y + frontierZone.height - 2 do
+        for x = frontierZone.x + 1, frontierZone.x + frontierZone.width - 2 do
+            if (x + y) % 7 == 0 then
+                setTile(grid, x, y, "tree")
             end
         end
     end
-    for y = 37, 44 do
-        for x = 34, 56 do
-            if grid[y][x] == "snow" and (x + y) % 4 == 0 then
+    for y = highlandZone.y, highlandZone.y + highlandZone.height - 1 do
+        for x = highlandZone.x, highlandZone.x + highlandZone.width - 1 do
+            if (x + y) % 5 == 0 then
+                setTile(grid, x, y, "rock")
+            end
+        end
+    end
+    for y = basinZone.y, basinZone.y + basinZone.height - 1 do
+        for x = basinZone.x, basinZone.x + basinZone.width - 1 do
+            if (x * 2 + y) % 5 ~= 0 then
+                setTile(grid, x, y, "rock")
+            end
+        end
+    end
+    for y = ashZone.y, ashZone.y + ashZone.height - 1 do
+        for x = ashZone.x, ashZone.x + ashZone.width - 1 do
+            if (x + y) % 6 == 0 then
                 setTile(grid, x, y, "rock")
             end
         end
     end
 
+    fillRect(grid, 46, 48, 8, 6, "fire_safe")
+    fillRect(grid, 104, 54, 6, 5, "fire_safe")
+
+    local structures = {
+        addCabin(grid, 9, 11, "Frontier Cabin"),
+        addCabin(grid, 22, 57, "Trapline Cabin"),
+        addCave(grid, 66, 15, 9, 6),
+        addCabin(grid, 104, 50, "Weather Station", 8, 6),
+    }
+
     local route = {
         structures[1].door,
-        {x = 14, y = 20},
-        {x = 20, y = 24},
-        {x = 22, y = 34},
-        {x = 37, y = 34},
+        {x = 24, y = 18},
+        {x = 32, y = 20},
         {x = 44, y = 20},
+        {x = 58, y = 18},
         structures[3].mouth,
-        {x = 54, y = 28},
-        {x = 58, y = 42},
-        {x = 54, y = 56},
-        structures[2].door,
-        {x = 70, y = 70},
+        {x = 86, y = 18},
+        {x = 96, y = 18},
+        {x = 104, y = 26},
+        {x = 106, y = 40},
         structures[4].door,
     }
     for index = 1, #route - 1 do
         carvePath(grid, route[index].x, route[index].y, route[index + 1].x, route[index + 1].y)
     end
-    carvePath(grid, 20, 24, lakeArea.x + 2, lakeArea.y + 4)
-    carvePath(grid, lakeArea.x + lakeArea.w - 2, lakeArea.y + 4, 44, 20)
-    carvePath(grid, 22, 62, structures[2].door.x, structures[2].door.y)
+    carvePath(grid, 38, 24, 28, 58)
+    carvePath(grid, 28, 58, structures[2].door.x, structures[2].door.y)
+    carvePath(grid, 74, 22, 98, 22)
+    carvePath(grid, 102, 60, 114, 86)
+    carvePath(grid, 28, 58, 66, 56)
+    carvePath(grid, 56, 58, 66, 56)
+    carvePath(grid, 68, 46, 66, 56)
+
+    local regionIdsByCoord = {
+        frontier_reach = frontierZone,
+        frozen_wetlands = wetlandZone,
+        ravine_highlands = highlandZone,
+        glacial_step = glacierZone,
+        old_forest = forestZone,
+        shattered_basin = basinZone,
+        ash_barrens = ashZone,
+        hidden_vale = hiddenValeZone,
+    }
+
+    local gates = {
+        {
+            id = "anchor_cliff",
+            name = "Anchor Cliff",
+            kind = "anchored_cliff",
+            coord = worldCoord(78, 24),
+            targetCoord = worldCoord(68, 46),
+            regionId = "ravine_highlands",
+            toRegionId = "shattered_basin",
+            toolType = "rope_bolt",
+            ammoKind = "rope_bolt",
+            unlockState = false,
+            persistent = true,
+            revealed = true,
+        },
+        {
+            id = "broken_bridge",
+            name = "Broken Bridge",
+            kind = "broken_bridge",
+            coord = worldCoord(44, 58),
+            targetCoord = worldCoord(56, 58),
+            regionId = "old_forest",
+            toRegionId = "shattered_basin",
+            toolType = "bridge_kit",
+            repairCost = {bridge_kit = 1},
+            unlockState = false,
+            persistent = true,
+            revealed = true,
+        },
+        {
+            id = "signal_post",
+            name = "Signal Post",
+            kind = "signal_post",
+            coord = worldCoord(102, 18),
+            targetCoord = worldCoord(114, 84),
+            regionId = "glacial_step",
+            toRegionId = "hidden_vale",
+            toolType = "signal_bolt",
+            ammoKind = "signal_bolt",
+            unlockState = false,
+            persistent = true,
+            revealed = false,
+            hidden = true,
+            requiresWeapon = "bow",
+        },
+    }
+
+    local connections = {
+        {fromRegionId = "frontier_reach", toRegionId = "frozen_wetlands", status = "open", critical = true},
+        {fromRegionId = "frozen_wetlands", toRegionId = "ravine_highlands", status = "open", critical = true},
+        {fromRegionId = "ravine_highlands", toRegionId = "glacial_step", status = "open", critical = true},
+        {fromRegionId = "glacial_step", toRegionId = "ash_barrens", status = "open", critical = true},
+        {fromRegionId = "frozen_wetlands", toRegionId = "old_forest", status = "open", critical = false},
+        {fromRegionId = "ravine_highlands", toRegionId = "shattered_basin", status = "gated", critical = false, gateId = "anchor_cliff"},
+        {fromRegionId = "old_forest", toRegionId = "shattered_basin", status = "gated", critical = false, gateId = "broken_bridge"},
+        {fromRegionId = "glacial_step", toRegionId = "hidden_vale", status = "hidden", critical = false, gateId = "signal_post"},
+    }
 
     local resourceNodes = {}
+    local workbenches = {
+        makeWorkbench(structures[1].workbench.x, structures[1].workbench.y, "Frontier Workbench"),
+        makeWorkbench(structures[2].workbench.x, structures[2].workbench.y, "Trapline Workbench"),
+        makeWorkbench(structures[4].workbench.x, structures[4].workbench.y, "Weather Station Workbench"),
+    }
+    local curingStations = {
+        makeCuringStation(structures[1].workbench.x, structures[1].workbench.y, "Frontier Curing Rack"),
+        makeCuringStation(structures[2].workbench.x, structures[2].workbench.y, "Trapline Curing Rack"),
+    }
+    local mapNodes = {
+        makeMapNode(18, 18, "Frontier Survey Point"),
+        makeMapNode(70, 20, "Ravine Overlook"),
+        makeMapNode(98, 18, "Glacial Survey Point"),
+        makeMapNode(108, 52, "Weather Station Antenna"),
+    }
+    mapNodes[1].survey = true
+    mapNodes[2].survey = true
+    mapNodes[3].survey = true
+    mapNodes[4].survey = true
+    local climbNodes = {
+        makeClimbNode(70, 22, 70, 34, "Highland Rope"),
+    }
+    local fishingSpots = {
+        makeFishingSpot(38, 18, "Marsh Fishing Hole"),
+        makeFishingSpot(48, 24, "Thin Ice Pool"),
+    }
+    local carcasses = {
+        makeCarcass("deer", 34, 24),
+        makeCarcass("rabbit", 30, 60),
+    }
     local safeSleepSpots = {
         worldCoord(structures[1].bed.x, structures[1].bed.y),
         worldCoord(structures[2].bed.x, structures[2].bed.y),
         worldCoord(structures[3].bed.x, structures[3].bed.y),
         worldCoord(structures[4].bed.x, structures[4].bed.y),
     }
-    local ridgeZone = makeZone(36, 35, 22, 10)
-    local exposedFlats = makeZone(48, 46, 18, 12)
-    local denseWoods = makeZone(8, 48, 27, 35)
-    local wolfTerritory = makeZone(56, 20, 26, 24)
-    local ashBarrens = makeZone(68, 58, 20, 26)
-    local biomes = {
-        {
-            id = "frozen_wetlands",
-            name = "Frozen Wetlands",
-            zone = lakeArea,
-            hazardType = "weak_ice",
-            spawnTables = {loot = "survival_cache", wildlife = {"deer"}},
-            traversalTags = {"slick", "exposed"},
-        },
-        {
-            id = "boreal_forest",
-            name = "Boreal Forest",
-            zone = denseWoods,
-            hazardType = "dense_woods",
-            spawnTables = {loot = "forager", wildlife = {"rabbit", "wolf"}},
-            traversalTags = {"cover", "wood-rich"},
-        },
-        {
-            id = "rocky_highlands",
-            name = "Rocky Highlands",
-            zone = ridgeZone,
-            hazardType = "ridge",
-            spawnTables = {loot = "climber", wildlife = {"wolf"}},
-            traversalTags = {"chokepoint", "elevation"},
-        },
-        {
-            id = "ash_barrens",
-            name = "Ash Barrens",
-            zone = ashBarrens,
-            hazardType = "ash_barrens",
-            spawnTables = {loot = "combat", wildlife = {"raider"}},
-            traversalTags = {"open", "high-risk"},
-        },
-    }
-    local hazardZones = {
-        {type = "weak_ice", name = "Frozen Lake", zone = lakeArea},
-        {type = "ridge", name = "Windbreak Ridge", zone = ridgeZone, sprainMultiplier = 1.35},
-        {type = "exposed_blizzard", name = "Blizzard Flats", zone = exposedFlats, exposureModifier = -5},
-        {type = "wolf_territory", name = "Old Growth Wolf Range", zone = wolfTerritory},
-        {type = "dense_woods", name = "Deep Woods", zone = denseWoods, visibilityPenalty = 2},
-        {type = "ash_barrens", name = "Ash Barrens", zone = ashBarrens, visibilityPenalty = 1, exposureModifier = -3},
-    }
-    local temperatureBands = {
-        {type = "shelter", zone = makeZone(structures[1].x, structures[1].y, structures[1].w, structures[1].h), modifier = 8},
-        {type = "shelter", zone = makeZone(structures[2].x, structures[2].y, structures[2].w, structures[2].h), modifier = 8},
-        {type = "cave", zone = makeZone(structures[3].x, structures[3].y, structures[3].w, structures[3].h), modifier = 10},
-        {type = "shelter", zone = makeZone(structures[4].x, structures[4].y, structures[4].w, structures[4].h), modifier = 7},
-        {type = "lake", zone = lakeArea, modifier = -6},
-        {type = "exposed_blizzard", zone = exposedFlats, modifier = -5},
-        {type = "ash_barrens", zone = ashBarrens, modifier = -4},
-    }
 
-    for y = denseWoods.y, denseWoods.y + denseWoods.height - 1 do
-        for x = denseWoods.x, denseWoods.x + denseWoods.width - 1 do
-            if grid[y][x] == "snow" then
-                setTile(grid, x, y, "moss")
-            end
-        end
-    end
-    for y = ridgeZone.y, ridgeZone.y + ridgeZone.height - 1 do
-        for x = ridgeZone.x, ridgeZone.x + ridgeZone.width - 1 do
-            if grid[y][x] == "snow" and (x + y) % 3 ~= 0 then
-                setTile(grid, x, y, "shale")
-            end
-        end
-    end
-    for y = ashBarrens.y, ashBarrens.y + ashBarrens.height - 1 do
-        for x = ashBarrens.x, ashBarrens.x + ashBarrens.width - 1 do
-            if grid[y][x] == "snow" then
-                setTile(grid, x, y, "ash")
-            end
-        end
-    end
-    local workbenches = {
-        makeWorkbench(structures[1].workbench.x, structures[1].workbench.y, "Ranger Workbench"),
-        makeWorkbench(structures[2].workbench.x, structures[2].workbench.y, "Trapline Workbench"),
-        makeWorkbench(structures[4].workbench.x, structures[4].workbench.y, "Weather Station Workbench"),
-    }
-    local curingStations = {
-        makeCuringStation(structures[1].workbench.x, structures[1].workbench.y, "Ranger Curing Rack"),
-        makeCuringStation(structures[2].workbench.x, structures[2].workbench.y, "Trapline Curing Rack"),
-    }
-    local fishingSpots = {
-        makeFishingSpot(lakeArea.x + 2, lakeArea.y + 4, "South Fishing Hole"),
-        makeFishingSpot(lakeArea.x + lakeArea.w - 3, lakeArea.y + 7, "North Fishing Hole"),
-    }
-    local climbNodes = {
-        makeClimbNode(39, 38, 45, 17, "Ridge Rope"),
-        makeClimbNode(57, 40, 53, 56, "Weathered Rope"),
-    }
-    local mapNodes = {
-        makeMapNode(16, 20, "Ranger Overlook"),
-        makeMapNode(42, 37, "Windbreak Ridge Overlook"),
-        makeMapNode(structures[3].mouth.x, structures[3].mouth.y, "Cave Mouth Overlook"),
-        makeMapNode(60, 52, "Blizzard Flats Survey Point"),
-        makeMapNode(82, 70, "Weather Station Antenna"),
-    }
-    local carcasses = {
-        makeCarcass("deer", 50, 61),
-        makeCarcass("rabbit", 24, 70),
-    }
     local pointsOfInterest = {
-        {name = "Ranger Cabin", coord = worldCoord(structures[1].bed.x, structures[1].bed.y), biome = "Frozen Wetlands", rewardTier = "safe"},
-        {name = "Frozen Lake", coord = worldCoord(lakeArea.x + 8, lakeArea.y + 6), biome = "Frozen Wetlands", rewardTier = "medium"},
-        {name = "Windbreak Ridge", coord = worldCoord(42, 34), biome = "Rocky Highlands", rewardTier = "medium"},
-        {name = "North Cave", coord = worldCoord(structures[3].mouth.x, structures[3].mouth.y), biome = "Rocky Highlands", rewardTier = "safe"},
-        {name = "Deep Woods", coord = worldCoord(22, 62), biome = "Boreal Forest", rewardTier = "medium"},
-        {name = "Trapline Cabin", coord = worldCoord(structures[2].bed.x, structures[2].bed.y), biome = "Boreal Forest", rewardTier = "safe"},
-        {name = "Blizzard Flats", coord = worldCoord(56, 51), biome = "Frozen Wetlands", rewardTier = "high"},
-        {name = "Weather Station", coord = worldCoord(structures[4].bed.x, structures[4].bed.y), biome = "Ash Barrens", rewardTier = "high"},
-        {name = "Emergency Cache", coord = worldCoord(84, 78), biome = "Ash Barrens", rewardTier = "high"},
+        {name = "Frontier Cabin", coord = worldCoord(structures[1].bed.x, structures[1].bed.y), biome = "Boreal Frontier", rewardTier = "safe", regionId = "frontier_reach"},
+        {name = "Frozen Marsh", coord = worldCoord(40, 20), biome = "Frozen Wetlands", rewardTier = "medium", regionId = "frozen_wetlands"},
+        {name = "North Ravine", coord = worldCoord(structures[3].mouth.x, structures[3].mouth.y), biome = "Rocky Highlands", rewardTier = "medium", regionId = "ravine_highlands"},
+        {name = "Glacial Beacon", coord = worldCoord(100, 18), biome = "Glacial Shelf", rewardTier = "medium", regionId = "glacial_step"},
+        {name = "Trapline Cabin", coord = worldCoord(structures[2].bed.x, structures[2].bed.y), biome = "Boreal Forest", rewardTier = "medium", regionId = "old_forest"},
+        {name = "Shattered Basin", coord = worldCoord(66, 56), biome = "Shale Basin", rewardTier = "high", regionId = "shattered_basin"},
+        {name = "Weather Station", coord = worldCoord(structures[4].bed.x, structures[4].bed.y), biome = "Ash Barrens", rewardTier = "high", regionId = "ash_barrens"},
+        {name = "Hidden Vale Cache", coord = worldCoord(118, 86), biome = "Hidden Vale", rewardTier = "high", regionId = "hidden_vale", hidden = true, revealed = false},
+    }
+    local landmarks = {
+        {name = "Frontier Cabin", coord = worldCoord(structures[1].bed.x, structures[1].bed.y), regionId = "frontier_reach", discoveryValue = "safe"},
+        {name = "North Ravine", coord = worldCoord(structures[3].mouth.x, structures[3].mouth.y), regionId = "ravine_highlands", discoveryValue = "path"},
+        {name = "Glacial Beacon", coord = worldCoord(100, 18), regionId = "glacial_step", discoveryValue = "survey"},
+        {name = "Weather Station", coord = worldCoord(structures[4].bed.x, structures[4].bed.y), regionId = "ash_barrens", discoveryValue = "goal"},
+        {name = "Hidden Vale Cache", coord = worldCoord(118, 86), regionId = "hidden_vale", discoveryValue = "secret", hidden = true, revealed = false},
+    }
+    local traversalRequirements = {
+        {toolType = "rope_bolt", label = "Rope Bolts", gateKinds = {"anchored_cliff"}},
+        {toolType = "bridge_kit", label = "Bridge Kits", gateKinds = {"broken_bridge"}},
+        {toolType = "signal_bolt", label = "Signal Bolts", gateKinds = {"signal_post"}},
     }
 
-    addResourceNode(resourceNodes, "cache", structures[1].x + 3, structures[1].y + 2, {loot = randomLoot(), biome = "Frozen Wetlands", rewardTier = "safe"})
-    addResourceNode(resourceNodes, "cache", structures[2].x + 3, structures[2].y + 2, {loot = randomLoot(), biome = "Boreal Forest", rewardTier = "safe"})
-    addResourceNode(resourceNodes, "cache", structures[4].x + 5, structures[4].y + 3, {loot = randomLoot(), biome = "Ash Barrens", rewardTier = "high"})
-    addResourceNode(resourceNodes, "cache", 84, 78, {
+    addResourceNode(resourceNodes, "cache", structures[1].x + 3, structures[1].y + 2, {
+        loot = {Items.create("canned_food", 1), Items.create("rope_bolt", 1), Items.create("water", 1)},
+        biome = "Boreal Frontier",
+        rewardTier = "safe",
+        regionId = "frontier_reach",
+    })
+    addResourceNode(resourceNodes, "cache", structures[2].x + 3, structures[2].y + 2, {
+        loot = {Items.create("bridge_kit", 1), Items.create("sticks", 2), Items.create("cloth", 1)},
+        biome = "Boreal Forest",
+        rewardTier = "medium",
+        regionId = "old_forest",
+    })
+    addResourceNode(resourceNodes, "cache", structures[4].x + 4, structures[4].y + 3, {
+        loot = {Items.create("signal_bolt", 2), Items.create("survey_kit", 1), Items.create("charcoal", 1)},
+        biome = "Ash Barrens",
+        rewardTier = "high",
+        regionId = "ash_barrens",
+    })
+    addResourceNode(resourceNodes, "cache", 118, 86, {
         loot = {
             Items.create("canned_food", 2),
-            Items.create("water", 1),
+            Items.create("water", 2),
             Items.create("matches", 4),
             Items.create("charcoal", 1),
             Items.create("sword", 1),
+            Items.create("rope_bolt", 2),
         },
-        biome = "Ash Barrens",
+        biome = "Hidden Vale",
         rewardTier = "high",
+        regionId = "hidden_vale",
+        hidden = true,
+        revealed = false,
     })
 
     local routeLoot = {
-        {14, 20}, {19, 32}, {35, 33}, {48, 18}, {56, 42},
-        {52, 55}, {61, 68}, {72, 70}, {82, 74}, {28, 66},
+        {18, 28}, {34, 34}, {50, 18}, {74, 28}, {98, 24}, {112, 42}, {34, 62}, {72, 60},
     }
     for _, coord in ipairs(routeLoot) do
         local biome = biomeForTile(biomes, coord[1], coord[2])
@@ -499,89 +1054,109 @@ local function generateProceduralRunData(difficultyName)
             loot = randomLoot(),
             biome = biome and biome.name or "Frontier",
             rewardTier = biome and (biome.id == "ash_barrens" and "high" or "medium") or "medium",
+            regionId = biome and (biome.id == "frontier_boreal" and "frontier_reach"
+                or biome.id == "frozen_wetlands" and "frozen_wetlands"
+                or biome.id == "rocky_highlands" and "ravine_highlands"
+                or biome.id == "glacial_shelf" and "glacial_step"
+                or biome.id == "shale_basin" and "shattered_basin"
+                or biome.id == "ash_barrens" and "ash_barrens"
+                or biome.id == "boreal_forest" and "old_forest"
+                or biome.id == "hidden_vale" and "hidden_vale"
+                or nil),
         })
     end
 
-    local lootTarget = math.max(16, math.floor(22 * difficulty.lootMultiplier))
-    local lootCandidates = {
-        {x = 12, y = 31}, {x = 29, y = 17}, {x = 36, y = 27}, {x = 42, y = 44},
-        {x = 16, y = 57}, {x = 31, y = 76}, {x = 48, y = 66}, {x = 65, y = 61},
-        {x = 73, y = 27}, {x = 80, y = 18}, {x = 75, y = 50}, {x = 86, y = 82},
-    }
-    Utils.shuffle(lootCandidates)
-    while #resourceNodes < lootTarget + 4 do
-        local candidate = table.remove(lootCandidates)
-        if not candidate then
-            break
-        end
-        if canPlaceResource(grid, candidate.x, candidate.y) then
-            local biome = biomeForTile(biomes, candidate.x, candidate.y)
-            addResourceNode(resourceNodes, "loot", candidate.x, candidate.y, {
-                loot = randomLoot(),
-                biome = biome and biome.name or "Frontier",
-                rewardTier = biome and (biome.id == "ash_barrens" and "high" or "medium") or "medium",
-            })
-        end
-    end
-
-    local woodTarget = math.random(22, 32)
     local woodCandidates = {}
     for y = 2, gridHeight(grid) - 1 do
         for x = 2, gridWidth(grid) - 1 do
-            if canPlaceResource(grid, x, y)
-                and math.abs(x - structures[1].door.x) + math.abs(y - structures[1].door.y) > 8
-                and math.abs(x - structures[4].door.x) + math.abs(y - structures[4].door.y) > 5 then
-                table.insert(woodCandidates, {x = x, y = y})
+            if canPlaceResource(grid, x, y) then
+                local biome = biomeForTile(biomes, x, y)
+                if biome and (biome.id == "frontier_boreal" or biome.id == "boreal_forest") then
+                    table.insert(woodCandidates, {x = x, y = y, biome = biome.name})
+                end
             end
         end
     end
     Utils.shuffle(woodCandidates)
-    for index = 1, woodTarget do
+    for index = 1, 16 do
         local candidate = woodCandidates[index]
         if candidate then
-            local biome = biomeForTile(biomes, candidate.x, candidate.y)
             addResourceNode(resourceNodes, "wood", candidate.x, candidate.y, {
                 loot = {
                     Items.create("sticks", math.random(2, 4)),
                     Items.create("firewood", 1),
                     Items.create("snow", 1),
                 },
-                biome = biome and biome.name or "Frontier",
+                biome = candidate.biome,
                 rewardTier = "safe",
             })
         end
     end
 
+    local hazardZones = {
+        {type = "weak_ice", name = "Frozen Marsh", zone = wetlandZone},
+        {type = "ridge", name = "North Ravine", zone = highlandZone, sprainMultiplier = 1.45},
+        {type = "exposed_blizzard", name = "Glacial Step", zone = glacierZone, exposureModifier = -6},
+        {type = "dense_woods", name = "Old Forest", zone = forestZone, visibilityPenalty = 3},
+        {type = "ridge", name = "Shattered Basin", zone = basinZone, sprainMultiplier = 1.6},
+        {type = "ash_barrens", name = "Ash Barrens", zone = ashZone, visibilityPenalty = 1, exposureModifier = -4},
+        {type = "hidden_vale", name = "Hidden Vale", zone = hiddenValeZone, visibilityPenalty = 1},
+    }
+    local temperatureBands = {
+        {type = "shelter", zone = makeZone(structures[1].x, structures[1].y, structures[1].w, structures[1].h), modifier = 9},
+        {type = "shelter", zone = makeZone(structures[2].x, structures[2].y, structures[2].w, structures[2].h), modifier = 8},
+        {type = "cave", zone = makeZone(structures[3].x, structures[3].y, structures[3].w, structures[3].h), modifier = 10},
+        {type = "shelter", zone = makeZone(structures[4].x, structures[4].y, structures[4].w, structures[4].h), modifier = 7},
+        {type = "wetland", zone = wetlandZone, modifier = -6},
+        {type = "exposed_blizzard", zone = glacierZone, modifier = -7},
+        {type = "ash_barrens", zone = ashZone, modifier = -4},
+    }
+
     local wolves = {}
     for index = 1, difficulty.wolfCount do
         table.insert(wolves, {
             kind = "wolf",
-            coord = worldCoord(62 + index * 4, 24 + index * 3),
-            territory = wolfTerritory,
-            territoryCenter = zoneCenter(wolfTerritory),
+            coord = worldCoord(32 + index * 2, 58 + index * 2),
+            territory = forestZone,
+            territoryCenter = zoneCenter(forestZone),
             state = "roam",
             target = nil,
             fearHours = 0,
         })
     end
+    table.insert(wolves, {
+        kind = "wolf",
+        coord = worldCoord(94, 20),
+        territory = glacierZone,
+        territoryCenter = zoneCenter(glacierZone),
+        state = "roam",
+        target = nil,
+        fearHours = 0,
+    })
+
     local raiders = {
         {
             kind = "raider",
-            coord = worldCoord(76, 64),
-            territory = ashBarrens,
-            territoryCenter = zoneCenter(ashBarrens),
+            coord = worldCoord(102, 60),
+            territory = ashZone,
+            territoryCenter = zoneCenter(ashZone),
+            state = "roam",
+            target = nil,
+        },
+        {
+            kind = "raider",
+            coord = worldCoord(72, 58),
+            territory = basinZone,
+            territoryCenter = zoneCenter(basinZone),
             state = "roam",
             target = nil,
         },
     }
 
     local rabbitZones = {
-        makeZone(11, 18, 8, 6),
-        makeZone(20, 67, 12, 10),
-        makeZone(55, 58, 8, 8),
+        makeZone(10, 18, 8, 6),
+        makeZone(24, 56, 10, 8),
     }
-    local deerZone = makeZone(44, 56, 18, 12)
-
     local rabbits = {}
     for _, zone in ipairs(rabbitZones) do
         table.insert(rabbits, {
@@ -591,19 +1166,71 @@ local function generateProceduralRunData(difficultyName)
             speed = 20,
         })
     end
-
+    local deerZone = makeZone(34, 16, 14, 10)
     local deer = {
         {
             kind = "deer",
             zone = deerZone,
             coord = worldCoord(deerZone.x + 2, deerZone.y + 1),
             speed = 24,
-        }
+        },
+        {
+            kind = "deer",
+            zone = hiddenValeZone,
+            coord = worldCoord(hiddenValeZone.x + 5, hiddenValeZone.y + 4),
+            speed = 24,
+        },
     }
 
-    return {
+    local npcEncounters = {
+        {
+            id = "injured_marsh_scout",
+            kind = "injured_survivor",
+            coord = worldCoord(40, 26),
+            regionId = "frozen_wetlands",
+            spawnConditions = {requiresBandage = true},
+            inventory = {Items.create("rope_bolt", 1)},
+            rumors = {{gateId = "anchor_cliff"}},
+            resolutionState = "active",
+        },
+        {
+            id = "forest_trader",
+            kind = "roaming_trader",
+            coord = worldCoord(28, 60),
+            regionId = "old_forest",
+            spawnConditions = {requiresTrade = true},
+            inventory = {Items.create("bridge_kit", 1)},
+            rumors = {{poi = "Shattered Basin"}},
+            resolutionState = "active",
+        },
+        {
+            id = "glacial_rival",
+            kind = "rival_explorer",
+            coord = worldCoord(96, 18),
+            regionId = "glacial_step",
+            spawnConditions = {surveyRoute = true},
+            inventory = {},
+            rumors = {{gateId = "signal_post"}, {poi = "Hidden Vale Cache"}},
+            resolutionState = "active",
+        },
+        {
+            id = "ash_scavenger",
+            kind = "scavenger",
+            coord = worldCoord(110, 58),
+            regionId = "ash_barrens",
+            spawnConditions = {occupiesCache = true},
+            inventory = {Items.create("signal_bolt", 1)},
+            rumors = {{poi = "Weather Station"}},
+            resolutionState = "active",
+        },
+    }
+
+    local playerStart = worldCoord(structures[1].bed.x, structures[1].bed.y)
+    local wolfTerritory = forestZone
+
+    local generated = {
         grid = grid,
-        playerStart = worldCoord(structures[1].bed.x, structures[1].bed.y),
+        playerStart = playerStart,
         structures = structures,
         resourceNodes = resourceNodes,
         fires = {},
@@ -617,9 +1244,16 @@ local function generateProceduralRunData(difficultyName)
         curing = {},
         mappedTiles = {},
         pointsOfInterest = pointsOfInterest,
+        landmarks = landmarks,
+        regions = regions,
+        connections = connections,
+        gates = gates,
+        traversalRequirements = traversalRequirements,
+        npcEncounters = npcEncounters,
         goals = {
-            {id = "survey_weather_station", label = "Survey the weather station", poi = "Weather Station", completed = false},
-            {id = "recover_emergency_cache", label = "Recover the emergency cache", poi = "Emergency Cache", completed = false},
+            {id = "reach_weather_station", label = "Reach the weather station", poi = "Weather Station", completed = false},
+            {id = "chart_glacial_step", label = "Survey the Glacial Step", poi = "Glacial Beacon", completed = false},
+            {id = "recover_hidden_vale_cache", label = "Find the Hidden Vale Cache", poi = "Hidden Vale Cache", completed = false},
         },
         wildlife = {
             wolves = wolves,
@@ -643,11 +1277,14 @@ local function generateProceduralRunData(difficultyName)
         rabbitZones = rabbitZones,
         deerZone = deerZone,
         carcassSites = {
-            {coord = worldCoord(50, 61), kind = "deer"},
-            {coord = worldCoord(24, 70), kind = "rabbit"},
+            {coord = worldCoord(34, 24), kind = "deer"},
+            {coord = worldCoord(30, 60), kind = "rabbit"},
         },
         source = "procedural",
     }
+    generated.levels = buildLayeredLevels(generated, width, height)
+    World.initialize(generated)
+    return generated
 end
 
 local function normalizeLayout(layout)
@@ -879,7 +1516,9 @@ local function generateEditorRunData(difficultyName, layout)
     for _, component in ipairs(collectComponents(symbolGrid, "M")) do
         local centerX = component.x + math.floor(component.width / 2)
         local centerY = component.y + math.floor(component.height / 2)
-        table.insert(mapNodes, makeMapNode(centerX, centerY, "Editor Overlook"))
+        local node = makeMapNode(centerX, centerY, "Editor Overlook")
+        node.survey = true
+        table.insert(mapNodes, node)
     end
 
     for _, component in ipairs(collectComponents(symbolGrid, "P")) do
@@ -946,7 +1585,7 @@ local function generateEditorRunData(difficultyName, layout)
         playerStart = worldCoord(2, 2)
     end
 
-    return {
+    local generated = {
         grid = grid,
         playerStart = playerStart,
         structures = structures,
@@ -962,6 +1601,24 @@ local function generateEditorRunData(difficultyName, layout)
         curing = {},
         mappedTiles = {},
         pointsOfInterest = pointsOfInterest,
+        landmarks = Utils.deepCopy(pointsOfInterest),
+        regions = {
+            {
+                id = "editor_frontier",
+                name = "Editor Frontier",
+                biome = "Editor Frontier",
+                role = "editor",
+                zone = makeZone(2, 2, CONFIG.GRID_WIDTH - 2, CONFIG.GRID_HEIGHT - 2),
+                shelterDensity = "custom",
+                visibilityPressure = 1,
+                hazardIntensity = 1,
+                traversalRequirements = {},
+            },
+        },
+        connections = {},
+        gates = {},
+        traversalRequirements = {},
+        npcEncounters = {},
         wildlife = {
             wolves = wolves,
             rabbits = rabbits,
@@ -996,6 +1653,8 @@ local function generateEditorRunData(difficultyName, layout)
             filename = layout and layout.filename or "custom.txt",
         },
     }
+    World.initialize(generated)
+    return generated
 end
 
 function ProcGen.generateRunData(difficultyName, options)

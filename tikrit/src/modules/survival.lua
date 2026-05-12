@@ -1,5 +1,6 @@
 local CONFIG = require("config")
 local Items = require("modules/items")
+local TileRegistry = require("modules/tile_registry")
 local Utils = require("modules/utils")
 
 local Survival = {}
@@ -294,6 +295,53 @@ local function markMappedTiles(run, centerCoord, radius)
     end
 end
 
+local function revealHiddenContent(run, predicate)
+    local changed = false
+    for _, poi in ipairs(run.world.pointsOfInterest or {}) do
+        if poi.hidden and not poi.revealed and predicate(poi) then
+            poi.revealed = true
+            changed = true
+        end
+    end
+    for _, landmark in ipairs(run.world.landmarks or {}) do
+        if landmark.hidden and not landmark.revealed and predicate(landmark) then
+            landmark.revealed = true
+            changed = true
+        end
+    end
+    for _, gate in ipairs(run.world.gates or {}) do
+        if gate.hidden and not gate.revealed and predicate(gate) then
+            gate.revealed = true
+            changed = true
+        end
+    end
+    for _, node in ipairs(run.world.resourceNodes or {}) do
+        if node.hidden and not node.revealed and predicate(node) then
+            node.revealed = true
+            changed = true
+        end
+    end
+    return changed
+end
+
+local function currentRegion(run, coord)
+    for _, region in ipairs(run.world.regions or {}) do
+        if coordInZone(coord or run.player.coord, region.zone) then
+            return region
+        end
+    end
+    return nil
+end
+
+local function gateConnection(run, gateId)
+    for _, connection in ipairs(run.world.connections or {}) do
+        if connection.gateId == gateId then
+            return connection
+        end
+    end
+    return nil
+end
+
 local function conditionDecayMultiplier(run, heatFactor)
     if heatFactor > 0 then
         return 1.25
@@ -559,7 +607,7 @@ function Survival.currentTile(run, coord)
 end
 
 function Survival.isWalkableTile(tile)
-    return isWalkableTile(tile)
+    return TileRegistry.isWalkable(tile)
 end
 
 function Survival.isSheltered(run, coord)
@@ -706,6 +754,36 @@ function Survival.isMapNodeNearby(run)
     return node ~= nil
 end
 
+function Survival.findNearbyTraversalGate(run, revealedOnly)
+    for _, gate in ipairs(run.world.gates or {}) do
+        local distance = Utils.distance(run.player.coord[1], run.player.coord[2], gate.coord[1], gate.coord[2])
+        if distance <= CONFIG.TRAVERSAL_INTERACT_RADIUS_TILES * CONFIG.TILE_SIZE
+            and ((not revealedOnly) or gate.revealed ~= false) then
+            return gate
+        end
+    end
+    return nil
+end
+
+function Survival.revealRumorTarget(run, rumor)
+    if not rumor then
+        return false, "No rumor to follow."
+    end
+
+    local changed = false
+    if rumor.poi then
+        changed = revealHiddenContent(run, function(entry)
+            return entry.name == rumor.poi
+        end) or changed
+    end
+    if rumor.gateId then
+        changed = revealHiddenContent(run, function(entry)
+            return entry.id == rumor.gateId
+        end) or changed
+    end
+    return changed, changed and "A new route is marked on your map." or "The rumor tells you nothing new."
+end
+
 function Survival.mapArea(run)
     if Items.count(run.player.inventory, "charcoal") < 1 then
         return false, "You need charcoal to sketch the area."
@@ -724,6 +802,91 @@ function Survival.mapArea(run)
     }
     Survival.updateCarryWeight(run.player)
     return true, "You map the nearby terrain."
+end
+
+function Survival.surveyArea(run)
+    if Items.count(run.player.inventory, "survey_kit") < 1 then
+        return false, "You need a survey kit."
+    end
+    local node = findNearby(run.world.mapNodes, run.player.coord)
+    if not node or not node.survey then
+        return false, "Find a survey point first."
+    end
+
+    markMappedTiles(run, node.coord, CONFIG.SURVEY_REVEAL_RADIUS)
+    run.player.fatigue = clamp(run.player.fatigue - CONFIG.SURVEY_FATIGUE_COST, CONFIG.MAX_FATIGUE)
+    local region = currentRegion(run, node.coord)
+    revealHiddenContent(run, function(entry)
+        return region and entry.regionId == region.id
+    end)
+    if region then
+        for _, connection in ipairs(run.world.connections or {}) do
+            if connection.fromRegionId == region.id or connection.toRegionId == region.id then
+                if connection.status == "hidden" then
+                    connection.status = "charted"
+                end
+            end
+        end
+    end
+    run.runtime.pendingPulse = {
+        kind = "mapping",
+        coord = {node.coord[1], node.coord[2]},
+    }
+    return true, "You survey the surrounding routes."
+end
+
+function Survival.useTraversalGate(run, gate)
+    gate = gate or Survival.findNearbyTraversalGate(run, true)
+    if not gate then
+        return false, "No traversal point nearby."
+    end
+
+    if gate.unlockState then
+        run.player.coord = {gate.targetCoord[1], gate.targetCoord[2]}
+        run.player.lastSafeCoord = {gate.targetCoord[1], gate.targetCoord[2]}
+        run.player.fatigue = clamp(run.player.fatigue - 2, CONFIG.MAX_FATIGUE)
+        run.runtime.pendingPulse = {
+            kind = "climb",
+            coord = {gate.targetCoord[1], gate.targetCoord[2]},
+        }
+        return true, "You take the opened route."
+    end
+
+    if gate.requiresWeapon and run.player.equippedWeapon ~= gate.requiresWeapon then
+        return false, "You need a bow ready."
+    end
+    if gate.ammoKind and Items.count(run.player.inventory, gate.ammoKind) < 1 then
+        return false, "Missing the right bolt."
+    end
+    if gate.repairCost then
+        for kind, quantity in pairs(gate.repairCost) do
+            if Items.count(run.player.inventory, kind) < quantity then
+                return false, "Missing repair supplies."
+            end
+        end
+    end
+    if gate.ammoKind then
+        Items.remove(run.player.inventory, gate.ammoKind, 1)
+    end
+    if gate.repairCost then
+        for kind, quantity in pairs(gate.repairCost) do
+            Items.remove(run.player.inventory, kind, quantity)
+        end
+    end
+
+    gate.unlockState = true
+    local connection = gateConnection(run, gate.id)
+    if connection then
+        connection.status = "open"
+    end
+    Survival.updateCarryWeight(run.player)
+    run.player.coord = {gate.targetCoord[1], gate.targetCoord[2]}
+    run.player.lastSafeCoord = {gate.targetCoord[1], gate.targetCoord[2]}
+    run.runtime.pendingPulse = {
+        kind = "climb",
+        coord = {gate.targetCoord[1], gate.targetCoord[2]},
+    }
+    return true, "You open a new route."
 end
 
 function Survival.useRopeClimb(run)

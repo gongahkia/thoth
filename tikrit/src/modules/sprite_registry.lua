@@ -90,6 +90,9 @@ function SpriteRegistry.load()
             cabin_stove = safeLoad("sprite/shelter-stove.png"),
             cabin_workbench = safeLoad("sprite/world-workbench.png"),
             snow_shelter = safeLoad("sprite/shelter-snow.png"),
+            stair_up = nil,
+            stair_down = nil,
+            thermal_fissure = nil,
         },
     }
 end
@@ -118,6 +121,12 @@ function SpriteRegistry.drawTile(bundle, tile, x, y, settings)
         drawFallbackRect(settings, x, y, {0.92, 0.95, 1, 1}, 0)
         Accessibility.setColor(settings, 0.76, 0.82, 0.88, 0.45)
         love.graphics.rectangle("line", x + 2, y + 2, CONFIG.TILE_SIZE - 4, CONFIG.TILE_SIZE - 4)
+    elseif tile == "thermal_fissure" then
+        drawFallbackRect(settings, x, y, {0.32, 0.28, 0.3, 1}, 0)
+        Accessibility.setColor(settings, 0.95, 0.42, 0.18, 0.9)
+        love.graphics.line(x + 3, y + 15, x + 8, y + 7)
+        love.graphics.line(x + 8, y + 7, x + 13, y + 12)
+        love.graphics.line(x + 13, y + 12, x + 17, y + 4)
     elseif tile == "ice" then
         drawFallbackRect(settings, x, y, {0.7, 0.86, 0.98, 1}, 0)
     elseif tile == "weak_ice" then
@@ -152,6 +161,14 @@ function SpriteRegistry.drawTile(bundle, tile, x, y, settings)
         drawFallbackRect(settings, x, y, {0.86, 0.94, 1, 1}, 0)
         Accessibility.setColor(settings, 0.82, 0.92, 1, 0.92)
         love.graphics.polygon("fill", x + 3, y + 16, x + 10, y + 4, x + 17, y + 16)
+    elseif tile == "stair_up" or tile == "stair_down" then
+        drawFallbackRect(settings, x, y, {0.62, 0.64, 0.68, 1}, 0)
+        Accessibility.setColor(settings, 0.14, 0.16, 0.18, 0.9)
+        local y1 = tile == "stair_up" and y + 6 or y + 14
+        local y2 = tile == "stair_up" and y + 14 or y + 6
+        love.graphics.line(x + 5, y1, x + 10, y2)
+        love.graphics.line(x + 10, y2, x + 15, y1)
+        love.graphics.rectangle("line", x + 4, y + 4, 12, 12)
     else
         drawFallbackRect(settings, x, y, {0.2, 0.2, 0.2, 1}, 0)
     end
@@ -254,6 +271,8 @@ function SpriteRegistry.drawWorldMarker(bundle, kind, coord, settings)
         image = bundle.world.workbench
     elseif kind == "map" then
         image = bundle.world.mapNode
+    elseif kind == "survey" then
+        image = bundle.world.mapNode
     end
 
     if image then
@@ -276,6 +295,24 @@ function SpriteRegistry.drawWorldMarker(bundle, kind, coord, settings)
     elseif kind == "map" then
         Accessibility.setColor(settings, 0.96, 0.86, 0.5, 1)
         love.graphics.rectangle("line", coord[1] + 4, coord[2] + 4, 12, 12)
+    elseif kind == "survey" then
+        Accessibility.setColor(settings, 0.96, 0.86, 0.5, 1)
+        love.graphics.rectangle("line", coord[1] + 4, coord[2] + 4, 12, 12)
+        Accessibility.setColor(settings, 0.28, 0.88, 0.92, 1)
+        love.graphics.circle("line", coord[1] + 10, coord[2] + 10, 4)
+    elseif kind == "gate_locked" then
+        Accessibility.setColor(settings, 0.92, 0.72, 0.22, 1)
+        love.graphics.rectangle("line", coord[1] + 4, coord[2] + 4, 12, 12)
+        love.graphics.line(coord[1] + 7, coord[2] + 10, coord[1] + 13, coord[2] + 10)
+        love.graphics.line(coord[1] + 10, coord[2] + 7, coord[1] + 10, coord[2] + 13)
+    elseif kind == "gate_open" then
+        Accessibility.setColor(settings, 0.32, 0.92, 0.48, 1)
+        love.graphics.rectangle("line", coord[1] + 4, coord[2] + 4, 12, 12)
+        love.graphics.line(coord[1] + 6, coord[2] + 10, coord[1] + 14, coord[2] + 10)
+    elseif kind == "npc" then
+        Accessibility.setColor(settings, 0.88, 0.9, 0.96, 1)
+        love.graphics.circle("fill", coord[1] + 10, coord[2] + 7, 4)
+        love.graphics.rectangle("fill", coord[1] + 7, coord[2] + 11, 6, 6)
     end
 end
 

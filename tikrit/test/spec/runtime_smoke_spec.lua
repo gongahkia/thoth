@@ -1,4 +1,5 @@
 local TestRunner = require("test_runner")
+local CONFIG = require("config")
 
 local describe = TestRunner.describe
 local it = TestRunner.it
@@ -402,8 +403,8 @@ describe("Runtime Smoke", function()
             state.titleIndex = 1
             love.keypressed("return")
             run = state.run
-            TestRunner.assertEqual(#run.world.grid, 90)
-            TestRunner.assertEqual(#run.world.grid[1], 90)
+            TestRunner.assertEqual(#run.world.grid, CONFIG.WORLD_GRID_HEIGHT)
+            TestRunner.assertEqual(#run.world.grid[1], CONFIG.WORLD_GRID_WIDTH)
 
             run.player.coord = {1200, 1200}
             run.player.lastSafeCoord = {1200, 1200}
@@ -416,10 +417,10 @@ describe("Runtime Smoke", function()
             TestRunner.assertEqual(run.runtime.camera.x, 0)
             TestRunner.assertEqual(run.runtime.camera.y, 0)
 
-            run.player.coord = {89 * 20, 89 * 20}
+            run.player.coord = {(CONFIG.WORLD_GRID_WIDTH - 1) * CONFIG.TILE_SIZE, (CONFIG.WORLD_GRID_HEIGHT - 1) * CONFIG.TILE_SIZE}
             love.draw()
-            TestRunner.assertEqual(run.runtime.camera.x, 200)
-            TestRunner.assertEqual(run.runtime.camera.y, 900)
+            TestRunner.assertEqual(run.runtime.camera.x, math.max(0, (CONFIG.WORLD_GRID_WIDTH * CONFIG.TILE_SIZE) - CONFIG.WINDOW_WIDTH))
+            TestRunner.assertEqual(run.runtime.camera.y, math.max(0, (CONFIG.WORLD_GRID_HEIGHT * CONFIG.TILE_SIZE) - CONFIG.WINDOW_HEIGHT))
         end)
         _G.love = originalLove
         if not ok then

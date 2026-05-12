@@ -15,6 +15,7 @@ local Wildlife = require("modules/wildlife")
 local Effects = require("modules/effects")
 local SpriteRegistry = require("modules/sprite_registry")
 local SoundEvents = require("modules/sound_events")
+local World = require("modules/world")
 
 local game = {
     screen = "title",
@@ -260,12 +261,14 @@ local function buildReplayContext(run)
         timeOfDay = run.world.timeOfDay,
         dayCount = run.world.dayCount,
         worldSource = run.world.source,
+        currentDepth = run.world.currentDepth or run.player.depth or 0,
         player = {
             maxCondition = run.player.maxCondition,
             carryCapacity = run.player.carryCapacity,
             equippedTool = run.player.equippedTool,
             equippedWeapon = run.player.equippedWeapon,
             equippedMeleeWeapon = run.player.equippedMeleeWeapon,
+            depth = run.player.depth or run.world.currentDepth or 0,
         },
     }
 end
@@ -432,6 +435,13 @@ local function createRun(generated, difficultyName, options)
     run.world.discoveredPOIs = run.world.discoveredPOIs or {}
     run.world.goals = run.world.goals or {}
     run.world.biomes = run.world.biomes or {}
+    run.world.landmarks = run.world.landmarks or {}
+    run.world.regions = run.world.regions or {}
+    run.world.connections = run.world.connections or {}
+    run.world.gates = run.world.gates or {}
+    run.world.traversalRequirements = run.world.traversalRequirements or {}
+    run.world.npcEncounters = run.world.npcEncounters or {}
+    World.attachRun(run)
 
     if options.context then
         local context = options.context
@@ -452,6 +462,9 @@ local function createRun(generated, difficultyName, options)
             run.player.equippedTool = context.player.equippedTool or run.player.equippedTool
             run.player.equippedWeapon = context.player.equippedWeapon or run.player.equippedWeapon
             run.player.equippedMeleeWeapon = context.player.equippedMeleeWeapon or run.player.equippedMeleeWeapon
+            if context.player.depth and run.world.levels[context.player.depth] then
+                World.changeDepth(run, context.player.depth)
+            end
             run.player.condition = math.min(run.player.condition, run.player.maxCondition)
         end
     end
@@ -488,6 +501,9 @@ local function updatePointOfInterestState(run)
     local nearestDistance = math.huge
 
     for _, poi in ipairs(run.world.pointsOfInterest or {}) do
+        if poi.hidden and not poi.revealed then
+            goto continue
+        end
         local gridX, gridY = Utils.pixelToGrid(poi.coord[1], poi.coord[2])
         local tileX = gridX + 1
         local tileY = gridY + 1
@@ -502,13 +518,15 @@ local function updatePointOfInterestState(run)
                 run.runtime.currentPOI = poi.name
             end
         end
+        ::continue::
     end
 end
 
 local function discoverMappedPointOfInterest(run, centerCoord, radiusTiles)
     local radius = radiusTiles * CONFIG.TILE_SIZE
     for _, poi in ipairs(run.world.pointsOfInterest or {}) do
-        if Utils.distance(centerCoord[1], centerCoord[2], poi.coord[1], poi.coord[2]) <= radius then
+        if (not poi.hidden or poi.revealed)
+            and Utils.distance(centerCoord[1], centerCoord[2], poi.coord[1], poi.coord[2]) <= radius then
             discoverPointOfInterest(run, poi)
         end
     end
@@ -842,18 +860,31 @@ local function movePlayer(dt)
 
     local speed = getMoveSpeed(sprinting)
     local previous = {player.coord[1], player.coord[2]}
-    local target = {
-        player.coord[1] + (dx * speed * dt),
-        player.coord[2] + (dy * speed * dt),
-    }
+    local stepX = dx * speed * dt
+    local stepY = dy * speed * dt
+    local movedAxis = false
+    local targetX = {player.coord[1] + stepX, player.coord[2]}
+    if canOccupy(targetX) then
+        player.coord = targetX
+        movedAxis = true
+    end
+    local targetY = {player.coord[1], player.coord[2] + stepY}
+    if canOccupy(targetY) then
+        player.coord = targetY
+        movedAxis = true
+    end
 
-    if canOccupy(target) then
-        player.coord = target
+    if movedAxis then
         local tile = currentTileAtCoord(player.coord)
         if tile ~= "weak_ice" and tile ~= "ice" then
             player.lastSafeCoord = {player.coord[1], player.coord[2]}
         end
-        game.run.stats.metersWalked = game.run.stats.metersWalked + (speed * dt / CONFIG.TILE_SIZE)
+        local distance = Utils.distance(previous[1], previous[2], player.coord[1], player.coord[2])
+        game.run.stats.metersWalked = game.run.stats.metersWalked + (distance / CONFIG.TILE_SIZE)
+        local transitioned, transitionMessage = World.stepPlayer(game.run)
+        if transitioned or transitionMessage then
+            setRunMessage(transitionMessage)
+        end
     else
         player.coord = previous
     end
@@ -875,10 +906,14 @@ end
 
 local function findNearbyNode()
     for index, node in ipairs(game.run.world.resourceNodes or {}) do
+        if node.hidden and not node.revealed then
+            goto continue
+        end
         local distance = Utils.distance(game.run.player.coord[1], game.run.player.coord[2], node.coord[1], node.coord[2])
         if distance <= CONFIG.TILE_SIZE * 1.2 then
             return node, index
         end
+        ::continue::
     end
     return nil
 end
@@ -901,6 +936,88 @@ local function findNearbyCoordEntry(list)
         end
     end
     return nil
+end
+
+local function findNearbyNPC(run)
+    run = run or game.run
+    for _, encounter in ipairs((run and run.world and run.world.npcEncounters) or {}) do
+        if encounter.resolutionState == "active" then
+            local distance = Utils.distance(run.player.coord[1], run.player.coord[2], encounter.coord[1], encounter.coord[2])
+            if distance <= CONFIG.NPC_INTERACT_RADIUS_TILES * CONFIG.TILE_SIZE then
+                return encounter
+            end
+        end
+    end
+    return nil
+end
+
+local function collectEncounterInventory(run, encounter)
+    for _, item in ipairs(encounter.inventory or {}) do
+        Items.add(run.player.inventory, item.kind, item.quantity or 1)
+    end
+    Items.sortInventory(run.player.inventory)
+    Survival.updateCarryWeight(run.player)
+end
+
+local function resolveEncounterRumors(run, encounter)
+    local changed = false
+    for _, rumor in ipairs(encounter.rumors or {}) do
+        local revealed = Survival.revealRumorTarget(run, rumor)
+        changed = revealed or changed
+    end
+    return changed
+end
+
+local function interactWithNPC(run)
+    local encounter = findNearbyNPC(run)
+    if not encounter then
+        return false, "No one answers."
+    end
+
+    local ok = false
+    local message = "You exchange a few words."
+    if encounter.kind == "injured_survivor" then
+        if Items.count(run.player.inventory, "bandage") < 1 then
+            return false, "They need a bandage."
+        end
+        Items.remove(run.player.inventory, "bandage", 1)
+        collectEncounterInventory(run, encounter)
+        resolveEncounterRumors(run, encounter)
+        ok = true
+        message = "You patch up the survivor and hear of a hidden route."
+    elseif encounter.kind == "roaming_trader" then
+        if Items.count(run.player.inventory, "cloth") > 0 then
+            Items.remove(run.player.inventory, "cloth", 1)
+        elseif Items.count(run.player.inventory, "charcoal") > 0 then
+            Items.remove(run.player.inventory, "charcoal", 1)
+        elseif Items.count(run.player.inventory, "canned_food") > 0 then
+            Items.remove(run.player.inventory, "canned_food", 1)
+        else
+            return false, "The trader wants cloth, charcoal, or food."
+        end
+        collectEncounterInventory(run, encounter)
+        resolveEncounterRumors(run, encounter)
+        ok = true
+        message = "You make a hard trade for exploration gear."
+    elseif encounter.kind == "rival_explorer" then
+        resolveEncounterRumors(run, encounter)
+        ok = true
+        message = "The rival marks a hidden route on your map."
+    elseif encounter.kind == "scavenger" then
+        collectEncounterInventory(run, encounter)
+        resolveEncounterRumors(run, encounter)
+        ok = true
+        message = "The scavenger yields some supplies and a lead."
+    elseif encounter.kind == "rumor_giver" then
+        resolveEncounterRumors(run, encounter)
+        ok = true
+        message = "You hear a useful rumor."
+    end
+
+    if ok then
+        encounter.resolutionState = "resolved"
+    end
+    return ok, message
 end
 
 refreshCraftMenu = function()
@@ -1014,6 +1131,8 @@ updateRunSignals = function()
     local fishingSpot = findNearbyCoordEntry(run.world.fishingSpots)
     local climbNode = findNearbyCoordEntry(run.world.climbNodes)
     local mapNode = findNearbyCoordEntry(run.world.mapNodes)
+    local gate = Survival.findNearbyTraversalGate(run, true)
+    local npcEncounter = findNearbyNPC(run)
     local currentStation = run.runtime.currentStation
     local currentBiome = currentBiomeRegion(run, run.player.coord)
     local alerts = {
@@ -1067,8 +1186,26 @@ updateRunSignals = function()
         run.runtime.interactionHint = "E harvest the carcass."
     elseif fishingSpot then
         run.runtime.interactionHint = "E fish the hole."
+    elseif npcEncounter then
+        run.runtime.interactionHint = "E speak with the traveler."
+    elseif gate then
+        if gate.unlockState then
+            run.runtime.interactionHint = "E take the opened route."
+        elseif gate.toolType == "rope_bolt" then
+            run.runtime.interactionHint = "E fire a rope bolt to open the route."
+        elseif gate.toolType == "bridge_kit" then
+            run.runtime.interactionHint = "E repair the crossing with a bridge kit."
+        else
+            run.runtime.interactionHint = "E fire a signal bolt to unlock the route."
+        end
     elseif climbNode then
         run.runtime.interactionHint = "E climb the rope."
+    elseif mapNode and Items.count(run.player.inventory, "survey_kit") > 0 then
+        if Items.count(run.player.inventory, "charcoal") > 0 then
+            run.runtime.interactionHint = "M map the area, G survey distant routes."
+        else
+            run.runtime.interactionHint = "G survey distant routes."
+        end
     elseif mapNode and Items.count(run.player.inventory, "charcoal") > 0 then
         run.runtime.interactionHint = "M map the area with charcoal."
     elseif currentStation then
@@ -1115,6 +1252,37 @@ updateRunSignals = function()
 end
 
 local function interact()
+    local facingOk, facingMessage = World.interactFacing(game.run)
+    if facingOk or facingMessage then
+        setRunMessage(facingMessage)
+        updateVisibility()
+        updateCamera(game.run)
+        updateRunSignals()
+        refreshCraftMenu()
+        return facingOk
+    end
+
+    local npcEncounter = findNearbyNPC(game.run)
+    if npcEncounter then
+        local ok, message = interactWithNPC(game.run)
+        setRunMessage(message)
+        updateVisibility()
+        updateRunSignals()
+        refreshCraftMenu()
+        return ok
+    end
+
+    local gate = Survival.findNearbyTraversalGate(game.run, true)
+    if gate then
+        local ok, message = Survival.useTraversalGate(game.run, gate)
+        setRunMessage(message)
+        applyPendingShake()
+        updateVisibility()
+        updateCamera(game.run)
+        updateRunSignals()
+        return ok
+    end
+
     local trap = Wildlife.findNearbyTrap(game.run)
     if trap and trap.state == "caught" then
         local ok, message = Wildlife.collectTrap(game.run)
@@ -1399,6 +1567,12 @@ local function handleGameplayActionKey(key)
         if ok then
             SoundEvents.play("map_reveal")
         end
+    elseif key == "g" then
+        local ok, message = Survival.surveyArea(game.run)
+        setRunMessage(message)
+        applyPendingShake()
+        updateVisibility()
+        updateRunSignals()
     elseif key == "q" then
         local ok, message = performDodge()
         setRunMessage(message)
@@ -1415,8 +1589,16 @@ local function handleGameplayActionKey(key)
             ok, message = queueAttack("bow")
         elseif weapon == "sword" then
             ok, message = queueAttack("melee")
+        elseif game.run.player.equippedTool then
+            ok, message = World.hitFacingTile(game.run, game.run.player.equippedTool)
+            if ok then
+                Survival.updateCarryWeight(game.run.player)
+                refreshCraftMenu()
+                updateVisibility()
+                updateRunSignals()
+            end
         else
-            ok, message = false, "Ready a sword or bow first."
+            ok, message = false, "Ready a sword, bow, or tool first."
         end
         setRunMessage(message)
     else
@@ -1528,6 +1710,7 @@ local function updateGame(dt)
     Survival.advanceTime(run, hours)
     Fire.update(run, hours)
     Wildlife.update(run, hours)
+    World.tick(run, hours)
     Survival.update(run, hours, {sprinting = sprinting})
     setDoorState()
     applyPendingShake()
@@ -1589,7 +1772,7 @@ local function drawWorld()
 
     for _, node in ipairs(world.resourceNodes or {}) do
         local gx, gy = Utils.pixelToGrid(node.coord[1], node.coord[2])
-        if isVisibleTile(gx + 1, gy + 1) then
+        if (not node.hidden or node.revealed) and isVisibleTile(gx + 1, gy + 1) then
             SpriteRegistry.drawResourceNode(sprites, node, game.settings)
         end
     end
@@ -1632,7 +1815,21 @@ local function drawWorld()
     for _, node in ipairs(world.mapNodes or {}) do
         local gx, gy = Utils.pixelToGrid(node.coord[1], node.coord[2])
         if isVisibleTile(gx + 1, gy + 1) then
-            SpriteRegistry.drawWorldMarker(sprites, "map", node.coord, game.settings)
+            SpriteRegistry.drawWorldMarker(sprites, node.survey and "survey" or "map", node.coord, game.settings)
+        end
+    end
+    for _, gate in ipairs(world.gates or {}) do
+        local gx, gy = Utils.pixelToGrid(gate.coord[1], gate.coord[2])
+        if gate.revealed ~= false and isVisibleTile(gx + 1, gy + 1) then
+            SpriteRegistry.drawWorldMarker(sprites, gate.unlockState and "gate_open" or "gate_locked", gate.coord, game.settings)
+        end
+    end
+    for _, encounter in ipairs(world.npcEncounters or {}) do
+        if encounter.resolutionState == "active" then
+            local gx, gy = Utils.pixelToGrid(encounter.coord[1], encounter.coord[2])
+            if isVisibleTile(gx + 1, gy + 1) then
+                SpriteRegistry.drawWorldMarker(sprites, "npc", encounter.coord, game.settings)
+            end
         end
     end
 
@@ -1670,12 +1867,16 @@ local function drawWorld()
 
     love.graphics.setFont(fonts.small)
     for _, poi in ipairs(world.pointsOfInterest or {}) do
+        if poi.hidden and not poi.revealed then
+            goto continue
+        end
         local gx, gy = Utils.pixelToGrid(poi.coord[1], poi.coord[2])
         local key = pointOfInterestKey(poi)
         if world.discoveredPOIs[key] and (isVisibleTile(gx + 1, gy + 1) or isMappedTile(gx + 1, gy + 1)) then
             Accessibility.setColor(game.settings, 0.92, 0.95, 1, isVisibleTile(gx + 1, gy + 1) and 0.95 or 0.62)
             love.graphics.print(poi.name, poi.coord[1] - 4, poi.coord[2] - 14)
         end
+        ::continue::
     end
 
     Effects.drawWorldOverlay(game.settings, run)

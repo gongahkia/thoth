@@ -2,6 +2,7 @@ local TestRunner = require("test_runner")
 local CONFIG = require("config")
 local ProcGen = require("procgen")
 local Utils = require("utils")
+local World = require("world")
 
 local describe = TestRunner.describe
 local it = TestRunner.it
@@ -18,6 +19,10 @@ end
 
 local function coordToTile(coord)
     return math.floor(coord[1] / CONFIG.TILE_SIZE) + 1, math.floor(coord[2] / CONFIG.TILE_SIZE) + 1
+end
+
+local function worldCoord(x, y)
+    return {(x - 1) * CONFIG.TILE_SIZE, (y - 1) * CONFIG.TILE_SIZE}
 end
 
 local function isWalkable(tile)
@@ -63,6 +68,48 @@ local function findPOI(region, name)
         end
     end
     return nil
+end
+
+local function findById(list, id)
+    for _, entry in ipairs(list or {}) do
+        if entry.id == id then
+            return entry
+        end
+    end
+    return nil
+end
+
+local function tileCounts(level)
+    local counts = {}
+    for y = 1, #level.grid do
+        for x = 1, #(level.grid[y] or {}) do
+            local tile = level.grid[y][x]
+            counts[tile] = (counts[tile] or 0) + 1
+        end
+    end
+    return counts
+end
+
+local function firstTile(level, tileName)
+    for y = 1, #level.grid do
+        for x = 1, #(level.grid[y] or {}) do
+            if level.grid[y][x] == tileName then
+                return x, y
+            end
+        end
+    end
+    return nil
+end
+
+local function assertValidStairs(level)
+    for _, match in ipairs(World.findTiles(level, function(tile)
+        return tile == "stair_up" or tile == "stair_down"
+    end)) do
+        TestRunner.assertTrue(match.x > 1 and match.x < CONFIG.WORLD_GRID_WIDTH)
+        TestRunner.assertTrue(match.y > 1 and match.y < CONFIG.WORLD_GRID_HEIGHT)
+        TestRunner.assertNotEqual(match.tile, "weak_ice")
+        TestRunner.assertTrue(isWalkable(match.tile), "stair should be walkable")
+    end
 end
 
 local function buildEditorLayout()
@@ -136,6 +183,9 @@ describe("ProcGen", function()
         TestRunner.assertEqual(#first.resourceNodes, #second.resourceNodes)
         TestRunner.assertEqual(#first.weakIceTiles, #second.weakIceTiles)
         TestRunner.assertEqual(#first.wildlife.wolves, #second.wildlife.wolves)
+        TestRunner.assertTableEqual(tileCounts(first.levels[-1]), tileCounts(second.levels[-1]))
+        TestRunner.assertTableEqual(tileCounts(first.levels[-2]), tileCounts(second.levels[-2]))
+        TestRunner.assertTableEqual(tileCounts(first.levels[1]), tileCounts(second.levels[1]))
     end)
 
     it("guarantees shelters, weak ice, resource nodes, and wildlife zones", function()
@@ -147,9 +197,9 @@ describe("ProcGen", function()
         TestRunner.assertTrue(#region.weakIceTiles >= 6)
         TestRunner.assertTrue(countNodes(region.resourceNodes, "wood") >= 8)
         TestRunner.assertTrue(countNodes(region.resourceNodes, "loot") + countNodes(region.resourceNodes, "cache") >= 6)
-        TestRunner.assertEqual(#region.wildlife.wolves, 2)
+        TestRunner.assertTrue(#region.wildlife.wolves >= 2)
         TestRunner.assertTrue(#region.wildlife.rabbits >= 2)
-        TestRunner.assertEqual(#region.wildlife.deer, 1)
+        TestRunner.assertTrue(#region.wildlife.deer >= 1)
         TestRunner.assertTrue(#region.wildlife.raiders >= 1)
         TestRunner.assertTrue(#region.fishingSpots >= 1)
         TestRunner.assertTrue(#region.climbNodes >= 1)
@@ -157,9 +207,20 @@ describe("ProcGen", function()
         TestRunner.assertTrue(#region.mapNodes >= 1)
         TestRunner.assertTrue(#region.carcasses >= 1)
         TestRunner.assertTrue(#region.biomes >= 4)
+        TestRunner.assertTrue(#region.regions >= 7)
+        TestRunner.assertTrue(#region.connections >= 7)
+        TestRunner.assertTrue(#region.gates >= 3)
+        TestRunner.assertTrue(#region.landmarks >= 4)
+        TestRunner.assertTrue(#region.npcEncounters >= 4)
+        TestRunner.assertTrue(#region.traversalRequirements >= 3)
+        TestRunner.assertType(region.levels[0], "table")
+        TestRunner.assertType(region.levels[-1], "table")
+        TestRunner.assertType(region.levels[-2], "table")
+        TestRunner.assertType(region.levels[1], "table")
+        TestRunner.assertEqual(region.currentDepth, 0)
     end)
 
-    it("generates a 90x90 bordered world with reachable expedition POIs", function()
+    it("generates a bordered macro-world with reachable critical expedition POIs", function()
         Utils.setGameSeed(false, 2026)
         local region = ProcGen.generateRunData("normal")
 
@@ -175,14 +236,13 @@ describe("ProcGen", function()
         end
 
         local requiredPOIs = {
-            "Ranger Cabin",
-            "Frozen Lake",
-            "Windbreak Ridge",
-            "North Cave",
-            "Deep Woods",
+            "Frontier Cabin",
+            "Frozen Marsh",
+            "North Ravine",
+            "Glacial Beacon",
             "Trapline Cabin",
             "Weather Station",
-            "Emergency Cache",
+            "Shattered Basin",
         }
         for _, name in ipairs(requiredPOIs) do
             local poi = findPOI(region, name)
@@ -193,6 +253,92 @@ describe("ProcGen", function()
         TestRunner.assertTrue(#region.hazardZones >= 5)
         TestRunner.assertTrue(#region.goals >= 2)
         TestRunner.assertTrue(findPOI(region, "Weather Station").biome == "Ash Barrens")
+        TestRunner.assertTrue(findPOI(region, "Hidden Vale Cache").hidden)
+        TestRunner.assertFalse(findPOI(region, "Hidden Vale Cache").revealed)
+        TestRunner.assertEqual(findById(region.regions, "frontier_reach").role, "safe_fringe")
+        TestRunner.assertEqual(findById(region.regions, "hidden_vale").role, "gated_shortcut")
+        TestRunner.assertEqual(findById(region.gates, "signal_post").toolType, "signal_bolt")
+        TestRunner.assertFalse(findById(region.gates, "signal_post").revealed)
+    end)
+
+    it("creates coherent traversal gates and exploration encounters", function()
+        Utils.setGameSeed(false, 8080)
+        local region = ProcGen.generateRunData("hard")
+
+        local anchorCliff = findById(region.gates, "anchor_cliff")
+        local brokenBridge = findById(region.gates, "broken_bridge")
+        local signalPost = findById(region.gates, "signal_post")
+        TestRunner.assertType(anchorCliff, "table")
+        TestRunner.assertType(brokenBridge, "table")
+        TestRunner.assertType(signalPost, "table")
+        TestRunner.assertEqual(anchorCliff.ammoKind, "rope_bolt")
+        TestRunner.assertEqual(brokenBridge.repairCost.bridge_kit, 1)
+        TestRunner.assertEqual(signalPost.requiresWeapon, "bow")
+
+        local hiddenConnection = nil
+        for _, connection in ipairs(region.connections) do
+            if connection.gateId == "signal_post" then
+                hiddenConnection = connection
+                break
+            end
+        end
+        TestRunner.assertType(hiddenConnection, "table")
+        TestRunner.assertEqual(hiddenConnection.status, "hidden")
+
+        local encounterKinds = {}
+        for _, encounter in ipairs(region.npcEncounters) do
+            encounterKinds[encounter.kind] = true
+            TestRunner.assertEqual(encounter.resolutionState, "active")
+            TestRunner.assertType(findById(region.regions, encounter.regionId), "table")
+        end
+        TestRunner.assertTrue(encounterKinds.injured_survivor)
+        TestRunner.assertTrue(encounterKinds.roaming_trader)
+        TestRunner.assertTrue(encounterKinds.rival_explorer)
+        TestRunner.assertTrue(encounterKinds.scavenger)
+    end)
+
+    it("generates distinct reachable layered depths with constrained stairs", function()
+        Utils.setGameSeed(false, 9090)
+        local region = ProcGen.generateRunData("normal")
+        local levels = region.levels
+
+        TestRunner.assertEqual(levels[0].name, "Frozen Surface")
+        TestRunner.assertEqual(levels[-1].name, "Ice Caves")
+        TestRunner.assertEqual(levels[-2].name, "Deep Ruins")
+        TestRunner.assertEqual(levels[1].name, "Exposed Ridge")
+
+        local caveCounts = tileCounts(levels[-1])
+        local deepCounts = tileCounts(levels[-2])
+        local ridgeCounts = tileCounts(levels[1])
+        TestRunner.assertTrue((caveCounts.cave_floor or 0) > 100)
+        TestRunner.assertTrue((caveCounts.ice or 0) > 20)
+        TestRunner.assertTrue((deepCounts.thermal_fissure or 0) > 0)
+        TestRunner.assertTrue((deepCounts.shale or 0) > 100)
+        TestRunner.assertTrue((ridgeCounts.snow or 0) > 100)
+        TestRunner.assertTrue((ridgeCounts.cabin_floor or 0) > 0)
+
+        assertValidStairs(levels[0])
+        assertValidStairs(levels[-1])
+        assertValidStairs(levels[-2])
+        assertValidStairs(levels[1])
+
+        local surfaceDownX, surfaceDownY = firstTile(levels[0], "stair_down")
+        local caveDownX, caveDownY = firstTile(levels[-1], "stair_down")
+        local deepUpX, deepUpY = firstTile(levels[-2], "stair_up")
+        local ridgeDownX, ridgeDownY = firstTile(levels[1], "stair_down")
+        TestRunner.assertType(surfaceDownX, "number")
+        TestRunner.assertType(caveDownX, "number")
+        TestRunner.assertType(deepUpX, "number")
+        TestRunner.assertType(ridgeDownX, "number")
+
+        TestRunner.assertTrue(World.isReachable(levels[0], region.playerStart, worldCoord(surfaceDownX, surfaceDownY)))
+        TestRunner.assertTrue(World.isReachable(levels[-1], worldCoord(80, 22), worldCoord(caveDownX, caveDownY)))
+        TestRunner.assertTrue(World.isReachable(levels[-2], worldCoord(deepUpX, deepUpY), levels[-2].pointsOfInterest[2].coord))
+        TestRunner.assertTrue(World.isReachable(levels[1], worldCoord(ridgeDownX, ridgeDownY), levels[1].pointsOfInterest[2].coord))
+
+        TestRunner.assertTrue(#levels[-1].hazardZones >= 2)
+        TestRunner.assertTrue(#levels[-2].resourceNodes >= 2)
+        TestRunner.assertTrue(#levels[1].pointsOfInterest >= 2)
     end)
 
     it("builds runtime world data from editor-authored layouts", function()
