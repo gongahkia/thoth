@@ -140,7 +140,10 @@ describe("Runtime Smoke", function()
                     end,
                 },
                 graphics = {
-                    newFont = function(_, size)
+                    newFont = function(pathOrSize, size)
+                        if size == nil then
+                            size = pathOrSize
+                        end
                         return {
                             size = size,
                             getWidth = function(_, text)

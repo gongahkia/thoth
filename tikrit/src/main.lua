@@ -99,11 +99,11 @@ end
 
 local function rebuildFonts()
     local scale = game.settings.accessibility.fontScale
-    fonts.large = love.graphics.newFont("font/Amatic-Bold.ttf", math.floor(CONFIG.FONT_SIZE_LARGE * scale))
-    fonts.medium = love.graphics.newFont("font/Amatic-Bold.ttf", math.floor(CONFIG.FONT_SIZE_MEDIUM * scale))
-    fonts.small = love.graphics.newFont("font/Amatic-Bold.ttf", math.floor(CONFIG.FONT_SIZE_SMALL * scale))
-    fonts.hud = love.graphics.newFont("font/Amatic-Bold.ttf", math.max(12, math.floor(14 * scale)))
-    fonts.tiny = love.graphics.newFont("font/Amatic-Bold.ttf", math.max(10, math.floor(11 * scale)))
+    fonts.large = love.graphics.newFont(math.floor(CONFIG.FONT_SIZE_LARGE * scale))
+    fonts.medium = love.graphics.newFont(math.floor(CONFIG.FONT_SIZE_MEDIUM * scale))
+    fonts.small = love.graphics.newFont(math.floor(CONFIG.FONT_SIZE_SMALL * scale))
+    fonts.hud = love.graphics.newFont(math.max(12, math.floor(14 * scale)))
+    fonts.tiny = love.graphics.newFont(math.max(10, math.floor(11 * scale)))
 end
 
 local function buildTitleItems()

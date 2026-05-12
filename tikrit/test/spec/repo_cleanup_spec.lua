@@ -25,6 +25,7 @@ describe("Repo Cleanup", function()
         TestRunner.assertTrue(not allContents:find("player%-collect%-key", 1))
         TestRunner.assertTrue(not allContents:find("player%-equip", 1))
         TestRunner.assertTrue(not allContents:find("player%-lose%-screen", 1))
+        TestRunner.assertTrue(not allContents:find("Amatic", 1, true))
         TestRunner.assertTrue((mainContents or ""):find("SoundEvents", 1, true) ~= nil)
     end)
 
