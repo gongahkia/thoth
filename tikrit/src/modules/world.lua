@@ -1,5 +1,6 @@
 local CONFIG = require("config")
 local EntitySystem = require("modules/entity_system")
+local Furniture = require("modules/furniture")
 local Items = require("modules/items")
 local TileRegistry = require("modules/tile_registry")
 local Utils = require("modules/utils")
@@ -69,6 +70,9 @@ local function ensureLevel(level, depth)
     level.gates = level.gates or {}
     level.npcEncounters = level.npcEncounters or {}
     level.wildlife = level.wildlife or {wolves = {}, rabbits = {}, deer = {}, raiders = {}}
+    level.goals = level.goals or {}
+    level.snowCover = level.snowCover or {}
+    level.shelterWear = level.shelterWear or {}
     return level
 end
 
@@ -123,6 +127,9 @@ local function applyActiveAliases(world, level)
     world.gates = level.gates
     world.npcEncounters = level.npcEncounters
     world.wildlife = level.wildlife
+    world.goals = level.goals
+    world.snowCover = level.snowCover
+    world.shelterWear = level.shelterWear
 end
 
 function World.levelSize(level)
@@ -232,12 +239,16 @@ function World.initialize(world)
         gates = world.gates,
         npcEncounters = world.npcEncounters,
         wildlife = world.wildlife,
+        goals = world.goals,
     }
     world.levels[0] = ensureLevel(surface, 0)
     world.levels[-1] = ensureLevel(world.levels[-1] or makeCompanionLevel(world.levels[0], -1, "Ice Caves", "cave_floor"), -1)
     world.levels[-2] = ensureLevel(world.levels[-2] or makeCompanionLevel(world.levels[0], -2, "Deep Ruins", "shale"), -2)
     world.levels[1] = ensureLevel(world.levels[1] or makeCompanionLevel(world.levels[0], 1, "Exposed Ridge", "snow"), 1)
     ensureDepthLinks(world)
+    for _, level in pairs(world.levels) do
+        Furniture.mirrorLevel(level)
+    end
     world.currentDepth = world.currentDepth or 0
     applyActiveAliases(world, world.levels[world.currentDepth])
     return world
@@ -273,6 +284,61 @@ function World.trySetTile(run, depth, x, y, tile)
     end
     level.grid[y][x] = tile
     return true
+end
+
+local function countEntities(level, kind)
+    local total = 0
+    for _, entity in ipairs(level.entities or {}) do
+        if entity.kind == kind and entity.hidden ~= true then
+            total = total + 1
+        end
+    end
+    return total
+end
+
+local function validSpawnTile(level, x, y)
+    local tile = level.grid[y] and level.grid[y][x]
+    return tile
+        and tile ~= "weak_ice"
+        and tile ~= "thermal_fissure"
+        and tile ~= "lake"
+        and TileRegistry.isWalkable(tile, level, x, y, nil)
+end
+
+function World.spawnOffscreen(run, kind, rules)
+    World.attachRun(run)
+    rules = rules or {}
+    local depth = rules.depth or run.world.currentDepth or 0
+    local level = run.world.levels[depth]
+    if not level then
+        return nil, "No level for spawn."
+    end
+    if rules.cap and countEntities(level, kind) >= rules.cap then
+        return nil, "Spawn cap reached."
+    end
+
+    local width, height = World.levelSize(level)
+    local zone = rules.zone or {x = 2, y = 2, width = width - 2, height = height - 2}
+    local minDistance = (rules.minDistanceTiles or CONFIG.VISIBLE_RADIUS_DAY or 8) * CONFIG.TILE_SIZE
+    for _ = 1, rules.attempts or 80 do
+        local x = math.random(zone.x, math.max(zone.x, zone.x + zone.width - 1))
+        local y = math.random(zone.y, math.max(zone.y, zone.y + zone.height - 1))
+        if x > 1 and y > 1 and x < width and y < height and validSpawnTile(level, x, y) then
+                local coord = {(x - 1) * CONFIG.TILE_SIZE, (y - 1) * CONFIG.TILE_SIZE}
+            local sameDepth = depth == (run.world.currentDepth or 0)
+            local distance = Utils.distance(run.player.coord[1], run.player.coord[2], coord[1], coord[2])
+            if not sameDepth or distance >= minDistance then
+                return EntitySystem.spawn(level, kind, coord, {
+                    solid = false,
+                    width = rules.width or CONFIG.TILE_SIZE - 4,
+                    height = rules.height or CONFIG.TILE_SIZE - 4,
+                    spawned = true,
+                    depth = depth,
+                })
+            end
+        end
+    end
+    return nil, "No valid offscreen spawn."
 end
 
 function World.moveEntity(run, entity, dx, dy)
@@ -340,6 +406,76 @@ local function useStair(run, tile, x, y)
     return false, message
 end
 
+local function findPoi(level, name)
+    for _, poi in ipairs(level.pointsOfInterest or {}) do
+        if poi.name == name then
+            return poi
+        end
+    end
+    return nil
+end
+
+local function completeGoal(list, goalId)
+    local changed = false
+    for _, goal in ipairs(list or {}) do
+        if goal.id == goalId then
+            goal.completed = true
+            changed = true
+        end
+    end
+    return changed
+end
+
+local function hasMappedRoute(run)
+    for _ in pairs(run.world.mappedTiles or run.world.discovered or {}) do
+        return true
+    end
+    return false
+end
+
+function World.activateEndgame(run, probe)
+    World.attachRun(run)
+    local level = World.currentLevel(run)
+    if (run.world.currentDepth or 0) ~= 1 then
+        if probe then
+            return false, nil
+        end
+        return false, "The weather station is on the ridge."
+    end
+    local poi = findPoi(level, "Ridge Weather Station") or findPoi(level, "Weather Station")
+    if not poi then
+        if probe then
+            return false, nil
+        end
+        return false, "No station equipment is here."
+    end
+
+    local distance = Utils.distance(run.player.coord[1], run.player.coord[2], poi.coord[1], poi.coord[2])
+    if distance > CONFIG.TILE_SIZE * 2.2 then
+        if probe then
+            return false, nil
+        end
+        return false, "Get closer to the weather station."
+    end
+    if Items.count(run.player.inventory, "survey_kit") < 1 and not hasMappedRoute(run) then
+        return false, "You need survey gear or a mapped route to align the station."
+    end
+
+    completeGoal(level.goals, "activate_ridge_weather_station")
+    completeGoal(run.world.goals, "activate_ridge_weather_station")
+    run.runtime = run.runtime or {}
+    run.runtime.endgameActivated = true
+    run.runtime.replayEvents = run.runtime.replayEvents or {}
+    table.insert(run.runtime.replayEvents, {
+        type = "weather_station_activated",
+        depth = run.world.currentDepth,
+        coord = {poi.coord[1], poi.coord[2]},
+    })
+    run.stats = run.stats or {}
+    run.stats.weatherStationActivated = true
+    return true, "You activate the weather station beacon."
+end
+
 function World.currentTile(run)
     World.attachRun(run)
     local gx, gy = Utils.pixelToGrid(run.player.coord[1], run.player.coord[2])
@@ -379,6 +515,11 @@ function World.interactFacing(run)
     local currentStairDepth = stairTargetDepth(currentTile, run.world.currentDepth)
     if currentStairDepth then
         return useStair(run, currentTile, currentX, currentY)
+    end
+
+    local endgameOk, endgameMessage = World.activateEndgame(run, true)
+    if endgameOk or endgameMessage then
+        return endgameOk, endgameMessage
     end
 
     local entity = World.facingEntity(run)
@@ -423,6 +564,9 @@ function World.hitFacingTile(run, toolKind)
     if not behavior:isDestructible() then
         return false, "That tool finds no purchase."
     end
+    if behavior.toolTypes and not behavior.toolTypes[definition.toolType] then
+        return false, "The " .. Items.describe(toolKind) .. " is the wrong tool for that."
+    end
 
     local entity = {
         depth = run.world.currentDepth or 0,
@@ -464,10 +608,32 @@ function World.stepPlayer(run)
     return false, nil
 end
 
+local function updateLevelSimulation(level, run, hours)
+    local blizzard = run.world.weather and run.world.weather.current == "blizzard"
+    for _, shelter in ipairs(level.snowShelters or {}) do
+        if shelter.integrity and shelter.integrity > 0 then
+            local wear = ((level.depth or 0) == 1 or blizzard) and 2.0 or 0.35
+            shelter.integrity = math.max(0, shelter.integrity - (wear * hours))
+        end
+    end
+    for _, fire in ipairs(level.fires or {}) do
+        fire.tickHours = (fire.tickHours or 0) + hours
+    end
+    for _, node in ipairs(level.resourceNodes or {}) do
+        if node.opened and node.regrowHours then
+            node.regrowHours = math.max(0, node.regrowHours - hours)
+            if node.regrowHours <= 0 then
+                node.opened = false
+            end
+        end
+    end
+end
+
 function World.tick(run, hours)
     World.attachRun(run)
     local level = World.currentLevel(run)
     EntitySystem.tick(level, run)
+    updateLevelSimulation(level, run, hours)
     local attempts = math.max(1, math.floor((#level.grid * #(level.grid[1] or {})) / 256))
     for _ = 1, attempts do
         local x = math.random(2, math.max(2, #(level.grid[1] or {}) - 1))

@@ -134,13 +134,35 @@ local function itemDrops(...)
     return result
 end
 
+local function tickKey(x, y)
+    return tostring(x) .. ":" .. tostring(y)
+end
+
 TileRegistry.register("unknown", {solid = true})
-TileRegistry.register("snow")
+TileRegistry.register("snow", {
+    randomTick = function(_self, level, x, y)
+        level.snowCover = level.snowCover or {}
+        local key = tickKey(x, y)
+        level.snowCover[key] = math.min(3, (level.snowCover[key] or 0) + 1)
+        return true
+    end,
+})
 TileRegistry.register("path")
 TileRegistry.register("ash")
 TileRegistry.register("moss")
 TileRegistry.register("shale")
-TileRegistry.register("ice")
+TileRegistry.register("ice", {
+    randomTick = function(_self, level, x, y)
+        if (level.depth or 0) <= 0 and math.random(80) == 1 then
+            level.grid[y][x] = "weak_ice"
+            level.data = level.data or {}
+            level.data[y] = level.data[y] or {}
+            level.data[y][x] = 0
+            return true
+        end
+        return false
+    end,
+})
 TileRegistry.register("weak_ice", {
     randomTick = function(self, level, x, y)
         level.data = level.data or {}
@@ -153,7 +175,14 @@ TileRegistry.register("weak_ice", {
         return true
     end,
 })
-TileRegistry.register("fire_safe")
+TileRegistry.register("fire_safe", {
+    randomTick = function(_self, level, x, y)
+        level.shelterWear = level.shelterWear or {}
+        local key = tickKey(x, y)
+        level.shelterWear[key] = math.min(100, (level.shelterWear[key] or 0) + 1)
+        return true
+    end,
+})
 TileRegistry.register("thermal_fissure", {
     randomTick = function(_self, _level, _x, _y, run)
         if run and run.player and run.player.warmth then
@@ -168,6 +197,7 @@ TileRegistry.register("tree", {
     destructible = true,
     maxHealth = 6,
     baseTile = "snow",
+    toolTypes = {axe = true},
     dropItems = function()
         return itemDrops("sticks", 2, "firewood", 1)
     end,
@@ -177,6 +207,7 @@ TileRegistry.register("rock", {
     destructible = true,
     maxHealth = 8,
     baseTile = "shale",
+    toolTypes = {axe = true, pick = true},
     dropItems = function()
         return itemDrops("charcoal", 1)
     end,

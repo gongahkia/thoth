@@ -1,5 +1,6 @@
 local TestRunner = require("test_runner")
 local CONFIG = require("config")
+local EntitySystem = require("entity_system")
 local ProcGen = require("procgen")
 local Utils = require("utils")
 local World = require("world")
@@ -109,6 +110,73 @@ local function assertValidStairs(level)
         TestRunner.assertTrue(match.y > 1 and match.y < CONFIG.WORLD_GRID_HEIGHT)
         TestRunner.assertNotEqual(match.tile, "weak_ice")
         TestRunner.assertTrue(isWalkable(match.tile), "stair should be walkable")
+    end
+end
+
+local function listHasId(list, id)
+    for _, entry in ipairs(list or {}) do
+        if entry.id == id or entry.biomeId == id then
+            return true
+        end
+    end
+    return false
+end
+
+local function coordFromEntry(entry)
+    if entry.coord then
+        return entry.coord
+    end
+    return entry
+end
+
+local function tileAtCoord(level, coord)
+    local x, y = coordToTile(coord)
+    return level.grid[y] and level.grid[y][x], x, y
+end
+
+local function isInvalidAnchorTile(tile)
+    return tile == nil
+        or tile == "tree"
+        or tile == "rock"
+        or tile == "lake"
+        or tile == "cabin_wall"
+        or tile == "cave_wall"
+        or tile == "weak_ice"
+        or tile == "thermal_fissure"
+end
+
+local function assertValidLayerAnchors(level)
+    for _, match in ipairs(World.findTiles(level, function(tile)
+        return tile == "stair_up" or tile == "stair_down"
+    end)) do
+        TestRunner.assertFalse(isInvalidAnchorTile(match.tile), "stair on invalid tile")
+    end
+
+    for _, poi in ipairs(level.pointsOfInterest or {}) do
+        local tile = tileAtCoord(level, poi.coord)
+        TestRunner.assertFalse(isInvalidAnchorTile(tile), poi.name .. " on invalid tile")
+        TestRunner.assertType(poi.biomeId, "string")
+    end
+
+    for _, node in ipairs(level.resourceNodes or {}) do
+        local tile = tileAtCoord(level, node.coord)
+        TestRunner.assertFalse(isInvalidAnchorTile(tile), (node.name or node.type) .. " on invalid tile")
+        TestRunner.assertType(node.biomeId, "string")
+    end
+
+    for _, spot in ipairs(level.safeSleepSpots or {}) do
+        local coord = coordFromEntry(spot)
+        local tile = tileAtCoord(level, coord)
+        TestRunner.assertFalse(isInvalidAnchorTile(tile), "safe sleep spot on invalid tile")
+        TestRunner.assertType(spot.biomeId, "string")
+    end
+end
+
+local function assertReachablePois(level, entryCoord)
+    for _, poi in ipairs(level.pointsOfInterest or {}) do
+        if poi.rewardTier ~= "hazard" then
+            TestRunner.assertTrue(World.isReachable(level, entryCoord, poi.coord), poi.name .. " should be reachable")
+        end
     end
 end
 
@@ -339,6 +407,104 @@ describe("ProcGen", function()
         TestRunner.assertTrue(#levels[-1].hazardZones >= 2)
         TestRunner.assertTrue(#levels[-2].resourceNodes >= 2)
         TestRunner.assertTrue(#levels[1].pointsOfInterest >= 2)
+    end)
+
+    it("adds rich sub-biomes with valid reachable anchors on companion depths", function()
+        Utils.setGameSeed(false, 4242)
+        local region = ProcGen.generateRunData("normal")
+        local levels = region.levels
+
+        TestRunner.assertTrue(#levels[-1].biomes >= 5)
+        TestRunner.assertTrue(#levels[-2].biomes >= 5)
+        TestRunner.assertTrue(#levels[1].biomes >= 5)
+
+        for _, biomeId in ipairs({
+            "frozen_tunnels",
+            "subglacial_pools",
+            "coal_pockets",
+            "brittle_ice_shelves",
+            "warm_refuge_pockets",
+        }) do
+            TestRunner.assertTrue(listHasId(levels[-1].biomes, biomeId), biomeId)
+        end
+
+        for _, biomeId in ipairs({
+            "collapsed_mine_corridors",
+            "shale_chambers",
+            "thermal_fissure_fields",
+            "supply_caches",
+            "ruin_shelters",
+        }) do
+            TestRunner.assertTrue(listHasId(levels[-2].biomes, biomeId), biomeId)
+        end
+
+        for _, biomeId in ipairs({
+            "wind_scoured_paths",
+            "tree_rock_breaks",
+            "exposed_drifts",
+            "weather_station_grounds",
+            "emergency_caches",
+        }) do
+            TestRunner.assertTrue(listHasId(levels[1].biomes, biomeId), biomeId)
+        end
+
+        assertValidLayerAnchors(levels[-1])
+        assertValidLayerAnchors(levels[-2])
+        assertValidLayerAnchors(levels[1])
+
+        assertReachablePois(levels[-1], worldCoord(80, 22))
+        assertReachablePois(levels[-2], worldCoord(82, 24))
+        assertReachablePois(levels[1], worldCoord(100, 20))
+
+        TestRunner.assertTrue(listHasId(levels[-1].hazardZones, "brittle_ice_shelves"))
+        TestRunner.assertTrue(listHasId(levels[-2].hazardZones, "thermal_fissure_fields"))
+        TestRunner.assertTrue(listHasId(levels[1].resourceNodes, "tree_rock_breaks"))
+    end)
+
+    it("adds distinct depth spawn rules for entity wildlife migration", function()
+        Utils.setGameSeed(false, 5151)
+        local region = ProcGen.generateRunData("normal")
+
+        TestRunner.assertTrue(#region.levels[0].spawnRules >= 3)
+        TestRunner.assertTrue(#region.levels[-1].spawnRules >= 1)
+        TestRunner.assertTrue(#region.levels[-2].spawnRules >= 1)
+        TestRunner.assertTrue(#region.levels[1].spawnRules >= 1)
+
+        local caveWolf = false
+        for _, rule in ipairs(region.levels[-1].spawnRules) do
+            caveWolf = caveWolf or rule.kind == "wolf"
+            TestRunner.assertType(rule.cap, "number")
+            TestRunner.assertType(rule.zone, "table")
+        end
+        TestRunner.assertTrue(caveWolf)
+    end)
+
+    it("mirrors generated stations and caches into furniture entities", function()
+        Utils.setGameSeed(false, 6060)
+        local region = ProcGen.generateRunData("normal")
+        local level = region.levels[0]
+        local workbench = region.workbenches[1]
+        local cache = nil
+        for _, node in ipairs(region.resourceNodes) do
+            if node.type == "cache" then
+                cache = node
+                break
+            end
+        end
+
+        local workbenchX, workbenchY = coordToTile(workbench.coord)
+        local cacheX, cacheY = coordToTile(cache.coord)
+        local hasWorkbench = false
+        local hasCache = false
+        for _, entity in ipairs(EntitySystem.getTileEntities(level, workbenchX, workbenchY)) do
+            hasWorkbench = hasWorkbench or entity.station == "workbench"
+        end
+        for _, entity in ipairs(EntitySystem.getTileEntities(level, cacheX, cacheY)) do
+            hasCache = hasCache or entity.kind == "chest"
+        end
+
+        TestRunner.assertTrue(hasWorkbench)
+        TestRunner.assertTrue(hasCache)
     end)
 
     it("builds runtime world data from editor-authored layouts", function()

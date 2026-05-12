@@ -1,7 +1,10 @@
 local CONFIG = require("config")
+local EntitySystem = require("modules/entity_system")
+local Furniture = require("modules/furniture")
 local Items = require("modules/items")
 local TileRegistry = require("modules/tile_registry")
 local Utils = require("modules/utils")
+local World = require("modules/world")
 
 local Survival = {}
 
@@ -11,6 +14,7 @@ local CRAFT_RECIPES = {
     {
         key = "bandage",
         label = "Bandage",
+        station = "inventory",
         inputs = {cloth = 1},
         outputs = {bandage = 2},
         skill = "Mending",
@@ -18,7 +22,7 @@ local CRAFT_RECIPES = {
     {
         key = "snare",
         label = "Snare",
-        requiresWorkbench = true,
+        station = "workbench",
         inputs = {sticks = 2, cured_gut = 1},
         outputs = {snare = 1},
         skill = "Harvesting",
@@ -26,7 +30,7 @@ local CRAFT_RECIPES = {
     {
         key = "fishing_tackle",
         label = "Fishing Tackle",
-        requiresWorkbench = true,
+        station = "workbench",
         inputs = {cloth = 1, cured_gut = 1},
         outputs = {fishing_tackle = 1},
         skill = "Fishing",
@@ -34,7 +38,7 @@ local CRAFT_RECIPES = {
     {
         key = "arrow",
         label = "Arrow",
-        requiresWorkbench = true,
+        station = "workbench",
         inputs = {sticks = 1, feather = 2, cured_gut = 1},
         outputs = {arrow = 2},
         skill = "Archery",
@@ -42,10 +46,42 @@ local CRAFT_RECIPES = {
     {
         key = "rabbit_wraps",
         label = "Rabbit Wraps",
-        requiresWorkbench = true,
+        station = "workbench",
         inputs = {cured_rabbit_pelt = 2, cured_gut = 1},
         outputs = {rabbit_wraps = 1},
         skill = "Mending",
+    },
+    {
+        key = "melt_snow",
+        label = "Melt Snow",
+        station = "stove",
+        inputs = {snow = 1},
+        outputs = {water = 1},
+        skill = "Cooking",
+    },
+    {
+        key = "cook_meat",
+        label = "Cook Meat",
+        station = "stove",
+        inputs = {raw_meat = 1},
+        outputs = {cooked_meat = 1},
+        skill = "Cooking",
+    },
+    {
+        key = "cook_fish",
+        label = "Cook Fish",
+        station = "stove",
+        inputs = {raw_fish = 1},
+        outputs = {cooked_fish = 1},
+        skill = "Cooking",
+    },
+    {
+        key = "hot_tea",
+        label = "Hot Tea",
+        station = "stove",
+        inputs = {water = 1, tinder = 1},
+        outputs = {tea = 1},
+        skill = "Cooking",
     },
 }
 
@@ -235,6 +271,78 @@ local function findNearby(list, coord, radius)
         end
     end
     return nil
+end
+
+local STATION_PRIORITY = {"workbench", "curing_rack", "stove", "field_shelter"}
+
+local function stationLabel(station)
+    if station == "workbench" then
+        return "Workbench"
+    elseif station == "curing_rack" then
+        return "Curing Rack"
+    elseif station == "stove" then
+        return "Stove"
+    elseif station == "field_shelter" then
+        return "Field Shelter"
+    end
+    return "Inventory"
+end
+
+local function primaryStation(stations)
+    for _, station in ipairs(STATION_PRIORITY) do
+        if stations and stations[station] then
+            return station
+        end
+    end
+    return "inventory"
+end
+
+local function craftStationFromEntity(entity)
+    if not entity or not (entity.station or entity.stations) then
+        return nil
+    end
+    local stations = entity.stations or {[entity.station] = true}
+    return {
+        station = primaryStation(stations),
+        stations = stations,
+        label = entity.label or stationLabel(primaryStation(stations)),
+        entity = entity,
+    }
+end
+
+local function tileStation(tile)
+    if tile == "cabin_workbench" then
+        return "workbench"
+    elseif tile == "cabin_stove" then
+        return "stove"
+    elseif tile == "snow_shelter" or tile == "cabin_bed" then
+        return "field_shelter"
+    end
+    return nil
+end
+
+local function stationFromTileEntities(level, x, y)
+    for _, entity in ipairs(EntitySystem.getTileEntities(level, x, y)) do
+        if entity.hidden ~= true then
+            local station = craftStationFromEntity(entity)
+            if station then
+                return station
+            end
+        end
+    end
+    return nil
+end
+
+local function findNearbyStove(run)
+    local gx, gy = Utils.pixelToGrid(run.player.coord[1], run.player.coord[2])
+    for y = gy, gy + 2 do
+        for x = gx, gx + 2 do
+            if run.world.grid[y] and run.world.grid[y][x] == "cabin_stove" then
+                return true
+            end
+        end
+    end
+    return false
 end
 
 local function roomTemperatureModifier(run, coord)
@@ -694,23 +802,99 @@ function Survival.canSleepAt(run)
     return false
 end
 
+function Survival.currentCraftStation(run)
+    World.attachRun(run)
+    run.runtime = run.runtime or {}
+
+    local _currentTile, level, currentX, currentY = World.currentTile(run)
+    local station = stationFromTileEntities(level, currentX, currentY)
+    if station then
+        return station
+    end
+
+    local entity = World.facingEntity(run)
+    station = craftStationFromEntity(entity)
+    if station then
+        return station
+    end
+
+    local facingTile = World.facingTile(run)
+    local tileStationKey = tileStation(facingTile)
+    if tileStationKey then
+        return {
+            station = tileStationKey,
+            stations = {[tileStationKey] = true},
+            label = stationLabel(tileStationKey),
+        }
+    end
+
+    if findNearby(run.world.workbenches, run.player.coord) then
+        return {
+            station = "workbench",
+            stations = {workbench = true},
+            label = "Workbench",
+        }
+    end
+
+    if findNearby(run.world.curingStations, run.player.coord) then
+        return {
+            station = "curing_rack",
+            stations = {curing_rack = true},
+            label = "Curing Rack",
+        }
+    end
+
+    if findNearbyStove(run) then
+        return {
+            station = "stove",
+            stations = {stove = true},
+            label = "Stove",
+        }
+    end
+
+    if Survival.isSheltered(run, run.player.coord) then
+        return {
+            station = "field_shelter",
+            stations = {field_shelter = true},
+            label = "Field Shelter",
+        }
+    end
+
+    return {
+        station = "inventory",
+        stations = {inventory = true},
+        label = "Inventory",
+    }
+end
+
+local function canUseRecipeStation(run, recipe, context)
+    local station = recipe.station or (recipe.requiresWorkbench and "workbench" or "field_shelter")
+    if station == "inventory" then
+        return true
+    end
+    if station == "field_shelter" then
+        return Survival.isSheltered(run, run.player.coord)
+    end
+    return context and context.stations and context.stations[station] == true
+end
+
 function Survival.availableCraftRecipes(run)
     local available = {}
+    local context = Survival.currentCraftStation(run)
     for _, recipe in ipairs(CRAFT_RECIPES) do
-        local craftable = hasMaterials(run.player.inventory, recipe.inputs)
-        if recipe.requiresWorkbench then
-            craftable = craftable and Survival.isWorkbenchNearby(run)
-        else
-            craftable = craftable and Survival.isSheltered(run, run.player.coord)
+        if canUseRecipeStation(run, recipe, context) then
+            local craftable = hasMaterials(run.player.inventory, recipe.inputs)
+            table.insert(available, {
+                key = recipe.key,
+                label = recipe.label,
+                craftable = craftable,
+                station = recipe.station or (recipe.requiresWorkbench and "workbench" or "field_shelter"),
+                stationLabel = context.label,
+                requiresWorkbench = (recipe.station == "workbench") or recipe.requiresWorkbench or false,
+                inputs = Utils.deepCopy(recipe.inputs),
+                outputs = Utils.deepCopy(recipe.outputs),
+            })
         end
-        table.insert(available, {
-            key = recipe.key,
-            label = recipe.label,
-            craftable = craftable,
-            requiresWorkbench = recipe.requiresWorkbench or false,
-            inputs = Utils.deepCopy(recipe.inputs),
-            outputs = Utils.deepCopy(recipe.outputs),
-        })
     end
     return available
 end
@@ -727,11 +911,9 @@ function Survival.craftRecipe(run, recipeKey)
     if not recipe then
         return false, "Unknown recipe."
     end
-    if recipe.requiresWorkbench and not Survival.isWorkbenchNearby(run) then
-        return false, "You need a workbench."
-    end
-    if not recipe.requiresWorkbench and not Survival.isSheltered(run, run.player.coord) then
-        return false, "You need shelter to craft that."
+    local context = Survival.currentCraftStation(run)
+    if not canUseRecipeStation(run, recipe, context) then
+        return false, "You need a " .. stationLabel(recipe.station or "field_shelter") .. "."
     end
     if not hasMaterials(run.player.inventory, recipe.inputs) then
         return false, "Missing materials."
@@ -1071,10 +1253,12 @@ function Survival.craftSnowShelter(run)
 
     Items.remove(run.player.inventory, "sticks", CONFIG.SNOW_SHELTER_STICK_COST)
     Items.remove(run.player.inventory, "cloth", CONFIG.SNOW_SHELTER_CLOTH_COST)
-    table.insert(run.world.snowShelters, {
+    local shelter = {
         coord = {run.player.coord[1], run.player.coord[2]},
         integrity = 100,
-    })
+    }
+    table.insert(run.world.snowShelters, shelter)
+    Furniture.spawn(World.currentLevel(run), "snow_shelter", shelter.coord, {source = shelter})
     Survival.updateCarryWeight(run.player)
     return true, "Built a snow shelter."
 end

@@ -140,4 +140,128 @@ describe("World", function()
         TestRunner.assertTrue(Items.count(run.player.inventory, "sticks") >= 2)
         TestRunner.assertTrue(Items.count(run.player.inventory, "firewood") >= 1)
     end)
+
+    it("rejects the wrong tool for tile harvesting", function()
+        local run = {
+            world = {
+                grid = {
+                    {"rock", "rock", "rock", "rock"},
+                    {"rock", "snow", "tree", "rock"},
+                    {"rock", "snow", "snow", "rock"},
+                    {"rock", "rock", "rock", "rock"},
+                },
+            },
+            player = {
+                coord = {20, 20},
+                lastMoveX = 1,
+                lastMoveY = 0,
+                equippedTool = "knife",
+                inventory = {},
+                stamina = 10,
+            },
+        }
+        World.attachRun(run)
+
+        local ok = World.hitFacingTile(run)
+
+        TestRunner.assertFalse(ok)
+        TestRunner.assertEqual(run.world.grid[2][3], "tree")
+        TestRunner.assertEqual(Items.count(run.player.inventory, "sticks"), 0)
+    end)
+
+    it("spawns offscreen entities on valid tiles and respects caps", function()
+        local run = {
+            world = {
+                grid = {
+                    {"rock", "rock", "rock", "rock", "rock"},
+                    {"rock", "snow", "snow", "snow", "rock"},
+                    {"rock", "snow", "rock", "snow", "rock"},
+                    {"rock", "snow", "snow", "snow", "rock"},
+                    {"rock", "rock", "rock", "rock", "rock"},
+                },
+            },
+            player = {coord = {20, 20}, lastSafeCoord = {20, 20}},
+        }
+        World.attachRun(run)
+
+        local first = World.spawnOffscreen(run, "wolf", {
+            cap = 1,
+            zone = {x = 4, y = 4, width = 1, height = 1},
+            minDistanceTiles = 1,
+        })
+        local second = World.spawnOffscreen(run, "wolf", {
+            cap = 1,
+            zone = {x = 4, y = 4, width = 1, height = 1},
+            minDistanceTiles = 1,
+        })
+
+        TestRunner.assertType(first, "table")
+        TestRunner.assertEqual(second, nil)
+        TestRunner.assertEqual(first.depth, 0)
+    end)
+
+    it("ticks environmental simulation state conservatively", function()
+        local run = {
+            world = {
+                grid = {
+                    {"rock", "rock", "rock"},
+                    {"rock", "snow", "rock"},
+                    {"rock", "rock", "rock"},
+                },
+                weather = {current = "blizzard", hoursUntilChange = 1},
+                snowShelters = {
+                    {coord = {20, 20}, integrity = 100},
+                },
+                resourceNodes = {
+                    {type = "loot", coord = {20, 20}, opened = true, regrowHours = 0.5},
+                },
+            },
+            player = {coord = {20, 20}, lastSafeCoord = {20, 20}},
+        }
+        World.attachRun(run)
+
+        World.tick(run, 1)
+
+        TestRunner.assertTrue(run.world.snowShelters[1].integrity < 100)
+        TestRunner.assertFalse(run.world.resourceNodes[1].opened)
+        TestRunner.assertType(run.world.snowCover, "table")
+    end)
+
+    it("activates the ridge weather station with survey readiness", function()
+        local ridge = {
+            depth = 1,
+            name = "Exposed Ridge",
+            grid = {
+                {"rock", "rock", "rock", "rock"},
+                {"rock", "cabin_floor", "cabin_workbench", "rock"},
+                {"rock", "snow", "snow", "rock"},
+                {"rock", "rock", "rock", "rock"},
+            },
+            pointsOfInterest = {
+                {name = "Ridge Weather Station", coord = {20, 20}},
+            },
+            goals = {
+                {id = "activate_ridge_weather_station", completed = false},
+            },
+        }
+        local run = {
+            world = {levels = {[1] = ridge}, currentDepth = 1},
+            player = {
+                coord = {20, 20},
+                lastSafeCoord = {20, 20},
+                inventory = {},
+            },
+            runtime = {},
+            stats = {},
+        }
+        Items.add(run.player.inventory, "survey_kit", 1)
+        World.attachRun(run)
+
+        local ok = World.activateEndgame(run)
+
+        TestRunner.assertTrue(ok)
+        TestRunner.assertTrue(run.runtime.endgameActivated)
+        TestRunner.assertTrue(run.world.goals[1].completed)
+        TestRunner.assertTrue(run.stats.weatherStationActivated)
+    end)
 end)

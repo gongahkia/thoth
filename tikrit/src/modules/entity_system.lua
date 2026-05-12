@@ -144,7 +144,7 @@ end
 
 local function tryMoveAxis(level, entity, dx, dy)
     if dx == 0 and dy == 0 then
-        return true
+        return false
     end
     local nextX = entity.coord[1] + dx
     local nextY = entity.coord[2] + dy

@@ -18,6 +18,7 @@ local testFiles = {
     "test/spec/station_affordance_spec.lua",
     "test/spec/tile_registry_spec.lua",
     "test/spec/entity_system_spec.lua",
+    "test/spec/furniture_spec.lua",
     "test/spec/world_spec.lua",
     "test/spec/procgen_spec.lua",
     "test/spec/survival_spec.lua",

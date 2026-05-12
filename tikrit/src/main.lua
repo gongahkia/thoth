@@ -262,6 +262,7 @@ local function buildReplayContext(run)
         dayCount = run.world.dayCount,
         worldSource = run.world.source,
         currentDepth = run.world.currentDepth or run.player.depth or 0,
+        endgameActivated = run.runtime and run.runtime.endgameActivated or false,
         player = {
             maxCondition = run.player.maxCondition,
             carryCapacity = run.player.carryCapacity,

@@ -1,33 +1,46 @@
 local CONFIG = require("config")
+local EntitySystem = require("modules/entity_system")
 local Items = require("modules/items")
 local Survival = require("modules/survival")
+local TileRegistry = require("modules/tile_registry")
 local Utils = require("modules/utils")
+local World = require("modules/world")
 
 local Wildlife = {}
 
-local function isWalkable(tile)
-    return tile ~= nil
-        and tile ~= "tree"
-        and tile ~= "rock"
-        and tile ~= "lake"
-        and tile ~= "cabin_wall"
-        and tile ~= "cave_wall"
+local LIST_BY_KIND = {
+    wolf = "wolves",
+    raider = "raiders",
+    rabbit = "rabbits",
+    deer = "deer",
+}
+
+local KIND_BY_LIST = {
+    wolves = "wolf",
+    raiders = "raider",
+    rabbits = "rabbit",
+    deer = "deer",
+}
+
+local function listNameFor(kindOrList)
+    return LIST_BY_KIND[kindOrList] or (KIND_BY_LIST[kindOrList] and kindOrList) or kindOrList
 end
 
-local function tileAt(grid, coord)
-    local gx, gy = Utils.pixelToGrid(coord[1], coord[2])
-    local row = grid[gy + 1]
-    return row and row[gx + 1]
+local function kindFor(kindOrList)
+    return KIND_BY_LIST[kindOrList] or kindOrList
 end
 
 local function setTargetInZone(entity, zone)
+    if not zone then
+        return
+    end
     entity.target = {
         math.random(zone.x, zone.x + zone.width) * CONFIG.TILE_SIZE,
         math.random(zone.y, zone.y + zone.height) * CONFIG.TILE_SIZE,
     }
 end
 
-local function moveEntity(entity, speed, hours, grid)
+local function moveEntity(entity, speed, hours, level)
     if not entity.target then
         return
     end
@@ -46,8 +59,19 @@ local function moveEntity(entity, speed, hours, grid)
         entity.coord[2] + (dy * step),
     }
 
-    if isWalkable(tileAt(grid, nextCoord)) then
-        entity.coord = nextCoord
+    if entity._wildlifeEntity and level then
+        local moved = EntitySystem.moveEntity(level, entity, nextCoord[1] - entity.coord[1], nextCoord[2] - entity.coord[2])
+        if not moved then
+            entity.target = nil
+        end
+        return
+    end
+
+    local gx, gy = Utils.pixelToGrid(nextCoord[1], nextCoord[2])
+    local tile = level and level.grid[gy + 1] and level.grid[gy + 1][gx + 1]
+    if tile and TileRegistry.isWalkable(tile, level, gx + 1, gy + 1, entity) then
+        entity.coord[1] = nextCoord[1]
+        entity.coord[2] = nextCoord[2]
     else
         entity.target = nil
     end
@@ -134,6 +158,136 @@ local function ensureHostile(hostile)
     hostile.staggerTimer = hostile.staggerTimer or 0
 end
 
+local function ensurePassive(passive)
+    passive.kind = passive.kind or "rabbit"
+    if passive.kind == "rabbit" then
+        passive.speed = passive.speed or 20
+    elseif passive.kind == "deer" then
+        passive.speed = passive.speed or 24
+    end
+end
+
+local function actorKey(kind, coord)
+    local gx, gy = Utils.pixelToGrid(coord[1], coord[2])
+    return string.format("%s:%d:%d", kind or "wildlife", gx + 1, gy + 1)
+end
+
+local function zoneCenter(zone)
+    if not zone then
+        return nil
+    end
+    return {
+        (zone.x + math.floor(zone.width / 2)) * CONFIG.TILE_SIZE,
+        (zone.y + math.floor(zone.height / 2)) * CONFIG.TILE_SIZE,
+    }
+end
+
+local function listContains(list, actor)
+    for _, entry in ipairs(list or {}) do
+        if entry == actor then
+            return true
+        end
+    end
+    return false
+end
+
+local function entityContains(level, actor)
+    for _, entity in ipairs(level.entities or {}) do
+        if entity == actor then
+            return true
+        end
+    end
+    return false
+end
+
+function Wildlife.spawn(level, kind, coord, options)
+    options = options or {}
+    level.wildlife = level.wildlife or {wolves = {}, rabbits = {}, deer = {}, raiders = {}}
+    local listName = listNameFor(kind)
+    level.wildlife[listName] = level.wildlife[listName] or {}
+
+    local actor = options.actor or {
+        kind = kindFor(kind),
+        coord = {coord[1], coord[2]},
+        state = options.state or "roam",
+    }
+    actor.kind = actor.kind or kindFor(kind)
+    actor.coord = actor.coord or {coord[1], coord[2]}
+    actor.depth = level.depth or options.depth or 0
+    actor.solid = false
+    actor.width = actor.width or CONFIG.TILE_SIZE - 4
+    actor.height = actor.height or CONFIG.TILE_SIZE - 4
+    actor._wildlifeEntity = true
+    actor._wildlifeKey = actor._wildlifeKey or options.key or actorKey(actor.kind, actor.coord)
+
+    for key, value in pairs(options) do
+        if key ~= "actor" and key ~= "addToList" and key ~= "key" then
+            actor[key] = value
+        end
+    end
+
+    if actor.kind == "wolf" or actor.kind == "raider" then
+        ensureHostile(actor)
+    else
+        ensurePassive(actor)
+    end
+
+    if options.addToList ~= false and not listContains(level.wildlife[listName], actor) then
+        table.insert(level.wildlife[listName], actor)
+    end
+    if not entityContains(level, actor) then
+        EntitySystem.add(level, actor)
+    else
+        EntitySystem.updateTileIndex(level, actor)
+    end
+    return actor
+end
+
+function Wildlife.mirrorLevel(level)
+    if not level then
+        return level
+    end
+    level.wildlife = level.wildlife or {wolves = {}, rabbits = {}, deer = {}, raiders = {}}
+    for listName, kind in pairs(KIND_BY_LIST) do
+        for _, actor in ipairs(level.wildlife[listName] or {}) do
+            Wildlife.spawn(level, actor.kind or kind, actor.coord, {
+                actor = actor,
+                addToList = false,
+            })
+        end
+    end
+    EntitySystem.rebuildTileIndex(level)
+    return level
+end
+
+function Wildlife.getActors(run, kindOrListName)
+    World.attachRun(run)
+    local level = World.currentLevel(run)
+    Wildlife.mirrorLevel(level)
+    local listName = listNameFor(kindOrListName)
+    return (level.wildlife and level.wildlife[listName]) or {}
+end
+
+local function applySpawnRules(run, level, hours)
+    for _, rule in ipairs(level.spawnRules or {}) do
+        local chance = (rule.chancePerHour or 0) * hours
+        if chance > 0 and math.random() <= math.min(1, chance) then
+            local actor = World.spawnOffscreen(run, rule.kind, rule)
+            if actor then
+                local center = zoneCenter(rule.zone)
+                Wildlife.spawn(level, rule.kind, actor.coord, {
+                    actor = actor,
+                    zone = rule.zone,
+                    territory = rule.zone,
+                    territoryCenter = center,
+                    listName = rule.listName,
+                    state = "roam",
+                })
+            end
+        end
+    end
+end
+
 local function dropHostileLoot(run, hostile)
     run.world.resourceNodes = run.world.resourceNodes or {}
     table.insert(run.world.resourceNodes, {
@@ -150,6 +304,7 @@ local function removeHostile(run, listName, index)
         return false
     end
     dropHostileLoot(run, hostile)
+    EntitySystem.remove(run.world, hostile)
     table.remove(run.world.wildlife[listName], index)
     return true
 end
@@ -235,7 +390,7 @@ local function resolveStruggle(run, wolf)
     wolf.attackTimer = wolf.attackRecovery or CONFIG.WOLF_ATTACK_RECOVERY
 end
 
-local function updateHostile(run, hostile, hours)
+local function updateHostile(run, hostile, hours, level)
     ensureHostile(hostile)
     local seconds = hours * (CONFIG.DAY_DURATION_SECONDS / 24)
     local player = run.player
@@ -290,7 +445,7 @@ local function updateHostile(run, hostile, hours)
                 hostile.territoryCenter[2] + math.random(-3, 3) * CONFIG.TILE_SIZE,
             }
         end
-        moveEntity(hostile, CONFIG.WOLF_RETREAT_SPEED, hours, run.world.grid)
+        moveEntity(hostile, CONFIG.WOLF_RETREAT_SPEED, hours, level)
         if hostile.fearHours <= 0 and distance > hostile.aggroRadius * CONFIG.TILE_SIZE then
             hostile.state = "roam"
             hostile.target = nil
@@ -315,7 +470,7 @@ local function updateHostile(run, hostile, hours)
     if distance <= hostile.aggroRadius * CONFIG.TILE_SIZE then
         hostile.state = "charge"
         hostile.target = {player.coord[1], player.coord[2]}
-        moveEntity(hostile, chargeSpeed, hours, run.world.grid)
+        moveEntity(hostile, chargeSpeed, hours, level)
         return
     end
 
@@ -326,13 +481,13 @@ local function updateHostile(run, hostile, hours)
             hostile.territoryCenter[2] + math.random(-4, 4) * CONFIG.TILE_SIZE,
         }
     end
-    moveEntity(hostile, hostile.speed, hours, run.world.grid)
+    moveEntity(hostile, hostile.speed, hours, level)
 end
 
-local function updateWolf(run, wolf, hours)
+local function updateWolf(run, wolf, hours, level)
     local player = run.player
     player = player
-    updateHostile(run, wolf, hours)
+    updateHostile(run, wolf, hours, level)
 end
 
 local function setFleeTarget(entity, playerCoord)
@@ -345,13 +500,13 @@ local function setFleeTarget(entity, playerCoord)
     }
 end
 
-local function updatePassive(entity, hours, grid, playerCoord)
+local function updatePassive(entity, hours, level, playerCoord)
     if Utils.distance(entity.coord[1], entity.coord[2], playerCoord[1], playerCoord[2]) <= CONFIG.PASSIVE_FLEE_RADIUS_TILES * CONFIG.TILE_SIZE then
         setFleeTarget(entity, playerCoord)
     elseif not entity.target or math.random() < 0.04 then
         setTargetInZone(entity, entity.zone)
     end
-    moveEntity(entity, entity.speed, hours, grid)
+    moveEntity(entity, entity.speed, hours, level)
 end
 
 function Wildlife.findNearbyTrap(run)
@@ -539,6 +694,7 @@ function Wildlife.fireBow(run)
     if bestTarget.hostile then
         damageHostile(run, bestTarget.listName, bestTarget.index, CONFIG.PLAYER_BOW_DAMAGE)
     else
+        EntitySystem.remove(run.world, bestTarget.list[bestTarget.index])
         table.remove(bestTarget.list, bestTarget.index)
         Wildlife.spawnCarcass(run, bestTarget.kind, bestTarget.coord)
     end
@@ -582,17 +738,22 @@ function Wildlife.fish(run)
 end
 
 function Wildlife.update(run, hours)
+    World.attachRun(run)
+    local level = World.currentLevel(run)
+    Wildlife.mirrorLevel(level)
+    applySpawnRules(run, level, hours)
+
     for _, wolf in ipairs(run.world.wildlife.wolves or {}) do
-        updateWolf(run, wolf, hours)
+        updateWolf(run, wolf, hours, level)
     end
     for _, raider in ipairs(run.world.wildlife.raiders or {}) do
-        updateHostile(run, raider, hours)
+        updateHostile(run, raider, hours, level)
     end
     for _, rabbit in ipairs(run.world.wildlife.rabbits or {}) do
-        updatePassive(rabbit, hours, run.world.grid, run.player.coord)
+        updatePassive(rabbit, hours, level, run.player.coord)
     end
     for _, deer in ipairs(run.world.wildlife.deer or {}) do
-        updatePassive(deer, hours, run.world.grid, run.player.coord)
+        updatePassive(deer, hours, level, run.player.coord)
     end
 
     for _, trap in ipairs(run.world.traps or {}) do

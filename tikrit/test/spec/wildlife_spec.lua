@@ -1,6 +1,8 @@
 local TestRunner = require("test_runner")
+local EntitySystem = require("entity_system")
 local Wildlife = require("wildlife")
 local Survival = require("survival")
+local World = require("world")
 
 local describe = TestRunner.describe
 local it = TestRunner.it
@@ -17,6 +19,7 @@ local function buildRun()
                 {"snow", "snow", "snow", "snow", "snow"},
                 {"snow", "snow", "snow", "snow", "snow"},
             },
+            spawnRules = {},
             fires = {},
             wildlife = {
                 wolves = {
@@ -41,6 +44,34 @@ local function buildRun()
 end
 
 describe("Wildlife", function()
+    it("mirrors legacy wildlife into entity buckets without duplicates", function()
+        local run = buildRun()
+        World.attachRun(run)
+        local level = World.currentLevel(run)
+
+        Wildlife.mirrorLevel(level)
+        Wildlife.mirrorLevel(level)
+
+        TestRunner.assertEqual(#run.world.wildlife.wolves, 1)
+        TestRunner.assertEqual(#level.entities, 1)
+        TestRunner.assertTrue(#EntitySystem.getTileEntities(level, 3, 3) >= 1)
+    end)
+
+    it("spawns capped offscreen wildlife through depth rules", function()
+        local run = buildRun()
+        run.player.coord = {20, 20}
+        run.world.spawnRules = {
+            {kind = "wolf", listName = "wolves", cap = 2, chancePerHour = 1, zone = {x = 4, y = 4, width = 1, height = 1}, minDistanceTiles = 1},
+        }
+        World.attachRun(run)
+
+        Wildlife.update(run, 1)
+        Wildlife.update(run, 1)
+
+        TestRunner.assertEqual(#run.world.wildlife.wolves, 2)
+        TestRunner.assertTrue(#World.currentLevel(run).entities >= 2)
+    end)
+
     it("moves wolves from roaming into stalking and charging", function()
         local run = buildRun()
         Wildlife.update(run, 0.001)
