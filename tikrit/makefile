@@ -2,9 +2,9 @@ VERSION := $(shell cat VERSION)
 LOVE_APP_PATH ?= /Applications/love.app
 LOVE_BINARY ?= $(shell "$(CURDIR)/scripts/find_love.sh" 2>/dev/null || true)
 
-all: build
+all: run
 
-build: src
+run: src
 	@if [ -z "$(LOVE_BINARY)" ]; then \
 		echo "Love2D not found. Install it or set LOVE_APP_PATH to your love.app bundle."; \
 		exit 1; \
