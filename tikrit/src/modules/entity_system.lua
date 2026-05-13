@@ -183,7 +183,7 @@ end
 function EntitySystem.render(level, ...)
     ensureStore(level)
     for _, entity in ipairs(level.entities) do
-        if entity.render then
+        if entity.hidden ~= true and entity.render then
             entity:render(...)
         end
     end

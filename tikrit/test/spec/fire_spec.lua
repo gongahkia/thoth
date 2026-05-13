@@ -2,6 +2,7 @@ local TestRunner = require("test_runner")
 local Fire = require("fire")
 local Survival = require("survival")
 local Items = require("items")
+local World = require("world")
 
 local describe = TestRunner.describe
 local it = TestRunner.it
@@ -40,10 +41,33 @@ describe("Fire", function()
         local ok = Fire.start(run, true)
         TestRunner.assertTrue(ok)
         TestRunner.assertEqual(#run.world.fires, 1)
+        TestRunner.assertType(run.world.fires[1]._entityKey, "string")
         Fire.update(run, 3.2)
         TestRunner.assertEqual(#run.world.fires, 1)
         Fire.update(run, 1.2)
         TestRunner.assertEqual(#run.world.fires, 0)
+        TestRunner.assertEqual(#run.world.entities, 0)
+    end)
+
+    it("creates fires on the active depth only", function()
+        local surface = buildRun("cabin_floor", "clear").world
+        local cave = buildRun("cabin_floor", "clear").world
+        surface.depth = 0
+        cave.depth = -1
+        local run = buildRun("cabin_floor", "clear")
+        run.world = {
+            levels = {[0] = surface, [-1] = cave},
+            currentDepth = -1,
+            weather = {current = "clear", hoursUntilChange = 3},
+        }
+        World.attachRun(run)
+
+        local ok = Fire.start(run, true)
+
+        TestRunner.assertTrue(ok)
+        TestRunner.assertEqual(#run.world.levels[0].fires, 0)
+        TestRunner.assertEqual(#run.world.levels[-1].fires, 1)
+        TestRunner.assertTrue(run.world.fires == run.world.levels[-1].fires)
     end)
 
     it("blocks exposed fires during blizzards", function()

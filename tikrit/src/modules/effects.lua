@@ -1,5 +1,6 @@
 local CONFIG = require("config")
 local Accessibility = require("modules/accessibility")
+local World = require("modules/world")
 
 local Effects = {}
 
@@ -112,7 +113,8 @@ local function drawColdBreath(settings, run)
 end
 
 local function drawFireSparks(settings, run)
-    for _, fire in ipairs(run.world.fires or {}) do
+    local fires = World.readActiveCollection(run, "fires")
+    for _, fire in ipairs(fires) do
         if fire.remainingBurnHours > 0 then
             local phase = Effects.elapsed * 7
             Accessibility.setColor(settings, 1.0, 0.78, 0.2, 0.45)

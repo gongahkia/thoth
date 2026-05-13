@@ -38,7 +38,7 @@ describe("TileRegistry", function()
         TestRunner.assertTrue(#drops >= 1)
     end)
 
-    it("records conservative environmental random tick state", function()
+    it("records weather-aware environmental random tick state", function()
         local level = {
             depth = 0,
             grid = {
@@ -48,13 +48,60 @@ describe("TileRegistry", function()
             },
             data = {},
         }
+        local run = {world = {weather = {current = "blizzard"}}}
 
-        TileRegistry.randomTick(level, 2, 2)
-        TileRegistry.randomTick(level, 3, 2)
+        TileRegistry.randomTick(level, 2, 2, run)
+        TileRegistry.randomTick(level, 3, 2, run)
 
         TestRunner.assertType(level.snowCover, "table")
         TestRunner.assertType(level.shelterWear, "table")
-        TestRunner.assertEqual(level.snowCover["2:2"], 1)
-        TestRunner.assertEqual(level.shelterWear["3:2"], 1)
+        TestRunner.assertEqual(level.snowCover["2:2"], 2)
+        TestRunner.assertEqual(level.shelterWear["3:2"], 2)
+        TestRunner.assertEqual(level.warmthPockets["3:2"], 1)
+    end)
+
+    it("refreezes weak ice deterministically under cold weather", function()
+        local level = {
+            depth = -1,
+            grid = {
+                {"snow", "snow", "snow"},
+                {"snow", "weak_ice", "snow"},
+                {"snow", "snow", "snow"},
+            },
+            data = {},
+        }
+        local run = {world = {weather = {current = "snow"}}}
+
+        TileRegistry.randomTick(level, 2, 2, run)
+        TileRegistry.randomTick(level, 2, 2, run)
+        TileRegistry.randomTick(level, 2, 2, run)
+
+        TestRunner.assertEqual(level.grid[2][2], "ice")
+        TestRunner.assertEqual(level.data[2][2], 0)
+        TestRunner.assertTrue(level.iceState["2:2"].refrozen)
+    end)
+
+    it("tracks thermal warmth but only warms nearby players", function()
+        local level = {
+            depth = -2,
+            grid = {
+                {"shale", "shale", "shale"},
+                {"shale", "thermal_fissure", "shale"},
+                {"shale", "shale", "shale"},
+            },
+        }
+        local run = {
+            world = {weather = {current = "clear"}},
+            player = {coord = {20, 20}, warmth = 50},
+        }
+
+        TileRegistry.randomTick(level, 2, 2, run)
+        TestRunner.assertEqual(level.thermalWarmth["2:2"], 1)
+        TestRunner.assertEqual(run.player.warmth, 51)
+
+        run.player.coord = {400, 400}
+        TileRegistry.randomTick(level, 2, 2, run)
+        TestRunner.assertEqual(level.thermalWarmth["2:2"], 2)
+        TestRunner.assertEqual(run.player.warmth, 51)
     end)
 end)

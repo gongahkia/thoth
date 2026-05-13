@@ -1,5 +1,6 @@
 local TestRunner = require("test_runner")
 local EntitySystem = require("entity_system")
+local Items = require("items")
 local Wildlife = require("wildlife")
 local Survival = require("survival")
 local World = require("world")
@@ -57,6 +58,218 @@ describe("Wildlife", function()
         TestRunner.assertTrue(#EntitySystem.getTileEntities(level, 3, 3) >= 1)
     end)
 
+    it("stays idempotent across repeated attach, depth changes, and updates", function()
+        local run = buildRun()
+        World.attachRun(run)
+        Wildlife.update(run, 0)
+        World.attachRun(run)
+        World.changeDepth(run, -1)
+        World.changeDepth(run, 0)
+        Wildlife.update(run, 0)
+
+        local level = World.currentLevel(run)
+        local mirrored = 0
+        for _, entity in ipairs(level.entities or {}) do
+            if entity._wildlifeEntity and entity.kind == "wolf" then
+                mirrored = mirrored + 1
+            end
+        end
+        TestRunner.assertEqual(#run.world.wildlife.wolves, 1)
+        TestRunner.assertEqual(mirrored, 1)
+    end)
+
+    it("renders mirrored wildlife through EntitySystem", function()
+        local run = buildRun()
+        World.attachRun(run)
+        local level = World.currentLevel(run)
+        Wildlife.mirrorLevel(level)
+        local draws = 0
+
+        EntitySystem.render(level, {
+            drawWildlife = function(actor)
+                if actor.kind == "wolf" then
+                    draws = draws + 1
+                end
+            end,
+        })
+
+        TestRunner.assertEqual(draws, 1)
+    end)
+
+    it("removes hostile entities once killed and leaves one loot node", function()
+        local run = buildRun()
+        run.player.equippedWeapon = "sword"
+        run.player.lastMoveX = 1
+        run.player.lastMoveY = 0
+        run.world.wildlife.wolves[1].coord = {80, 40}
+        run.world.wildlife.wolves[1].health = 1
+        World.attachRun(run)
+
+        local ok = Wildlife.playerMeleeAttack(run)
+        local level = World.currentLevel(run)
+        local mirrored = 0
+        for _, entity in ipairs(level.entities or {}) do
+            if entity._wildlifeEntity and entity.kind == "wolf" then
+                mirrored = mirrored + 1
+            end
+        end
+
+        TestRunner.assertTrue(ok)
+        TestRunner.assertEqual(#run.world.wildlife.wolves, 0)
+        TestRunner.assertEqual(mirrored, 0)
+        TestRunner.assertEqual(#run.world.resourceNodes, 1)
+        TestRunner.assertType(run.world.resourceNodes[1]._entityKey, "string")
+    end)
+
+    it("places traps and carcasses on the active depth only", function()
+        local surface = {
+            depth = 0,
+            grid = {
+                {"snow", "snow", "snow"},
+                {"snow", "snow", "snow"},
+                {"snow", "snow", "snow"},
+            },
+            traps = {},
+            carcasses = {},
+            rabbitZones = {{x = 1, y = 1, width = 3, height = 3}},
+        }
+        local cave = {
+            depth = -1,
+            grid = {
+                {"snow", "snow", "snow"},
+                {"snow", "snow", "snow"},
+                {"snow", "snow", "snow"},
+            },
+            traps = {},
+            carcasses = {},
+            rabbitZones = {{x = 1, y = 1, width = 3, height = 3}},
+        }
+        local run = buildRun()
+        run.world = {levels = {[0] = surface, [-1] = cave}, currentDepth = -1}
+        run.player.coord = {20, 20}
+        Items.add(run.player.inventory, "snare", 1)
+        World.attachRun(run)
+
+        local placed = Wildlife.placeSnare(run)
+        TestRunner.assertTrue(placed)
+        TestRunner.assertEqual(#run.world.levels[0].traps, 0)
+        TestRunner.assertEqual(#run.world.levels[-1].traps, 1)
+        TestRunner.assertType(run.world.levels[-1].traps[1]._entityKey, "string")
+
+        run.world.traps[1].state = "caught"
+        local collected = Wildlife.collectTrap(run)
+        TestRunner.assertTrue(collected)
+        TestRunner.assertEqual(#run.world.levels[-1].traps, 0)
+        TestRunner.assertEqual(#run.world.levels[-1].carcasses, 1)
+        TestRunner.assertType(run.world.levels[-1].carcasses[1]._entityKey, "string")
+    end)
+
+    it("melee combat and hostile loot affect the active depth only", function()
+        local surface = {
+            depth = 0,
+            grid = {
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+            },
+            wildlife = {
+                wolves = {{kind = "wolf", coord = {60, 40}, health = 1, territoryCenter = {60, 40}, state = "roam"}},
+                rabbits = {},
+                deer = {},
+                raiders = {},
+            },
+            resourceNodes = {},
+        }
+        local cave = {
+            depth = -1,
+            grid = {
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+            },
+            wildlife = {
+                wolves = {{kind = "wolf", coord = {60, 40}, health = 1, territoryCenter = {60, 40}, state = "roam"}},
+                rabbits = {},
+                deer = {},
+                raiders = {},
+            },
+            resourceNodes = {},
+        }
+        local run = buildRun()
+        run.world = {levels = {[0] = surface, [-1] = cave}, currentDepth = -1}
+        run.player.coord = {40, 40}
+        run.player.equippedWeapon = "sword"
+        run.player.lastMoveX = 1
+        run.player.lastMoveY = 0
+        World.attachRun(run)
+
+        local ok = Wildlife.playerMeleeAttack(run)
+
+        TestRunner.assertTrue(ok)
+        TestRunner.assertEqual(#run.world.levels[0].wildlife.wolves, 1)
+        TestRunner.assertEqual(#run.world.levels[0].resourceNodes, 0)
+        TestRunner.assertEqual(#run.world.levels[-1].wildlife.wolves, 0)
+        TestRunner.assertEqual(#run.world.levels[-1].resourceNodes, 1)
+    end)
+
+    it("bow hunting creates carcasses on the active depth only", function()
+        local surface = {
+            depth = 0,
+            grid = {
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+            },
+            wildlife = {
+                wolves = {},
+                rabbits = {{kind = "rabbit", coord = {80, 40}, zone = {x = 2, y = 2, width = 3, height = 3}}},
+                deer = {},
+                raiders = {},
+            },
+            carcasses = {},
+        }
+        local cave = {
+            depth = -1,
+            grid = {
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+                {"snow", "snow", "snow", "snow", "snow"},
+            },
+            wildlife = {
+                wolves = {},
+                rabbits = {{kind = "rabbit", coord = {80, 40}, zone = {x = 2, y = 2, width = 3, height = 3}}},
+                deer = {},
+                raiders = {},
+            },
+            carcasses = {},
+        }
+        local run = buildRun()
+        run.world = {levels = {[0] = surface, [-1] = cave}, currentDepth = -1}
+        run.player.coord = {40, 40}
+        run.player.equippedWeapon = "bow"
+        run.player.lastMoveX = 1
+        run.player.lastMoveY = 0
+        Items.add(run.player.inventory, "arrow", 1)
+        World.attachRun(run)
+
+        local ok = Wildlife.fireBow(run)
+
+        TestRunner.assertTrue(ok)
+        TestRunner.assertEqual(#run.world.levels[0].wildlife.rabbits, 1)
+        TestRunner.assertEqual(#run.world.levels[0].carcasses, 0)
+        TestRunner.assertEqual(#run.world.levels[-1].wildlife.rabbits, 0)
+        TestRunner.assertEqual(#run.world.levels[-1].carcasses, 1)
+        TestRunner.assertEqual(run.world.levels[-1].carcasses[1].kind, "rabbit")
+    end)
+
     it("spawns capped offscreen wildlife through depth rules", function()
         local run = buildRun()
         run.player.coord = {20, 20}
@@ -70,6 +283,231 @@ describe("Wildlife", function()
 
         TestRunner.assertEqual(#run.world.wildlife.wolves, 2)
         TestRunner.assertTrue(#World.currentLevel(run).entities >= 2)
+    end)
+
+    it("honors spawn rule cooldowns and stores actor AI metadata", function()
+        local run = buildRun()
+        run.world.wildlife.wolves = {}
+        run.player.coord = {20, 20}
+        run.world.spawnRules = {
+            {
+                id = "test_wolf_rule",
+                kind = "wolf",
+                listName = "wolves",
+                cap = 2,
+                chancePerHour = 1,
+                cooldownHours = 2,
+                zone = {x = 4, y = 4, width = 1, height = 1},
+                minDistanceTiles = 1,
+                allowedTiles = {"snow"},
+                awarenessRadiusTiles = 12,
+            },
+        }
+        math.randomseed(11)
+        World.attachRun(run)
+
+        Wildlife.update(run, 1)
+        Wildlife.update(run, 1)
+        local wolf = run.world.wildlife.wolves[1]
+
+        TestRunner.assertEqual(#run.world.wildlife.wolves, 1)
+        TestRunner.assertEqual(wolf.spawnRuleId, "test_wolf_rule")
+        TestRunner.assertEqual(wolf.aiState, wolf.state)
+        TestRunner.assertType(wolf.homeZone, "table")
+        TestRunner.assertType(wolf.moving, "boolean")
+        TestRunner.assertEqual(wolf.awarenessRadiusTiles, 12)
+
+        Wildlife.update(run, 1.1)
+        TestRunner.assertEqual(#run.world.wildlife.wolves, 2)
+    end)
+
+    it("spawns deterministically from fixed seed depth rules", function()
+        local function seededRun()
+            local run = buildRun()
+            run.world.wildlife.wolves = {}
+            run.player.coord = {20, 20}
+            run.world.spawnRules = {
+                {
+                    id = "deterministic_wolf",
+                    kind = "wolf",
+                    listName = "wolves",
+                    cap = 1,
+                    chancePerHour = 1,
+                    zone = {x = 3, y = 3, width = 2, height = 2},
+                    minDistanceTiles = 1,
+                    allowedTiles = {"snow"},
+                },
+            }
+            return run
+        end
+
+        math.randomseed(4242)
+        local first = seededRun()
+        Wildlife.update(first, 1)
+        math.randomseed(4242)
+        local second = seededRun()
+        Wildlife.update(second, 1)
+
+        TestRunner.assertTableEqual(first.world.wildlife.wolves[1].coord, second.world.wildlife.wolves[1].coord)
+        TestRunner.assertEqual(first.world.wildlife.wolves[1].spawnRuleId, second.world.wildlife.wolves[1].spawnRuleId)
+    end)
+
+    it("keeps wildlife spawning on the active depth only", function()
+        local surface = {
+            depth = 0,
+            grid = {
+                {"rock", "rock", "rock", "rock", "rock"},
+                {"rock", "snow", "snow", "snow", "rock"},
+                {"rock", "snow", "snow", "snow", "rock"},
+                {"rock", "snow", "snow", "snow", "rock"},
+                {"rock", "rock", "rock", "rock", "rock"},
+            },
+            wildlife = {wolves = {}, rabbits = {}, deer = {}, raiders = {}},
+            spawnRules = {
+                {id = "surface_wolf", kind = "wolf", listName = "wolves", cap = 1, chancePerHour = 1, zone = {x = 4, y = 4, width = 1, height = 1}, minDistanceTiles = 1},
+            },
+        }
+        local cave = {
+            depth = -1,
+            grid = {
+                {"rock", "rock", "rock", "rock", "rock"},
+                {"rock", "snow", "snow", "snow", "rock"},
+                {"rock", "snow", "snow", "snow", "rock"},
+                {"rock", "snow", "snow", "snow", "rock"},
+                {"rock", "rock", "rock", "rock", "rock"},
+            },
+            wildlife = {wolves = {}, rabbits = {}, deer = {}, raiders = {}},
+            spawnRules = {
+                {id = "cave_raider", kind = "raider", listName = "raiders", cap = 1, chancePerHour = 1, zone = {x = 4, y = 4, width = 1, height = 1}, minDistanceTiles = 1},
+            },
+        }
+        local run = buildRun()
+        run.world = {levels = {[0] = surface, [-1] = cave}, currentDepth = -1}
+        run.player.coord = {20, 20}
+        World.attachRun(run)
+
+        Wildlife.update(run, 1)
+
+        TestRunner.assertEqual(#run.world.levels[0].wildlife.wolves, 0)
+        TestRunner.assertEqual(#run.world.levels[-1].wildlife.raiders, 1)
+        TestRunner.assertEqual(run.world.levels[-1].wildlife.raiders[1].depth, -1)
+    end)
+
+    it("rejects spawns on blocked hazard zones and invalid tiles", function()
+        local run = buildRun()
+        run.world.wildlife.wolves = {}
+        run.player.coord = {20, 20}
+        run.world.hazardZones = {
+            {type = "weak_ice", zone = {x = 4, y = 4, width = 1, height = 1}},
+        }
+        World.attachRun(run)
+
+        local hazardSpawn = World.spawnOffscreen(run, "wolf", {
+            cap = 1,
+            zone = {x = 4, y = 4, width = 1, height = 1},
+            minDistanceTiles = 1,
+            allowedTiles = {"snow"},
+            blockedHazards = {"weak_ice"},
+        })
+        run.world.grid[4][4] = "weak_ice"
+        local tileSpawn = World.spawnOffscreen(run, "wolf", {
+            cap = 1,
+            zone = {x = 4, y = 4, width = 1, height = 1},
+            minDistanceTiles = 1,
+            allowedTiles = {"snow"},
+        })
+
+        TestRunner.assertEqual(hazardSpawn, nil)
+        TestRunner.assertEqual(tileSpawn, nil)
+    end)
+
+    it("updates entity movement state and facing during tile-aware passive AI", function()
+        local run = buildRun()
+        run.world.wildlife.wolves = {}
+        run.world.wildlife.rabbits = {
+            {
+                kind = "rabbit",
+                coord = {60, 40},
+                zone = {x = 2, y = 2, width = 3, height = 3},
+                speed = 20,
+            },
+        }
+        run.player.coord = {20, 40}
+        World.attachRun(run)
+
+        Wildlife.update(run, 0.01)
+        local rabbit = run.world.wildlife.rabbits[1]
+
+        TestRunner.assertTrue(rabbit.moving)
+        TestRunner.assertTrue(rabbit.facingX > 0)
+        TestRunner.assertEqual(rabbit.aiState, rabbit.state)
+        TestRunner.assertEqual(rabbit.depth, 0)
+        TestRunner.assertTrue(rabbit.awareness.seesPlayer)
+        TestRunner.assertEqual(rabbit.state, "flee")
+    end)
+
+    it("lets hostiles watch from awareness range before charging", function()
+        local run = buildRun()
+        run.world.grid = {
+            {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
+            {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
+            {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
+            {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
+        }
+        run.world.wildlife.wolves = {}
+        run.world.wildlife.raiders = {
+            {
+                kind = "raider",
+                coord = {40, 40},
+                territory = {x = 2, y = 2, width = 4, height = 2},
+                territoryCenter = {70, 50},
+                state = "roam",
+                aggroRadius = 2,
+                weaponRange = 1,
+                awarenessRadiusTiles = 6,
+            },
+        }
+        run.player.coord = {120, 40}
+        World.attachRun(run)
+
+        Wildlife.update(run, 0.01)
+        local raider = run.world.wildlife.raiders[1]
+
+        TestRunner.assertEqual(raider.state, "watch")
+        TestRunner.assertTrue(raider.awareness.seesPlayer)
+        TestRunner.assertTableEqual(raider.awareness.lastSeenCoord, {120, 40})
+    end)
+
+    it("patrols home zones when the player is outside awareness", function()
+        local run = buildRun()
+        run.world.grid = {
+            {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
+            {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
+            {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
+            {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
+        }
+        run.world.wildlife.wolves = {}
+        run.world.wildlife.raiders = {
+            {
+                kind = "raider",
+                coord = {40, 40},
+                territory = {x = 2, y = 2, width = 4, height = 2},
+                territoryCenter = {70, 50},
+                state = "roam",
+                aggroRadius = 2,
+                awarenessRadiusTiles = 3,
+            },
+        }
+        run.player.coord = {220, 40}
+        World.attachRun(run)
+
+        Wildlife.update(run, 0.01)
+        local raider = run.world.wildlife.raiders[1]
+
+        TestRunner.assertEqual(raider.state, "patrol")
+        TestRunner.assertType(raider.patrolPoints, "table")
+        TestRunner.assertType(raider.target, "table")
+        TestRunner.assertFalse(raider.awareness.seesPlayer)
     end)
 
     it("moves wolves from roaming into stalking and charging", function()

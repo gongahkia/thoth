@@ -156,10 +156,16 @@ local function deserialize(contents)
     end
 
     local function assignContext(path, value)
+        if not path or path == "" then
+            return
+        end
         local current = replay.context
         local parts = {}
         for part in path:gmatch("[^%.]+") do
             table.insert(parts, part)
+        end
+        if #parts == 0 then
+            return
         end
         for index = 1, #parts - 1 do
             local part = parts[index]
@@ -198,8 +204,8 @@ local function deserialize(contents)
             elseif key == "TOTAL_INPUTS" then
                 replay.metadata.totalInputs = tonumber(value) or 0
             elseif key == "CONTEXT" then
-                local path, rawValue = value:match("^([%w%.]+)=(.+)$")
-                if path and rawValue then
+                local path, rawValue = value:match("^([^=]+)=(.*)$")
+                if path and rawValue ~= nil then
                     assignContext(path, rawValue)
                 end
             end

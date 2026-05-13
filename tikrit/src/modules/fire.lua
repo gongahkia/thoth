@@ -2,6 +2,8 @@ local CONFIG = require("config")
 local Items = require("modules/items")
 local Survival = require("modules/survival")
 local Utils = require("modules/utils")
+local World = require("modules/world")
+local WorldObjects = require("modules/world_objects")
 
 local Fire = {}
 
@@ -16,7 +18,8 @@ end
 
 local function currentTile(run)
     local gx, gy = Utils.pixelToGrid(run.player.coord[1], run.player.coord[2])
-    local row = run.world.grid[gy + 1]
+    local grid = World.activeGrid(run)
+    local row = grid[gy + 1]
     return row and row[gx + 1]
 end
 
@@ -61,12 +64,15 @@ function Fire.start(run, useAccelerant)
         return false, "The fire fizzles out."
     end
 
-    table.insert(run.world.fires, {
+    local fires, level = World.activeCollection(run, "fires")
+    local fire = {
         coord = {player.coord[1], player.coord[2]},
         remainingBurnHours = CONFIG.FIRE_BURN_HOURS,
         remainingEmbersHours = CONFIG.FIRE_EMBERS_HOURS,
         sheltered = sheltered,
-    })
+    }
+    table.insert(fires, fire)
+    WorldObjects.mirrorLevel(level)
     run.stats.firesLit = run.stats.firesLit + 1
     return true, "A fire catches."
 end
@@ -74,7 +80,8 @@ end
 function Fire.findNearest(run)
     local closest
     local closestDistance = math.huge
-    for _, fire in ipairs(run.world.fires or {}) do
+    local fires = World.readActiveCollection(run, "fires")
+    for _, fire in ipairs(fires) do
         local distance = Utils.distance(run.player.coord[1], run.player.coord[2], fire.coord[1], fire.coord[2])
         if distance < closestDistance then
             closestDistance = distance
@@ -85,17 +92,19 @@ function Fire.findNearest(run)
 end
 
 function Fire.update(run, hours)
-    for index = #run.world.fires, 1, -1 do
-        local fire = run.world.fires[index]
+    local fires, level = World.activeCollection(run, "fires")
+    for index = #fires, 1, -1 do
+        local fire = fires[index]
         if fire.remainingBurnHours > 0 then
             fire.remainingBurnHours = math.max(0, fire.remainingBurnHours - hours)
         elseif fire.remainingEmbersHours > 0 then
             fire.remainingEmbersHours = math.max(0, fire.remainingEmbersHours - hours)
         end
         if fire.remainingBurnHours <= 0 and fire.remainingEmbersHours <= 0 then
-            table.remove(run.world.fires, index)
+            table.remove(fires, index)
         end
     end
+    WorldObjects.mirrorLevel(level)
 end
 
 function Fire.feed(run)

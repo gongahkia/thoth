@@ -527,8 +527,8 @@ local function makeIceCaveLevel(width, height, seed)
             {id = "warm_refuge_pockets", name = "Warm Refuge Pockets", zone = warmPocket, resourceType = "shelter", traversalTags = {"safe", "rest"}},
         },
         spawnRules = {
-            {kind = "wolf", listName = "wolves", cap = 2, chancePerHour = 0.04, zone = frozenTunnel, minDistanceTiles = 8},
-            {kind = "rabbit", listName = "rabbits", cap = 1, chancePerHour = 0.02, zone = warmPocket, minDistanceTiles = 6},
+            {id = "ice_cave_wolves", kind = "wolf", listName = "wolves", cap = 2, chancePerHour = 0.04, cooldownHours = 1.5, zone = frozenTunnel, minDistanceTiles = 8, allowedTiles = {"cave_floor", "ice", "fire_safe"}, blockedTiles = {"weak_ice", "thermal_fissure"}, blockedHazards = {"weak_ice"}},
+            {id = "warm_refuge_rabbits", kind = "rabbit", listName = "rabbits", cap = 1, chancePerHour = 0.02, cooldownHours = 2, zone = warmPocket, minDistanceTiles = 6, allowedTiles = {"cave_floor", "fire_safe"}, blockedHazards = {"weak_ice"}},
         },
         links = {
             {kind = "stair", fromDepth = -1, toDepth = 0, x = entrance.x, y = entrance.y},
@@ -604,8 +604,8 @@ local function makeDeepRuinsLevel(width, height, seed)
             {id = "ruin_shelters", name = "Ruin Shelters", zone = shelterZone, resourceType = "shelter", traversalTags = {"safe", "rest"}},
         },
         spawnRules = {
-            {kind = "raider", listName = "raiders", cap = 2, chancePerHour = 0.035, zone = collapsedMine, minDistanceTiles = 8},
-            {kind = "wolf", listName = "wolves", cap = 1, chancePerHour = 0.025, zone = shaleChamber, minDistanceTiles = 8},
+            {id = "deep_ruin_raiders", kind = "raider", listName = "raiders", cap = 2, chancePerHour = 0.035, cooldownHours = 1.75, zone = collapsedMine, minDistanceTiles = 8, allowedTiles = {"shale", "fire_safe"}, blockedTiles = {"rock", "cave_wall", "thermal_fissure"}, blockedHazards = {"thermal_fissure"}},
+            {id = "shale_chamber_wolves", kind = "wolf", listName = "wolves", cap = 1, chancePerHour = 0.025, cooldownHours = 2.25, zone = shaleChamber, minDistanceTiles = 8, allowedTiles = {"shale", "fire_safe"}, blockedTiles = {"cave_wall", "thermal_fissure"}, blockedHazards = {"thermal_fissure"}},
         },
         links = {
             {kind = "stair", fromDepth = -2, toDepth = -1, x = ascent.x, y = ascent.y},
@@ -683,8 +683,8 @@ local function makeRidgeLevel(width, height, seed)
             {id = "emergency_caches", name = "Emergency Caches", zone = cacheZone, resourceType = "cache", traversalTags = {"resource", "route"}},
         },
         spawnRules = {
-            {kind = "raider", listName = "raiders", cap = 1, chancePerHour = 0.02, zone = breakZone, minDistanceTiles = 10},
-            {kind = "deer", listName = "deer", cap = 1, chancePerHour = 0.015, zone = ridgeZone, minDistanceTiles = 10},
+            {id = "ridge_scavenger_raiders", kind = "raider", listName = "raiders", cap = 1, chancePerHour = 0.02, cooldownHours = 2, zone = breakZone, minDistanceTiles = 10, allowedTiles = {"snow", "path"}, blockedTiles = {"rock", "tree", "weak_ice"}, blockedHazards = {"weak_ice"}},
+            {id = "ridge_deer", kind = "deer", listName = "deer", cap = 1, chancePerHour = 0.015, cooldownHours = 2.5, zone = ridgeZone, minDistanceTiles = 10, allowedTiles = {"snow", "path", "ice"}, blockedTiles = {"rock", "tree", "weak_ice"}, blockedHazards = {"weak_ice"}},
         },
         links = {
             {kind = "stair", fromDepth = 1, toDepth = 0, x = entry.x, y = entry.y},
@@ -1312,10 +1312,10 @@ local function generateProceduralRunData(difficultyName)
         },
     }
     local spawnRules = {
-        {kind = "rabbit", listName = "rabbits", cap = 5, chancePerHour = 0.04, zone = forestZone, minDistanceTiles = 8},
-        {kind = "deer", listName = "deer", cap = 3, chancePerHour = 0.025, zone = deerZone, minDistanceTiles = 9},
-        {kind = "wolf", listName = "wolves", cap = difficulty.wolfCount + 2, chancePerHour = 0.03, zone = forestZone, minDistanceTiles = 10},
-        {kind = "raider", listName = "raiders", cap = 3, chancePerHour = 0.018, zone = ashZone, minDistanceTiles = 10},
+        {id = "surface_forest_rabbits", kind = "rabbit", listName = "rabbits", cap = 5, chancePerHour = 0.04, cooldownHours = 1.25, zone = forestZone, minDistanceTiles = 8, allowedTiles = {"snow", "path"}, blockedTiles = {"tree", "rock", "weak_ice"}},
+        {id = "surface_deer", kind = "deer", listName = "deer", cap = 3, chancePerHour = 0.025, cooldownHours = 1.75, zone = deerZone, minDistanceTiles = 9, allowedTiles = {"snow", "path"}, blockedTiles = {"tree", "rock", "weak_ice"}},
+        {id = "surface_forest_wolves", kind = "wolf", listName = "wolves", cap = difficulty.wolfCount + 2, chancePerHour = 0.03, cooldownHours = 1.5, zone = forestZone, minDistanceTiles = 10, allowedTiles = {"snow", "path"}, blockedTiles = {"tree", "rock", "weak_ice"}},
+        {id = "surface_ash_raiders", kind = "raider", listName = "raiders", cap = 3, chancePerHour = 0.018, cooldownHours = 2, zone = ashZone, minDistanceTiles = 10, allowedTiles = {"snow", "ash", "path"}, blockedTiles = {"tree", "rock", "weak_ice"}},
     }
 
     local npcEncounters = {

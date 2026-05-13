@@ -221,6 +221,28 @@ function UI.drawReplayScreen(screenState, fonts, settings)
     drawCentered(fonts.small, "Enter plays, R refreshes, Esc returns", CONFIG.WINDOW_HEIGHT - 50, settings, {0.55, 0.58, 0.65, 1})
 end
 
+function UI.drawSaveScreen(screenState, fonts, settings)
+    drawCentered(fonts.large, "LOAD GAME", 30, settings, {0.95, 0.95, 0.98, 1})
+    if #screenState.entries == 0 then
+        drawCentered(fonts.medium, "No saved games", 250, settings, {0.8, 0.8, 0.8, 1})
+        drawCentered(fonts.small, "Save from the pause screen", 296, settings, {0.58, 0.6, 0.65, 1})
+    else
+        for index, entry in ipairs(screenState.entries) do
+            local color = index == screenState.index and {1, 0.93, 0.35, 1} or {0.82, 0.82, 0.82, 1}
+            Accessibility.setColor(settings, color[1], color[2], color[3], color[4])
+            love.graphics.setFont(fonts.medium)
+            love.graphics.print(entry.label or entry.file, 72, 150 + ((index - 1) * 54))
+            love.graphics.setFont(fonts.small)
+            local details = entry.details
+            if entry.file and entry.label and entry.file ~= entry.label then
+                details = string.format("%s | %s", details, entry.file)
+            end
+            love.graphics.print(details, 92, 180 + ((index - 1) * 54))
+        end
+    end
+    drawCentered(fonts.small, "Enter loads, D deletes, R refreshes, Esc returns", CONFIG.WINDOW_HEIGHT - 50, settings, {0.55, 0.58, 0.65, 1})
+end
+
 function UI.drawProfileScreen(profile, fonts, settings)
     drawCentered(fonts.large, "PROFILE", 26, settings, {0.95, 0.95, 0.98, 1})
 

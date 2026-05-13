@@ -178,7 +178,8 @@ local function getFireHeatHours(run)
     local heatBonus = 0
     local fireRadius = CONFIG.FIRE_HEAT_RADIUS_TILES * CONFIG.TILE_SIZE
 
-    for _, fire in ipairs(run.world.fires or {}) do
+    local fires = World.readActiveCollection(run, "fires")
+    for _, fire in ipairs(fires) do
         if fire.remainingBurnHours > 0 then
             local distance = Utils.distance(run.player.coord[1], run.player.coord[2], fire.coord[1], fire.coord[2])
             if distance <= fireRadius then
@@ -335,9 +336,10 @@ end
 
 local function findNearbyStove(run)
     local gx, gy = Utils.pixelToGrid(run.player.coord[1], run.player.coord[2])
+    local grid = World.activeGrid(run)
     for y = gy, gy + 2 do
         for x = gx, gx + 2 do
-            if run.world.grid[y] and run.world.grid[y][x] == "cabin_stove" then
+            if grid[y] and grid[y][x] == "cabin_stove" then
                 return true
             end
         end
@@ -346,11 +348,13 @@ local function findNearbyStove(run)
 end
 
 local function roomTemperatureModifier(run, coord)
-    local _, gx, gy = tileAt(run.world.grid, coord)
+    local grid = World.activeGrid(run)
+    local _, gx, gy = tileAt(grid, coord)
     if not gx or not gy then
         return 0
     end
-    for _, band in ipairs(run.world.temperatureBands or {}) do
+    local temperatureBands = World.readActiveCollection(run, "temperatureBands")
+    for _, band in ipairs(temperatureBands) do
         local zone = band.zone
         local width = zone and (zone.width or zone.w)
         local height = zone and (zone.height or zone.h)
@@ -379,7 +383,8 @@ end
 
 local function activeHazards(run, coord)
     local hazards = {}
-    for _, hazard in ipairs(run.world.hazardZones or {}) do
+    local hazardZones = World.readActiveCollection(run, "hazardZones")
+    for _, hazard in ipairs(hazardZones) do
         if coordInZone(coord or run.player.coord, hazard.zone) then
             table.insert(hazards, hazard)
         end
@@ -389,13 +394,14 @@ end
 
 local function markMappedTiles(run, centerCoord, radius)
     run.world.mappedTiles = run.world.mappedTiles or {}
+    local grid = World.activeGrid(run)
     local gx, gy = Utils.pixelToGrid(centerCoord[1], centerCoord[2])
     for dy = -radius, radius do
         for dx = -radius, radius do
             if math.sqrt((dx * dx) + (dy * dy)) <= radius then
                 local tileX = gx + dx + 1
                 local tileY = gy + dy + 1
-                if run.world.grid[tileY] and run.world.grid[tileY][tileX] then
+                if grid[tileY] and grid[tileY][tileX] then
                     run.world.mappedTiles[tileX .. ":" .. tileY] = true
                 end
             end
@@ -405,7 +411,8 @@ end
 
 local function revealHiddenContent(run, predicate)
     local changed = false
-    for _, poi in ipairs(run.world.pointsOfInterest or {}) do
+    local pointsOfInterest = World.readActiveCollection(run, "pointsOfInterest")
+    for _, poi in ipairs(pointsOfInterest) do
         if poi.hidden and not poi.revealed and predicate(poi) then
             poi.revealed = true
             changed = true
@@ -417,13 +424,15 @@ local function revealHiddenContent(run, predicate)
             changed = true
         end
     end
-    for _, gate in ipairs(run.world.gates or {}) do
+    local gates = World.readActiveCollection(run, "gates")
+    for _, gate in ipairs(gates) do
         if gate.hidden and not gate.revealed and predicate(gate) then
             gate.revealed = true
             changed = true
         end
     end
-    for _, node in ipairs(run.world.resourceNodes or {}) do
+    local resourceNodes = World.readActiveCollection(run, "resourceNodes")
+    for _, node in ipairs(resourceNodes) do
         if node.hidden and not node.revealed and predicate(node) then
             node.revealed = true
             changed = true
@@ -475,9 +484,9 @@ local function updatePerishables(run, hours, heatFactor)
 end
 
 local function updateCuring(run, hours)
-    run.world.curing = run.world.curing or {}
-    for index = #run.world.curing, 1, -1 do
-        local curing = run.world.curing[index]
+    local curingList = World.activeCollection(run, "curing")
+    for index = #curingList, 1, -1 do
+        local curing = curingList[index]
         curing.hoursRemaining = math.max(0, curing.hoursRemaining - hours)
     end
 end
@@ -711,7 +720,8 @@ function Survival.updateCarryWeight(player)
 end
 
 function Survival.currentTile(run, coord)
-    return tileAt(run.world.grid, coord or run.player.coord)
+    local grid = World.activeGrid(run)
+    return tileAt(grid, coord or run.player.coord)
 end
 
 function Survival.isWalkableTile(tile)
@@ -725,7 +735,8 @@ function Survival.isSheltered(run, coord)
         return true
     end
 
-    for _, shelter in ipairs(run.world.snowShelters or {}) do
+    local snowShelters = World.readActiveCollection(run, "snowShelters")
+    for _, shelter in ipairs(snowShelters) do
         if shelter.integrity > 0 and Utils.distance(coord[1], coord[2], shelter.coord[1], shelter.coord[2]) < CONFIG.TILE_SIZE then
             return true
         end
@@ -789,7 +800,8 @@ function Survival.canSleepAt(run)
         return true
     end
 
-    for _, shelter in ipairs(run.world.snowShelters or {}) do
+    local snowShelters = World.readActiveCollection(run, "snowShelters")
+    for _, shelter in ipairs(snowShelters) do
         if shelter.integrity > 0 and Utils.distance(player.coord[1], player.coord[2], shelter.coord[1], shelter.coord[2]) < CONFIG.TILE_SIZE then
             return true
         end
@@ -828,7 +840,8 @@ function Survival.currentCraftStation(run)
         }
     end
 
-    if findNearby(run.world.workbenches, run.player.coord) then
+    local workbenches = World.readActiveCollection(run, "workbenches")
+    if findNearby(workbenches, run.player.coord) then
         return {
             station = "workbench",
             stations = {workbench = true},
@@ -836,7 +849,8 @@ function Survival.currentCraftStation(run)
         }
     end
 
-    if findNearby(run.world.curingStations, run.player.coord) then
+    local curingStations = World.readActiveCollection(run, "curingStations")
+    if findNearby(curingStations, run.player.coord) then
         return {
             station = "curing_rack",
             stations = {curing_rack = true},
@@ -927,17 +941,20 @@ function Survival.craftRecipe(run, recipeKey)
 end
 
 function Survival.isWorkbenchNearby(run)
-    local workbench = findNearby(run.world.workbenches, run.player.coord)
+    local workbenches = World.readActiveCollection(run, "workbenches")
+    local workbench = findNearby(workbenches, run.player.coord)
     return workbench ~= nil
 end
 
 function Survival.isMapNodeNearby(run)
-    local node = findNearby(run.world.mapNodes, run.player.coord)
+    local mapNodes = World.readActiveCollection(run, "mapNodes")
+    local node = findNearby(mapNodes, run.player.coord)
     return node ~= nil
 end
 
 function Survival.findNearbyTraversalGate(run, revealedOnly)
-    for _, gate in ipairs(run.world.gates or {}) do
+    local gates = World.readActiveCollection(run, "gates")
+    for _, gate in ipairs(gates) do
         local distance = Utils.distance(run.player.coord[1], run.player.coord[2], gate.coord[1], gate.coord[2])
         if distance <= CONFIG.TRAVERSAL_INTERACT_RADIUS_TILES * CONFIG.TILE_SIZE
             and ((not revealedOnly) or gate.revealed ~= false) then
@@ -966,11 +983,80 @@ function Survival.revealRumorTarget(run, rumor)
     return changed, changed and "A new route is marked on your map." or "The rumor tells you nothing new."
 end
 
+local function collectEncounterInventory(run, encounter)
+    for _, item in ipairs(encounter.inventory or {}) do
+        Items.add(run.player.inventory, item.kind, item.quantity or 1)
+    end
+    Items.sortInventory(run.player.inventory)
+    Survival.updateCarryWeight(run.player)
+end
+
+local function resolveEncounterRumors(run, encounter)
+    local changed = false
+    for _, rumor in ipairs(encounter.rumors or {}) do
+        local revealed = Survival.revealRumorTarget(run, rumor)
+        changed = revealed or changed
+    end
+    return changed
+end
+
+function Survival.interactNPC(run, encounter)
+    if not encounter or encounter.resolutionState ~= "active" then
+        return false, "No one answers."
+    end
+
+    local ok = false
+    local message = "You exchange a few words."
+    if encounter.kind == "injured_survivor" then
+        if Items.count(run.player.inventory, "bandage") < 1 then
+            return false, "They need a bandage."
+        end
+        Items.remove(run.player.inventory, "bandage", 1)
+        collectEncounterInventory(run, encounter)
+        resolveEncounterRumors(run, encounter)
+        ok = true
+        message = "You patch up the survivor and hear of a hidden route."
+    elseif encounter.kind == "roaming_trader" then
+        if Items.count(run.player.inventory, "cloth") > 0 then
+            Items.remove(run.player.inventory, "cloth", 1)
+        elseif Items.count(run.player.inventory, "charcoal") > 0 then
+            Items.remove(run.player.inventory, "charcoal", 1)
+        elseif Items.count(run.player.inventory, "canned_food") > 0 then
+            Items.remove(run.player.inventory, "canned_food", 1)
+        else
+            return false, "The trader wants cloth, charcoal, or food."
+        end
+        collectEncounterInventory(run, encounter)
+        resolveEncounterRumors(run, encounter)
+        ok = true
+        message = "You make a hard trade for exploration gear."
+    elseif encounter.kind == "rival_explorer" then
+        resolveEncounterRumors(run, encounter)
+        ok = true
+        message = "The rival marks a hidden route on your map."
+    elseif encounter.kind == "scavenger" then
+        collectEncounterInventory(run, encounter)
+        resolveEncounterRumors(run, encounter)
+        ok = true
+        message = "The scavenger yields some supplies and a lead."
+    elseif encounter.kind == "rumor_giver" then
+        resolveEncounterRumors(run, encounter)
+        ok = true
+        message = "You hear a useful rumor."
+    end
+
+    if ok then
+        encounter.resolutionState = "resolved"
+    end
+    return ok, message
+end
+
 function Survival.mapArea(run)
     if Items.count(run.player.inventory, "charcoal") < 1 then
         return false, "You need charcoal to sketch the area."
     end
-    local node = findNearby(run.world.mapNodes, run.player.coord)
+    local mapNodes = World.readActiveCollection(run, "mapNodes")
+    local node = findNearby(mapNodes, run.player.coord)
     if not node then
         return false, "Find an overlook before mapping."
     end
@@ -990,7 +1076,8 @@ function Survival.surveyArea(run)
     if Items.count(run.player.inventory, "survey_kit") < 1 then
         return false, "You need a survey kit."
     end
-    local node = findNearby(run.world.mapNodes, run.player.coord)
+    local mapNodes = World.readActiveCollection(run, "mapNodes")
+    local node = findNearby(mapNodes, run.player.coord)
     if not node or not node.survey then
         return false, "Find a survey point first."
     end
@@ -1072,7 +1159,8 @@ function Survival.useTraversalGate(run, gate)
 end
 
 function Survival.useRopeClimb(run)
-    local node = findNearby(run.world.climbNodes, run.player.coord)
+    local climbNodes = World.readActiveCollection(run, "climbNodes")
+    local node = findNearby(climbNodes, run.player.coord)
     if not node then
         return false, "No climb nearby."
     end
@@ -1095,7 +1183,8 @@ function Survival.useRopeClimb(run)
 end
 
 function Survival.startCuring(run)
-    local station = findNearby(run.world.curingStations, run.player.coord)
+    local curingStations = World.readActiveCollection(run, "curingStations")
+    local station = findNearby(curingStations, run.player.coord)
     if not station then
         return false, "You need a sheltered curing spot."
     end
@@ -1112,7 +1201,8 @@ function Survival.startCuring(run)
         if count > 0 then
             Items.remove(run.player.inventory, inputKind, count)
             for _ = 1, count do
-                table.insert(run.world.curing, {
+                local curing = World.activeCollection(run, "curing")
+                table.insert(curing, {
                     kind = inputKind,
                     outputKind = outputKind,
                     coord = {station.coord[1], station.coord[2]},
@@ -1132,18 +1222,20 @@ function Survival.startCuring(run)
 end
 
 function Survival.collectCuredItems(run)
-    local station = findNearby(run.world.curingStations, run.player.coord)
+    local curingStations = World.readActiveCollection(run, "curingStations")
+    local station = findNearby(curingStations, run.player.coord)
     if not station then
         return false, "No curing rack here."
     end
 
     local collected = 0
-    for index = #run.world.curing, 1, -1 do
-        local curing = run.world.curing[index]
+    local curingItems = World.readActiveCollection(run, "curing")
+    for index = #curingItems, 1, -1 do
+        local curing = curingItems[index]
         if curing.hoursRemaining <= 0
             and Utils.distance(station.coord[1], station.coord[2], curing.coord[1], curing.coord[2]) <= CONFIG.TILE_SIZE then
             Items.add(run.player.inventory, curing.outputKind, 1)
-            table.remove(run.world.curing, index)
+            table.remove(curingItems, index)
             collected = collected + 1
         end
     end
@@ -1162,83 +1254,7 @@ function Survival.consumeInventoryIndex(run, index)
     if not item then
         return false, "Nothing in that slot."
     end
-
-    local definition = Items.getDefinition(item.kind)
-    if not definition then
-        return false, "That item cannot be used."
-    end
-
-    if definition.equipSlot == "tool" then
-        run.player.equippedTool = item.kind
-        return true, "Equipped " .. Items.describe(item.kind) .. "."
-    elseif definition.equipSlot == "weapon" then
-        run.player.equippedWeapon = item.kind
-        if definition.weaponClass == "melee" then
-            run.player.equippedMeleeWeapon = item.kind
-        end
-        return true, "Readied " .. Items.describe(item.kind) .. "."
-    end
-
-    local used = false
-    local message = "That item is used indirectly."
-
-    if definition.calories then
-        run.player.calories = clamp(run.player.calories + definition.calories, CONFIG.MAX_CALORIES)
-        used = true
-    end
-    if definition.thirst then
-        run.player.thirst = clamp(run.player.thirst + definition.thirst, CONFIG.MAX_THIRST)
-        used = true
-    end
-    if definition.warmth then
-        run.player.warmth = clamp(run.player.warmth + definition.warmth, CONFIG.MAX_WARMTH)
-        used = true
-    end
-    if definition.condition then
-        run.player.condition = clamp(run.player.condition + definition.condition, run.player.maxCondition)
-        used = true
-    end
-    if definition.lightHours then
-        run.player.equippedLight = item.kind
-        run.player.equippedLightHours = definition.lightHours
-        used = true
-    end
-    if definition.treatment then
-        local treated = false
-        if definition.treatment.sprain and run.player.afflictions.sprain then
-            run.player.afflictions.sprain = false
-            run.player.afflictions.sprainRisk = 0
-            run.player.afflictions.sprainRecovery = CONFIG.SPRAIN_RECOVERY_HOURS
-            treated = true
-        end
-        if definition.treatment.infectionRisk and (run.player.afflictions.infectionRiskHours or 0) > 0 then
-            run.player.afflictions.infectionRiskHours = 0
-            treated = true
-        end
-        if definition.treatment.infection and run.player.afflictions.infection then
-            run.player.afflictions.infection = false
-            treated = true
-        end
-        if treated then
-            used = true
-        end
-    end
-
-    if not used then
-        return false, message
-    end
-
-    if definition.perishable and item.condition ~= nil then
-        local threshold = definition.foodPoisoningThreshold or -1
-        if item.condition <= threshold then
-            inflictFoodPoisoning(run)
-        end
-    end
-
-    Items.remove(run.player.inventory, item.kind, 1)
-    Items.sortInventory(run.player.inventory)
-    Survival.updateCarryWeight(run.player)
-    return true, "Used " .. Items.describe(item.kind) .. "."
+    return Items.use(run, item)
 end
 
 function Survival.craftSnowShelter(run)
@@ -1257,14 +1273,16 @@ function Survival.craftSnowShelter(run)
         coord = {run.player.coord[1], run.player.coord[2]},
         integrity = 100,
     }
-    table.insert(run.world.snowShelters, shelter)
+    local snowShelters = World.activeCollection(run, "snowShelters")
+    table.insert(snowShelters, shelter)
     Furniture.spawn(World.currentLevel(run), "snow_shelter", shelter.coord, {source = shelter})
     Survival.updateCarryWeight(run.player)
     return true, "Built a snow shelter."
 end
 
 function Survival.repairSnowShelter(run)
-    for _, shelter in ipairs(run.world.snowShelters or {}) do
+    local snowShelters = World.readActiveCollection(run, "snowShelters")
+    for _, shelter in ipairs(snowShelters) do
         if Utils.distance(run.player.coord[1], run.player.coord[2], shelter.coord[1], shelter.coord[2]) < CONFIG.TILE_SIZE then
             if Items.count(run.player.inventory, "sticks") < CONFIG.SNOW_SHELTER_REPAIR_STICKS
                 or Items.count(run.player.inventory, "cloth") < CONFIG.SNOW_SHELTER_REPAIR_CLOTH then
@@ -1282,10 +1300,11 @@ function Survival.repairSnowShelter(run)
 end
 
 function Survival.dismantleSnowShelter(run)
-    for index = #run.world.snowShelters, 1, -1 do
-        local shelter = run.world.snowShelters[index]
+    local snowShelters = World.readActiveCollection(run, "snowShelters")
+    for index = #snowShelters, 1, -1 do
+        local shelter = snowShelters[index]
         if Utils.distance(run.player.coord[1], run.player.coord[2], shelter.coord[1], shelter.coord[2]) < CONFIG.TILE_SIZE then
-            table.remove(run.world.snowShelters, index)
+            table.remove(snowShelters, index)
             Items.add(run.player.inventory, "sticks", 3)
             Items.add(run.player.inventory, "cloth", 1)
             Items.sortInventory(run.player.inventory)
@@ -1517,11 +1536,12 @@ function Survival.update(run, hours, options)
         player.condition = clamp(player.condition + recovery, player.maxCondition)
     end
 
-    for index = #run.world.snowShelters, 1, -1 do
-        local shelter = run.world.snowShelters[index]
+    local snowShelters = World.readActiveCollection(run, "snowShelters")
+    for index = #snowShelters, 1, -1 do
+        local shelter = snowShelters[index]
         shelter.integrity = shelter.integrity - (CONFIG.SNOW_SHELTER_DECAY_PER_HOUR * hours)
         if shelter.integrity <= 0 then
-            table.remove(run.world.snowShelters, index)
+            table.remove(snowShelters, index)
         end
     end
 

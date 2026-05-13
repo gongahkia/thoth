@@ -4,6 +4,7 @@ local Furniture = require("modules/furniture")
 local Items = require("modules/items")
 local TileRegistry = require("modules/tile_registry")
 local Utils = require("modules/utils")
+local WorldObjects = require("modules/world_objects")
 
 local World = {}
 
@@ -62,6 +63,7 @@ local function ensureLevel(level, depth)
     level.mapNodes = level.mapNodes or {}
     level.climbNodes = level.climbNodes or {}
     level.fishingSpots = level.fishingSpots or {}
+    level.rabbitZones = level.rabbitZones or {}
     level.carcasses = level.carcasses or {}
     level.snowShelters = level.snowShelters or {}
     level.fires = level.fires or {}
@@ -72,7 +74,10 @@ local function ensureLevel(level, depth)
     level.wildlife = level.wildlife or {wolves = {}, rabbits = {}, deer = {}, raiders = {}}
     level.goals = level.goals or {}
     level.snowCover = level.snowCover or {}
+    level.iceState = level.iceState or {}
     level.shelterWear = level.shelterWear or {}
+    level.warmthPockets = level.warmthPockets or {}
+    level.thermalWarmth = level.thermalWarmth or {}
     return level
 end
 
@@ -119,6 +124,7 @@ local function applyActiveAliases(world, level)
     world.mapNodes = level.mapNodes
     world.climbNodes = level.climbNodes
     world.fishingSpots = level.fishingSpots
+    world.rabbitZones = level.rabbitZones
     world.carcasses = level.carcasses
     world.snowShelters = level.snowShelters
     world.fires = level.fires
@@ -129,7 +135,10 @@ local function applyActiveAliases(world, level)
     world.wildlife = level.wildlife
     world.goals = level.goals
     world.snowCover = level.snowCover
+    world.iceState = level.iceState
     world.shelterWear = level.shelterWear
+    world.warmthPockets = level.warmthPockets
+    world.thermalWarmth = level.thermalWarmth
 end
 
 function World.levelSize(level)
@@ -231,6 +240,7 @@ function World.initialize(world)
         mapNodes = world.mapNodes,
         climbNodes = world.climbNodes,
         fishingSpots = world.fishingSpots,
+        rabbitZones = world.rabbitZones,
         carcasses = world.carcasses,
         snowShelters = world.snowShelters,
         fires = world.fires,
@@ -248,6 +258,7 @@ function World.initialize(world)
     ensureDepthLinks(world)
     for _, level in pairs(world.levels) do
         Furniture.mirrorLevel(level)
+        WorldObjects.mirrorLevel(level)
     end
     world.currentDepth = world.currentDepth or 0
     applyActiveAliases(world, world.levels[world.currentDepth])
@@ -267,6 +278,74 @@ function World.currentLevel(run)
     end
     World.initialize(world)
     return world.levels[world.currentDepth or 0]
+end
+
+function World.activeCollection(run, keyName)
+    local world = World.attachRun(run)
+    local level = world.levels[world.currentDepth or 0]
+    if not level[keyName] then
+        level[keyName] = {}
+    end
+    world[keyName] = level[keyName]
+    return level[keyName], level
+end
+
+function World.readActiveCollection(run, keyName)
+    local world = World.attachRun(run)
+    local level = world.levels[world.currentDepth or 0]
+    local collection = level and level[keyName]
+    if type(collection) ~= "table" then
+        return {}, level
+    end
+    return collection, level
+end
+
+function World.ensureActiveCollections(run, keyNames)
+    local collections = {}
+    local level
+    for _, keyName in ipairs(keyNames or {}) do
+        collections[keyName], level = World.activeCollection(run, keyName)
+    end
+    return collections, level
+end
+
+function World.activeWildlife(run)
+    local wildlife, level = World.activeCollection(run, "wildlife")
+    wildlife.wolves = wildlife.wolves or {}
+    wildlife.rabbits = wildlife.rabbits or {}
+    wildlife.deer = wildlife.deer or {}
+    wildlife.raiders = wildlife.raiders or {}
+    run.world.wildlife = wildlife
+    return wildlife, level
+end
+
+function World.activeGrid(run)
+    local world = World.attachRun(run)
+    local level = world.levels[world.currentDepth or 0]
+    return level and level.grid or {}, level
+end
+
+local function tableCount(tbl)
+    local total = 0
+    for _ in pairs(tbl or {}) do
+        total = total + 1
+    end
+    return total
+end
+
+function World.simulationSummary(level)
+    return {
+        snowCoverTiles = tableCount(level and level.snowCover),
+        iceStateTiles = tableCount(level and level.iceState),
+        shelterWearTiles = tableCount(level and level.shelterWear),
+        warmthPocketTiles = tableCount(level and level.warmthPockets),
+        thermalWarmthTiles = tableCount(level and level.thermalWarmth),
+    }
+end
+
+function World.activeSimulationSummary(run)
+    World.attachRun(run)
+    return World.simulationSummary(World.currentLevel(run))
 end
 
 function World.tileAt(run, depth, x, y)
@@ -296,12 +375,68 @@ local function countEntities(level, kind)
     return total
 end
 
-local function validSpawnTile(level, x, y)
+local function listAllows(list, value)
+    if not list then
+        return true
+    end
+    if list[value] == true then
+        return true
+    end
+    for _, entry in ipairs(list) do
+        if entry == value then
+            return true
+        end
+    end
+    return false
+end
+
+local function listBlocks(list, value)
+    if not list then
+        return false
+    end
+    if list[value] == true then
+        return true
+    end
+    for _, entry in ipairs(list) do
+        if entry == value then
+            return true
+        end
+    end
+    return false
+end
+
+local function coordInZone(x, y, zone)
+    return zone
+        and x >= zone.x
+        and y >= zone.y
+        and x <= zone.x + zone.width
+        and y <= zone.y + zone.height
+end
+
+local function blockedByHazard(level, x, y, rules)
+    local blockedHazards = rules and (rules.blockedHazards or rules.avoidHazards)
+    if not blockedHazards then
+        return false
+    end
+    for _, hazard in ipairs(level.hazardZones or level.hazards or {}) do
+        if listBlocks(blockedHazards, hazard.type) and coordInZone(x, y, hazard.zone) then
+            return true
+        end
+    end
+    return false
+end
+
+local function validSpawnTile(level, x, y, rules)
     local tile = level.grid[y] and level.grid[y][x]
+    local allowedTiles = rules and (rules.allowedTiles or rules.validTiles)
+    local blockedTiles = rules and (rules.blockedTiles or rules.avoidTiles)
     return tile
+        and listAllows(allowedTiles, tile)
+        and not listBlocks(blockedTiles, tile)
         and tile ~= "weak_ice"
         and tile ~= "thermal_fissure"
         and tile ~= "lake"
+        and not blockedByHazard(level, x, y, rules)
         and TileRegistry.isWalkable(tile, level, x, y, nil)
 end
 
@@ -323,8 +458,8 @@ function World.spawnOffscreen(run, kind, rules)
     for _ = 1, rules.attempts or 80 do
         local x = math.random(zone.x, math.max(zone.x, zone.x + zone.width - 1))
         local y = math.random(zone.y, math.max(zone.y, zone.y + zone.height - 1))
-        if x > 1 and y > 1 and x < width and y < height and validSpawnTile(level, x, y) then
-                local coord = {(x - 1) * CONFIG.TILE_SIZE, (y - 1) * CONFIG.TILE_SIZE}
+        if x > 1 and y > 1 and x < width and y < height and validSpawnTile(level, x, y, rules) then
+            local coord = {(x - 1) * CONFIG.TILE_SIZE, (y - 1) * CONFIG.TILE_SIZE}
             local sameDepth = depth == (run.world.currentDepth or 0)
             local distance = Utils.distance(run.player.coord[1], run.player.coord[2], coord[1], coord[2])
             if not sameDepth or distance >= minDistance then
@@ -334,6 +469,13 @@ function World.spawnOffscreen(run, kind, rules)
                     height = rules.height or CONFIG.TILE_SIZE - 4,
                     spawned = true,
                     depth = depth,
+                    spawnRuleId = rules.id or rules.spawnRuleId,
+                    homeZone = rules.zone,
+                    aiState = rules.aiState or "roam",
+                    state = rules.state or rules.aiState or "roam",
+                    moving = false,
+                    facingX = 1,
+                    facingY = 0,
                 })
             end
         end
@@ -436,6 +578,13 @@ end
 function World.activateEndgame(run, probe)
     World.attachRun(run)
     local level = World.currentLevel(run)
+    run.runtime = run.runtime or {}
+    if run.runtime.endgameActivated then
+        if probe then
+            return true, nil
+        end
+        return true, "The weather station beacon is already active."
+    end
     if (run.world.currentDepth or 0) ~= 1 then
         if probe then
             return false, nil
@@ -463,8 +612,9 @@ function World.activateEndgame(run, probe)
 
     completeGoal(level.goals, "activate_ridge_weather_station")
     completeGoal(run.world.goals, "activate_ridge_weather_station")
-    run.runtime = run.runtime or {}
     run.runtime.endgameActivated = true
+    run.runtime.success = true
+    run.runtime.endgameDepth = run.world.currentDepth
     run.runtime.replayEvents = run.runtime.replayEvents or {}
     table.insert(run.runtime.replayEvents, {
         type = "weather_station_activated",
@@ -546,15 +696,31 @@ function World.interactFacing(run)
     return false, nil
 end
 
-function World.hitFacingTile(run, toolKind)
-    World.attachRun(run)
+local function equippedToolDefinition(run, toolKind)
     toolKind = toolKind or run.player.equippedTool
     if not toolKind then
-        return false, "Ready a tool first."
+        return nil, nil, "Ready a tool first."
     end
     local definition = Items.getDefinition(toolKind)
     if not definition or definition.equipSlot ~= "tool" then
-        return false, "Ready a tool first."
+        return nil, nil, "Ready a tool first."
+    end
+    return toolKind, definition, nil
+end
+
+local function spendToolStamina(run, definition)
+    local staminaCost = definition and definition.staminaCost or 0
+    if run.player.stamina then
+        run.player.stamina = math.max(0, run.player.stamina - staminaCost)
+    end
+end
+
+local function hitFacingTileOnly(run, toolKind, definition)
+    local resolvedToolKind, resolvedDefinition, errorMessage = equippedToolDefinition(run, toolKind)
+    toolKind = resolvedToolKind
+    definition = definition or resolvedDefinition
+    if errorMessage then
+        return false, errorMessage
     end
 
     local tile, level, x, y, behavior = World.facingTile(run)
@@ -580,17 +746,44 @@ function World.hitFacingTile(run, toolKind)
     if #(drops or {}) > 0 then
         Items.sortInventory(run.player.inventory)
     end
-    local staminaCost = definition.staminaCost or 0
-    if run.player.stamina then
-        run.player.stamina = math.max(0, run.player.stamina - staminaCost)
-    end
     if not ok then
         return false, "The " .. Items.describe(toolKind) .. " has no effect."
     end
+    spendToolStamina(run, definition)
     if #(drops or {}) > 0 then
         return true, "You break down the " .. behavior.name .. "."
     end
     return true, "You work at the " .. behavior.name .. "."
+end
+
+function World.hitFacingTile(run, toolKind)
+    World.attachRun(run)
+    return hitFacingTileOnly(run, toolKind)
+end
+
+function World.hitFacing(run, toolKind)
+    World.attachRun(run)
+    local resolvedToolKind, definition, errorMessage = equippedToolDefinition(run, toolKind)
+    if errorMessage then
+        return false, errorMessage
+    end
+
+    local tile, level = World.facingTile(run)
+    local entity = World.facingEntity(run)
+    if entity then
+        if entity.hit then
+            local ok, message = entity:hit(run, level, definition)
+            if ok then
+                spendToolStamina(run, definition)
+            end
+            return ok, message or (ok and "You work at it." or "That tool has no effect.")
+        end
+        return false, entity.label and ("Use another approach for " .. entity.label .. ".") or "Use another approach for that."
+    end
+    if not tile then
+        return false, "Nothing useful is in reach."
+    end
+    return hitFacingTileOnly(run, resolvedToolKind, definition)
 end
 
 function World.stepPlayer(run)
@@ -618,12 +811,16 @@ local function updateLevelSimulation(level, run, hours)
     end
     for _, fire in ipairs(level.fires or {}) do
         fire.tickHours = (fire.tickHours or 0) + hours
+        fire.decayTicks = (fire.decayTicks or 0) + 1
+        fire.lastTickDepth = level.depth or run.world.currentDepth or 0
     end
     for _, node in ipairs(level.resourceNodes or {}) do
         if node.opened and node.regrowHours then
             node.regrowHours = math.max(0, node.regrowHours - hours)
             if node.regrowHours <= 0 then
                 node.opened = false
+                node.regrown = true
+                node.lastRegrowDepth = level.depth or run.world.currentDepth or 0
             end
         end
     end

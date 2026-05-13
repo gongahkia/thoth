@@ -238,7 +238,30 @@ describe("Runtime Smoke", function()
             local Editor = require("modules/editor")
             local Effects = require("modules/effects")
             local Items = require("modules/items")
+            local Furniture = require("modules/furniture")
             local SoundEvents = require("modules/sound_events")
+            local SpriteRegistry = require("modules/sprite_registry")
+            local Wildlife = require("modules/wildlife")
+            local World = require("modules/world")
+            local Replay = require("modules/replay")
+            local stationDraws = 0
+            local wildlifeDraws = 0
+            local markerDraws = 0
+            local originalDrawStation = SpriteRegistry.drawStation
+            local originalDrawWildlife = SpriteRegistry.drawWildlife
+            local originalDrawWorldMarker = SpriteRegistry.drawWorldMarker
+            SpriteRegistry.drawStation = function(...)
+                stationDraws = stationDraws + 1
+                return originalDrawStation(...)
+            end
+            SpriteRegistry.drawWildlife = function(...)
+                wildlifeDraws = wildlifeDraws + 1
+                return originalDrawWildlife(...)
+            end
+            SpriteRegistry.drawWorldMarker = function(...)
+                markerDraws = markerDraws + 1
+                return originalDrawWorldMarker(...)
+            end
             love.load()
             TestRunner.assertTrue(windowMode ~= nil)
             TestRunner.assertTrue(windowMode.options.fullscreen)
@@ -270,6 +293,8 @@ describe("Runtime Smoke", function()
             local initialDraw = table.concat(printed, " | ")
             TestRunner.assertTrue(initialDraw:find(startPOI, 1, true) ~= nil)
             TestRunner.assertTrue(initialDraw:find(remotePOI, 1, true) == nil)
+            TestRunner.assertTrue(stationDraws > 0)
+            TestRunner.assertTrue(markerDraws > 0)
             local initialPoiEvents = countEvent(SoundEvents.getEventLog(), "poi_discovery")
             currentTime = currentTime + 0.1
             love.update(0.1)
@@ -305,7 +330,48 @@ describe("Runtime Smoke", function()
             TestRunner.assertTrue(run.runtime.interactionHint:find("C craft at the Workbench / Curing Rack", 1, true) ~= nil)
             TestRunner.assertTrue(run.runtime.interactionHint:find("X hang fresh hides or gut to cure", 1, true) ~= nil)
 
-            run.player.coord = {run.world.workbenches[1].coord[1], run.world.workbenches[1].coord[2]}
+            local cacheNode = {
+                type = "cache",
+                coord = {standaloneStation.coord[1] + (CONFIG.TILE_SIZE * 4), standaloneStation.coord[2]},
+                opened = false,
+                hidden = false,
+                revealed = true,
+                loot = {Items.create("matches", 1)},
+            }
+            local resourceNodes = World.activeCollection(run, "resourceNodes")
+            table.insert(resourceNodes, cacheNode)
+            World.attachRun(run)
+            cacheNode.hidden = false
+            cacheNode.revealed = true
+            run.player.coord = {cacheNode.coord[1] - CONFIG.TILE_SIZE, cacheNode.coord[2]}
+            run.player.lastMoveX = 1
+            run.player.lastMoveY = 0
+            love.keypressed("e")
+            TestRunner.assertTrue(cacheNode.opened)
+
+            run.player.coord = {100, 100}
+            run.player.lastMoveX = 1
+            run.player.lastMoveY = 0
+            run.player.equippedWeapon = nil
+            run.player.equippedTool = "hatchet"
+            local torchBefore = Items.count(run.player.inventory, "torch")
+            Furniture.spawn(World.currentLevel(run), "lantern", {120, 100})
+            love.keypressed("space")
+            TestRunner.assertTrue(Items.count(run.player.inventory, "torch") > torchBefore)
+            TestRunner.assertEqual(World.facingEntity(run), nil)
+
+            local treeGridX = math.floor(120 / CONFIG.TILE_SIZE) + 1
+            local treeGridY = math.floor(100 / CONFIG.TILE_SIZE) + 1
+            local grid = World.activeGrid(run)
+            grid[treeGridY][treeGridX] = "tree"
+            local sticksBefore = Items.count(run.player.inventory, "sticks")
+            love.keypressed("space")
+            love.keypressed("space")
+            TestRunner.assertEqual(grid[treeGridY][treeGridX], "snow")
+            TestRunner.assertTrue(Items.count(run.player.inventory, "sticks") > sticksBefore)
+
+            local workbenches = World.readActiveCollection(run, "workbenches")
+            run.player.coord = {workbenches[1].coord[1], workbenches[1].coord[2]}
             Items.add(run.player.inventory, "cloth", 1)
             Items.add(run.player.inventory, "cured_gut", 2)
             Items.add(run.player.inventory, "sticks", 1)
@@ -326,16 +392,18 @@ describe("Runtime Smoke", function()
             run.player.coord = {140, 440}
             Items.add(run.player.inventory, "snare", 1)
             love.keypressed("x")
-            TestRunner.assertEqual(#run.world.traps, 1)
+            local traps = World.activeCollection(run, "traps")
+            TestRunner.assertEqual(#traps, 1)
             TestRunner.assertTrue(countEvent(SoundEvents.getEventLog(), "snare_set") > 0)
-            run.world.traps[1].state = "caught"
+            traps[1].state = "caught"
             local meatBefore = Items.count(run.player.inventory, "raw_meat")
             love.keypressed("e")
             love.keypressed("e")
             TestRunner.assertTrue(Items.count(run.player.inventory, "raw_meat") > meatBefore)
             TestRunner.assertTrue(countEvent(SoundEvents.getEventLog(), "snare_catch") > 0)
 
-            run.player.coord = {run.world.mapNodes[1].coord[1], run.world.mapNodes[1].coord[2]}
+            local mapNodes = World.readActiveCollection(run, "mapNodes")
+            run.player.coord = {mapNodes[1].coord[1], mapNodes[1].coord[2]}
             Items.add(run.player.inventory, "charcoal", 1)
             local discoveredBeforeMap = countKeys(run.world.discoveredPOIs)
             love.keypressed("m")
@@ -362,7 +430,8 @@ describe("Runtime Smoke", function()
             love.update(0.1)
             TestRunner.assertEqual(run.runtime.currentStation.state, "curing")
             TestRunner.assertTrue(run.runtime.interactionHint:find("X hang fresh hides or gut to cure", 1, true) ~= nil)
-            for _, curing in ipairs(run.world.curing) do
+            local curingItems = World.activeCollection(run, "curing")
+            for _, curing in ipairs(curingItems) do
                 curing.hoursRemaining = 0.05
             end
             currentTime = currentTime + 1.0
@@ -373,12 +442,24 @@ describe("Runtime Smoke", function()
             currentTime = currentTime + 0.1
             love.update(0.1)
             TestRunner.assertEqual(run.runtime.currentStation.state, "idle")
-            TestRunner.assertEqual(#run.world.curing, 0)
+            TestRunner.assertEqual(#curingItems, 0)
 
             run.player.coord = {100, 100}
             run.player.lastMoveX = 1
             run.player.lastMoveY = 0
-            table.insert(run.world.wildlife.rabbits, {coord = {160, 100}, kind = "rabbit"})
+            local wildlife = World.activeWildlife(run)
+            table.insert(wildlife.rabbits, {coord = {160, 100}, kind = "rabbit"})
+            table.insert(wildlife.wolves, {
+                coord = {120, 100},
+                kind = "wolf",
+                territory = {x = 4, y = 4, width = 4, height = 4},
+                territoryCenter = {120, 100},
+                state = "roam",
+            })
+            Wildlife.mirrorLevel(World.currentLevel(run))
+            wildlifeDraws = 0
+            love.draw()
+            TestRunner.assertTrue(wildlifeDraws > 0)
             Items.add(run.player.inventory, "bow", 1)
             Items.add(run.player.inventory, "arrow", 1)
             love.keypressed("b")
@@ -403,8 +484,9 @@ describe("Runtime Smoke", function()
             state.titleIndex = 1
             love.keypressed("return")
             run = state.run
-            TestRunner.assertEqual(#run.world.grid, CONFIG.WORLD_GRID_HEIGHT)
-            TestRunner.assertEqual(#run.world.grid[1], CONFIG.WORLD_GRID_WIDTH)
+            local newRunGrid = World.activeGrid(run)
+            TestRunner.assertEqual(#newRunGrid, CONFIG.WORLD_GRID_HEIGHT)
+            TestRunner.assertEqual(#newRunGrid[1], CONFIG.WORLD_GRID_WIDTH)
 
             run.player.coord = {1200, 1200}
             run.player.lastSafeCoord = {1200, 1200}
@@ -421,6 +503,99 @@ describe("Runtime Smoke", function()
             love.draw()
             TestRunner.assertEqual(run.runtime.camera.x, math.max(0, (CONFIG.WORLD_GRID_WIDTH * CONFIG.TILE_SIZE) - CONFIG.WINDOW_WIDTH))
             TestRunner.assertEqual(run.runtime.camera.y, math.max(0, (CONFIG.WORLD_GRID_HEIGHT * CONFIG.TILE_SIZE) - CONFIG.WINDOW_HEIGHT))
+
+            World.changeDepth(run, -1, {40, 40})
+            local savedEntityCount = #(World.currentLevel(run).entities or {})
+            TestRunner.assertTrue(love._tikritDebug.saveCurrentGame())
+            TestRunner.assertType(files["saves/autosave.lua"], "string")
+            state.screen = "title"
+            local loadedRun = love._tikritDebug.loadSaveSlot("autosave")
+            TestRunner.assertType(loadedRun, "table")
+            TestRunner.assertEqual(loadedRun.world.currentDepth, -1)
+            TestRunner.assertEqual(loadedRun.player.depth, -1)
+            TestRunner.assertTrue(loadedRun.world.grid == loadedRun.world.levels[-1].grid)
+            TestRunner.assertEqual(loadedRun.runtime.message, "Game loaded.")
+            local loadedEntityCount = #(World.currentLevel(loadedRun).entities or {})
+            World.attachRun(loadedRun)
+            World.attachRun(loadedRun)
+            TestRunner.assertEqual(#(World.currentLevel(loadedRun).entities or {}), loadedEntityCount)
+            TestRunner.assertTrue(#(World.currentLevel(loadedRun).entities or {}) >= savedEntityCount)
+
+            Replay.startRecording(909, "stalker", {
+                mode = "survival",
+                currentDepth = -1,
+                player = {depth = -1},
+                runtimeObjects = {
+                    fires = 99,
+                    traps = 88,
+                    carcasses = 77,
+                    fishingSpots = 66,
+                    climbNodes = 55,
+                    mapNodes = 44,
+                },
+                tileSimulation = {
+                    snowCoverTiles = 7,
+                    iceStateTiles = 6,
+                    shelterWearTiles = 5,
+                    warmthPocketTiles = 4,
+                    thermalWarmthTiles = 3,
+                },
+            })
+            Replay.recordKeyState("e", true, 0.1)
+            Replay.stopRecording()
+            TestRunner.assertTrue(Replay.save("smoke_depth_restore"))
+            TestRunner.assertTrue(Replay.load("smoke_depth_restore"))
+            local depthReplay = Replay.inspect("smoke_depth_restore")
+            local depthRun = love._tikritDebug.startReplayContext(depthReplay.context, depthReplay.seed, depthReplay.difficulty)
+            TestRunner.assertTrue(Replay.startPlayback())
+            TestRunner.assertEqual(depthRun.world.currentDepth, -1)
+            TestRunner.assertEqual(depthRun.player.depth, -1)
+            TestRunner.assertTrue(depthRun.world.grid == depthRun.world.levels[-1].grid)
+            TestRunner.assertEqual(depthRun.runtime.replayAudit.runtimeObjects.fires, 99)
+            TestRunner.assertEqual(depthRun.runtime.replayAudit.tileSimulation.snowCoverTiles, 7)
+            TestRunner.assertEqual(depthRun.runtime.replayAudit.tileSimulation.thermalWarmthTiles, 3)
+            TestRunner.assertTrue(#depthRun.world.fires < 99)
+            local entityCount = #(World.currentLevel(depthRun).entities or {})
+            World.attachRun(depthRun)
+            World.attachRun(depthRun)
+            TestRunner.assertEqual(#(World.currentLevel(depthRun).entities or {}), entityCount)
+
+            local legacyDepthRun = love._tikritDebug.startReplayContext({
+                mode = "survival",
+                player = {},
+                unknown_field = "ignored",
+            }, 908, "voyageur")
+            TestRunner.assertEqual(legacyDepthRun.world.currentDepth, 0)
+            TestRunner.assertEqual(legacyDepthRun.player.depth, 0)
+
+            local endgameRun = love._tikritDebug.startReplayContext({
+                mode = "survival",
+                currentDepth = 1,
+                endgameActivated = true,
+                weatherStation = {
+                    activated = true,
+                    depth = 1,
+                },
+                player = {depth = 1},
+                runtimeObjects = {
+                    fires = 42,
+                },
+            }, 910, "stalker")
+            TestRunner.assertEqual(endgameRun.world.currentDepth, 1)
+            TestRunner.assertTrue(endgameRun.runtime.endgameActivated)
+            TestRunner.assertTrue(endgameRun.runtime.success)
+            TestRunner.assertTrue(endgameRun.stats.weatherStationActivated)
+            local completedGoal = false
+            for _, goal in ipairs(endgameRun.world.goals or {}) do
+                if goal.id == "activate_ridge_weather_station" then
+                    completedGoal = goal.completed == true
+                end
+            end
+            TestRunner.assertTrue(completedGoal)
+            currentTime = currentTime + 0.1
+            love.update(0.1)
+            TestRunner.assertTrue(endgameRun.finished)
+            TestRunner.assertTrue(endgameRun.player.alive)
         end)
         _G.love = originalLove
         if not ok then

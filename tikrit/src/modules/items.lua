@@ -1,3 +1,4 @@
+local CONFIG = require("config")
 local Utils = require("modules/utils")
 
 local Items = {}
@@ -258,6 +259,125 @@ function Items.adjustCondition(item, delta)
     end
     item.condition = Utils.clamp((item.condition or 100) + delta, 0, 100)
     return item.condition
+end
+
+local function updateCarryWeight(player)
+    player.carryWeight = Items.totalWeight(player.inventory)
+end
+
+local function inflictFoodPoisoning(run)
+    run.player.afflictions = run.player.afflictions or {}
+    run.player.afflictions.foodPoisoningHours = math.max(
+        run.player.afflictions.foodPoisoningHours or 0,
+        CONFIG.FOOD_POISONING_HOURS
+    )
+end
+
+local function placeBedroll(run)
+    local World = require("modules/world")
+    local TileRegistry = require("modules/tile_registry")
+    local Furniture = require("modules/furniture")
+    World.attachRun(run)
+    local tile, level = World.currentTile(run)
+    if tile == "weak_ice" or tile == "ice" or tile == "lake" or not TileRegistry.isWalkable(tile, level) then
+        return false, "You need firm ground for the bedroll."
+    end
+    Furniture.spawn(level, "bedroll", {run.player.coord[1], run.player.coord[2]}, {
+        placed = true,
+        pickup = true,
+    })
+    Items.remove(run.player.inventory, "bedroll", 1)
+    updateCarryWeight(run.player)
+    return true, "You lay out the bedroll."
+end
+
+function Items.use(run, itemOrKind, _target)
+    if not run or not run.player then
+        return false, "No one can use that."
+    end
+
+    local item = type(itemOrKind) == "table" and itemOrKind or Items.findItem(run.player.inventory, itemOrKind)
+    if not item then
+        return false, "Nothing in that slot."
+    end
+
+    local definition = Items.getDefinition(item.kind)
+    if not definition then
+        return false, "That item cannot be used."
+    end
+
+    if definition.equipSlot == "tool" then
+        run.player.equippedTool = item.kind
+        return true, "Equipped " .. Items.describe(item.kind) .. "."
+    elseif definition.equipSlot == "weapon" then
+        run.player.equippedWeapon = item.kind
+        if definition.weaponClass == "melee" then
+            run.player.equippedMeleeWeapon = item.kind
+        end
+        return true, "Readied " .. Items.describe(item.kind) .. "."
+    elseif item.kind == "bedroll" then
+        return placeBedroll(run)
+    end
+
+    local used = false
+    local message = "That item is used indirectly."
+
+    if definition.calories then
+        run.player.calories = Utils.clamp(run.player.calories + definition.calories, CONFIG.MAX_CALORIES)
+        used = true
+    end
+    if definition.thirst then
+        run.player.thirst = Utils.clamp(run.player.thirst + definition.thirst, CONFIG.MAX_THIRST)
+        used = true
+    end
+    if definition.warmth then
+        run.player.warmth = Utils.clamp(run.player.warmth + definition.warmth, CONFIG.MAX_WARMTH)
+        used = true
+    end
+    if definition.condition then
+        run.player.condition = Utils.clamp(run.player.condition + definition.condition, run.player.maxCondition)
+        used = true
+    end
+    if definition.lightHours then
+        run.player.equippedLight = item.kind
+        run.player.equippedLightHours = definition.lightHours
+        used = true
+    end
+    if definition.treatment then
+        local afflictions = run.player.afflictions or {}
+        local treated = false
+        if definition.treatment.sprain and afflictions.sprain then
+            afflictions.sprain = false
+            afflictions.sprainRisk = 0
+            afflictions.sprainRecovery = CONFIG.SPRAIN_RECOVERY_HOURS
+            treated = true
+        end
+        if definition.treatment.infectionRisk and (afflictions.infectionRiskHours or 0) > 0 then
+            afflictions.infectionRiskHours = 0
+            treated = true
+        end
+        if definition.treatment.infection and afflictions.infection then
+            afflictions.infection = false
+            treated = true
+        end
+        used = used or treated
+    end
+
+    if not used then
+        return false, message
+    end
+
+    if definition.perishable and item.condition ~= nil then
+        local threshold = definition.foodPoisoningThreshold or -1
+        if item.condition <= threshold then
+            inflictFoodPoisoning(run)
+        end
+    end
+
+    Items.remove(run.player.inventory, item.kind, 1)
+    Items.sortInventory(run.player.inventory)
+    updateCarryWeight(run.player)
+    return true, "Used " .. Items.describe(item.kind) .. "."
 end
 
 function Items.sortInventory(inventory)

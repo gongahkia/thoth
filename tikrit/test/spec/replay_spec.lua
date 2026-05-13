@@ -91,6 +91,94 @@ describe("Replay", function()
         TestRunner.assertEqual(first.key, "r")
     end)
 
+    it("round-trips layered endgame replay context", function()
+        Replay.init()
+        Replay.startRecording(99, "stalker", {
+            mode = "survival",
+            currentDepth = 1,
+            endgameActivated = true,
+            weatherStation = {
+                activated = true,
+                depth = 1,
+            },
+            runtimeObjects = {
+                fires = 1,
+                traps = 2,
+                carcasses = 3,
+                openedResourceNodes = 4,
+                unopenedResourceNodes = 5,
+                fishingSpots = 6,
+                climbNodes = 7,
+                mapNodes = 8,
+                openedGates = 9,
+                resolvedNPCs = 10,
+            },
+            tileSimulation = {
+                snowCoverTiles = 11,
+                iceStateTiles = 12,
+                shelterWearTiles = 13,
+                warmthPocketTiles = 14,
+                thermalWarmthTiles = 15,
+            },
+            player = {
+                depth = 1,
+            },
+        })
+        Replay.recordKeyState("e", true, 0.1)
+        Replay.stopRecording()
+        TestRunner.assertTrue(Replay.save("endgame_run"))
+
+        local replay = Replay.inspect("endgame_run")
+        TestRunner.assertEqual(replay.context.currentDepth, 1)
+        TestRunner.assertTrue(replay.context.endgameActivated)
+        TestRunner.assertTrue(replay.context.weatherStation.activated)
+        TestRunner.assertEqual(replay.context.weatherStation.depth, 1)
+        TestRunner.assertEqual(replay.context.runtimeObjects.fires, 1)
+        TestRunner.assertEqual(replay.context.runtimeObjects.traps, 2)
+        TestRunner.assertEqual(replay.context.runtimeObjects.carcasses, 3)
+        TestRunner.assertEqual(replay.context.runtimeObjects.openedResourceNodes, 4)
+        TestRunner.assertEqual(replay.context.runtimeObjects.unopenedResourceNodes, 5)
+        TestRunner.assertEqual(replay.context.runtimeObjects.fishingSpots, 6)
+        TestRunner.assertEqual(replay.context.runtimeObjects.climbNodes, 7)
+        TestRunner.assertEqual(replay.context.runtimeObjects.mapNodes, 8)
+        TestRunner.assertEqual(replay.context.runtimeObjects.openedGates, 9)
+        TestRunner.assertEqual(replay.context.runtimeObjects.resolvedNPCs, 10)
+        TestRunner.assertEqual(replay.context.tileSimulation.snowCoverTiles, 11)
+        TestRunner.assertEqual(replay.context.tileSimulation.iceStateTiles, 12)
+        TestRunner.assertEqual(replay.context.tileSimulation.shelterWearTiles, 13)
+        TestRunner.assertEqual(replay.context.tileSimulation.warmthPocketTiles, 14)
+        TestRunner.assertEqual(replay.context.tileSimulation.thermalWarmthTiles, 15)
+        TestRunner.assertEqual(replay.context.player.depth, 1)
+    end)
+
+    it("round-trips supported depth values and defensive context fields", function()
+        for _, depth in ipairs({-1, 0, 1}) do
+            Replay.init()
+            Replay.startRecording(200 + depth, "stalker", {
+                currentDepth = depth,
+                player = {depth = depth},
+                zeroValue = 0,
+                emptyValue = "",
+                unknown_field = "kept",
+                nested_unknown = {
+                    child_value = true,
+                },
+            })
+            Replay.recordKeyState("e", true, 0.1)
+            Replay.stopRecording()
+            local filename = "depth_" .. tostring(depth):gsub("-", "neg")
+            TestRunner.assertTrue(Replay.save(filename))
+
+            local replay = Replay.inspect(filename)
+            TestRunner.assertEqual(replay.context.currentDepth, depth)
+            TestRunner.assertEqual(replay.context.player.depth, depth)
+            TestRunner.assertEqual(replay.context.zeroValue, 0)
+            TestRunner.assertEqual(replay.context.emptyValue, "")
+            TestRunner.assertEqual(replay.context.unknown_field, "kept")
+            TestRunner.assertTrue(replay.context.nested_unknown.child_value)
+        end
+    end)
+
     it("plays back key state changes in timestamp order", function()
         Replay.init()
         Replay.startRecording(7, "voyageur")

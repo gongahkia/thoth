@@ -7,11 +7,13 @@ local Accessibility = require("modules/accessibility")
 local Progression = require("modules/progression")
 local Editor = require("modules/editor")
 local Replay = require("modules/replay")
+local SaveGame = require("modules/save_game")
 local Settings = require("modules/settings")
 local Items = require("modules/items")
 local Survival = require("modules/survival")
 local Fire = require("modules/fire")
 local Wildlife = require("modules/wildlife")
+local EntitySystem = require("modules/entity_system")
 local Effects = require("modules/effects")
 local SpriteRegistry = require("modules/sprite_registry")
 local SoundEvents = require("modules/sound_events")
@@ -26,11 +28,13 @@ local game = {
     titleItems = {},
     pauseIndex = 1,
     pauseOptions = {
-        {label = "Resume"},
-        {label = "Settings"},
-        {label = "Save Replay"},
-        {label = "Restart"},
-        {label = "Quit to Title"},
+        {label = "Resume", action = "resume"},
+        {label = "Settings", action = "settings"},
+        {label = "Save Game", action = "save_game"},
+        {label = "Load Game", action = "load_game"},
+        {label = "Save Replay", action = "save_replay"},
+        {label = "Restart", action = "restart"},
+        {label = "Quit to Title", action = "quit_title"},
     },
     settingsScreen = {
         categories = {"audio", "gameplay", "accessibility"},
@@ -41,6 +45,11 @@ local game = {
     replayScreen = {
         index = 1,
         entries = {},
+    },
+    saveScreen = {
+        index = 1,
+        entries = {},
+        previousScreen = "title",
     },
     settings = nil,
     run = nil,
@@ -54,6 +63,7 @@ local fonts = {}
 local updateRunSignals
 local applyPendingShake
 local refreshCraftMenu
+local updateVisibility
 local isVisibleTile
 local isMappedTile
 local updateCamera
@@ -129,13 +139,14 @@ end
 
 local function buildTitleItems()
     game.titleItems = {
-        {label = "Start Survival"},
-        {label = "Difficulty", value = titleCase(game.selectedDifficulty)},
-        {label = "Daily Run"},
-        {label = "Settings"},
-        {label = "Profile"},
-        {label = "Replays"},
-        {label = "Quit"},
+        {label = "Start Survival", action = "start"},
+        {label = "Difficulty", value = titleCase(game.selectedDifficulty), action = "difficulty"},
+        {label = "Daily Run", action = "daily"},
+        {label = "Load Game", action = "load_game"},
+        {label = "Settings", action = "settings"},
+        {label = "Profile", action = "profile"},
+        {label = "Replays", action = "replays"},
+        {label = "Quit", action = "quit"},
     }
 end
 
@@ -248,7 +259,26 @@ local function stationLabel(station)
     return "Curing Rack"
 end
 
+local function countEntries(list, predicate)
+    local total = 0
+    for _, entry in ipairs(list or {}) do
+        if not predicate or predicate(entry) then
+            total = total + 1
+        end
+    end
+    return total
+end
+
 local function buildReplayContext(run)
+    local resourceNodes = World.readActiveCollection(run, "resourceNodes")
+    local fishingSpots = World.readActiveCollection(run, "fishingSpots")
+    local climbNodes = World.readActiveCollection(run, "climbNodes")
+    local mapNodes = World.readActiveCollection(run, "mapNodes")
+    local gates = World.readActiveCollection(run, "gates")
+    local npcEncounters = World.readActiveCollection(run, "npcEncounters")
+    local fires = World.readActiveCollection(run, "fires")
+    local traps = World.readActiveCollection(run, "traps")
+    local carcasses = World.readActiveCollection(run, "carcasses")
     return {
         mode = run.mode,
         isDaily = run.mode == "daily",
@@ -263,6 +293,23 @@ local function buildReplayContext(run)
         worldSource = run.world.source,
         currentDepth = run.world.currentDepth or run.player.depth or 0,
         endgameActivated = run.runtime and run.runtime.endgameActivated or false,
+        runtimeObjects = {
+            fires = #fires,
+            traps = #traps,
+            carcasses = #carcasses,
+            openedResourceNodes = countEntries(resourceNodes, function(node) return node.opened == true end),
+            unopenedResourceNodes = countEntries(resourceNodes, function(node) return node.opened ~= true end),
+            fishingSpots = #fishingSpots,
+            climbNodes = #climbNodes,
+            mapNodes = #mapNodes,
+            openedGates = countEntries(gates, function(gate) return gate.unlockState == true end),
+            resolvedNPCs = countEntries(npcEncounters, function(encounter) return encounter.resolutionState == "resolved" end),
+        },
+        tileSimulation = World.activeSimulationSummary(run),
+        weatherStation = {
+            activated = run.runtime and run.runtime.endgameActivated or false,
+            depth = run.runtime and run.runtime.endgameDepth or run.world.currentDepth or run.player.depth or 0,
+        },
         player = {
             maxCondition = run.player.maxCondition,
             carryCapacity = run.player.carryCapacity,
@@ -289,7 +336,8 @@ local function coordInZone(coord, zone)
 end
 
 local function currentBiomeRegion(run, coord)
-    for _, biome in ipairs(run.world.biomes or {}) do
+    local biomes = World.readActiveCollection(run, "biomes")
+    for _, biome in ipairs(biomes) do
         if coordInZone(coord or run.player.coord, biome.zone) then
             return biome
         end
@@ -298,7 +346,7 @@ local function currentBiomeRegion(run, coord)
 end
 
 local function worldPixelSize(run)
-    local grid = run and run.world and run.world.grid or {}
+    local grid = run and World.activeGrid(run) or {}
     return #(grid[1] or {}) * CONFIG.TILE_SIZE, #grid * CONFIG.TILE_SIZE
 end
 
@@ -349,6 +397,37 @@ local function refreshReplayEntries()
     end
 end
 
+local function refreshSaveEntries()
+    local entries = {}
+    for _, entry in ipairs(SaveGame.listSaveEntries()) do
+        local save = entry.snapshot
+        if save then
+            local world = entry.world or save.world or {}
+            local details = string.format(
+                "%s | %s | %s | depth %s | day %s",
+                entry.savedAt or save.savedAt or "Unknown date",
+                formatModeLabel(entry.mode or save.mode or "survival"),
+                titleCase(canonicalDifficultyName(entry.difficultyName or save.difficultyName)),
+                tostring(world.currentDepth or 0),
+                tostring(world.dayCount or 1)
+            )
+            table.insert(entries, {
+                file = entry.file,
+                slot = entry.slot,
+                label = entry.label,
+                details = details,
+            })
+        end
+    end
+    game.saveScreen.entries = entries
+    if game.saveScreen.index > #entries then
+        game.saveScreen.index = #entries
+    end
+    if game.saveScreen.index < 1 then
+        game.saveScreen.index = 1
+    end
+end
+
 local function saveReplaySnapshot()
     if game.run and game.run.replayMode then
         setRunMessage("Playback runs cannot be re-saved.")
@@ -365,6 +444,224 @@ local function saveReplaySnapshot()
     end
     setRunMessage("Replay save failed.")
     return false
+end
+
+local function ensureLoadedRuntime(run)
+    run.runtime = run.runtime or {}
+    run.runtime.message = run.runtime.message or ""
+    run.runtime.messageTimer = run.runtime.messageTimer or 0
+    run.runtime.causeOfDeath = run.runtime.causeOfDeath or "exposure"
+    run.runtime.currentVisibleTiles = run.runtime.currentVisibleTiles or {}
+    run.runtime.interactionHint = run.runtime.interactionHint or ""
+    run.runtime.craftMenuOpen = run.runtime.craftMenuOpen or false
+    run.runtime.craftIndex = run.runtime.craftIndex or 1
+    run.runtime.craftRecipes = run.runtime.craftRecipes or {}
+    run.runtime.alerts = run.runtime.alerts or {
+        wolfThreat = 0,
+        blizzard = 0,
+        fireRisk = 0,
+        weakIce = 0,
+    }
+    run.runtime.stations = run.runtime.stations or {}
+    run.runtime.camera = run.runtime.camera or {x = 0, y = 0}
+    run.runtime.discoveryToast = run.runtime.discoveryToast or ""
+    run.runtime.discoveryToastTimer = run.runtime.discoveryToastTimer or 0
+    run.runtime.currentPOI = run.runtime.currentPOI or nil
+    run.runtime.currentBiome = run.runtime.currentBiome or nil
+    run.finished = run.finished or false
+    run.replayMode = false
+    run.replayProgress = 0
+    run.feats = Progression.getFeats()
+    run.startedAt = love.timer.getTime()
+    run.input = nil
+    run.player.alive = run.player.alive ~= false
+    run.stats = run.stats or {}
+    run.stats.daysSurvived = run.stats.daysSurvived or run.world.dayCount or 1
+    run.stats.firesLit = run.stats.firesLit or 0
+    run.stats.metersWalked = run.stats.metersWalked or 0
+    run.stats.wolvesRepelled = run.stats.wolvesRepelled or 0
+    run.stats.clothingRepairs = run.stats.clothingRepairs or 0
+    run.stats.waterBoiled = run.stats.waterBoiled or 0
+    run.stats.meatCooked = run.stats.meatCooked or 0
+end
+
+local function restoreLoadedRun(run)
+    if not run then
+        return false
+    end
+    Replay.stopRecording()
+    Replay.stopPlayback()
+    ensureLoadedRuntime(run)
+    World.attachRun(run)
+    game.run = run
+    game.input.heldKeys = {}
+    updateCamera(run)
+    updateVisibility()
+    refreshCraftMenu()
+    updateRunSignals()
+    SoundEvents.updateWeather(run.world.weather and run.world.weather.current or nil)
+    Replay.startRecording(run.seed, canonicalDifficultyName(run.difficultyName), buildReplayContext(run))
+    run.runtime.message = "Game loaded."
+    run.runtime.messageTimer = 2
+    game.screen = "game"
+    return true
+end
+
+local function saveCurrentGame(slot, label)
+    if not game.run then
+        return false
+    end
+    if game.run.replayMode or Replay.isPlaying() then
+        setRunMessage("Playback runs cannot be saved.")
+        return false
+    end
+    local targetSlot = slot or "autosave"
+    local targetLabel = label or (targetSlot == "autosave" and "Autosave" or nil)
+    if SaveGame.saveRun(targetSlot, game.run, {label = targetLabel}) then
+        refreshSaveEntries()
+        game.run.lastSaveSlot = SaveGame.normalizeSlot(targetSlot)
+        setRunMessage(targetSlot == "autosave" and "Autosave written." or "Game saved.")
+        return true
+    end
+    setRunMessage("Game save failed.")
+    return false
+end
+
+local function saveManualGame()
+    if not game.run then
+        return false
+    end
+    local slot = SaveGame.defaultSlotName(game.run)
+    return saveCurrentGame(slot)
+end
+
+local function loadSaveFromSelection()
+    local entry = game.saveScreen.entries[game.saveScreen.index]
+    if not entry then
+        return false
+    end
+    local run = SaveGame.loadRun(entry.slot or entry.file)
+    if not run then
+        return false
+    end
+    return restoreLoadedRun(run)
+end
+
+local function deleteSaveSelection()
+    local entry = game.saveScreen.entries[game.saveScreen.index]
+    if not entry then
+        return false
+    end
+    if SaveGame.delete(entry.slot or entry.file) then
+        refreshSaveEntries()
+        if game.run then
+            setRunMessage("Save deleted.")
+        end
+        return true
+    end
+    if game.run then
+        setRunMessage("Save delete failed.")
+    end
+    return false
+end
+
+local function validReplayDepth(run, depth)
+    if type(depth) ~= "number" then
+        return nil
+    end
+    if run.world.levels and run.world.levels[depth] then
+        return depth
+    end
+    return nil
+end
+
+local function replayEndgameRequested(context)
+    return context
+        and (context.endgameActivated == true
+            or (context.weatherStation and context.weatherStation.activated == true))
+end
+
+local function replayContextDepth(run, context)
+    context = context or {}
+    local depth = validReplayDepth(run, context.currentDepth)
+    if depth then
+        return depth
+    end
+    if context.player then
+        depth = validReplayDepth(run, context.player.depth)
+        if depth then
+            return depth
+        end
+    end
+    if context.weatherStation then
+        depth = validReplayDepth(run, context.weatherStation.depth)
+        if depth then
+            return depth
+        end
+    end
+    if replayEndgameRequested(context) then
+        depth = validReplayDepth(run, 1)
+        if depth then
+            return depth
+        end
+    end
+    return validReplayDepth(run, 0) or run.world.currentDepth or 0
+end
+
+local function completeGoal(goals, goalId)
+    for _, goal in ipairs(goals or {}) do
+        if goal.id == goalId then
+            goal.completed = true
+        end
+    end
+end
+
+local function applyReplayContext(run, context)
+    if type(context) ~= "table" then
+        World.changeDepth(run, validReplayDepth(run, 0) or run.world.currentDepth or 0)
+        return
+    end
+
+    if context.weather then
+        run.world.weather.current = context.weather.current or run.world.weather.current
+        run.world.weather.hoursUntilChange = context.weather.hoursUntilChange or run.world.weather.hoursUntilChange
+    end
+    if context.timeOfDay ~= nil then
+        run.world.timeOfDay = context.timeOfDay
+    end
+    if context.dayCount ~= nil then
+        run.world.dayCount = context.dayCount
+        run.stats.daysSurvived = context.dayCount
+    end
+    if context.player then
+        run.player.maxCondition = context.player.maxCondition or run.player.maxCondition
+        run.player.carryCapacity = context.player.carryCapacity or run.player.carryCapacity
+        run.player.equippedTool = context.player.equippedTool or run.player.equippedTool
+        run.player.equippedWeapon = context.player.equippedWeapon or run.player.equippedWeapon
+        run.player.equippedMeleeWeapon = context.player.equippedMeleeWeapon or run.player.equippedMeleeWeapon
+        run.player.condition = math.min(run.player.condition, run.player.maxCondition)
+    end
+
+    local targetDepth = replayContextDepth(run, context)
+    World.changeDepth(run, targetDepth)
+
+    if context.runtimeObjects then
+        run.runtime.replayAudit = run.runtime.replayAudit or {}
+        run.runtime.replayAudit.runtimeObjects = Utils.deepCopy(context.runtimeObjects)
+    end
+    if context.tileSimulation then
+        run.runtime.replayAudit = run.runtime.replayAudit or {}
+        run.runtime.replayAudit.tileSimulation = Utils.deepCopy(context.tileSimulation)
+    end
+
+    if replayEndgameRequested(context) then
+        run.runtime.endgameActivated = true
+        run.runtime.success = true
+        run.runtime.endgameDepth = targetDepth
+        run.stats.weatherStationActivated = true
+        completeGoal(run.world.goals, "activate_ridge_weather_station")
+        completeGoal(World.currentLevel(run).goals, "activate_ridge_weather_station")
+    end
 end
 
 local function createRun(generated, difficultyName, options)
@@ -423,51 +720,33 @@ local function createRun(generated, difficultyName, options)
 
     run.player.coord = {generated.playerStart[1], generated.playerStart[2]}
     run.player.lastSafeCoord = {generated.playerStart[1], generated.playerStart[2]}
-    run.world.traps = run.world.traps or {}
-    run.world.carcasses = run.world.carcasses or {}
-    run.world.fishingSpots = run.world.fishingSpots or {}
-    run.world.climbNodes = run.world.climbNodes or {}
-    run.world.mapNodes = run.world.mapNodes or {}
-    run.world.workbenches = run.world.workbenches or {}
-    run.world.curingStations = run.world.curingStations or {}
-    run.world.curing = run.world.curing or {}
     run.world.mappedTiles = run.world.mappedTiles or {}
-    run.world.pointsOfInterest = run.world.pointsOfInterest or {}
     run.world.discoveredPOIs = run.world.discoveredPOIs or {}
     run.world.goals = run.world.goals or {}
-    run.world.biomes = run.world.biomes or {}
     run.world.landmarks = run.world.landmarks or {}
     run.world.regions = run.world.regions or {}
     run.world.connections = run.world.connections or {}
-    run.world.gates = run.world.gates or {}
     run.world.traversalRequirements = run.world.traversalRequirements or {}
-    run.world.npcEncounters = run.world.npcEncounters or {}
     World.attachRun(run)
+    World.ensureActiveCollections(run, {
+        "traps",
+        "carcasses",
+        "fishingSpots",
+        "climbNodes",
+        "mapNodes",
+        "workbenches",
+        "curingStations",
+        "curing",
+        "pointsOfInterest",
+        "biomes",
+        "gates",
+        "npcEncounters",
+    })
 
-    if options.context then
-        local context = options.context
-        if context.weather then
-            run.world.weather.current = context.weather.current or run.world.weather.current
-            run.world.weather.hoursUntilChange = context.weather.hoursUntilChange or run.world.weather.hoursUntilChange
-        end
-        if context.timeOfDay then
-            run.world.timeOfDay = context.timeOfDay
-        end
-        if context.dayCount then
-            run.world.dayCount = context.dayCount
-            run.stats.daysSurvived = context.dayCount
-        end
-        if context.player then
-            run.player.maxCondition = context.player.maxCondition or run.player.maxCondition
-            run.player.carryCapacity = context.player.carryCapacity or run.player.carryCapacity
-            run.player.equippedTool = context.player.equippedTool or run.player.equippedTool
-            run.player.equippedWeapon = context.player.equippedWeapon or run.player.equippedWeapon
-            run.player.equippedMeleeWeapon = context.player.equippedMeleeWeapon or run.player.equippedMeleeWeapon
-            if context.player.depth and run.world.levels[context.player.depth] then
-                World.changeDepth(run, context.player.depth)
-            end
-            run.player.condition = math.min(run.player.condition, run.player.maxCondition)
-        end
+    if options.replayMode then
+        applyReplayContext(run, options.context or {})
+    elseif options.context then
+        applyReplayContext(run, options.context)
     end
 
     run.runtime.currentBiome = currentBiomeRegion(run, run.player.coord) and currentBiomeRegion(run, run.player.coord).name or nil
@@ -500,8 +779,9 @@ end
 local function updatePointOfInterestState(run)
     run.runtime.currentPOI = nil
     local nearestDistance = math.huge
+    local pointsOfInterest = World.readActiveCollection(run, "pointsOfInterest")
 
-    for _, poi in ipairs(run.world.pointsOfInterest or {}) do
+    for _, poi in ipairs(pointsOfInterest) do
         if poi.hidden and not poi.revealed then
             goto continue
         end
@@ -525,7 +805,8 @@ end
 
 local function discoverMappedPointOfInterest(run, centerCoord, radiusTiles)
     local radius = radiusTiles * CONFIG.TILE_SIZE
-    for _, poi in ipairs(run.world.pointsOfInterest or {}) do
+    local pointsOfInterest = World.readActiveCollection(run, "pointsOfInterest")
+    for _, poi in ipairs(pointsOfInterest) do
         if (not poi.hidden or poi.revealed)
             and Utils.distance(centerCoord[1], centerCoord[2], poi.coord[1], poi.coord[2]) <= radius then
             discoverPointOfInterest(run, poi)
@@ -533,7 +814,7 @@ local function discoverMappedPointOfInterest(run, centerCoord, radiusTiles)
     end
 end
 
-local function updateVisibility()
+updateVisibility = function()
     if not game.run then
         return
     end
@@ -541,13 +822,14 @@ local function updateVisibility()
     local radius = Survival.visibleRadius(run)
     run.runtime.currentVisibleTiles = {}
     run.world.mappedTiles = run.world.mappedTiles or {}
+    local grid = World.activeGrid(run)
     local px, py = Utils.pixelToGrid(run.player.coord[1], run.player.coord[2])
     for dy = -radius, radius do
         for dx = -radius, radius do
             if math.sqrt((dx * dx) + (dy * dy)) <= radius then
                 local gx = px + dx + 1
                 local gy = py + dy + 1
-                if run.world.grid[gy] and run.world.grid[gy][gx] then
+                if grid[gy] and grid[gy][gx] then
                     run.runtime.currentVisibleTiles[gx .. ":" .. gy] = true
                     run.world.mappedTiles[gx .. ":" .. gy] = true
                 end
@@ -650,6 +932,23 @@ local function finalizeDeath()
     game.screen = "death"
 end
 
+local function finalizeSuccess()
+    local run = game.run
+    if not run or run.finished then
+        return
+    end
+    run.finished = true
+    run.player.alive = true
+    Replay.stopRecording()
+    Replay.stopPlayback()
+    SoundEvents.stop("walking")
+    SoundEvents.updateWeather(nil)
+    if not run.replayMode then
+        Progression.recordRun(run.stats)
+    end
+    setRunMessage("You activated the Weather Station.")
+end
+
 local function setDoorState()
     if not game.run then
         return
@@ -671,13 +970,15 @@ end
 local function currentTileAtCoord(coord)
     local run = game.run
     local gx, gy = Utils.pixelToGrid(coord[1], coord[2])
-    local row = run.world.grid[gy + 1]
+    local grid = World.activeGrid(run)
+    local row = grid[gy + 1]
     return row and row[gx + 1], gx + 1, gy + 1
 end
 
 local function tileAtRunCoord(run, coord)
     local gx, gy = Utils.pixelToGrid(coord[1], coord[2])
-    local row = run.world.grid[gy + 1]
+    local grid = World.activeGrid(run)
+    local row = grid[gy + 1]
     return row and row[gx + 1], gx + 1, gy + 1
 end
 
@@ -906,7 +1207,8 @@ local function gatherNode(node)
 end
 
 local function findNearbyNode()
-    for index, node in ipairs(game.run.world.resourceNodes or {}) do
+    local resourceNodes = World.readActiveCollection(game.run, "resourceNodes")
+    for index, node in ipairs(resourceNodes) do
         if node.hidden and not node.revealed then
             goto continue
         end
@@ -920,7 +1222,8 @@ local function findNearbyNode()
 end
 
 local function findNearbySnowShelter()
-    for _, shelter in ipairs(game.run.world.snowShelters or {}) do
+    local snowShelters = World.readActiveCollection(game.run, "snowShelters")
+    for _, shelter in ipairs(snowShelters) do
         local distance = Utils.distance(game.run.player.coord[1], game.run.player.coord[2], shelter.coord[1], shelter.coord[2])
         if distance <= CONFIG.TILE_SIZE * 1.2 then
             return shelter
@@ -941,7 +1244,11 @@ end
 
 local function findNearbyNPC(run)
     run = run or game.run
-    for _, encounter in ipairs((run and run.world and run.world.npcEncounters) or {}) do
+    local encounters = {}
+    if run then
+        encounters = World.readActiveCollection(run, "npcEncounters")
+    end
+    for _, encounter in ipairs(encounters) do
         if encounter.resolutionState == "active" then
             local distance = Utils.distance(run.player.coord[1], run.player.coord[2], encounter.coord[1], encounter.coord[2])
             if distance <= CONFIG.NPC_INTERACT_RADIUS_TILES * CONFIG.TILE_SIZE then
@@ -971,54 +1278,7 @@ end
 
 local function interactWithNPC(run)
     local encounter = findNearbyNPC(run)
-    if not encounter then
-        return false, "No one answers."
-    end
-
-    local ok = false
-    local message = "You exchange a few words."
-    if encounter.kind == "injured_survivor" then
-        if Items.count(run.player.inventory, "bandage") < 1 then
-            return false, "They need a bandage."
-        end
-        Items.remove(run.player.inventory, "bandage", 1)
-        collectEncounterInventory(run, encounter)
-        resolveEncounterRumors(run, encounter)
-        ok = true
-        message = "You patch up the survivor and hear of a hidden route."
-    elseif encounter.kind == "roaming_trader" then
-        if Items.count(run.player.inventory, "cloth") > 0 then
-            Items.remove(run.player.inventory, "cloth", 1)
-        elseif Items.count(run.player.inventory, "charcoal") > 0 then
-            Items.remove(run.player.inventory, "charcoal", 1)
-        elseif Items.count(run.player.inventory, "canned_food") > 0 then
-            Items.remove(run.player.inventory, "canned_food", 1)
-        else
-            return false, "The trader wants cloth, charcoal, or food."
-        end
-        collectEncounterInventory(run, encounter)
-        resolveEncounterRumors(run, encounter)
-        ok = true
-        message = "You make a hard trade for exploration gear."
-    elseif encounter.kind == "rival_explorer" then
-        resolveEncounterRumors(run, encounter)
-        ok = true
-        message = "The rival marks a hidden route on your map."
-    elseif encounter.kind == "scavenger" then
-        collectEncounterInventory(run, encounter)
-        resolveEncounterRumors(run, encounter)
-        ok = true
-        message = "The scavenger yields some supplies and a lead."
-    elseif encounter.kind == "rumor_giver" then
-        resolveEncounterRumors(run, encounter)
-        ok = true
-        message = "You hear a useful rumor."
-    end
-
-    if ok then
-        encounter.resolutionState = "resolved"
-    end
-    return ok, message
+    return Survival.interactNPC(run, encounter)
 end
 
 refreshCraftMenu = function()
@@ -1055,6 +1315,13 @@ applyPendingShake = function()
     end
 end
 
+local function playPendingRuntimeSound(run)
+    if run and run.runtime and run.runtime.pendingSound then
+        SoundEvents.play(run.runtime.pendingSound)
+        run.runtime.pendingSound = nil
+    end
+end
+
 local function rebuildStationView(run)
     local stationsByKey = {}
     local function ensureStation(coord)
@@ -1071,15 +1338,19 @@ local function rebuildStationView(run)
         return stationsByKey[key]
     end
 
-    for _, workbench in ipairs(run.world.workbenches or {}) do
+    local workbenches = World.readActiveCollection(run, "workbenches")
+    local curingStations = World.readActiveCollection(run, "curingStations")
+    local curingItems = World.readActiveCollection(run, "curing")
+
+    for _, workbench in ipairs(workbenches) do
         local station = ensureStation(workbench.coord)
         station.hasWorkbench = true
     end
-    for _, rack in ipairs(run.world.curingStations or {}) do
+    for _, rack in ipairs(curingStations) do
         local station = ensureStation(rack.coord)
         station.hasCuring = true
     end
-    for _, curing in ipairs(run.world.curing or {}) do
+    for _, curing in ipairs(curingItems) do
         local station = ensureStation(curing.coord)
         station.hasCuring = true
         if curing.hoursRemaining <= 0 then
@@ -1129,9 +1400,12 @@ updateRunSignals = function()
     local shelter = findNearbySnowShelter()
     local trap = Wildlife.findNearbyTrap(run)
     local carcass = Wildlife.findNearbyCarcass(run)
-    local fishingSpot = findNearbyCoordEntry(run.world.fishingSpots)
-    local climbNode = findNearbyCoordEntry(run.world.climbNodes)
-    local mapNode = findNearbyCoordEntry(run.world.mapNodes)
+    local fishingSpots = World.readActiveCollection(run, "fishingSpots")
+    local climbNodes = World.readActiveCollection(run, "climbNodes")
+    local mapNodes = World.readActiveCollection(run, "mapNodes")
+    local fishingSpot = findNearbyCoordEntry(fishingSpots)
+    local climbNode = findNearbyCoordEntry(climbNodes)
+    local mapNode = findNearbyCoordEntry(mapNodes)
     local gate = Survival.findNearbyTraversalGate(run, true)
     local npcEncounter = findNearbyNPC(run)
     local currentStation = run.runtime.currentStation
@@ -1164,8 +1438,9 @@ updateRunSignals = function()
     end
 
     local wolfAlertDistance = CONFIG.WOLF_DETECTION_RADIUS_TILES * CONFIG.TILE_SIZE
+    local activeWildlife = World.activeWildlife(run)
     for _, listName in ipairs({"wolves", "raiders"}) do
-        for _, hostile in ipairs(run.world.wildlife[listName] or {}) do
+        for _, hostile in ipairs(activeWildlife[listName] or {}) do
             local distance = Utils.distance(run.player.coord[1], run.player.coord[2], hostile.coord[1], hostile.coord[2])
             if distance <= wolfAlertDistance then
                 local intensity = Utils.clamp(1 - (distance / wolfAlertDistance), 0.2, 1)
@@ -1256,6 +1531,8 @@ local function interact()
     local facingOk, facingMessage = World.interactFacing(game.run)
     if facingOk or facingMessage then
         setRunMessage(facingMessage)
+        applyPendingShake()
+        playPendingRuntimeSound(game.run)
         updateVisibility()
         updateCamera(game.run)
         updateRunSignals()
@@ -1308,7 +1585,8 @@ local function interact()
         return ok
     end
 
-    local fishingSpot = findNearbyCoordEntry(game.run.world.fishingSpots)
+    local fishingSpots = World.readActiveCollection(game.run, "fishingSpots")
+    local fishingSpot = findNearbyCoordEntry(fishingSpots)
     if fishingSpot then
         local ok, message = Wildlife.fish(game.run)
         setRunMessage(message)
@@ -1320,7 +1598,8 @@ local function interact()
         return ok
     end
 
-    local climbNode = findNearbyCoordEntry(game.run.world.climbNodes)
+    local climbNodes = World.readActiveCollection(game.run, "climbNodes")
+    local climbNode = findNearbyCoordEntry(climbNodes)
     if climbNode then
         local ok, message = Survival.useRopeClimb(game.run)
         setRunMessage(message)
@@ -1333,7 +1612,8 @@ local function interact()
         return ok
     end
 
-    local curingStation = findNearbyCoordEntry(game.run.world.curingStations)
+    local curingStations = World.readActiveCollection(game.run, "curingStations")
+    local curingStation = findNearbyCoordEntry(curingStations)
     if curingStation then
         local ok, message = Survival.collectCuredItems(game.run)
         if not ok then
@@ -1349,7 +1629,8 @@ local function interact()
         node.opened = true
         gatherNode(node)
         if node.type ~= "cache" then
-            table.remove(game.run.world.resourceNodes, index)
+            local resourceNodes = World.readActiveCollection(game.run, "resourceNodes")
+            table.remove(resourceNodes, index)
         end
         if node.type == "wood" then
             setRunMessage("You break down some wood.")
@@ -1559,7 +1840,8 @@ local function handleGameplayActionKey(key)
         applyPendingShake()
         updateVisibility()
         if ok then
-            local mapNode = findNearbyCoordEntry(game.run.world.mapNodes)
+            local mapNodes = World.readActiveCollection(game.run, "mapNodes")
+            local mapNode = findNearbyCoordEntry(mapNodes)
             if mapNode then
                 discoverMappedPointOfInterest(game.run, mapNode.coord, CONFIG.MAP_REVEAL_RADIUS)
             end
@@ -1591,7 +1873,7 @@ local function handleGameplayActionKey(key)
         elseif weapon == "sword" then
             ok, message = queueAttack("melee")
         elseif game.run.player.equippedTool then
-            ok, message = World.hitFacingTile(game.run, game.run.player.equippedTool)
+            ok, message = World.hitFacing(game.run, game.run.player.equippedTool)
             if ok then
                 Survival.updateCarryWeight(game.run.player)
                 refreshCraftMenu()
@@ -1720,7 +2002,9 @@ local function updateGame(dt)
     refreshCraftMenu()
     updateRunSignals()
 
-    if run.player.condition <= 0 or not run.player.alive then
+    if run.runtime.endgameActivated then
+        finalizeSuccess()
+    elseif run.player.condition <= 0 or not run.player.alive then
         finalizeDeath()
     end
 end
@@ -1729,9 +2013,32 @@ local function drawTile(tile, drawX, drawY)
     SpriteRegistry.drawTile(sprites, tile, drawX, drawY, game.settings)
 end
 
+local function tileCoord(coord)
+    local gx, gy = Utils.pixelToGrid(coord[1], coord[2])
+    return gx + 1, gy + 1
+end
+
+local function shouldDrawLegacyEntry(entry)
+    return not (entry and (entry._entityKey or (entry._entity and entry._entity.render)))
+end
+
+local function hasEntityStation(level, station)
+    local x, y = tileCoord(station.coord)
+    for _, entity in ipairs(EntitySystem.getTileEntities(level, x, y)) do
+        if entity.station or entity.stations then
+            return true
+        end
+    end
+    return false
+end
+
 local function drawWorld()
     local run = game.run
-    local world = run.world
+    local level = World.currentLevel(run)
+    local grid = World.activeGrid(run)
+    local resourceNodes = World.readActiveCollection(run, "resourceNodes")
+    local pointsOfInterest = World.readActiveCollection(run, "pointsOfInterest")
+    Wildlife.mirrorLevel(level)
     updateCamera(run)
 
     love.graphics.clear(0.02, 0.05, 0.08, 1)
@@ -1741,12 +2048,12 @@ local function drawWorld()
     end
     love.graphics.translate(-run.runtime.camera.x, -run.runtime.camera.y)
 
-    for y = 1, #world.grid do
-        for x = 1, #world.grid[y] do
+    for y = 1, #grid do
+        for x = 1, #grid[y] do
             if isVisibleTile(x, y) or isMappedTile(x, y) then
                 local drawX = (x - 1) * CONFIG.TILE_SIZE
                 local drawY = (y - 1) * CONFIG.TILE_SIZE
-                drawTile(world.grid[y][x], drawX, drawY)
+                drawTile(grid[y][x], drawX, drawY)
                 if not isVisibleTile(x, y) then
                     Accessibility.setColor(game.settings, 0, 0, 0, 0.58)
                     love.graphics.rectangle("fill", drawX, drawY, CONFIG.TILE_SIZE, CONFIG.TILE_SIZE)
@@ -1755,7 +2062,7 @@ local function drawWorld()
         end
     end
 
-    for _, structure in ipairs(world.structures or {}) do
+    for _, structure in ipairs(level.structures or {}) do
         if structure.type == "cabin" and isVisibleTile(structure.door.x, structure.door.y) then
             SpriteRegistry.drawDoor(sprites, structure.doorOpen,
                 (structure.door.x - 1) * CONFIG.TILE_SIZE,
@@ -1764,116 +2071,79 @@ local function drawWorld()
         end
     end
 
-    for _, shelter in ipairs(world.snowShelters or {}) do
-        local gx, gy = Utils.pixelToGrid(shelter.coord[1], shelter.coord[2])
-        if isVisibleTile(gx + 1, gy + 1) then
-            SpriteRegistry.drawTile(sprites, "snow_shelter", shelter.coord[1], shelter.coord[2], game.settings)
-        end
-    end
-
-    for _, node in ipairs(world.resourceNodes or {}) do
+    for _, node in ipairs(resourceNodes) do
         local gx, gy = Utils.pixelToGrid(node.coord[1], node.coord[2])
-        if (not node.hidden or node.revealed) and isVisibleTile(gx + 1, gy + 1) then
+        if shouldDrawLegacyEntry(node) and (not node.hidden or node.revealed) and isVisibleTile(gx + 1, gy + 1) then
             SpriteRegistry.drawResourceNode(sprites, node, game.settings)
         end
     end
 
-    for _, fire in ipairs(world.fires or {}) do
-        local gx, gy = Utils.pixelToGrid(fire.coord[1], fire.coord[2])
-        if isVisibleTile(gx + 1, gy + 1) then
-            SpriteRegistry.drawFire(sprites, fire, game.settings, love.timer.getTime())
-        end
-    end
-
-    for _, trap in ipairs(world.traps or {}) do
-        local gx, gy = Utils.pixelToGrid(trap.coord[1], trap.coord[2])
-        if isVisibleTile(gx + 1, gy + 1) then
-            SpriteRegistry.drawTrap(sprites, trap, game.settings)
-        end
-    end
-
-    for _, carcass in ipairs(world.carcasses or {}) do
-        local gx, gy = Utils.pixelToGrid(carcass.coord[1], carcass.coord[2])
-        if isVisibleTile(gx + 1, gy + 1) then
-            SpriteRegistry.drawCarcass(sprites, carcass, game.settings)
-        end
-    end
-
-    for _, spot in ipairs(world.fishingSpots or {}) do
-        local gx, gy = Utils.pixelToGrid(spot.coord[1], spot.coord[2])
-        if isVisibleTile(gx + 1, gy + 1) then
-            SpriteRegistry.drawWorldMarker(sprites, "fishing", spot.coord, game.settings)
-        end
-    end
-
-    for _, node in ipairs(world.climbNodes or {}) do
-        local gx, gy = Utils.pixelToGrid(node.coord[1], node.coord[2])
-        if isVisibleTile(gx + 1, gy + 1) then
-            SpriteRegistry.drawWorldMarker(sprites, "climb", node.coord, game.settings)
-        end
-    end
-
-    for _, node in ipairs(world.mapNodes or {}) do
-        local gx, gy = Utils.pixelToGrid(node.coord[1], node.coord[2])
-        if isVisibleTile(gx + 1, gy + 1) then
-            SpriteRegistry.drawWorldMarker(sprites, node.survey and "survey" or "map", node.coord, game.settings)
-        end
-    end
-    for _, gate in ipairs(world.gates or {}) do
-        local gx, gy = Utils.pixelToGrid(gate.coord[1], gate.coord[2])
-        if gate.revealed ~= false and isVisibleTile(gx + 1, gy + 1) then
-            SpriteRegistry.drawWorldMarker(sprites, gate.unlockState and "gate_open" or "gate_locked", gate.coord, game.settings)
-        end
-    end
-    for _, encounter in ipairs(world.npcEncounters or {}) do
-        if encounter.resolutionState == "active" then
-            local gx, gy = Utils.pixelToGrid(encounter.coord[1], encounter.coord[2])
-            if isVisibleTile(gx + 1, gy + 1) then
-                SpriteRegistry.drawWorldMarker(sprites, "npc", encounter.coord, game.settings)
+    EntitySystem.render(level, {
+        drawTile = function(tile, x, y)
+            local gx, gy = tileCoord({x, y})
+            if isVisibleTile(gx, gy) then
+                SpriteRegistry.drawTile(sprites, tile, x, y, game.settings)
             end
-        end
-    end
+        end,
+        drawResourceNode = function(node)
+            local gx, gy = tileCoord(node.coord)
+            if (not node.hidden or node.revealed) and isVisibleTile(gx, gy) then
+                SpriteRegistry.drawResourceNode(sprites, node, game.settings)
+            end
+        end,
+        drawStation = function(station)
+            local gx, gy = tileCoord(station.coord)
+            if isVisibleTile(gx, gy) then
+                SpriteRegistry.drawStation(sprites, station, game.settings)
+            end
+        end,
+        drawWildlife = function(actor)
+            local gx, gy = tileCoord(actor.coord)
+            if isVisibleTile(gx, gy) then
+                SpriteRegistry.drawWildlife(sprites, actor, game.settings)
+            end
+        end,
+        drawFire = function(fire)
+            local gx, gy = tileCoord(fire.coord)
+            if isVisibleTile(gx, gy) then
+                SpriteRegistry.drawFire(sprites, fire, game.settings, love.timer.getTime())
+            end
+        end,
+        drawTrap = function(trap)
+            local gx, gy = tileCoord(trap.coord)
+            if isVisibleTile(gx, gy) then
+                SpriteRegistry.drawTrap(sprites, trap, game.settings)
+            end
+        end,
+        drawCarcass = function(carcass)
+            local gx, gy = tileCoord(carcass.coord)
+            if isVisibleTile(gx, gy) then
+                SpriteRegistry.drawCarcass(sprites, carcass, game.settings)
+            end
+        end,
+        drawWorldMarker = function(kind, marker)
+            local gx, gy = tileCoord(marker.coord)
+            if isVisibleTile(gx, gy) then
+                SpriteRegistry.drawWorldMarker(sprites, kind, marker.coord, game.settings)
+            end
+        end,
+    })
 
     for _, station in ipairs(run.runtime.stations or {}) do
         local gx, gy = Utils.pixelToGrid(station.coord[1], station.coord[2])
-        if isVisibleTile(gx + 1, gy + 1) then
+        if not hasEntityStation(level, station) and isVisibleTile(gx + 1, gy + 1) then
             SpriteRegistry.drawStation(sprites, station, game.settings)
         end
     end
 
-    for _, wolf in ipairs(world.wildlife.wolves or {}) do
-        local gx, gy = Utils.pixelToGrid(wolf.coord[1], wolf.coord[2])
-        if isVisibleTile(gx + 1, gy + 1) then
-            SpriteRegistry.drawWildlife(sprites, wolf, game.settings)
-        end
-    end
-    for _, rabbit in ipairs(world.wildlife.rabbits or {}) do
-        local gx, gy = Utils.pixelToGrid(rabbit.coord[1], rabbit.coord[2])
-        if isVisibleTile(gx + 1, gy + 1) then
-            SpriteRegistry.drawWildlife(sprites, rabbit, game.settings)
-        end
-    end
-    for _, deer in ipairs(world.wildlife.deer or {}) do
-        local gx, gy = Utils.pixelToGrid(deer.coord[1], deer.coord[2])
-        if isVisibleTile(gx + 1, gy + 1) then
-            SpriteRegistry.drawWildlife(sprites, deer, game.settings)
-        end
-    end
-    for _, raider in ipairs(world.wildlife.raiders or {}) do
-        local gx, gy = Utils.pixelToGrid(raider.coord[1], raider.coord[2])
-        if isVisibleTile(gx + 1, gy + 1) then
-            SpriteRegistry.drawWildlife(sprites, raider, game.settings)
-        end
-    end
-
     love.graphics.setFont(fonts.small)
-    for _, poi in ipairs(world.pointsOfInterest or {}) do
+    for _, poi in ipairs(pointsOfInterest) do
         if poi.hidden and not poi.revealed then
             goto continue
         end
         local gx, gy = Utils.pixelToGrid(poi.coord[1], poi.coord[2])
         local key = pointOfInterestKey(poi)
-        if world.discoveredPOIs[key] and (isVisibleTile(gx + 1, gy + 1) or isMappedTile(gx + 1, gy + 1)) then
+        if run.world.discoveredPOIs[key] and (isVisibleTile(gx + 1, gy + 1) or isMappedTile(gx + 1, gy + 1)) then
             Accessibility.setColor(game.settings, 0.92, 0.95, 1, isVisibleTile(gx + 1, gy + 1) and 0.95 or 0.62)
             love.graphics.print(poi.name, poi.coord[1] - 4, poi.coord[2] - 14)
         end
@@ -1898,6 +2168,12 @@ end
 local function openReplayScreen()
     refreshReplayEntries()
     game.screen = "replays"
+end
+
+local function openSaveScreen(previousScreen)
+    game.saveScreen.previousScreen = previousScreen or game.screen
+    refreshSaveEntries()
+    game.screen = "saves"
 end
 
 local function startReplayFromSelection()
@@ -1948,6 +2224,7 @@ function love.load()
     end)
     Replay.init()
     refreshReplayEntries()
+    refreshSaveEntries()
 
     love._tikritDebug = {
         getGameState = function()
@@ -1961,6 +2238,36 @@ function love.load()
                 editorLayout = layout,
                 mode = "survival",
             })
+        end,
+        startReplayContext = function(context, seed, difficulty)
+            startNewRun({
+                seed = seed,
+                difficulty = difficulty,
+                replayMode = true,
+                context = context or {},
+            })
+            return game.run
+        end,
+        saveCurrentGame = function()
+            return saveCurrentGame()
+        end,
+        saveManualGame = function()
+            return saveManualGame()
+        end,
+        deleteSaveSlot = function(slot)
+            return SaveGame.delete(slot)
+        end,
+        loadSaveSlot = function(slot)
+            local run = SaveGame.loadRun(slot)
+            if not run then
+                return nil
+            end
+            restoreLoadedRun(run)
+            return game.run
+        end,
+        refreshSaveEntries = function()
+            refreshSaveEntries()
+            return game.saveScreen.entries
         end,
     }
 end
@@ -1990,6 +2297,8 @@ function love.draw()
         UI.drawProfileScreen(Progression.data, fonts, game.settings)
     elseif game.screen == "replays" then
         UI.drawReplayScreen(game.replayScreen, fonts, game.settings)
+    elseif game.screen == "saves" then
+        UI.drawSaveScreen(game.saveScreen, fonts, game.settings)
     elseif game.screen == "game" then
         drawWorld()
     elseif game.screen == "pause" then
@@ -2032,20 +2341,23 @@ function love.keypressed(key)
         elseif key == "right" and game.titleIndex == 2 then
             cycleDifficulty(1)
         elseif key == "return" then
-            if game.titleIndex == 1 then
+            local action = game.titleItems[game.titleIndex] and game.titleItems[game.titleIndex].action
+            if action == "start" then
                 startNewRun()
-            elseif game.titleIndex == 2 then
+            elseif action == "difficulty" then
                 cycleDifficulty(1)
-            elseif game.titleIndex == 3 then
+            elseif action == "daily" then
                 startNewRun({useDailyChallenge = true})
-            elseif game.titleIndex == 4 then
+            elseif action == "load_game" then
+                openSaveScreen("title")
+            elseif action == "settings" then
                 openSettings("title")
-            elseif game.titleIndex == 5 then
+            elseif action == "profile" then
                 game.previousScreen = "title"
                 game.screen = "profile"
-            elseif game.titleIndex == 6 then
+            elseif action == "replays" then
                 openReplayScreen()
-            elseif game.titleIndex == 7 then
+            elseif action == "quit" then
                 love.event.quit()
             end
         elseif key == "escape" then
@@ -2095,6 +2407,23 @@ function love.keypressed(key)
         return
     end
 
+    if game.screen == "saves" then
+        if key == "up" then
+            game.saveScreen.index = math.max(1, game.saveScreen.index - 1)
+        elseif key == "down" then
+            game.saveScreen.index = math.min(#game.saveScreen.entries, game.saveScreen.index + 1)
+        elseif key == "r" then
+            refreshSaveEntries()
+        elseif key == "d" or key == "delete" or key == "backspace" then
+            deleteSaveSelection()
+        elseif key == "return" then
+            loadSaveFromSelection()
+        elseif key == "escape" then
+            game.screen = game.saveScreen.previousScreen or "title"
+        end
+        return
+    end
+
     if game.screen == "game" then
         if game.run and game.run.runtime.craftMenuOpen then
             if key == "up" then
@@ -2131,15 +2460,20 @@ function love.keypressed(key)
         elseif key == "down" then
             game.pauseIndex = math.min(#game.pauseOptions, game.pauseIndex + 1)
         elseif key == "return" then
-            if game.pauseIndex == 1 then
+            local action = game.pauseOptions[game.pauseIndex] and game.pauseOptions[game.pauseIndex].action
+            if action == "resume" then
                 game.screen = "game"
-            elseif game.pauseIndex == 2 then
+            elseif action == "settings" then
                 openSettings("pause")
-            elseif game.pauseIndex == 3 then
+            elseif action == "save_game" then
+                saveManualGame()
+            elseif action == "load_game" then
+                openSaveScreen("pause")
+            elseif action == "save_replay" then
                 saveReplaySnapshot()
-            elseif game.pauseIndex == 4 then
+            elseif action == "restart" then
                 startNewRun()
-            elseif game.pauseIndex == 5 then
+            elseif action == "quit_title" then
                 returnToTitle()
             end
         elseif key == "escape" or key == "p" then

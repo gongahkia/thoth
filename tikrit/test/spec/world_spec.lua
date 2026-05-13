@@ -212,6 +212,9 @@ describe("World", function()
                 snowShelters = {
                     {coord = {20, 20}, integrity = 100},
                 },
+                fires = {
+                    {coord = {20, 20}, remainingBurnHours = 1, remainingEmbersHours = 0},
+                },
                 resourceNodes = {
                     {type = "loot", coord = {20, 20}, opened = true, regrowHours = 0.5},
                 },
@@ -224,7 +227,140 @@ describe("World", function()
 
         TestRunner.assertTrue(run.world.snowShelters[1].integrity < 100)
         TestRunner.assertFalse(run.world.resourceNodes[1].opened)
+        TestRunner.assertTrue(run.world.resourceNodes[1].regrown)
+        TestRunner.assertEqual(run.world.resourceNodes[1].lastRegrowDepth, 0)
+        TestRunner.assertEqual(run.world.fires[1].decayTicks, 1)
+        TestRunner.assertEqual(run.world.fires[1].lastTickDepth, 0)
         TestRunner.assertType(run.world.snowCover, "table")
+    end)
+
+    it("returns active level collections through compatibility helpers", function()
+        local run = {
+            world = {
+                grid = {
+                    {"rock", "rock", "rock"},
+                    {"rock", "snow", "rock"},
+                    {"rock", "rock", "rock"},
+                },
+                resourceNodes = {},
+            },
+            player = {coord = {20, 20}, lastSafeCoord = {20, 20}},
+        }
+        World.attachRun(run)
+
+        local resources, level = World.activeCollection(run, "resourceNodes")
+        table.insert(resources, {type = "loot", coord = {20, 20}})
+        local readResources = World.readActiveCollection(run, "resourceNodes")
+        local missing = World.readActiveCollection(run, "uncreatedCollection")
+
+        TestRunner.assertTrue(resources == level.resourceNodes)
+        TestRunner.assertTrue(readResources == resources)
+        TestRunner.assertTrue(run.world.resourceNodes == resources)
+        TestRunner.assertEqual(#run.world.resourceNodes, 1)
+        TestRunner.assertEqual(#missing, 0)
+        TestRunner.assertEqual(level.uncreatedCollection, nil)
+    end)
+
+    it("batch-initializes active collections without touching inactive levels", function()
+        local surface = {
+            depth = 0,
+            grid = {
+                {"rock", "rock", "rock"},
+                {"rock", "snow", "rock"},
+                {"rock", "rock", "rock"},
+            },
+            traps = {},
+        }
+        local cave = {
+            depth = -1,
+            grid = {
+                {"rock", "rock", "rock"},
+                {"rock", "cave_floor", "rock"},
+                {"rock", "rock", "rock"},
+            },
+        }
+        local run = {
+            world = {levels = {[0] = surface, [-1] = cave}, currentDepth = -1},
+            player = {coord = {20, 20}, lastSafeCoord = {20, 20}},
+        }
+        World.attachRun(run)
+
+        local collections, level = World.ensureActiveCollections(run, {"traps", "mapNodes", "curing"})
+        table.insert(collections.traps, {coord = {20, 20}})
+
+        TestRunner.assertTrue(level == cave)
+        TestRunner.assertTrue(run.world.traps == cave.traps)
+        TestRunner.assertEqual(#cave.traps, 1)
+        TestRunner.assertEqual(#surface.traps, 0)
+        TestRunner.assertType(cave.mapNodes, "table")
+        TestRunner.assertType(cave.curing, "table")
+    end)
+
+    it("returns active wildlife and grid without leaking surface aliases", function()
+        local surface = {
+            depth = 0,
+            grid = {
+                {"rock", "rock", "rock"},
+                {"rock", "snow", "rock"},
+                {"rock", "rock", "rock"},
+            },
+            wildlife = {wolves = {{kind = "wolf"}}, rabbits = {}, deer = {}, raiders = {}},
+        }
+        local cave = {
+            depth = -1,
+            grid = {
+                {"rock", "rock", "rock"},
+                {"rock", "cave_floor", "rock"},
+                {"rock", "rock", "rock"},
+            },
+            wildlife = {wolves = {}, rabbits = {{kind = "rabbit"}}, deer = {}, raiders = {}},
+        }
+        local run = {
+            world = {levels = {[0] = surface, [-1] = cave}, currentDepth = -1},
+            player = {coord = {20, 20}, lastSafeCoord = {20, 20}},
+        }
+        World.attachRun(run)
+
+        local wildlife, level = World.activeWildlife(run)
+        local grid = World.activeGrid(run)
+
+        TestRunner.assertTrue(level == cave)
+        TestRunner.assertTrue(run.world.wildlife == cave.wildlife)
+        TestRunner.assertEqual(#wildlife.wolves, 0)
+        TestRunner.assertEqual(#wildlife.rabbits, 1)
+        TestRunner.assertEqual(grid[2][2], "cave_floor")
+        TestRunner.assertEqual(#surface.wildlife.wolves, 1)
+    end)
+
+    it("summarizes active tile simulation state without mutating collections", function()
+        local cave = {
+            depth = -1,
+            grid = {
+                {"rock", "rock", "rock"},
+                {"rock", "cave_floor", "rock"},
+                {"rock", "rock", "rock"},
+            },
+            snowCover = {["2:2"] = 2},
+            iceState = {["2:2"] = {stability = 4}},
+            shelterWear = {["3:2"] = 1},
+            warmthPockets = {},
+            thermalWarmth = {["2:3"] = 3, ["3:3"] = 2},
+        }
+        local run = {
+            world = {levels = {[-1] = cave}, currentDepth = -1},
+            player = {coord = {20, 20}, lastSafeCoord = {20, 20}},
+        }
+        World.attachRun(run)
+
+        local summary = World.activeSimulationSummary(run)
+
+        TestRunner.assertEqual(summary.snowCoverTiles, 1)
+        TestRunner.assertEqual(summary.iceStateTiles, 1)
+        TestRunner.assertEqual(summary.shelterWearTiles, 1)
+        TestRunner.assertEqual(summary.warmthPocketTiles, 0)
+        TestRunner.assertEqual(summary.thermalWarmthTiles, 2)
+        TestRunner.assertTrue(run.world.iceState == cave.iceState)
+        TestRunner.assertTrue(run.world.thermalWarmth == cave.thermalWarmth)
     end)
 
     it("activates the ridge weather station with survey readiness", function()
@@ -261,7 +397,13 @@ describe("World", function()
 
         TestRunner.assertTrue(ok)
         TestRunner.assertTrue(run.runtime.endgameActivated)
+        TestRunner.assertTrue(run.runtime.success)
         TestRunner.assertTrue(run.world.goals[1].completed)
         TestRunner.assertTrue(run.stats.weatherStationActivated)
+        TestRunner.assertEqual(#run.runtime.replayEvents, 1)
+
+        local again = World.activateEndgame(run)
+        TestRunner.assertTrue(again)
+        TestRunner.assertEqual(#run.runtime.replayEvents, 1)
     end)
 end)

@@ -5,6 +5,7 @@ local Replay = require("replay")
 local Survival = require("survival")
 local Utils = require("utils")
 local Wildlife = require("wildlife")
+local World = require("world")
 
 local describe = TestRunner.describe
 local it = TestRunner.it
@@ -257,5 +258,41 @@ describe("Base Survival", function()
         TestRunner.assertEqual(replay.difficulty, "interloper")
         TestRunner.assertEqual(replay.context.player.equippedTool, "hatchet")
         TestRunner.assertEqual(replay.context.player.equippedWeapon, "bow")
+    end)
+
+    it("routes inventory item use through item definitions", function()
+        local run = buildRun("snow")
+        run.player.afflictions.sprain = true
+        run.player.afflictions.infectionRiskHours = 4
+        run.player.thirst = 20
+        run.player.warmth = 20
+
+        Items.add(run.player.inventory, "knife", 1)
+        local ok = Items.use(run, "knife")
+        TestRunner.assertTrue(ok)
+        TestRunner.assertEqual(run.player.equippedTool, "knife")
+
+        Items.add(run.player.inventory, "torch", 1)
+        ok = Items.use(run, "torch")
+        TestRunner.assertTrue(ok)
+        TestRunner.assertEqual(run.player.equippedLight, "torch")
+        TestRunner.assertEqual(Items.count(run.player.inventory, "torch"), 0)
+
+        Items.add(run.player.inventory, "bandage", 1)
+        ok = Items.use(run, "bandage")
+        TestRunner.assertTrue(ok)
+        TestRunner.assertFalse(run.player.afflictions.sprain)
+
+        Items.add(run.player.inventory, "antiseptic", 1)
+        ok = Items.use(run, "antiseptic")
+        TestRunner.assertTrue(ok)
+        TestRunner.assertEqual(run.player.afflictions.infectionRiskHours, 0)
+
+        local bedrollBefore = Items.count(run.player.inventory, "bedroll")
+        Items.add(run.player.inventory, "bedroll", 1)
+        ok = Items.use(run, "bedroll")
+        TestRunner.assertTrue(ok)
+        TestRunner.assertEqual(Items.count(run.player.inventory, "bedroll"), bedrollBefore)
+        TestRunner.assertTrue(#(World.currentLevel(run).entities or {}) > 0)
     end)
 end)

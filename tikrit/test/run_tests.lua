@@ -18,6 +18,7 @@ local testFiles = {
     "test/spec/station_affordance_spec.lua",
     "test/spec/tile_registry_spec.lua",
     "test/spec/entity_system_spec.lua",
+    "test/spec/world_objects_spec.lua",
     "test/spec/furniture_spec.lua",
     "test/spec/world_spec.lua",
     "test/spec/procgen_spec.lua",
@@ -27,6 +28,7 @@ local testFiles = {
     "test/spec/wildlife_spec.lua",
     "test/spec/progression_spec.lua",
     "test/spec/replay_spec.lua",
+    "test/spec/save_game_spec.lua",
     "test/spec/repo_cleanup_spec.lua",
     "test/spec/runtime_smoke_spec.lua",
 }
