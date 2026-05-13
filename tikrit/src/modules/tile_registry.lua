@@ -78,9 +78,6 @@ local function baseDefinition(name)
         if level.grid and level.grid[y] then
             level.grid[y][x] = self.baseTile or "snow"
         end
-        if run and run.world and run.world.grid == level.grid then
-            run.world.grid[y][x] = self.baseTile or "snow"
-        end
         return true, self:drops(level, x, y, entity)
     end
 

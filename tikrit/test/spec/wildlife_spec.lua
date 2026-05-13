@@ -52,8 +52,9 @@ describe("Wildlife", function()
 
         Wildlife.mirrorLevel(level)
         Wildlife.mirrorLevel(level)
+        local wildlife = World.activeWildlife(run)
 
-        TestRunner.assertEqual(#run.world.wildlife.wolves, 1)
+        TestRunner.assertEqual(#wildlife.wolves, 1)
         TestRunner.assertEqual(#level.entities, 1)
         TestRunner.assertTrue(#EntitySystem.getTileEntities(level, 3, 3) >= 1)
     end)
@@ -68,13 +69,14 @@ describe("Wildlife", function()
         Wildlife.update(run, 0)
 
         local level = World.currentLevel(run)
+        local wildlife = World.activeWildlife(run)
         local mirrored = 0
         for _, entity in ipairs(level.entities or {}) do
             if entity._wildlifeEntity and entity.kind == "wolf" then
                 mirrored = mirrored + 1
             end
         end
-        TestRunner.assertEqual(#run.world.wildlife.wolves, 1)
+        TestRunner.assertEqual(#wildlife.wolves, 1)
         TestRunner.assertEqual(mirrored, 1)
     end)
 
@@ -101,8 +103,9 @@ describe("Wildlife", function()
         run.player.equippedWeapon = "sword"
         run.player.lastMoveX = 1
         run.player.lastMoveY = 0
-        run.world.wildlife.wolves[1].coord = {80, 40}
-        run.world.wildlife.wolves[1].health = 1
+        local wildlife = World.activeWildlife(run)
+        wildlife.wolves[1].coord = {80, 40}
+        wildlife.wolves[1].health = 1
         World.attachRun(run)
 
         local ok = Wildlife.playerMeleeAttack(run)
@@ -115,10 +118,11 @@ describe("Wildlife", function()
         end
 
         TestRunner.assertTrue(ok)
-        TestRunner.assertEqual(#run.world.wildlife.wolves, 0)
+        TestRunner.assertEqual(#wildlife.wolves, 0)
         TestRunner.assertEqual(mirrored, 0)
-        TestRunner.assertEqual(#run.world.resourceNodes, 1)
-        TestRunner.assertType(run.world.resourceNodes[1]._entityKey, "string")
+        local resourceNodes = World.readActiveCollection(run, "resourceNodes")
+        TestRunner.assertEqual(#resourceNodes, 1)
+        TestRunner.assertType(resourceNodes[1]._entityKey, "string")
     end)
 
     it("places traps and carcasses on the active depth only", function()
@@ -151,12 +155,13 @@ describe("Wildlife", function()
         World.attachRun(run)
 
         local placed = Wildlife.placeSnare(run)
+        local traps = World.activeCollection(run, "traps")
         TestRunner.assertTrue(placed)
         TestRunner.assertEqual(#run.world.levels[0].traps, 0)
         TestRunner.assertEqual(#run.world.levels[-1].traps, 1)
         TestRunner.assertType(run.world.levels[-1].traps[1]._entityKey, "string")
 
-        run.world.traps[1].state = "caught"
+        traps[1].state = "caught"
         local collected = Wildlife.collectTrap(run)
         TestRunner.assertTrue(collected)
         TestRunner.assertEqual(#run.world.levels[-1].traps, 0)
@@ -280,14 +285,16 @@ describe("Wildlife", function()
 
         Wildlife.update(run, 1)
         Wildlife.update(run, 1)
+        local wildlife = World.activeWildlife(run)
 
-        TestRunner.assertEqual(#run.world.wildlife.wolves, 2)
+        TestRunner.assertEqual(#wildlife.wolves, 2)
         TestRunner.assertTrue(#World.currentLevel(run).entities >= 2)
     end)
 
     it("honors spawn rule cooldowns and stores actor AI metadata", function()
         local run = buildRun()
-        run.world.wildlife.wolves = {}
+        local wildlife = World.activeWildlife(run)
+        wildlife.wolves = {}
         run.player.coord = {20, 20}
         run.world.spawnRules = {
             {
@@ -308,9 +315,10 @@ describe("Wildlife", function()
 
         Wildlife.update(run, 1)
         Wildlife.update(run, 1)
-        local wolf = run.world.wildlife.wolves[1]
+        wildlife = World.activeWildlife(run)
+        local wolf = wildlife.wolves[1]
 
-        TestRunner.assertEqual(#run.world.wildlife.wolves, 1)
+        TestRunner.assertEqual(#wildlife.wolves, 1)
         TestRunner.assertEqual(wolf.spawnRuleId, "test_wolf_rule")
         TestRunner.assertEqual(wolf.aiState, wolf.state)
         TestRunner.assertType(wolf.homeZone, "table")
@@ -318,13 +326,14 @@ describe("Wildlife", function()
         TestRunner.assertEqual(wolf.awarenessRadiusTiles, 12)
 
         Wildlife.update(run, 1.1)
-        TestRunner.assertEqual(#run.world.wildlife.wolves, 2)
+        TestRunner.assertEqual(#wildlife.wolves, 2)
     end)
 
     it("spawns deterministically from fixed seed depth rules", function()
         local function seededRun()
             local run = buildRun()
-            run.world.wildlife.wolves = {}
+            local wildlife = World.activeWildlife(run)
+            wildlife.wolves = {}
             run.player.coord = {20, 20}
             run.world.spawnRules = {
                 {
@@ -348,8 +357,10 @@ describe("Wildlife", function()
         local second = seededRun()
         Wildlife.update(second, 1)
 
-        TestRunner.assertTableEqual(first.world.wildlife.wolves[1].coord, second.world.wildlife.wolves[1].coord)
-        TestRunner.assertEqual(first.world.wildlife.wolves[1].spawnRuleId, second.world.wildlife.wolves[1].spawnRuleId)
+        local firstWildlife = World.activeWildlife(first)
+        local secondWildlife = World.activeWildlife(second)
+        TestRunner.assertTableEqual(firstWildlife.wolves[1].coord, secondWildlife.wolves[1].coord)
+        TestRunner.assertEqual(firstWildlife.wolves[1].spawnRuleId, secondWildlife.wolves[1].spawnRuleId)
     end)
 
     it("keeps wildlife spawning on the active depth only", function()
@@ -395,11 +406,11 @@ describe("Wildlife", function()
 
     it("rejects spawns on blocked hazard zones and invalid tiles", function()
         local run = buildRun()
-        run.world.wildlife.wolves = {}
+        local wildlife = World.activeWildlife(run)
+        wildlife.wolves = {}
         run.player.coord = {20, 20}
-        run.world.hazardZones = {
-            {type = "weak_ice", zone = {x = 4, y = 4, width = 1, height = 1}},
-        }
+        local hazardZones = World.activeCollection(run, "hazardZones")
+        hazardZones[1] = {type = "weak_ice", zone = {x = 4, y = 4, width = 1, height = 1}}
         World.attachRun(run)
 
         local hazardSpawn = World.spawnOffscreen(run, "wolf", {
@@ -409,7 +420,8 @@ describe("Wildlife", function()
             allowedTiles = {"snow"},
             blockedHazards = {"weak_ice"},
         })
-        run.world.grid[4][4] = "weak_ice"
+        local grid = World.activeGrid(run)
+        grid[4][4] = "weak_ice"
         local tileSpawn = World.spawnOffscreen(run, "wolf", {
             cap = 1,
             zone = {x = 4, y = 4, width = 1, height = 1},

@@ -67,16 +67,15 @@ describe("Furniture", function()
             player = {coord = {20, 20}, lastMoveX = 1, lastMoveY = 0, inventory = {}},
             runtime = {},
         }
-        run.world.resourceNodes = {
-            {type = "cache", coord = {40, 20}, opened = false, loot = {Items.create("matches", 1)}},
-        }
+        local resourceNodes = World.activeCollection(run, "resourceNodes")
+        resourceNodes[1] = {type = "cache", coord = {40, 20}, opened = false, loot = {Items.create("matches", 1)}}
         World.attachRun(run)
         World.attachRun(run)
 
         local level = World.currentLevel(run)
         local entity
         for _, candidate in ipairs(level.entities or {}) do
-            if candidate._furnitureKey == run.world.resourceNodes[1]._entityKey then
+            if candidate._furnitureKey == resourceNodes[1]._entityKey then
                 entity = candidate
                 break
             end
@@ -92,7 +91,7 @@ describe("Furniture", function()
             end
         end
         TestRunner.assertEqual(count, 1)
-        TestRunner.assertTrue(run.world.resourceNodes[1].opened)
+        TestRunner.assertTrue(resourceNodes[1].opened)
         TestRunner.assertTrue(entity.opened)
         TestRunner.assertEqual(Items.count(run.player.inventory, "matches"), 1)
     end)
@@ -103,9 +102,8 @@ describe("Furniture", function()
             player = {coord = {20, 20}, inventory = {}},
             runtime = {},
         }
-        run.world.resourceNodes = {
-            {type = "cache", coord = {40, 20}, opened = false, loot = {}},
-        }
+        local resourceNodes = World.activeCollection(run, "resourceNodes")
+        resourceNodes[1] = {type = "cache", coord = {40, 20}, opened = false, loot = {}}
         World.attachRun(run)
         local level = World.currentLevel(run)
         local stations = 0
@@ -186,7 +184,7 @@ describe("Furniture", function()
 
         TestRunner.assertTrue(firstOk)
         TestRunner.assertTrue(secondOk)
-        TestRunner.assertEqual(run.world.grid[2][3], "tree")
+        TestRunner.assertEqual(World.activeGrid(run)[2][3], "tree")
         TestRunner.assertEqual(Items.count(run.player.inventory, "matches"), 1)
         TestRunner.assertTrue(Items.count(run.player.inventory, "sticks") >= 2)
         TestRunner.assertEqual(#EntitySystem.getTileEntities(level, 3, 2), 0)

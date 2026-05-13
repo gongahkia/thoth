@@ -148,23 +148,28 @@ describe("Base Survival", function()
     it("supports trapping, fishing, bow hunting, and carcass harvesting", function()
         Utils.setGameSeed(false, 4242)
         local run = buildRun("snow")
-        run.world.rabbitZones = {{x = 1, y = 1, width = 3, height = 3}}
-        run.world.fishingSpots = {{coord = {20, 20}}}
-        run.world.wildlife.rabbits = {
+        local rabbitZones = World.activeCollection(run, "rabbitZones")
+        local fishingSpots = World.activeCollection(run, "fishingSpots")
+        local wildlife = World.activeWildlife(run)
+        rabbitZones[1] = {x = 1, y = 1, width = 3, height = 3}
+        fishingSpots[1] = {coord = {20, 20}}
+        wildlife.rabbits = {
             {kind = "rabbit", coord = {60, 20}, zone = {x = 1, y = 1, width = 3, height = 3}, speed = 20},
         }
-        run.world.wildlife.deer = {
+        wildlife.deer = {
             {kind = "deer", coord = {80, 80}, zone = {x = 1, y = 1, width = 4, height = 4}, speed = 20},
         }
 
         Items.add(run.player.inventory, "snare", 1)
         local ok = Wildlife.placeSnare(run)
+        local traps = World.activeCollection(run, "traps")
         TestRunner.assertTrue(ok)
-        run.world.traps[1].hoursUntilCatch = 0
+        traps[1].hoursUntilCatch = 0
         Wildlife.update(run, 0.1)
         ok = Wildlife.collectTrap(run)
+        local carcasses = World.readActiveCollection(run, "carcasses")
         TestRunner.assertTrue(ok)
-        TestRunner.assertEqual(#run.world.carcasses, 1)
+        TestRunner.assertEqual(#carcasses, 1)
 
         ok = Wildlife.harvestNearbyCarcass(run)
         TestRunner.assertTrue(ok)
@@ -179,9 +184,11 @@ describe("Base Survival", function()
         run.player.lastMoveX = 1
         run.player.lastMoveY = 0
         ok = Wildlife.fireBow(run)
+        wildlife = World.activeWildlife(run)
+        carcasses = World.readActiveCollection(run, "carcasses")
         TestRunner.assertTrue(ok)
-        TestRunner.assertEqual(#run.world.wildlife.rabbits, 0)
-        TestRunner.assertTrue(#run.world.carcasses >= 1)
+        TestRunner.assertEqual(#wildlife.rabbits, 0)
+        TestRunner.assertTrue(#carcasses >= 1)
 
         Items.add(run.player.inventory, "fishing_tackle", 1)
         run.player.skills.Fishing.level = 5
@@ -198,7 +205,8 @@ describe("Base Survival", function()
 
     it("supports sword combat and hostile bow hits", function()
         local run = buildRun("snow")
-        run.world.wildlife.wolves = {
+        local wildlife = World.activeWildlife(run)
+        wildlife.wolves = {
             {
                 kind = "wolf",
                 coord = {40, 20},
@@ -208,7 +216,7 @@ describe("Base Survival", function()
                 health = 18,
             },
         }
-        run.world.wildlife.raiders = {
+        wildlife.raiders = {
             {
                 kind = "raider",
                 coord = {80, 20},
@@ -225,15 +233,17 @@ describe("Base Survival", function()
         run.player.combatFacingX = 1
         run.player.combatFacingY = 0
         local ok = Wildlife.playerMeleeAttack(run)
+        wildlife = World.activeWildlife(run)
         TestRunner.assertTrue(ok)
-        TestRunner.assertEqual(#run.world.wildlife.wolves, 0)
+        TestRunner.assertEqual(#wildlife.wolves, 0)
 
         Items.add(run.player.inventory, "bow", 1)
         Items.add(run.player.inventory, "arrow", 1)
         run.player.equippedWeapon = "bow"
         ok = Wildlife.fireBow(run)
+        wildlife = World.activeWildlife(run)
         TestRunner.assertTrue(ok)
-        TestRunner.assertEqual(#run.world.wildlife.raiders, 0)
+        TestRunner.assertEqual(#wildlife.raiders, 0)
     end)
 
     it("uses renamed experience modes and preserves extended replay context", function()

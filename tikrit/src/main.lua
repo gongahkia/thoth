@@ -953,7 +953,8 @@ local function setDoorState()
     if not game.run then
         return
     end
-    for _, structure in ipairs(game.run.world.structures or {}) do
+    local structures = World.readActiveCollection(game.run, "structures")
+    for _, structure in ipairs(structures) do
         if structure.type == "cabin" then
             local doorCoord = {(structure.door.x - 1) * CONFIG.TILE_SIZE, (structure.door.y - 1) * CONFIG.TILE_SIZE}
             local isNear = Utils.distance(game.run.player.coord[1], game.run.player.coord[2], doorCoord[1], doorCoord[2]) <= CONFIG.TILE_SIZE * 1.2
