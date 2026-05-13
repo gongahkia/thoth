@@ -435,8 +435,9 @@ describe("Wildlife", function()
 
     it("updates entity movement state and facing during tile-aware passive AI", function()
         local run = buildRun()
-        run.world.wildlife.wolves = {}
-        run.world.wildlife.rabbits = {
+        local wildlife = World.activeWildlife(run)
+        wildlife.wolves = {}
+        wildlife.rabbits = {
             {
                 kind = "rabbit",
                 coord = {60, 40},
@@ -448,7 +449,7 @@ describe("Wildlife", function()
         World.attachRun(run)
 
         Wildlife.update(run, 0.01)
-        local rabbit = run.world.wildlife.rabbits[1]
+        local rabbit = wildlife.rabbits[1]
 
         TestRunner.assertTrue(rabbit.moving)
         TestRunner.assertTrue(rabbit.facingX > 0)
@@ -460,14 +461,18 @@ describe("Wildlife", function()
 
     it("lets hostiles watch from awareness range before charging", function()
         local run = buildRun()
-        run.world.grid = {
+        World.attachRun(run)
+        local level = World.currentLevel(run)
+        level.grid = {
             {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
             {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
             {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
             {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
         }
-        run.world.wildlife.wolves = {}
-        run.world.wildlife.raiders = {
+        World.attachRun(run)
+        local wildlife = World.activeWildlife(run)
+        wildlife.wolves = {}
+        wildlife.raiders = {
             {
                 kind = "raider",
                 coord = {40, 40},
@@ -483,7 +488,7 @@ describe("Wildlife", function()
         World.attachRun(run)
 
         Wildlife.update(run, 0.01)
-        local raider = run.world.wildlife.raiders[1]
+        local raider = wildlife.raiders[1]
 
         TestRunner.assertEqual(raider.state, "watch")
         TestRunner.assertTrue(raider.awareness.seesPlayer)
@@ -492,14 +497,18 @@ describe("Wildlife", function()
 
     it("patrols home zones when the player is outside awareness", function()
         local run = buildRun()
-        run.world.grid = {
+        World.attachRun(run)
+        local level = World.currentLevel(run)
+        level.grid = {
             {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
             {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
             {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
             {"snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow", "snow"},
         }
-        run.world.wildlife.wolves = {}
-        run.world.wildlife.raiders = {
+        World.attachRun(run)
+        local wildlife = World.activeWildlife(run)
+        wildlife.wolves = {}
+        wildlife.raiders = {
             {
                 kind = "raider",
                 coord = {40, 40},
@@ -514,7 +523,7 @@ describe("Wildlife", function()
         World.attachRun(run)
 
         Wildlife.update(run, 0.01)
-        local raider = run.world.wildlife.raiders[1]
+        local raider = wildlife.raiders[1]
 
         TestRunner.assertEqual(raider.state, "patrol")
         TestRunner.assertType(raider.patrolPoints, "table")
@@ -524,31 +533,33 @@ describe("Wildlife", function()
 
     it("moves wolves from roaming into stalking and charging", function()
         local run = buildRun()
+        local wildlife = World.activeWildlife(run)
         Wildlife.update(run, 0.001)
         TestRunner.assertTrue(
-            run.world.wildlife.wolves[1].state == "stalk"
-            or run.world.wildlife.wolves[1].state == "charge"
-            or run.world.wildlife.wolves[1].state == "windup"
+            wildlife.wolves[1].state == "stalk"
+            or wildlife.wolves[1].state == "charge"
+            or wildlife.wolves[1].state == "windup"
         )
 
         run.player.coord = {42, 40}
         Wildlife.update(run, 0.001)
         TestRunner.assertTrue(
-            run.world.wildlife.wolves[1].state == "charge"
-            or run.world.wildlife.wolves[1].state == "retreat"
-            or run.world.wildlife.wolves[1].state == "windup"
-            or run.world.wildlife.wolves[1].state == "recover"
+            wildlife.wolves[1].state == "charge"
+            or wildlife.wolves[1].state == "retreat"
+            or wildlife.wolves[1].state == "windup"
+            or wildlife.wolves[1].state == "recover"
         )
     end)
 
     it("lets dodging avoid a hostile windup and supports raider updates", function()
         local run = buildRun()
         run.player.invulnTimer = 1
-        run.world.wildlife.wolves[1].coord = {40, 40}
+        local wildlife = World.activeWildlife(run)
+        wildlife.wolves[1].coord = {40, 40}
         Wildlife.update(run, 0.01)
         TestRunner.assertEqual(run.player.condition, Survival.createPlayer({}).condition)
 
-        run.world.wildlife.raiders = {
+        wildlife.raiders = {
             {
                 kind = "raider",
                 coord = {20, 40},
@@ -558,18 +569,20 @@ describe("Wildlife", function()
             },
         }
         Wildlife.update(run, 0.01)
-        TestRunner.assertTrue(run.world.wildlife.raiders[1].state == "charge" or run.world.wildlife.raiders[1].state == "windup" or run.world.wildlife.raiders[1].state == "recover")
+        TestRunner.assertTrue(wildlife.raiders[1].state == "charge" or wildlife.raiders[1].state == "windup" or wildlife.raiders[1].state == "recover")
     end)
 
     it("repels wolves with fire and applies struggle damage on contact", function()
         local run = buildRun()
-        table.insert(run.world.fires, {
+        local fires = World.activeCollection(run, "fires")
+        local wildlife = World.activeWildlife(run)
+        table.insert(fires, {
             coord = {44, 40},
             remainingBurnHours = 2,
             remainingEmbersHours = 0,
         })
         Wildlife.update(run, 0.1)
-        TestRunner.assertEqual(run.world.wildlife.wolves[1].state, "retreat")
+        TestRunner.assertEqual(wildlife.wolves[1].state, "retreat")
 
         local struggleRun = buildRun()
         struggleRun.player.coord = {40, 40}

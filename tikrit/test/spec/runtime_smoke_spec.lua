@@ -67,6 +67,7 @@ describe("Runtime Smoke", function()
             local rectangleCalls = 0
             local windowMode
             local run
+            local World
 
             local function countEvent(events, target)
                 local total = 0
@@ -89,7 +90,8 @@ describe("Runtime Smoke", function()
             local function tileAt(coord)
                 local gx = math.floor(coord[1] / 20) + 1
                 local gy = math.floor(coord[2] / 20) + 1
-                return ((run.world.grid[gy] or {})[gx])
+                local grid = World.activeGrid(run)
+                return ((grid[gy] or {})[gx])
             end
 
             local function makeSource(path)
@@ -242,7 +244,7 @@ describe("Runtime Smoke", function()
             local SoundEvents = require("modules/sound_events")
             local SpriteRegistry = require("modules/sprite_registry")
             local Wildlife = require("modules/wildlife")
-            local World = require("modules/world")
+            World = require("modules/world")
             local Replay = require("modules/replay")
             local stationDraws = 0
             local wildlifeDraws = 0
@@ -300,7 +302,8 @@ describe("Runtime Smoke", function()
             love.update(0.1)
             TestRunner.assertEqual(countEvent(SoundEvents.getEventLog(), "poi_discovery"), initialPoiEvents)
 
-            run.player.coord = {(run.world.structures[1].door.x - 1) * 20, (run.world.structures[1].door.y - 1) * 20}
+            local structures = World.readActiveCollection(run, "structures")
+            run.player.coord = {(structures[1].door.x - 1) * 20, (structures[1].door.y - 1) * 20}
             currentTime = currentTime + 0.1
             love.update(0.1)
             TestRunner.assertTrue((sources["sound/door-open.mp3"] or {}).plays > 0)
@@ -416,7 +419,8 @@ describe("Runtime Smoke", function()
             local mappedDraw = table.concat(printed, " | ")
             TestRunner.assertTrue(mappedDraw:find(remotePOI, 1, true) ~= nil)
 
-            run.player.coord = {run.world.structures[1].bed.x * 20 - 20, run.world.structures[1].bed.y * 20 - 20}
+            structures = World.readActiveCollection(run, "structures")
+            run.player.coord = {structures[1].bed.x * 20 - 20, structures[1].bed.y * 20 - 20}
             run.world.timeOfDay = 23.5
             love.keypressed("r")
             TestRunner.assertTrue(run.world.dayCount >= 2)

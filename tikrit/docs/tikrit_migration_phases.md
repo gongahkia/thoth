@@ -16,6 +16,7 @@
 - Phase 17 deepens entity ecology without new assets: actors keep awareness, home-zone patrol state, flee/forage/graze/passive state, and hostiles can watch or stalk from awareness range before charging.
 - Phase 18 expands tile simulation hooks: snow drift cover is weather-aware, paths/ash clear cover, weak ice refreezes deterministically in cold conditions, thermal fissures track warmth pockets, fires record tick hooks, and regrowing loot records depth metadata.
 - Phase 19 hardens tile simulation persistence: all active simulation tables alias through `World`, save/load preserves tile tick state, and replay records audit summaries without recreating simulation state.
+- Phase 20 is a conservative boundary cleanup: compatibility aliases remain supported for save/replay/UI storage, but new and touched runtime code should read or mutate active-depth collections through `World` helper APIs; tests should assert direct aliases only when alias compatibility is the behavior under test.
 - Remaining cleanup debt: add more content variety, continue shrinking test-only alias assumptions, and eventually remove compatibility list storage once entity-first persistence paths are proven stable.
 
 ## Phase 0: Stabilize
@@ -168,3 +169,10 @@
 - Add compact replay diagnostics for active tile simulation counts while keeping replay audit-only, not a full world-state save.
 - Keep gameplay balance unchanged; this phase only makes the Phase 18 simulation state safer and easier to inspect.
 - Acceptance: save/load tests preserve simulation tables, replay/runtime smoke tests round-trip audit summaries, active-level summary helpers are covered, and `make syntax` plus `make test` pass.
+
+## Phase 20: Conservative Compatibility Boundary Cleanup
+
+- Preserve `run.world.*` compatibility aliases and save/replay formats while moving touched production reads to `World.currentLevel`, `World.activeGrid`, `World.activeCollection`, `World.readActiveCollection`, and `World.activeWildlife`.
+- Treat direct active-depth alias reads in tests as compatibility assertions only; gameplay and runtime smoke tests should set up and inspect active collections through helper APIs.
+- Keep tile behavior source-of-truth mutations on the level tables, relying on active alias identity rather than duplicate top-level writes.
+- Acceptance: production active-depth reads avoid direct aliases outside intentional `World` maintenance, helper-based tests cover the same behavior, and `make syntax` plus `make test` pass.
