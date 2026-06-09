@@ -1,7 +1,8 @@
-# Pivot ASAP: Lua Block Automation Sandbox
+# Pivot ASAP: C++/raylib Block Automation Sandbox
 
 Date: 2026-05-15
-Status: brainstorming direction, ready to turn into an implementation plan
+Updated: 2026-06-09
+Status: implementation direction pivoted from Lua/Love2D to C++17/raylib
 
 ## Working Assumption
 
@@ -11,11 +12,11 @@ Status: brainstorming direction, ready to turn into an implementation plan
 - Factorio influence: automate extraction, routing, processing, storage, power, research, expansion, and throughput.
 - Microcraft influence: compact systems, clear registries, tile/entity architecture, simple menus, small-scope charm.
 
-This does not mean building a full first-person 3D Minecraft engine first. For a Lua-only project, the stronger and more realistic direction is a polished top-down or 2.5D block world with chunked terrain, z/depth layers, and a deep automation loop.
+This does not mean building a full first-person 3D Minecraft engine first. For a C++/raylib project, the stronger and more realistic direction is still a polished top-down or 2.5D block world with chunked terrain, z/depth layers, and a deep automation loop.
 
 ## One-Sentence Pitch
 
-A Lua-first block automation sandbox where the player carves a procedural world by hand, then bootstraps that world into a growing factory of miners, belts, furnaces, assemblers, power grids, storage, and research.
+A C++/raylib block automation sandbox where the player carves a procedural world by hand, then bootstraps that world into a growing factory of miners, belts, furnaces, assemblers, power grids, storage, and research.
 
 ## Direction Change From The Earlier Plan
 
@@ -29,19 +30,18 @@ The previous Infinifactory-like direction centered on bounded puzzle rooms and t
 
 Infinifactory can still inform placement tools, simulation previews, and debugging UX, but it should no longer be the product model.
 
-## Why This Fits Thoth
+## Why This Still Fits Thoth
 
-The current repo is a framework, not a game, but the useful parts are already aligned with this pivot:
+The old Lua repo is a framework, not a game. If that code is being discarded, keep the useful architecture ideas and reimplement them in C++ instead of porting line-by-line:
 
-- `thoth.game.runtime`: deterministic fixed-step loop, ordered systems, snapshots, replay, rollback, metrics, debug HUD.
-- `thoth.game.input`: action bindings, layered contexts, capture/replay.
-- `thoth.game.tilemap`: layered tile storage and cell/world conversion.
-- `thoth.game.terrain`: deterministic grid generation helpers.
-- `thoth.game.spatial`: broad-phase spatial indexing for entities and dropped items.
-- `thoth.core.serialize`: saves, snapshots, JSON/Lua table serialization.
-- `thoth.core.events`: event bus for machine state, UI updates, combat, resource changes.
+- Fixed-step simulation with ordered systems.
+- Input commands recorded separately from rendering.
+- Chunked tile storage and deterministic terrain generation.
+- Spatial indexing for entities and dropped items once needed.
+- Save/snapshot/replay support from serializable game state.
+- Event or message queues for machine state, UI updates, combat, and resource changes.
 
-The pivot should build a game layer on top of Thoth rather than mutating every Thoth module into game-specific code.
+The pivot should make the C++ game the main codebase. Keep raylib in the platform/render layer and keep the core simulation headless so tests, saves, replay, and benchmarks do not need a window.
 
 ## Competitive Context
 
@@ -55,7 +55,7 @@ Relevant references:
 
 The separation should not be "we are bigger than Minecraft or Factorio." The separation should be:
 
-- A complete, small-scope factory sandbox written in Lua.
+- A complete, small-scope factory sandbox written in C++ with raylib.
 - Deterministic simulation with save/replay/debug tooling as a visible portfolio strength.
 - A block world that is tactile and editable, but with factory automation as the core loop.
 - A clean source-available codebase that reads like a serious systems project.
@@ -114,16 +114,16 @@ Later machines:
 - Logistic drones.
 - Circuit signals.
 
-### 4. Lua-Native Determinism
+### 4. C++-Native Determinism
 
 The game should use deterministic ticks as a signature feature.
 
 Target properties:
 
 - Same seed plus same input replay produces same world state.
-- Headless tests can run factory simulations without Love2D.
+- Headless tests can run factory simulations without raylib.
 - Replay files can become portfolio artifacts.
-- Save files are readable Lua or JSON tables.
+- Save files are readable JSON or another documented plain data format.
 - Debug HUD can show tick cost, active chunks, belt item count, machine count, power demand, and pending events.
 
 ### 5. Compact Polish
@@ -151,97 +151,69 @@ Avoid these until the core loop is fun:
 
 ## Proposed Repo Shape
 
-Keep `thoth/` as the engine/library layer. Add a game layer beside it.
+Make the C++ game the primary implementation. Keep old Lua files only as temporary historical code until the C++ path replaces the needed behavior.
 
 Suggested structure:
 
 ```text
-thothcraft/
-  bootstrap.lua
-  main.lua
-  data/
-    tiles.lua
-    items.lua
-    recipes.lua
-    tech.lua
-    machines.lua
-  world/
-    chunk.lua
-    chunks.lua
-    terrain.lua
-    tile_registry.lua
-    resources.lua
-    save.lua
-  player/
-    controller.lua
-    inventory.lua
-    crafting.lua
-    build.lua
-  factory/
-    belts.lua
-    inserters.lua
-    machines.lua
-    power.lua
-    logistics.lua
-    research.lua
-  sim/
-    systems.lua
-    commands.lua
-    snapshot.lua
-    replay.lua
-  render/
-    love2d.lua
-    sprites.lua
-    camera.lua
-    debug.lua
-  ui/
-    hud.lua
-    hotbar.lua
-    inventory.lua
-    crafting.lua
-    machine_panel.lua
+CMakeLists.txt
+include/thoth/
+  core/
+    deterministic_random.hpp
+  game/
+    registry.hpp
+    simulation.hpp
+    world.hpp
+src/
+  app/
+    main.cpp
+  thoth/
+    core/
+    game/
+tests/
+  test_world.cpp
 ```
 
-This keeps the product isolated while still using Thoth primitives.
+This keeps the simulation library independent from raylib while giving the desktop app a thin raylib entry point.
 
 ## Data Model Sketch
 
-```lua
-world = {
-    seed = 12345,
-    tick = 0,
-    chunks = {},
-    entities = {},
-    player = {},
-    nextEntityId = 1,
-    nextItemId = 1,
-}
+```cpp
+struct World {
+    uint64_t seed;
+    uint64_t tick;
+    ChunkMap chunks;
+    EntityMap entities;
+    Player player;
+    uint32_t nextEntityId;
+    uint32_t nextItemId;
+};
 
-chunk = {
-    cx = 0,
-    cy = 0,
-    tiles = {},
-    machines = {},
-    droppedItems = {},
-    active = true,
-}
+struct Chunk {
+    int cx;
+    int cy;
+    std::array<Tile, 32 * 32> tiles;
+    std::vector<MachineId> machines;
+    std::vector<DroppedItemId> droppedItems;
+    bool active;
+};
 
-tile = {
-    id = "iron_ore",
-    data = 0,
-}
+struct Tile {
+    TileId id;
+    int data;
+};
 
-machine = {
-    id = 42,
-    kind = "furnace",
-    x = 10,
-    y = 14,
-    direction = "east",
-    inventory = {},
-    recipe = "iron_plate",
-    progress = 0,
-    powerNetwork = nil,
-}
+struct Machine {
+    uint32_t id;
+    MachineKind kind;
+    int x;
+    int y;
+    Direction direction;
+    Inventory inventory;
+    RecipeId recipe;
+    int progress;
+    uint32_t powerNetwork;
+};
 ```
 
 Suggested deterministic tick order:
@@ -271,7 +243,7 @@ Target demo:
 - Route plates into a chest.
 - Save, reload, and replay a short deterministic session.
 
-This is the minimum "Factorio meets Minecraft in Lua" proof.
+This is the minimum "Factorio meets Minecraft in C++/raylib" proof.
 
 ## Phase Plan
 
@@ -279,7 +251,7 @@ This is the minimum "Factorio meets Minecraft in Lua" proof.
 
 - Pick working title, probably not `Thoth` if this becomes a game.
 - Decide whether this repo becomes the game repo or keeps Thoth as a library with a bundled game.
-- Keep Love2D as the first target.
+- Keep raylib as the first target.
 - Define the MVP item list and recipe list.
 
 ### Phase 1: World And Player Prototype
@@ -290,7 +262,7 @@ This is the minimum "Factorio meets Minecraft in Lua" proof.
 - Mine/place interaction.
 - Inventory and hotbar.
 - Save/load.
-- Basic Love2D renderer with placeholder tiles.
+- Basic raylib renderer with placeholder tiles.
 
 Success condition: walking around, mining, placing, collecting, and saving feels stable.
 
@@ -344,7 +316,7 @@ Tests should sell the systems quality:
 
 ## Main Risks
 
-### Risk: "Lua-only Minecraft" Becomes Too Large
+### Risk: "C++ Minecraft" Becomes Too Large
 
 Mitigation: keep the first game top-down/2.5D. Use block-world mechanics without a full first-person 3D renderer.
 
@@ -362,12 +334,12 @@ Mitigation: survival pressure should support automation. If a system does not pu
 
 ### Risk: Competing Directly With Luanti
 
-Mitigation: do not pitch this as a general voxel engine. Pitch it as a complete automation game written in Lua with readable systems and deterministic tooling.
+Mitigation: do not pitch this as a general voxel engine. Pitch it as a complete automation game written in C++ with readable systems and deterministic tooling.
 
 ## Immediate Next Actions
 
-1. Create `thothcraft/` skeleton.
-2. Add a Love2D entry point that boots Thoth runtime.
+1. Create the C++/CMake project skeleton.
+2. Add a raylib entry point that drives the headless simulation.
 3. Implement chunked tile world and placeholder renderer.
 4. Add player movement, mining, placing, inventory, and hotbar.
 5. Add deterministic save/load test before factory logic.
@@ -375,4 +347,4 @@ Mitigation: do not pitch this as a general voxel engine. Pitch it as a complete 
 
 ## Confidence
 
-This direction is stronger than the Infinifactory-like plan for the stated preference because it turns Thoth into a persistent systems sandbox, which better matches the existing deterministic runtime, terrain, serialization, and adapter work. The key discipline is to make it Factorio/Minecraft in loop and feel, not in total feature count.
+This direction is stronger than the Infinifactory-like plan for the stated preference because it turns Thoth into a persistent systems sandbox. The key discipline is to make it Factorio/Minecraft in loop and feel, not in total feature count.

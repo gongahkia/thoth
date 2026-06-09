@@ -5,7 +5,7 @@ PROJECT_LUA_PATH := ./?.lua;./?/init.lua
 EXISTING_LUA_PATH := $(value LUA_PATH)
 export LUA_PATH := $(PROJECT_LUA_PATH);$(if $(strip $(EXISTING_LUA_PATH)),$(EXISTING_LUA_PATH),;)
 
-.PHONY: test clean print-test-runner
+.PHONY: test cpp-configure cpp-build cpp-test cpp-run clean print-test-runner
 
 ifeq ($(strip $(TEST_RUNNER)),)
 $(error No Lua interpreter found on PATH. Install luajit or lua, or run make test TEST_RUNNER=/path/to/lua)
@@ -17,8 +17,20 @@ test:
 		$(TEST_RUNNER) $$file || exit 1; \
 	done
 
+cpp-configure:
+	cmake -S . -B build/app -DTHOTH_BUILD_APP=ON -DTHOTH_BUILD_TESTS=ON
+
+cpp-build: cpp-configure
+	cmake --build build/app --target thoth_raylib thoth_tests
+
+cpp-test: cpp-build
+	ctest --test-dir build/app --output-on-failure
+
+cpp-run: cpp-build
+	./build/app/thoth_raylib
+
 print-test-runner:
 	@echo $(TEST_RUNNER)
 
 clean:
-	rm -rf .cache *.rock
+	rm -rf .cache build *.rock
