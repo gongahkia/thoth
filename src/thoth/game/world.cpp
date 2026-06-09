@@ -14,6 +14,12 @@ bool inside(int value, int min, int max)
     return value >= min && value <= max;
 }
 
+int resourceRichness(std::uint64_t seed, int x, int y)
+{
+    const auto richness = thoth::core::hashCoordinates(seed ^ 0x51c3a5edULL, x, y);
+    return 4 + static_cast<int>(richness % 5U);
+}
+
 } // namespace
 
 int floorDiv(int value, int divisor)
@@ -144,17 +150,23 @@ Chunk World::generateChunk(int cx, int cy) const
 
 Tile World::generateTile(int x, int y) const
 {
-    if (inside(x, -2, 2) && inside(y, -2, 2)) {
-        return Tile{TileId::Grass, 0};
-    }
-    if (x == -4 && inside(y, -2, 2)) {
+    if ((x == -4 || x == -3) && inside(y, -3, 3)) {
         return Tile{TileId::Tree, 1};
     }
+    if (inside(x, -2, 2) && y == 4) {
+        return Tile{TileId::Stone, 1};
+    }
     if (x == 4 && inside(y, -2, 2)) {
-        return Tile{TileId::IronOre, 1};
+        return Tile{TileId::IronOre, 6};
     }
     if (x == 6 && inside(y, -2, 2)) {
-        return Tile{TileId::CoalOre, 1};
+        return Tile{TileId::CoalOre, 6};
+    }
+    if (x == 8 && inside(y, -2, 2)) {
+        return Tile{TileId::CopperOre, 6};
+    }
+    if (inside(x, -2, 9) && inside(y, -3, 3)) {
+        return Tile{TileId::Grass, 0};
     }
 
     const auto terrain = thoth::core::hashCoordinates(seed_, x, y);
@@ -166,10 +178,13 @@ Tile World::generateTile(int x, int y) const
         return Tile{TileId::Water, 0};
     }
     if (featureRoll < 35) {
-        return Tile{TileId::IronOre, 1};
+        return Tile{TileId::IronOre, resourceRichness(seed_, x, y)};
     }
     if (featureRoll >= 35 && featureRoll < 70) {
-        return Tile{TileId::CoalOre, 1};
+        return Tile{TileId::CoalOre, resourceRichness(seed_, x, y)};
+    }
+    if (featureRoll >= 70 && featureRoll < 105) {
+        return Tile{TileId::CopperOre, resourceRichness(seed_, x, y)};
     }
     if (terrainRoll > 900) {
         return Tile{TileId::Tree, 1};

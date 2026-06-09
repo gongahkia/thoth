@@ -1,0 +1,112 @@
+THOTH_REPLAY 1
+seed 20260611
+final_tick 3600
+player 0 1 east 0
+inventory 14
+item burner_miner 1
+item belt 1
+item inserter 1
+item furnace 1
+item chest 2
+item coal 35
+item assembler 1
+item lab 1
+item iron_plate 3
+item copper_plate 3
+item generator 1
+item power_pole 1
+item electric_miner 1
+item fast_belt 1
+tiles 21
+tile 0 1 floor 0
+tile 1 1 tree 1
+tile 2 1 floor 0
+tile 3 1 floor 0
+tile 4 1 floor 0
+tile 5 1 floor 0
+tile 1 0 iron_ore 1
+tile 2 0 floor 0
+tile 3 0 floor 0
+tile 4 0 floor 0
+tile 5 0 floor 0
+tile 1 2 floor 0
+tile 2 2 floor 0
+tile 0 3 floor 0
+tile 1 3 floor 0
+tile 2 3 floor 0
+tile 3 3 floor 0
+tile 0 4 floor 0
+tile 1 4 floor 0
+tile 2 4 iron_ore 6
+tile 3 4 floor 0
+frames 70
+frame 0 mine east
+frame 1 move east
+frame 2 place north east burner_miner floor
+frame 3 move east
+frame 4 place north east belt floor
+frame 5 move east
+frame 6 place north east inserter floor
+frame 7 move east
+frame 8 place north east furnace floor
+frame 9 move east
+frame 10 place north east chest floor
+frame 11 move west
+frame 12 deposit north coal
+frame 13 move west
+frame 14 move west
+frame 15 move west
+frame 16 deposit north coal
+frame 30 place south east assembler floor
+frame 31 move east
+frame 32 place south east lab floor
+frame 33 move west
+frame 34 deposit south iron_plate
+frame 35 deposit south iron_plate
+frame 36 deposit south iron_plate
+frame 37 deposit south copper_plate
+frame 38 deposit south copper_plate
+frame 39 deposit south copper_plate
+frame 260 move south
+frame 261 move south
+frame 262 move west
+frame 263 place south east generator floor
+frame 264 move east
+frame 265 place south east power_pole floor
+frame 266 move east
+frame 267 place south east electric_miner floor
+frame 268 move east
+frame 269 place south east chest floor
+frame 270 move west
+frame 271 move west
+frame 272 move west
+frame 273 deposit south coal
+frame 274 deposit south coal
+frame 275 deposit south coal
+frame 276 deposit south coal
+frame 277 deposit south coal
+frame 278 deposit south coal
+frame 279 deposit south coal
+frame 280 deposit south coal
+frame 281 deposit south coal
+frame 282 deposit south coal
+frame 283 deposit south coal
+frame 284 deposit south coal
+frame 285 deposit south coal
+frame 286 deposit south coal
+frame 287 deposit south coal
+frame 288 deposit south coal
+frame 289 deposit south coal
+frame 290 deposit south coal
+frame 291 deposit south coal
+frame 292 deposit south coal
+frame 293 deposit south coal
+frame 294 deposit south coal
+frame 295 deposit south coal
+frame 296 deposit south coal
+frame 297 deposit south coal
+frame 298 deposit south coal
+frame 299 deposit south coal
+frame 300 deposit south coal
+frame 301 deposit south coal
+frame 302 deposit south coal

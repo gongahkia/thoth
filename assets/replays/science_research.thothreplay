@@ -1,0 +1,25 @@
+THOTH_REPLAY 1
+seed 20260610
+final_tick 200
+player 1 1 north 0
+inventory 4
+item assembler 1
+item lab 1
+item iron_plate 3
+item copper_plate 3
+tiles 4
+tile 1 0 floor 0
+tile 2 0 floor 0
+tile 1 1 floor 0
+tile 2 1 floor 0
+frames 10
+frame 0 place north east assembler floor
+frame 1 move east
+frame 2 place north east lab floor
+frame 3 move west
+frame 4 deposit north iron_plate
+frame 5 deposit north iron_plate
+frame 6 deposit north iron_plate
+frame 7 deposit north copper_plate
+frame 8 deposit north copper_plate
+frame 9 deposit north copper_plate

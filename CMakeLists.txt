@@ -7,6 +7,7 @@ project(thoth
 
 option(THOTH_BUILD_APP "Build the raylib desktop application" ON)
 option(THOTH_BUILD_TESTS "Build headless simulation tests" ON)
+option(THOTH_BUILD_BENCHMARKS "Build headless simulation benchmarks" ON)
 option(THOTH_FETCH_RAYLIB "Fetch raylib from source when no package is installed" ON)
 
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
@@ -20,6 +21,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_library(thoth_core
     src/thoth/core/deterministic_random.cpp
     src/thoth/game/inventory.cpp
+    src/thoth/game/replay.cpp
     src/thoth/game/registry.cpp
     src/thoth/game/save.cpp
     src/thoth/game/simulation.cpp
@@ -84,4 +86,17 @@ if(THOTH_BUILD_TESTS)
     endif()
 
     add_test(NAME thoth_tests COMMAND thoth_tests)
+endif()
+
+if(THOTH_BUILD_BENCHMARKS)
+    add_executable(thoth_benchmark
+        benchmarks/simulation_benchmark.cpp)
+
+    target_link_libraries(thoth_benchmark PRIVATE thoth_core)
+
+    if(MSVC)
+        target_compile_options(thoth_benchmark PRIVATE /W4 /permissive-)
+    else()
+        target_compile_options(thoth_benchmark PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
 endif()

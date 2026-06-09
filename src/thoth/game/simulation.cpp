@@ -8,6 +8,33 @@ namespace thoth::game {
 
 namespace {
 
+constexpr int kCoalFuelTicks = 120;
+constexpr int kGeneratorPower = 2;
+constexpr int kPowerPoleConnectionRange = 4;
+constexpr int kPowerMachineReach = 2;
+
+int absInt(int value)
+{
+    return value < 0 ? -value : value;
+}
+
+int manhattanDistance(const Machine& left, const Machine& right)
+{
+    return absInt(left.x - right.x) + absInt(left.y - right.y);
+}
+
+bool containsId(const std::vector<std::uint32_t>& ids, std::uint32_t id)
+{
+    return std::find(ids.begin(), ids.end(), id) != ids.end();
+}
+
+std::uint64_t machineCellKey(int x, int y)
+{
+    const auto ux = static_cast<std::uint64_t>(static_cast<std::uint32_t>(x));
+    const auto uy = static_cast<std::uint64_t>(static_cast<std::uint32_t>(y));
+    return (ux << 32U) | uy;
+}
+
 TileId minedReplacement(TileId id)
 {
     switch (id) {
@@ -15,6 +42,7 @@ TileId minedReplacement(TileId id)
         return TileId::Grass;
     case TileId::Stone:
     case TileId::IronOre:
+    case TileId::CopperOre:
     case TileId::CoalOre:
         return TileId::Floor;
     case TileId::Dirt:
@@ -26,7 +54,96 @@ TileId minedReplacement(TileId id)
     return TileId::Grass;
 }
 
+ItemId resourceTileOutput(TileId id)
+{
+    switch (id) {
+    case TileId::IronOre:
+        return ItemId::IronOre;
+    case TileId::CopperOre:
+        return ItemId::CopperOre;
+    case TileId::CoalOre:
+        return ItemId::Coal;
+    case TileId::Dirt:
+    case TileId::Floor:
+    case TileId::Grass:
+    case TileId::Stone:
+    case TileId::Tree:
+    case TileId::Water:
+        return ItemId::None;
+    }
+    return ItemId::None;
+}
+
+void depleteResourceTile(World& world, int x, int y)
+{
+    auto tile = world.getTile(x, y);
+    if (resourceTileOutput(tile.id) == ItemId::None) {
+        return;
+    }
+
+    const int remaining = std::max(1, tile.data) - 1;
+    if (remaining <= 0) {
+        world.setTile(x, y, Tile{minedReplacement(tile.id), 0});
+        return;
+    }
+
+    tile.data = remaining;
+    world.setTile(x, y, tile);
+}
+
+ItemId furnaceInputItem(const RecipeDef& recipe)
+{
+    for (const auto& input : recipe.inputs) {
+        if (input.item != ItemId::Coal) {
+            return input.item;
+        }
+    }
+    return ItemId::None;
+}
+
+const RecipeDef* furnaceRecipeForInput(ItemId item)
+{
+    for (const auto& recipe : recipeDefs()) {
+        if (recipe.station != "furnace") {
+            continue;
+        }
+        if (furnaceInputItem(recipe) == item) {
+            return &recipe;
+        }
+    }
+    return nullptr;
+}
+
+const RecipeDef* selectedFurnaceRecipe(const Machine& machine)
+{
+    if (!machine.recipeKey.empty()) {
+        const auto* recipe = recipeDef(machine.recipeKey);
+        if (recipe != nullptr && recipe->station == "furnace") {
+            return recipe;
+        }
+    }
+
+    for (const auto& recipe : recipeDefs()) {
+        if (recipe.station != "furnace") {
+            continue;
+        }
+        const auto input = furnaceInputItem(recipe);
+        if (input != ItemId::None && machine.inventory.canConsume(input, 1)) {
+            return &recipe;
+        }
+    }
+    return nullptr;
+}
+
 } // namespace
+
+Command Command::face(Direction direction)
+{
+    Command command;
+    command.type = CommandType::Face;
+    command.direction = direction;
+    return command;
+}
 
 Command Command::move(Direction direction)
 {
@@ -46,9 +163,15 @@ Command Command::mine(Direction direction)
 
 Command Command::placeItem(Direction direction, ItemId item)
 {
+    return placeItem(direction, item, direction);
+}
+
+Command Command::placeItem(Direction direction, ItemId item, Direction orientation)
+{
     Command command;
     command.type = CommandType::Place;
     command.direction = direction;
+    command.orientation = orientation;
     command.item = item;
     return command;
 }
@@ -58,6 +181,7 @@ Command Command::placeTile(Direction direction, TileId tile)
     Command command;
     command.type = CommandType::Place;
     command.direction = direction;
+    command.orientation = direction;
     command.tile = tile;
     return command;
 }
@@ -75,6 +199,50 @@ Command Command::selectHotbar(int index)
     Command command;
     command.type = CommandType::SelectHotbar;
     command.hotbarIndex = index;
+    return command;
+}
+
+Command Command::assignHotbar(int index, ItemId item)
+{
+    Command command;
+    command.type = CommandType::AssignHotbar;
+    command.hotbarIndex = index;
+    command.item = item;
+    return command;
+}
+
+Command Command::configureMachineRecipe(Direction direction, std::string recipeKey)
+{
+    Command command;
+    command.type = CommandType::ConfigureMachineRecipe;
+    command.direction = direction;
+    command.recipeKey = std::move(recipeKey);
+    return command;
+}
+
+Command Command::depositSelected(Direction direction)
+{
+    Command command;
+    command.type = CommandType::DepositSelected;
+    command.direction = direction;
+    return command;
+}
+
+Command Command::depositItem(Direction direction, ItemId item)
+{
+    Command command;
+    command.type = CommandType::DepositItem;
+    command.direction = direction;
+    command.item = item;
+    return command;
+}
+
+Command Command::withdrawItem(Direction direction, ItemId item)
+{
+    Command command;
+    command.type = CommandType::WithdrawItem;
+    command.direction = direction;
+    command.item = item;
     return command;
 }
 
@@ -104,6 +272,25 @@ int dy(Direction direction)
         return 0;
     }
     return 0;
+}
+
+std::string_view toString(MachineStatus status)
+{
+    switch (status) {
+    case MachineStatus::Idle:
+        return "idle";
+    case MachineStatus::MissingInput:
+        return "missing_input";
+    case MachineStatus::MissingFuel:
+        return "missing_fuel";
+    case MachineStatus::MissingPower:
+        return "missing_power";
+    case MachineStatus::Working:
+        return "working";
+    case MachineStatus::OutputBlocked:
+        return "output_blocked";
+    }
+    return "idle";
 }
 
 Simulation::Simulation(std::uint64_t seed)
@@ -176,22 +363,76 @@ const std::vector<Machine>& Simulation::machines() const
 
 const Machine* Simulation::machineAt(int x, int y) const
 {
-    for (const auto& machine : machines_) {
-        if (machine.x == x && machine.y == y) {
-            return &machine;
-        }
+    const auto found = machineCellIndex_.find(machineCellKey(x, y));
+    if (found == machineCellIndex_.end() || found->second >= machines_.size()) {
+        return nullptr;
     }
-    return nullptr;
+    const auto& machine = machines_[found->second];
+    const auto& def = machineDef(machine.kind);
+    if (x < machine.x || y < machine.y || x >= machine.x + def.width || y >= machine.y + def.height) {
+        return nullptr;
+    }
+    return &machine;
 }
 
 Machine* Simulation::machineAt(int x, int y)
 {
-    for (auto& machine : machines_) {
-        if (machine.x == x && machine.y == y) {
-            return &machine;
-        }
+    const auto found = machineCellIndex_.find(machineCellKey(x, y));
+    if (found == machineCellIndex_.end() || found->second >= machines_.size()) {
+        return nullptr;
     }
-    return nullptr;
+    auto& machine = machines_[found->second];
+    const auto& def = machineDef(machine.kind);
+    if (x < machine.x || y < machine.y || x >= machine.x + def.width || y >= machine.y + def.height) {
+        return nullptr;
+    }
+    return &machine;
+}
+
+bool Simulation::isRecipeUnlocked(std::string_view recipeKey) const
+{
+    const auto* recipe = recipeDef(recipeKey);
+    if (recipe == nullptr) {
+        return false;
+    }
+    if (recipe->unlockedByDefault) {
+        return true;
+    }
+    return std::any_of(unlockedRecipes_.begin(), unlockedRecipes_.end(), [recipeKey](const std::string& key) {
+        return std::string_view(key) == recipeKey;
+    });
+}
+
+bool Simulation::isTechCompleted(std::string_view techKey) const
+{
+    return std::any_of(completedTechs_.begin(), completedTechs_.end(), [techKey](const std::string& key) {
+        return std::string_view(key) == techKey;
+    });
+}
+
+std::string_view Simulation::activeTech() const
+{
+    return activeTech_;
+}
+
+int Simulation::researchProgress() const
+{
+    return researchProgress_;
+}
+
+int Simulation::researchGoal() const
+{
+    return activeTechGoal();
+}
+
+const std::vector<PowerNetwork>& Simulation::powerNetworks() const
+{
+    return powerNetworks_;
+}
+
+bool Simulation::isMachinePowered(std::uint32_t machineId) const
+{
+    return containsId(poweredMachineIds_, machineId);
 }
 
 SimulationSnapshot Simulation::snapshot() const
@@ -211,6 +452,10 @@ SimulationSnapshot Simulation::snapshot() const
     result.tiles = world_.loadedTiles();
     result.nextMachineId = nextMachineId_;
     result.machines = machines_;
+    result.activeTech = activeTech_;
+    result.researchProgress = researchProgress_;
+    result.completedTechs = completedTechs_;
+    result.unlockedRecipes = unlockedRecipes_;
     return result;
 }
 
@@ -236,6 +481,20 @@ void Simulation::restore(const SimulationSnapshot& snapshot)
     tick_ = snapshot.tick;
     nextMachineId_ = snapshot.nextMachineId == 0 ? 1 : snapshot.nextMachineId;
     machines_ = snapshot.machines;
+    for (auto& machine : machines_) {
+        if (machine.kind == MachineKind::Assembler && machine.recipeKey.empty()) {
+            machine.recipeKey = "science_pack";
+        } else if (machine.kind == MachineKind::Furnace && machine.progress > 0 && machine.recipeKey.empty()) {
+            machine.recipeKey = "iron_plate";
+        }
+    }
+    rebuildMachineCellIndex();
+    activeTech_ = snapshot.activeTech.empty() ? "logistics_1" : snapshot.activeTech;
+    researchProgress_ = std::max(0, snapshot.researchProgress);
+    completedTechs_ = snapshot.completedTechs;
+    unlockedRecipes_ = snapshot.unlockedRecipes;
+    powerNetworks_.clear();
+    poweredMachineIds_.clear();
     commandQueue_.clear();
 }
 
@@ -246,9 +505,26 @@ Simulation Simulation::fromSnapshot(const SimulationSnapshot& snapshot)
     return simulation;
 }
 
+void Simulation::rebuildMachineCellIndex()
+{
+    machineCellIndex_.clear();
+    for (std::size_t index = 0; index < machines_.size(); ++index) {
+        const auto& machine = machines_[index];
+        const auto& def = machineDef(machine.kind);
+        for (int oy = 0; oy < def.height; ++oy) {
+            for (int ox = 0; ox < def.width; ++ox) {
+                machineCellIndex_[machineCellKey(machine.x + ox, machine.y + oy)] = index;
+            }
+        }
+    }
+}
+
 void Simulation::apply(const Command& command)
 {
     switch (command.type) {
+    case CommandType::Face:
+        player_.facing = command.direction;
+        break;
     case CommandType::Move:
         player_.facing = command.direction;
         move(command.direction);
@@ -259,13 +535,32 @@ void Simulation::apply(const Command& command)
         break;
     case CommandType::Place:
         player_.facing = command.direction;
-        place(command.direction, command.tile, command.item);
+        place(command.direction, command.tile, command.item, command.orientation);
         break;
     case CommandType::Craft:
         craft(command.recipeKey);
         break;
     case CommandType::SelectHotbar:
         selectHotbar(command.hotbarIndex);
+        break;
+    case CommandType::AssignHotbar:
+        assignHotbarSlot(command.hotbarIndex, command.item);
+        break;
+    case CommandType::ConfigureMachineRecipe:
+        player_.facing = command.direction;
+        configureMachineRecipe(command.direction, command.recipeKey);
+        break;
+    case CommandType::DepositSelected:
+        player_.facing = command.direction;
+        depositSelected(command.direction);
+        break;
+    case CommandType::DepositItem:
+        player_.facing = command.direction;
+        depositItem(command.direction, command.item);
+        break;
+    case CommandType::WithdrawItem:
+        player_.facing = command.direction;
+        withdrawItem(command.direction, command.item);
         break;
     }
 }
@@ -294,15 +589,18 @@ void Simulation::mine(Direction direction)
     world_.setTile(tx, ty, Tile{minedReplacement(tile.id), 0});
 }
 
-void Simulation::place(Direction direction, TileId tile, ItemId item)
+void Simulation::place(Direction direction, TileId tile, ItemId item, Direction orientation)
 {
     if (isMachineItem(item)) {
-        placeMachine(direction, item);
+        placeMachine(direction, item, orientation);
         return;
     }
 
     const int tx = player_.x + dx(direction);
     const int ty = player_.y + dy(direction);
+    if (machineAt(tx, ty) != nullptr) {
+        return;
+    }
 
     auto tileToPlace = tile;
     auto requiredItem = ItemId::None;
@@ -327,7 +625,7 @@ void Simulation::place(Direction direction, TileId tile, ItemId item)
     world_.setTile(tx, ty, Tile{tileToPlace, 0});
 }
 
-void Simulation::placeMachine(Direction direction, ItemId item)
+void Simulation::placeMachine(Direction direction, ItemId item, Direction orientation)
 {
     const auto& def = itemDef(item);
     if (!def.canPlaceMachine) {
@@ -348,18 +646,75 @@ void Simulation::placeMachine(Direction direction, ItemId item)
     machine.kind = def.placeMachine;
     machine.x = tx;
     machine.y = ty;
-    machine.direction = direction;
+    machine.direction = orientation;
+    if (machine.kind == MachineKind::Assembler) {
+        machine.recipeKey = "science_pack";
+    }
     machines_.push_back(std::move(machine));
 
     std::sort(machines_.begin(), machines_.end(), [](const Machine& left, const Machine& right) {
         return left.id < right.id;
     });
+    rebuildMachineCellIndex();
+}
+
+void Simulation::depositSelected(Direction direction)
+{
+    depositItem(direction, selectedItem());
+}
+
+void Simulation::depositItem(Direction direction, ItemId item)
+{
+    if (item == ItemId::None || !player_.inventory.canConsume(item, 1)) {
+        return;
+    }
+
+    const int tx = player_.x + dx(direction);
+    const int ty = player_.y + dy(direction);
+    if (!acceptItemAt(tx, ty, item)) {
+        return;
+    }
+
+    const auto consumed = consumeItem(item, 1);
+    (void)consumed;
+}
+
+void Simulation::withdrawItem(Direction direction, ItemId item)
+{
+    if (item == ItemId::None) {
+        return;
+    }
+
+    const int tx = player_.x + dx(direction);
+    const int ty = player_.y + dy(direction);
+    auto* machine = machineAt(tx, ty);
+    if (machine == nullptr) {
+        return;
+    }
+
+    auto removed = ItemId::None;
+    if (machine->carriedItem == item) {
+        removed = machine->carriedItem;
+        machine->carriedItem = ItemId::None;
+    } else if (machine->outputItem == item) {
+        removed = machine->outputItem;
+        machine->outputItem = ItemId::None;
+    } else if (machine->inventory.consume(item, 1)) {
+        removed = item;
+    }
+
+    if (removed != ItemId::None) {
+        addItem(removed, 1);
+    }
 }
 
 void Simulation::craft(std::string_view recipeKey)
 {
     const auto* recipe = recipeDef(recipeKey);
     if (recipe == nullptr) {
+        return;
+    }
+    if (recipe->station != "hand" || !isRecipeUnlocked(recipeKey)) {
         return;
     }
     if (!player_.inventory.consumeAll(recipe->inputs)) {
@@ -377,11 +732,150 @@ void Simulation::selectHotbar(int index)
     player_.selectedHotbar = index;
 }
 
+void Simulation::assignHotbarSlot(int index, ItemId item)
+{
+    if (index < 0 || index >= kHotbarSlots) {
+        return;
+    }
+    if (item != ItemId::None && player_.inventory.count(item) <= 0) {
+        return;
+    }
+    player_.hotbar[static_cast<std::size_t>(index)] = item;
+    player_.selectedHotbar = index;
+}
+
+void Simulation::configureMachineRecipe(Direction direction, std::string_view recipeKey)
+{
+    const int tx = player_.x + dx(direction);
+    const int ty = player_.y + dy(direction);
+    auto* machine = machineAt(tx, ty);
+    if (machine == nullptr ||
+        (machine->kind != MachineKind::Assembler && machine->kind != MachineKind::Furnace)) {
+        return;
+    }
+    if (machine->progress != 0 || machine->outputItem != ItemId::None) {
+        return;
+    }
+
+    const auto* recipe = recipeDef(recipeKey);
+    if (recipe == nullptr || !isRecipeUnlocked(recipeKey)) {
+        return;
+    }
+    if (machine->kind == MachineKind::Assembler && recipe->station != "assembler") {
+        return;
+    }
+    if (machine->kind == MachineKind::Furnace && recipe->station != "furnace") {
+        return;
+    }
+
+    machine->recipeKey = std::string(recipeKey);
+    machine->recipeLocked = true;
+}
+
 void Simulation::updateMachines()
 {
+    updatePowerNetworks();
     updateMiners();
+    updateElectricMiners();
     updateBelts();
+    updateInserters();
     updateFurnaces();
+    updateAssemblers();
+    updateLabs();
+}
+
+void Simulation::updatePowerNetworks()
+{
+    powerNetworks_.clear();
+    poweredMachineIds_.clear();
+
+    for (auto& machine : machines_) {
+        if (machine.kind == MachineKind::Generator || machine.kind == MachineKind::PowerPole) {
+            machine.status = MachineStatus::Idle;
+        }
+    }
+
+    std::vector<std::size_t> poleIndices;
+    for (std::size_t i = 0; i < machines_.size(); ++i) {
+        if (isPowerPole(machines_[i].kind)) {
+            poleIndices.push_back(i);
+        }
+    }
+
+    std::vector<bool> assigned(poleIndices.size(), false);
+    for (std::size_t start = 0; start < poleIndices.size(); ++start) {
+        if (assigned[start]) {
+            continue;
+        }
+
+        PowerNetwork network;
+        network.id = machines_[poleIndices[start]].id;
+        std::vector<std::size_t> group;
+        group.push_back(start);
+        assigned[start] = true;
+
+        for (std::size_t cursor = 0; cursor < group.size(); ++cursor) {
+            const auto& pole = machines_[poleIndices[group[cursor]]];
+            network.poleIds.push_back(pole.id);
+            network.id = std::min(network.id, pole.id);
+
+            for (std::size_t candidate = 0; candidate < poleIndices.size(); ++candidate) {
+                if (assigned[candidate]) {
+                    continue;
+                }
+                const auto& otherPole = machines_[poleIndices[candidate]];
+                if (manhattanDistance(pole, otherPole) <= kPowerPoleConnectionRange) {
+                    assigned[candidate] = true;
+                    group.push_back(candidate);
+                }
+            }
+        }
+
+        for (const auto& machine : machines_) {
+            if (isPowerPole(machine.kind)) {
+                continue;
+            }
+
+            const auto connectedToPole = std::any_of(group.begin(), group.end(), [this, &machine, &poleIndices](std::size_t groupIndex) {
+                return manhattanDistance(machine, machines_[poleIndices[groupIndex]]) <= kPowerMachineReach;
+            });
+            if (!connectedToPole) {
+                continue;
+            }
+
+            if (machine.kind == MachineKind::Generator) {
+                network.generatorIds.push_back(machine.id);
+            } else if (isPowerConsumer(machine.kind)) {
+                network.consumerIds.push_back(machine.id);
+                network.demand += powerDemand(machine.kind);
+            }
+        }
+
+        if (network.demand > 0) {
+            for (const auto generatorId : network.generatorIds) {
+                auto* generator = machineById(generatorId);
+                if (generator == nullptr) {
+                    continue;
+                }
+                if (!refuel(*generator)) {
+                    generator->status = MachineStatus::MissingFuel;
+                    continue;
+                }
+                --generator->fuelTicks;
+                generator->status = MachineStatus::Working;
+                network.supply += kGeneratorPower;
+            }
+        }
+
+        network.powered = network.supply >= network.demand;
+        if (network.powered) {
+            for (const auto consumerId : network.consumerIds) {
+                poweredMachineIds_.push_back(consumerId);
+            }
+        }
+
+        powerNetworks_.push_back(std::move(network));
+    }
 }
 
 void Simulation::updateMiners()
@@ -392,46 +886,126 @@ void Simulation::updateMiners()
             continue;
         }
 
-        const auto tile = world_.getTile(machine.x, machine.y);
-        ItemId output = ItemId::None;
-        if (tile.id == TileId::IronOre) {
-            output = ItemId::IronOre;
-        } else if (tile.id == TileId::CoalOre) {
-            output = ItemId::Coal;
-        }
+        const auto output = resourceTileOutput(world_.getTile(machine.x, machine.y).id);
 
         if (output == ItemId::None) {
             machine.progress = 0;
+            machine.status = MachineStatus::MissingInput;
             continue;
         }
 
+        if (machine.progress >= kMinerTicks) {
+            if (outputItem(machine, output)) {
+                depleteResourceTile(world_, machine.x, machine.y);
+                machine.progress = 0;
+                machine.status = MachineStatus::Idle;
+            } else {
+                machine.status = MachineStatus::OutputBlocked;
+            }
+            continue;
+        }
+
+        if (!refuel(machine)) {
+            machine.status = MachineStatus::MissingFuel;
+            continue;
+        }
+
+        --machine.fuelTicks;
         machine.progress = std::min(machine.progress + 1, kMinerTicks);
-        if (machine.progress >= kMinerTicks && outputItem(machine, output)) {
+        machine.status = MachineStatus::Working;
+        if (machine.progress >= kMinerTicks) {
+            if (outputItem(machine, output)) {
+                depleteResourceTile(world_, machine.x, machine.y);
+                machine.progress = 0;
+                machine.status = MachineStatus::Idle;
+            } else {
+                machine.status = MachineStatus::OutputBlocked;
+            }
+        }
+    }
+}
+
+void Simulation::updateElectricMiners()
+{
+    constexpr int kElectricMinerTicks = 8;
+    for (auto& machine : machines_) {
+        if (machine.kind != MachineKind::ElectricMiner) {
+            continue;
+        }
+
+        const auto output = resourceTileOutput(world_.getTile(machine.x, machine.y).id);
+
+        if (output == ItemId::None) {
             machine.progress = 0;
+            machine.status = MachineStatus::MissingInput;
+            continue;
+        }
+
+        if (machine.progress >= kElectricMinerTicks) {
+            if (outputItem(machine, output)) {
+                depleteResourceTile(world_, machine.x, machine.y);
+                machine.progress = 0;
+                machine.status = MachineStatus::Idle;
+            } else {
+                machine.status = MachineStatus::OutputBlocked;
+            }
+            continue;
+        }
+
+        if (!isMachinePowered(machine.id)) {
+            machine.status = MachineStatus::MissingPower;
+            continue;
+        }
+
+        machine.progress = std::min(machine.progress + 1, kElectricMinerTicks);
+        machine.status = MachineStatus::Working;
+        if (machine.progress >= kElectricMinerTicks) {
+            if (outputItem(machine, output)) {
+                depleteResourceTile(world_, machine.x, machine.y);
+                machine.progress = 0;
+                machine.status = MachineStatus::Idle;
+            } else {
+                machine.status = MachineStatus::OutputBlocked;
+            }
         }
     }
 }
 
 void Simulation::updateBelts()
 {
-    std::vector<std::uint32_t> sourceIds;
-    for (const auto& machine : machines_) {
-        if (machine.kind == MachineKind::Belt && machine.carriedItem != ItemId::None) {
-            sourceIds.push_back(machine.id);
-        }
-    }
-
-    for (const auto id : sourceIds) {
-        auto it = std::find_if(machines_.begin(), machines_.end(), [id](const Machine& machine) {
-            return machine.id == id;
-        });
-        if (it == machines_.end() || it->carriedItem == ItemId::None) {
-            continue;
+    const auto transferPass = [this](bool fastOnly) {
+        std::vector<std::uint32_t> sourceIds;
+        for (const auto& machine : machines_) {
+            if (isBelt(machine.kind) && machine.carriedItem != ItemId::None &&
+                (!fastOnly || machine.kind == MachineKind::FastBelt)) {
+                sourceIds.push_back(machine.id);
+            }
         }
 
-        const auto item = it->carriedItem;
-        if (outputItem(*it, item)) {
-            it->carriedItem = ItemId::None;
+        for (const auto id : sourceIds) {
+            auto it = std::find_if(machines_.begin(), machines_.end(), [id](const Machine& machine) {
+                return machine.id == id;
+            });
+            if (it == machines_.end() || it->carriedItem == ItemId::None) {
+                continue;
+            }
+
+            const auto item = it->carriedItem;
+            if (outputItem(*it, item)) {
+                it->carriedItem = ItemId::None;
+                it->status = MachineStatus::Idle;
+            } else {
+                it->status = MachineStatus::OutputBlocked;
+            }
+        }
+    };
+
+    transferPass(false);
+    transferPass(true);
+
+    for (auto& machine : machines_) {
+        if (isBelt(machine.kind) && machine.carriedItem == ItemId::None) {
+            machine.status = MachineStatus::Idle;
         }
     }
 }
@@ -444,35 +1018,201 @@ void Simulation::updateFurnaces()
             continue;
         }
 
-        if (machine.progress == 0) {
-            if (!machine.inventory.canConsume(ItemId::IronOre, 1) ||
-                !machine.inventory.canConsume(ItemId::Coal, 1)) {
+        if (machine.outputItem != ItemId::None) {
+            if (outputItem(machine, machine.outputItem)) {
+                machine.outputItem = ItemId::None;
+                machine.status = MachineStatus::Idle;
+            } else {
+                machine.status = MachineStatus::OutputBlocked;
                 continue;
             }
-            const auto consumedOre = machine.inventory.consume(ItemId::IronOre, 1);
-            const auto consumedCoal = machine.inventory.consume(ItemId::Coal, 1);
-            (void)consumedOre;
-            (void)consumedCoal;
         }
 
-        machine.progress = std::min(machine.progress + 1, kFurnaceTicks);
-        if (machine.progress >= kFurnaceTicks && outputItem(machine, ItemId::IronPlate)) {
+        if (machine.progress == 0) {
+            const auto* recipe = selectedFurnaceRecipe(machine);
+            if (recipe == nullptr) {
+                machine.status = MachineStatus::MissingInput;
+                continue;
+            }
+            const auto input = furnaceInputItem(*recipe);
+            if (input == ItemId::None || !machine.inventory.canConsume(input, 1)) {
+                machine.status = MachineStatus::MissingInput;
+                continue;
+            }
+            if (!refuel(machine)) {
+                machine.status = MachineStatus::MissingFuel;
+                continue;
+            }
+            const auto consumedOre = machine.inventory.consume(input, 1);
+            (void)consumedOre;
+            machine.recipeKey = std::string(recipe->key);
+        } else if (!refuel(machine)) {
+            machine.status = MachineStatus::MissingFuel;
+            continue;
+        }
+
+        const auto* activeRecipe = selectedFurnaceRecipe(machine);
+        if (activeRecipe == nullptr) {
             machine.progress = 0;
+            machine.status = MachineStatus::MissingInput;
+            continue;
+        }
+        --machine.fuelTicks;
+        machine.progress = std::min(machine.progress + 1, kFurnaceTicks);
+        machine.status = MachineStatus::Working;
+        if (machine.progress >= kFurnaceTicks) {
+            machine.progress = 0;
+            machine.outputItem = activeRecipe->output.item;
+            if (!machine.recipeLocked) {
+                machine.recipeKey.clear();
+            }
+        }
+    }
+}
+
+void Simulation::updateAssemblers()
+{
+    for (auto& machine : machines_) {
+        if (machine.kind != MachineKind::Assembler) {
+            continue;
+        }
+
+        const auto* recipe = recipeDef(machine.recipeKey.empty() ? "science_pack" : machine.recipeKey);
+        if (recipe == nullptr || recipe->station != "assembler") {
+            machine.status = MachineStatus::MissingInput;
+            continue;
+        }
+
+        if (machine.outputItem != ItemId::None) {
+            if (outputItem(machine, machine.outputItem)) {
+                machine.outputItem = ItemId::None;
+                machine.status = MachineStatus::Idle;
+            } else {
+                machine.status = MachineStatus::OutputBlocked;
+                continue;
+            }
+        }
+
+        if (machine.progress == 0) {
+            if (!machine.inventory.consumeAll(recipe->inputs)) {
+                machine.status = MachineStatus::MissingInput;
+                continue;
+            }
+        }
+
+        machine.progress = std::min(machine.progress + 1, recipe->ticks);
+        machine.status = MachineStatus::Working;
+        if (machine.progress >= recipe->ticks) {
+            machine.progress = 0;
+            machine.outputItem = recipe->output.item;
+        }
+    }
+}
+
+void Simulation::updateLabs()
+{
+    const auto* tech = techDef(activeTech_);
+    if (tech == nullptr || isTechCompleted(activeTech_)) {
+        for (auto& machine : machines_) {
+            if (machine.kind == MachineKind::Lab) {
+                machine.status = MachineStatus::Idle;
+            }
+        }
+        return;
+    }
+
+    for (auto& machine : machines_) {
+        if (machine.kind != MachineKind::Lab) {
+            continue;
+        }
+        if (isTechCompleted(activeTech_)) {
+            machine.status = MachineStatus::Idle;
+            continue;
+        }
+
+        if (machine.progress == 0) {
+            if (!machine.inventory.consume(ItemId::SciencePack, 1)) {
+                machine.status = MachineStatus::MissingInput;
+                continue;
+            }
+        }
+
+        machine.progress = std::min(machine.progress + 1, tech->ticks);
+        machine.status = MachineStatus::Working;
+        if (machine.progress >= tech->ticks) {
+            machine.progress = 0;
+            researchProgress_ = std::min(researchProgress_ + 1, activeTechGoal());
+            if (researchProgress_ >= activeTechGoal()) {
+                completeActiveTech();
+                machine.status = MachineStatus::Idle;
+            }
+        }
+    }
+}
+
+void Simulation::updateInserters()
+{
+    constexpr int kInserterTicks = 15;
+    for (auto& machine : machines_) {
+        if (machine.kind != MachineKind::Inserter) {
+            continue;
+        }
+
+        machine.progress = std::min(machine.progress + 1, kInserterTicks);
+        if (machine.progress < kInserterTicks) {
+            continue;
+        }
+
+        const int sourceX = machine.x - dx(machine.direction);
+        const int sourceY = machine.y - dy(machine.direction);
+        const int targetX = machine.x + dx(machine.direction);
+        const int targetY = machine.y + dy(machine.direction);
+        const auto item = extractItemAt(sourceX, sourceY);
+        if (item == ItemId::None) {
+            machine.status = MachineStatus::MissingInput;
+            continue;
+        }
+
+        if (acceptItemAt(targetX, targetY, item)) {
+            machine.progress = 0;
+            machine.status = MachineStatus::Idle;
+            continue;
+        }
+
+        machine.status = MachineStatus::OutputBlocked;
+        auto* source = machineAt(sourceX, sourceY);
+        if (source != nullptr) {
+            const auto returned = returnItem(*source, item);
+            (void)returned;
         }
     }
 }
 
 bool Simulation::canPlaceMachine(MachineKind kind, int x, int y) const
 {
-    if (machineAt(x, y) != nullptr) {
-        return false;
-    }
+    const auto& def = machineDef(kind);
+    for (int oy = 0; oy < def.height; ++oy) {
+        for (int ox = 0; ox < def.width; ++ox) {
+            const int tx = x + ox;
+            const int ty = y + oy;
+            if (machineAt(tx, ty) != nullptr) {
+                return false;
+            }
 
-    const auto tile = world_.getTile(x, y);
-    if (kind == MachineKind::BurnerMiner) {
-        return tile.id == TileId::IronOre || tile.id == TileId::CoalOre;
+            const auto tile = world_.getTile(tx, ty);
+            if (def.requiresResourceTile) {
+                if (resourceTileOutput(tile.id) == ItemId::None) {
+                    return false;
+                }
+                continue;
+            }
+
+            if (def.requiresBuildableTile && (!tileDef(tile.id).walkable || !tileDef(tile.id).buildable)) {
+                return false;
+            }
+        }
     }
-    return tileDef(tile.id).walkable && tileDef(tile.id).buildable;
+    return true;
 }
 
 bool Simulation::acceptItemAt(int x, int y, ItemId item)
@@ -492,6 +1232,7 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
 
     switch (machine.kind) {
     case MachineKind::Belt:
+    case MachineKind::FastBelt:
         if (machine.carriedItem != ItemId::None) {
             return false;
         }
@@ -499,21 +1240,212 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
         return true;
     case MachineKind::Chest:
         return machine.inventory.add(item, 1);
-    case MachineKind::Furnace:
-        if (item != ItemId::IronOre && item != ItemId::Coal) {
+    case MachineKind::Inserter:
+        return false;
+    case MachineKind::BurnerMiner:
+        if (item != ItemId::Coal) {
             return false;
         }
         return machine.inventory.add(item, 1);
-    case MachineKind::BurnerMiner:
+    case MachineKind::Furnace:
+        if (item == ItemId::Coal) {
+            return machine.inventory.add(item, 1);
+        }
+        if (machine.recipeLocked && !machine.recipeKey.empty()) {
+            const auto* recipe = recipeDef(machine.recipeKey);
+            if (recipe == nullptr || recipe->station != "furnace" || furnaceInputItem(*recipe) != item) {
+                return false;
+            }
+            return machine.inventory.add(item, 1);
+        }
+        if (furnaceRecipeForInput(item) == nullptr) {
+            return false;
+        }
+        return machine.inventory.add(item, 1);
     case MachineKind::Workbench:
+        return false;
+    case MachineKind::Assembler:
+        if (!isRecipeInput(machine.recipeKey.empty() ? "science_pack" : machine.recipeKey, item)) {
+            return false;
+        }
+        return machine.inventory.add(item, 1);
+    case MachineKind::Lab:
+        if (item != ItemId::SciencePack) {
+            return false;
+        }
+        return machine.inventory.add(item, 1);
+    case MachineKind::Generator:
+        if (item != ItemId::Coal) {
+            return false;
+        }
+        return machine.inventory.add(item, 1);
+    case MachineKind::PowerPole:
+    case MachineKind::ElectricMiner:
         return false;
     }
     return false;
 }
 
+ItemId Simulation::extractItemAt(int x, int y)
+{
+    auto* machine = machineAt(x, y);
+    if (machine == nullptr) {
+        return ItemId::None;
+    }
+    return extractItem(*machine);
+}
+
+ItemId Simulation::extractItem(Machine& machine)
+{
+    if (isBelt(machine.kind)) {
+        const auto item = machine.carriedItem;
+        machine.carriedItem = ItemId::None;
+        return item;
+    }
+
+    if (machine.kind == MachineKind::Furnace || machine.kind == MachineKind::Assembler) {
+        const auto item = machine.outputItem;
+        machine.outputItem = ItemId::None;
+        return item;
+    }
+
+    if (machine.kind == MachineKind::Chest) {
+        const auto stacks = machine.inventory.stacks();
+        if (stacks.empty()) {
+            return ItemId::None;
+        }
+        const auto item = stacks.front().item;
+        if (machine.inventory.consume(item, 1)) {
+            return item;
+        }
+    }
+
+    return ItemId::None;
+}
+
+bool Simulation::returnItem(Machine& machine, ItemId item)
+{
+    if (item == ItemId::None) {
+        return false;
+    }
+
+    if ((machine.kind == MachineKind::Furnace || machine.kind == MachineKind::Assembler) &&
+        machine.outputItem == ItemId::None) {
+        machine.outputItem = item;
+        return true;
+    }
+
+    return acceptItem(machine, item);
+}
+
 bool Simulation::outputItem(Machine& machine, ItemId item)
 {
     return acceptItemAt(machine.x + dx(machine.direction), machine.y + dy(machine.direction), item);
+}
+
+bool Simulation::refuel(Machine& machine)
+{
+    if (machine.fuelTicks > 0) {
+        return true;
+    }
+    if (!machine.inventory.consume(ItemId::Coal, 1)) {
+        return false;
+    }
+    machine.fuelTicks = kCoalFuelTicks;
+    return true;
+}
+
+bool Simulation::isBelt(MachineKind kind) const
+{
+    return kind == MachineKind::Belt || kind == MachineKind::FastBelt;
+}
+
+bool Simulation::isPowerPole(MachineKind kind) const
+{
+    return kind == MachineKind::PowerPole;
+}
+
+bool Simulation::isPowerConsumer(MachineKind kind) const
+{
+    return kind == MachineKind::ElectricMiner;
+}
+
+int Simulation::powerDemand(MachineKind kind) const
+{
+    if (kind == MachineKind::ElectricMiner) {
+        return 1;
+    }
+    return 0;
+}
+
+Machine* Simulation::machineById(std::uint32_t id)
+{
+    for (auto& machine : machines_) {
+        if (machine.id == id) {
+            return &machine;
+        }
+    }
+    return nullptr;
+}
+
+const Machine* Simulation::machineById(std::uint32_t id) const
+{
+    for (const auto& machine : machines_) {
+        if (machine.id == id) {
+            return &machine;
+        }
+    }
+    return nullptr;
+}
+
+bool Simulation::isRecipeInput(std::string_view recipeKey, ItemId item) const
+{
+    const auto* recipe = recipeDef(recipeKey);
+    if (recipe == nullptr || item == ItemId::None) {
+        return false;
+    }
+
+    return std::any_of(recipe->inputs.begin(), recipe->inputs.end(), [item](const ItemStack& stack) {
+        return stack.item == item;
+    });
+}
+
+int Simulation::activeTechGoal() const
+{
+    const auto* tech = techDef(activeTech_);
+    if (tech == nullptr) {
+        return 0;
+    }
+
+    int goal = 0;
+    for (const auto& input : tech->inputs) {
+        if (input.item == ItemId::SciencePack) {
+            goal += input.count;
+        }
+    }
+    return std::max(1, goal);
+}
+
+void Simulation::completeActiveTech()
+{
+    const auto* tech = techDef(activeTech_);
+    if (tech == nullptr || isTechCompleted(activeTech_)) {
+        return;
+    }
+
+    completedTechs_.push_back(activeTech_);
+    for (const auto unlock : tech->unlockRecipes) {
+        const auto alreadyUnlocked = std::any_of(
+            unlockedRecipes_.begin(),
+            unlockedRecipes_.end(),
+            [unlock](const std::string& key) {
+                return std::string_view(key) == unlock;
+            });
+        if (!alreadyUnlocked) {
+            unlockedRecipes_.push_back(std::string(unlock));
+        }
+    }
+    researchProgress_ = activeTechGoal();
 }
 
 bool Simulation::isMachineItem(ItemId item) const
@@ -544,12 +1476,6 @@ void Simulation::assignHotbar(ItemId item)
         if (slot == item) {
             return;
         }
-    }
-
-    const auto& def = itemDef(item);
-    if (!def.canPlaceTile && item != ItemId::Belt && item != ItemId::BurnerMiner &&
-        item != ItemId::Furnace && item != ItemId::Chest && item != ItemId::Workbench) {
-        return;
     }
 
     for (auto& slot : player_.hotbar) {

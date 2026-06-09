@@ -2,7 +2,7 @@
 
 Date: 2026-05-15
 Updated: 2026-06-09
-Status: implementation direction pivoted from Lua/Love2D to C++17/raylib
+Status: implementation direction pivoted from Lua/Love2D to C++17/raylib; legacy Lua source removed from the active repo
 
 ## Working Assumption
 
@@ -151,7 +151,7 @@ Avoid these until the core loop is fun:
 
 ## Proposed Repo Shape
 
-Make the C++ game the primary implementation. Keep old Lua files only as temporary historical code until the C++ path replaces the needed behavior.
+Make the C++ game the primary implementation. The legacy Lua framework code has been removed now that the C++ path covers the playable MVP loop.
 
 Suggested structure:
 
@@ -241,7 +241,7 @@ Target demo:
 - Place a miner on iron ore.
 - Route ore on belts into a furnace.
 - Route plates into a chest.
-- Save, reload, and replay a short deterministic session.
+- Save, reload, and replay short deterministic ore-to-plate and science/research sessions.
 
 This is the minimum "Factorio meets Minecraft in C++/raylib" proof.
 
@@ -253,6 +253,12 @@ This is the minimum "Factorio meets Minecraft in C++/raylib" proof.
 - Decide whether this repo becomes the game repo or keeps Thoth as a library with a bundled game.
 - Keep raylib as the first target.
 - Define the MVP item list and recipe list.
+
+Current C++ registry status:
+
+- Tile, item, recipe, tech, and machine definitions live in C++ registries and are validated by headless tests.
+- Machine definitions expose stable keys, display names, 1x1 MVP footprints, placement surface rules, inventory-slot metadata, and behavior kinds.
+- Simulation placement and raylib placement preview use the machine registry instead of hard-coded miner/buildable checks.
 
 ### Phase 1: World And Player Prototype
 
@@ -287,6 +293,24 @@ Success condition: an ore-to-plate-to-chest line works without manual babysittin
 - More resources: copper, coal, stone.
 - First expansion pressure: bigger ore patch, distance, or hostile territory.
 
+Current C++ prototype resource-chain status:
+
+- Iron ore, copper ore, coal, and stone are registered items or terrain resources in the active C++ prototype.
+- Copper ore patches now generate in the deterministic world and a starter copper patch appears near spawn.
+- Burner/electric miners can extract copper ore from copper resource tiles.
+- Ore and coal resource tiles have finite deterministic richness; miners consume one richness per successful output and leave floor when depleted.
+- Furnaces can smelt iron ore or copper ore into the matching plate while preserving the active recipe across save/load.
+- Science packs now require both iron plates and copper plates, making the second ore chain part of progression.
+- Generator, power pole, and electric miner recipes also consume copper plates after research unlocks them.
+
+Current C++ prototype power rules:
+
+- Power poles connect into one network when their Manhattan distance is 4 or less.
+- Generators and electric consumers connect to any pole within Manhattan distance 2.
+- Each fueled generator supplies 2 power and each electric miner demands 1 power.
+- Underpowered networks stop all electric consumers in that network for the tick.
+- Power network topology is recomputed deterministically from placed machines after load.
+
 Success condition: the player has a reason to scale beyond the first belt line.
 
 ### Phase 4: Game Feel And Portfolio Polish
@@ -299,6 +323,15 @@ Success condition: the player has a reason to scale beyond the first belt line.
 - Trailer-worthy 60-second flow.
 - README rewrite that presents the project as a game, not a utility library.
 
+Current C++ prototype polish:
+
+- Raylib world view uses a reviewable authored pixel sprite source at `assets/sprites/thoth_atlas.art`, now with second-pass readability polish for terrain, item, machine, and player silhouettes plus deterministic per-coordinate tile tint/flip variants to reduce repeated terrain patterns. It can export to `assets/sprites/thoth_atlas.png` with `make cpp-export-authored-atlas`, still supports `assets/sprites/thoth_atlas.png` as an external override, can export the generated fallback atlas with `F6` or `make cpp-export-atlas`, validates source/exported dimensions with `make cpp-validate-assets`, and layers tick-based belt travel dashes, working-machine pulses, finite-resource richness pips, status dots, on-world issue badges, direction arrows, and progress bars over sprites.
+- HUD shows objective text, guided first-line, science/research, and power-progression checklists with reactive next-step hints, compact inventory status, an expandable inventory grid with hotbar assignment and role badges, an interactive build-menu card grid with ready/need states, faced-machine deposit/take controls with item labels/counts plus 1x/5x/all batch transfer amounts, explicit furnace and assembler recipe selection, compact state/process/action chips, compact recipe/input/resource/power diagnostics and actionable troubleshooting text, machine process-flow strips, ghost placement previews with invalid-reason labels, production milestone feedback, authored audio cue source at `assets/audio/thoth_cues.sfx` with tuned low/mid/bright cue roles, `make cpp-export-authored-audio` WAV export, `make cpp-validate-assets` source/WAV validation, F11 in-app cue audition, generated fallback tones, machine/debug, power, status counts, per-machine issue summaries, simulation tick cost, and hotbar item counts.
+- `assets/replays/ore_to_plate.thothreplay` is a packaged deterministic demo replay for the first automation line, `assets/replays/science_research.thothreplay` proves assembler-to-lab science/research progression, and `assets/replays/full_flow.thothreplay` runs a 60-second mining-to-research-to-electric-mining flow; `make cpp-validate-replays` validates all packaged replays without opening a raylib window.
+- `make cpp-export-media-preview` writes `assets/previews/thoth_full_flow_preview.png` from the full-flow replay without opening a raylib window, giving the project a deterministic screenshot-style artifact for review. `make cpp-smoke-window` opens the actual raylib app, loads the authored visual/audio assets, renders the full-flow replay state, captures `assets/previews/thoth_window_smoke.png`, verifies the capture dimensions, and runs in CI through Xvfb.
+- Simulation machine lookups use a rebuilt coordinate index for stationary machines, improving the local 4,096-machine benchmark sample from about 9.57 ms/tick to 7.27 ms/tick while preserving save/load and replay determinism.
+- Final live animation tuning, live-listening audio mix polish, and deeper recipe/configuration polish for future machine recipes beyond the current furnace/assembler selectors are still pending.
+
 Success condition: a viewer can understand the game in one minute and trust the engineering in five.
 
 ## Testing Strategy
@@ -306,13 +339,19 @@ Success condition: a viewer can understand the game in one minute and trust the 
 Tests should sell the systems quality:
 
 - Terrain generation is deterministic by seed.
+- Registry validation fails loudly for broken content references.
 - Save/load round-trips world state.
+- A rich persisted-state signature covers player inventory, hotbar, tiles, machine internals, and research across save/load.
 - Input replay reproduces the same simulation state.
 - Belts preserve item order.
 - Inserters never duplicate or delete items except by recipe consumption.
 - Machines consume exact inputs and produce exact outputs.
 - Power networks produce stable supply/demand results.
 - Chunk activation does not change simulation results near active boundaries.
+- Cross-chunk ore-to-plate automation is covered by a headless save/load regression at the 31/32 tile boundary.
+- `make cpp-benchmark` runs a headless representative factory benchmark without raylib and enforces configurable average and per-machine tick-cost guardrails.
+- `make cpp-benchmark-large` runs an 800-machine scaled factory benchmark, `make cpp-benchmark-stress` runs a 4,096-machine stress benchmark, and the same benchmark binary reports average/p95/max tick costs while remaining scalable with `THOTH_BENCHMARK_TICKS`, `THOTH_BENCHMARK_BURNER_LINES`, `THOTH_BENCHMARK_POWERED_LINES`, `THOTH_BENCHMARK_MAX_US_PER_TICK`, and `THOTH_BENCHMARK_MAX_US_PER_MACHINE_TICK`.
+- CI runs `make cpp-smoke-window` under Xvfb so the real raylib window path, authored visual atlas load, replay render, HUD draw, and screenshot export are covered outside local manual play.
 
 ## Main Risks
 
@@ -338,12 +377,9 @@ Mitigation: do not pitch this as a general voxel engine. Pitch it as a complete 
 
 ## Immediate Next Actions
 
-1. Create the C++/CMake project skeleton.
-2. Add a raylib entry point that drives the headless simulation.
-3. Implement chunked tile world and placeholder renderer.
-4. Add player movement, mining, placing, inventory, and hotbar.
-5. Add deterministic save/load test before factory logic.
-6. Build the first ore-to-furnace-to-chest automation loop.
+1. Use manual live play after the Xvfb-backed window smoke to validate authored sprite/audio readability in motion and adjust mix issues that only show up interactively.
+2. Tune animation only if live play still needs more visual clarity beyond the deterministic terrain variants and machine motion accents.
+3. Keep scaling past the current 4,096-machine stress benchmark and optimize the first bottleneck that appears in larger factories.
 
 ## Confidence
 

@@ -1,163 +1,213 @@
-[![](https://img.shields.io/badge/thoth_1.0.0-passing-%23004D00)](https://github.com/gongahkia/thoth/releases/tag/1.0.0)
-[![](https://img.shields.io/badge/thoth_2.0.0-passing-%23228B22)](https://github.com/gongahkia/thoth/releases/tag/2.0.0)
-[![](https://img.shields.io/badge/thoth_3.0.0-passing-%2332CD32)](https://github.com/gongahkia/thoth/releases/tag/3.0.0)
-[![](https://img.shields.io/badge/thoth_4.0.0-passing-%233CB371)](https://github.com/gongahkia/thoth/releases/tag/4.0.0)
-![](https://github.com/gongahkia/thoth/actions/workflows/ci.yml/badge.svg)
+# Thoth
 
-<h1 align='center'><code>Thoth</code></h1>
-<div align='center'>
-<p>
-  <i>Functional lua pocket knife.</i>
-</p>
-<img src='https://github.com/gongahkia/thoth/assets/117062305/276628d5-aefa-442c-ad3e-5df51b4357b3' width=50% height=50%></img>
-</div>
+Thoth is a C++17/raylib top-down block automation sandbox.
 
-## Rationale
+The game code lives in `include/thoth` and `src/thoth`, with a thin raylib desktop app in `src/app/main.cpp`.
 
-`Thoth` is a [Lua](https://www.lua.org/) library for [deterministic](https://dictionary.cambridge.org/dictionary/english/deterministic) [real-time systems](https://www.intel.com/content/www/us/en/learn/what-is-a-real-time-system.html), served in [3 layers](#thoth-provides).
+## Game Direction
 
-## Installation
+Thoth is a small-scope "Factorio meets Minecraft" prototype:
+
+- Explore a deterministic block world.
+- Mine trees, stone, coal, iron ore, and copper ore by hand.
+- Craft belts, inserters, chests, furnaces, miners, assemblers, labs, and power machines.
+- Build an ore-to-plate factory line.
+- Automate iron-plus-copper science packs and unlock faster logistics plus electric power.
+- Save, load, and replay deterministic simulation state.
+
+The renderer is intentionally simple. The engineering focus is a headless deterministic simulation with a practical raylib front end.
+
+## Current MVP Status
+
+Implemented in C++:
+
+- Chunked deterministic terrain.
+- Validated data registries for tiles, items, machines, recipes, and technologies.
+- Player movement, mining, placing, inventory, hotbar, and crafting.
+- Belts with deterministic item transport and fast belts after research.
+- Chests, inserters, burner miners, furnaces, assemblers, labs, generators, power poles, and electric miners.
+- Finite iron, copper, and coal resource tiles that deplete through miners and create expansion pressure.
+- Iron and copper ore-to-plate resource chains through miners, furnaces, inserters, belts, and chests.
+- Small tech tree with iron-plus-copper science-pack research and copper-dependent power machines.
+- Deterministic power network recomputation.
+- Plain-text save/load and replay foundation.
+- Headless tests for world generation, registries, automation, chunk-boundary factory lines, rich save/load state, replay, research, and power.
+- A headless representative factory benchmark for simulation cost checks.
+- Packaged deterministic ore-to-plate, science/research, and 60-second full-flow replay artifacts under `assets/replays/`, validated by `make cpp-validate-replays`.
+- Raylib UI panels, guided first-line, science/research, and power-progression checklists with reactive next-step hints, interactive build-menu recipe cards with ready/need states, faced-machine deposit/take controls with item labels, counts, and 1x/5x/all batch transfer amounts, explicit furnace and assembler recipe selection, machine state/process/action chips, actionable recipe/input/resource/power troubleshooting, compact machine process-flow strips, inventory role badges for materials/buildables/tiles/tech items, a reviewable authored pixel atlas source with PNG export plus generated fallback sprites, deterministic terrain variation, belt/machine motion accents, finite-resource richness pips, status dots with on-world issue badges, ghost placement preview with invalid-reason labels, target and production feedback, reviewable authored audio cue source with WAV export plus fallback tones for actions, production, and severe machine issues, per-machine issue diagnostics, tick-cost debug readouts, pause/step/fast-forward, and replay-backed demo factories.
+
+Still rough:
+
+- Authored pixel/block sprite atlas is present as `assets/sprites/thoth_atlas.art`, with a second-pass readability sweep for terrain, items, machines, and the player, plus deterministic per-tile tint/flip variation and tick-based belt/machine motion accents in the renderer; later art work should focus on final live tuning and style polish.
+- Generated sprite atlas fallback remains available for reference and recovery.
+- Inventory, machine, and build menus have scan-first state labels now, but still need a final visual design pass.
+- Authored audio cue source is present as `assets/audio/thoth_cues.sfx`, with tuned deterministic WAV exports for core work, UI, error, save/load, and production feedback; final live-listening mix polish is still pending.
+
+## Build And Run
+
+Requirements:
+
+- CMake 3.24+
+- A C++17 compiler
+- `make`
+- raylib installed, or network access so CMake can fetch raylib 6.0
+
+Run the C++ game:
 
 ```console
-$ luarocks install thoth
-$ git clone https://github.com/gongahkia/thoth && cd thoth
-$ make test
+make cpp-run
 ```
 
-## Supported engines
+Run the C++ build and headless tests:
 
-* [Löve2D](https://love2d.org/)
-* [Solar2D](https://solar2d.com/)
-* [Defold](https://defold.com/)
-
-## `Thoth` provides....
-
-<details>
-<summary><b>Core Library</b></summary>
-
-#### Data Structures
-- **stacks** - LIFO stack helpers with `push`, `pop`, `peek`, and `size`
-- **queues** - FIFO queue helpers with `push`, `pop`, `peek`, and `size`
-- **deques** - Double-ended queue with front/back insertion, removal, and inspection
-- **ringbuffers** - Fixed-capacity circular buffer with overwrite-on-full semantics
-- **links** - Singly-linked list with insert, delete, search, and size helpers
-- **sets** - Set container with membership tests plus union, intersection, and difference
-- **orderedmaps** - Insertion-ordered key/value map with stable key iteration
-- **trees** - Binary search tree with insert, search, delete, and inorder traversal
-- **heaps** - Min heap, max heap, priority queue, and heap-sort helpers
-- **tries** - Prefix tree with autocomplete, longest-common-prefix, delete, and wildcard pattern search
-- **graphs** - Directed/undirected weighted graphs with BFS, DFS, shortest paths, connectivity checks, cycle detection, and topological sort
-- **unionfind** - Disjoint-set / union-find structure for grouping and connectivity queries
-
-#### Mathematics
-- **math** - Clamp, Fibonacci, lerp, approach, round, sign, range scaling, smoothing, angle conversion, angle wrapping, and random range helpers
-- **math2d** / **math2D** - 2D vector math, normalization, scaling, angles, Euclidean/Manhattan distance, point-to-segment distance, line sampling, segment normals, cardinal facing, and coordinate hashing helpers
-
-#### String Manipulation
-- **stringify** - String trimming, splitting, joining, padding, centering, truncation, wrapping, replacement, similarity checks, template interpolation, and case conversion
-
-#### Table Operations  
-- **tables** - Count, shallow copy, `map`, `filter`, `reduce`, `push`/`pop`, and `shift`/`unshift` helpers
-
-#### Validation
-- **validate** - Primitive and collection validators, range/pattern checks, schema validation, contract wrappers, and validator builders
-
-#### Serialization
-- **serialize** - Deep copy, JSON encode/decode, Lua table serialization, file save/load helpers, and sandboxed Lua loading
-
-#### Caching & Memoization
-- **cache** - Simple caches, LRU caches, TTL caches, memoization, and LRU-bounded memoization
-
-#### Event System
-- **events** - Event emitter, event bus, deferred event queue, cancellable event objects, signal helper, and global publish/subscribe shortcuts
-
-#### Performance & Profiling
-- **performance** - Timers, benchmarks, function comparisons, profiler, memory measurement, FPS counter, and formatting helpers
-
-#### Platform Utilities
-- **config** - Shallow and deep config merging, environment variable lookup, and `.env` file loading
-- **datetime** - Unix timestamp helpers, ISO-8601 formatting, table conversion, and second-based time arithmetic
-- **logging** - Leveled structured logger with pluggable sink functions
-- **path** - Path join, normalize, basename, dirname, and extension helpers
-
-</details>
-
-<details>
-<summary><b>Game Runtime & Adapters</b></summary>
-
-#### Runtime
-- **thoth.game.runtime** - Adapter-driven game loop with fixed-step simulation, per-frame update/draw phases, ordered systems, shared context, deterministic RNG, metrics/trace collection, debug HUD rendering, recording/replay, snapshots, and rollback support
-- **thoth.game.frame** - Deterministic accumulator scheduler exposing fixed-step counts and interpolation alpha
-- **thoth.game.random** - Seeded deterministic random generator with save/restore state and choice helpers
-- **thoth.game.state** - Stack-based scene/state manager with enter/exit/update/draw/dispatch hooks plus snapshot/restore support
-- **thoth.game.tasks** - Coroutine scheduler with spawned jobs, delayed jobs, repeating jobs, cancellation, inspection, and observer hooks
-- **thoth.game.tween** - Tween, timer, and timeline primitives with easing, pause/resume, completion callbacks, and timeline inspection
-
-#### Input & Gameplay Primitives
-- **thoth.game.input** - Action-based input manager with keyboard, mouse, gamepad, touch, and axis bindings; deadzones/curves/scaling; layered contexts; import/export; and frame capture/apply for replay
-- **thoth.game.animation** - Lightweight state-machine animation controller with enter/exit hooks and conditional transitions
-- **thoth.game.behavior** - Behavior-tree helpers for conditions, actions, sequences, selectors, inversion, and repeat-until-failure flows
-- **thoth.game.ecs** - Minimal table-oriented ECS helpers for querying, grouping, batch updates, and removals
-- **thoth.game.camera** - 2D camera with viewport, zoom, bounds, target following, shake, and world/screen conversion
-- **thoth.game.collision** - Rect/circle helpers plus point tests, overlap tests, segment intersection, and simple raycasts
-
-#### World & Navigation
-- **thoth.game.tilemap** - Layered tilemap storage with cell/world conversions, mutation helpers, and walkability checks
-- **thoth.game.navigation** - Tilemap-to-grid and tilemap-to-waypoint-graph helpers built on top of pathfinding + core graphs
-- **thoth.game.pathfinding** - A* pathfinding for weighted graphs and grids with custom heuristics, costs, and optional diagonal movement
-- **thoth.game.spatial** - Spatial hash and quadtree broad-phase helpers with range, nearest-neighbor, update, and clear operations
-- **thoth.game.fog** - Grid-based fog-of-war with circular and rectangular reveal, visibility queries, and snapshot/restore support
-
-#### Engine Adapters
-- **thoth.adapters.love2d** - Love2D adapter for lifecycle registration, keyboard/mouse/touch/gamepad/window polling, and optional debug draw support
-- **thoth.adapters.defold** - Defold adapter for runtime lifecycle registration, input-event bridging, and axis state tracking
-- **thoth.adapters.solar2d** - Solar2D adapter for frame, key, touch, and axis event integration
-- **thoth.adapters.contract** - Adapter capability contract, validation helpers, support assertions, and a null/headless adapter for tests or offline simulation
-
-#### Official Add-ons
-- **thoth.addons** - Namespace for official extension packs layered on top of the deterministic runtime
-- **thoth.addons.gameplay** - Installer for deterministic gameplay services covering resources, cooldowns, status effects, command queues, inventory, scoring, and skills
-- **thoth.addons.gameplay.resources** - Bounded resource pools with clamped mutation plus snapshot/restore support
-- **thoth.addons.gameplay.cooldowns** - Named cooldown timers with deterministic ticking plus snapshot/restore support
-- **thoth.addons.gameplay.status** - Timed status-effect manager with tags, stacking, expiry, and snapshot/restore support
-- **thoth.addons.gameplay.commands** - Snapshot-safe command queue with enqueue/schedule/cancel/inspect helpers and deterministic execution
-- **thoth.addons.gameplay.inventory** - Data-driven inventory manager with stackable items, weight tracking, perishable decay, condition adjustment, and snapshot/restore support
-- **thoth.addons.gameplay.scoring** - Configurable combo/style scoring with technique variety bonuses, idle decay, rank thresholds, and snapshot/restore support
-- **thoth.addons.gameplay.skills** - Leveled skill progression with XP accumulation, auto-level-up, configurable caps, and snapshot/restore support
-
-</details>
-
-<details>
-<summary><b>Terrain Generation</b></summary>
-
-#### Terrain API
-- **thoth.game.terrain** - Library-first terrain facade with `list`, `describe`, and `generate` helpers for deterministic terrain generation
-- **thoth.game.terrain.grid** - Grid helpers, cellular automata, Voronoi sampling, connectivity checks, and tilemap conversion
-- **thoth.game.terrain.simulation** - Rule-based post-generation terrain evolution with deterministic stepping plus snapshot/restore-friendly state
-- **thoth.game.terrain.evolution** - Genetic parameter search across terrain generators with genome persistence and fitness scoring
-- **thoth.game.terrain.export** - Plain-Lua JSON and CSV export helpers for generated terrain grids
-- **thoth.game.terrain.palette** - Shared symbol-to-color mappings for terrain rendering and tooling
-
-#### Runtime Integration
-- **thoth.addons.terrain** - Runtime extension for terrain state, generation metadata, simulation sessions, evolution sessions, and snapshot/restore support
-
-#### Supported Generators
-- **terrain generators** - `apocalypse`, `archipelago`, `badlands`, `canyon`, `cave`, `coast`, `coral`, `desert`, `farm`, `forest`, `glacier`, `island`, `mega`, `mountain`, `river`, `swamp`, `temple`, `tundra`, `urban`, and `volcano`
-
-</details>
-
-## Usage
-
-```lua
--- eg usage
-local s = require("thoth.core.stringify")
-print(s.Lstrip("###watermelon", "#"))
-
--- or load all modules at once
-local thoth = require("thoth")
-print(thoth.core.stringify.Lstrip("###watermelon", "#"))
-
--- runtime + adapter usage
-local runtime = thoth.game.runtime.new(thoth.adapters.love2d.new(love))
-runtime.input:bind("jump", "space")
+```console
+make test
 ```
+
+Run the C++ representative factory benchmark:
+
+```console
+make cpp-benchmark
+```
+
+Run a larger local benchmark:
+
+```console
+make cpp-benchmark-large
+```
+
+Run a local stress benchmark:
+
+```console
+make cpp-benchmark-stress
+```
+
+The default benchmark simulates 48 burner ore-to-plate lines and 16 powered mining lines for 900 ticks. The larger target doubles that to 96 burner lines and 32 powered lines. The stress target simulates 512 burner lines plus 128 powered lines, or 4,096 machines, for 600 ticks. The benchmark reports average, p95, and max observed tick cost, plus machine-tick throughput. It fails if `us_per_tick` exceeds `THOTH_BENCHMARK_MAX_US_PER_TICK` or `us_per_machine_tick` exceeds `THOTH_BENCHMARK_MAX_US_PER_MACHINE_TICK`; when unset, it uses conservative defaults. You can also set `THOTH_BENCHMARK_TICKS`, `THOTH_BENCHMARK_BURNER_LINES`, and `THOTH_BENCHMARK_POWERED_LINES` to scale the deterministic headless factory without opening raylib.
+
+Validate the packaged deterministic replay demos without opening a window:
+
+```console
+make cpp-validate-replays
+```
+
+Validate authored sprite/audio sources plus exported runtime PNG/WAV assets without opening a window:
+
+```console
+make cpp-validate-assets
+```
+
+Export the generated sprite atlas without opening a window:
+
+```console
+make cpp-export-atlas
+```
+
+Validate and export the authored sprite atlas without opening a window:
+
+```console
+make cpp-export-authored-atlas
+```
+
+Export generated starter audio cues without opening a window:
+
+```console
+make cpp-export-audio
+```
+
+Validate and export the authored audio cue pack without opening a window:
+
+```console
+make cpp-export-authored-audio
+```
+
+Export the deterministic full-flow preview image without opening a window:
+
+```console
+make cpp-export-media-preview
+```
+
+Run a bounded raylib window smoke and save a screenshot:
+
+```console
+make cpp-smoke-window
+```
+
+On headless Linux CI, run it under Xvfb:
+
+```console
+xvfb-run -a -s "-screen 0 1280x720x24" make cpp-smoke-window
+```
+
+Build and run the raylib app:
+
+```console
+make cpp-run
+```
+
+## In-Game Controls
+
+- `WASD` / arrow keys: move and face target direction
+- Number keys: select hotbar slot
+- `Space`: mine target tile
+- `P`: place selected item
+- `R`: rotate machine output direction before placing
+- `E`: deposit selected item into faced machine
+- Mouse click a machine panel `+`/`-` item button: deposit or take one item
+- `V`: show/hide inventory grid
+- Mouse click an inventory hotbar slot: select that slot
+- Mouse click an inventory stack: assign it to the selected hotbar slot
+- Right-click an inventory hotbar slot: clear that slot
+- Mouse click an assembler recipe button: set its active recipe
+- `Q`: show/hide build menu
+- `[` / `]`: select build-menu recipe
+- `Z`: craft selected build-menu recipe
+- Mouse click a build-menu card: craft that recipe
+- `C/F/B/I/M/X/L/T/G/O/N`: craft known recipes
+- `F5` / `F9`: save/load `thoth_save.txt`
+- `F6`: export the generated sprite atlas to `assets/sprites/thoth_generated_atlas.png`
+- `F7`: load the packaged deterministic science/research replay
+- `F8`: load the packaged deterministic ore-to-plate factory replay
+- `F10`: load the packaged 60-second full-flow replay
+- `F11`: audition the next audio cue for live mix checks
+- `Backspace`: pause/resume
+- `Enter`: step one tick while paused
+- Hold `Shift`: fast-forward simulation
+- `Tab`: toggle debug detail
+
+## Portfolio Highlights
+
+- Core simulation is independent from raylib.
+- Same seed plus same replay inputs should reproduce the same state, including packaged ore, science, and full-flow demo replays.
+- Power networks are recomputed deterministically from placed machines after save/load.
+- Tests exercise the factory loop rather than only rendering.
+- `make cpp-benchmark`, `make cpp-benchmark-large`, and `make cpp-benchmark-stress` run deterministic mixed factories without opening a window.
+- `make cpp-smoke-window` opens the raylib app, loads the authored atlas and WAV cues, renders the full-flow replay state, saves `assets/previews/thoth_window_smoke.png`, and runs in CI through Xvfb.
+- The app is a thin UI shell over the deterministic game model.
+
+## Repository Shape
+
+```text
+include/thoth/
+  core/
+  game/
+src/
+  app/                 raylib desktop app
+  thoth/core/          deterministic utilities
+  thoth/game/          headless simulation, registry, save, replay, world
+tests/                 C++ simulation tests
+benchmarks/            C++ headless simulation benchmark
+assets/replays/        packaged deterministic replay demos
+  assets/previews/       deterministic full-flow preview export
+  assets/sprites/        authored sprite atlas source, runtime PNG export, and atlas layout notes
+  assets/audio/          authored audio cue source, WAV cue exports, and generated fallback notes
+```
+
+## Roadmap
+
+The current plan lives in `WORKON-PIVOT-ASAP.md` and GitHub issues `#35` through `#49`.
+
+Near-term work:
+
+- Polish final visual design and expand recipe configuration only when more machine recipes exist.
+- Polish final atlas styling and the authored WAV cue pack in live play.
+- Strengthen performance guardrails for larger factories.

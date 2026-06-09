@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -14,6 +15,7 @@ enum class TileId : std::uint8_t {
     Tree,
     Water,
     IronOre,
+    CopperOre,
     CoalOre,
     Floor,
 };
@@ -25,19 +27,50 @@ enum class ItemId : std::uint8_t {
     Coal,
     IronOre,
     IronPlate,
+    CopperOre,
+    CopperPlate,
     Belt,
+    Inserter,
     BurnerMiner,
     Furnace,
     Chest,
     Workbench,
+    SciencePack,
+    Assembler,
+    Lab,
+    FastBelt,
+    Generator,
+    PowerPole,
+    ElectricMiner,
 };
 
 enum class MachineKind : std::uint8_t {
     Belt,
+    FastBelt,
+    Inserter,
     BurnerMiner,
     Furnace,
     Chest,
     Workbench,
+    Assembler,
+    Lab,
+    Generator,
+    PowerPole,
+    ElectricMiner,
+};
+
+enum class MachineBehaviorKind : std::uint8_t {
+    TransportBelt,
+    Inserter,
+    BurnerMiner,
+    Furnace,
+    Storage,
+    CraftingStation,
+    Assembler,
+    Lab,
+    Generator,
+    PowerPole,
+    ElectricMiner,
 };
 
 struct Rgb {
@@ -68,6 +101,19 @@ struct ItemDef {
     bool canPlaceMachine;
 };
 
+struct MachineDef {
+    MachineKind id;
+    std::string_view key;
+    std::string_view displayName;
+    int width;
+    int height;
+    bool blocksMovement;
+    bool requiresBuildableTile;
+    bool requiresResourceTile;
+    int inventorySlots;
+    MachineBehaviorKind behavior;
+};
+
 struct ItemStack {
     ItemId item;
     int count;
@@ -79,21 +125,36 @@ struct RecipeDef {
     ItemStack output;
     int ticks;
     std::string_view station;
+    bool unlockedByDefault;
+};
+
+struct TechDef {
+    std::string_view key;
+    std::string_view displayName;
+    std::vector<ItemStack> inputs;
+    int ticks;
+    std::vector<std::string_view> unlockRecipes;
 };
 
 [[nodiscard]] const std::vector<TileDef>& tileDefs();
 [[nodiscard]] const std::vector<ItemDef>& itemDefs();
+[[nodiscard]] const std::vector<MachineDef>& machineDefs();
 [[nodiscard]] const std::vector<RecipeDef>& recipeDefs();
+[[nodiscard]] const std::vector<TechDef>& techDefs();
 
 [[nodiscard]] const TileDef& tileDef(TileId id);
 [[nodiscard]] const ItemDef& itemDef(ItemId id);
+[[nodiscard]] const MachineDef& machineDef(MachineKind id);
 [[nodiscard]] const RecipeDef* recipeDef(std::string_view key);
+[[nodiscard]] const TechDef* techDef(std::string_view key);
 [[nodiscard]] std::string_view toString(TileId id);
 [[nodiscard]] std::string_view toString(ItemId id);
 [[nodiscard]] std::optional<TileId> tileIdFromKey(std::string_view key);
 [[nodiscard]] std::optional<ItemId> itemIdFromKey(std::string_view key);
 [[nodiscard]] std::string_view toString(MachineKind kind);
+[[nodiscard]] std::string_view toString(MachineBehaviorKind behavior);
 [[nodiscard]] std::optional<MachineKind> machineKindFromKey(std::string_view key);
+[[nodiscard]] std::vector<std::string> validateRegistries();
 [[nodiscard]] bool isWalkable(TileId id);
 [[nodiscard]] bool isMineable(TileId id);
 

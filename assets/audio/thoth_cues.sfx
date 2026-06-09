@@ -1,0 +1,17 @@
+THOTH_AUDIO_CUES 1
+# Reviewable authored audio cue source.
+# Format: cue <filename> <start_hz> <end_hz> <seconds> <volume>
+# Runtime/export writes 16-bit mono WAVs at 22050 Hz.
+# Mix roles:
+# - Low downward cues: physical work and errors
+# - Short mid cues: placement and UI tick
+# - Bright upward cues: craft, save/load, and production confirmations
+
+cue mine.wav 178 74 0.090 0.16
+cue place.wav 320 230 0.064 0.13
+cue craft.wav 500 780 0.105 0.12
+cue invalid.wav 132 62 0.135 0.13
+cue save.wav 560 920 0.145 0.10
+cue load.wav 360 620 0.130 0.10
+cue tick.wav 900 900 0.032 0.055
+cue produce.wav 470 880 0.120 0.11

@@ -12,3 +12,7 @@ luacov.stats.out
 
 # test artifacts
 test_tmp_*.lua
+
+# generated local art exports
+assets/sprites/thoth_generated_atlas.png
+assets/audio/generated/

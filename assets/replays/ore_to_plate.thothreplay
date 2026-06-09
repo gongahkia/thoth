@@ -1,0 +1,38 @@
+THOTH_REPLAY 1
+seed 20260609
+final_tick 140
+player 1 1 north 0
+inventory 6
+item burner_miner 1
+item belt 1
+item inserter 1
+item furnace 1
+item chest 1
+item coal 2
+tiles 10
+tile 1 0 iron_ore 1
+tile 2 0 floor 0
+tile 3 0 floor 0
+tile 4 0 floor 0
+tile 5 0 floor 0
+tile 1 1 floor 0
+tile 2 1 floor 0
+tile 3 1 floor 0
+tile 4 1 floor 0
+tile 5 1 floor 0
+frames 15
+frame 0 place north east burner_miner floor
+frame 1 move east
+frame 2 place north east belt floor
+frame 3 move east
+frame 4 place north east inserter floor
+frame 5 move east
+frame 6 place north east furnace floor
+frame 7 move east
+frame 8 place north east chest floor
+frame 9 move west
+frame 10 deposit north coal
+frame 11 move west
+frame 12 move west
+frame 13 move west
+frame 14 deposit north coal
