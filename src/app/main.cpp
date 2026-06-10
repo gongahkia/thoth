@@ -2374,7 +2374,6 @@ Color activityPulseColor(thoth::game::MachineKind kind)
     case MachineKind::ProviderChest:
     case MachineKind::RequesterChest:
     case MachineKind::Workbench:
-    case MachineKind::OffshorePump:
         break;
     }
     return Color{210, 220, 214, 255};
