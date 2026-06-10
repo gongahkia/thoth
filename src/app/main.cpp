@@ -3135,6 +3135,7 @@ void drawTileDetail(thoth::game::TileId id, int x, int y)
     case TileId::Sand:
     case TileId::Snow:
     case TileId::Mud:
+    default:
         break;
     }
 }
@@ -3200,7 +3201,8 @@ const thoth::game::Machine* facedMachine(const thoth::game::Simulation& sim)
     const auto& player = sim.player();
     return sim.machineAt(
         player.x + thoth::game::dx(player.facing),
-        player.y + thoth::game::dy(player.facing));
+        player.y + thoth::game::dy(player.facing),
+        player.z);
 }
 
 int beltItemCount(const thoth::game::Simulation& sim)
@@ -4832,11 +4834,11 @@ std::string placementBlockReason(const thoth::game::Simulation& sim, thoth::game
     const auto& player = sim.player();
     const int tx = player.x + thoth::game::dx(player.facing);
     const int ty = player.y + thoth::game::dy(player.facing);
-    if (sim.machineAt(tx, ty) != nullptr) {
+    if (sim.machineAt(tx, ty, player.z) != nullptr) {
         return "target occupied";
     }
 
-    const auto targetTile = sim.world().getTile(tx, ty);
+    const auto targetTile = sim.world().getTile(tx, ty, player.z);
     const auto& def = thoth::game::itemDef(item);
     if (def.canPlaceMachine) {
         const auto& machine = thoth::game::machineDef(def.placeMachine);
@@ -4858,11 +4860,8 @@ std::string placementBlockReason(const thoth::game::Simulation& sim, thoth::game
         return "";
     }
     if (def.canPlaceTile) {
-        if (!thoth::game::isWalkable(targetTile.id)) {
+        if (!sim.world().isWalkable(tx, ty, player.z)) {
             return "clear target first";
-        }
-        if (!thoth::game::tileDef(def.placeTile).walkable) {
-            return "cannot place blocking tile";
         }
         return "";
     }
@@ -4976,7 +4975,8 @@ bool canMineFacing(const thoth::game::Simulation& sim)
     const auto& player = sim.player();
     const auto tile = sim.world().getTile(
         player.x + thoth::game::dx(player.facing),
-        player.y + thoth::game::dy(player.facing));
+        player.y + thoth::game::dy(player.facing),
+        player.z);
     return thoth::game::isMineable(tile.id);
 }
 
@@ -5271,7 +5271,8 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
         const auto& player = sim.player();
         const auto* target = sim.machineAt(
             player.x + thoth::game::dx(player.facing),
-            player.y + thoth::game::dy(player.facing));
+            player.y + thoth::game::dy(player.facing),
+            player.z);
         if (selected != thoth::game::ItemId::None && sim.itemCount(selected) > 0 && target != nullptr) {
             setFeedback(state, "deposited " + std::string(thoth::game::toString(selected)), Color{103, 214, 132, 220});
             playCue(audio, audio.place);
@@ -5280,6 +5281,16 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
             playCue(audio, audio.invalid);
         }
         sim.queue(Command::depositSelected(sim.player().facing));
+    }
+    if (IsKeyPressed(KEY_J)) {
+        sim.queue(Command::interact(sim.player().facing));
+        setFeedback(state, "interact", Color{122, 184, 244, 220});
+        playCue(audio, audio.tick);
+    }
+    if (IsKeyPressed(KEY_H)) {
+        sim.queue(Command::attack(sim.player().facing));
+        setFeedback(state, "attack", Color{240, 218, 123, 220});
+        playCue(audio, audio.mine);
     }
 
     if (IsKeyPressed(KEY_K)) {
@@ -5574,6 +5585,7 @@ Color resourceRichnessColor(thoth::game::TileId id)
     case TileId::Tree:
     case TileId::Stone:
     case TileId::Floor:
+    default:
         break;
     }
     return Color{220, 220, 210, 230};
@@ -5693,6 +5705,40 @@ void drawMachine(const thoth::game::Machine& machine, std::uint64_t tick)
     drawMachineIssueBadge(machine, px, py);
 }
 
+Color entityColor(thoth::game::EntityKind kind)
+{
+    using thoth::game::EntityKind;
+    switch (kind) {
+    case EntityKind::Deer:
+        return Color{156, 104, 62, 255};
+    case EntityKind::Chicken:
+        return Color{236, 226, 188, 255};
+    case EntityKind::Crab:
+        return Color{214, 92, 74, 255};
+    case EntityKind::Fish:
+        return Color{84, 172, 222, 255};
+    case EntityKind::Slime:
+        return Color{92, 206, 112, 255};
+    case EntityKind::Skeleton:
+        return Color{212, 212, 196, 255};
+    case EntityKind::CaveCrawler:
+        return Color{138, 74, 168, 255};
+    case EntityKind::DungeonSentinel:
+        return Color{112, 210, 218, 255};
+    }
+    return Color{220, 220, 220, 255};
+}
+
+void drawEntity(const thoth::game::Entity& entity)
+{
+    const int px = entity.x * kTilePixels;
+    const int py = entity.y * kTilePixels;
+    const auto color = entityColor(entity.kind);
+    DrawCircle(px + 16, py + 16, 9.0f, Color{0, 0, 0, 120});
+    DrawCircle(px + 15, py + 14, 8.0f, color);
+    DrawRectangle(px + 11, py + 22, std::max(2, entity.hp * 3), 3, Color{236, 84, 84, 230});
+}
+
 void drawWorld(thoth::game::Simulation& sim, const AppState& state)
 {
     const auto& player = sim.player();
@@ -5701,7 +5747,7 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
 
     for (int y = player.y - halfTilesY; y <= player.y + halfTilesY; ++y) {
         for (int x = player.x - halfTilesX; x <= player.x + halfTilesX; ++x) {
-            const auto tile = sim.world().getTile(x, y);
+            const auto tile = sim.world().getTile(x, y, player.z);
             const auto& def = thoth::game::tileDef(tile.id);
             const Rectangle destination{
                 static_cast<float>(x * kTilePixels),
@@ -5750,7 +5796,7 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
         const Color wire = network.powered ? Color{118, 210, 255, 126} : Color{245, 92, 92, 126};
         for (const auto poleId : network.poleIds) {
             const auto* pole = machineById(sim, poleId);
-            if (pole == nullptr) {
+            if (pole == nullptr || pole->z != player.z) {
                 continue;
             }
             const int px = pole->x * kTilePixels + (kTilePixels / 2);
@@ -5760,7 +5806,7 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
                     continue;
                 }
                 const auto* other = machineById(sim, otherPoleId);
-                if (other == nullptr) {
+                if (other == nullptr || other->z != player.z) {
                     continue;
                 }
                 const int distance = std::abs(pole->x - other->x) + std::abs(pole->y - other->y);
@@ -5776,13 +5822,13 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
             }
             for (const auto generatorId : network.generatorIds) {
                 const auto* generator = machineById(sim, generatorId);
-                if (generator != nullptr) {
+                if (generator != nullptr && generator->z == player.z) {
                     DrawLine(px, py, generator->x * kTilePixels + (kTilePixels / 2), generator->y * kTilePixels + (kTilePixels / 2), wire);
                 }
             }
             for (const auto consumerId : network.consumerIds) {
                 const auto* consumer = machineById(sim, consumerId);
-                if (consumer != nullptr) {
+                if (consumer != nullptr && consumer->z == player.z) {
                     DrawLine(px, py, consumer->x * kTilePixels + (kTilePixels / 2), consumer->y * kTilePixels + (kTilePixels / 2), wire);
                 }
             }
@@ -5790,12 +5836,21 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
     }
 
     for (const auto& machine : sim.machines()) {
+        if (machine.z != player.z) {
+            continue;
+        }
         drawMachine(machine, sim.tick());
+    }
+
+    for (const auto& entity : sim.entities()) {
+        if (entity.z == player.z) {
+            drawEntity(entity);
+        }
     }
 
     const int tx = player.x + thoth::game::dx(player.facing);
     const int ty = player.y + thoth::game::dy(player.facing);
-    const auto targetTile = sim.world().getTile(tx, ty);
+    const auto targetTile = sim.world().getTile(tx, ty, player.z);
     const bool buildTarget = selectedBuildToolActive(sim);
     if (thoth::game::isMineable(targetTile.id) || buildTarget) {
         const Color targetColor = thoth::game::isMineable(targetTile.id) ? Color{246, 220, 118, 190} : Color{255, 255, 255, 96};
@@ -6512,7 +6567,10 @@ void drawHud(const thoth::game::Simulation& sim, const AppState& state)
         appendWrapped(inspector, powerStatsText(sim), 46);
         inspector.push_back("tick " + std::to_string(sim.tick()) +
             "  chunks " + std::to_string(sim.world().loadedChunkCount()) +
-            "  pos " + std::to_string(player.x) + "," + std::to_string(player.y));
+            "  pos " + std::to_string(player.x) + "," + std::to_string(player.y) + "," + std::to_string(player.z) +
+            "  hp " + std::to_string(player.hp) +
+            (player.inBoat ? "  boat" : "") +
+            "  entities " + std::to_string(sim.entities().size()));
         inspector.push_back("debug: Tab overlay  Backspace pause  Enter step");
         inspector.push_back("assets: F6 export atlas  atlas " +
             std::string(gVisualAtlas == nullptr ? "none" : gVisualAtlas->source));
@@ -6533,6 +6591,7 @@ void drawHud(const thoth::game::Simulation& sim, const AppState& state)
         std::vector<std::string> help;
         appendWrapped(help, "WASD/Arrows move and face. Space mines the target. P places selected item. E deposits into the faced machine.", 40);
         appendWrapped(help, "Q opens the build menu. [ ] selects recipes. Z crafts selected. R rotates build output.", 40);
+        appendWrapped(help, "J interacts with boats, doors, and stairs. H attacks the faced creature.", 40);
         appendWrapped(help, "V opens inventory. Hold Left Shift to fast-forward. Number keys select hotbar slots.", 40);
         appendWrapped(help, "F5/F9 save/load. F7/F8/F10 replay demos. F6 exports atlas. F11 auditions audio.", 40);
         drawPanel(462, 12, 364, "Controls", help);

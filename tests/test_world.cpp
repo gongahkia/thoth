@@ -2376,6 +2376,114 @@ void testRiftGateTeleportsToOuterDimensionBand()
     require(sim.player().x >= 4096, "rift gate should move player to the outer dimension band");
 }
 
+void testBiomeMaterialsAndBiomeCrafting()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260610);
+    sim.world().setTile(1, 0, 0, Tile{TileId::Reeds, 2});
+    sim.queue(Command::mine(Direction::East));
+    sim.step();
+    require(sim.itemCount(ItemId::ReedFiber) == 2, "mining reeds should add reed fiber by richness");
+    require(sim.world().getTile(1, 0, 0).id == TileId::Mud, "mined reeds should leave marsh ground");
+
+    require(sim.player().inventory.add(ItemId::Workbench, 1), "test should add workbench");
+    require(sim.player().inventory.add(ItemId::Wood, 6), "test should add boat wood");
+    sim.world().setTile(0, 1, 0, Tile{TileId::Grass, 0});
+    sim.queue(Command::placeItem(Direction::South, ItemId::Workbench));
+    sim.step();
+    sim.queue(Command::craft("boat"));
+    sim.step();
+    require(sim.itemCount(ItemId::Boat) == 1, "boat should craft from wood plus reed fiber at workbench");
+}
+
+void testBoatTraversalAndExit()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260610);
+    sim.player().inventory.clear();
+    require(sim.player().inventory.add(ItemId::Boat, 1), "test should add boat");
+    sim.queue(Command::assignHotbar(0, ItemId::Boat));
+    sim.step();
+
+    sim.world().setTile(1, 0, 0, Tile{TileId::Water, 0});
+    sim.world().setTile(2, 0, 0, Tile{TileId::DeepWater, 2});
+    sim.world().setTile(3, 0, 0, Tile{TileId::Grass, 0});
+    sim.queue(Command::interact(Direction::East));
+    sim.step();
+    require(sim.player().inBoat, "interact with selected boat should board water");
+    require(sim.player().x == 1 && sim.player().y == 0, "boarding should move player onto water");
+
+    sim.queue(Command::move(Direction::East));
+    sim.step();
+    require(sim.player().x == 2, "boat should traverse deep water");
+    sim.queue(Command::move(Direction::East));
+    sim.step();
+    require(sim.player().x == 2, "boat movement should not enter land directly");
+    sim.queue(Command::interact(Direction::East));
+    sim.step();
+    require(!sim.player().inBoat && sim.player().x == 3, "interact should exit boat onto land");
+    require(sim.itemCount(ItemId::Boat) == 1, "exiting boat should return boat item");
+}
+
+void testHouseDoorAndLayerStairs()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260610);
+    sim.world().setTile(1, 0, 0, Tile{TileId::Door, 0});
+    sim.queue(Command::move(Direction::East));
+    sim.step();
+    require(sim.player().x == 0, "closed door should block movement");
+    sim.queue(Command::interact(Direction::East));
+    sim.step();
+    sim.queue(Command::move(Direction::East));
+    sim.step();
+    require(sim.player().x == 1, "open door should allow movement");
+
+    sim.world().setTile(2, 0, 0, Tile{TileId::StairsUp, 0});
+    sim.world().setTile(2, 0, 1, Tile{TileId::Floor, 0});
+    sim.queue(Command::interact(Direction::East));
+    sim.step();
+    require(sim.player().x == 2 && sim.player().z == 1, "stairs up should move player to upper layer");
+
+    sim.world().setTile(3, 0, 1, Tile{TileId::StairsDown, 0});
+    sim.world().setTile(3, 0, 0, Tile{TileId::Floor, 0});
+    sim.queue(Command::interact(Direction::East));
+    sim.step();
+    require(sim.player().x == 3 && sim.player().z == 0, "stairs down should return player to lower layer");
+}
+
+void testDungeonGenerationAndEntityCombatSaveLoad()
+{
+    using namespace thoth::game;
+
+    World world(20260610);
+    require(world.getTile(0, 0, -1).id == TileId::StairsUp, "dungeon layer should generate return stairs");
+    const auto dungeonTile = world.getTile(8, 8, -1).id;
+    require(dungeonTile == TileId::DungeonFloor || dungeonTile == TileId::Crystal, "dungeon room should be traversable or collectible");
+
+    Simulation sim(20260610);
+    auto snapshot = sim.snapshot();
+    snapshot.nextEntityId = 2;
+    snapshot.entities.push_back(Entity{1, EntityKind::Slime, 1, 0, 0, 2, Direction::West, 0});
+    sim.restore(snapshot);
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_entity_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "entity save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    require(loaded.has_value(), "entity load should succeed: " + error);
+    require(loaded->entities().size() == 1 && loaded->entities().front().z == 0, "entity save/load should preserve entity layer");
+
+    loaded->queue(Command::attack(Direction::East));
+    loaded->step();
+    require(loaded->entities().empty(), "attack should defeat low-hp slime");
+    require(loaded->itemCount(ItemId::Slime) == 1, "defeated slime should drop slime item");
+    require(loaded->productionTotals().creaturesDefeated == 1, "combat should increment creature total");
+}
+
 } // namespace
 
 int main()
@@ -2435,6 +2543,10 @@ int main()
     testTrainStopsTransferItems();
     testPumpPipeMovesWaterBarrels();
     testRiftGateTeleportsToOuterDimensionBand();
+    testBiomeMaterialsAndBiomeCrafting();
+    testBoatTraversalAndExit();
+    testHouseDoorAndLayerStairs();
+    testDungeonGenerationAndEntityCombatSaveLoad();
 
     std::cout << "thoth_tests passed\n";
     return 0;

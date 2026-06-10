@@ -482,12 +482,12 @@ void Simulation::queue(Command command)
 
 void Simulation::step()
 {
+    ensureLocalEntities();
     auto queue = commandQueue_;
     commandQueue_.clear();
     for (const auto& command : queue) {
         apply(command);
     }
-    ensureLocalEntities();
     updateMachines();
     updateEntities();
     ++tick_;
