@@ -12,6 +12,9 @@ constexpr int kCoalFuelTicks = 120;
 constexpr int kGeneratorPower = 2;
 constexpr int kPowerPoleConnectionRange = 4;
 constexpr int kPowerMachineReach = 2;
+constexpr int kLogisticPortRange = 4;
+constexpr int kMinLogisticJobTicks = 20;
+constexpr int kMaxLogisticJobTicks = 240;
 
 int absInt(int value)
 {
@@ -23,9 +26,19 @@ int manhattanDistance(const Machine& left, const Machine& right)
     return absInt(left.x - right.x) + absInt(left.y - right.y);
 }
 
+int manhattanDistance(int ax, int ay, int bx, int by)
+{
+    return absInt(ax - bx) + absInt(ay - by);
+}
+
 bool containsId(const std::vector<std::uint32_t>& ids, std::uint32_t id)
 {
     return std::find(ids.begin(), ids.end(), id) != ids.end();
+}
+
+bool isScienceItem(ItemId item)
+{
+    return item == ItemId::SciencePack || item == ItemId::AdvancedSciencePack;
 }
 
 std::uint64_t machineCellKey(int x, int y)
@@ -246,6 +259,27 @@ Command Command::withdrawItem(Direction direction, ItemId item)
     return command;
 }
 
+Command Command::configureCircuit(Direction direction, ItemId filterItem, CircuitComparator comparator, int threshold)
+{
+    Command command;
+    command.type = CommandType::ConfigureCircuit;
+    command.direction = direction;
+    command.item = filterItem;
+    command.comparator = comparator;
+    command.amount = threshold;
+    return command;
+}
+
+Command Command::configureRequest(Direction direction, ItemId requestItem, int threshold)
+{
+    Command command;
+    command.type = CommandType::ConfigureRequest;
+    command.direction = direction;
+    command.item = requestItem;
+    command.amount = threshold;
+    return command;
+}
+
 int dx(Direction direction)
 {
     switch (direction) {
@@ -291,6 +325,30 @@ std::string_view toString(MachineStatus status)
         return "output_blocked";
     }
     return "idle";
+}
+
+std::string_view toString(CircuitComparator comparator)
+{
+    switch (comparator) {
+    case CircuitComparator::Always:
+        return "always";
+    case CircuitComparator::LessThan:
+        return "less_than";
+    case CircuitComparator::GreaterOrEqual:
+        return "greater_or_equal";
+    }
+    return "always";
+}
+
+CircuitComparator circuitComparatorFromKey(std::string_view key)
+{
+    if (key == "less_than") {
+        return CircuitComparator::LessThan;
+    }
+    if (key == "greater_or_equal") {
+        return CircuitComparator::GreaterOrEqual;
+    }
+    return CircuitComparator::Always;
 }
 
 Simulation::Simulation(std::uint64_t seed)
@@ -430,6 +488,46 @@ const std::vector<PowerNetwork>& Simulation::powerNetworks() const
     return powerNetworks_;
 }
 
+const std::vector<LogisticJob>& Simulation::logisticJobs() const
+{
+    return logisticJobs_;
+}
+
+const ProductionTotals& Simulation::productionTotals() const
+{
+    return productionTotals_;
+}
+
+bool Simulation::canCraft(std::string_view recipeKey) const
+{
+    const auto* recipe = recipeDef(recipeKey);
+    return recipe != nullptr &&
+        isRecipeUnlocked(recipeKey) &&
+        canCraftAtCurrentStation(*recipe) &&
+        player_.inventory.canConsumeAll(recipe->inputs);
+}
+
+std::string Simulation::milestoneText() const
+{
+    if (productionTotals_.logisticDeliveries >= 10) {
+        return "milestone: expand remote logistics; next delivery quota " +
+            std::to_string(((productionTotals_.logisticDeliveries / 10) + 1) * 10);
+    }
+    if (productionTotals_.logisticDeliveries > 0) {
+        return "milestone: complete 10 logistic deliveries";
+    }
+    if (isTechCompleted("logistic_network")) {
+        return "milestone: connect provider/requester chests to a powered logistic port";
+    }
+    if (isTechCompleted("automation_control")) {
+        return "milestone: produce advanced science for logistic networks";
+    }
+    if (isTechCompleted("logistics_1")) {
+        return "milestone: automate circuit boards and controlled inserters";
+    }
+    return "milestone: automate science and finish Logistics 1";
+}
+
 bool Simulation::isMachinePowered(std::uint32_t machineId) const
 {
     return containsId(poweredMachineIds_, machineId);
@@ -452,6 +550,8 @@ SimulationSnapshot Simulation::snapshot() const
     result.tiles = world_.loadedTiles();
     result.nextMachineId = nextMachineId_;
     result.machines = machines_;
+    result.logisticJobs = logisticJobs_;
+    result.productionTotals = productionTotals_;
     result.activeTech = activeTech_;
     result.researchProgress = researchProgress_;
     result.completedTechs = completedTechs_;
@@ -489,7 +589,12 @@ void Simulation::restore(const SimulationSnapshot& snapshot)
         }
     }
     rebuildMachineCellIndex();
-    activeTech_ = snapshot.activeTech.empty() ? "logistics_1" : snapshot.activeTech;
+    logisticJobs_ = snapshot.logisticJobs;
+    productionTotals_ = snapshot.productionTotals;
+    activeTech_ = snapshot.activeTech.empty() ? nextIncompleteTech() : snapshot.activeTech;
+    if (techDef(activeTech_) == nullptr || isTechCompleted(activeTech_)) {
+        activeTech_ = nextIncompleteTech();
+    }
     researchProgress_ = std::max(0, snapshot.researchProgress);
     completedTechs_ = snapshot.completedTechs;
     unlockedRecipes_ = snapshot.unlockedRecipes;
@@ -561,6 +666,14 @@ void Simulation::apply(const Command& command)
     case CommandType::WithdrawItem:
         player_.facing = command.direction;
         withdrawItem(command.direction, command.item);
+        break;
+    case CommandType::ConfigureCircuit:
+        player_.facing = command.direction;
+        configureCircuit(command.direction, command.item, command.comparator, command.amount);
+        break;
+    case CommandType::ConfigureRequest:
+        player_.facing = command.direction;
+        configureRequest(command.direction, command.item, command.amount);
         break;
     }
 }
@@ -714,7 +827,7 @@ void Simulation::craft(std::string_view recipeKey)
     if (recipe == nullptr) {
         return;
     }
-    if (recipe->station != "hand" || !isRecipeUnlocked(recipeKey)) {
+    if (!isRecipeUnlocked(recipeKey) || !canCraftAtCurrentStation(*recipe)) {
         return;
     }
     if (!player_.inventory.consumeAll(recipe->inputs)) {
@@ -772,6 +885,31 @@ void Simulation::configureMachineRecipe(Direction direction, std::string_view re
     machine->recipeLocked = true;
 }
 
+void Simulation::configureCircuit(Direction direction, ItemId filterItem, CircuitComparator comparator, int threshold)
+{
+    const int tx = player_.x + dx(direction);
+    const int ty = player_.y + dy(direction);
+    auto* machine = machineAt(tx, ty);
+    if (machine == nullptr || machine->kind != MachineKind::CircuitInserter) {
+        return;
+    }
+    machine->filterItem = filterItem;
+    machine->circuitComparator = comparator;
+    machine->circuitThreshold = std::max(0, threshold);
+}
+
+void Simulation::configureRequest(Direction direction, ItemId requestItem, int threshold)
+{
+    const int tx = player_.x + dx(direction);
+    const int ty = player_.y + dy(direction);
+    auto* machine = machineAt(tx, ty);
+    if (machine == nullptr || machine->kind != MachineKind::RequesterChest) {
+        return;
+    }
+    machine->requestItem = requestItem;
+    machine->requestThreshold = requestItem == ItemId::None ? 0 : std::max(0, threshold);
+}
+
 void Simulation::updateMachines()
 {
     updatePowerNetworks();
@@ -782,6 +920,7 @@ void Simulation::updateMachines()
     updateFurnaces();
     updateAssemblers();
     updateLabs();
+    updateLogistics();
 }
 
 void Simulation::updatePowerNetworks()
@@ -897,6 +1036,7 @@ void Simulation::updateMiners()
         if (machine.progress >= kMinerTicks) {
             if (outputItem(machine, output)) {
                 depleteResourceTile(world_, machine.x, machine.y);
+                recordProduced(output, machine.kind);
                 machine.progress = 0;
                 machine.status = MachineStatus::Idle;
             } else {
@@ -916,6 +1056,7 @@ void Simulation::updateMiners()
         if (machine.progress >= kMinerTicks) {
             if (outputItem(machine, output)) {
                 depleteResourceTile(world_, machine.x, machine.y);
+                recordProduced(output, machine.kind);
                 machine.progress = 0;
                 machine.status = MachineStatus::Idle;
             } else {
@@ -944,6 +1085,7 @@ void Simulation::updateElectricMiners()
         if (machine.progress >= kElectricMinerTicks) {
             if (outputItem(machine, output)) {
                 depleteResourceTile(world_, machine.x, machine.y);
+                recordProduced(output, machine.kind);
                 machine.progress = 0;
                 machine.status = MachineStatus::Idle;
             } else {
@@ -962,6 +1104,7 @@ void Simulation::updateElectricMiners()
         if (machine.progress >= kElectricMinerTicks) {
             if (outputItem(machine, output)) {
                 depleteResourceTile(world_, machine.x, machine.y);
+                recordProduced(output, machine.kind);
                 machine.progress = 0;
                 machine.status = MachineStatus::Idle;
             } else {
@@ -1063,6 +1206,7 @@ void Simulation::updateFurnaces()
         if (machine.progress >= kFurnaceTicks) {
             machine.progress = 0;
             machine.outputItem = activeRecipe->output.item;
+            recordProduced(activeRecipe->output.item, machine.kind);
             if (!machine.recipeLocked) {
                 machine.recipeKey.clear();
             }
@@ -1105,6 +1249,7 @@ void Simulation::updateAssemblers()
         if (machine.progress >= recipe->ticks) {
             machine.progress = 0;
             machine.outputItem = recipe->output.item;
+            recordProduced(recipe->output.item, machine.kind);
         }
     }
 }
@@ -1154,7 +1299,7 @@ void Simulation::updateInserters()
 {
     constexpr int kInserterTicks = 15;
     for (auto& machine : machines_) {
-        if (machine.kind != MachineKind::Inserter) {
+        if (machine.kind != MachineKind::Inserter && machine.kind != MachineKind::CircuitInserter) {
             continue;
         }
 
@@ -1167,13 +1312,18 @@ void Simulation::updateInserters()
         const int sourceY = machine.y - dy(machine.direction);
         const int targetX = machine.x + dx(machine.direction);
         const int targetY = machine.y + dy(machine.direction);
-        const auto item = extractItemAt(sourceX, sourceY);
+        auto* target = machineAt(targetX, targetY);
+        if (!circuitConditionAllows(machine, target)) {
+            machine.status = MachineStatus::Idle;
+            continue;
+        }
+        const auto item = extractItemAt(sourceX, sourceY, machine.kind == MachineKind::CircuitInserter ? machine.filterItem : ItemId::None);
         if (item == ItemId::None) {
             machine.status = MachineStatus::MissingInput;
             continue;
         }
 
-        if (acceptItemAt(targetX, targetY, item)) {
+        if (target != nullptr && acceptItem(*target, item)) {
             machine.progress = 0;
             machine.status = MachineStatus::Idle;
             continue;
@@ -1239,8 +1389,11 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
         machine.carriedItem = item;
         return true;
     case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
         return machine.inventory.add(item, 1);
     case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
         return false;
     case MachineKind::BurnerMiner:
         if (item != ItemId::Coal) {
@@ -1270,12 +1423,17 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
         }
         return machine.inventory.add(item, 1);
     case MachineKind::Lab:
-        if (item != ItemId::SciencePack) {
+        if (!isScienceItem(item)) {
             return false;
         }
         return machine.inventory.add(item, 1);
     case MachineKind::Generator:
         if (item != ItemId::Coal) {
+            return false;
+        }
+        return machine.inventory.add(item, 1);
+    case MachineKind::LogisticPort:
+        if (item != ItemId::LogisticDrone) {
             return false;
         }
         return machine.inventory.add(item, 1);
@@ -1286,35 +1444,42 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
     return false;
 }
 
-ItemId Simulation::extractItemAt(int x, int y)
+ItemId Simulation::extractItemAt(int x, int y, ItemId filterItem)
 {
     auto* machine = machineAt(x, y);
     if (machine == nullptr) {
         return ItemId::None;
     }
-    return extractItem(*machine);
+    return extractItem(*machine, filterItem);
 }
 
-ItemId Simulation::extractItem(Machine& machine)
+ItemId Simulation::extractItem(Machine& machine, ItemId filterItem)
 {
     if (isBelt(machine.kind)) {
         const auto item = machine.carriedItem;
+        if (filterItem != ItemId::None && item != filterItem) {
+            return ItemId::None;
+        }
         machine.carriedItem = ItemId::None;
         return item;
     }
 
     if (machine.kind == MachineKind::Furnace || machine.kind == MachineKind::Assembler) {
         const auto item = machine.outputItem;
+        if (filterItem != ItemId::None && item != filterItem) {
+            return ItemId::None;
+        }
         machine.outputItem = ItemId::None;
         return item;
     }
 
-    if (machine.kind == MachineKind::Chest) {
+    if (machine.kind == MachineKind::Chest || machine.kind == MachineKind::ProviderChest ||
+        machine.kind == MachineKind::RequesterChest) {
         const auto stacks = machine.inventory.stacks();
         if (stacks.empty()) {
             return ItemId::None;
         }
-        const auto item = stacks.front().item;
+        const auto item = filterItem == ItemId::None ? stacks.front().item : filterItem;
         if (machine.inventory.consume(item, 1)) {
             return item;
         }

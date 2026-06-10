@@ -43,6 +43,13 @@ const std::vector<ItemDef> kItems = {
     {ItemId::Generator, "generator", "Generator", 50, TileId::Floor, false, MachineKind::Generator, true},
     {ItemId::PowerPole, "power_pole", "Power Pole", 100, TileId::Floor, false, MachineKind::PowerPole, true},
     {ItemId::ElectricMiner, "electric_miner", "Electric Miner", 50, TileId::Floor, false, MachineKind::ElectricMiner, true},
+    {ItemId::CircuitBoard, "circuit_board", "Circuit Board", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::AdvancedSciencePack, "advanced_science_pack", "Advanced Science Pack", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::CircuitInserter, "circuit_inserter", "Circuit Inserter", 100, TileId::Floor, false, MachineKind::CircuitInserter, true},
+    {ItemId::ProviderChest, "provider_chest", "Provider Chest", 50, TileId::Floor, false, MachineKind::ProviderChest, true},
+    {ItemId::RequesterChest, "requester_chest", "Requester Chest", 50, TileId::Floor, false, MachineKind::RequesterChest, true},
+    {ItemId::LogisticPort, "logistic_port", "Logistic Port", 50, TileId::Floor, false, MachineKind::LogisticPort, true},
+    {ItemId::LogisticDrone, "logistic_drone", "Logistic Drone", 100, TileId::Grass, false, MachineKind::Chest, false},
 };
 
 const std::vector<MachineDef> kMachines = {
@@ -58,27 +65,41 @@ const std::vector<MachineDef> kMachines = {
     {MachineKind::Generator, "generator", "Generator", 1, 1, false, true, false, 1, MachineBehaviorKind::Generator},
     {MachineKind::PowerPole, "power_pole", "Power Pole", 1, 1, false, true, false, 0, MachineBehaviorKind::PowerPole},
     {MachineKind::ElectricMiner, "electric_miner", "Electric Miner", 1, 1, false, false, true, 0, MachineBehaviorKind::ElectricMiner},
+    {MachineKind::CircuitInserter, "circuit_inserter", "Circuit Inserter", 1, 1, false, true, false, 0, MachineBehaviorKind::CircuitInserter},
+    {MachineKind::ProviderChest, "provider_chest", "Provider Chest", 1, 1, false, true, false, 16, MachineBehaviorKind::LogisticStorage},
+    {MachineKind::RequesterChest, "requester_chest", "Requester Chest", 1, 1, false, true, false, 16, MachineBehaviorKind::LogisticStorage},
+    {MachineKind::LogisticPort, "logistic_port", "Logistic Port", 1, 1, false, true, false, 4, MachineBehaviorKind::LogisticPort},
 };
 
 const std::vector<RecipeDef> kRecipes = {
-    {"furnace", {ItemStack{ItemId::Stone, 8}}, ItemStack{ItemId::Furnace, 1}, 30, "hand", true},
-    {"chest", {ItemStack{ItemId::Wood, 8}}, ItemStack{ItemId::Chest, 1}, 20, "hand", true},
-    {"belt", {ItemStack{ItemId::Stone, 1}}, ItemStack{ItemId::Belt, 2}, 15, "hand", true},
-    {"inserter", {ItemStack{ItemId::Stone, 1}, ItemStack{ItemId::Wood, 1}}, ItemStack{ItemId::Inserter, 1}, 20, "hand", true},
-    {"burner_miner", {ItemStack{ItemId::Stone, 4}, ItemStack{ItemId::Wood, 2}}, ItemStack{ItemId::BurnerMiner, 1}, 45, "hand", true},
-    {"assembler", {ItemStack{ItemId::Stone, 4}, ItemStack{ItemId::Wood, 2}, ItemStack{ItemId::IronPlate, 2}}, ItemStack{ItemId::Assembler, 1}, 60, "hand", true},
-    {"lab", {ItemStack{ItemId::Stone, 4}, ItemStack{ItemId::Wood, 4}, ItemStack{ItemId::IronPlate, 2}}, ItemStack{ItemId::Lab, 1}, 60, "hand", true},
+    {"workbench", {ItemStack{ItemId::Wood, 6}, ItemStack{ItemId::Stone, 2}}, ItemStack{ItemId::Workbench, 1}, 20, "hand", true},
+    {"furnace", {ItemStack{ItemId::Stone, 8}}, ItemStack{ItemId::Furnace, 1}, 30, "workbench", true},
+    {"chest", {ItemStack{ItemId::Wood, 8}}, ItemStack{ItemId::Chest, 1}, 20, "workbench", true},
+    {"belt", {ItemStack{ItemId::Stone, 1}}, ItemStack{ItemId::Belt, 2}, 15, "workbench", true},
+    {"inserter", {ItemStack{ItemId::Stone, 1}, ItemStack{ItemId::Wood, 1}}, ItemStack{ItemId::Inserter, 1}, 20, "workbench", true},
+    {"burner_miner", {ItemStack{ItemId::Stone, 4}, ItemStack{ItemId::Wood, 2}}, ItemStack{ItemId::BurnerMiner, 1}, 45, "workbench", true},
+    {"assembler", {ItemStack{ItemId::Stone, 4}, ItemStack{ItemId::Wood, 2}, ItemStack{ItemId::IronPlate, 2}}, ItemStack{ItemId::Assembler, 1}, 60, "workbench", true},
+    {"lab", {ItemStack{ItemId::Stone, 4}, ItemStack{ItemId::Wood, 4}, ItemStack{ItemId::IronPlate, 2}}, ItemStack{ItemId::Lab, 1}, 60, "workbench", true},
     {"iron_plate", {ItemStack{ItemId::IronOre, 1}, ItemStack{ItemId::Coal, 1}}, ItemStack{ItemId::IronPlate, 1}, 60, "furnace", true},
     {"copper_plate", {ItemStack{ItemId::CopperOre, 1}, ItemStack{ItemId::Coal, 1}}, ItemStack{ItemId::CopperPlate, 1}, 60, "furnace", true},
     {"science_pack", {ItemStack{ItemId::IronPlate, 1}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::SciencePack, 1}, 45, "assembler", true},
-    {"fast_belt", {ItemStack{ItemId::Belt, 1}, ItemStack{ItemId::IronPlate, 1}}, ItemStack{ItemId::FastBelt, 1}, 30, "hand", false},
-    {"generator", {ItemStack{ItemId::Stone, 4}, ItemStack{ItemId::IronPlate, 2}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::Generator, 1}, 45, "hand", false},
-    {"power_pole", {ItemStack{ItemId::Wood, 2}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::PowerPole, 2}, 25, "hand", false},
-    {"electric_miner", {ItemStack{ItemId::Stone, 4}, ItemStack{ItemId::IronPlate, 3}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::ElectricMiner, 1}, 60, "hand", false},
+    {"fast_belt", {ItemStack{ItemId::Belt, 1}, ItemStack{ItemId::IronPlate, 1}}, ItemStack{ItemId::FastBelt, 1}, 30, "workbench", false},
+    {"generator", {ItemStack{ItemId::Stone, 4}, ItemStack{ItemId::IronPlate, 2}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::Generator, 1}, 45, "workbench", false},
+    {"power_pole", {ItemStack{ItemId::Wood, 2}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::PowerPole, 2}, 25, "workbench", false},
+    {"electric_miner", {ItemStack{ItemId::Stone, 4}, ItemStack{ItemId::IronPlate, 3}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::ElectricMiner, 1}, 60, "workbench", false},
+    {"circuit_board", {ItemStack{ItemId::IronPlate, 1}, ItemStack{ItemId::CopperPlate, 2}}, ItemStack{ItemId::CircuitBoard, 1}, 50, "assembler", false},
+    {"advanced_science_pack", {ItemStack{ItemId::SciencePack, 1}, ItemStack{ItemId::CircuitBoard, 1}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::AdvancedSciencePack, 1}, 60, "assembler", false},
+    {"circuit_inserter", {ItemStack{ItemId::Inserter, 1}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::CircuitInserter, 1}, 35, "workbench", false},
+    {"provider_chest", {ItemStack{ItemId::Chest, 1}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::ProviderChest, 1}, 35, "workbench", false},
+    {"requester_chest", {ItemStack{ItemId::Chest, 1}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::RequesterChest, 1}, 35, "workbench", false},
+    {"logistic_port", {ItemStack{ItemId::IronPlate, 4}, ItemStack{ItemId::CopperPlate, 4}, ItemStack{ItemId::CircuitBoard, 2}}, ItemStack{ItemId::LogisticPort, 1}, 80, "workbench", false},
+    {"logistic_drone", {ItemStack{ItemId::IronPlate, 1}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::LogisticDrone, 1}, 45, "workbench", false},
 };
 
 const std::vector<TechDef> kTechs = {
     {"logistics_1", "Logistics 1", {ItemStack{ItemId::SciencePack, 3}}, 20, {"fast_belt", "generator", "power_pole", "electric_miner"}},
+    {"automation_control", "Automation Control", {ItemStack{ItemId::SciencePack, 4}}, 24, {"circuit_board", "advanced_science_pack", "circuit_inserter"}},
+    {"logistic_network", "Logistic Network", {ItemStack{ItemId::AdvancedSciencePack, 5}}, 30, {"provider_chest", "requester_chest", "logistic_port", "logistic_drone"}},
 };
 
 template <typename TId, typename TDef>
@@ -106,7 +127,7 @@ bool addUnique(std::unordered_set<int>& seen, TId id)
 
 bool isKnownStation(std::string_view station)
 {
-    return station == "hand" || station == "furnace" || station == "assembler";
+    return station == "hand" || station == "workbench" || station == "furnace" || station == "assembler";
 }
 
 bool hasRecipeUnlock(std::string_view recipeKey)
@@ -240,6 +261,12 @@ std::string_view toString(MachineBehaviorKind behavior)
         return "power_pole";
     case MachineBehaviorKind::ElectricMiner:
         return "electric_miner";
+    case MachineBehaviorKind::CircuitInserter:
+        return "circuit_inserter";
+    case MachineBehaviorKind::LogisticStorage:
+        return "logistic_storage";
+    case MachineBehaviorKind::LogisticPort:
+        return "logistic_port";
     }
     return "unknown";
 }

@@ -42,6 +42,13 @@ enum class ItemId : std::uint8_t {
     Generator,
     PowerPole,
     ElectricMiner,
+    CircuitBoard,
+    AdvancedSciencePack,
+    CircuitInserter,
+    ProviderChest,
+    RequesterChest,
+    LogisticPort,
+    LogisticDrone,
 };
 
 enum class MachineKind : std::uint8_t {
@@ -57,6 +64,10 @@ enum class MachineKind : std::uint8_t {
     Generator,
     PowerPole,
     ElectricMiner,
+    CircuitInserter,
+    ProviderChest,
+    RequesterChest,
+    LogisticPort,
 };
 
 enum class MachineBehaviorKind : std::uint8_t {
@@ -71,6 +82,9 @@ enum class MachineBehaviorKind : std::uint8_t {
     Generator,
     PowerPole,
     ElectricMiner,
+    CircuitInserter,
+    LogisticStorage,
+    LogisticPort,
 };
 
 struct Rgb {

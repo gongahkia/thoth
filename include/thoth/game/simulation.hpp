@@ -33,6 +33,8 @@ enum class CommandType : std::uint8_t {
     DepositSelected,
     DepositItem,
     WithdrawItem,
+    ConfigureCircuit,
+    ConfigureRequest,
 };
 
 enum class MachineStatus : std::uint8_t {
@@ -42,6 +44,12 @@ enum class MachineStatus : std::uint8_t {
     MissingPower,
     Working,
     OutputBlocked,
+};
+
+enum class CircuitComparator : std::uint8_t {
+    Always,
+    LessThan,
+    GreaterOrEqual,
 };
 
 inline constexpr int kHotbarSlots = 10;
@@ -68,6 +76,11 @@ struct Machine {
     ItemId outputItem = ItemId::None;
     std::string recipeKey;
     bool recipeLocked = false;
+    ItemId filterItem = ItemId::None;
+    CircuitComparator circuitComparator = CircuitComparator::Always;
+    int circuitThreshold = 0;
+    ItemId requestItem = ItemId::None;
+    int requestThreshold = 0;
     MachineStatus status = MachineStatus::Idle;
 };
 
@@ -85,6 +98,24 @@ struct PowerNetwork {
     std::vector<std::uint32_t> consumerIds;
 };
 
+struct LogisticJob {
+    std::uint32_t portId = 0;
+    std::uint32_t sourceId = 0;
+    std::uint32_t targetId = 0;
+    ItemId item = ItemId::None;
+    int ticksRemaining = 0;
+    int totalTicks = 0;
+};
+
+struct ProductionTotals {
+    int ironPlates = 0;
+    int copperPlates = 0;
+    int sciencePacks = 0;
+    int advancedSciencePacks = 0;
+    int logisticDeliveries = 0;
+    int poweredOre = 0;
+};
+
 struct Command {
     CommandType type = CommandType::Move;
     Direction direction = Direction::South;
@@ -92,6 +123,8 @@ struct Command {
     TileId tile = TileId::Floor;
     ItemId item = ItemId::None;
     int hotbarIndex = 0;
+    CircuitComparator comparator = CircuitComparator::Always;
+    int amount = 0;
     std::string recipeKey;
 
     [[nodiscard]] static Command face(Direction direction);
@@ -107,6 +140,8 @@ struct Command {
     [[nodiscard]] static Command depositSelected(Direction direction);
     [[nodiscard]] static Command depositItem(Direction direction, ItemId item);
     [[nodiscard]] static Command withdrawItem(Direction direction, ItemId item);
+    [[nodiscard]] static Command configureCircuit(Direction direction, ItemId filterItem, CircuitComparator comparator, int threshold);
+    [[nodiscard]] static Command configureRequest(Direction direction, ItemId requestItem, int threshold);
 };
 
 struct PlayerSnapshot {
@@ -125,6 +160,8 @@ struct SimulationSnapshot {
     std::vector<TileSnapshot> tiles;
     std::uint32_t nextMachineId = 1;
     std::vector<Machine> machines;
+    std::vector<LogisticJob> logisticJobs;
+    ProductionTotals productionTotals;
     std::string activeTech = "logistics_1";
     int researchProgress = 0;
     std::vector<std::string> completedTechs;
@@ -154,6 +191,10 @@ public:
     [[nodiscard]] int researchProgress() const;
     [[nodiscard]] int researchGoal() const;
     [[nodiscard]] const std::vector<PowerNetwork>& powerNetworks() const;
+    [[nodiscard]] const std::vector<LogisticJob>& logisticJobs() const;
+    [[nodiscard]] const ProductionTotals& productionTotals() const;
+    [[nodiscard]] bool canCraft(std::string_view recipeKey) const;
+    [[nodiscard]] std::string milestoneText() const;
     [[nodiscard]] bool isMachinePowered(std::uint32_t machineId) const;
     [[nodiscard]] SimulationSnapshot snapshot() const;
     void restore(const SimulationSnapshot& snapshot);
@@ -172,6 +213,8 @@ private:
     void selectHotbar(int index);
     void assignHotbarSlot(int index, ItemId item);
     void configureMachineRecipe(Direction direction, std::string_view recipeKey);
+    void configureCircuit(Direction direction, ItemId filterItem, CircuitComparator comparator, int threshold);
+    void configureRequest(Direction direction, ItemId requestItem, int threshold);
     void updateMachines();
     void updatePowerNetworks();
     void updateMiners();
@@ -181,11 +224,12 @@ private:
     void updateFurnaces();
     void updateAssemblers();
     void updateLabs();
+    void updateLogistics();
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y) const;
     [[nodiscard]] bool acceptItemAt(int x, int y, ItemId item);
     [[nodiscard]] bool acceptItem(Machine& machine, ItemId item);
-    [[nodiscard]] ItemId extractItemAt(int x, int y);
-    [[nodiscard]] ItemId extractItem(Machine& machine);
+    [[nodiscard]] ItemId extractItemAt(int x, int y, ItemId filterItem = ItemId::None);
+    [[nodiscard]] ItemId extractItem(Machine& machine, ItemId filterItem = ItemId::None);
     [[nodiscard]] bool returnItem(Machine& machine, ItemId item);
     [[nodiscard]] bool outputItem(Machine& machine, ItemId item);
     [[nodiscard]] bool refuel(Machine& machine);
@@ -193,13 +237,21 @@ private:
     [[nodiscard]] bool isBelt(MachineKind kind) const;
     [[nodiscard]] bool isPowerPole(MachineKind kind) const;
     [[nodiscard]] bool isPowerConsumer(MachineKind kind) const;
+    [[nodiscard]] bool isLogisticStorage(MachineKind kind) const;
     [[nodiscard]] int powerDemand(MachineKind kind) const;
     [[nodiscard]] Machine* machineById(std::uint32_t id);
     [[nodiscard]] const Machine* machineById(std::uint32_t id) const;
     [[nodiscard]] bool isRecipeInput(std::string_view recipeKey, ItemId item) const;
+    [[nodiscard]] bool isAdjacentToWorkbench() const;
+    [[nodiscard]] bool canCraftAtCurrentStation(const RecipeDef& recipe) const;
+    [[nodiscard]] bool circuitConditionAllows(const Machine& inserter, const Machine* target) const;
+    [[nodiscard]] int countMachineItem(const Machine& machine, ItemId item) const;
+    [[nodiscard]] std::vector<std::uint32_t> poweredLogisticPortIds() const;
     [[nodiscard]] int activeTechGoal() const;
+    [[nodiscard]] std::string nextIncompleteTech() const;
     void rebuildMachineCellIndex();
     void completeActiveTech();
+    void recordProduced(ItemId item, MachineKind producer);
     void addItem(ItemId item, int count);
     [[nodiscard]] bool consumeItem(ItemId item, int count);
     void assignHotbar(ItemId item);
@@ -217,10 +269,14 @@ private:
     std::vector<std::string> unlockedRecipes_;
     std::vector<PowerNetwork> powerNetworks_;
     std::vector<std::uint32_t> poweredMachineIds_;
+    std::vector<LogisticJob> logisticJobs_;
+    ProductionTotals productionTotals_;
 };
 
 [[nodiscard]] int dx(Direction direction);
 [[nodiscard]] int dy(Direction direction);
 [[nodiscard]] std::string_view toString(MachineStatus status);
+[[nodiscard]] std::string_view toString(CircuitComparator comparator);
+[[nodiscard]] CircuitComparator circuitComparatorFromKey(std::string_view key);
 
 } // namespace thoth::game
