@@ -101,6 +101,20 @@ struct RecipePanelButton {
     std::string_view recipeKey;
 };
 
+enum class MachineConfigAction {
+    Circuit,
+    Request,
+};
+
+struct MachineConfigButton {
+    Rectangle rect{};
+    MachineConfigAction action = MachineConfigAction::Circuit;
+    thoth::game::ItemId item = thoth::game::ItemId::None;
+    thoth::game::CircuitComparator comparator = thoth::game::CircuitComparator::Always;
+    int threshold = 0;
+    std::string_view label;
+};
+
 struct TransferAmountButton {
     Rectangle rect{};
     int amount = 1;
@@ -2272,16 +2286,20 @@ Color activityPulseColor(thoth::game::MachineKind kind)
         return Color{255, 158, 72, 255};
     case MachineKind::ElectricMiner:
     case MachineKind::PowerPole:
+    case MachineKind::LogisticPort:
         return Color{118, 210, 255, 255};
     case MachineKind::Assembler:
         return Color{118, 230, 164, 255};
     case MachineKind::Lab:
         return Color{180, 132, 238, 255};
     case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
         return Color{196, 236, 226, 255};
     case MachineKind::Belt:
     case MachineKind::FastBelt:
     case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
     case MachineKind::Workbench:
         break;
     }
@@ -2292,7 +2310,11 @@ bool hasMachineActivityPulse(const thoth::game::Machine& machine)
 {
     using thoth::game::MachineKind;
     using thoth::game::MachineStatus;
-    if (isBeltMachine(machine.kind) || machine.kind == MachineKind::Chest || machine.kind == MachineKind::Workbench) {
+    if (isBeltMachine(machine.kind) ||
+        machine.kind == MachineKind::Chest ||
+        machine.kind == MachineKind::ProviderChest ||
+        machine.kind == MachineKind::RequesterChest ||
+        machine.kind == MachineKind::Workbench) {
         return false;
     }
     return machine.status == MachineStatus::Working ||
@@ -3273,11 +3295,11 @@ const std::vector<CraftMenuEntry>& craftMenuEntries()
         {"generator", "G"},
         {"power_pole", "O"},
         {"electric_miner", "N"},
-        {"circuit_inserter", "S"},
-        {"provider_chest", "P"},
-        {"requester_chest", "R"},
-        {"logistic_port", "J"},
-        {"logistic_drone", "D"},
+        {"circuit_inserter", ""},
+        {"provider_chest", ""},
+        {"requester_chest", ""},
+        {"logistic_port", ""},
+        {"logistic_drone", ""},
     };
     return entries;
 }
@@ -3453,6 +3475,63 @@ std::vector<RecipePanelButton> machineRecipeButtons(const thoth::game::Simulatio
             break;
         }
     }
+    return buttons;
+}
+
+std::vector<MachineConfigButton> machineConfigButtons(const thoth::game::Simulation& sim)
+{
+    using thoth::game::CircuitComparator;
+    using thoth::game::ItemId;
+    using thoth::game::MachineKind;
+
+    std::vector<MachineConfigButton> buttons;
+    const auto* machine = facedMachine(sim);
+    if (machine == nullptr) {
+        return buttons;
+    }
+
+    constexpr int buttonWidth = 82;
+    constexpr int buttonHeight = 36;
+    constexpr int gap = 5;
+    const int startX = kMachinePanelX + 10;
+    const int y = kMachinePanelY + 244;
+
+    if (machine->kind == MachineKind::CircuitInserter) {
+        const std::array<MachineConfigButton, 4> configs = {
+            MachineConfigButton{{}, MachineConfigAction::Circuit, ItemId::IronOre, CircuitComparator::LessThan, 1, "iron ore <1"},
+            MachineConfigButton{{}, MachineConfigAction::Circuit, ItemId::CopperOre, CircuitComparator::LessThan, 1, "copper <1"},
+            MachineConfigButton{{}, MachineConfigAction::Circuit, ItemId::IronPlate, CircuitComparator::LessThan, 5, "iron <5"},
+            MachineConfigButton{{}, MachineConfigAction::Circuit, ItemId::Coal, CircuitComparator::LessThan, 1, "coal <1"},
+        };
+        for (int i = 0; i < static_cast<int>(configs.size()); ++i) {
+            auto config = configs[static_cast<std::size_t>(i)];
+            config.rect = Rectangle{
+                static_cast<float>(startX + i * (buttonWidth + gap)),
+                static_cast<float>(y),
+                static_cast<float>(buttonWidth),
+                static_cast<float>(buttonHeight)};
+            buttons.push_back(config);
+        }
+    }
+
+    if (machine->kind == MachineKind::RequesterChest) {
+        const std::array<MachineConfigButton, 4> configs = {
+            MachineConfigButton{{}, MachineConfigAction::Request, ItemId::IronPlate, CircuitComparator::Always, 10, "iron x10"},
+            MachineConfigButton{{}, MachineConfigAction::Request, ItemId::CopperPlate, CircuitComparator::Always, 10, "copper x10"},
+            MachineConfigButton{{}, MachineConfigAction::Request, ItemId::Coal, CircuitComparator::Always, 10, "coal x10"},
+            MachineConfigButton{{}, MachineConfigAction::Request, ItemId::None, CircuitComparator::Always, 0, "clear"},
+        };
+        for (int i = 0; i < static_cast<int>(configs.size()); ++i) {
+            auto config = configs[static_cast<std::size_t>(i)];
+            config.rect = Rectangle{
+                static_cast<float>(startX + i * (buttonWidth + gap)),
+                static_cast<float>(y),
+                static_cast<float>(buttonWidth),
+                static_cast<float>(buttonHeight)};
+            buttons.push_back(config);
+        }
+    }
+
     return buttons;
 }
 
@@ -3739,6 +3818,25 @@ std::string machineHintText(const thoth::game::Simulation& sim, const thoth::gam
                 sim,
                 machine.x + thoth::game::dx(machine.direction),
                 machine.y + thoth::game::dy(machine.direction));
+    case MachineKind::CircuitInserter:
+        if (machine.filterItem == ItemId::None || machine.circuitComparator == thoth::game::CircuitComparator::Always) {
+            return "unfiltered circuit inserter; choose a filter/threshold in this panel";
+        }
+        if (machine.status == MachineStatus::MissingInput) {
+            return "action: no matching source item behind circuit inserter; config filter in this panel";
+        }
+        return "filter " + shortItemName(machine.filterItem) + " " +
+            std::string(thoth::game::toString(machine.circuitComparator)) + " " +
+            std::to_string(machine.circuitThreshold) + " " +
+            targetNameAt(
+                sim,
+                machine.x - thoth::game::dx(machine.direction),
+                machine.y - thoth::game::dy(machine.direction)) +
+            " -> " +
+            targetNameAt(
+                sim,
+                machine.x + thoth::game::dx(machine.direction),
+                machine.y + thoth::game::dy(machine.direction));
     case MachineKind::BurnerMiner:
     case MachineKind::ElectricMiner: {
         const auto tile = sim.world().getTile(machine.x, machine.y);
@@ -3799,6 +3897,19 @@ std::string machineHintText(const thoth::game::Simulation& sim, const thoth::gam
         return powerNetworkDetail(sim, machine);
     case MachineKind::Chest:
         return "storage " + stacksText(machine.inventory);
+    case MachineKind::ProviderChest:
+        return "provider storage " + stacksText(machine.inventory);
+    case MachineKind::RequesterChest:
+        if (machine.requestItem == ItemId::None || machine.requestThreshold <= 0) {
+            return "request unset; choose a request in this panel";
+        }
+        return "request " + shortItemName(machine.requestItem) + " x" +
+            std::to_string(machine.requestThreshold) + " stored " +
+            std::to_string(machine.inventory.count(machine.requestItem));
+    case MachineKind::LogisticPort:
+        return "drones " + std::to_string(machine.inventory.count(ItemId::LogisticDrone)) +
+            " jobs " + std::to_string(static_cast<int>(sim.logisticJobs().size())) + " " +
+            powerNetworkDetail(sim, machine);
     case MachineKind::Workbench:
         return "crafting station";
     }
@@ -4607,6 +4718,22 @@ void handleMachinePanelInput(thoth::game::Simulation& sim, AppState& state, cons
         playCue(audio, audio.tick);
         return;
     }
+
+    for (const auto& button : machineConfigButtons(sim)) {
+        if (!CheckCollisionPointRec(mouse, button.rect)) {
+            continue;
+        }
+
+        if (button.action == MachineConfigAction::Circuit) {
+            sim.queue(thoth::game::Command::configureCircuit(sim.player().facing, button.item, button.comparator, button.threshold));
+            setFeedback(state, "circuit " + std::string(button.label), Color{122, 184, 244, 220});
+        } else {
+            sim.queue(thoth::game::Command::configureRequest(sim.player().facing, button.item, button.threshold));
+            setFeedback(state, "request " + std::string(button.label), Color{122, 184, 244, 220});
+        }
+        playCue(audio, audio.tick);
+        return;
+    }
 }
 
 void placeScenarioMachine(
@@ -4963,16 +5090,20 @@ bool machineShowsDirection(thoth::game::MachineKind kind)
     case MachineKind::Belt:
     case MachineKind::FastBelt:
     case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
     case MachineKind::BurnerMiner:
     case MachineKind::Furnace:
     case MachineKind::Assembler:
     case MachineKind::ElectricMiner:
         return true;
     case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
     case MachineKind::Workbench:
     case MachineKind::Lab:
     case MachineKind::Generator:
     case MachineKind::PowerPole:
+    case MachineKind::LogisticPort:
         return false;
     }
     return false;
@@ -5412,6 +5543,40 @@ void drawRecipeButton(const RecipePanelButton& button, const thoth::game::Machin
         selected ? Color{190, 232, 210, 255} : Color{160, 174, 170, 255});
 }
 
+void drawConfigButton(const MachineConfigButton& button, const thoth::game::Machine& machine)
+{
+    const auto mouse = GetMousePosition();
+    const bool hovered = CheckCollisionPointRec(mouse, button.rect);
+    const bool selected =
+        (button.action == MachineConfigAction::Circuit &&
+            machine.filterItem == button.item &&
+            machine.circuitComparator == button.comparator &&
+            machine.circuitThreshold == button.threshold) ||
+        (button.action == MachineConfigAction::Request &&
+            machine.requestItem == button.item &&
+            machine.requestThreshold == button.threshold);
+    DrawRectangleRec(button.rect, selected ? Color{45, 66, 58, 242} : hovered ? Color{42, 50, 52, 238} : Color{24, 29, 31, 232});
+    DrawRectangleLinesEx(button.rect, selected ? 2.0f : 1.0f, selected ? Color{130, 232, 182, 255} : Color{96, 111, 118, 190});
+    if (button.item != thoth::game::ItemId::None) {
+        drawItemIcon(static_cast<int>(button.rect.x) + 12, static_cast<int>(button.rect.y) + 18, button.item, 8);
+        drawFittedText(
+            std::string(button.label),
+            static_cast<int>(button.rect.x) + 24,
+            static_cast<int>(button.rect.y) + 13,
+            static_cast<int>(button.rect.width) - 28,
+            10,
+            RAYWHITE);
+    } else {
+        drawFittedText(
+            std::string(button.label),
+            static_cast<int>(button.rect.x) + 8,
+            static_cast<int>(button.rect.y) + 13,
+            static_cast<int>(button.rect.width) - 14,
+            10,
+            RAYWHITE);
+    }
+}
+
 std::string transferAmountLabel(int amount)
 {
     return amount == 0 ? "all" : std::to_string(amount) + "x";
@@ -5725,6 +5890,14 @@ void drawMachinePanel(const thoth::game::Simulation& sim, const AppState& state)
     }
     for (const auto& button : recipeButtons) {
         drawRecipeButton(button, *machine);
+    }
+    const auto configButtons = machineConfigButtons(sim);
+    if (machine->kind == thoth::game::MachineKind::CircuitInserter ||
+        machine->kind == thoth::game::MachineKind::RequesterChest) {
+        DrawText("config", kMachinePanelX + 10, kMachinePanelY + 230, 12, Color{160, 174, 170, 255});
+    }
+    for (const auto& button : configButtons) {
+        drawConfigButton(button, *machine);
     }
 }
 

@@ -10,9 +10,9 @@ Thoth is a small-scope "Factorio meets Minecraft" prototype:
 
 - Explore a deterministic block world.
 - Mine trees, stone, coal, iron ore, and copper ore by hand.
-- Craft belts, inserters, chests, furnaces, miners, assemblers, labs, and power machines.
+- Craft a workbench, then use it to build belts, inserters, chests, furnaces, miners, assemblers, labs, and power machines.
 - Build an ore-to-plate factory line.
-- Automate iron-plus-copper science packs and unlock faster logistics plus electric power.
+- Automate iron-plus-copper science packs and unlock faster logistics, electric power, circuit inserters, advanced science, and logistic drones.
 - Save, load, and replay deterministic simulation state.
 
 The renderer is intentionally simple. The engineering focus is a headless deterministic simulation with a practical raylib front end.
@@ -23,18 +23,19 @@ Implemented in C++:
 
 - Chunked deterministic terrain.
 - Validated data registries for tiles, items, machines, recipes, and technologies.
-- Player movement, mining, placing, inventory, hotbar, and crafting.
+- Player movement, mining, placing, inventory, hotbar, and workbench-gated machine crafting.
 - Belts with deterministic item transport and fast belts after research.
-- Chests, inserters, burner miners, furnaces, assemblers, labs, generators, power poles, and electric miners.
-- Finite iron, copper, and coal resource tiles that deplete through miners and create expansion pressure.
+- Chests, provider/requester chests, inserters, circuit inserters, burner miners, furnaces, assemblers, labs, generators, power poles, electric miners, logistic ports, and logistic drones.
+- Finite iron, copper, and coal resource tiles that deplete through miners, with richer ore farther from spawn to create expansion pressure.
 - Iron and copper ore-to-plate resource chains through miners, furnaces, inserters, belts, and chests.
-- Small tech tree with iron-plus-copper science-pack research and copper-dependent power machines.
+- Small tech tree with iron-plus-copper science, advanced science, circuit inserters, logistic networks, and copper-dependent power machines.
+- Circuit inserter filters/thresholds and powered provider/requester drone deliveries.
 - Deterministic power network recomputation.
 - Plain-text save/load and replay foundation.
-- Headless tests for world generation, registries, automation, chunk-boundary factory lines, rich save/load state, replay, research, and power.
+- Headless tests for world generation, registries, automation, chunk-boundary factory lines, rich save/load state, replay, research, power, workbench gating, circuit inserter config, and logistic delivery persistence.
 - A headless representative factory benchmark for simulation cost checks.
 - Packaged deterministic ore-to-plate, science/research, and 60-second full-flow replay artifacts under `assets/replays/`, validated by `make cpp-validate-replays`.
-- Raylib UI panels, guided first-line, science/research, and power-progression checklists with reactive next-step hints, interactive build-menu recipe cards with ready/need states, faced-machine deposit/take controls with item labels, counts, and 1x/5x/all batch transfer amounts, explicit furnace and assembler recipe selection, machine state/process/action chips, actionable recipe/input/resource/power troubleshooting, compact machine process-flow strips, inventory role badges for materials/buildables/tiles/tech items, a reviewable authored pixel atlas source with PNG export plus generated fallback sprites, deterministic terrain variation, belt/machine motion accents, finite-resource richness pips, status dots with on-world issue badges, ghost placement preview with invalid-reason labels, target and production feedback, reviewable authored audio cue source with WAV export plus fallback tones for actions, production, and severe machine issues, per-machine issue diagnostics, tick-cost debug readouts, pause/step/fast-forward, and replay-backed demo factories.
+- Raylib UI panels, guided first-line, science/research, and power-progression checklists with reactive next-step hints, interactive build-menu recipe cards with ready/need states, faced-machine deposit/take controls with item labels, counts, and 1x/5x/all batch transfer amounts, explicit furnace/assembler recipe selection plus circuit/requester config buttons, machine state/process/action chips, actionable recipe/input/resource/power troubleshooting, compact machine process-flow strips, inventory role badges for materials/buildables/tiles/tech items, a reviewable authored pixel atlas source with PNG export plus generated fallback sprites, deterministic terrain variation, belt/machine motion accents, finite-resource richness pips, status dots with on-world issue badges, ghost placement preview with invalid-reason labels, target and production feedback, reviewable authored audio cue source with WAV export plus fallback tones for actions, production, and severe machine issues, per-machine issue diagnostics, tick-cost debug readouts, pause/step/fast-forward, and replay-backed demo factories.
 
 Still rough:
 
@@ -42,6 +43,7 @@ Still rough:
 - Generated sprite atlas fallback remains available for reference and recovery.
 - Inventory, machine, and build menus have scan-first state labels now, but still need a final visual design pass.
 - Authored audio cue source is present as `assets/audio/thoth_cues.sfx`, with tuned deterministic WAV exports for core work, UI, error, save/load, and production feedback; final live-listening mix polish is still pending.
+- The game still needs a stronger final objective/end condition beyond demo replay flow.
 
 ## Build And Run
 
@@ -162,7 +164,8 @@ make cpp-run
 - `[` / `]`: select build-menu recipe
 - `Z`: craft selected build-menu recipe
 - Mouse click a build-menu card: craft that recipe
-- `C/F/B/I/M/X/L/T/G/O/N`: craft known recipes
+- `K/C/F/B/I/M/X/L/T/G/O/N`: craft known recipes
+- Build-menu click or `[ ]` plus `Z`: craft selected later recipes such as circuit/logistic parts
 - `F5` / `F9`: save/load `thoth_save.txt`
 - `F6`: export the generated sprite atlas to `assets/sprites/thoth_generated_atlas.png`
 - `F7`: load the packaged deterministic science/research replay
@@ -197,9 +200,9 @@ src/
 tests/                 C++ simulation tests
 benchmarks/            C++ headless simulation benchmark
 assets/replays/        packaged deterministic replay demos
-  assets/previews/       deterministic full-flow preview export
-  assets/sprites/        authored sprite atlas source, runtime PNG export, and atlas layout notes
-  assets/audio/          authored audio cue source, WAV cue exports, and generated fallback notes
+assets/previews/       deterministic full-flow preview export
+assets/sprites/        authored sprite atlas source, runtime PNG export, and atlas layout notes
+assets/audio/          authored audio cue source, WAV cue exports, and generated fallback notes
 ```
 
 ## Roadmap
@@ -210,4 +213,5 @@ Near-term work:
 
 - Polish final visual design and expand recipe configuration only when more machine recipes exist.
 - Polish final atlas styling and the authored WAV cue pack in live play.
+- Add a clearer final objective/win milestone after the current research/logistics ladder.
 - Strengthen performance guardrails for larger factories.
