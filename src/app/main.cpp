@@ -2734,6 +2734,22 @@ std::string shortItemName(thoth::game::ItemId item)
         return "port";
     case ItemId::LogisticDrone:
         return "drone";
+    case ItemId::BeaconCore:
+        return "core";
+    case ItemId::ArchiveTerminal:
+        return "archive";
+    case ItemId::Splitter:
+        return "split";
+    case ItemId::TrainStop:
+        return "stop";
+    case ItemId::WaterBarrel:
+        return "water";
+    case ItemId::Pipe:
+        return "pipe";
+    case ItemId::OffshorePump:
+        return "pump";
+    case ItemId::RiftGate:
+        return "rift";
     }
     return "?";
 }
@@ -2774,6 +2790,18 @@ std::string machineGlyph(thoth::game::MachineKind kind)
         return "E";
     case MachineKind::LogisticPort:
         return "O";
+    case MachineKind::ArchiveTerminal:
+        return "Z";
+    case MachineKind::Splitter:
+        return "Y";
+    case MachineKind::TrainStop:
+        return "T";
+    case MachineKind::Pipe:
+        return "P";
+    case MachineKind::OffshorePump:
+        return "H";
+    case MachineKind::RiftGate:
+        return "R";
     }
     return "?";
 }
@@ -2804,8 +2832,24 @@ float machineProgressRatio(const thoth::game::Machine& machine)
     case MachineKind::Lab:
         denominator = 30;
         break;
+    case MachineKind::ArchiveTerminal:
+        denominator = 360;
+        break;
+    case MachineKind::TrainStop:
+        denominator = 90;
+        break;
+    case MachineKind::Pipe:
+        denominator = 3;
+        break;
+    case MachineKind::OffshorePump:
+        denominator = 30;
+        break;
+    case MachineKind::RiftGate:
+        denominator = 180;
+        break;
     case MachineKind::Belt:
     case MachineKind::FastBelt:
+    case MachineKind::Splitter:
     case MachineKind::Chest:
     case MachineKind::ProviderChest:
     case MachineKind::RequesterChest:
@@ -3373,6 +3417,13 @@ const std::vector<CraftMenuEntry>& craftMenuEntries()
         {"requester_chest", ""},
         {"logistic_port", ""},
         {"logistic_drone", ""},
+        {"splitter", ""},
+        {"pipe", ""},
+        {"offshore_pump", ""},
+        {"beacon_core", ""},
+        {"archive_terminal", ""},
+        {"train_stop", ""},
+        {"rift_gate", ""},
     };
     return entries;
 }
@@ -3388,10 +3439,14 @@ bool machineCanAcceptForPanel(const thoth::game::Machine& machine, thoth::game::
     switch (machine.kind) {
     case MachineKind::Belt:
     case MachineKind::FastBelt:
+    case MachineKind::Splitter:
         return machine.carriedItem == ItemId::None;
+    case MachineKind::Pipe:
+        return item == ItemId::WaterBarrel && machine.carriedItem == ItemId::None;
     case MachineKind::Chest:
     case MachineKind::ProviderChest:
     case MachineKind::RequesterChest:
+    case MachineKind::TrainStop:
         return true;
     case MachineKind::BurnerMiner:
     case MachineKind::Generator:
@@ -3420,11 +3475,15 @@ bool machineCanAcceptForPanel(const thoth::game::Machine& machine, thoth::game::
         return item == ItemId::SciencePack || item == ItemId::AdvancedSciencePack;
     case MachineKind::LogisticPort:
         return item == ItemId::LogisticDrone;
+    case MachineKind::ArchiveTerminal:
+    case MachineKind::RiftGate:
+        return item == ItemId::BeaconCore;
     case MachineKind::Inserter:
     case MachineKind::CircuitInserter:
     case MachineKind::Workbench:
     case MachineKind::PowerPole:
     case MachineKind::ElectricMiner:
+    case MachineKind::OffshorePump:
         return false;
     }
     return false;
@@ -3869,10 +3928,12 @@ std::string machineHintText(const thoth::game::Simulation& sim, const thoth::gam
     switch (machine.kind) {
     case MachineKind::Belt:
     case MachineKind::FastBelt:
+    case MachineKind::Splitter:
+    case MachineKind::Pipe:
         if (machine.carriedItem == ItemId::None) {
-            return "belt empty; action: feed an upstream miner, inserter, or belt";
+            return "transport empty; action: feed an upstream miner, inserter, or belt";
         }
-        return "belt carrying " + shortItemName(machine.carriedItem) + " " + outputTargetText(sim, machine);
+        return "carrying " + shortItemName(machine.carriedItem) + " " + outputTargetText(sim, machine);
     case MachineKind::Inserter:
         if (machine.status == MachineStatus::MissingInput) {
             return "action: no source item behind inserter; check " +
@@ -3983,6 +4044,23 @@ std::string machineHintText(const thoth::game::Simulation& sim, const thoth::gam
         return "drones " + std::to_string(machine.inventory.count(ItemId::LogisticDrone)) +
             " jobs " + std::to_string(static_cast<int>(sim.logisticJobs().size())) + " " +
             powerNetworkDetail(sim, machine);
+    case MachineKind::ArchiveTerminal:
+        if (machine.status == MachineStatus::MissingInput) {
+            return depositActionText(sim, ItemId::BeaconCore);
+        }
+        return "archive charge " + std::to_string(machine.progress) + "/360 " +
+            powerNetworkDetail(sim, machine);
+    case MachineKind::TrainStop:
+        return "train buffer " + stacksText(machine.inventory) +
+            " trips " + std::to_string(sim.productionTotals().trainDeliveries);
+    case MachineKind::OffshorePump:
+        return "pumps water barrels from adjacent water " + outputTargetText(sim, machine);
+    case MachineKind::RiftGate:
+        if (machine.status == MachineStatus::MissingInput) {
+            return depositActionText(sim, ItemId::BeaconCore);
+        }
+        return "rift charge " + std::to_string(machine.progress) + "/180 " +
+            powerNetworkDetail(sim, machine);
     case MachineKind::Workbench:
         return "crafting station";
     }
@@ -4058,6 +4136,8 @@ std::string machineProcessChipText(const thoth::game::Simulation& sim, const tho
     switch (machine.kind) {
     case MachineKind::Belt:
     case MachineKind::FastBelt:
+    case MachineKind::Splitter:
+    case MachineKind::Pipe:
         return machine.carriedItem == ItemId::None ?
             "empty " + directionText(machine.direction) :
             shortItemName(machine.carriedItem) + " " + directionText(machine.direction);
@@ -4086,6 +4166,14 @@ std::string machineProcessChipText(const thoth::game::Simulation& sim, const tho
     case MachineKind::LogisticPort:
         return "drones " + std::to_string(machine.inventory.count(ItemId::LogisticDrone)) +
             " jobs " + std::to_string(static_cast<int>(sim.logisticJobs().size()));
+    case MachineKind::ArchiveTerminal:
+        return "charge " + std::to_string(machine.progress) + "/360";
+    case MachineKind::TrainStop:
+        return "stacks " + std::to_string(static_cast<int>(machine.inventory.stacks().size()));
+    case MachineKind::OffshorePump:
+        return "water " + std::to_string(machine.progress) + "/30";
+    case MachineKind::RiftGate:
+        return "rift " + std::to_string(machine.progress) + "/180";
     case MachineKind::Workbench:
         return "hand recipes";
     case MachineKind::Furnace:
@@ -4126,10 +4214,13 @@ std::string machineActionChipText(const thoth::game::Simulation& sim, const thot
     }
     if (machine.kind == MachineKind::Chest ||
         machine.kind == MachineKind::ProviderChest ||
-        machine.kind == MachineKind::RequesterChest) {
+        machine.kind == MachineKind::RequesterChest ||
+        machine.kind == MachineKind::TrainStop) {
         return "store/take";
     }
-    if (machine.kind == MachineKind::LogisticPort) {
+    if (machine.kind == MachineKind::LogisticPort ||
+        machine.kind == MachineKind::ArchiveTerminal ||
+        machine.kind == MachineKind::RiftGate) {
         return powerNetworkDetail(sim, machine);
     }
     return "inspect";
@@ -4158,7 +4249,9 @@ int effectiveMachineTransferAmount(
 
     const bool singleSlotTransfer =
         machine.kind == MachineKind::Belt ||
-        machine.kind == MachineKind::FastBelt;
+        machine.kind == MachineKind::FastBelt ||
+        machine.kind == MachineKind::Splitter ||
+        machine.kind == MachineKind::Pipe;
     if (button.deposit) {
         const int available = sim.itemCount(button.item);
         if (available <= 0) {
@@ -4457,6 +4550,11 @@ std::string factoryStatsText(const thoth::game::Simulation& sim)
         " inserters=" + std::to_string(machineCount(sim, MachineKind::Inserter)) +
         " circuit_ins=" + std::to_string(machineCount(sim, MachineKind::CircuitInserter)) +
         " ports=" + std::to_string(machineCount(sim, MachineKind::LogisticPort)) +
+        " splitters=" + std::to_string(machineCount(sim, MachineKind::Splitter)) +
+        " trains=" + std::to_string(machineCount(sim, MachineKind::TrainStop)) +
+        " pumps=" + std::to_string(machineCount(sim, MachineKind::OffshorePump)) +
+        " archive=" + std::to_string(sim.productionTotals().archiveSignals) +
+        " rift=" + std::to_string(sim.productionTotals().riftJumps) +
         " deliveries=" + std::to_string(sim.productionTotals().logisticDeliveries) +
         " chests=" + std::to_string(machineCount(sim, MachineKind::Chest)) +
         " belts_loaded=" + std::to_string(beltItemCount(sim)) +
@@ -4490,6 +4588,15 @@ std::string objectiveText(const thoth::game::Simulation& sim)
     using thoth::game::ItemId;
     using thoth::game::MachineKind;
 
+    if (sim.productionTotals().riftJumps > 0) {
+        return "objective: exploit the rift dimension's richer resources";
+    }
+    if (sim.productionTotals().archiveSignals > 0) {
+        return "objective: craft/place a rift gate, power it, and load a beacon core";
+    }
+    if (sim.isRecipeUnlocked("archive_terminal")) {
+        return "objective: craft beacon cores, build a powered archive terminal, then charge it";
+    }
     if (sim.isRecipeUnlocked("fast_belt")) {
         return "objective: logistics researched; use the build menu for generator, poles, electric miners, and fast belts";
     }
@@ -5213,12 +5320,15 @@ bool machineShowsDirection(thoth::game::MachineKind kind)
     switch (kind) {
     case MachineKind::Belt:
     case MachineKind::FastBelt:
+    case MachineKind::Splitter:
+    case MachineKind::Pipe:
     case MachineKind::Inserter:
     case MachineKind::CircuitInserter:
     case MachineKind::BurnerMiner:
     case MachineKind::Furnace:
     case MachineKind::Assembler:
     case MachineKind::ElectricMiner:
+    case MachineKind::OffshorePump:
         return true;
     case MachineKind::Chest:
     case MachineKind::ProviderChest:
@@ -5228,6 +5338,9 @@ bool machineShowsDirection(thoth::game::MachineKind kind)
     case MachineKind::Generator:
     case MachineKind::PowerPole:
     case MachineKind::LogisticPort:
+    case MachineKind::ArchiveTerminal:
+    case MachineKind::TrainStop:
+    case MachineKind::RiftGate:
         return false;
     }
     return false;
@@ -5829,6 +5942,8 @@ void drawMachineFlowStrip(const thoth::game::Simulation& sim, const thoth::game:
     switch (machine.kind) {
     case MachineKind::Belt:
     case MachineKind::FastBelt:
+    case MachineKind::Splitter:
+    case MachineKind::Pipe:
         outputs.push_back(FlowStack{machine.carriedItem, machine.carriedItem == ItemId::None ? 0 : 1, 0});
         detail = outputTargetText(sim, machine);
         break;
@@ -5897,6 +6012,24 @@ void drawMachineFlowStrip(const thoth::game::Simulation& sim, const thoth::game:
     case MachineKind::LogisticPort:
         inputs.push_back(FlowStack{ItemId::LogisticDrone, machine.inventory.count(ItemId::LogisticDrone), 1});
         detail = "jobs " + std::to_string(static_cast<int>(sim.logisticJobs().size()));
+        break;
+    case MachineKind::ArchiveTerminal:
+        inputs.push_back(FlowStack{ItemId::BeaconCore, machine.inventory.count(ItemId::BeaconCore), 1});
+        detail = "charge " + std::to_string(machine.progress) + "/360";
+        break;
+    case MachineKind::TrainStop:
+        for (const auto& stack : machine.inventory.stacks()) {
+            outputs.push_back(FlowStack{stack.item, stack.count, 0});
+        }
+        detail = "train queue";
+        break;
+    case MachineKind::OffshorePump:
+        outputs.push_back(FlowStack{ItemId::WaterBarrel, machine.status == thoth::game::MachineStatus::Working ? 1 : 0, 0});
+        detail = outputTargetText(sim, machine);
+        break;
+    case MachineKind::RiftGate:
+        inputs.push_back(FlowStack{ItemId::BeaconCore, machine.inventory.count(ItemId::BeaconCore), 1});
+        detail = "jump " + std::to_string(machine.progress) + "/180";
         break;
     case MachineKind::Workbench:
         detail = "hand crafting helper";
