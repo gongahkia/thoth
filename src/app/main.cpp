@@ -191,6 +191,9 @@ constexpr int kSpriteAtlasColumns = 8;
 enum class SpriteId : int {
     TileGrass,
     TileDirt,
+    TileSand,
+    TileSnow,
+    TileMud,
     TileWater,
     TileTree,
     TileStone,
@@ -325,6 +328,12 @@ Color tileVariantTint(thoth::game::TileId id, std::uint64_t hash)
         return Color{tintChannel(244, delta), tintChannel(252, delta), tintChannel(238, delta), 255};
     case TileId::Dirt:
         return Color{tintChannel(250, delta), tintChannel(242, delta), tintChannel(232, delta), 255};
+    case TileId::Sand:
+        return Color{tintChannel(255, delta), tintChannel(250, delta), tintChannel(226, delta), 255};
+    case TileId::Snow:
+        return Color{tintChannel(246, delta), tintChannel(252, delta), tintChannel(255, delta), 255};
+    case TileId::Mud:
+        return Color{tintChannel(238, delta), tintChannel(236, delta), tintChannel(224, delta), 255};
     case TileId::Water:
         return Color{tintChannel(228, delta), tintChannel(242, delta), tintChannel(255, delta), 255};
     case TileId::Stone:
@@ -350,6 +359,9 @@ SpriteDrawOptions tileSpriteOptions(thoth::game::TileId id, int x, int y)
     switch (id) {
     case TileId::Grass:
     case TileId::Dirt:
+    case TileId::Sand:
+    case TileId::Snow:
+    case TileId::Mud:
     case TileId::Water:
     case TileId::Stone:
     case TileId::IronOre:
@@ -401,6 +413,21 @@ void drawAtlasSprites(Image& image)
     atlasBase(image, SpriteId::TileDirt, Color{126, 88, 54, 255}, Color{184, 126, 72, 255}, Color{84, 58, 40, 255});
     atlasPixel(image, SpriteId::TileDirt, 5, 6, Color{198, 140, 82, 255});
     atlasPixel(image, SpriteId::TileDirt, 10, 10, Color{96, 66, 44, 255});
+
+    atlasBase(image, SpriteId::TileSand, Color{190, 168, 96, 255}, Color{230, 210, 132, 255}, Color{132, 112, 64, 255});
+    atlasPixel(image, SpriteId::TileSand, 3, 5, Color{240, 220, 142, 255});
+    atlasPixel(image, SpriteId::TileSand, 11, 8, Color{154, 132, 76, 255});
+    atlasPixel(image, SpriteId::TileSand, 7, 12, Color{226, 202, 122, 255});
+
+    atlasBase(image, SpriteId::TileSnow, Color{202, 218, 220, 255}, Color{240, 250, 250, 255}, Color{138, 160, 168, 255});
+    atlasPixel(image, SpriteId::TileSnow, 4, 5, Color{246, 252, 252, 255});
+    atlasPixel(image, SpriteId::TileSnow, 11, 9, Color{166, 188, 196, 255});
+    atlasPixel(image, SpriteId::TileSnow, 7, 12, Color{230, 240, 242, 255});
+
+    atlasBase(image, SpriteId::TileMud, Color{82, 76, 48, 255}, Color{128, 118, 74, 255}, Color{48, 42, 30, 255});
+    atlasPixel(image, SpriteId::TileMud, 5, 6, Color{142, 126, 76, 255});
+    atlasPixel(image, SpriteId::TileMud, 10, 10, Color{58, 50, 34, 255});
+    atlasPixel(image, SpriteId::TileMud, 12, 4, Color{100, 92, 58, 255});
 
     atlasBase(image, SpriteId::TileWater, Color{48, 128, 182, 255}, Color{118, 204, 232, 255}, Color{26, 78, 128, 255});
     atlasLine(image, SpriteId::TileWater, 2, 5, 7, 4, Color{148, 226, 244, 255});
@@ -546,6 +573,9 @@ const std::array<std::pair<std::string_view, SpriteId>, static_cast<std::size_t>
     static const std::array<std::pair<std::string_view, SpriteId>, static_cast<std::size_t>(SpriteId::Count)> names = {{
         {"TileGrass", SpriteId::TileGrass},
         {"TileDirt", SpriteId::TileDirt},
+        {"TileSand", SpriteId::TileSand},
+        {"TileSnow", SpriteId::TileSnow},
+        {"TileMud", SpriteId::TileMud},
         {"TileWater", SpriteId::TileWater},
         {"TileTree", SpriteId::TileTree},
         {"TileStone", SpriteId::TileStone},
@@ -626,6 +656,24 @@ bool authoredAtlasColor(char glyph, Color& color)
         return true;
     case 'D':
         color = Color{184, 126, 72, 255};
+        return true;
+    case 'z':
+        color = Color{190, 168, 96, 255};
+        return true;
+    case 'Z':
+        color = Color{230, 210, 132, 255};
+        return true;
+    case 'l':
+        color = Color{202, 218, 220, 255};
+        return true;
+    case 'L':
+        color = Color{240, 250, 250, 255};
+        return true;
+    case 'j':
+        color = Color{82, 76, 48, 255};
+        return true;
+    case 'J':
+        color = Color{128, 118, 74, 255};
         return true;
     case 'w':
         color = Color{48, 128, 182, 255};
@@ -1625,6 +1673,12 @@ SpriteId tileSprite(thoth::game::TileId id)
         return SpriteId::TileGrass;
     case TileId::Dirt:
         return SpriteId::TileDirt;
+    case TileId::Sand:
+        return SpriteId::TileSand;
+    case TileId::Snow:
+        return SpriteId::TileSnow;
+    case TileId::Mud:
+        return SpriteId::TileMud;
     case TileId::Water:
         return SpriteId::TileWater;
     case TileId::Tree:
@@ -2943,6 +2997,9 @@ void drawTileDetail(thoth::game::TileId id, int x, int y)
         break;
     case TileId::Grass:
     case TileId::Dirt:
+    case TileId::Sand:
+    case TileId::Snow:
+    case TileId::Mud:
         break;
     }
 }
@@ -5375,6 +5432,9 @@ Color resourceRichnessColor(thoth::game::TileId id)
         return Color{38, 42, 46, 230};
     case TileId::Grass:
     case TileId::Dirt:
+    case TileId::Sand:
+    case TileId::Snow:
+    case TileId::Mud:
     case TileId::Water:
     case TileId::Tree:
     case TileId::Stone:

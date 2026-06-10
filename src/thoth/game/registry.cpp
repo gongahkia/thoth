@@ -12,6 +12,9 @@ namespace {
 const std::vector<TileDef> kTiles = {
     {TileId::Grass, "grass", "Grass", 1, true, true, ItemId::None, Rgb{83, 170, 86}},
     {TileId::Dirt, "dirt", "Dirt", 1, true, true, ItemId::Stone, Rgb{142, 96, 60}},
+    {TileId::Sand, "sand", "Sand", 1, true, true, ItemId::None, Rgb{198, 178, 108}},
+    {TileId::Snow, "snow", "Snow", 1, true, true, ItemId::None, Rgb{214, 226, 226}},
+    {TileId::Mud, "mud", "Mud", 1, true, true, ItemId::None, Rgb{98, 88, 58}},
     {TileId::Stone, "stone", "Stone", 3, true, true, ItemId::Stone, Rgb{130, 138, 134}},
     {TileId::Tree, "tree", "Tree", 2, false, false, ItemId::Wood, Rgb{54, 124, 58}},
     {TileId::Water, "water", "Water", -1, false, false, ItemId::None, Rgb{62, 140, 190}},

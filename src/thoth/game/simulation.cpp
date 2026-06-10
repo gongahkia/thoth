@@ -98,6 +98,9 @@ TileId minedReplacement(TileId id)
     case TileId::Dirt:
     case TileId::Floor:
     case TileId::Grass:
+    case TileId::Mud:
+    case TileId::Sand:
+    case TileId::Snow:
     case TileId::Water:
         return TileId::Grass;
     }
@@ -116,6 +119,9 @@ ItemId resourceTileOutput(TileId id)
     case TileId::Dirt:
     case TileId::Floor:
     case TileId::Grass:
+    case TileId::Mud:
+    case TileId::Sand:
+    case TileId::Snow:
     case TileId::Stone:
     case TileId::Tree:
     case TileId::Water:

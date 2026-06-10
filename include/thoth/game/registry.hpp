@@ -11,6 +11,9 @@ namespace thoth::game {
 enum class TileId : std::uint8_t {
     Grass,
     Dirt,
+    Sand,
+    Snow,
+    Mud,
     Stone,
     Tree,
     Water,

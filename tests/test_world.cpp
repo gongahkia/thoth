@@ -26,6 +26,16 @@ void require(bool condition, const std::string& message)
     }
 }
 
+bool isStarterProtectedCell(int x, int y)
+{
+    return (((x == -5 || x == -4 || x == -3) && y >= -3 && y <= 3) ||
+        (x >= -2 && x <= 3 && y == 4) ||
+        (x == 4 && y >= -2 && y <= 2) ||
+        (x == 6 && y >= -2 && y <= 2) ||
+        (x == 8 && y >= -2 && y <= 2) ||
+        (x >= -2 && x <= 9 && y >= -3 && y <= 3));
+}
+
 std::string canonicalSignature(const thoth::game::Simulation& sim)
 {
     const auto snapshot = sim.snapshot();
@@ -253,6 +263,30 @@ void testStarterResources()
     require(world.getTile(6, 0).data == 6, "starter coal should have finite richness");
     require(world.getTile(8, 0).id == thoth::game::TileId::CopperOre, "starter copper near spawn");
     require(world.getTile(8, 0).data == 6, "starter copper should have finite richness");
+}
+
+void testEarlyBiomeTiles()
+{
+    thoth::game::World world(99);
+    bool foundSand = false;
+    bool foundSnow = false;
+    bool foundMud = false;
+
+    for (int y = -24; y <= 24; ++y) {
+        for (int x = -24; x <= 24; ++x) {
+            if (isStarterProtectedCell(x, y)) {
+                continue;
+            }
+            const auto tile = world.getTile(x, y).id;
+            foundSand = foundSand || tile == thoth::game::TileId::Sand;
+            foundSnow = foundSnow || tile == thoth::game::TileId::Snow;
+            foundMud = foundMud || tile == thoth::game::TileId::Mud;
+        }
+    }
+
+    require(foundSand, "early world should include sand biome tiles");
+    require(foundSnow, "early world should include snow biome tiles");
+    require(foundMud, "early world should include mud biome tiles");
 }
 
 void testSimulationMovementAndMining()
@@ -2353,6 +2387,7 @@ int main()
     testDeterministicTerrain();
     testChunkBoundaryMutation();
     testStarterResources();
+    testEarlyBiomeTiles();
     testSimulationMovementAndMining();
     testCraftingHotbarAndPlacement();
     testAssignHotbarCommand();

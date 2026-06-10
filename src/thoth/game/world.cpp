@@ -23,6 +23,13 @@ struct PatchHit {
     int radius = 0;
 };
 
+enum class BiomeKind {
+    Grassland,
+    Desert,
+    Snowfield,
+    Marsh,
+};
+
 int resourceRichness(std::uint64_t seed, int x, int y)
 {
     const auto richness = thoth::core::hashCoordinates(seed ^ 0x51c3a5edULL, x, y);
@@ -69,6 +76,68 @@ PatchHit findPatch(std::uint64_t seed, int x, int y, int cellSize, int chance, i
 bool sparsePatchDetail(std::uint64_t seed, int x, int y, int threshold)
 {
     return static_cast<int>(thoth::core::hashCoordinates(seed, x, y) % 1000U) < threshold;
+}
+
+void selectBiome(PatchHit hit, BiomeKind candidate, PatchHit& bestHit, BiomeKind& biome)
+{
+    if (hit.hit && (!bestHit.hit || hit.distanceSquared < bestHit.distanceSquared)) {
+        bestHit = hit;
+        biome = candidate;
+    }
+}
+
+BiomeKind biomeAt(std::uint64_t seed, int x, int y)
+{
+    if (inside(x, 10, 24) && inside(y, -12, 8)) {
+        return BiomeKind::Desert;
+    }
+    if (inside(x, -24, -10) && inside(y, -10, 10)) {
+        return BiomeKind::Snowfield;
+    }
+    if (inside(x, -8, 8) && inside(y, 8, 22)) {
+        return BiomeKind::Marsh;
+    }
+
+    PatchHit bestHit;
+    BiomeKind biome = BiomeKind::Grassland;
+    selectBiome(findPatch(seed ^ 0x646573657274ULL, x, y, 68, 165, 11, 22), BiomeKind::Desert, bestHit, biome);
+    selectBiome(findPatch(seed ^ 0x736e6f776669656cULL, x, y, 72, 150, 12, 24), BiomeKind::Snowfield, bestHit, biome);
+    selectBiome(findPatch(seed ^ 0x6d61727368ULL, x, y, 58, 145, 10, 19), BiomeKind::Marsh, bestHit, biome);
+    return biome;
+}
+
+int treeDetailThreshold(BiomeKind biome)
+{
+    switch (biome) {
+    case BiomeKind::Desert:
+        return 220;
+    case BiomeKind::Snowfield:
+        return 420;
+    case BiomeKind::Marsh:
+        return 740;
+    case BiomeKind::Grassland:
+        return 560;
+    }
+    return 560;
+}
+
+TileId baseTerrain(BiomeKind biome, std::uint64_t terrain)
+{
+    const int roll = static_cast<int>(terrain % 1000U);
+    switch (biome) {
+    case BiomeKind::Desert:
+        return roll < 880 ? TileId::Sand : TileId::Dirt;
+    case BiomeKind::Snowfield:
+        return roll < 850 ? TileId::Snow : TileId::Grass;
+    case BiomeKind::Marsh:
+        if (roll < 720) {
+            return TileId::Mud;
+        }
+        return roll < 900 ? TileId::Grass : TileId::Dirt;
+    case BiomeKind::Grassland:
+        return roll < 230 ? TileId::Dirt : TileId::Grass;
+    }
+    return TileId::Grass;
 }
 
 } // namespace
@@ -240,6 +309,8 @@ Tile World::generateTile(int x, int y) const
         return Tile{TileId::Dirt, 0};
     }
 
+    const auto biome = biomeAt(seed_, x, y);
+
     const auto water = findPatch(seed_ ^ 0x7761746572ULL, x, y, 22, 180, 3, 6);
     if (water.hit) {
         return Tile{TileId::Water, 0};
@@ -258,21 +329,23 @@ Tile World::generateTile(int x, int y) const
         return Tile{TileId::CoalOre, resourceRichness(seed_, x, y)};
     }
 
+    if (biome == BiomeKind::Marsh &&
+        sparsePatchDetail(seed_ ^ 0x626f677761746572ULL, x, y, 150)) {
+        return Tile{TileId::Water, 0};
+    }
+
     const auto stone = findPatch(seed_ ^ 0x73746f6e65ULL, x, y, 18, 210, 2, 4);
     if (stone.hit && sparsePatchDetail(seed_ ^ 0x726f636bULL, x, y, 780)) {
         return Tile{TileId::Stone, 1};
     }
 
     const auto trees = findPatch(seed_ ^ 0x7472656573ULL, x, y, 18, 260, 3, 6);
-    if (trees.hit && sparsePatchDetail(seed_ ^ 0x67726f7665ULL, x, y, 560)) {
+    if (trees.hit && sparsePatchDetail(seed_ ^ 0x67726f7665ULL, x, y, treeDetailThreshold(biome))) {
         return Tile{TileId::Tree, 1};
     }
 
     const auto terrain = thoth::core::hashCoordinates(seed_ ^ 0x62617365ULL, floorDiv(x, 5), floorDiv(y, 5));
-    if (static_cast<int>(terrain % 1000U) < 230) {
-        return Tile{TileId::Dirt, 0};
-    }
-    return Tile{TileId::Grass, 0};
+    return Tile{baseTerrain(biome, terrain), 0};
 }
 
 std::uint64_t World::chunkKey(int cx, int cy)
