@@ -268,10 +268,20 @@ void testSimulationMovementAndMining()
     sim.step();
     require(sim.player().x == 1 && sim.player().y == 0, "player should walk onto grass");
 
-    sim.world().setTile(2, 0, thoth::game::Tile{thoth::game::TileId::Tree, 1});
+    sim.world().setTile(2, 0, thoth::game::Tile{thoth::game::TileId::IronOre, 3});
+    sim.queue(thoth::game::Command::move(thoth::game::Direction::East));
+    sim.step();
+    require(sim.player().x == 2 && sim.player().y == 0, "player should walk over ore");
+
+    sim.world().setTile(3, 0, thoth::game::Tile{thoth::game::TileId::Stone, 1});
+    sim.queue(thoth::game::Command::move(thoth::game::Direction::East));
+    sim.step();
+    require(sim.player().x == 3 && sim.player().y == 0, "player should walk over stone");
+
+    sim.world().setTile(4, 0, thoth::game::Tile{thoth::game::TileId::Tree, 1});
     sim.queue(thoth::game::Command::mine(thoth::game::Direction::East));
     sim.step();
-    require(sim.world().getTile(2, 0).id == thoth::game::TileId::Grass, "mined tree should become grass");
+    require(sim.world().getTile(4, 0).id == thoth::game::TileId::Grass, "mined tree should become grass");
     require(sim.itemCount(thoth::game::ItemId::Wood) == 1, "mining tree should add wood");
 }
 
@@ -299,6 +309,12 @@ void testCraftingHotbarAndPlacement()
     sim.step();
     require(sim.world().getTile(0, 1).id == thoth::game::TileId::Floor, "placing selected stone should create floor");
     require(sim.itemCount(thoth::game::ItemId::Stone) == 7, "placing selected stone should consume one stone after workbench");
+
+    sim.world().setTile(0, -1, thoth::game::Tile{thoth::game::TileId::IronOre, 3});
+    sim.queue(thoth::game::Command::placeItem(thoth::game::Direction::North, sim.selectedItem()));
+    sim.step();
+    require(sim.world().getTile(0, -1).id == thoth::game::TileId::IronOre, "floor placement should not cover ore");
+    require(sim.itemCount(thoth::game::ItemId::Stone) == 7, "blocked ore floor placement should not consume stone");
 }
 
 void testAssignHotbarCommand()
