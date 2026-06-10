@@ -22,6 +22,7 @@ struct ReplayDocument {
     std::uint64_t finalTick = 0;
     int playerX = 0;
     int playerY = 0;
+    int playerZ = 0;
     Direction playerFacing = Direction::South;
     int selectedHotbar = 0;
     std::vector<ItemStack> playerInventory;

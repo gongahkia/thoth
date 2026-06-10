@@ -40,6 +40,58 @@ std::optional<Direction> directionFromKey(std::string_view key)
     return std::nullopt;
 }
 
+std::string_view entityKindToString(EntityKind kind)
+{
+    switch (kind) {
+    case EntityKind::Deer:
+        return "deer";
+    case EntityKind::Chicken:
+        return "chicken";
+    case EntityKind::Crab:
+        return "crab";
+    case EntityKind::Fish:
+        return "fish";
+    case EntityKind::Slime:
+        return "slime";
+    case EntityKind::Skeleton:
+        return "skeleton";
+    case EntityKind::CaveCrawler:
+        return "cave_crawler";
+    case EntityKind::DungeonSentinel:
+        return "dungeon_sentinel";
+    }
+    return "deer";
+}
+
+std::optional<EntityKind> entityKindFromKey(std::string_view key)
+{
+    if (key == "deer") {
+        return EntityKind::Deer;
+    }
+    if (key == "chicken") {
+        return EntityKind::Chicken;
+    }
+    if (key == "crab") {
+        return EntityKind::Crab;
+    }
+    if (key == "fish") {
+        return EntityKind::Fish;
+    }
+    if (key == "slime") {
+        return EntityKind::Slime;
+    }
+    if (key == "skeleton") {
+        return EntityKind::Skeleton;
+    }
+    if (key == "cave_crawler") {
+        return EntityKind::CaveCrawler;
+    }
+    if (key == "dungeon_sentinel") {
+        return EntityKind::DungeonSentinel;
+    }
+    return std::nullopt;
+}
+
 void setError(std::string* error, const std::string& message)
 {
     if (error != nullptr) {
@@ -78,11 +130,13 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 8\n";
+    output << "THOTH_SAVE 9\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
-           << directionToString(snapshot.player.facing) << ' ' << snapshot.player.selectedHotbar << "\n";
+           << snapshot.player.z << ' ' << directionToString(snapshot.player.facing) << ' '
+           << snapshot.player.selectedHotbar << ' ' << (snapshot.player.inBoat ? 1 : 0) << ' '
+           << snapshot.player.hp << "\n";
 
     output << "hotbar";
     for (const auto item : snapshot.player.hotbar) {
@@ -97,15 +151,15 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
 
     output << "tiles " << snapshot.tiles.size() << "\n";
     for (const auto& tile : snapshot.tiles) {
-        output << "tile " << tile.x << ' ' << tile.y << ' ' << toString(tile.tile.id) << ' '
-               << tile.tile.data << "\n";
+        output << "tile " << tile.x << ' ' << tile.y << ' ' << tile.z << ' '
+               << toString(tile.tile.id) << ' ' << tile.tile.data << "\n";
     }
 
     output << "next_machine " << snapshot.nextMachineId << "\n";
     output << "machines " << snapshot.machines.size() << "\n";
     for (const auto& machine : snapshot.machines) {
         output << "machine " << machine.id << ' ' << toString(machine.kind) << ' ' << machine.x
-               << ' ' << machine.y << ' ' << directionToString(machine.direction) << ' '
+               << ' ' << machine.y << ' ' << machine.z << ' ' << directionToString(machine.direction) << ' '
                << machine.progress << ' ' << toString(machine.carriedItem) << ' '
                << machine.fuelTicks << ' ' << toString(machine.outputItem) << ' '
                << (machine.recipeKey.empty() ? "none" : machine.recipeKey) << ' '
@@ -120,6 +174,15 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
         for (const auto& stack : inventory) {
             output << "machine_item " << toString(stack.item) << ' ' << stack.count << "\n";
         }
+    }
+
+    output << "next_entity " << snapshot.nextEntityId << "\n";
+    output << "entities " << snapshot.entities.size() << "\n";
+    for (const auto& entity : snapshot.entities) {
+        output << "entity " << entity.id << ' ' << entityKindToString(entity.kind) << ' '
+               << entity.x << ' ' << entity.y << ' ' << entity.z << ' '
+               << entity.hp << ' ' << directionToString(entity.facing) << ' '
+               << entity.cooldown << "\n";
     }
 
     output << "research " << (snapshot.activeTech.empty() ? "none" : snapshot.activeTech) << ' '
@@ -149,7 +212,9 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
            << snapshot.productionTotals.archiveSignals << ' '
            << snapshot.productionTotals.trainDeliveries << ' '
            << snapshot.productionTotals.waterBarrels << ' '
-           << snapshot.productionTotals.riftJumps << "\n";
+           << snapshot.productionTotals.riftJumps << ' '
+           << snapshot.productionTotals.creaturesDefeated << ' '
+           << snapshot.productionTotals.dungeonChestsOpened << "\n";
 
     return true;
 }
@@ -167,7 +232,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 8)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 9)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -186,6 +251,9 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         return std::nullopt;
     }
     std::string facing;
+    if (version >= 9 && !readValue(input, snapshot.player.z, "player z", error)) {
+        return std::nullopt;
+    }
     if (!readValue(input, facing, "player facing", error)) {
         return std::nullopt;
     }
@@ -197,6 +265,14 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     snapshot.player.facing = *parsedDirection;
     if (!readValue(input, snapshot.player.selectedHotbar, "selected hotbar", error)) {
         return std::nullopt;
+    }
+    if (version >= 9) {
+        int inBoat = 0;
+        if (!readValue(input, inBoat, "player boat state", error) ||
+            !readValue(input, snapshot.player.hp, "player hp", error)) {
+            return std::nullopt;
+        }
+        snapshot.player.inBoat = inBoat != 0;
     }
 
     if (!expectToken(input, "hotbar", error)) {
@@ -245,8 +321,13 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         TileSnapshot tile;
         std::string key;
         if (!expectToken(input, "tile", error) || !readValue(input, tile.x, "tile x", error) ||
-            !readValue(input, tile.y, "tile y", error) ||
-            !readValue(input, key, "tile key", error) ||
+            !readValue(input, tile.y, "tile y", error)) {
+            return std::nullopt;
+        }
+        if (version >= 9 && !readValue(input, tile.z, "tile z", error)) {
+            return std::nullopt;
+        }
+        if (!readValue(input, key, "tile key", error) ||
             !readValue(input, tile.tile.data, "tile data", error)) {
             return std::nullopt;
         }
@@ -294,7 +375,13 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
             !readValue(input, machine.id, "machine id", error) ||
             !readValue(input, kindKey, "machine kind", error) ||
             !readValue(input, machine.x, "machine x", error) ||
-            !readValue(input, machine.y, "machine y", error) ||
+            !readValue(input, machine.y, "machine y", error)) {
+            return std::nullopt;
+        }
+        if (version >= 9 && !readValue(input, machine.z, "machine z", error)) {
+            return std::nullopt;
+        }
+        if (
             !readValue(input, directionKey, "machine direction", error) ||
             !readValue(input, machine.progress, "machine progress", error) ||
             !readValue(input, carriedKey, "machine carried item", error)) {
@@ -386,6 +473,45 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
             }
         }
         snapshot.machines.push_back(std::move(machine));
+    }
+
+    if (version >= 9) {
+        if (!expectToken(input, "next_entity", error) ||
+            !readValue(input, snapshot.nextEntityId, "next entity id", error) ||
+            !expectToken(input, "entities", error)) {
+            return std::nullopt;
+        }
+        std::size_t entityCount = 0;
+        if (!readValue(input, entityCount, "entity count", error)) {
+            return std::nullopt;
+        }
+        snapshot.entities.clear();
+        for (std::size_t i = 0; i < entityCount; ++i) {
+            Entity entity;
+            std::string kindKey;
+            std::string facingKey;
+            if (!expectToken(input, "entity", error) ||
+                !readValue(input, entity.id, "entity id", error) ||
+                !readValue(input, kindKey, "entity kind", error) ||
+                !readValue(input, entity.x, "entity x", error) ||
+                !readValue(input, entity.y, "entity y", error) ||
+                !readValue(input, entity.z, "entity z", error) ||
+                !readValue(input, entity.hp, "entity hp", error) ||
+                !readValue(input, facingKey, "entity facing", error) ||
+                !readValue(input, entity.cooldown, "entity cooldown", error)) {
+                return std::nullopt;
+            }
+            const auto parsedKind = entityKindFromKey(kindKey);
+            const auto parsedDirection = directionFromKey(facingKey);
+            if (!parsedKind || !parsedDirection || entity.id == 0 || entity.hp <= 0) {
+                setError(error, "invalid entity");
+                return std::nullopt;
+            }
+            entity.kind = *parsedKind;
+            entity.facing = *parsedDirection;
+            entity.cooldown = std::max(0, entity.cooldown);
+            snapshot.entities.push_back(entity);
+        }
     }
 
     if (version >= 4) {
@@ -489,6 +615,11 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
                 !readValue(input, snapshot.productionTotals.trainDeliveries, "train delivery total", error) ||
                 !readValue(input, snapshot.productionTotals.waterBarrels, "water barrel total", error) ||
                 !readValue(input, snapshot.productionTotals.riftJumps, "rift jump total", error))) {
+            return std::nullopt;
+        }
+        if (version >= 9 &&
+            (!readValue(input, snapshot.productionTotals.creaturesDefeated, "creature defeated total", error) ||
+                !readValue(input, snapshot.productionTotals.dungeonChestsOpened, "dungeon chest total", error))) {
             return std::nullopt;
         }
     }

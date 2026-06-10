@@ -98,6 +98,10 @@ std::string commandTypeKey(CommandType type)
         return "configure_circuit";
     case CommandType::ConfigureRequest:
         return "configure_request";
+    case CommandType::Interact:
+        return "interact";
+    case CommandType::Attack:
+        return "attack";
     }
     return "move";
 }
@@ -110,6 +114,8 @@ bool writeCommand(std::ostream& output, const ReplayFrame& frame, std::string* e
     case CommandType::Move:
     case CommandType::Mine:
     case CommandType::DepositSelected:
+    case CommandType::Interact:
+    case CommandType::Attack:
         output << ' ' << directionToString(frame.command.direction);
         break;
     case CommandType::Place:
@@ -299,6 +305,16 @@ bool readCommand(std::istream& input, ReplayFrame& frame, std::string* error)
             !readValue(input, command.amount, "configure request threshold", error)) {
             return false;
         }
+    } else if (type == "interact") {
+        command.type = CommandType::Interact;
+        if (!readDirection(input, command.direction, "interact direction", error)) {
+            return false;
+        }
+    } else if (type == "attack") {
+        command.type = CommandType::Attack;
+        if (!readDirection(input, command.direction, "attack direction", error)) {
+            return false;
+        }
     } else {
         setError(error, "unknown replay command type");
         return false;
@@ -331,6 +347,7 @@ Simulation simulationFromReplayDocument(const ReplayDocument& document)
     Simulation simulation(document.seed);
     simulation.player().x = document.playerX;
     simulation.player().y = document.playerY;
+    simulation.player().z = document.playerZ;
     simulation.player().facing = document.playerFacing;
     simulation.player().selectedHotbar = std::clamp(document.selectedHotbar, 0, kHotbarSlots - 1);
     simulation.player().hotbar.fill(ItemId::None);
@@ -341,7 +358,7 @@ Simulation simulationFromReplayDocument(const ReplayDocument& document)
         (void)added;
     }
     for (const auto& tile : document.tiles) {
-        simulation.world().setTile(tile.x, tile.y, tile.tile);
+        simulation.world().setTile(tile.x, tile.y, tile.z, tile.tile);
     }
     return simulation;
 }
@@ -361,11 +378,12 @@ bool saveReplayDocument(const ReplayDocument& document, const std::filesystem::p
         return false;
     }
 
-    output << "THOTH_REPLAY 1\n";
+    output << "THOTH_REPLAY 2\n";
     output << "seed " << document.seed << "\n";
     output << "final_tick " << document.finalTick << "\n";
     output << "player " << document.playerX << ' ' << document.playerY << ' '
-           << directionToString(document.playerFacing) << ' ' << document.selectedHotbar << "\n";
+           << document.playerZ << ' ' << directionToString(document.playerFacing) << ' '
+           << document.selectedHotbar << "\n";
 
     output << "inventory " << document.playerInventory.size() << "\n";
     for (const auto& stack : document.playerInventory) {
@@ -374,8 +392,8 @@ bool saveReplayDocument(const ReplayDocument& document, const std::filesystem::p
 
     output << "tiles " << document.tiles.size() << "\n";
     for (const auto& tile : document.tiles) {
-        output << "tile " << tile.x << ' ' << tile.y << ' ' << toString(tile.tile.id) << ' '
-               << tile.tile.data << "\n";
+        output << "tile " << tile.x << ' ' << tile.y << ' ' << tile.z << ' '
+               << toString(tile.tile.id) << ' ' << tile.tile.data << "\n";
     }
 
     output << "frames " << document.replay.size() << "\n";
@@ -399,7 +417,7 @@ std::optional<ReplayDocument> loadReplayDocument(const std::filesystem::path& pa
         return std::nullopt;
     }
     int version = 0;
-    if (!readValue(input, version, "replay version", error) || version != 1) {
+    if (!readValue(input, version, "replay version", error) || (version < 1 || version > 2)) {
         setError(error, "unsupported replay version");
         return std::nullopt;
     }
@@ -411,7 +429,13 @@ std::optional<ReplayDocument> loadReplayDocument(const std::filesystem::path& pa
         !readValue(input, document.finalTick, "replay final tick", error) ||
         !expectToken(input, "player", error) ||
         !readValue(input, document.playerX, "replay player x", error) ||
-        !readValue(input, document.playerY, "replay player y", error) ||
+        !readValue(input, document.playerY, "replay player y", error)) {
+        return std::nullopt;
+    }
+    if (version >= 2 && !readValue(input, document.playerZ, "replay player z", error)) {
+        return std::nullopt;
+    }
+    if (
         !readDirection(input, document.playerFacing, "replay player facing", error) ||
         !readValue(input, document.selectedHotbar, "replay selected hotbar", error)) {
         return std::nullopt;
@@ -444,7 +468,13 @@ std::optional<ReplayDocument> loadReplayDocument(const std::filesystem::path& pa
         TileSnapshot tile;
         if (!expectToken(input, "tile", error) ||
             !readValue(input, tile.x, "replay tile x", error) ||
-            !readValue(input, tile.y, "replay tile y", error) ||
+            !readValue(input, tile.y, "replay tile y", error)) {
+            return std::nullopt;
+        }
+        if (version >= 2 && !readValue(input, tile.z, "replay tile z", error)) {
+            return std::nullopt;
+        }
+        if (
             !readTile(input, tile.tile.id, "replay tile id", error) ||
             !readValue(input, tile.tile.data, "replay tile data", error)) {
             return std::nullopt;

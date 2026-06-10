@@ -27,8 +27,8 @@ struct Chunk {
 struct TileSnapshot {
     int x = 0;
     int y = 0;
-    int z = 0;
     Tile tile{};
+    int z = 0;
 };
 
 class World {
@@ -44,6 +44,8 @@ public:
     void setTile(int x, int y, int z, Tile tile);
     [[nodiscard]] bool isWalkable(int x, int y);
     [[nodiscard]] bool isWalkable(int x, int y, int z);
+    [[nodiscard]] bool isWalkable(int x, int y) const;
+    [[nodiscard]] bool isWalkable(int x, int y, int z) const;
     [[nodiscard]] std::size_t loadedChunkCount() const;
     [[nodiscard]] std::vector<TileSnapshot> loadedTiles() const;
     void clearLoadedChunks();

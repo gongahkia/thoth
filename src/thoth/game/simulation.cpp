@@ -1,5 +1,7 @@
 #include "thoth/game/simulation.hpp"
 
+#include "thoth/core/deterministic_random.hpp"
+
 #include <algorithm>
 #include <array>
 #include <stdexcept>
@@ -42,11 +44,6 @@ int manhattanDistance(int ax, int ay, int az, int bx, int by, int bz)
         return 1'000'000;
     }
     return absInt(ax - bx) + absInt(ay - by);
-}
-
-int manhattanDistance(int ax, int ay, int bx, int by)
-{
-    return manhattanDistance(ax, ay, 0, bx, by, 0);
 }
 
 bool containsId(const std::vector<std::uint32_t>& ids, std::uint32_t id)
@@ -2240,6 +2237,165 @@ std::vector<std::uint32_t> Simulation::poweredLogisticPortIds() const
         }
     }
     return ids;
+}
+
+bool Simulation::isWaterTile(TileId id) const
+{
+    return id == TileId::Water || id == TileId::DeepWater || id == TileId::Coral;
+}
+
+bool Simulation::isHostile(EntityKind kind) const
+{
+    return kind == EntityKind::Slime ||
+        kind == EntityKind::Skeleton ||
+        kind == EntityKind::CaveCrawler ||
+        kind == EntityKind::DungeonSentinel;
+}
+
+ItemId Simulation::entityDrop(EntityKind kind) const
+{
+    switch (kind) {
+    case EntityKind::Deer:
+        return ItemId::Hide;
+    case EntityKind::Chicken:
+        return ItemId::ReedFiber;
+    case EntityKind::Crab:
+        return ItemId::Shell;
+    case EntityKind::Fish:
+        return ItemId::Kelp;
+    case EntityKind::Slime:
+        return ItemId::Slime;
+    case EntityKind::Skeleton:
+        return ItemId::Bone;
+    case EntityKind::CaveCrawler:
+        return ItemId::Venom;
+    case EntityKind::DungeonSentinel:
+        return ItemId::Crystal;
+    }
+    return ItemId::None;
+}
+
+int Simulation::entityMaxHp(EntityKind kind) const
+{
+    switch (kind) {
+    case EntityKind::Chicken:
+    case EntityKind::Fish:
+        return 1;
+    case EntityKind::Deer:
+    case EntityKind::Crab:
+    case EntityKind::Slime:
+        return 2;
+    case EntityKind::Skeleton:
+    case EntityKind::CaveCrawler:
+        return 4;
+    case EntityKind::DungeonSentinel:
+        return 6;
+    }
+    return 1;
+}
+
+std::optional<EntityKind> Simulation::localEntityKindForTile(int x, int y, int z) const
+{
+    const auto tile = world_.getTile(x, y, z);
+    const auto roll = thoth::core::hashCoordinates(world_.seed() ^ 0x656e74697479ULL, x + (z * 8192), y);
+    if (z < 0) {
+        if (!world_.isWalkable(x, y, z) || static_cast<int>(roll % 1000U) >= 70) {
+            return std::nullopt;
+        }
+        const auto kindRoll = static_cast<int>((roll >> 16U) % 100U);
+        if (kindRoll < 45) {
+            return EntityKind::Slime;
+        }
+        if (kindRoll < 78) {
+            return EntityKind::Skeleton;
+        }
+        if (kindRoll < 95) {
+            return EntityKind::CaveCrawler;
+        }
+        return EntityKind::DungeonSentinel;
+    }
+    if (isWaterTile(tile.id) && static_cast<int>(roll % 1000U) < 45) {
+        return tile.id == TileId::Coral ? EntityKind::Crab : EntityKind::Fish;
+    }
+    if ((tile.id == TileId::Beach || tile.id == TileId::Sand) && static_cast<int>(roll % 1000U) < 35) {
+        return EntityKind::Crab;
+    }
+    if (world_.isWalkable(x, y, z) && static_cast<int>(roll % 1000U) < 28) {
+        return static_cast<int>((roll >> 12U) % 100U) < 55 ? EntityKind::Chicken : EntityKind::Deer;
+    }
+    return std::nullopt;
+}
+
+void Simulation::ensureLocalEntities()
+{
+    if (entities_.size() >= 80 || (!entities_.empty() && player_.z >= 0)) {
+        return;
+    }
+    constexpr int kSpawnRadius = 9;
+    for (int y = player_.y - kSpawnRadius; y <= player_.y + kSpawnRadius; ++y) {
+        for (int x = player_.x - kSpawnRadius; x <= player_.x + kSpawnRadius; ++x) {
+            if (entities_.size() >= 80 || entityAt(x, y, player_.z) != nullptr) {
+                continue;
+            }
+            const auto kind = localEntityKindForTile(x, y, player_.z);
+            if (!kind) {
+                continue;
+            }
+            Entity entity;
+            entity.id = nextEntityId_++;
+            entity.kind = *kind;
+            entity.x = x;
+            entity.y = y;
+            entity.z = player_.z;
+            entity.hp = entityMaxHp(entity.kind);
+            entity.facing = Direction::South;
+            entities_.push_back(entity);
+        }
+    }
+}
+
+void Simulation::updateEntities()
+{
+    for (auto& entity : entities_) {
+        if (entity.cooldown > 0) {
+            --entity.cooldown;
+        }
+        if (entity.z != player_.z) {
+            continue;
+        }
+
+        const int distance = manhattanDistance(entity.x, entity.y, entity.z, player_.x, player_.y, player_.z);
+        if (isHostile(entity.kind) && distance <= 1 && entity.cooldown == 0) {
+            player_.hp = std::max(0, player_.hp - 1);
+            entity.cooldown = 30;
+            continue;
+        }
+        if (isHostile(entity.kind) && distance <= 6 && (tick_ % 12U) == 0U) {
+            const int stepX = player_.x == entity.x ? 0 : (player_.x > entity.x ? 1 : -1);
+            const int stepY = player_.y == entity.y ? 0 : (player_.y > entity.y ? 1 : -1);
+            const int nx = entity.x + (absInt(player_.x - entity.x) >= absInt(player_.y - entity.y) ? stepX : 0);
+            const int ny = entity.y + (absInt(player_.x - entity.x) < absInt(player_.y - entity.y) ? stepY : 0);
+            if (world_.isWalkable(nx, ny, entity.z) && machineAt(nx, ny, entity.z) == nullptr && entityAt(nx, ny, entity.z) == nullptr) {
+                entity.x = nx;
+                entity.y = ny;
+            }
+            continue;
+        }
+        if (!isHostile(entity.kind) && (tick_ + entity.id) % 90U == 0U) {
+            const auto roll = thoth::core::hashCoordinates(world_.seed() ^ entity.id, static_cast<int>(tick_), entity.x + entity.y);
+            const auto direction = static_cast<Direction>(roll % 4U);
+            const int nx = entity.x + dx(direction);
+            const int ny = entity.y + dy(direction);
+            const auto target = world_.getTile(nx, ny, entity.z);
+            const bool canSwim = entity.kind == EntityKind::Fish || entity.kind == EntityKind::Crab;
+            if (((canSwim && isWaterTile(target.id)) || (!canSwim && world_.isWalkable(nx, ny, entity.z))) &&
+                machineAt(nx, ny, entity.z) == nullptr &&
+                entityAt(nx, ny, entity.z) == nullptr) {
+                entity.x = nx;
+                entity.y = ny;
+            }
+        }
+    }
 }
 
 int Simulation::activeTechGoal() const

@@ -233,6 +233,20 @@ bool World::isWalkable(int x, int y, int z)
     return game::isWalkable(tile.id);
 }
 
+bool World::isWalkable(int x, int y) const
+{
+    return isWalkable(x, y, 0);
+}
+
+bool World::isWalkable(int x, int y, int z) const
+{
+    const auto tile = getTile(x, y, z);
+    if (tile.id == TileId::Door && tile.data > 0) {
+        return true;
+    }
+    return game::isWalkable(tile.id);
+}
+
 std::size_t World::loadedChunkCount() const
 {
     return chunks_.size();
@@ -250,7 +264,7 @@ std::vector<TileSnapshot> World::loadedTiles() const
                 const int x = (chunk.cx * kChunkSize) + localX;
                 const int y = (chunk.cy * kChunkSize) + localY;
                 const auto tile = chunk.tiles[static_cast<std::size_t>(localY * kChunkSize + localX)];
-                tiles.push_back(TileSnapshot{x, y, chunk.z, tile});
+                tiles.push_back(TileSnapshot{x, y, tile, chunk.z});
             }
         }
     }

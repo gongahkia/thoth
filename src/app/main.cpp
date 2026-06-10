@@ -348,8 +348,9 @@ Color tileVariantTint(thoth::game::TileId id, std::uint64_t hash)
         return Color{tintChannel(248, delta), tintChannel(244, delta), tintChannel(234, delta), 255};
     case TileId::Tree:
         return WHITE;
+    default:
+        return Color{tintChannel(245, delta), tintChannel(245, delta), tintChannel(238, delta), 255};
     }
-    return WHITE;
 }
 
 SpriteDrawOptions tileSpriteOptions(thoth::game::TileId id, int x, int y)
@@ -368,12 +369,28 @@ SpriteDrawOptions tileSpriteOptions(thoth::game::TileId id, int x, int y)
     case TileId::CopperOre:
     case TileId::CoalOre:
     case TileId::Floor:
+    case TileId::Beach:
+    case TileId::Ice:
+    case TileId::Basalt:
+    case TileId::DungeonFloor:
         return SpriteDrawOptions{
             (hash & 1U) != 0,
             ((hash >> 1U) & 1U) != 0,
             tileVariantTint(id, hash),
         };
     case TileId::Tree:
+    case TileId::Reeds:
+    case TileId::Cactus:
+    case TileId::Crystal:
+    case TileId::DeepWater:
+    case TileId::Coral:
+    case TileId::Wall:
+    case TileId::PlankWall:
+    case TileId::Door:
+    case TileId::StairsUp:
+    case TileId::StairsDown:
+    case TileId::Bed:
+    case TileId::DungeonWall:
         return SpriteDrawOptions{};
     }
     return SpriteDrawOptions{};
@@ -1674,16 +1691,24 @@ SpriteId tileSprite(thoth::game::TileId id)
     case TileId::Dirt:
         return SpriteId::TileDirt;
     case TileId::Sand:
+    case TileId::Beach:
         return SpriteId::TileSand;
     case TileId::Snow:
+    case TileId::Ice:
         return SpriteId::TileSnow;
     case TileId::Mud:
+    case TileId::Reeds:
         return SpriteId::TileMud;
     case TileId::Water:
+    case TileId::DeepWater:
         return SpriteId::TileWater;
     case TileId::Tree:
+    case TileId::Cactus:
         return SpriteId::TileTree;
     case TileId::Stone:
+    case TileId::Basalt:
+    case TileId::Crystal:
+    case TileId::DungeonWall:
         return SpriteId::TileStone;
     case TileId::IronOre:
         return SpriteId::TileIronOre;
@@ -1692,7 +1717,16 @@ SpriteId tileSprite(thoth::game::TileId id)
     case TileId::CoalOre:
         return SpriteId::TileCoalOre;
     case TileId::Floor:
+    case TileId::Wall:
+    case TileId::PlankWall:
+    case TileId::Door:
+    case TileId::StairsUp:
+    case TileId::StairsDown:
+    case TileId::Bed:
+    case TileId::DungeonFloor:
         return SpriteId::TileFloor;
+    case TileId::Coral:
+        return SpriteId::TileWater;
     }
     return SpriteId::TileGrass;
 }
@@ -1715,6 +1749,26 @@ SpriteId itemSprite(thoth::game::ItemId item)
         return SpriteId::ItemCopperOre;
     case ItemId::CopperPlate:
         return SpriteId::ItemCopperPlate;
+    case ItemId::Sand:
+    case ItemId::Shell:
+    case ItemId::IceShard:
+        return SpriteId::TileSand;
+    case ItemId::SandGlass:
+    case ItemId::Crystal:
+    case ItemId::Venom:
+        return SpriteId::ItemSciencePack;
+    case ItemId::ReedFiber:
+    case ItemId::CactusFiber:
+    case ItemId::Kelp:
+        return SpriteId::TileTree;
+    case ItemId::CoralShard:
+        return SpriteId::TileWater;
+    case ItemId::Basalt:
+    case ItemId::Bone:
+        return SpriteId::ItemStone;
+    case ItemId::Hide:
+    case ItemId::Slime:
+        return SpriteId::ItemWood;
     case ItemId::SciencePack:
         return SpriteId::ItemSciencePack;
     case ItemId::AdvancedSciencePack:
@@ -1770,6 +1824,15 @@ SpriteId itemSprite(thoth::game::ItemId item)
         return SpriteId::MachineElectricMiner;
     case ItemId::RiftGate:
         return SpriteId::MachineLab;
+    case ItemId::Wall:
+    case ItemId::PlankWall:
+    case ItemId::Door:
+    case ItemId::StairsUp:
+    case ItemId::StairsDown:
+    case ItemId::Bed:
+        return SpriteId::TileFloor;
+    case ItemId::Boat:
+        return SpriteId::TileWater;
     case ItemId::None:
         return SpriteId::TileFloor;
     }
@@ -2076,6 +2139,28 @@ Color itemColor(thoth::game::ItemId item)
         return Color{178, 106, 70, 255};
     case ItemId::CopperPlate:
         return Color{218, 135, 76, 255};
+    case ItemId::Sand:
+    case ItemId::SandGlass:
+    case ItemId::Shell:
+        return Color{218, 198, 122, 255};
+    case ItemId::ReedFiber:
+    case ItemId::CactusFiber:
+    case ItemId::Kelp:
+        return Color{82, 156, 82, 255};
+    case ItemId::CoralShard:
+    case ItemId::Venom:
+        return Color{214, 100, 144, 255};
+    case ItemId::IceShard:
+        return Color{154, 218, 230, 255};
+    case ItemId::Basalt:
+    case ItemId::Bone:
+        return Color{118, 118, 126, 255};
+    case ItemId::Crystal:
+        return Color{112, 210, 218, 255};
+    case ItemId::Hide:
+        return Color{136, 84, 52, 255};
+    case ItemId::Slime:
+        return Color{96, 204, 112, 255};
     case ItemId::Belt:
         return Color{204, 166, 63, 255};
     case ItemId::Inserter:
@@ -2132,6 +2217,14 @@ Color itemColor(thoth::game::ItemId item)
         return Color{64, 132, 188, 255};
     case ItemId::RiftGate:
         return Color{146, 76, 210, 255};
+    case ItemId::Wall:
+    case ItemId::PlankWall:
+    case ItemId::Door:
+    case ItemId::StairsUp:
+    case ItemId::StairsDown:
+    case ItemId::Boat:
+    case ItemId::Bed:
+        return Color{144, 112, 76, 255};
     case ItemId::None:
         return Color{70, 76, 78, 255};
     }
