@@ -2087,10 +2087,13 @@ void testTechChainUnlocksCircuitsAndLogistics()
     }
 
     require(sim.isTechCompleted("logistics_1"), "tech chain should complete logistics 1");
+    require(sim.isRecipeUnlocked("splitter"), "logistics 1 should unlock splitters");
+    require(sim.isRecipeUnlocked("pipe"), "logistics 1 should unlock pipes");
     require(sim.isTechCompleted("automation_control"), "tech chain should complete automation control");
     require(sim.isRecipeUnlocked("circuit_board"), "automation control should unlock circuit board");
     require(sim.isRecipeUnlocked("advanced_science_pack"), "automation control should unlock advanced science");
     require(sim.isRecipeUnlocked("circuit_inserter"), "automation control should unlock circuit inserter");
+    require(sim.isRecipeUnlocked("offshore_pump"), "automation control should unlock offshore pumps");
     require(std::string(sim.activeTech()) == "logistic_network", "active tech should advance to logistic network");
 
     require(lab->inventory.add(ItemId::AdvancedSciencePack, 5), "test should add advanced science packs");
@@ -2103,6 +2106,10 @@ void testTechChainUnlocksCircuitsAndLogistics()
     require(sim.isRecipeUnlocked("requester_chest"), "logistic network should unlock requester chest");
     require(sim.isRecipeUnlocked("logistic_port"), "logistic network should unlock logistic port");
     require(sim.isRecipeUnlocked("logistic_drone"), "logistic network should unlock logistic drone");
+    require(sim.isRecipeUnlocked("beacon_core"), "logistic network should unlock beacon core");
+    require(sim.isRecipeUnlocked("archive_terminal"), "logistic network should unlock archive terminal");
+    require(sim.isRecipeUnlocked("train_stop"), "logistic network should unlock train stop");
+    require(sim.isRecipeUnlocked("rift_gate"), "logistic network should unlock rift gate");
 }
 
 void testCircuitInserterFilterThresholdAndSaveLoad()
@@ -2206,6 +2213,135 @@ void testLogisticDeliveryPersistsInFlight()
     require(loaded->productionTotals().logisticDeliveries == 1, "delivery should increment production total");
 }
 
+void testArchiveTerminalChargesWhenPowered()
+{
+    using thoth::game::Direction;
+    using thoth::game::ItemId;
+    using thoth::game::MachineKind;
+
+    thoth::game::Simulation sim(38);
+    placeMachineAt(sim, ItemId::Generator, 0, 1, Direction::South);
+    placeMachineAt(sim, ItemId::PowerPole, 1, 1, Direction::East);
+    placeMachineAt(sim, ItemId::ArchiveTerminal, 1, 0, Direction::East);
+
+    auto* generator = sim.machineAt(0, 1);
+    auto* terminal = sim.machineAt(1, 0);
+    require(generator != nullptr && generator->inventory.add(ItemId::Coal, 4), "test should fuel archive generator");
+    require(terminal != nullptr && terminal->kind == MachineKind::ArchiveTerminal, "archive terminal should exist");
+    require(terminal->inventory.add(ItemId::BeaconCore, 1), "test should add beacon core");
+
+    for (int i = 0; i < 365; ++i) {
+        sim.step();
+    }
+
+    require(sim.productionTotals().archiveSignals == 1, "powered archive terminal should charge one signal");
+    require(terminal->inventory.count(ItemId::BeaconCore) == 0, "archive terminal should consume beacon core");
+}
+
+void testSplitterAlternatesSideOutputs()
+{
+    using thoth::game::Direction;
+    using thoth::game::ItemId;
+    using thoth::game::MachineKind;
+
+    thoth::game::Simulation sim(39);
+    placeMachineAt(sim, ItemId::Chest, 1, -1, Direction::North);
+    placeMachineAt(sim, ItemId::Chest, 1, 1, Direction::South);
+    placeMachineAt(sim, ItemId::Splitter, 1, 0, Direction::East);
+
+    auto* splitter = sim.machineAt(1, 0);
+    auto* northChest = sim.machineAt(1, -1);
+    auto* southChest = sim.machineAt(1, 1);
+    require(splitter != nullptr && splitter->kind == MachineKind::Splitter, "splitter should exist");
+    require(northChest != nullptr && southChest != nullptr, "splitter side chests should exist");
+
+    splitter->carriedItem = ItemId::Coal;
+    sim.step();
+    require(northChest->inventory.count(ItemId::Coal) == 1, "splitter should send first item left");
+
+    splitter->carriedItem = ItemId::Wood;
+    sim.step();
+    require(southChest->inventory.count(ItemId::Wood) == 1, "splitter should send second item right");
+}
+
+void testTrainStopsTransferItems()
+{
+    using thoth::game::Direction;
+    using thoth::game::ItemId;
+    using thoth::game::MachineKind;
+
+    thoth::game::Simulation sim(40);
+    placeMachineAt(sim, ItemId::TrainStop, 1, 0, Direction::East);
+    placeMachineAt(sim, ItemId::TrainStop, 3, 0, Direction::East);
+
+    auto* source = sim.machineAt(1, 0);
+    auto* target = sim.machineAt(3, 0);
+    require(source != nullptr && source->kind == MachineKind::TrainStop, "source train stop should exist");
+    require(target != nullptr && target->kind == MachineKind::TrainStop, "target train stop should exist");
+    require(source->inventory.add(ItemId::IronPlate, 1), "test should add train cargo");
+
+    for (int i = 0; i < 95; ++i) {
+        sim.step();
+    }
+
+    require(source->inventory.count(ItemId::IronPlate) == 0, "train stop should consume cargo");
+    require(target->inventory.count(ItemId::IronPlate) == 1, "next train stop should receive cargo");
+    require(sim.productionTotals().trainDeliveries == 1, "train transfer should increment delivery counter");
+}
+
+void testPumpPipeMovesWaterBarrels()
+{
+    using thoth::game::Direction;
+    using thoth::game::ItemId;
+    using thoth::game::MachineKind;
+    using thoth::game::Tile;
+    using thoth::game::TileId;
+
+    thoth::game::Simulation sim(41);
+    sim.world().setTile(0, 0, Tile{TileId::Water, 0});
+    placeMachineAt(sim, ItemId::OffshorePump, 1, 0, Direction::East);
+    placeMachineAt(sim, ItemId::Pipe, 2, 0, Direction::East);
+    placeMachineAt(sim, ItemId::Chest, 3, 0, Direction::East);
+
+    auto* pump = sim.machineAt(1, 0);
+    const auto* pipe = sim.machineAt(2, 0);
+    require(pump != nullptr && pump->kind == MachineKind::OffshorePump, "pump should exist");
+    require(pipe != nullptr && pipe->kind == MachineKind::Pipe, "pipe should exist");
+
+    for (int i = 0; i < 40; ++i) {
+        sim.step();
+    }
+
+    const auto* chest = sim.machineAt(3, 0);
+    require(chest != nullptr && chest->inventory.count(ItemId::WaterBarrel) >= 1, "pump and pipe should move water to chest");
+    require(sim.productionTotals().waterBarrels >= 1, "pump should count produced water barrels");
+}
+
+void testRiftGateTeleportsToOuterDimensionBand()
+{
+    using thoth::game::Direction;
+    using thoth::game::ItemId;
+    using thoth::game::MachineKind;
+
+    thoth::game::Simulation sim(42);
+    placeMachineAt(sim, ItemId::Generator, 0, 1, Direction::South);
+    placeMachineAt(sim, ItemId::PowerPole, 1, 1, Direction::East);
+    placeMachineAt(sim, ItemId::RiftGate, 1, 0, Direction::East);
+
+    auto* generator = sim.machineAt(0, 1);
+    auto* gate = sim.machineAt(1, 0);
+    require(generator != nullptr && generator->inventory.add(ItemId::Coal, 3), "test should fuel rift generator");
+    require(gate != nullptr && gate->kind == MachineKind::RiftGate, "rift gate should exist");
+    require(gate->inventory.add(ItemId::BeaconCore, 1), "test should add rift beacon core");
+
+    for (int i = 0; i < 185; ++i) {
+        sim.step();
+    }
+
+    require(sim.productionTotals().riftJumps == 1, "powered rift gate should complete one jump");
+    require(sim.player().x >= 4096, "rift gate should move player to the outer dimension band");
+}
+
 } // namespace
 
 int main()
@@ -2259,6 +2395,11 @@ int main()
     testTechChainUnlocksCircuitsAndLogistics();
     testCircuitInserterFilterThresholdAndSaveLoad();
     testLogisticDeliveryPersistsInFlight();
+    testArchiveTerminalChargesWhenPowered();
+    testSplitterAlternatesSideOutputs();
+    testTrainStopsTransferItems();
+    testPumpPipeMovesWaterBarrels();
+    testRiftGateTeleportsToOuterDimensionBand();
 
     std::cout << "thoth_tests passed\n";
     return 0;

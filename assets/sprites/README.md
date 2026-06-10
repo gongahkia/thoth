@@ -17,6 +17,7 @@ Atlas contract:
 - Layout: 8 columns, row-major order
 - Runtime terrain rendering applies deterministic coordinate-based tint/flip variation to grass, dirt, water, stone, ore, and floor tiles so repeated atlas sprites read less tiled in the raylib view and media preview.
 - Runtime machine rendering adds tick-based belt travel dashes and working-machine pulse overlays on top of the atlas, keeping motion polish in code while preserving the compact authored sprite sheet.
+- Newer gameplay objects that do not have dedicated authored cells yet reuse existing atlas sprites with code-side colors/glyph fallbacks.
 
 Sprite order:
 

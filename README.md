@@ -13,6 +13,7 @@ Thoth is a small-scope "Factorio meets Minecraft" prototype:
 - Craft a workbench, then use it to build belts, inserters, chests, furnaces, miners, assemblers, labs, and power machines.
 - Build an ore-to-plate factory line.
 - Automate iron-plus-copper science packs and unlock faster logistics, electric power, circuit inserters, advanced science, and logistic drones.
+- Charge powered archive terminals with beacon cores, then open rift gates to a resource-rich outer dimension band.
 - Save, load, and replay deterministic simulation state.
 
 The renderer is intentionally simple. The engineering focus is a headless deterministic simulation with a practical raylib front end.
@@ -26,10 +27,12 @@ Implemented in C++:
 - Player movement, mining, placing, inventory, hotbar, and workbench-gated machine crafting.
 - Belts with deterministic item transport and fast belts after research.
 - Chests, provider/requester chests, inserters, circuit inserters, burner miners, furnaces, assemblers, labs, generators, power poles, electric miners, logistic ports, and logistic drones.
+- Splitters, train stops, offshore pumps, pipes, water barrels, beacon cores, archive terminals, and rift gates.
 - Finite iron, copper, and coal resource tiles that deplete through miners, with richer ore farther from spawn to create expansion pressure.
 - Iron and copper ore-to-plate resource chains through miners, furnaces, inserters, belts, and chests.
 - Small tech tree with iron-plus-copper science, advanced science, circuit inserters, logistic networks, and copper-dependent power machines.
 - Circuit inserter filters/thresholds and powered provider/requester drone deliveries.
+- Powered archive charging, train-stop cargo hops, pump-to-pipe water movement, and rift-gate travel to a deterministic high-resource outer band.
 - Deterministic power network recomputation.
 - Plain-text save/load and replay foundation.
 - Headless tests for world generation, registries, automation, chunk-boundary factory lines, rich save/load state, replay, research, power, workbench gating, circuit inserter config, and logistic delivery persistence.
@@ -43,7 +46,7 @@ Still rough:
 - Generated sprite atlas fallback remains available for reference and recovery.
 - Inventory, machine, and build menus have scan-first state labels now, but still need a final visual design pass.
 - Authored audio cue source is present as `assets/audio/thoth_cues.sfx`, with tuned deterministic WAV exports for core work, UI, error, save/load, and production feedback; final live-listening mix polish is still pending.
-- The game still needs a stronger final objective/end condition beyond demo replay flow.
+- The game still needs a stronger explicit win state beyond the current archive/rift objective chain.
 
 ## Build And Run
 
