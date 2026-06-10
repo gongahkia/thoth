@@ -17,7 +17,8 @@ bool inside(int value, int min, int max)
 int resourceRichness(std::uint64_t seed, int x, int y)
 {
     const auto richness = thoth::core::hashCoordinates(seed ^ 0x51c3a5edULL, x, y);
-    return 4 + static_cast<int>(richness % 5U);
+    const int distanceBonus = std::min(8, (std::abs(x) + std::abs(y)) / 64);
+    return 4 + static_cast<int>(richness % 5U) + distanceBonus;
 }
 
 } // namespace
@@ -150,10 +151,10 @@ Chunk World::generateChunk(int cx, int cy) const
 
 Tile World::generateTile(int x, int y) const
 {
-    if ((x == -4 || x == -3) && inside(y, -3, 3)) {
+    if ((x == -5 || x == -4 || x == -3) && inside(y, -3, 3)) {
         return Tile{TileId::Tree, 1};
     }
-    if (inside(x, -2, 2) && y == 4) {
+    if (inside(x, -2, 3) && y == 4) {
         return Tile{TileId::Stone, 1};
     }
     if (x == 4 && inside(y, -2, 2)) {

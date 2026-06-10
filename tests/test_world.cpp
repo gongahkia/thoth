@@ -278,7 +278,12 @@ void testSimulationMovementAndMining()
 void testCraftingHotbarAndPlacement()
 {
     thoth::game::Simulation sim(2);
-    require(sim.player().inventory.add(thoth::game::ItemId::Wood, 8), "test should add wood");
+    require(sim.player().inventory.add(thoth::game::ItemId::Wood, 14), "test should add wood");
+    sim.world().setTile(1, 0, thoth::game::Tile{thoth::game::TileId::Grass, 0});
+    sim.queue(thoth::game::Command::craft("workbench"));
+    sim.step();
+    sim.queue(thoth::game::Command::placeItem(thoth::game::Direction::East, thoth::game::ItemId::Workbench));
+    sim.step();
     sim.queue(thoth::game::Command::craft("chest"));
     sim.step();
 
@@ -293,7 +298,7 @@ void testCraftingHotbarAndPlacement()
     sim.queue(thoth::game::Command::placeItem(thoth::game::Direction::South, sim.selectedItem()));
     sim.step();
     require(sim.world().getTile(0, 1).id == thoth::game::TileId::Floor, "placing selected stone should create floor");
-    require(sim.itemCount(thoth::game::ItemId::Stone) == 9, "placing selected stone should consume one stone");
+    require(sim.itemCount(thoth::game::ItemId::Stone) == 7, "placing selected stone should consume one stone after workbench");
 }
 
 void testAssignHotbarCommand()
@@ -358,7 +363,12 @@ void testSaveLoadRoundTrip()
     sim.world().setTile(1, 0, thoth::game::Tile{thoth::game::TileId::Tree, 1});
     sim.queue(thoth::game::Command::mine(thoth::game::Direction::East));
     sim.step();
-    require(sim.player().inventory.add(thoth::game::ItemId::Wood, 7), "test should add wood for save/load crafting");
+    require(sim.player().inventory.add(thoth::game::ItemId::Wood, 13), "test should add wood for save/load crafting");
+    sim.world().setTile(1, 0, thoth::game::Tile{thoth::game::TileId::Grass, 0});
+    sim.queue(thoth::game::Command::craft("workbench"));
+    sim.step();
+    sim.queue(thoth::game::Command::placeItem(thoth::game::Direction::East, thoth::game::ItemId::Workbench));
+    sim.step();
     sim.queue(thoth::game::Command::craft("chest"));
     sim.step();
     sim.queue(thoth::game::Command::selectHotbar(1));
@@ -481,7 +491,7 @@ void testRichPersistedStateRoundTrip()
 
 void prepareReplayWorld(thoth::game::Simulation& sim)
 {
-    sim.world().setTile(1, 0, thoth::game::Tile{thoth::game::TileId::Tree, 8});
+    sim.world().setTile(1, 0, thoth::game::Tile{thoth::game::TileId::Tree, 14});
     sim.world().setTile(1, 1, thoth::game::Tile{thoth::game::TileId::Floor, 0});
     sim.world().setTile(0, 0, thoth::game::Tile{thoth::game::TileId::Grass, 0});
 }
@@ -494,10 +504,12 @@ thoth::game::Replay shortReplay()
 
     return thoth::game::Replay{
         thoth::game::ReplayFrame{0, Command::mine(Direction::East)},
-        thoth::game::ReplayFrame{1, Command::move(Direction::East)},
-        thoth::game::ReplayFrame{2, Command::craft("chest")},
-        thoth::game::ReplayFrame{3, Command::placeItem(Direction::South, ItemId::Chest)},
-        thoth::game::ReplayFrame{4, Command::placeItem(Direction::West, ItemId::Stone)},
+        thoth::game::ReplayFrame{1, Command::craft("workbench")},
+        thoth::game::ReplayFrame{2, Command::placeItem(Direction::East, ItemId::Workbench)},
+        thoth::game::ReplayFrame{3, Command::craft("chest")},
+        thoth::game::ReplayFrame{4, Command::move(Direction::East)},
+        thoth::game::ReplayFrame{5, Command::placeItem(Direction::South, ItemId::Chest)},
+        thoth::game::ReplayFrame{6, Command::placeItem(Direction::West, ItemId::Stone)},
     };
 }
 
@@ -556,13 +568,20 @@ void testReplayDocumentRoundTrip()
 
     thoth::game::ReplayDocument document;
     document.seed = 51;
-    document.finalTick = 4;
-    document.playerInventory = {thoth::game::ItemStack{ItemId::Wood, 8}};
+    document.finalTick = 5;
+    document.playerInventory = {
+        thoth::game::ItemStack{ItemId::Wood, 8},
+        thoth::game::ItemStack{ItemId::Workbench, 1},
+    };
+    document.tiles = {
+        thoth::game::TileSnapshot{1, 0, thoth::game::Tile{thoth::game::TileId::Floor, 0}},
+    };
     document.replay = {
-        thoth::game::ReplayFrame{0, Command::craft("chest")},
-        thoth::game::ReplayFrame{1, Command::assignHotbar(2, ItemId::Chest)},
-        thoth::game::ReplayFrame{2, Command::face(Direction::East)},
-        thoth::game::ReplayFrame{3, Command::configureMachineRecipe(Direction::East, "science_pack")},
+        thoth::game::ReplayFrame{0, Command::placeItem(Direction::East, ItemId::Workbench)},
+        thoth::game::ReplayFrame{1, Command::craft("chest")},
+        thoth::game::ReplayFrame{2, Command::assignHotbar(2, ItemId::Chest)},
+        thoth::game::ReplayFrame{3, Command::face(Direction::East)},
+        thoth::game::ReplayFrame{4, Command::configureMachineRecipe(Direction::East, "science_pack")},
     };
 
     const auto path = std::filesystem::temp_directory_path() / "thoth_replay_document_roundtrip.txt";
@@ -1088,18 +1107,22 @@ void testCommandOnlyStarterAutomationLoop()
     for (int y = -3; y <= 3; ++y) {
         mineFrom(sim, -2, y, Direction::West);
         mineFrom(sim, -3, y, Direction::West);
+        mineFrom(sim, -4, y, Direction::West);
     }
-    require(sim.itemCount(ItemId::Wood) >= 14, "starter trees should provide enough wood");
+    require(sim.itemCount(ItemId::Wood) >= 21, "starter trees should provide enough wood");
 
-    for (int x = -2; x <= 2; ++x) {
+    for (int x = -2; x <= 3; ++x) {
         mineFrom(sim, x, 3, Direction::South);
     }
-    require(sim.itemCount(ItemId::Stone) >= 15, "starter stone should provide enough stone");
+    require(sim.itemCount(ItemId::Stone) >= 16, "starter stone should provide enough stone");
 
     mineFrom(sim, 5, 0, Direction::East);
     mineFrom(sim, 5, 1, Direction::East);
     require(sim.itemCount(ItemId::Coal) >= 2, "starter coal should provide machine fuel");
 
+    craftByCommand(sim, "workbench");
+    require(sim.itemCount(ItemId::Workbench) == 1, "normal flow should craft workbench");
+    placeSelectedAt(sim, ItemId::Workbench, -1, 1, Direction::South, Direction::East);
     craftByCommand(sim, "chest");
     craftByCommand(sim, "furnace");
     craftByCommand(sim, "burner_miner");
@@ -1769,6 +1792,7 @@ void testLabResearchUnlocksRecipeAndPersists()
     require(loaded->isRecipeUnlocked("power_pole"), "completed research should unlock power pole recipe");
     require(loaded->isRecipeUnlocked("electric_miner"), "completed research should unlock electric miner recipe");
 
+    placeMachineAt(*loaded, ItemId::Workbench, 0, 1, Direction::South);
     require(loaded->player().inventory.add(ItemId::Belt, 1), "test should add fast belt belt input");
     require(loaded->player().inventory.add(ItemId::IronPlate, 1), "test should add fast belt plate input");
     loaded->queue(Command::craft("fast_belt"));
@@ -1999,6 +2023,173 @@ void testPowerNetworkRecomputesAfterSaveLoad()
     require(loadedMiner != nullptr && loadedMiner->progress == 2, "loaded powered miner should continue after recompute");
 }
 
+void testWorkbenchRequiredForMachineCrafting()
+{
+    using thoth::game::Command;
+    using thoth::game::Direction;
+    using thoth::game::ItemId;
+    using thoth::game::MachineKind;
+    using thoth::game::Tile;
+    using thoth::game::TileId;
+
+    thoth::game::Simulation sim(34);
+    require(sim.player().inventory.add(ItemId::Wood, 14), "test should add workbench/chest wood");
+    sim.queue(Command::craft("chest"));
+    sim.step();
+    require(sim.itemCount(ItemId::Chest) == 0, "chest should require adjacent workbench");
+    require(sim.itemCount(ItemId::Wood) == 14, "blocked workbench craft should preserve inputs");
+
+    require(sim.player().inventory.add(ItemId::Stone, 2), "test should add workbench stone");
+    sim.queue(Command::craft("workbench"));
+    sim.step();
+    require(sim.itemCount(ItemId::Workbench) == 1, "hand crafting should make workbench");
+    sim.world().setTile(1, 0, Tile{TileId::Grass, 0});
+    sim.queue(Command::placeItem(Direction::East, ItemId::Workbench));
+    sim.step();
+    const auto* workbench = sim.machineAt(1, 0);
+    require(workbench != nullptr && workbench->kind == MachineKind::Workbench, "workbench should place as a machine");
+
+    sim.queue(Command::craft("chest"));
+    sim.step();
+    require(sim.itemCount(ItemId::Chest) == 1, "adjacent workbench should enable machine crafting");
+}
+
+void testTechChainUnlocksCircuitsAndLogistics()
+{
+    using thoth::game::Direction;
+    using thoth::game::ItemId;
+    using thoth::game::MachineKind;
+
+    thoth::game::Simulation sim(35);
+    placeMachineAt(sim, ItemId::Lab, 1, 0, Direction::East);
+    auto* lab = sim.machineAt(1, 0);
+    require(lab != nullptr && lab->kind == MachineKind::Lab, "tech-chain lab should exist");
+    require(lab->inventory.add(ItemId::SciencePack, 7), "test should add science packs");
+
+    for (int i = 0; i < 160; ++i) {
+        sim.step();
+    }
+
+    require(sim.isTechCompleted("logistics_1"), "tech chain should complete logistics 1");
+    require(sim.isTechCompleted("automation_control"), "tech chain should complete automation control");
+    require(sim.isRecipeUnlocked("circuit_board"), "automation control should unlock circuit board");
+    require(sim.isRecipeUnlocked("advanced_science_pack"), "automation control should unlock advanced science");
+    require(sim.isRecipeUnlocked("circuit_inserter"), "automation control should unlock circuit inserter");
+    require(std::string(sim.activeTech()) == "logistic_network", "active tech should advance to logistic network");
+
+    require(lab->inventory.add(ItemId::AdvancedSciencePack, 5), "test should add advanced science packs");
+    for (int i = 0; i < 180; ++i) {
+        sim.step();
+    }
+
+    require(sim.isTechCompleted("logistic_network"), "advanced science should complete logistic network");
+    require(sim.isRecipeUnlocked("provider_chest"), "logistic network should unlock provider chest");
+    require(sim.isRecipeUnlocked("requester_chest"), "logistic network should unlock requester chest");
+    require(sim.isRecipeUnlocked("logistic_port"), "logistic network should unlock logistic port");
+    require(sim.isRecipeUnlocked("logistic_drone"), "logistic network should unlock logistic drone");
+}
+
+void testCircuitInserterFilterThresholdAndSaveLoad()
+{
+    using thoth::game::CircuitComparator;
+    using thoth::game::Command;
+    using thoth::game::Direction;
+    using thoth::game::ItemId;
+    using thoth::game::MachineKind;
+
+    thoth::game::Simulation sim(36);
+    placeMachineAt(sim, ItemId::Chest, 0, 0, Direction::East);
+    placeMachineAt(sim, ItemId::CircuitInserter, 1, 0, Direction::East);
+    placeMachineAt(sim, ItemId::Chest, 2, 0, Direction::East);
+    auto* source = sim.machineAt(0, 0);
+    auto* inserter = sim.machineAt(1, 0);
+    auto* target = sim.machineAt(2, 0);
+    require(source != nullptr && target != nullptr && inserter != nullptr, "circuit inserter setup should exist");
+    require(source->inventory.add(ItemId::Wood, 1), "test should add ignored source wood");
+    require(source->inventory.add(ItemId::Coal, 2), "test should add filtered source coal");
+
+    sim.player().x = 1;
+    sim.player().y = 1;
+    sim.queue(Command::configureCircuit(Direction::North, ItemId::Coal, CircuitComparator::LessThan, 1));
+    sim.step();
+    require(inserter->filterItem == ItemId::Coal, "configure circuit should set filter item");
+    require(inserter->circuitComparator == CircuitComparator::LessThan, "configure circuit should set comparator");
+    require(inserter->circuitThreshold == 1, "configure circuit should set threshold");
+
+    for (int i = 0; i < 15; ++i) {
+        sim.step();
+    }
+    require(target->inventory.count(ItemId::Coal) == 1, "circuit inserter should move matching item under threshold");
+    require(target->inventory.count(ItemId::Wood) == 0, "circuit inserter should not move nonmatching item");
+
+    for (int i = 0; i < 30; ++i) {
+        sim.step();
+    }
+    require(target->inventory.count(ItemId::Coal) == 1, "circuit inserter should stop once threshold is reached");
+    require(source->inventory.count(ItemId::Coal) == 1, "threshold stop should leave extra filtered item at source");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_circuit_inserter_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "circuit save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    require(loaded.has_value(), "circuit load should succeed: " + error);
+    std::filesystem::remove(path);
+
+    const auto* loadedInserter = loaded->machineAt(1, 0);
+    require(loadedInserter != nullptr && loadedInserter->filterItem == ItemId::Coal, "loaded circuit filter should persist");
+    require(loadedInserter->circuitComparator == CircuitComparator::LessThan, "loaded circuit comparator should persist");
+    require(loadedInserter->circuitThreshold == 1, "loaded circuit threshold should persist");
+}
+
+void testLogisticDeliveryPersistsInFlight()
+{
+    using thoth::game::Command;
+    using thoth::game::Direction;
+    using thoth::game::ItemId;
+    using thoth::game::MachineKind;
+
+    thoth::game::Simulation sim(37);
+    placeMachineAt(sim, ItemId::Generator, 0, 1, Direction::South);
+    placeMachineAt(sim, ItemId::PowerPole, 1, 1, Direction::East);
+    placeMachineAt(sim, ItemId::LogisticPort, 1, 0, Direction::East);
+    placeMachineAt(sim, ItemId::ProviderChest, 2, 0, Direction::East);
+    placeMachineAt(sim, ItemId::RequesterChest, 3, 0, Direction::East);
+
+    auto* generator = sim.machineAt(0, 1);
+    auto* port = sim.machineAt(1, 0);
+    auto* provider = sim.machineAt(2, 0);
+    auto* requester = sim.machineAt(3, 0);
+    require(generator != nullptr && generator->inventory.add(ItemId::Coal, 1), "test should fuel logistic generator");
+    require(port != nullptr && port->inventory.add(ItemId::LogisticDrone, 1), "test should add logistic drone");
+    require(provider != nullptr && provider->inventory.add(ItemId::IronPlate, 1), "test should add provider item");
+    require(requester != nullptr && requester->kind == MachineKind::RequesterChest, "requester chest should exist");
+
+    sim.player().x = 3;
+    sim.player().y = 1;
+    sim.queue(Command::configureRequest(Direction::North, ItemId::IronPlate, 1));
+    sim.step();
+    require(sim.powerNetworks().size() == 1 && sim.powerNetworks().front().powered, "logistic port should be powered");
+    require(sim.logisticJobs().size() == 1, "powered logistic network should start one delivery job");
+    require(provider->inventory.count(ItemId::IronPlate) == 0, "delivery job should reserve provider item");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_logistic_job_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "logistic save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    require(loaded.has_value(), "logistic load should succeed: " + error);
+    std::filesystem::remove(path);
+    require(loaded->logisticJobs().size() == 1, "loaded logistic job should remain in flight");
+
+    for (int i = 0; i < 30; ++i) {
+        loaded->step();
+    }
+    const auto* loadedRequester = loaded->machineAt(3, 0);
+    require(loadedRequester != nullptr, "loaded requester should exist");
+    require(loadedRequester->inventory.count(ItemId::IronPlate) == 1, "loaded logistic job should complete delivery");
+    require(loaded->logisticJobs().empty(), "completed delivery should clear job");
+    require(loaded->productionTotals().logisticDeliveries == 1, "delivery should increment production total");
+}
+
 } // namespace
 
 int main()
@@ -2048,6 +2239,10 @@ int main()
     testElectricMinerRequiresPowerAndProducesOre();
     testUnderpoweredNetworkStopsElectricMachinesDeterministically();
     testPowerNetworkRecomputesAfterSaveLoad();
+    testWorkbenchRequiredForMachineCrafting();
+    testTechChainUnlocksCircuitsAndLogistics();
+    testCircuitInserterFilterThresholdAndSaveLoad();
+    testLogisticDeliveryPersistsInFlight();
 
     std::cout << "thoth_tests passed\n";
     return 0;

@@ -4,7 +4,7 @@ Date: 2026-05-15
 Updated: 2026-06-10
 Status: implementation direction pivoted from Lua/Love2D to C++17/raylib; legacy Lua source removed from the active repo
 
-GitHub issue triage on 2026-06-10: `#37`, `#38`, `#39`, and `#41` through `#47` are closed as implemented in the C++17/raylib codebase. Still open: `#35` for product/repo decisions, `#36` as a stale Lua/Love2D scaffold issue that should be closed or rewritten, `#40` for the remaining manual-loop/workbench gap, `#48` for final polish, and `#49` for ongoing tests/performance guardrails.
+GitHub issue triage on 2026-06-10: `#37`, `#38`, `#39`, `#40`, and `#41` through `#47` are closed as implemented in the C++17/raylib codebase. Still open: `#35` for product/repo decisions, `#36` as a stale Lua/Love2D scaffold issue that should be closed or rewritten, `#48` for final polish, and `#49` for ongoing tests/performance guardrails.
 
 ## Working Assumption
 
@@ -107,14 +107,14 @@ Core machines:
 - Power poles: connect machines into networks.
 - Labs: consume science to unlock tech.
 
-Later machines:
+Later or extended machines:
 
 - Splitters and filters.
 - Underground belts.
 - Pumps and fluids.
 - Trains or carts.
-- Logistic drones.
-- Circuit signals.
+- Larger logistic networks beyond the current drone-port MVP.
+- Richer circuit signals beyond the current filtered/threshold inserter MVP.
 
 ### 4. C++-Native Determinism
 
@@ -148,7 +148,7 @@ Avoid these until the core loop is fun:
 - Large mob/ecology simulation.
 - Huge survival system with hunger, thirst, weather, temperature.
 - Dozens of ores and hundreds of recipes.
-- Trains, fluids, and circuits in the first milestone.
+- Trains and fluids in the first milestone.
 - A general-purpose mod platform.
 
 ## Proposed Repo Shape
@@ -278,8 +278,8 @@ Success condition: walking around, mining, placing, collecting, and saving feels
 Current C++ Phase 1 status:
 
 - Chunked world storage, deterministic terrain, raylib camera/player movement, collision, mining, placing, inventory, hotbar, save/load, and replay are implemented.
-- `#38`, `#39`, and `#41` are implemented and closed.
-- `#40` remains open: `Workbench` is registered, renderable, and placeable, but no workbench recipe or behavior-backed crafting role is currently implemented.
+- `Workbench` is craftable by hand, placeable as a machine, and required as the adjacent station for machine crafting.
+- `#38`, `#39`, `#40`, and `#41` are implemented and closed.
 
 ### Phase 2: Automation Prototype
 
@@ -326,6 +326,16 @@ Current C++ prototype power rules:
 - Power network topology is recomputed deterministically from placed machines after load.
 - `#46` and `#47` are implemented and closed.
 
+Current C++ prototype progression/logistics status:
+
+- Research now advances past `logistics_1` into `automation_control` and `logistic_network`.
+- `automation_control` unlocks circuit boards, advanced science packs, and circuit inserters.
+- `logistic_network` unlocks provider chests, requester chests, logistic ports, and logistic drones.
+- Circuit inserters support item filters plus less/equal/greater threshold checks against their output target, and their configuration persists through save/load.
+- Powered logistic ports consume stored drones, reserve items from provider chests, deliver to requester chests, persist in-flight jobs through save/load, and increment production totals.
+- Objective/milestone text, craft menu entries, machine panels, process chips, stats, and tutorial hints expose the workbench, circuit, and logistic systems in the raylib app.
+- Ore richness now increases with distance from spawn, so expansion has a stronger resource payoff than the starter patch.
+
 Success condition: the player has a reason to scale beyond the first belt line.
 
 ### Phase 4: Game Feel And Portfolio Polish
@@ -345,7 +355,7 @@ Current C++ prototype polish:
 - `assets/replays/ore_to_plate.thothreplay` is a packaged deterministic demo replay for the first automation line, `assets/replays/science_research.thothreplay` proves assembler-to-lab science/research progression, and `assets/replays/full_flow.thothreplay` runs a 60-second mining-to-research-to-electric-mining flow; `make cpp-validate-replays` validates all packaged replays without opening a raylib window.
 - `make cpp-export-media-preview` writes `assets/previews/thoth_full_flow_preview.png` from the full-flow replay without opening a raylib window, giving the project a deterministic screenshot-style artifact for review. `make cpp-smoke-window` opens the actual raylib app, loads the authored visual/audio assets, renders the full-flow replay state, captures `assets/previews/thoth_window_smoke.png`, verifies the capture dimensions, and runs in CI through Xvfb.
 - Simulation machine lookups use a rebuilt coordinate index for stationary machines, improving the local 4,096-machine benchmark sample from about 9.57 ms/tick to 7.27 ms/tick while preserving save/load and replay determinism.
-- Final live animation tuning, live-listening audio mix polish, and deeper recipe/configuration polish for future machine recipes beyond the current furnace/assembler selectors are still pending.
+- Final live animation tuning, live-listening audio mix polish, first-session onboarding friction, and deeper recipe/configuration polish for future machine recipes beyond the current furnace/assembler/logistics selectors are still pending.
 
 Success condition: a viewer can understand the game in one minute and trust the engineering in five.
 
@@ -355,15 +365,15 @@ Current vertical-slice blockers:
 
 - Resolve `#35`: choose/defer the product name and final repo positioning so the project stops carrying old engine/pivot ambiguity.
 - Resolve `#36`: close as not planned or rewrite it for the C++/raylib repo shape; the Lua/Love2D scaffold target is obsolete.
-- Finish `#40`: either implement a craftable/useful workbench path, or remove workbench from the MVP ladder and registry/UI surface.
 - Finish `#48`: do a live-play visual pass, final UI pass, authored audio mix pass, and any readability fixes that only show up in motion.
 - Keep `#49` open: add focused tests/benchmarks as new systems land, and extend stress coverage past the current 4,096-machine sample when needed.
 
 Beyond-MVP completeness candidates:
 
-- Add clearer long-term goals or win/portfolio endpoints beyond the existing full-flow replay.
-- Add deeper factory tools only after the current loop is polished: splitters/filters, underground belts, fluids/pumps, carts/trains, logistic drones, or circuit signals.
-- Add real expansion pressure if desired: larger ore distance, terrain pressure, or light hostile/environmental pressure that supports automation instead of distracting from it.
+- Add a real end condition beyond replay/demo flow, for example a launch/build objective, final milestone chain, or explicit portfolio win state.
+- Extend progression past the current short ladder with more tech tiers, more intermediate parts, and a stronger late-game reason to keep expanding after electric mining/logistics.
+- Add deeper factory tools only after the current loop is polished: splitters, underground belts, richer filters, richer circuit network behavior, fluids/pumps, carts/trains, or larger logistic-network constraints.
+- Add stronger expansion pressure if desired: wider resource distances, terrain pressure, power/fuel constraints, or light hostile/environmental pressure that supports automation instead of distracting from it.
 
 ## Testing Strategy
 

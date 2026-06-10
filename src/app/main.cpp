@@ -1643,17 +1643,26 @@ SpriteId itemSprite(thoth::game::ItemId item)
         return SpriteId::ItemCopperPlate;
     case ItemId::SciencePack:
         return SpriteId::ItemSciencePack;
+    case ItemId::AdvancedSciencePack:
+        return SpriteId::ItemSciencePack;
+    case ItemId::CircuitBoard:
+        return SpriteId::ItemCopperPlate;
     case ItemId::Belt:
         return SpriteId::MachineBelt;
     case ItemId::FastBelt:
         return SpriteId::MachineFastBelt;
     case ItemId::Inserter:
         return SpriteId::MachineInserter;
+    case ItemId::CircuitInserter:
+        return SpriteId::MachineInserter;
     case ItemId::BurnerMiner:
         return SpriteId::MachineBurnerMiner;
     case ItemId::Furnace:
         return SpriteId::MachineFurnace;
     case ItemId::Chest:
+        return SpriteId::MachineChest;
+    case ItemId::ProviderChest:
+    case ItemId::RequesterChest:
         return SpriteId::MachineChest;
     case ItemId::Workbench:
         return SpriteId::MachineWorkbench;
@@ -1666,6 +1675,10 @@ SpriteId itemSprite(thoth::game::ItemId item)
     case ItemId::PowerPole:
         return SpriteId::MachinePowerPole;
     case ItemId::ElectricMiner:
+        return SpriteId::MachineElectricMiner;
+    case ItemId::LogisticPort:
+        return SpriteId::MachinePowerPole;
+    case ItemId::LogisticDrone:
         return SpriteId::MachineElectricMiner;
     case ItemId::None:
         return SpriteId::TileFloor;
@@ -1692,11 +1705,16 @@ SpriteId machineSprite(thoth::game::MachineKind kind)
         return SpriteId::MachineFastBelt;
     case MachineKind::Inserter:
         return SpriteId::MachineInserter;
+    case MachineKind::CircuitInserter:
+        return SpriteId::MachineInserter;
     case MachineKind::BurnerMiner:
         return SpriteId::MachineBurnerMiner;
     case MachineKind::Furnace:
         return SpriteId::MachineFurnace;
     case MachineKind::Chest:
+        return SpriteId::MachineChest;
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
         return SpriteId::MachineChest;
     case MachineKind::Workbench:
         return SpriteId::MachineWorkbench;
@@ -1710,6 +1728,8 @@ SpriteId machineSprite(thoth::game::MachineKind kind)
         return SpriteId::MachinePowerPole;
     case MachineKind::ElectricMiner:
         return SpriteId::MachineElectricMiner;
+    case MachineKind::LogisticPort:
+        return SpriteId::MachinePowerPole;
     }
     return SpriteId::MachineChest;
 }
@@ -1894,12 +1914,18 @@ Color machineColor(thoth::game::MachineKind kind)
         return Color{232, 196, 72, 255};
     case MachineKind::Inserter:
         return Color{80, 142, 142, 255};
+    case MachineKind::CircuitInserter:
+        return Color{91, 178, 154, 255};
     case MachineKind::BurnerMiner:
         return Color{114, 86, 70, 255};
     case MachineKind::Furnace:
         return Color{94, 96, 102, 255};
     case MachineKind::Chest:
         return Color{155, 101, 54, 255};
+    case MachineKind::ProviderChest:
+        return Color{168, 121, 56, 255};
+    case MachineKind::RequesterChest:
+        return Color{90, 138, 177, 255};
     case MachineKind::Workbench:
         return Color{123, 83, 51, 255};
     case MachineKind::Assembler:
@@ -1912,6 +1938,8 @@ Color machineColor(thoth::game::MachineKind kind)
         return Color{189, 174, 126, 255};
     case MachineKind::ElectricMiner:
         return Color{83, 116, 188, 255};
+    case MachineKind::LogisticPort:
+        return Color{91, 184, 204, 255};
     }
     return Color{220, 220, 220, 255};
 }
@@ -1948,6 +1976,10 @@ Color itemColor(thoth::game::ItemId item)
         return Color{123, 83, 51, 255};
     case ItemId::SciencePack:
         return Color{118, 210, 255, 255};
+    case ItemId::AdvancedSciencePack:
+        return Color{184, 130, 244, 255};
+    case ItemId::CircuitBoard:
+        return Color{78, 174, 122, 255};
     case ItemId::Assembler:
         return Color{72, 124, 172, 255};
     case ItemId::Lab:
@@ -1960,6 +1992,16 @@ Color itemColor(thoth::game::ItemId item)
         return Color{189, 174, 126, 255};
     case ItemId::ElectricMiner:
         return Color{83, 116, 188, 255};
+    case ItemId::CircuitInserter:
+        return Color{91, 178, 154, 255};
+    case ItemId::ProviderChest:
+        return Color{168, 121, 56, 255};
+    case ItemId::RequesterChest:
+        return Color{90, 138, 177, 255};
+    case ItemId::LogisticPort:
+        return Color{91, 184, 204, 255};
+    case ItemId::LogisticDrone:
+        return Color{150, 214, 226, 255};
     case ItemId::None:
         return Color{70, 76, 78, 255};
     }
@@ -2571,6 +2613,10 @@ std::string shortItemName(thoth::game::ItemId item)
         return "bench";
     case ItemId::SciencePack:
         return "sci";
+    case ItemId::AdvancedSciencePack:
+        return "adv sci";
+    case ItemId::CircuitBoard:
+        return "circuit";
     case ItemId::Assembler:
         return "asm";
     case ItemId::Lab:
@@ -2583,6 +2629,16 @@ std::string shortItemName(thoth::game::ItemId item)
         return "pole";
     case ItemId::ElectricMiner:
         return "e-miner";
+    case ItemId::CircuitInserter:
+        return "c-ins";
+    case ItemId::ProviderChest:
+        return "prov";
+    case ItemId::RequesterChest:
+        return "req";
+    case ItemId::LogisticPort:
+        return "port";
+    case ItemId::LogisticDrone:
+        return "drone";
     }
     return "?";
 }
@@ -2597,12 +2653,18 @@ std::string machineGlyph(thoth::game::MachineKind kind)
         return "F";
     case MachineKind::Inserter:
         return "I";
+    case MachineKind::CircuitInserter:
+        return "S";
     case MachineKind::BurnerMiner:
         return "M";
     case MachineKind::Furnace:
         return "U";
     case MachineKind::Chest:
         return "C";
+    case MachineKind::ProviderChest:
+        return "P";
+    case MachineKind::RequesterChest:
+        return "R";
     case MachineKind::Workbench:
         return "W";
     case MachineKind::Assembler:
@@ -2615,6 +2677,8 @@ std::string machineGlyph(thoth::game::MachineKind kind)
         return "P";
     case MachineKind::ElectricMiner:
         return "E";
+    case MachineKind::LogisticPort:
+        return "O";
     }
     return "?";
 }
@@ -2631,6 +2695,7 @@ float machineProgressRatio(const thoth::game::Machine& machine)
         denominator = 8;
         break;
     case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
         denominator = 15;
         break;
     case MachineKind::Furnace:
@@ -2642,16 +2707,17 @@ float machineProgressRatio(const thoth::game::Machine& machine)
         }
         break;
     case MachineKind::Lab:
-        if (const auto* tech = thoth::game::techDef("logistics_1")) {
-            denominator = tech->ticks;
-        }
+        denominator = 30;
         break;
     case MachineKind::Belt:
     case MachineKind::FastBelt:
     case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
     case MachineKind::Workbench:
     case MachineKind::Generator:
     case MachineKind::PowerPole:
+    case MachineKind::LogisticPort:
         break;
     }
     if (denominator <= 0 || machine.progress <= 0) {
@@ -2959,7 +3025,8 @@ std::vector<std::string> firstLineChecklist(const thoth::game::Simulation& sim)
 
     return {
         checklistMark(gatheredStarter) + "gather wood, stone, coal",
-        checklistMark(craftedParts) + "craft miner, belt, inserter, furnace, chest",
+        checklistMark(sim.itemCount(ItemId::Workbench) > 0 || machineCount(sim, MachineKind::Workbench) > 0) + "craft/place a workbench",
+        checklistMark(craftedParts) + "use workbench to craft miner, belt, inserter, furnace, chest",
         checklistMark(placedLine) + "place miner -> belt -> inserter -> furnace -> chest",
         checklistMark(storedPlate) + "fuel line and store first iron plate",
     };
@@ -3194,6 +3261,7 @@ std::string machineIssueSummaryText(const thoth::game::Simulation& sim)
 const std::vector<CraftMenuEntry>& craftMenuEntries()
 {
     static const std::vector<CraftMenuEntry> entries = {
+        {"workbench", "K"},
         {"chest", "C"},
         {"furnace", "F"},
         {"belt", "B"},
@@ -3205,6 +3273,11 @@ const std::vector<CraftMenuEntry>& craftMenuEntries()
         {"generator", "G"},
         {"power_pole", "O"},
         {"electric_miner", "N"},
+        {"circuit_inserter", "S"},
+        {"provider_chest", "P"},
+        {"requester_chest", "R"},
+        {"logistic_port", "J"},
+        {"logistic_drone", "D"},
     };
     return entries;
 }
@@ -3222,6 +3295,8 @@ bool machineCanAcceptForPanel(const thoth::game::Machine& machine, thoth::game::
     case MachineKind::FastBelt:
         return machine.carriedItem == ItemId::None;
     case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
         return true;
     case MachineKind::BurnerMiner:
     case MachineKind::Generator:
@@ -3247,8 +3322,11 @@ bool machineCanAcceptForPanel(const thoth::game::Machine& machine, thoth::game::
         });
     }
     case MachineKind::Lab:
-        return item == ItemId::SciencePack;
+        return item == ItemId::SciencePack || item == ItemId::AdvancedSciencePack;
+    case MachineKind::LogisticPort:
+        return item == ItemId::LogisticDrone;
     case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
     case MachineKind::Workbench:
     case MachineKind::PowerPole:
     case MachineKind::ElectricMiner:
@@ -3460,9 +3538,7 @@ void clampCraftSelection(AppState& state)
 
 bool canCraftRecipe(const thoth::game::Simulation& sim, std::string_view recipeKey)
 {
-    const auto* recipe = thoth::game::recipeDef(recipeKey);
-    return recipe != nullptr && recipe->station == "hand" && sim.isRecipeUnlocked(recipeKey) &&
-        sim.player().inventory.canConsumeAll(recipe->inputs);
+    return sim.canCraft(recipeKey);
 }
 
 void queueCraft(
@@ -3802,6 +3878,7 @@ std::string machineProcessChipText(const thoth::game::Simulation& sim, const tho
             "empty " + directionText(machine.direction) :
             shortItemName(machine.carriedItem) + " " + directionText(machine.direction);
     case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
         return machine.carriedItem == ItemId::None ?
             "ready " + directionText(machine.direction) :
             "holding " + shortItemName(machine.carriedItem);
@@ -3819,7 +3896,12 @@ std::string machineProcessChipText(const thoth::game::Simulation& sim, const tho
     case MachineKind::PowerPole:
         return powerNetworkDetail(sim, machine);
     case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
         return "stacks " + std::to_string(static_cast<int>(machine.inventory.stacks().size()));
+    case MachineKind::LogisticPort:
+        return "drones " + std::to_string(machine.inventory.count(ItemId::LogisticDrone)) +
+            " jobs " + std::to_string(static_cast<int>(sim.logisticJobs().size()));
     case MachineKind::Workbench:
         return "hand recipes";
     case MachineKind::Furnace:
@@ -3858,8 +3940,13 @@ std::string machineActionChipText(const thoth::game::Simulation& sim, const thot
     if (machine.kind == MachineKind::PowerPole) {
         return powerNetworkDetail(sim, machine);
     }
-    if (machine.kind == MachineKind::Chest) {
+    if (machine.kind == MachineKind::Chest ||
+        machine.kind == MachineKind::ProviderChest ||
+        machine.kind == MachineKind::RequesterChest) {
         return "store/take";
+    }
+    if (machine.kind == MachineKind::LogisticPort) {
+        return powerNetworkDetail(sim, machine);
     }
     return "inspect";
 }
@@ -3918,6 +4005,7 @@ const std::vector<FirstLinePartGuide>& firstLinePartGuides()
     using thoth::game::MachineKind;
 
     static const std::vector<FirstLinePartGuide> guides = {
+        {ItemId::Workbench, MachineKind::Workbench, "workbench", "workbench", "K"},
         {ItemId::BurnerMiner, MachineKind::BurnerMiner, "burner_miner", "burner miner", "M"},
         {ItemId::Belt, MachineKind::Belt, "belt", "belt", "B"},
         {ItemId::Inserter, MachineKind::Inserter, "inserter", "inserter", "I"},
@@ -4091,6 +4179,15 @@ std::string tutorialNextStepText(const thoth::game::Simulation& sim)
         if (sim.itemCount(ItemId::Stone) <= 0) {
             return "next: mine stone south of spawn for crafting";
         }
+        if (!hasItemOrMachine(sim, ItemId::Workbench, MachineKind::Workbench)) {
+            if (canCraftRecipe(sim, "workbench")) {
+                return "next: press K or click the build card to craft a workbench";
+            }
+            return "next: gather wood and stone for a workbench";
+        }
+        if (machineCount(sim, MachineKind::Workbench) == 0) {
+            return "next: place the workbench, then stand next to it to craft machines";
+        }
         if (sim.itemCount(ItemId::Coal) <= 0 && machineCount(sim, MachineKind::BurnerMiner) == 0) {
             return "next: mine coal east of spawn for burner fuel";
         }
@@ -4174,6 +4271,9 @@ std::string factoryStatsText(const thoth::game::Simulation& sim)
         " poles=" + std::to_string(machineCount(sim, MachineKind::PowerPole)) +
         " electric_miners=" + std::to_string(machineCount(sim, MachineKind::ElectricMiner)) +
         " inserters=" + std::to_string(machineCount(sim, MachineKind::Inserter)) +
+        " circuit_ins=" + std::to_string(machineCount(sim, MachineKind::CircuitInserter)) +
+        " ports=" + std::to_string(machineCount(sim, MachineKind::LogisticPort)) +
+        " deliveries=" + std::to_string(sim.productionTotals().logisticDeliveries) +
         " chests=" + std::to_string(machineCount(sim, MachineKind::Chest)) +
         " belts_loaded=" + std::to_string(beltItemCount(sim)) +
         " plates_in_chests=" + std::to_string(itemCountInMachines(sim, MachineKind::Chest, ItemId::IronPlate)) +
@@ -4221,7 +4321,7 @@ std::string objectiveText(const thoth::game::Simulation& sim)
         machineCount(sim, MachineKind::Furnace) == 0 ||
         machineCount(sim, MachineKind::Inserter) == 0 ||
         machineCount(sim, MachineKind::Chest) == 0) {
-        return "objective: mine trees west, stone south, coal east; open the build menu and craft the first factory parts";
+        return "objective: mine trees west, stone south, coal east; craft/place a workbench, then build factory parts";
     }
     for (const auto& machine : sim.machines()) {
         if ((machine.kind == MachineKind::BurnerMiner || machine.kind == MachineKind::Furnace) &&
@@ -4655,6 +4755,9 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
         sim.queue(Command::depositSelected(sim.player().facing));
     }
 
+    if (IsKeyPressed(KEY_K)) {
+        queueCraft(sim, state, audio, "workbench");
+    }
     if (IsKeyPressed(KEY_C)) {
         queueCraft(sim, state, audio, "chest");
     }
@@ -5439,6 +5542,7 @@ void drawMachineFlowStrip(const thoth::game::Simulation& sim, const thoth::game:
         detail = outputTargetText(sim, machine);
         break;
     case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
         outputs.push_back(FlowStack{machine.carriedItem, machine.carriedItem == ItemId::None ? 0 : 1, 0});
         detail = targetNameAt(
             sim,
@@ -5483,19 +5587,26 @@ void drawMachineFlowStrip(const thoth::game::Simulation& sim, const thoth::game:
         break;
     case MachineKind::Lab:
         inputs.push_back(FlowStack{ItemId::SciencePack, machine.inventory.count(ItemId::SciencePack), 1});
+        inputs.push_back(FlowStack{ItemId::AdvancedSciencePack, machine.inventory.count(ItemId::AdvancedSciencePack), 1});
         detail = "research " + std::to_string(sim.researchProgress()) + "/" + std::to_string(sim.researchGoal());
         break;
     case MachineKind::Generator:
         inputs.push_back(FlowStack{ItemId::Coal, machine.inventory.count(ItemId::Coal), 1});
         detail = powerNetworkDetail(sim, machine);
         break;
-    case MachineKind::Chest: {
+    case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest: {
         for (const auto& stack : machine.inventory.stacks()) {
             outputs.push_back(FlowStack{stack.item, stack.count, 0});
         }
         detail = outputs.empty() ? "empty storage" : "storage";
         break;
     }
+    case MachineKind::LogisticPort:
+        inputs.push_back(FlowStack{ItemId::LogisticDrone, machine.inventory.count(ItemId::LogisticDrone), 1});
+        detail = "jobs " + std::to_string(static_cast<int>(sim.logisticJobs().size()));
+        break;
     case MachineKind::Workbench:
         detail = "hand crafting helper";
         break;
@@ -5765,6 +5876,7 @@ void drawHud(const thoth::game::Simulation& sim, const AppState& state)
 
     std::vector<std::string> objective;
     appendWrapped(objective, objectiveText(sim), 48);
+    appendWrapped(objective, sim.milestoneText(), 48);
     appendWrapped(objective, tutorialNextStepText(sim), 48);
     objective.push_back("status: " + state.status);
     if (!state.feedbackText.empty() && state.feedbackTicks > 0) {
