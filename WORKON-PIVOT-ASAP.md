@@ -1,8 +1,10 @@
 # Pivot ASAP: C++/raylib Block Automation Sandbox
 
 Date: 2026-05-15
-Updated: 2026-06-09
+Updated: 2026-06-10
 Status: implementation direction pivoted from Lua/Love2D to C++17/raylib; legacy Lua source removed from the active repo
+
+GitHub issue triage on 2026-06-10: `#37`, `#38`, `#39`, and `#41` through `#47` are closed as implemented in the C++17/raylib codebase. Still open: `#35` for product/repo decisions, `#36` as a stale Lua/Love2D scaffold issue that should be closed or rewritten, `#40` for the remaining manual-loop/workbench gap, `#48` for final polish, and `#49` for ongoing tests/performance guardrails.
 
 ## Working Assumption
 
@@ -259,6 +261,7 @@ Current C++ registry status:
 - Tile, item, recipe, tech, and machine definitions live in C++ registries and are validated by headless tests.
 - Machine definitions expose stable keys, display names, 1x1 MVP footprints, placement surface rules, inventory-slot metadata, and behavior kinds.
 - Simulation placement and raylib placement preview use the machine registry instead of hard-coded miner/buildable checks.
+- `#37` is implemented and closed.
 
 ### Phase 1: World And Player Prototype
 
@@ -272,6 +275,12 @@ Current C++ registry status:
 
 Success condition: walking around, mining, placing, collecting, and saving feels stable.
 
+Current C++ Phase 1 status:
+
+- Chunked world storage, deterministic terrain, raylib camera/player movement, collision, mining, placing, inventory, hotbar, save/load, and replay are implemented.
+- `#38`, `#39`, and `#41` are implemented and closed.
+- `#40` remains open: `Workbench` is registered, renderable, and placeable, but no workbench recipe or behavior-backed crafting role is currently implemented.
+
 ### Phase 2: Automation Prototype
 
 - Tile-based belts with deterministic item slots.
@@ -283,6 +292,11 @@ Success condition: walking around, mining, placing, collecting, and saving feels
 - Debug overlay for active machines and item count.
 
 Success condition: an ore-to-plate-to-chest line works without manual babysitting.
+
+Current C++ Phase 2 status:
+
+- Deterministic belts, chests, inserters, burner miners, furnaces, placement rotation/preview, the ore-to-plate-to-chest slice, save/load preservation, and replay coverage are implemented.
+- `#42`, `#43`, `#44`, and `#45` are implemented and closed.
 
 ### Phase 3: Progression Prototype
 
@@ -310,6 +324,7 @@ Current C++ prototype power rules:
 - Each fueled generator supplies 2 power and each electric miner demands 1 power.
 - Underpowered networks stop all electric consumers in that network for the tick.
 - Power network topology is recomputed deterministically from placed machines after load.
+- `#46` and `#47` are implemented and closed.
 
 Success condition: the player has a reason to scale beyond the first belt line.
 
@@ -334,6 +349,22 @@ Current C++ prototype polish:
 
 Success condition: a viewer can understand the game in one minute and trust the engineering in five.
 
+## Remaining Work Before Calling This Complete
+
+Current vertical-slice blockers:
+
+- Resolve `#35`: choose/defer the product name and final repo positioning so the project stops carrying old engine/pivot ambiguity.
+- Resolve `#36`: close as not planned or rewrite it for the C++/raylib repo shape; the Lua/Love2D scaffold target is obsolete.
+- Finish `#40`: either implement a craftable/useful workbench path, or remove workbench from the MVP ladder and registry/UI surface.
+- Finish `#48`: do a live-play visual pass, final UI pass, authored audio mix pass, and any readability fixes that only show up in motion.
+- Keep `#49` open: add focused tests/benchmarks as new systems land, and extend stress coverage past the current 4,096-machine sample when needed.
+
+Beyond-MVP completeness candidates:
+
+- Add clearer long-term goals or win/portfolio endpoints beyond the existing full-flow replay.
+- Add deeper factory tools only after the current loop is polished: splitters/filters, underground belts, fluids/pumps, carts/trains, logistic drones, or circuit signals.
+- Add real expansion pressure if desired: larger ore distance, terrain pressure, or light hostile/environmental pressure that supports automation instead of distracting from it.
+
 ## Testing Strategy
 
 Tests should sell the systems quality:
@@ -352,6 +383,8 @@ Tests should sell the systems quality:
 - `make cpp-benchmark` runs a headless representative factory benchmark without raylib and enforces configurable average and per-machine tick-cost guardrails.
 - `make cpp-benchmark-large` runs an 800-machine scaled factory benchmark, `make cpp-benchmark-stress` runs a 4,096-machine stress benchmark, and the same benchmark binary reports average/p95/max tick costs while remaining scalable with `THOTH_BENCHMARK_TICKS`, `THOTH_BENCHMARK_BURNER_LINES`, `THOTH_BENCHMARK_POWERED_LINES`, `THOTH_BENCHMARK_MAX_US_PER_TICK`, and `THOTH_BENCHMARK_MAX_US_PER_MACHINE_TICK`.
 - CI runs `make cpp-smoke-window` under Xvfb so the real raylib window path, authored visual atlas load, replay render, HUD draw, and screenshot export are covered outside local manual play.
+
+Local verification on 2026-06-10 passed `make test`, `make cpp-validate-replays`, `make cpp-validate-assets`, `make cpp-benchmark`, and a non-mutating `/tmp` media preview export.
 
 ## Main Risks
 
@@ -377,9 +410,10 @@ Mitigation: do not pitch this as a general voxel engine. Pitch it as a complete 
 
 ## Immediate Next Actions
 
-1. Use manual live play after the Xvfb-backed window smoke to validate authored sprite/audio readability in motion and adjust mix issues that only show up interactively.
-2. Tune animation only if live play still needs more visual clarity beyond the deterministic terrain variants and machine motion accents.
-3. Keep scaling past the current 4,096-machine stress benchmark and optimize the first bottleneck that appears in larger factories.
+1. Decide whether `Workbench` should become a real crafting station or be removed from the MVP ladder.
+2. Close or rewrite stale Lua/Love2D issue `#36`, then settle `#35` naming/repo-positioning choices.
+3. Use manual live play after the Xvfb-backed window smoke to validate authored sprite/audio readability in motion and adjust mix issues that only show up interactively.
+4. Keep scaling past the current 4,096-machine stress benchmark and optimize the first bottleneck that appears in larger factories.
 
 ## Confidence
 
