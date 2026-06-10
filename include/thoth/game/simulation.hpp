@@ -7,6 +7,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -35,6 +36,8 @@ enum class CommandType : std::uint8_t {
     WithdrawItem,
     ConfigureCircuit,
     ConfigureRequest,
+    Interact,
+    Attack,
 };
 
 enum class MachineStatus : std::uint8_t {
@@ -57,10 +60,13 @@ inline constexpr int kHotbarSlots = 10;
 struct Player {
     int x = 0;
     int y = 0;
+    int z = 0;
     Direction facing = Direction::South;
     Inventory inventory;
     std::array<ItemId, kHotbarSlots> hotbar{};
     int selectedHotbar = 0;
+    bool inBoat = false;
+    int hp = 20;
 };
 
 struct Machine {
@@ -68,6 +74,7 @@ struct Machine {
     MachineKind kind = MachineKind::Chest;
     int x = 0;
     int y = 0;
+    int z = 0;
     Direction direction = Direction::South;
     Inventory inventory;
     int progress = 0;
@@ -118,6 +125,30 @@ struct ProductionTotals {
     int trainDeliveries = 0;
     int waterBarrels = 0;
     int riftJumps = 0;
+    int creaturesDefeated = 0;
+    int dungeonChestsOpened = 0;
+};
+
+enum class EntityKind : std::uint8_t {
+    Deer,
+    Chicken,
+    Crab,
+    Fish,
+    Slime,
+    Skeleton,
+    CaveCrawler,
+    DungeonSentinel,
+};
+
+struct Entity {
+    std::uint32_t id = 0;
+    EntityKind kind = EntityKind::Deer;
+    int x = 0;
+    int y = 0;
+    int z = 0;
+    int hp = 1;
+    Direction facing = Direction::South;
+    int cooldown = 0;
 };
 
 struct Command {
@@ -146,15 +177,20 @@ struct Command {
     [[nodiscard]] static Command withdrawItem(Direction direction, ItemId item);
     [[nodiscard]] static Command configureCircuit(Direction direction, ItemId filterItem, CircuitComparator comparator, int threshold);
     [[nodiscard]] static Command configureRequest(Direction direction, ItemId requestItem, int threshold);
+    [[nodiscard]] static Command interact(Direction direction);
+    [[nodiscard]] static Command attack(Direction direction);
 };
 
 struct PlayerSnapshot {
     int x = 0;
     int y = 0;
+    int z = 0;
     Direction facing = Direction::South;
     int selectedHotbar = 0;
     std::array<ItemId, kHotbarSlots> hotbar{};
     std::vector<ItemStack> inventory;
+    bool inBoat = false;
+    int hp = 20;
 };
 
 struct SimulationSnapshot {
@@ -163,7 +199,9 @@ struct SimulationSnapshot {
     PlayerSnapshot player;
     std::vector<TileSnapshot> tiles;
     std::uint32_t nextMachineId = 1;
+    std::uint32_t nextEntityId = 1;
     std::vector<Machine> machines;
+    std::vector<Entity> entities;
     std::vector<LogisticJob> logisticJobs;
     ProductionTotals productionTotals;
     std::string activeTech = "logistics_1";
@@ -188,7 +226,11 @@ public:
     [[nodiscard]] ItemId selectedItem() const;
     [[nodiscard]] const std::vector<Machine>& machines() const;
     [[nodiscard]] const Machine* machineAt(int x, int y) const;
+    [[nodiscard]] const Machine* machineAt(int x, int y, int z) const;
     [[nodiscard]] Machine* machineAt(int x, int y);
+    [[nodiscard]] Machine* machineAt(int x, int y, int z);
+    [[nodiscard]] const std::vector<Entity>& entities() const;
+    [[nodiscard]] const Entity* entityAt(int x, int y, int z) const;
     [[nodiscard]] bool isRecipeUnlocked(std::string_view recipeKey) const;
     [[nodiscard]] bool isTechCompleted(std::string_view techKey) const;
     [[nodiscard]] std::string_view activeTech() const;
@@ -219,7 +261,11 @@ private:
     void configureMachineRecipe(Direction direction, std::string_view recipeKey);
     void configureCircuit(Direction direction, ItemId filterItem, CircuitComparator comparator, int threshold);
     void configureRequest(Direction direction, ItemId requestItem, int threshold);
+    void interact(Direction direction);
+    void attack(Direction direction);
     void updateMachines();
+    void updateEntities();
+    void ensureLocalEntities();
     void updatePowerNetworks();
     void updateMiners();
     void updateElectricMiners();
@@ -236,9 +282,12 @@ private:
     void updateArchiveTerminals();
     void updateRiftGates();
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y) const;
+    [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y, int z) const;
     [[nodiscard]] bool acceptItemAt(int x, int y, ItemId item);
+    [[nodiscard]] bool acceptItemAt(int x, int y, int z, ItemId item);
     [[nodiscard]] bool acceptItem(Machine& machine, ItemId item);
     [[nodiscard]] ItemId extractItemAt(int x, int y, ItemId filterItem = ItemId::None);
+    [[nodiscard]] ItemId extractItemAt(int x, int y, int z, ItemId filterItem = ItemId::None);
     [[nodiscard]] ItemId extractItem(Machine& machine, ItemId filterItem = ItemId::None);
     [[nodiscard]] bool returnItem(Machine& machine, ItemId item);
     [[nodiscard]] bool outputItem(Machine& machine, ItemId item);
@@ -251,6 +300,7 @@ private:
     [[nodiscard]] bool isLogisticStorage(MachineKind kind) const;
     [[nodiscard]] int powerDemand(MachineKind kind) const;
     [[nodiscard]] bool hasAdjacentWater(int x, int y) const;
+    [[nodiscard]] bool hasAdjacentWater(int x, int y, int z) const;
     [[nodiscard]] Machine* machineById(std::uint32_t id);
     [[nodiscard]] const Machine* machineById(std::uint32_t id) const;
     [[nodiscard]] bool isRecipeInput(std::string_view recipeKey, ItemId item) const;
@@ -259,6 +309,11 @@ private:
     [[nodiscard]] bool circuitConditionAllows(const Machine& inserter, const Machine* target) const;
     [[nodiscard]] int countMachineItem(const Machine& machine, ItemId item) const;
     [[nodiscard]] std::vector<std::uint32_t> poweredLogisticPortIds() const;
+    [[nodiscard]] bool isWaterTile(TileId id) const;
+    [[nodiscard]] bool isHostile(EntityKind kind) const;
+    [[nodiscard]] ItemId entityDrop(EntityKind kind) const;
+    [[nodiscard]] int entityMaxHp(EntityKind kind) const;
+    [[nodiscard]] std::optional<EntityKind> localEntityKindForTile(int x, int y, int z) const;
     [[nodiscard]] int activeTechGoal() const;
     [[nodiscard]] std::string nextIncompleteTech() const;
     void rebuildMachineCellIndex();
@@ -272,7 +327,9 @@ private:
     Player player_;
     std::uint64_t tick_ = 0;
     std::uint32_t nextMachineId_ = 1;
+    std::uint32_t nextEntityId_ = 1;
     std::vector<Machine> machines_;
+    std::vector<Entity> entities_;
     std::unordered_map<std::uint64_t, std::size_t> machineCellIndex_;
     std::vector<Command> commandQueue_;
     std::string activeTech_ = "logistics_1";

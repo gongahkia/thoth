@@ -30,12 +30,23 @@ int absInt(int value)
 
 int manhattanDistance(const Machine& left, const Machine& right)
 {
+    if (left.z != right.z) {
+        return 1'000'000;
+    }
     return absInt(left.x - right.x) + absInt(left.y - right.y);
+}
+
+int manhattanDistance(int ax, int ay, int az, int bx, int by, int bz)
+{
+    if (az != bz) {
+        return 1'000'000;
+    }
+    return absInt(ax - bx) + absInt(ay - by);
 }
 
 int manhattanDistance(int ax, int ay, int bx, int by)
 {
-    return absInt(ax - bx) + absInt(ay - by);
+    return manhattanDistance(ax, ay, 0, bx, by, 0);
 }
 
 bool containsId(const std::vector<std::uint32_t>& ids, std::uint32_t id)
@@ -78,11 +89,13 @@ Direction rightOf(Direction direction)
     return Direction::East;
 }
 
-std::uint64_t machineCellKey(int x, int y)
+std::uint64_t machineCellKey(int x, int y, int z)
 {
     const auto ux = static_cast<std::uint64_t>(static_cast<std::uint32_t>(x));
     const auto uy = static_cast<std::uint64_t>(static_cast<std::uint32_t>(y));
-    return (ux << 32U) | uy;
+    auto value = (ux << 32U) | uy;
+    value ^= static_cast<std::uint64_t>(static_cast<std::uint32_t>(z)) * 0x9e3779b97f4a7c15ULL;
+    return value;
 }
 
 TileId minedReplacement(TileId id)
@@ -90,18 +103,40 @@ TileId minedReplacement(TileId id)
     switch (id) {
     case TileId::Tree:
         return TileId::Grass;
+    case TileId::Reeds:
+        return TileId::Mud;
+    case TileId::Cactus:
+        return TileId::Sand;
+    case TileId::Coral:
+        return TileId::Water;
+    case TileId::DeepWater:
+        return TileId::Water;
     case TileId::Stone:
+    case TileId::Basalt:
+    case TileId::Crystal:
     case TileId::IronOre:
     case TileId::CopperOre:
     case TileId::CoalOre:
         return TileId::Floor;
+    case TileId::DungeonWall:
+        return TileId::DungeonFloor;
+    case TileId::Wall:
+    case TileId::PlankWall:
+    case TileId::Door:
+    case TileId::StairsUp:
+    case TileId::StairsDown:
+    case TileId::Bed:
+        return TileId::Floor;
     case TileId::Dirt:
     case TileId::Floor:
     case TileId::Grass:
+    case TileId::Beach:
     case TileId::Mud:
     case TileId::Sand:
     case TileId::Snow:
+    case TileId::Ice:
     case TileId::Water:
+    case TileId::DungeonFloor:
         return TileId::Grass;
     }
     return TileId::Grass;
@@ -116,6 +151,22 @@ ItemId resourceTileOutput(TileId id)
         return ItemId::CopperOre;
     case TileId::CoalOre:
         return ItemId::Coal;
+    case TileId::Basalt:
+        return ItemId::Basalt;
+    case TileId::Crystal:
+        return ItemId::Crystal;
+    case TileId::DeepWater:
+        return ItemId::Kelp;
+    case TileId::Coral:
+        return ItemId::CoralShard;
+    case TileId::Beach:
+        return ItemId::Shell;
+    case TileId::Reeds:
+        return ItemId::ReedFiber;
+    case TileId::Cactus:
+        return ItemId::CactusFiber;
+    case TileId::Ice:
+        return ItemId::IceShard;
     case TileId::Dirt:
     case TileId::Floor:
     case TileId::Grass:
@@ -125,26 +176,34 @@ ItemId resourceTileOutput(TileId id)
     case TileId::Stone:
     case TileId::Tree:
     case TileId::Water:
+    case TileId::Wall:
+    case TileId::PlankWall:
+    case TileId::Door:
+    case TileId::StairsUp:
+    case TileId::StairsDown:
+    case TileId::Bed:
+    case TileId::DungeonFloor:
+    case TileId::DungeonWall:
         return ItemId::None;
     }
     return ItemId::None;
 }
 
-void depleteResourceTile(World& world, int x, int y)
+void depleteResourceTile(World& world, int x, int y, int z)
 {
-    auto tile = world.getTile(x, y);
+    auto tile = world.getTile(x, y, z);
     if (resourceTileOutput(tile.id) == ItemId::None) {
         return;
     }
 
     const int remaining = std::max(1, tile.data) - 1;
     if (remaining <= 0) {
-        world.setTile(x, y, Tile{minedReplacement(tile.id), 0});
+        world.setTile(x, y, z, Tile{minedReplacement(tile.id), 0});
         return;
     }
 
     tile.data = remaining;
-    world.setTile(x, y, tile);
+    world.setTile(x, y, z, tile);
 }
 
 ItemId furnaceInputItem(const RecipeDef& recipe)
@@ -323,6 +382,22 @@ Command Command::configureRequest(Direction direction, ItemId requestItem, int t
     return command;
 }
 
+Command Command::interact(Direction direction)
+{
+    Command command;
+    command.type = CommandType::Interact;
+    command.direction = direction;
+    return command;
+}
+
+Command Command::attack(Direction direction)
+{
+    Command command;
+    command.type = CommandType::Attack;
+    command.direction = direction;
+    return command;
+}
+
 int dx(Direction direction)
 {
     switch (direction) {
@@ -415,7 +490,9 @@ void Simulation::step()
     for (const auto& command : queue) {
         apply(command);
     }
+    ensureLocalEntities();
     updateMachines();
+    updateEntities();
     ++tick_;
 }
 
@@ -464,7 +541,12 @@ const std::vector<Machine>& Simulation::machines() const
 
 const Machine* Simulation::machineAt(int x, int y) const
 {
-    const auto found = machineCellIndex_.find(machineCellKey(x, y));
+    return machineAt(x, y, 0);
+}
+
+const Machine* Simulation::machineAt(int x, int y, int z) const
+{
+    const auto found = machineCellIndex_.find(machineCellKey(x, y, z));
     if (found == machineCellIndex_.end() || found->second >= machines_.size()) {
         return nullptr;
     }
@@ -478,7 +560,12 @@ const Machine* Simulation::machineAt(int x, int y) const
 
 Machine* Simulation::machineAt(int x, int y)
 {
-    const auto found = machineCellIndex_.find(machineCellKey(x, y));
+    return machineAt(x, y, 0);
+}
+
+Machine* Simulation::machineAt(int x, int y, int z)
+{
+    const auto found = machineCellIndex_.find(machineCellKey(x, y, z));
     if (found == machineCellIndex_.end() || found->second >= machines_.size()) {
         return nullptr;
     }
@@ -488,6 +575,21 @@ Machine* Simulation::machineAt(int x, int y)
         return nullptr;
     }
     return &machine;
+}
+
+const std::vector<Entity>& Simulation::entities() const
+{
+    return entities_;
+}
+
+const Entity* Simulation::entityAt(int x, int y, int z) const
+{
+    for (const auto& entity : entities_) {
+        if (entity.x == x && entity.y == y && entity.z == z && entity.hp > 0) {
+            return &entity;
+        }
+    }
+    return nullptr;
 }
 
 bool Simulation::isRecipeUnlocked(std::string_view recipeKey) const
@@ -590,10 +692,13 @@ SimulationSnapshot Simulation::snapshot() const
     PlayerSnapshot playerSnapshot;
     playerSnapshot.x = player_.x;
     playerSnapshot.y = player_.y;
+    playerSnapshot.z = player_.z;
     playerSnapshot.facing = player_.facing;
     playerSnapshot.selectedHotbar = player_.selectedHotbar;
     playerSnapshot.hotbar = player_.hotbar;
     playerSnapshot.inventory = player_.inventory.stacks();
+    playerSnapshot.inBoat = player_.inBoat;
+    playerSnapshot.hp = player_.hp;
 
     SimulationSnapshot result;
     result.seed = world_.seed();
@@ -601,7 +706,9 @@ SimulationSnapshot Simulation::snapshot() const
     result.player = playerSnapshot;
     result.tiles = world_.loadedTiles();
     result.nextMachineId = nextMachineId_;
+    result.nextEntityId = nextEntityId_;
     result.machines = machines_;
+    result.entities = entities_;
     result.logisticJobs = logisticJobs_;
     result.productionTotals = productionTotals_;
     result.activeTech = activeTech_;
@@ -616,14 +723,17 @@ void Simulation::restore(const SimulationSnapshot& snapshot)
     world_ = World(snapshot.seed);
     world_.clearLoadedChunks();
     for (const auto& tile : snapshot.tiles) {
-        world_.setTile(tile.x, tile.y, tile.tile);
+        world_.setTile(tile.x, tile.y, tile.z, tile.tile);
     }
 
     player_.x = snapshot.player.x;
     player_.y = snapshot.player.y;
+    player_.z = snapshot.player.z;
     player_.facing = snapshot.player.facing;
     player_.selectedHotbar = std::clamp(snapshot.player.selectedHotbar, 0, kHotbarSlots - 1);
     player_.hotbar = snapshot.player.hotbar;
+    player_.inBoat = snapshot.player.inBoat;
+    player_.hp = snapshot.player.hp <= 0 ? 20 : snapshot.player.hp;
     player_.inventory.clear();
     for (const auto& stack : snapshot.player.inventory) {
         const auto added = player_.inventory.add(stack.item, stack.count);
@@ -632,7 +742,9 @@ void Simulation::restore(const SimulationSnapshot& snapshot)
 
     tick_ = snapshot.tick;
     nextMachineId_ = snapshot.nextMachineId == 0 ? 1 : snapshot.nextMachineId;
+    nextEntityId_ = snapshot.nextEntityId == 0 ? 1 : snapshot.nextEntityId;
     machines_ = snapshot.machines;
+    entities_ = snapshot.entities;
     for (auto& machine : machines_) {
         if (machine.kind == MachineKind::Assembler && machine.recipeKey.empty()) {
             machine.recipeKey = "science_pack";
@@ -670,7 +782,7 @@ void Simulation::rebuildMachineCellIndex()
         const auto& def = machineDef(machine.kind);
         for (int oy = 0; oy < def.height; ++oy) {
             for (int ox = 0; ox < def.width; ++ox) {
-                machineCellIndex_[machineCellKey(machine.x + ox, machine.y + oy)] = index;
+                machineCellIndex_[machineCellKey(machine.x + ox, machine.y + oy, machine.z)] = index;
             }
         }
     }
@@ -727,6 +839,14 @@ void Simulation::apply(const Command& command)
         player_.facing = command.direction;
         configureRequest(command.direction, command.item, command.amount);
         break;
+    case CommandType::Interact:
+        player_.facing = command.direction;
+        interact(command.direction);
+        break;
+    case CommandType::Attack:
+        player_.facing = command.direction;
+        attack(command.direction);
+        break;
     }
 }
 
@@ -734,7 +854,16 @@ void Simulation::move(Direction direction)
 {
     const int nx = player_.x + dx(direction);
     const int ny = player_.y + dy(direction);
-    if (world_.isWalkable(nx, ny)) {
+    const auto target = world_.getTile(nx, ny, player_.z);
+    if (player_.inBoat) {
+        if (!isWaterTile(target.id)) {
+            return;
+        }
+        player_.x = nx;
+        player_.y = ny;
+        return;
+    }
+    if (world_.isWalkable(nx, ny, player_.z) && !isWaterTile(target.id)) {
         player_.x = nx;
         player_.y = ny;
     }
@@ -744,14 +873,14 @@ void Simulation::mine(Direction direction)
 {
     const int tx = player_.x + dx(direction);
     const int ty = player_.y + dy(direction);
-    const auto tile = world_.getTile(tx, ty);
+    const auto tile = world_.getTile(tx, ty, player_.z);
     if (!isMineable(tile.id)) {
         return;
     }
 
     const auto& def = tileDef(tile.id);
     addItem(def.drop, std::max(1, tile.data));
-    world_.setTile(tx, ty, Tile{minedReplacement(tile.id), 0});
+    world_.setTile(tx, ty, player_.z, Tile{minedReplacement(tile.id), 0});
 }
 
 void Simulation::place(Direction direction, TileId tile, ItemId item, Direction orientation)
@@ -763,7 +892,7 @@ void Simulation::place(Direction direction, TileId tile, ItemId item, Direction 
 
     const int tx = player_.x + dx(direction);
     const int ty = player_.y + dy(direction);
-    if (machineAt(tx, ty) != nullptr) {
+    if (machineAt(tx, ty, player_.z) != nullptr) {
         return;
     }
 
@@ -780,15 +909,15 @@ void Simulation::place(Direction direction, TileId tile, ItemId item, Direction 
         requiredItem = tileDef(tileToPlace).drop;
     }
 
-    const auto targetTile = world_.getTile(tx, ty);
-    if (!world_.isWalkable(tx, ty) || !tileDef(targetTile.id).buildable || !tileDef(tileToPlace).walkable) {
+    const auto targetTile = world_.getTile(tx, ty, player_.z);
+    if (!world_.isWalkable(tx, ty, player_.z) || !tileDef(targetTile.id).buildable) {
         return;
     }
 
     if (requiredItem != ItemId::None && !consumeItem(requiredItem, 1)) {
         return;
     }
-    world_.setTile(tx, ty, Tile{tileToPlace, 0});
+    world_.setTile(tx, ty, player_.z, Tile{tileToPlace, 0});
 }
 
 void Simulation::placeMachine(Direction direction, ItemId item, Direction orientation)
@@ -800,7 +929,7 @@ void Simulation::placeMachine(Direction direction, ItemId item, Direction orient
 
     const int tx = player_.x + dx(direction);
     const int ty = player_.y + dy(direction);
-    if (!canPlaceMachine(def.placeMachine, tx, ty)) {
+    if (!canPlaceMachine(def.placeMachine, tx, ty, player_.z)) {
         return;
     }
     if (!consumeItem(item, 1)) {
@@ -812,6 +941,7 @@ void Simulation::placeMachine(Direction direction, ItemId item, Direction orient
     machine.kind = def.placeMachine;
     machine.x = tx;
     machine.y = ty;
+    machine.z = player_.z;
     machine.direction = orientation;
     if (machine.kind == MachineKind::Assembler) {
         machine.recipeKey = "science_pack";
@@ -837,7 +967,7 @@ void Simulation::depositItem(Direction direction, ItemId item)
 
     const int tx = player_.x + dx(direction);
     const int ty = player_.y + dy(direction);
-    if (!acceptItemAt(tx, ty, item)) {
+    if (!acceptItemAt(tx, ty, player_.z, item)) {
         return;
     }
 
@@ -853,7 +983,7 @@ void Simulation::withdrawItem(Direction direction, ItemId item)
 
     const int tx = player_.x + dx(direction);
     const int ty = player_.y + dy(direction);
-    auto* machine = machineAt(tx, ty);
+    auto* machine = machineAt(tx, ty, player_.z);
     if (machine == nullptr) {
         return;
     }
@@ -914,7 +1044,7 @@ void Simulation::configureMachineRecipe(Direction direction, std::string_view re
 {
     const int tx = player_.x + dx(direction);
     const int ty = player_.y + dy(direction);
-    auto* machine = machineAt(tx, ty);
+    auto* machine = machineAt(tx, ty, player_.z);
     if (machine == nullptr ||
         (machine->kind != MachineKind::Assembler && machine->kind != MachineKind::Furnace)) {
         return;
@@ -942,7 +1072,7 @@ void Simulation::configureCircuit(Direction direction, ItemId filterItem, Circui
 {
     const int tx = player_.x + dx(direction);
     const int ty = player_.y + dy(direction);
-    auto* machine = machineAt(tx, ty);
+    auto* machine = machineAt(tx, ty, player_.z);
     if (machine == nullptr || machine->kind != MachineKind::CircuitInserter) {
         return;
     }
@@ -955,12 +1085,71 @@ void Simulation::configureRequest(Direction direction, ItemId requestItem, int t
 {
     const int tx = player_.x + dx(direction);
     const int ty = player_.y + dy(direction);
-    auto* machine = machineAt(tx, ty);
+    auto* machine = machineAt(tx, ty, player_.z);
     if (machine == nullptr || machine->kind != MachineKind::RequesterChest) {
         return;
     }
     machine->requestItem = requestItem;
     machine->requestThreshold = requestItem == ItemId::None ? 0 : std::max(0, threshold);
+}
+
+void Simulation::interact(Direction direction)
+{
+    const int tx = player_.x + dx(direction);
+    const int ty = player_.y + dy(direction);
+    auto tile = world_.getTile(tx, ty, player_.z);
+
+    if (player_.inBoat) {
+        if (!isWaterTile(tile.id) && world_.isWalkable(tx, ty, player_.z)) {
+            player_.x = tx;
+            player_.y = ty;
+            player_.inBoat = false;
+            addItem(ItemId::Boat, 1);
+        }
+        return;
+    }
+
+    if (selectedItem() == ItemId::Boat && isWaterTile(tile.id) && consumeItem(ItemId::Boat, 1)) {
+        player_.x = tx;
+        player_.y = ty;
+        player_.inBoat = true;
+        return;
+    }
+
+    if (tile.id == TileId::Door) {
+        tile.data = tile.data > 0 ? 0 : 1;
+        world_.setTile(tx, ty, player_.z, tile);
+        return;
+    }
+
+    if (tile.id == TileId::StairsUp || tile.id == TileId::StairsDown) {
+        const int dz = tile.id == TileId::StairsUp ? 1 : -1;
+        const int targetZ = player_.z + dz;
+        if (world_.isWalkable(tx, ty, targetZ)) {
+            player_.x = tx;
+            player_.y = ty;
+            player_.z = targetZ;
+        }
+    }
+}
+
+void Simulation::attack(Direction direction)
+{
+    const int tx = player_.x + dx(direction);
+    const int ty = player_.y + dy(direction);
+    for (auto it = entities_.begin(); it != entities_.end(); ++it) {
+        if (it->x != tx || it->y != ty || it->z != player_.z || it->hp <= 0) {
+            continue;
+        }
+        it->hp -= 2;
+        if (it->hp > 0) {
+            return;
+        }
+        addItem(entityDrop(it->kind), 1);
+        ++productionTotals_.creaturesDefeated;
+        entities_.erase(it);
+        return;
+    }
 }
 
 void Simulation::updateMachines()
@@ -1084,7 +1273,7 @@ void Simulation::updateMiners()
             continue;
         }
 
-        const auto output = resourceTileOutput(world_.getTile(machine.x, machine.y).id);
+        const auto output = resourceTileOutput(world_.getTile(machine.x, machine.y, machine.z).id);
 
         if (output == ItemId::None) {
             machine.progress = 0;
@@ -1094,7 +1283,7 @@ void Simulation::updateMiners()
 
         if (machine.progress >= kMinerTicks) {
             if (outputItem(machine, output)) {
-                depleteResourceTile(world_, machine.x, machine.y);
+                depleteResourceTile(world_, machine.x, machine.y, machine.z);
                 recordProduced(output, machine.kind);
                 machine.progress = 0;
                 machine.status = MachineStatus::Idle;
@@ -1114,7 +1303,7 @@ void Simulation::updateMiners()
         machine.status = MachineStatus::Working;
         if (machine.progress >= kMinerTicks) {
             if (outputItem(machine, output)) {
-                depleteResourceTile(world_, machine.x, machine.y);
+                depleteResourceTile(world_, machine.x, machine.y, machine.z);
                 recordProduced(output, machine.kind);
                 machine.progress = 0;
                 machine.status = MachineStatus::Idle;
@@ -1133,7 +1322,7 @@ void Simulation::updateElectricMiners()
             continue;
         }
 
-        const auto output = resourceTileOutput(world_.getTile(machine.x, machine.y).id);
+        const auto output = resourceTileOutput(world_.getTile(machine.x, machine.y, machine.z).id);
 
         if (output == ItemId::None) {
             machine.progress = 0;
@@ -1143,7 +1332,7 @@ void Simulation::updateElectricMiners()
 
         if (machine.progress >= kElectricMinerTicks) {
             if (outputItem(machine, output)) {
-                depleteResourceTile(world_, machine.x, machine.y);
+                depleteResourceTile(world_, machine.x, machine.y, machine.z);
                 recordProduced(output, machine.kind);
                 machine.progress = 0;
                 machine.status = MachineStatus::Idle;
@@ -1162,7 +1351,7 @@ void Simulation::updateElectricMiners()
         machine.status = MachineStatus::Working;
         if (machine.progress >= kElectricMinerTicks) {
             if (outputItem(machine, output)) {
-                depleteResourceTile(world_, machine.x, machine.y);
+                depleteResourceTile(world_, machine.x, machine.y, machine.z);
                 recordProduced(output, machine.kind);
                 machine.progress = 0;
                 machine.status = MachineStatus::Idle;
@@ -1232,7 +1421,7 @@ void Simulation::updateSplitters()
         const Direction otherSide = (machine->progress % 2) == 0 ? rightOf(machine->direction) : leftOf(machine->direction);
         const std::array<Direction, 3> outputs = {side, machine->direction, otherSide};
         for (const auto outputDirection : outputs) {
-            if (acceptItemAt(machine->x + dx(outputDirection), machine->y + dy(outputDirection), item)) {
+            if (acceptItemAt(machine->x + dx(outputDirection), machine->y + dy(outputDirection), machine->z, item)) {
                 machine->carriedItem = ItemId::None;
                 machine->progress = (machine->progress + 1) % 2;
                 machine->status = MachineStatus::Idle;
@@ -1405,12 +1594,12 @@ void Simulation::updateInserters()
         const int sourceY = machine.y - dy(machine.direction);
         const int targetX = machine.x + dx(machine.direction);
         const int targetY = machine.y + dy(machine.direction);
-        auto* target = machineAt(targetX, targetY);
+        auto* target = machineAt(targetX, targetY, machine.z);
         if (!circuitConditionAllows(machine, target)) {
             machine.status = MachineStatus::Idle;
             continue;
         }
-        const auto item = extractItemAt(sourceX, sourceY, machine.kind == MachineKind::CircuitInserter ? machine.filterItem : ItemId::None);
+        const auto item = extractItemAt(sourceX, sourceY, machine.z, machine.kind == MachineKind::CircuitInserter ? machine.filterItem : ItemId::None);
         if (item == ItemId::None) {
             machine.status = MachineStatus::MissingInput;
             continue;
@@ -1423,7 +1612,7 @@ void Simulation::updateInserters()
         }
 
         machine.status = MachineStatus::OutputBlocked;
-        auto* source = machineAt(sourceX, sourceY);
+        auto* source = machineAt(sourceX, sourceY, machine.z);
         if (source != nullptr) {
             const auto returned = returnItem(*source, item);
             (void)returned;
@@ -1475,14 +1664,14 @@ void Simulation::updateLogistics()
                     requester.requestItem == ItemId::None ||
                     requester.requestThreshold <= 0 ||
                     requester.inventory.count(requester.requestItem) >= requester.requestThreshold ||
-                    manhattanDistance(port->x, port->y, requester.x, requester.y) > kLogisticPortRange) {
+                    manhattanDistance(port->x, port->y, port->z, requester.x, requester.y, requester.z) > kLogisticPortRange) {
                     continue;
                 }
 
                 for (auto& provider : machines_) {
                     if (provider.kind != MachineKind::ProviderChest ||
                         provider.inventory.count(requester.requestItem) <= 0 ||
-                        manhattanDistance(port->x, port->y, provider.x, provider.y) > kLogisticPortRange) {
+                        manhattanDistance(port->x, port->y, port->z, provider.x, provider.y, provider.z) > kLogisticPortRange) {
                         continue;
                     }
                     selectedRequester = &requester;
@@ -1505,8 +1694,10 @@ void Simulation::updateLogistics()
             const int distance = manhattanDistance(
                 selectedProvider->x,
                 selectedProvider->y,
+                selectedProvider->z,
                 selectedRequester->x,
-                selectedRequester->y);
+                selectedRequester->y,
+                selectedRequester->z);
             const int totalTicks = std::clamp(distance * 4, kMinLogisticJobTicks, kMaxLogisticJobTicks);
             logisticJobs_.push_back(LogisticJob{
                 port->id,
@@ -1572,7 +1763,7 @@ void Simulation::updateFluidPumps()
         if (machine.kind != MachineKind::OffshorePump) {
             continue;
         }
-        if (!hasAdjacentWater(machine.x, machine.y)) {
+        if (!hasAdjacentWater(machine.x, machine.y, machine.z)) {
             machine.progress = 0;
             machine.status = MachineStatus::MissingInput;
             continue;
@@ -1673,16 +1864,21 @@ void Simulation::updateRiftGates()
 
 bool Simulation::canPlaceMachine(MachineKind kind, int x, int y) const
 {
+    return canPlaceMachine(kind, x, y, 0);
+}
+
+bool Simulation::canPlaceMachine(MachineKind kind, int x, int y, int z) const
+{
     const auto& def = machineDef(kind);
     for (int oy = 0; oy < def.height; ++oy) {
         for (int ox = 0; ox < def.width; ++ox) {
             const int tx = x + ox;
             const int ty = y + oy;
-            if (machineAt(tx, ty) != nullptr) {
+            if (machineAt(tx, ty, z) != nullptr) {
                 return false;
             }
 
-            const auto tile = world_.getTile(tx, ty);
+            const auto tile = world_.getTile(tx, ty, z);
             if (def.requiresResourceTile) {
                 if (resourceTileOutput(tile.id) == ItemId::None) {
                     return false;
@@ -1700,7 +1896,12 @@ bool Simulation::canPlaceMachine(MachineKind kind, int x, int y) const
 
 bool Simulation::acceptItemAt(int x, int y, ItemId item)
 {
-    auto* machine = machineAt(x, y);
+    return acceptItemAt(x, y, 0, item);
+}
+
+bool Simulation::acceptItemAt(int x, int y, int z, ItemId item)
+{
+    auto* machine = machineAt(x, y, z);
     if (machine == nullptr) {
         return false;
     }
@@ -1794,7 +1995,12 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
 
 ItemId Simulation::extractItemAt(int x, int y, ItemId filterItem)
 {
-    auto* machine = machineAt(x, y);
+    return extractItemAt(x, y, 0, filterItem);
+}
+
+ItemId Simulation::extractItemAt(int x, int y, int z, ItemId filterItem)
+{
+    auto* machine = machineAt(x, y, z);
     if (machine == nullptr) {
         return ItemId::None;
     }
@@ -1853,7 +2059,7 @@ bool Simulation::returnItem(Machine& machine, ItemId item)
 
 bool Simulation::outputItem(Machine& machine, ItemId item)
 {
-    return acceptItemAt(machine.x + dx(machine.direction), machine.y + dy(machine.direction), item);
+    return acceptItemAt(machine.x + dx(machine.direction), machine.y + dy(machine.direction), machine.z, item);
 }
 
 bool Simulation::refuel(Machine& machine)
@@ -1912,8 +2118,13 @@ int Simulation::powerDemand(MachineKind kind) const
 
 bool Simulation::hasAdjacentWater(int x, int y) const
 {
+    return hasAdjacentWater(x, y, 0);
+}
+
+bool Simulation::hasAdjacentWater(int x, int y, int z) const
+{
     for (const auto direction : {Direction::North, Direction::East, Direction::South, Direction::West}) {
-        if (world_.getTile(x + dx(direction), y + dy(direction)).id == TileId::Water) {
+        if (isWaterTile(world_.getTile(x + dx(direction), y + dy(direction), z).id)) {
             return true;
         }
     }
@@ -1955,7 +2166,7 @@ bool Simulation::isRecipeInput(std::string_view recipeKey, ItemId item) const
 bool Simulation::isAdjacentToWorkbench() const
 {
     for (const auto direction : {Direction::North, Direction::East, Direction::South, Direction::West}) {
-        const auto* machine = machineAt(player_.x + dx(direction), player_.y + dy(direction));
+        const auto* machine = machineAt(player_.x + dx(direction), player_.y + dy(direction), player_.z);
         if (machine != nullptr && machine->kind == MachineKind::Workbench) {
             return true;
         }

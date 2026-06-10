@@ -20,12 +20,14 @@ struct Tile {
 struct Chunk {
     int cx = 0;
     int cy = 0;
+    int z = 0;
     std::array<Tile, kChunkSize * kChunkSize> tiles{};
 };
 
 struct TileSnapshot {
     int x = 0;
     int y = 0;
+    int z = 0;
     Tile tile{};
 };
 
@@ -35,19 +37,23 @@ public:
 
     [[nodiscard]] std::uint64_t seed() const;
     [[nodiscard]] Tile getTile(int x, int y);
+    [[nodiscard]] Tile getTile(int x, int y, int z);
     [[nodiscard]] const Tile getTile(int x, int y) const;
+    [[nodiscard]] const Tile getTile(int x, int y, int z) const;
     void setTile(int x, int y, Tile tile);
+    void setTile(int x, int y, int z, Tile tile);
     [[nodiscard]] bool isWalkable(int x, int y);
+    [[nodiscard]] bool isWalkable(int x, int y, int z);
     [[nodiscard]] std::size_t loadedChunkCount() const;
     [[nodiscard]] std::vector<TileSnapshot> loadedTiles() const;
     void clearLoadedChunks();
 
 private:
-    [[nodiscard]] Chunk& chunkForTile(int x, int y);
-    [[nodiscard]] const Chunk& chunkForTile(int x, int y) const;
-    [[nodiscard]] Chunk generateChunk(int cx, int cy) const;
-    [[nodiscard]] Tile generateTile(int x, int y) const;
-    [[nodiscard]] static std::uint64_t chunkKey(int cx, int cy);
+    [[nodiscard]] Chunk& chunkForTile(int x, int y, int z);
+    [[nodiscard]] const Chunk& chunkForTile(int x, int y, int z) const;
+    [[nodiscard]] Chunk generateChunk(int cx, int cy, int z) const;
+    [[nodiscard]] Tile generateTile(int x, int y, int z) const;
+    [[nodiscard]] static std::uint64_t chunkKey(int cx, int cy, int z);
 
     std::uint64_t seed_;
     mutable std::unordered_map<std::uint64_t, Chunk> chunks_;
