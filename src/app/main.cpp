@@ -2841,6 +2841,34 @@ std::string shortItemName(thoth::game::ItemId item)
         return "cu ore";
     case ItemId::CopperPlate:
         return "copper";
+    case ItemId::Sand:
+        return "sand";
+    case ItemId::SandGlass:
+        return "glass";
+    case ItemId::ReedFiber:
+        return "reed";
+    case ItemId::CactusFiber:
+        return "fiber";
+    case ItemId::Kelp:
+        return "kelp";
+    case ItemId::Shell:
+        return "shell";
+    case ItemId::CoralShard:
+        return "coral";
+    case ItemId::IceShard:
+        return "ice";
+    case ItemId::Basalt:
+        return "basalt";
+    case ItemId::Crystal:
+        return "crystal";
+    case ItemId::Hide:
+        return "hide";
+    case ItemId::Bone:
+        return "bone";
+    case ItemId::Slime:
+        return "slime";
+    case ItemId::Venom:
+        return "venom";
     case ItemId::Belt:
         return "belt";
     case ItemId::Inserter:
@@ -2897,6 +2925,20 @@ std::string shortItemName(thoth::game::ItemId item)
         return "pump";
     case ItemId::RiftGate:
         return "rift";
+    case ItemId::Wall:
+        return "wall";
+    case ItemId::PlankWall:
+        return "plank";
+    case ItemId::Door:
+        return "door";
+    case ItemId::StairsUp:
+        return "up";
+    case ItemId::StairsDown:
+        return "down";
+    case ItemId::Boat:
+        return "boat";
+    case ItemId::Bed:
+        return "bed";
     }
     return "?";
 }
