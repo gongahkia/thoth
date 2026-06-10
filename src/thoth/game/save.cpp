@@ -78,7 +78,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 7\n";
+    output << "THOTH_SAVE 8\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -145,7 +145,11 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
            << snapshot.productionTotals.sciencePacks << ' '
            << snapshot.productionTotals.advancedSciencePacks << ' '
            << snapshot.productionTotals.logisticDeliveries << ' '
-           << snapshot.productionTotals.poweredOre << "\n";
+           << snapshot.productionTotals.poweredOre << ' '
+           << snapshot.productionTotals.archiveSignals << ' '
+           << snapshot.productionTotals.trainDeliveries << ' '
+           << snapshot.productionTotals.waterBarrels << ' '
+           << snapshot.productionTotals.riftJumps << "\n";
 
     return true;
 }
@@ -163,7 +167,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 7)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 8)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -478,6 +482,13 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
             !readValue(input, snapshot.productionTotals.advancedSciencePacks, "advanced science pack total", error) ||
             !readValue(input, snapshot.productionTotals.logisticDeliveries, "logistic delivery total", error) ||
             !readValue(input, snapshot.productionTotals.poweredOre, "powered ore total", error)) {
+            return std::nullopt;
+        }
+        if (version >= 8 &&
+            (!readValue(input, snapshot.productionTotals.archiveSignals, "archive signal total", error) ||
+                !readValue(input, snapshot.productionTotals.trainDeliveries, "train delivery total", error) ||
+                !readValue(input, snapshot.productionTotals.waterBarrels, "water barrel total", error) ||
+                !readValue(input, snapshot.productionTotals.riftJumps, "rift jump total", error))) {
             return std::nullopt;
         }
     }

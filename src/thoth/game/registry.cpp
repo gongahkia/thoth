@@ -50,6 +50,14 @@ const std::vector<ItemDef> kItems = {
     {ItemId::RequesterChest, "requester_chest", "Requester Chest", 50, TileId::Floor, false, MachineKind::RequesterChest, true},
     {ItemId::LogisticPort, "logistic_port", "Logistic Port", 50, TileId::Floor, false, MachineKind::LogisticPort, true},
     {ItemId::LogisticDrone, "logistic_drone", "Logistic Drone", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::BeaconCore, "beacon_core", "Beacon Core", 20, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::ArchiveTerminal, "archive_terminal", "Archive Terminal", 10, TileId::Floor, false, MachineKind::ArchiveTerminal, true},
+    {ItemId::Splitter, "splitter", "Splitter", 100, TileId::Floor, false, MachineKind::Splitter, true},
+    {ItemId::TrainStop, "train_stop", "Train Stop", 20, TileId::Floor, false, MachineKind::TrainStop, true},
+    {ItemId::WaterBarrel, "water_barrel", "Water Barrel", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::Pipe, "pipe", "Pipe", 100, TileId::Floor, false, MachineKind::Pipe, true},
+    {ItemId::OffshorePump, "offshore_pump", "Offshore Pump", 20, TileId::Floor, false, MachineKind::OffshorePump, true},
+    {ItemId::RiftGate, "rift_gate", "Rift Gate", 5, TileId::Floor, false, MachineKind::RiftGate, true},
 };
 
 const std::vector<MachineDef> kMachines = {
@@ -69,6 +77,12 @@ const std::vector<MachineDef> kMachines = {
     {MachineKind::ProviderChest, "provider_chest", "Provider Chest", 1, 1, false, true, false, 16, MachineBehaviorKind::LogisticStorage},
     {MachineKind::RequesterChest, "requester_chest", "Requester Chest", 1, 1, false, true, false, 16, MachineBehaviorKind::LogisticStorage},
     {MachineKind::LogisticPort, "logistic_port", "Logistic Port", 1, 1, false, true, false, 4, MachineBehaviorKind::LogisticPort},
+    {MachineKind::ArchiveTerminal, "archive_terminal", "Archive Terminal", 1, 1, false, true, false, 6, MachineBehaviorKind::ArchiveTerminal},
+    {MachineKind::Splitter, "splitter", "Splitter", 1, 1, false, true, false, 1, MachineBehaviorKind::Splitter},
+    {MachineKind::TrainStop, "train_stop", "Train Stop", 1, 1, false, true, false, 16, MachineBehaviorKind::TrainStop},
+    {MachineKind::Pipe, "pipe", "Pipe", 1, 1, false, true, false, 1, MachineBehaviorKind::Pipe},
+    {MachineKind::OffshorePump, "offshore_pump", "Offshore Pump", 1, 1, false, true, false, 0, MachineBehaviorKind::OffshorePump},
+    {MachineKind::RiftGate, "rift_gate", "Rift Gate", 1, 1, false, true, false, 2, MachineBehaviorKind::RiftGate},
 };
 
 const std::vector<RecipeDef> kRecipes = {
@@ -94,12 +108,19 @@ const std::vector<RecipeDef> kRecipes = {
     {"requester_chest", {ItemStack{ItemId::Chest, 1}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::RequesterChest, 1}, 35, "workbench", false},
     {"logistic_port", {ItemStack{ItemId::IronPlate, 4}, ItemStack{ItemId::CopperPlate, 4}, ItemStack{ItemId::CircuitBoard, 2}}, ItemStack{ItemId::LogisticPort, 1}, 80, "workbench", false},
     {"logistic_drone", {ItemStack{ItemId::IronPlate, 1}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::LogisticDrone, 1}, 45, "workbench", false},
+    {"splitter", {ItemStack{ItemId::Belt, 2}, ItemStack{ItemId::IronPlate, 1}}, ItemStack{ItemId::Splitter, 1}, 35, "workbench", false},
+    {"pipe", {ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::Pipe, 2}, 25, "workbench", false},
+    {"offshore_pump", {ItemStack{ItemId::IronPlate, 2}, ItemStack{ItemId::CopperPlate, 2}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::OffshorePump, 1}, 50, "workbench", false},
+    {"beacon_core", {ItemStack{ItemId::AdvancedSciencePack, 2}, ItemStack{ItemId::CircuitBoard, 4}, ItemStack{ItemId::LogisticDrone, 2}}, ItemStack{ItemId::BeaconCore, 1}, 120, "assembler", false},
+    {"archive_terminal", {ItemStack{ItemId::IronPlate, 10}, ItemStack{ItemId::CopperPlate, 10}, ItemStack{ItemId::CircuitBoard, 4}}, ItemStack{ItemId::ArchiveTerminal, 1}, 120, "workbench", false},
+    {"train_stop", {ItemStack{ItemId::IronPlate, 6}, ItemStack{ItemId::CopperPlate, 3}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::TrainStop, 1}, 80, "workbench", false},
+    {"rift_gate", {ItemStack{ItemId::BeaconCore, 1}, ItemStack{ItemId::AdvancedSciencePack, 3}, ItemStack{ItemId::CopperPlate, 8}}, ItemStack{ItemId::RiftGate, 1}, 160, "workbench", false},
 };
 
 const std::vector<TechDef> kTechs = {
-    {"logistics_1", "Logistics 1", {ItemStack{ItemId::SciencePack, 3}}, 20, {"fast_belt", "generator", "power_pole", "electric_miner"}},
-    {"automation_control", "Automation Control", {ItemStack{ItemId::SciencePack, 4}}, 24, {"circuit_board", "advanced_science_pack", "circuit_inserter"}},
-    {"logistic_network", "Logistic Network", {ItemStack{ItemId::AdvancedSciencePack, 5}}, 30, {"provider_chest", "requester_chest", "logistic_port", "logistic_drone"}},
+    {"logistics_1", "Logistics 1", {ItemStack{ItemId::SciencePack, 3}}, 20, {"fast_belt", "generator", "power_pole", "electric_miner", "splitter", "pipe"}},
+    {"automation_control", "Automation Control", {ItemStack{ItemId::SciencePack, 4}}, 24, {"circuit_board", "advanced_science_pack", "circuit_inserter", "offshore_pump"}},
+    {"logistic_network", "Logistic Network", {ItemStack{ItemId::AdvancedSciencePack, 5}}, 30, {"provider_chest", "requester_chest", "logistic_port", "logistic_drone", "beacon_core", "archive_terminal", "train_stop", "rift_gate"}},
 };
 
 template <typename TId, typename TDef>
@@ -267,6 +288,18 @@ std::string_view toString(MachineBehaviorKind behavior)
         return "logistic_storage";
     case MachineBehaviorKind::LogisticPort:
         return "logistic_port";
+    case MachineBehaviorKind::ArchiveTerminal:
+        return "archive_terminal";
+    case MachineBehaviorKind::Splitter:
+        return "splitter";
+    case MachineBehaviorKind::TrainStop:
+        return "train_stop";
+    case MachineBehaviorKind::Pipe:
+        return "pipe";
+    case MachineBehaviorKind::OffshorePump:
+        return "offshore_pump";
+    case MachineBehaviorKind::RiftGate:
+        return "rift_gate";
     }
     return "unknown";
 }

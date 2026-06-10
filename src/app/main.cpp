@@ -1700,6 +1700,22 @@ SpriteId itemSprite(thoth::game::ItemId item)
         return SpriteId::MachinePowerPole;
     case ItemId::LogisticDrone:
         return SpriteId::MachineElectricMiner;
+    case ItemId::BeaconCore:
+        return SpriteId::ItemSciencePack;
+    case ItemId::ArchiveTerminal:
+        return SpriteId::MachineLab;
+    case ItemId::Splitter:
+        return SpriteId::MachineFastBelt;
+    case ItemId::TrainStop:
+        return SpriteId::MachineChest;
+    case ItemId::WaterBarrel:
+        return SpriteId::TileWater;
+    case ItemId::Pipe:
+        return SpriteId::MachineBelt;
+    case ItemId::OffshorePump:
+        return SpriteId::MachineElectricMiner;
+    case ItemId::RiftGate:
+        return SpriteId::MachineLab;
     case ItemId::None:
         return SpriteId::TileFloor;
     }
@@ -1750,6 +1766,18 @@ SpriteId machineSprite(thoth::game::MachineKind kind)
         return SpriteId::MachineElectricMiner;
     case MachineKind::LogisticPort:
         return SpriteId::MachinePowerPole;
+    case MachineKind::ArchiveTerminal:
+        return SpriteId::MachineLab;
+    case MachineKind::Splitter:
+        return SpriteId::MachineFastBelt;
+    case MachineKind::TrainStop:
+        return SpriteId::MachineChest;
+    case MachineKind::Pipe:
+        return SpriteId::MachineBelt;
+    case MachineKind::OffshorePump:
+        return SpriteId::MachineElectricMiner;
+    case MachineKind::RiftGate:
+        return SpriteId::MachineLab;
     }
     return SpriteId::MachineChest;
 }
@@ -1960,6 +1988,18 @@ Color machineColor(thoth::game::MachineKind kind)
         return Color{83, 116, 188, 255};
     case MachineKind::LogisticPort:
         return Color{91, 184, 204, 255};
+    case MachineKind::ArchiveTerminal:
+        return Color{116, 92, 190, 255};
+    case MachineKind::Splitter:
+        return Color{218, 182, 64, 255};
+    case MachineKind::TrainStop:
+        return Color{126, 126, 142, 255};
+    case MachineKind::Pipe:
+        return Color{70, 146, 168, 255};
+    case MachineKind::OffshorePump:
+        return Color{64, 132, 188, 255};
+    case MachineKind::RiftGate:
+        return Color{146, 76, 210, 255};
     }
     return Color{220, 220, 220, 255};
 }
@@ -2022,6 +2062,22 @@ Color itemColor(thoth::game::ItemId item)
         return Color{91, 184, 204, 255};
     case ItemId::LogisticDrone:
         return Color{150, 214, 226, 255};
+    case ItemId::BeaconCore:
+        return Color{202, 164, 255, 255};
+    case ItemId::ArchiveTerminal:
+        return Color{116, 92, 190, 255};
+    case ItemId::Splitter:
+        return Color{218, 182, 64, 255};
+    case ItemId::TrainStop:
+        return Color{126, 126, 142, 255};
+    case ItemId::WaterBarrel:
+        return Color{86, 184, 226, 255};
+    case ItemId::Pipe:
+        return Color{70, 146, 168, 255};
+    case ItemId::OffshorePump:
+        return Color{64, 132, 188, 255};
+    case ItemId::RiftGate:
+        return Color{146, 76, 210, 255};
     case ItemId::None:
         return Color{70, 76, 78, 255};
     }
@@ -2279,7 +2335,10 @@ int renderAnimationPhase(std::uint64_t tick, int x, int y, int period)
 
 bool isBeltMachine(thoth::game::MachineKind kind)
 {
-    return kind == thoth::game::MachineKind::Belt || kind == thoth::game::MachineKind::FastBelt;
+    return kind == thoth::game::MachineKind::Belt ||
+        kind == thoth::game::MachineKind::FastBelt ||
+        kind == thoth::game::MachineKind::Splitter ||
+        kind == thoth::game::MachineKind::Pipe;
 }
 
 Color activityPulseColor(thoth::game::MachineKind kind)
@@ -2293,7 +2352,13 @@ Color activityPulseColor(thoth::game::MachineKind kind)
     case MachineKind::ElectricMiner:
     case MachineKind::PowerPole:
     case MachineKind::LogisticPort:
+    case MachineKind::OffshorePump:
         return Color{118, 210, 255, 255};
+    case MachineKind::ArchiveTerminal:
+    case MachineKind::RiftGate:
+        return Color{202, 164, 255, 255};
+    case MachineKind::TrainStop:
+        return Color{200, 200, 210, 255};
     case MachineKind::Assembler:
         return Color{118, 230, 164, 255};
     case MachineKind::Lab:
@@ -2303,10 +2368,13 @@ Color activityPulseColor(thoth::game::MachineKind kind)
         return Color{196, 236, 226, 255};
     case MachineKind::Belt:
     case MachineKind::FastBelt:
+    case MachineKind::Splitter:
+    case MachineKind::Pipe:
     case MachineKind::Chest:
     case MachineKind::ProviderChest:
     case MachineKind::RequesterChest:
     case MachineKind::Workbench:
+    case MachineKind::OffshorePump:
         break;
     }
     return Color{210, 220, 214, 255};

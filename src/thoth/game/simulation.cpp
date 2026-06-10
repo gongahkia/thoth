@@ -1,6 +1,7 @@
 #include "thoth/game/simulation.hpp"
 
 #include <algorithm>
+#include <array>
 #include <stdexcept>
 #include <utility>
 
@@ -15,6 +16,12 @@ constexpr int kPowerMachineReach = 2;
 constexpr int kLogisticPortRange = 4;
 constexpr int kMinLogisticJobTicks = 20;
 constexpr int kMaxLogisticJobTicks = 240;
+constexpr int kArchiveTerminalTicks = 360;
+constexpr int kTrainStopTicks = 90;
+constexpr int kPumpTicks = 30;
+constexpr int kPipeTicks = 3;
+constexpr int kRiftGateTicks = 180;
+constexpr int kRiftOffset = 4096;
 
 int absInt(int value)
 {
@@ -39,6 +46,36 @@ bool containsId(const std::vector<std::uint32_t>& ids, std::uint32_t id)
 bool isScienceItem(ItemId item)
 {
     return item == ItemId::SciencePack || item == ItemId::AdvancedSciencePack;
+}
+
+Direction leftOf(Direction direction)
+{
+    switch (direction) {
+    case Direction::North:
+        return Direction::West;
+    case Direction::East:
+        return Direction::North;
+    case Direction::South:
+        return Direction::East;
+    case Direction::West:
+        return Direction::South;
+    }
+    return Direction::West;
+}
+
+Direction rightOf(Direction direction)
+{
+    switch (direction) {
+    case Direction::North:
+        return Direction::East;
+    case Direction::East:
+        return Direction::South;
+    case Direction::South:
+        return Direction::West;
+    case Direction::West:
+        return Direction::North;
+    }
+    return Direction::East;
 }
 
 std::uint64_t machineCellKey(int x, int y)
@@ -509,6 +546,15 @@ bool Simulation::canCraft(std::string_view recipeKey) const
 
 std::string Simulation::milestoneText() const
 {
+    if (productionTotals_.riftJumps > 0) {
+        return "milestone: rift reached; mine the rich outer world and route it back";
+    }
+    if (productionTotals_.archiveSignals > 0) {
+        return "milestone: archive signal charged; build a rift gate for the next dimension";
+    }
+    if (isRecipeUnlocked("archive_terminal")) {
+        return "milestone: craft beacon cores, power an archive terminal, and charge it";
+    }
     if (productionTotals_.logisticDeliveries >= 10) {
         return "milestone: expand remote logistics; next delivery quota " +
             std::to_string(((productionTotals_.logisticDeliveries / 10) + 1) * 10);
@@ -917,11 +963,17 @@ void Simulation::updateMachines()
     updateMiners();
     updateElectricMiners();
     updateBelts();
+    updateSplitters();
     updateInserters();
     updateFurnaces();
     updateAssemblers();
     updateLabs();
     updateLogistics();
+    updateTrainStops();
+    updateFluidPumps();
+    updatePipes();
+    updateArchiveTerminals();
+    updateRiftGates();
 }
 
 void Simulation::updatePowerNetworks()
@@ -1150,6 +1202,39 @@ void Simulation::updateBelts()
     for (auto& machine : machines_) {
         if (isBelt(machine.kind) && machine.carriedItem == ItemId::None) {
             machine.status = MachineStatus::Idle;
+        }
+    }
+}
+
+void Simulation::updateSplitters()
+{
+    std::vector<std::uint32_t> sourceIds;
+    for (const auto& machine : machines_) {
+        if (machine.kind == MachineKind::Splitter && machine.carriedItem != ItemId::None) {
+            sourceIds.push_back(machine.id);
+        }
+    }
+
+    for (const auto id : sourceIds) {
+        auto* machine = machineById(id);
+        if (machine == nullptr || machine->carriedItem == ItemId::None) {
+            continue;
+        }
+
+        const auto item = machine->carriedItem;
+        const Direction side = (machine->progress % 2) == 0 ? leftOf(machine->direction) : rightOf(machine->direction);
+        const Direction otherSide = (machine->progress % 2) == 0 ? rightOf(machine->direction) : leftOf(machine->direction);
+        const std::array<Direction, 3> outputs = {side, machine->direction, otherSide};
+        for (const auto outputDirection : outputs) {
+            if (acceptItemAt(machine->x + dx(outputDirection), machine->y + dy(outputDirection), item)) {
+                machine->carriedItem = ItemId::None;
+                machine->progress = (machine->progress + 1) % 2;
+                machine->status = MachineStatus::Idle;
+                break;
+            }
+        }
+        if (machine->carriedItem != ItemId::None) {
+            machine->status = MachineStatus::OutputBlocked;
         }
     }
 }
@@ -1429,6 +1514,157 @@ void Simulation::updateLogistics()
     }
 }
 
+void Simulation::updateTrainStops()
+{
+    std::vector<std::uint32_t> stopIds;
+    for (const auto& machine : machines_) {
+        if (machine.kind == MachineKind::TrainStop) {
+            stopIds.push_back(machine.id);
+        }
+    }
+    if (stopIds.size() < 2) {
+        for (const auto id : stopIds) {
+            if (auto* stop = machineById(id)) {
+                stop->status = MachineStatus::MissingInput;
+            }
+        }
+        return;
+    }
+    std::sort(stopIds.begin(), stopIds.end());
+
+    for (std::size_t index = 0; index < stopIds.size(); ++index) {
+        auto* stop = machineById(stopIds[index]);
+        auto* target = machineById(stopIds[(index + 1U) % stopIds.size()]);
+        if (stop == nullptr || target == nullptr) {
+            continue;
+        }
+        if (stop->inventory.stacks().empty()) {
+            stop->progress = 0;
+            stop->status = MachineStatus::MissingInput;
+            continue;
+        }
+        stop->progress = std::min(stop->progress + 1, kTrainStopTicks);
+        stop->status = MachineStatus::Working;
+        if (stop->progress < kTrainStopTicks) {
+            continue;
+        }
+        const auto stacks = stop->inventory.stacks();
+        const auto item = stacks.empty() ? ItemId::None : stacks.front().item;
+        if (item != ItemId::None && target->inventory.add(item, 1) && stop->inventory.consume(item, 1)) {
+            ++productionTotals_.trainDeliveries;
+            stop->progress = 0;
+            stop->status = MachineStatus::Idle;
+        } else {
+            stop->status = MachineStatus::OutputBlocked;
+        }
+    }
+}
+
+void Simulation::updateFluidPumps()
+{
+    for (auto& machine : machines_) {
+        if (machine.kind != MachineKind::OffshorePump) {
+            continue;
+        }
+        if (!hasAdjacentWater(machine.x, machine.y)) {
+            machine.progress = 0;
+            machine.status = MachineStatus::MissingInput;
+            continue;
+        }
+        machine.progress = std::min(machine.progress + 1, kPumpTicks);
+        machine.status = MachineStatus::Working;
+        if (machine.progress < kPumpTicks) {
+            continue;
+        }
+        if (outputItem(machine, ItemId::WaterBarrel)) {
+            ++productionTotals_.waterBarrels;
+            machine.progress = 0;
+            machine.status = MachineStatus::Idle;
+        } else {
+            machine.status = MachineStatus::OutputBlocked;
+        }
+    }
+}
+
+void Simulation::updatePipes()
+{
+    std::vector<std::uint32_t> sourceIds;
+    for (const auto& machine : machines_) {
+        if (isPipe(machine.kind) && machine.carriedItem != ItemId::None) {
+            sourceIds.push_back(machine.id);
+        }
+    }
+    for (const auto id : sourceIds) {
+        auto* pipe = machineById(id);
+        if (pipe == nullptr || pipe->carriedItem == ItemId::None) {
+            continue;
+        }
+        pipe->progress = std::min(pipe->progress + 1, kPipeTicks);
+        if (pipe->progress < kPipeTicks) {
+            pipe->status = MachineStatus::Working;
+            continue;
+        }
+        const auto item = pipe->carriedItem;
+        if (outputItem(*pipe, item)) {
+            pipe->carriedItem = ItemId::None;
+            pipe->progress = 0;
+            pipe->status = MachineStatus::Idle;
+        } else {
+            pipe->status = MachineStatus::OutputBlocked;
+        }
+    }
+}
+
+void Simulation::updateArchiveTerminals()
+{
+    for (auto& machine : machines_) {
+        if (machine.kind != MachineKind::ArchiveTerminal) {
+            continue;
+        }
+        if (!isMachinePowered(machine.id)) {
+            machine.status = MachineStatus::MissingPower;
+            continue;
+        }
+        if (machine.progress == 0 && !machine.inventory.consume(ItemId::BeaconCore, 1)) {
+            machine.status = MachineStatus::MissingInput;
+            continue;
+        }
+        machine.progress = std::min(machine.progress + 1, kArchiveTerminalTicks);
+        machine.status = MachineStatus::Working;
+        if (machine.progress >= kArchiveTerminalTicks) {
+            ++productionTotals_.archiveSignals;
+            machine.progress = 0;
+            machine.status = MachineStatus::Idle;
+        }
+    }
+}
+
+void Simulation::updateRiftGates()
+{
+    for (auto& machine : machines_) {
+        if (machine.kind != MachineKind::RiftGate) {
+            continue;
+        }
+        if (!isMachinePowered(machine.id)) {
+            machine.status = MachineStatus::MissingPower;
+            continue;
+        }
+        if (machine.progress == 0 && !machine.inventory.consume(ItemId::BeaconCore, 1)) {
+            machine.status = MachineStatus::MissingInput;
+            continue;
+        }
+        machine.progress = std::min(machine.progress + 1, kRiftGateTicks);
+        machine.status = MachineStatus::Working;
+        if (machine.progress < kRiftGateTicks) {
+            continue;
+        }
+        player_.x += player_.x >= (kRiftOffset / 2) ? -kRiftOffset : kRiftOffset;
+        ++productionTotals_.riftJumps;
+        machine.progress = 0;
+        machine.status = MachineStatus::Idle;
+    }
+}
+
 bool Simulation::canPlaceMachine(MachineKind kind, int x, int y) const
 {
     const auto& def = machineDef(kind);
@@ -1474,7 +1710,14 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
     switch (machine.kind) {
     case MachineKind::Belt:
     case MachineKind::FastBelt:
+    case MachineKind::Splitter:
         if (machine.carriedItem != ItemId::None) {
+            return false;
+        }
+        machine.carriedItem = item;
+        return true;
+    case MachineKind::Pipe:
+        if (item != ItemId::WaterBarrel || machine.carriedItem != ItemId::None) {
             return false;
         }
         machine.carriedItem = item;
@@ -1482,6 +1725,7 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
     case MachineKind::Chest:
     case MachineKind::ProviderChest:
     case MachineKind::RequesterChest:
+    case MachineKind::TrainStop:
         return machine.inventory.add(item, 1);
     case MachineKind::Inserter:
     case MachineKind::CircuitInserter:
@@ -1528,8 +1772,15 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
             return false;
         }
         return machine.inventory.add(item, 1);
+    case MachineKind::ArchiveTerminal:
+    case MachineKind::RiftGate:
+        if (item != ItemId::BeaconCore) {
+            return false;
+        }
+        return machine.inventory.add(item, 1);
     case MachineKind::PowerPole:
     case MachineKind::ElectricMiner:
+    case MachineKind::OffshorePump:
         return false;
     }
     return false;
@@ -1546,7 +1797,7 @@ ItemId Simulation::extractItemAt(int x, int y, ItemId filterItem)
 
 ItemId Simulation::extractItem(Machine& machine, ItemId filterItem)
 {
-    if (isBelt(machine.kind)) {
+    if (isBelt(machine.kind) || machine.kind == MachineKind::Splitter || isPipe(machine.kind)) {
         const auto item = machine.carriedItem;
         if (filterItem != ItemId::None && item != filterItem) {
             return ItemId::None;
@@ -1565,7 +1816,7 @@ ItemId Simulation::extractItem(Machine& machine, ItemId filterItem)
     }
 
     if (machine.kind == MachineKind::Chest || machine.kind == MachineKind::ProviderChest ||
-        machine.kind == MachineKind::RequesterChest) {
+        machine.kind == MachineKind::RequesterChest || machine.kind == MachineKind::TrainStop) {
         const auto stacks = machine.inventory.stacks();
         if (stacks.empty()) {
             return ItemId::None;
@@ -1616,6 +1867,11 @@ bool Simulation::isBelt(MachineKind kind) const
     return kind == MachineKind::Belt || kind == MachineKind::FastBelt;
 }
 
+bool Simulation::isPipe(MachineKind kind) const
+{
+    return kind == MachineKind::Pipe;
+}
+
 bool Simulation::isPowerPole(MachineKind kind) const
 {
     return kind == MachineKind::PowerPole;
@@ -1623,7 +1879,10 @@ bool Simulation::isPowerPole(MachineKind kind) const
 
 bool Simulation::isPowerConsumer(MachineKind kind) const
 {
-    return kind == MachineKind::ElectricMiner || kind == MachineKind::LogisticPort;
+    return kind == MachineKind::ElectricMiner ||
+        kind == MachineKind::LogisticPort ||
+        kind == MachineKind::ArchiveTerminal ||
+        kind == MachineKind::RiftGate;
 }
 
 bool Simulation::isLogisticStorage(MachineKind kind) const
@@ -1639,7 +1898,20 @@ int Simulation::powerDemand(MachineKind kind) const
     if (kind == MachineKind::LogisticPort) {
         return 1;
     }
+    if (kind == MachineKind::ArchiveTerminal || kind == MachineKind::RiftGate) {
+        return 2;
+    }
     return 0;
+}
+
+bool Simulation::hasAdjacentWater(int x, int y) const
+{
+    for (const auto direction : {Direction::North, Direction::East, Direction::South, Direction::West}) {
+        if (world_.getTile(x + dx(direction), y + dy(direction)).id == TileId::Water) {
+            return true;
+        }
+    }
+    return false;
 }
 
 Machine* Simulation::machineById(std::uint32_t id)
@@ -1810,6 +2082,8 @@ void Simulation::recordProduced(ItemId item, MachineKind producer)
         ++productionTotals_.sciencePacks;
     } else if (item == ItemId::AdvancedSciencePack) {
         ++productionTotals_.advancedSciencePacks;
+    } else if (item == ItemId::WaterBarrel) {
+        ++productionTotals_.waterBarrels;
     }
     if (producer == MachineKind::ElectricMiner && item != ItemId::None) {
         ++productionTotals_.poweredOre;

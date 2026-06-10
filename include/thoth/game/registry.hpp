@@ -49,6 +49,14 @@ enum class ItemId : std::uint8_t {
     RequesterChest,
     LogisticPort,
     LogisticDrone,
+    BeaconCore,
+    ArchiveTerminal,
+    Splitter,
+    TrainStop,
+    WaterBarrel,
+    Pipe,
+    OffshorePump,
+    RiftGate,
 };
 
 enum class MachineKind : std::uint8_t {
@@ -68,6 +76,12 @@ enum class MachineKind : std::uint8_t {
     ProviderChest,
     RequesterChest,
     LogisticPort,
+    ArchiveTerminal,
+    Splitter,
+    TrainStop,
+    Pipe,
+    OffshorePump,
+    RiftGate,
 };
 
 enum class MachineBehaviorKind : std::uint8_t {
@@ -85,6 +99,12 @@ enum class MachineBehaviorKind : std::uint8_t {
     CircuitInserter,
     LogisticStorage,
     LogisticPort,
+    ArchiveTerminal,
+    Splitter,
+    TrainStop,
+    Pipe,
+    OffshorePump,
+    RiftGate,
 };
 
 struct Rgb {

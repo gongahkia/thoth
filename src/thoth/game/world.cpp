@@ -9,6 +9,8 @@ namespace thoth::game {
 
 namespace {
 
+constexpr int kRiftOffset = 4096;
+
 bool inside(int value, int min, int max)
 {
     return value >= min && value <= max;
@@ -216,6 +218,26 @@ Tile World::generateTile(int x, int y) const
     }
     if (inside(x, -2, 9) && inside(y, -3, 3)) {
         return Tile{TileId::Grass, 0};
+    }
+
+    if (std::abs(x) >= kRiftOffset - 256) {
+        const auto rift = thoth::core::hashCoordinates(seed_ ^ 0x72696674ULL, x / 2, y / 2);
+        if (static_cast<int>(rift % 1000U) < 130) {
+            return Tile{TileId::Water, 0};
+        }
+        if (static_cast<int>((rift >> 10U) % 1000U) < 180) {
+            return Tile{TileId::CopperOre, resourceRichness(seed_ ^ 0x72696674ULL, x, y) + 4};
+        }
+        if (static_cast<int>((rift >> 20U) % 1000U) < 180) {
+            return Tile{TileId::IronOre, resourceRichness(seed_ ^ 0x72696674ULL, x, y) + 4};
+        }
+        if (static_cast<int>((rift >> 30U) % 1000U) < 120) {
+            return Tile{TileId::CoalOre, resourceRichness(seed_ ^ 0x72696674ULL, x, y) + 4};
+        }
+        if (static_cast<int>((rift >> 40U) % 1000U) < 520) {
+            return Tile{TileId::Stone, 2};
+        }
+        return Tile{TileId::Dirt, 0};
     }
 
     const auto water = findPatch(seed_ ^ 0x7761746572ULL, x, y, 22, 180, 3, 6);

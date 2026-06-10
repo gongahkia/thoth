@@ -114,6 +114,10 @@ struct ProductionTotals {
     int advancedSciencePacks = 0;
     int logisticDeliveries = 0;
     int poweredOre = 0;
+    int archiveSignals = 0;
+    int trainDeliveries = 0;
+    int waterBarrels = 0;
+    int riftJumps = 0;
 };
 
 struct Command {
@@ -220,11 +224,17 @@ private:
     void updateMiners();
     void updateElectricMiners();
     void updateBelts();
+    void updateSplitters();
     void updateInserters();
     void updateFurnaces();
     void updateAssemblers();
     void updateLabs();
     void updateLogistics();
+    void updateTrainStops();
+    void updateFluidPumps();
+    void updatePipes();
+    void updateArchiveTerminals();
+    void updateRiftGates();
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y) const;
     [[nodiscard]] bool acceptItemAt(int x, int y, ItemId item);
     [[nodiscard]] bool acceptItem(Machine& machine, ItemId item);
@@ -235,10 +245,12 @@ private:
     [[nodiscard]] bool refuel(Machine& machine);
     [[nodiscard]] bool isMachineItem(ItemId item) const;
     [[nodiscard]] bool isBelt(MachineKind kind) const;
+    [[nodiscard]] bool isPipe(MachineKind kind) const;
     [[nodiscard]] bool isPowerPole(MachineKind kind) const;
     [[nodiscard]] bool isPowerConsumer(MachineKind kind) const;
     [[nodiscard]] bool isLogisticStorage(MachineKind kind) const;
     [[nodiscard]] int powerDemand(MachineKind kind) const;
+    [[nodiscard]] bool hasAdjacentWater(int x, int y) const;
     [[nodiscard]] Machine* machineById(std::uint32_t id);
     [[nodiscard]] const Machine* machineById(std::uint32_t id) const;
     [[nodiscard]] bool isRecipeInput(std::string_view recipeKey, ItemId item) const;
