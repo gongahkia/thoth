@@ -64,8 +64,8 @@ struct AppState {
     std::string status = "ready";
     thoth::game::Direction buildDirection = thoth::game::Direction::South;
     bool paused = false;
-    bool debug = true;
-    bool craftMenuOpen = true;
+    bool debug = false;
+    bool craftMenuOpen = false;
     bool inventoryOpen = false;
     int craftSelection = 0;
     int machineTransferAmount = 1;
@@ -4621,21 +4621,6 @@ bool isResourceTile(thoth::game::TileId id)
         id == thoth::game::TileId::CoalOre;
 }
 
-std::string targetTileText(const thoth::game::Simulation& sim)
-{
-    const auto& player = sim.player();
-    const int tx = player.x + thoth::game::dx(player.facing);
-    const int ty = player.y + thoth::game::dy(player.facing);
-    const auto tile = sim.world().getTile(tx, ty);
-    std::string text = "target " + directionText(player.facing) + " " +
-        std::string(thoth::game::tileDef(tile.id).displayName);
-    if (isResourceTile(tile.id)) {
-        text += " x";
-        text += std::to_string(std::max(1, tile.data));
-    }
-    return text;
-}
-
 void handleInventoryInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& audio)
 {
     if (IsKeyPressed(KEY_V)) {
@@ -5498,7 +5483,9 @@ void drawPanel(int x, int y, int width, const std::string& title, const std::vec
 void drawCraftMenu(const thoth::game::Simulation& sim, const AppState& state)
 {
     if (!state.craftMenuOpen) {
-        drawPanel(kCraftMenuX, kCraftMenuY, kCraftMenuWidth, "Build Menu", {"hidden: press Q to show recipe cards"});
+        DrawRectangle(12, kScreenHeight - 92, 64, 20, Color{18, 22, 24, 178});
+        DrawRectangleLines(12, kScreenHeight - 92, 64, 20, Color{96, 111, 118, 150});
+        DrawText("Q build", 20, kScreenHeight - 88, 12, Color{206, 220, 214, 235});
         return;
     }
 
@@ -5865,6 +5852,11 @@ void drawMachineFlowStrip(const thoth::game::Simulation& sim, const thoth::game:
 
 void drawMachinePanel(const thoth::game::Simulation& sim, const AppState& state)
 {
+    const auto* machine = facedMachine(sim);
+    if (machine == nullptr) {
+        return;
+    }
+
     const Rectangle panel{
         static_cast<float>(kMachinePanelX),
         static_cast<float>(kMachinePanelY),
@@ -5873,14 +5865,6 @@ void drawMachinePanel(const thoth::game::Simulation& sim, const AppState& state)
     DrawRectangleRec(panel, Color{18, 22, 24, 226});
     DrawRectangleLinesEx(panel, 1.0f, Color{96, 111, 118, 190});
     DrawText("Machine", kMachinePanelX + 10, kMachinePanelY + 8, 16, Color{232, 238, 232, 255});
-
-    const auto* machine = facedMachine(sim);
-    if (machine == nullptr) {
-        DrawText("Face a machine to inspect it.", kMachinePanelX + 10, kMachinePanelY + 38, 14, Color{190, 202, 198, 255});
-        DrawText("Use item buttons here to load fuel,", kMachinePanelX + 10, kMachinePanelY + 62, 13, Color{160, 174, 170, 255});
-        DrawText("recover outputs, and clear blockers.", kMachinePanelX + 10, kMachinePanelY + 82, 13, Color{160, 174, 170, 255});
-        return;
-    }
 
     const Color stateColor = statusColor(machine->status);
     DrawCircle(kMachinePanelX + kMachinePanelWidth - 18, kMachinePanelY + 17, 5.0f, stateColor);
@@ -6042,21 +6026,6 @@ void drawInventoryButton(const InventoryButton& button, const thoth::game::Simul
 void drawInventoryPanel(const thoth::game::Simulation& sim, const AppState& state)
 {
     if (!state.inventoryOpen) {
-        std::vector<std::string> resources = {
-            "wood " + std::to_string(sim.itemCount(thoth::game::ItemId::Wood)) +
-                "  stone " + std::to_string(sim.itemCount(thoth::game::ItemId::Stone)) +
-                "  coal " + std::to_string(sim.itemCount(thoth::game::ItemId::Coal)),
-            "iron_ore " + std::to_string(sim.itemCount(thoth::game::ItemId::IronOre)) +
-                "  plates " + std::to_string(sim.itemCount(thoth::game::ItemId::IronPlate)) +
-                "  science " + std::to_string(sim.itemCount(thoth::game::ItemId::SciencePack)),
-            "copper_ore " + std::to_string(sim.itemCount(thoth::game::ItemId::CopperOre)) +
-                "  copper " + std::to_string(sim.itemCount(thoth::game::ItemId::CopperPlate)),
-            "selected " + std::string(thoth::game::toString(sim.selectedItem())) +
-                " x" + std::to_string(sim.itemCount(sim.selectedItem())),
-            targetTileText(sim),
-            "build direction " + directionText(state.buildDirection),
-        };
-        drawPanel(kInventoryPanelX, kInventoryPanelY, kInventoryPanelWidth, "Inventory", resources);
         return;
     }
 
@@ -6117,41 +6086,38 @@ void drawHotbar(const thoth::game::Simulation& sim)
 
 void drawHud(const thoth::game::Simulation& sim, const AppState& state)
 {
-    const auto& player = sim.player();
-
-    std::vector<std::string> objective;
-    appendWrapped(objective, objectiveText(sim), 48);
-    appendWrapped(objective, sim.milestoneText(), 48);
-    appendWrapped(objective, tutorialNextStepText(sim), 48);
-    objective.push_back("status: " + state.status);
-    if (!state.feedbackText.empty() && state.feedbackTicks > 0) {
-        objective.push_back("feedback: " + state.feedbackText);
-    }
-    const auto checklist = firstLineChecklist(sim);
-    objective.insert(objective.end(), checklist.begin(), checklist.end());
-    const auto science = scienceChecklist(sim);
-    objective.insert(objective.end(), science.begin(), science.end());
-    const auto power = powerChecklist(sim);
-    objective.insert(objective.end(), power.begin(), power.end());
-    objective.push_back("sim: " + std::string(state.paused ? "paused" : "running") +
-        "  debug: " + std::string(state.debug ? "on" : "off"));
-    drawPanel(12, 12, 430, "Objective", objective);
-
     drawInventoryPanel(sim, state);
 
     drawCraftMenu(sim, state);
 
-    std::vector<std::string> inspector;
-    appendWrapped(inspector, facedMachineText(sim), 46);
-    appendWrapped(inspector, factoryStatsText(sim), 46);
-    appendWrapped(inspector, statusStatsText(sim), 46);
-    appendWrapped(inspector, machineIssueSummaryText(sim), 46);
-    appendWrapped(inspector, powerStatsText(sim), 46);
-    inspector.push_back("tick " + std::to_string(sim.tick()) +
-        "  chunks " + std::to_string(sim.world().loadedChunkCount()) +
-        "  pos " + std::to_string(player.x) + "," + std::to_string(player.y));
-
     if (state.debug) {
+        const auto& player = sim.player();
+        std::vector<std::string> objective;
+        appendWrapped(objective, objectiveText(sim), 48);
+        appendWrapped(objective, sim.milestoneText(), 48);
+        appendWrapped(objective, tutorialNextStepText(sim), 48);
+        objective.push_back("status: " + state.status);
+        if (!state.feedbackText.empty() && state.feedbackTicks > 0) {
+            objective.push_back("feedback: " + state.feedbackText);
+        }
+        const auto checklist = firstLineChecklist(sim);
+        objective.insert(objective.end(), checklist.begin(), checklist.end());
+        const auto science = scienceChecklist(sim);
+        objective.insert(objective.end(), science.begin(), science.end());
+        const auto power = powerChecklist(sim);
+        objective.insert(objective.end(), power.begin(), power.end());
+        objective.push_back("sim: " + std::string(state.paused ? "paused" : "running") + "  debug: on");
+        drawPanel(12, 12, 430, "Objective", objective);
+
+        std::vector<std::string> inspector;
+        appendWrapped(inspector, facedMachineText(sim), 46);
+        appendWrapped(inspector, factoryStatsText(sim), 46);
+        appendWrapped(inspector, statusStatsText(sim), 46);
+        appendWrapped(inspector, machineIssueSummaryText(sim), 46);
+        appendWrapped(inspector, powerStatsText(sim), 46);
+        inspector.push_back("tick " + std::to_string(sim.tick()) +
+            "  chunks " + std::to_string(sim.world().loadedChunkCount()) +
+            "  pos " + std::to_string(player.x) + "," + std::to_string(player.y));
         inspector.push_back("debug: Tab overlay  Backspace pause  Enter step");
         inspector.push_back("assets: F6 export atlas  atlas " +
             std::string(gVisualAtlas == nullptr ? "none" : gVisualAtlas->source));
@@ -6167,18 +6133,16 @@ void drawHud(const thoth::game::Simulation& sim, const AppState& state)
             " blocked " + std::to_string(state.lastBlockedIssues));
         inspector.push_back("research " + std::string(sim.activeTech()) + " " +
             std::to_string(sim.researchProgress()) + "/" + std::to_string(sim.researchGoal()));
-    }
-    drawPanel(846, 12, 422, "Machine / Debug", inspector);
+        drawPanel(846, 12, 422, "Machine / Debug", inspector);
 
-    std::vector<std::string> help;
-    appendWrapped(help, "WASD/Arrows move and face. Space mines the target. P places selected item. E deposits into the faced machine.", 40);
-    appendWrapped(help, "Q opens the build menu. [ ] selects recipes. Z crafts selected. R rotates build output.", 40);
-    appendWrapped(help, "V opens inventory. Hold Left Shift to fast-forward. Number keys select hotbar slots.", 40);
-    if (!state.debug) {
-        help.clear();
-        appendWrapped(help, "Tab shows debug controls. Q opens the build menu. F6 exports the atlas; F7/F8/F10 load replay demos; F11 auditions audio.", 40);
+        std::vector<std::string> help;
+        appendWrapped(help, "WASD/Arrows move and face. Space mines the target. P places selected item. E deposits into the faced machine.", 40);
+        appendWrapped(help, "Q opens the build menu. [ ] selects recipes. Z crafts selected. R rotates build output.", 40);
+        appendWrapped(help, "V opens inventory. Hold Left Shift to fast-forward. Number keys select hotbar slots.", 40);
+        appendWrapped(help, "F5/F9 save/load. F7/F8/F10 replay demos. F6 exports atlas. F11 auditions audio.", 40);
+        drawPanel(462, 12, 364, "Controls", help);
     }
-    drawPanel(462, 12, 364, "Controls", help);
+
     drawMachinePanel(sim, state);
 
     drawHotbar(sim);
@@ -6238,7 +6202,7 @@ bool saveWindowSmokeScreenshot(const std::filesystem::path& path, std::string* e
 
     AppState state;
     state.status = "window smoke: full-flow replay";
-    state.debug = true;
+    state.debug = false;
     state.craftMenuOpen = false;
     state.inventoryOpen = false;
     auto visuals = loadVisualAtlas();
