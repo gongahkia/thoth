@@ -591,13 +591,13 @@ void Simulation::restore(const SimulationSnapshot& snapshot)
     rebuildMachineCellIndex();
     logisticJobs_ = snapshot.logisticJobs;
     productionTotals_ = snapshot.productionTotals;
+    completedTechs_ = snapshot.completedTechs;
+    unlockedRecipes_ = snapshot.unlockedRecipes;
     activeTech_ = snapshot.activeTech.empty() ? nextIncompleteTech() : snapshot.activeTech;
     if (techDef(activeTech_) == nullptr || isTechCompleted(activeTech_)) {
         activeTech_ = nextIncompleteTech();
     }
-    researchProgress_ = std::max(0, snapshot.researchProgress);
-    completedTechs_ = snapshot.completedTechs;
-    unlockedRecipes_ = snapshot.unlockedRecipes;
+    researchProgress_ = activeTech_.empty() ? 0 : std::max(0, snapshot.researchProgress);
     powerNetworks_.clear();
     poweredMachineIds_.clear();
     commandQueue_.clear();
@@ -1276,7 +1276,8 @@ void Simulation::updateLabs()
         }
 
         if (machine.progress == 0) {
-            if (!machine.inventory.consume(ItemId::SciencePack, 1)) {
+            const auto requiredScience = tech->inputs.empty() ? ItemId::SciencePack : tech->inputs.front().item;
+            if (!machine.inventory.consume(requiredScience, 1)) {
                 machine.status = MachineStatus::MissingInput;
                 continue;
             }
@@ -1334,6 +1335,95 @@ void Simulation::updateInserters()
         if (source != nullptr) {
             const auto returned = returnItem(*source, item);
             (void)returned;
+        }
+    }
+}
+
+void Simulation::updateLogistics()
+{
+    const auto poweredPorts = poweredLogisticPortIds();
+
+    for (auto it = logisticJobs_.begin(); it != logisticJobs_.end();) {
+        if (!containsId(poweredPorts, it->portId)) {
+            ++it;
+            continue;
+        }
+        it->ticksRemaining = std::max(0, it->ticksRemaining - 1);
+        if (it->ticksRemaining > 0) {
+            ++it;
+            continue;
+        }
+
+        auto* target = machineById(it->targetId);
+        if (target != nullptr && acceptItem(*target, it->item)) {
+            ++productionTotals_.logisticDeliveries;
+        }
+        it = logisticJobs_.erase(it);
+    }
+
+    for (const auto portId : poweredPorts) {
+        auto* port = machineById(portId);
+        if (port == nullptr) {
+            continue;
+        }
+        const int activeJobs = static_cast<int>(std::count_if(
+            logisticJobs_.begin(),
+            logisticJobs_.end(),
+            [portId](const LogisticJob& job) {
+                return job.portId == portId;
+            }));
+        int availableDrones = port->inventory.count(ItemId::LogisticDrone) - activeJobs;
+        while (availableDrones > 0) {
+            Machine* selectedRequester = nullptr;
+            Machine* selectedProvider = nullptr;
+            ItemId selectedItem = ItemId::None;
+
+            for (auto& requester : machines_) {
+                if (requester.kind != MachineKind::RequesterChest ||
+                    requester.requestItem == ItemId::None ||
+                    requester.requestThreshold <= 0 ||
+                    requester.inventory.count(requester.requestItem) >= requester.requestThreshold ||
+                    manhattanDistance(port->x, port->y, requester.x, requester.y) > kLogisticPortRange) {
+                    continue;
+                }
+
+                for (auto& provider : machines_) {
+                    if (provider.kind != MachineKind::ProviderChest ||
+                        provider.inventory.count(requester.requestItem) <= 0 ||
+                        manhattanDistance(port->x, port->y, provider.x, provider.y) > kLogisticPortRange) {
+                        continue;
+                    }
+                    selectedRequester = &requester;
+                    selectedProvider = &provider;
+                    selectedItem = requester.requestItem;
+                    break;
+                }
+                if (selectedRequester != nullptr) {
+                    break;
+                }
+            }
+
+            if (selectedRequester == nullptr || selectedProvider == nullptr || selectedItem == ItemId::None) {
+                break;
+            }
+            if (!selectedProvider->inventory.consume(selectedItem, 1)) {
+                break;
+            }
+
+            const int distance = manhattanDistance(
+                selectedProvider->x,
+                selectedProvider->y,
+                selectedRequester->x,
+                selectedRequester->y);
+            const int totalTicks = std::clamp(distance * 4, kMinLogisticJobTicks, kMaxLogisticJobTicks);
+            logisticJobs_.push_back(LogisticJob{
+                port->id,
+                selectedProvider->id,
+                selectedRequester->id,
+                selectedItem,
+                totalTicks,
+                totalTicks});
+            --availableDrones;
         }
     }
 }
@@ -1532,12 +1622,20 @@ bool Simulation::isPowerPole(MachineKind kind) const
 
 bool Simulation::isPowerConsumer(MachineKind kind) const
 {
-    return kind == MachineKind::ElectricMiner;
+    return kind == MachineKind::ElectricMiner || kind == MachineKind::LogisticPort;
+}
+
+bool Simulation::isLogisticStorage(MachineKind kind) const
+{
+    return kind == MachineKind::ProviderChest || kind == MachineKind::RequesterChest;
 }
 
 int Simulation::powerDemand(MachineKind kind) const
 {
     if (kind == MachineKind::ElectricMiner) {
+        return 1;
+    }
+    if (kind == MachineKind::LogisticPort) {
         return 1;
     }
     return 0;
@@ -1575,6 +1673,85 @@ bool Simulation::isRecipeInput(std::string_view recipeKey, ItemId item) const
     });
 }
 
+bool Simulation::isAdjacentToWorkbench() const
+{
+    for (const auto direction : {Direction::North, Direction::East, Direction::South, Direction::West}) {
+        const auto* machine = machineAt(player_.x + dx(direction), player_.y + dy(direction));
+        if (machine != nullptr && machine->kind == MachineKind::Workbench) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Simulation::canCraftAtCurrentStation(const RecipeDef& recipe) const
+{
+    if (recipe.station == "hand") {
+        return true;
+    }
+    if (recipe.station == "workbench") {
+        return isAdjacentToWorkbench();
+    }
+    return false;
+}
+
+int Simulation::countMachineItem(const Machine& machine, ItemId item) const
+{
+    if (item == ItemId::None) {
+        int total = machine.inventory.stacks().empty() ? 0 : 0;
+        for (const auto& stack : machine.inventory.stacks()) {
+            total += stack.count;
+        }
+        if (machine.carriedItem != ItemId::None) {
+            ++total;
+        }
+        if (machine.outputItem != ItemId::None) {
+            ++total;
+        }
+        return total;
+    }
+
+    int total = machine.inventory.count(item);
+    if (machine.carriedItem == item) {
+        ++total;
+    }
+    if (machine.outputItem == item) {
+        ++total;
+    }
+    return total;
+}
+
+bool Simulation::circuitConditionAllows(const Machine& inserter, const Machine* target) const
+{
+    if (inserter.kind != MachineKind::CircuitInserter ||
+        inserter.circuitComparator == CircuitComparator::Always) {
+        return true;
+    }
+    if (target == nullptr) {
+        return false;
+    }
+
+    const int count = countMachineItem(*target, inserter.filterItem);
+    if (inserter.circuitComparator == CircuitComparator::LessThan) {
+        return count < inserter.circuitThreshold;
+    }
+    if (inserter.circuitComparator == CircuitComparator::GreaterOrEqual) {
+        return count >= inserter.circuitThreshold;
+    }
+    return true;
+}
+
+std::vector<std::uint32_t> Simulation::poweredLogisticPortIds() const
+{
+    std::vector<std::uint32_t> ids;
+    for (const auto& machine : machines_) {
+        if (machine.kind == MachineKind::LogisticPort && isMachinePowered(machine.id)) {
+            ids.push_back(machine.id);
+        }
+    }
+    return ids;
+}
+
 int Simulation::activeTechGoal() const
 {
     const auto* tech = techDef(activeTech_);
@@ -1584,11 +1761,19 @@ int Simulation::activeTechGoal() const
 
     int goal = 0;
     for (const auto& input : tech->inputs) {
-        if (input.item == ItemId::SciencePack) {
-            goal += input.count;
-        }
+        goal += input.count;
     }
     return std::max(1, goal);
+}
+
+std::string Simulation::nextIncompleteTech() const
+{
+    for (const auto& tech : techDefs()) {
+        if (!isTechCompleted(tech.key)) {
+            return std::string(tech.key);
+        }
+    }
+    return {};
 }
 
 void Simulation::completeActiveTech()
@@ -1610,7 +1795,24 @@ void Simulation::completeActiveTech()
             unlockedRecipes_.push_back(std::string(unlock));
         }
     }
-    researchProgress_ = activeTechGoal();
+    activeTech_ = nextIncompleteTech();
+    researchProgress_ = 0;
+}
+
+void Simulation::recordProduced(ItemId item, MachineKind producer)
+{
+    if (item == ItemId::IronPlate) {
+        ++productionTotals_.ironPlates;
+    } else if (item == ItemId::CopperPlate) {
+        ++productionTotals_.copperPlates;
+    } else if (item == ItemId::SciencePack) {
+        ++productionTotals_.sciencePacks;
+    } else if (item == ItemId::AdvancedSciencePack) {
+        ++productionTotals_.advancedSciencePacks;
+    }
+    if (producer == MachineKind::ElectricMiner && item != ItemId::None) {
+        ++productionTotals_.poweredOre;
+    }
 }
 
 bool Simulation::isMachineItem(ItemId item) const

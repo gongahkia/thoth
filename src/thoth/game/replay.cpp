@@ -94,6 +94,10 @@ std::string commandTypeKey(CommandType type)
         return "deposit";
     case CommandType::WithdrawItem:
         return "withdraw";
+    case CommandType::ConfigureCircuit:
+        return "configure_circuit";
+    case CommandType::ConfigureRequest:
+        return "configure_request";
     }
     return "move";
 }
@@ -140,6 +144,17 @@ bool writeCommand(std::ostream& output, const ReplayFrame& frame, std::string* e
     case CommandType::WithdrawItem:
         output << ' ' << directionToString(frame.command.direction)
                << ' ' << toString(frame.command.item);
+        break;
+    case CommandType::ConfigureCircuit:
+        output << ' ' << directionToString(frame.command.direction)
+               << ' ' << toString(frame.command.item)
+               << ' ' << toString(frame.command.comparator)
+               << ' ' << frame.command.amount;
+        break;
+    case CommandType::ConfigureRequest:
+        output << ' ' << directionToString(frame.command.direction)
+               << ' ' << toString(frame.command.item)
+               << ' ' << frame.command.amount;
         break;
     }
     output << '\n';
@@ -265,6 +280,23 @@ bool readCommand(std::istream& input, ReplayFrame& frame, std::string* error)
         command.type = CommandType::WithdrawItem;
         if (!readDirection(input, command.direction, "withdraw direction", error) ||
             !readItem(input, command.item, "withdraw item", error)) {
+            return false;
+        }
+    } else if (type == "configure_circuit") {
+        command.type = CommandType::ConfigureCircuit;
+        std::string comparatorKey;
+        if (!readDirection(input, command.direction, "configure circuit direction", error) ||
+            !readItem(input, command.item, "configure circuit item", error) ||
+            !readValue(input, comparatorKey, "configure circuit comparator", error) ||
+            !readValue(input, command.amount, "configure circuit threshold", error)) {
+            return false;
+        }
+        command.comparator = circuitComparatorFromKey(comparatorKey);
+    } else if (type == "configure_request") {
+        command.type = CommandType::ConfigureRequest;
+        if (!readDirection(input, command.direction, "configure request direction", error) ||
+            !readItem(input, command.item, "configure request item", error) ||
+            !readValue(input, command.amount, "configure request threshold", error)) {
             return false;
         }
     } else {

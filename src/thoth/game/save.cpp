@@ -1,5 +1,6 @@
 #include "thoth/game/save.hpp"
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <utility>
@@ -77,7 +78,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 6\n";
+    output << "THOTH_SAVE 7\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -108,7 +109,12 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
                << machine.progress << ' ' << toString(machine.carriedItem) << ' '
                << machine.fuelTicks << ' ' << toString(machine.outputItem) << ' '
                << (machine.recipeKey.empty() ? "none" : machine.recipeKey) << ' '
-               << (machine.recipeLocked ? 1 : 0) << "\n";
+               << (machine.recipeLocked ? 1 : 0) << ' '
+               << toString(machine.filterItem) << ' '
+               << toString(machine.circuitComparator) << ' '
+               << machine.circuitThreshold << ' '
+               << toString(machine.requestItem) << ' '
+               << machine.requestThreshold << "\n";
         const auto inventory = machine.inventory.stacks();
         output << "machine_inventory " << inventory.size() << "\n";
         for (const auto& stack : inventory) {
@@ -126,6 +132,21 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
         output << "unlocked_recipe " << key << "\n";
     }
 
+    output << "logistic_jobs " << snapshot.logisticJobs.size() << "\n";
+    for (const auto& job : snapshot.logisticJobs) {
+        output << "logistic_job " << job.portId << ' ' << job.sourceId << ' '
+               << job.targetId << ' ' << toString(job.item) << ' '
+               << job.ticksRemaining << ' ' << job.totalTicks << "\n";
+    }
+
+    output << "production_totals "
+           << snapshot.productionTotals.ironPlates << ' '
+           << snapshot.productionTotals.copperPlates << ' '
+           << snapshot.productionTotals.sciencePacks << ' '
+           << snapshot.productionTotals.advancedSciencePacks << ' '
+           << snapshot.productionTotals.logisticDeliveries << ' '
+           << snapshot.productionTotals.poweredOre << "\n";
+
     return true;
 }
 
@@ -142,7 +163,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 6)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 7)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -290,6 +311,17 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         if (version >= 6 && !readValue(input, recipeLocked, "machine recipe locked", error)) {
             return std::nullopt;
         }
+        std::string filterKey = "none";
+        std::string comparatorKey = "always";
+        std::string requestKey = "none";
+        if (version >= 7 &&
+            (!readValue(input, filterKey, "machine filter item", error) ||
+                !readValue(input, comparatorKey, "machine circuit comparator", error) ||
+                !readValue(input, machine.circuitThreshold, "machine circuit threshold", error) ||
+                !readValue(input, requestKey, "machine request item", error) ||
+                !readValue(input, machine.requestThreshold, "machine request threshold", error))) {
+            return std::nullopt;
+        }
 
         const auto parsedKind = machineKindFromKey(kindKey);
         const auto parsedDirection = directionFromKey(directionKey);
@@ -303,6 +335,17 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         machine.direction = *parsedDirection;
         machine.carriedItem = *parsedCarried;
         machine.outputItem = *parsedOutput;
+        const auto parsedFilter = itemIdFromKey(filterKey);
+        const auto parsedRequest = itemIdFromKey(requestKey);
+        if (!parsedFilter || !parsedRequest) {
+            setError(error, "invalid machine config item");
+            return std::nullopt;
+        }
+        machine.filterItem = *parsedFilter;
+        machine.circuitComparator = circuitComparatorFromKey(comparatorKey);
+        machine.circuitThreshold = std::max(0, machine.circuitThreshold);
+        machine.requestItem = *parsedRequest;
+        machine.requestThreshold = std::max(0, machine.requestThreshold);
         if (machineRecipe != "none") {
             const auto* recipe = recipeDef(machineRecipe);
             const bool validAssemblerRecipe = machine.kind == MachineKind::Assembler &&
@@ -389,6 +432,53 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
                 return std::nullopt;
             }
             snapshot.unlockedRecipes.push_back(std::move(key));
+        }
+    }
+
+    if (version >= 7) {
+        std::string token;
+        if (!(input >> token)) {
+            return snapshot;
+        }
+        if (token != "logistic_jobs") {
+            setError(error, "expected token 'logistic_jobs'");
+            return std::nullopt;
+        }
+
+        std::size_t jobCount = 0;
+        if (!readValue(input, jobCount, "logistic job count", error)) {
+            return std::nullopt;
+        }
+        snapshot.logisticJobs.clear();
+        for (std::size_t i = 0; i < jobCount; ++i) {
+            LogisticJob job;
+            std::string itemKey;
+            if (!expectToken(input, "logistic_job", error) ||
+                !readValue(input, job.portId, "logistic job port", error) ||
+                !readValue(input, job.sourceId, "logistic job source", error) ||
+                !readValue(input, job.targetId, "logistic job target", error) ||
+                !readValue(input, itemKey, "logistic job item", error) ||
+                !readValue(input, job.ticksRemaining, "logistic job ticks remaining", error) ||
+                !readValue(input, job.totalTicks, "logistic job total ticks", error)) {
+                return std::nullopt;
+            }
+            const auto parsedItem = itemIdFromKey(itemKey);
+            if (!parsedItem || *parsedItem == ItemId::None || job.ticksRemaining < 0 || job.totalTicks <= 0) {
+                setError(error, "invalid logistic job");
+                return std::nullopt;
+            }
+            job.item = *parsedItem;
+            snapshot.logisticJobs.push_back(job);
+        }
+
+        if (!expectToken(input, "production_totals", error) ||
+            !readValue(input, snapshot.productionTotals.ironPlates, "iron plate total", error) ||
+            !readValue(input, snapshot.productionTotals.copperPlates, "copper plate total", error) ||
+            !readValue(input, snapshot.productionTotals.sciencePacks, "science pack total", error) ||
+            !readValue(input, snapshot.productionTotals.advancedSciencePacks, "advanced science pack total", error) ||
+            !readValue(input, snapshot.productionTotals.logisticDeliveries, "logistic delivery total", error) ||
+            !readValue(input, snapshot.productionTotals.poweredOre, "powered ore total", error)) {
+            return std::nullopt;
         }
     }
 
