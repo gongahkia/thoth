@@ -28,6 +28,8 @@ namespace {
 constexpr int kScreenWidth = 1280;
 constexpr int kScreenHeight = 720;
 constexpr int kTilePixels = 32;
+constexpr int kMoveRepeatFrames = 10;
+constexpr float kPlayerVisualLerp = 0.24f;
 constexpr int kAudioSampleRate = 22050;
 constexpr double kFixedDelta = 1.0 / 60.0;
 constexpr double kPi = 3.14159265358979323846;
@@ -78,6 +80,10 @@ struct AppState {
     int lastPowerIssues = -1;
     int lastBlockedIssues = -1;
     int simStepsLastFrame = 0;
+    int movementCooldownFrames = 0;
+    float renderPlayerX = 0.0f;
+    float renderPlayerY = 0.0f;
+    bool renderPlayerReady = false;
     double lastTickUs = 0.0;
     double averageTickUs = 0.0;
     Color feedbackColor = Color{255, 255, 255, 0};
