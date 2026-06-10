@@ -10,14 +10,14 @@ namespace thoth::game {
 namespace {
 
 const std::vector<TileDef> kTiles = {
-    {TileId::Grass, "grass", "Grass", 1, true, true, ItemId::None, Rgb{76, 154, 84}},
-    {TileId::Dirt, "dirt", "Dirt", 1, true, true, ItemId::Stone, Rgb{118, 82, 55}},
-    {TileId::Stone, "stone", "Stone", 3, false, true, ItemId::Stone, Rgb{106, 112, 111}},
-    {TileId::Tree, "tree", "Tree", 2, false, false, ItemId::Wood, Rgb{49, 104, 56}},
-    {TileId::Water, "water", "Water", -1, false, false, ItemId::None, Rgb{58, 111, 168}},
-    {TileId::IronOre, "iron_ore", "Iron Ore", 3, false, false, ItemId::IronOre, Rgb{145, 126, 105}},
-    {TileId::CopperOre, "copper_ore", "Copper Ore", 3, false, false, ItemId::CopperOre, Rgb{153, 102, 70}},
-    {TileId::CoalOre, "coal_ore", "Coal Ore", 3, false, false, ItemId::Coal, Rgb{55, 58, 61}},
+    {TileId::Grass, "grass", "Grass", 1, true, true, ItemId::None, Rgb{83, 170, 86}},
+    {TileId::Dirt, "dirt", "Dirt", 1, true, true, ItemId::Stone, Rgb{142, 96, 60}},
+    {TileId::Stone, "stone", "Stone", 3, true, true, ItemId::Stone, Rgb{130, 138, 134}},
+    {TileId::Tree, "tree", "Tree", 2, false, false, ItemId::Wood, Rgb{54, 124, 58}},
+    {TileId::Water, "water", "Water", -1, false, false, ItemId::None, Rgb{62, 140, 190}},
+    {TileId::IronOre, "iron_ore", "Iron Ore", 3, true, false, ItemId::IronOre, Rgb{166, 128, 92}},
+    {TileId::CopperOre, "copper_ore", "Copper Ore", 3, true, false, ItemId::CopperOre, Rgb{178, 104, 66}},
+    {TileId::CoalOre, "coal_ore", "Coal Ore", 3, true, false, ItemId::Coal, Rgb{55, 58, 61}},
     {TileId::Floor, "floor", "Floor", 1, true, true, ItemId::Stone, Rgb{132, 122, 100}},
 };
 

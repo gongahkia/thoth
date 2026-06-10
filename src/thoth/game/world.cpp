@@ -14,11 +14,59 @@ bool inside(int value, int min, int max)
     return value >= min && value <= max;
 }
 
+struct PatchHit {
+    bool hit = false;
+    std::uint64_t hash = 0;
+    int distanceSquared = 0;
+    int radius = 0;
+};
+
 int resourceRichness(std::uint64_t seed, int x, int y)
 {
     const auto richness = thoth::core::hashCoordinates(seed ^ 0x51c3a5edULL, x, y);
     const int distanceBonus = std::min(8, (std::abs(x) + std::abs(y)) / 64);
     return 4 + static_cast<int>(richness % 5U) + distanceBonus;
+}
+
+PatchHit findPatch(std::uint64_t seed, int x, int y, int cellSize, int chance, int minRadius, int maxRadius)
+{
+    PatchHit best;
+    best.distanceSquared = 1'000'000'000;
+    const int cellX = floorDiv(x, cellSize);
+    const int cellY = floorDiv(y, cellSize);
+    const int jitter = std::max(1, cellSize / 3);
+    const int radiusRange = std::max(1, maxRadius - minRadius + 1);
+
+    for (int cy = cellY - 1; cy <= cellY + 1; ++cy) {
+        for (int cx = cellX - 1; cx <= cellX + 1; ++cx) {
+            const auto hash = thoth::core::hashCoordinates(seed, cx, cy);
+            if (static_cast<int>(hash % 1000U) >= chance) {
+                continue;
+            }
+            const int centerX = (cx * cellSize) + (cellSize / 2) +
+                static_cast<int>((hash >> 12U) % static_cast<std::uint64_t>((jitter * 2) + 1)) - jitter;
+            const int centerY = (cy * cellSize) + (cellSize / 2) +
+                static_cast<int>((hash >> 28U) % static_cast<std::uint64_t>((jitter * 2) + 1)) - jitter;
+            const int radius = minRadius + static_cast<int>((hash >> 44U) % static_cast<std::uint64_t>(radiusRange));
+            const int dx = x - centerX;
+            const int dy = y - centerY;
+            const int distanceSquared = (dx * dx) + (dy * dy);
+            if (distanceSquared > radius * radius || distanceSquared >= best.distanceSquared) {
+                continue;
+            }
+            const auto edge = thoth::core::hashCoordinates(seed ^ 0x7061746368ULL, x, y);
+            if (distanceSquared > (radius - 1) * (radius - 1) && (edge % 1000U) < 460U) {
+                continue;
+            }
+            best = PatchHit{true, hash, distanceSquared, radius};
+        }
+    }
+    return best;
+}
+
+bool sparsePatchDetail(std::uint64_t seed, int x, int y, int threshold)
+{
+    return static_cast<int>(thoth::core::hashCoordinates(seed, x, y) % 1000U) < threshold;
 }
 
 } // namespace
@@ -170,30 +218,36 @@ Tile World::generateTile(int x, int y) const
         return Tile{TileId::Grass, 0};
     }
 
-    const auto terrain = thoth::core::hashCoordinates(seed_, x, y);
-    const auto feature = thoth::core::hashCoordinates(seed_ ^ 0xa51cedULL, x / 3, y / 3);
-    const int terrainRoll = static_cast<int>(terrain % 1000U);
-    const int featureRoll = static_cast<int>(feature % 1000U);
-
-    if (terrainRoll < 65) {
+    const auto water = findPatch(seed_ ^ 0x7761746572ULL, x, y, 22, 180, 3, 6);
+    if (water.hit) {
         return Tile{TileId::Water, 0};
     }
-    if (featureRoll < 35) {
+
+    const auto iron = findPatch(seed_ ^ 0x69726f6eULL, x, y, 30, 110, 3, 5);
+    if (iron.hit) {
         return Tile{TileId::IronOre, resourceRichness(seed_, x, y)};
     }
-    if (featureRoll >= 35 && featureRoll < 70) {
-        return Tile{TileId::CoalOre, resourceRichness(seed_, x, y)};
-    }
-    if (featureRoll >= 70 && featureRoll < 105) {
+    const auto copper = findPatch(seed_ ^ 0x636f70706572ULL, x, y, 30, 105, 3, 5);
+    if (copper.hit) {
         return Tile{TileId::CopperOre, resourceRichness(seed_, x, y)};
     }
-    if (terrainRoll > 900) {
-        return Tile{TileId::Tree, 1};
+    const auto coal = findPatch(seed_ ^ 0x636f616cULL, x, y, 28, 105, 3, 5);
+    if (coal.hit) {
+        return Tile{TileId::CoalOre, resourceRichness(seed_, x, y)};
     }
-    if (terrainRoll > 760) {
+
+    const auto stone = findPatch(seed_ ^ 0x73746f6e65ULL, x, y, 18, 210, 2, 4);
+    if (stone.hit && sparsePatchDetail(seed_ ^ 0x726f636bULL, x, y, 780)) {
         return Tile{TileId::Stone, 1};
     }
-    if (terrainRoll > 650) {
+
+    const auto trees = findPatch(seed_ ^ 0x7472656573ULL, x, y, 18, 260, 3, 6);
+    if (trees.hit && sparsePatchDetail(seed_ ^ 0x67726f7665ULL, x, y, 560)) {
+        return Tile{TileId::Tree, 1};
+    }
+
+    const auto terrain = thoth::core::hashCoordinates(seed_ ^ 0x62617365ULL, floorDiv(x, 5), floorDiv(y, 5));
+    if (static_cast<int>(terrain % 1000U) < 230) {
         return Tile{TileId::Dirt, 0};
     }
     return Tile{TileId::Grass, 0};

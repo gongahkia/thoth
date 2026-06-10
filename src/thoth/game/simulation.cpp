@@ -728,7 +728,8 @@ void Simulation::place(Direction direction, TileId tile, ItemId item, Direction 
         requiredItem = tileDef(tileToPlace).drop;
     }
 
-    if (!world_.isWalkable(tx, ty) || !tileDef(tileToPlace).walkable) {
+    const auto targetTile = world_.getTile(tx, ty);
+    if (!world_.isWalkable(tx, ty) || !tileDef(targetTile.id).buildable || !tileDef(tileToPlace).walkable) {
         return;
     }
 

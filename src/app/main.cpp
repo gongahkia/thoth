@@ -27,7 +27,7 @@ namespace {
 
 constexpr int kScreenWidth = 1280;
 constexpr int kScreenHeight = 720;
-constexpr int kTilePixels = 24;
+constexpr int kTilePixels = 32;
 constexpr int kAudioSampleRate = 22050;
 constexpr double kFixedDelta = 1.0 / 60.0;
 constexpr double kPi = 3.14159265358979323846;
@@ -387,39 +387,39 @@ void atlasBase(Image& image, SpriteId id, Color base, Color light, Color shadow)
 
 void drawAtlasSprites(Image& image)
 {
-    atlasBase(image, SpriteId::TileGrass, Color{54, 105, 57, 255}, Color{78, 132, 73, 255}, Color{30, 71, 40, 255});
-    atlasPixel(image, SpriteId::TileGrass, 4, 5, Color{92, 148, 76, 255});
-    atlasPixel(image, SpriteId::TileGrass, 11, 8, Color{35, 82, 45, 255});
-    atlasPixel(image, SpriteId::TileGrass, 7, 12, Color{86, 139, 72, 255});
+    atlasBase(image, SpriteId::TileGrass, Color{72, 154, 73, 255}, Color{112, 190, 88, 255}, Color{46, 116, 58, 255});
+    atlasPixel(image, SpriteId::TileGrass, 4, 5, Color{134, 202, 96, 255});
+    atlasPixel(image, SpriteId::TileGrass, 11, 8, Color{50, 128, 61, 255});
+    atlasPixel(image, SpriteId::TileGrass, 7, 12, Color{120, 192, 86, 255});
 
-    atlasBase(image, SpriteId::TileDirt, Color{112, 78, 50, 255}, Color{138, 96, 61, 255}, Color{72, 50, 36, 255});
-    atlasPixel(image, SpriteId::TileDirt, 5, 6, Color{148, 104, 66, 255});
-    atlasPixel(image, SpriteId::TileDirt, 10, 10, Color{76, 54, 38, 255});
+    atlasBase(image, SpriteId::TileDirt, Color{126, 88, 54, 255}, Color{184, 126, 72, 255}, Color{84, 58, 40, 255});
+    atlasPixel(image, SpriteId::TileDirt, 5, 6, Color{198, 140, 82, 255});
+    atlasPixel(image, SpriteId::TileDirt, 10, 10, Color{96, 66, 44, 255});
 
-    atlasBase(image, SpriteId::TileWater, Color{38, 92, 132, 255}, Color{63, 126, 168, 255}, Color{18, 55, 90, 255});
-    atlasLine(image, SpriteId::TileWater, 2, 5, 7, 4, Color{96, 168, 206, 255});
-    atlasLine(image, SpriteId::TileWater, 9, 11, 14, 10, Color{88, 154, 198, 255});
+    atlasBase(image, SpriteId::TileWater, Color{48, 128, 182, 255}, Color{118, 204, 232, 255}, Color{26, 78, 128, 255});
+    atlasLine(image, SpriteId::TileWater, 2, 5, 7, 4, Color{148, 226, 244, 255});
+    atlasLine(image, SpriteId::TileWater, 9, 11, 14, 10, Color{132, 216, 240, 255});
 
     atlasBase(image, SpriteId::TileTree, Color{48, 93, 50, 255}, Color{73, 124, 65, 255}, Color{30, 64, 37, 255});
     atlasRect(image, SpriteId::TileTree, 7, 8, 3, 7, Color{88, 56, 36, 255});
     atlasRect(image, SpriteId::TileTree, 4, 3, 8, 6, Color{37, 103, 50, 255});
     atlasRect(image, SpriteId::TileTree, 2, 6, 12, 4, Color{45, 118, 55, 255});
 
-    atlasBase(image, SpriteId::TileStone, Color{102, 110, 108, 255}, Color{145, 151, 146, 255}, Color{66, 72, 74, 255});
+    atlasBase(image, SpriteId::TileStone, Color{78, 156, 78, 255}, Color{116, 190, 90, 255}, Color{50, 116, 58, 255});
     atlasRect(image, SpriteId::TileStone, 4, 5, 8, 6, Color{132, 139, 136, 255});
     atlasRect(image, SpriteId::TileStone, 7, 3, 5, 3, Color{158, 162, 156, 255});
 
-    atlasBase(image, SpriteId::TileIronOre, Color{101, 83, 67, 255}, Color{128, 101, 78, 255}, Color{62, 49, 42, 255});
+    atlasBase(image, SpriteId::TileIronOre, Color{78, 156, 78, 255}, Color{116, 190, 90, 255}, Color{50, 116, 58, 255});
     atlasRect(image, SpriteId::TileIronOre, 4, 4, 4, 3, Color{198, 139, 94, 255});
     atlasRect(image, SpriteId::TileIronOre, 9, 9, 4, 3, Color{224, 170, 118, 255});
     atlasRect(image, SpriteId::TileIronOre, 6, 12, 3, 2, Color{134, 94, 72, 255});
 
-    atlasBase(image, SpriteId::TileCopperOre, Color{100, 70, 55, 255}, Color{130, 87, 64, 255}, Color{64, 42, 35, 255});
+    atlasBase(image, SpriteId::TileCopperOre, Color{78, 156, 78, 255}, Color{116, 190, 90, 255}, Color{50, 116, 58, 255});
     atlasRect(image, SpriteId::TileCopperOre, 4, 4, 4, 3, Color{212, 116, 66, 255});
     atlasRect(image, SpriteId::TileCopperOre, 9, 9, 4, 3, Color{236, 150, 84, 255});
     atlasRect(image, SpriteId::TileCopperOre, 6, 12, 3, 2, Color{130, 76, 55, 255});
 
-    atlasBase(image, SpriteId::TileCoalOre, Color{70, 69, 62, 255}, Color{96, 92, 82, 255}, Color{32, 34, 36, 255});
+    atlasBase(image, SpriteId::TileCoalOre, Color{78, 156, 78, 255}, Color{116, 190, 90, 255}, Color{50, 116, 58, 255});
     atlasRect(image, SpriteId::TileCoalOre, 4, 4, 5, 4, Color{22, 24, 26, 255});
     atlasRect(image, SpriteId::TileCoalOre, 9, 9, 4, 4, Color{35, 37, 41, 255});
     atlasRect(image, SpriteId::TileCoalOre, 5, 12, 3, 2, Color{80, 82, 84, 255});
@@ -610,28 +610,28 @@ bool authoredAtlasColor(char glyph, Color& color)
         color = Color{232, 238, 224, 255};
         return true;
     case 'g':
-        color = Color{51, 112, 57, 255};
+        color = Color{58, 146, 70, 255};
         return true;
     case 'G':
-        color = Color{92, 157, 78, 255};
+        color = Color{112, 190, 88, 255};
         return true;
     case 'd':
-        color = Color{106, 71, 47, 255};
+        color = Color{126, 88, 54, 255};
         return true;
     case 'D':
-        color = Color{154, 105, 66, 255};
+        color = Color{184, 126, 72, 255};
         return true;
     case 'w':
-        color = Color{38, 98, 146, 255};
+        color = Color{48, 128, 182, 255};
         return true;
     case 'W':
-        color = Color{95, 171, 210, 255};
+        color = Color{118, 204, 232, 255};
         return true;
     case 't':
-        color = Color{38, 108, 52, 255};
+        color = Color{34, 118, 54, 255};
         return true;
     case 'T':
-        color = Color{76, 142, 70, 255};
+        color = Color{82, 164, 72, 255};
         return true;
     case 'b':
         color = Color{92, 58, 36, 255};
@@ -640,22 +640,22 @@ bool authoredAtlasColor(char glyph, Color& color)
         color = Color{160, 104, 58, 255};
         return true;
     case 's':
-        color = Color{92, 100, 100, 255};
+        color = Color{106, 114, 112, 255};
         return true;
     case 'S':
-        color = Color{152, 160, 154, 255};
+        color = Color{176, 184, 176, 255};
         return true;
     case 'i':
-        color = Color{140, 94, 67, 255};
+        color = Color{156, 104, 70, 255};
         return true;
     case 'I':
-        color = Color{224, 158, 104, 255};
+        color = Color{236, 172, 112, 255};
         return true;
     case 'c':
-        color = Color{142, 72, 48, 255};
+        color = Color{164, 78, 48, 255};
         return true;
     case 'C':
-        color = Color{236, 144, 78, 255};
+        color = Color{248, 154, 82, 255};
         return true;
     case 'k':
         color = Color{24, 25, 28, 255};
@@ -5292,7 +5292,7 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
                 y * kTilePixels,
                 kTilePixels,
                 kTilePixels,
-                Color{0, 0, 0, 28});
+                Color{0, 0, 0, 12});
         }
     }
 
