@@ -4508,6 +4508,16 @@ bool canPreviewPlace(const thoth::game::Simulation& sim, thoth::game::ItemId ite
     return placementBlockReason(sim, item).empty();
 }
 
+bool selectedBuildToolActive(const thoth::game::Simulation& sim)
+{
+    const auto item = sim.selectedItem();
+    if (item == thoth::game::ItemId::None) {
+        return false;
+    }
+    const auto& def = thoth::game::itemDef(item);
+    return def.canPlaceTile || def.canPlaceMachine;
+}
+
 thoth::game::Direction facingFromInput(thoth::game::Direction fallback)
 {
     using thoth::game::Direction;
@@ -4524,6 +4534,32 @@ thoth::game::Direction facingFromInput(thoth::game::Direction fallback)
         return Direction::West;
     }
     return fallback;
+}
+
+bool movementInputHeld()
+{
+    return IsKeyDown(KEY_W) || IsKeyDown(KEY_A) || IsKeyDown(KEY_S) || IsKeyDown(KEY_D) ||
+        IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT);
+}
+
+void updatePlayerVisual(const thoth::game::Simulation& sim, AppState& state)
+{
+    const float targetX = static_cast<float>(sim.player().x);
+    const float targetY = static_cast<float>(sim.player().y);
+    if (!state.renderPlayerReady || std::abs(state.renderPlayerX - targetX) + std::abs(state.renderPlayerY - targetY) > 4.0f) {
+        state.renderPlayerX = targetX;
+        state.renderPlayerY = targetY;
+        state.renderPlayerReady = true;
+        return;
+    }
+    state.renderPlayerX += (targetX - state.renderPlayerX) * kPlayerVisualLerp;
+    state.renderPlayerY += (targetY - state.renderPlayerY) * kPlayerVisualLerp;
+    if (std::abs(state.renderPlayerX - targetX) < 0.01f) {
+        state.renderPlayerX = targetX;
+    }
+    if (std::abs(state.renderPlayerY - targetY) < 0.01f) {
+        state.renderPlayerY = targetY;
+    }
 }
 
 std::string facedMachineText(const thoth::game::Simulation& sim)
@@ -4821,11 +4857,18 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
     handleCraftMenuInput(sim, state, audio);
     handleMachinePanelInput(sim, state, audio);
 
+    if (state.movementCooldownFrames > 0) {
+        --state.movementCooldownFrames;
+    }
+    const bool moving = movementInputHeld();
     auto direction = facingFromInput(sim.player().facing);
-    if (direction != sim.player().facing || IsKeyDown(KEY_W) || IsKeyDown(KEY_A) ||
-        IsKeyDown(KEY_S) || IsKeyDown(KEY_D) || IsKeyDown(KEY_UP) ||
-        IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT)) {
+    if (moving && state.movementCooldownFrames <= 0) {
         sim.queue(Command::move(direction));
+        state.movementCooldownFrames = kMoveRepeatFrames;
+    } else if (moving && direction != sim.player().facing) {
+        sim.queue(Command::face(direction));
+    } else if (!moving) {
+        state.movementCooldownFrames = 0;
     }
 
     if (IsKeyPressed(KEY_SPACE)) {
@@ -5036,7 +5079,7 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
 void drawPlacementPreview(const thoth::game::Simulation& sim, thoth::game::Direction buildDirection)
 {
     const auto item = sim.selectedItem();
-    if (item == thoth::game::ItemId::None) {
+    if (item == thoth::game::ItemId::None || !selectedBuildToolActive(sim)) {
         return;
     }
 
@@ -5044,8 +5087,8 @@ void drawPlacementPreview(const thoth::game::Simulation& sim, thoth::game::Direc
     const int tx = player.x + thoth::game::dx(player.facing);
     const int ty = player.y + thoth::game::dy(player.facing);
     const bool valid = canPreviewPlace(sim, item);
-    const Color fill = valid ? Color{90, 210, 125, 74} : Color{224, 74, 74, 74};
-    const Color stroke = valid ? Color{138, 244, 170, 220} : Color{250, 122, 122, 220};
+    const Color fill = valid ? Color{90, 210, 125, 46} : Color{224, 74, 74, 46};
+    const Color stroke = valid ? Color{138, 244, 170, 176} : Color{250, 122, 122, 176};
     const int px = tx * kTilePixels;
     const int py = ty * kTilePixels;
 
@@ -5087,6 +5130,29 @@ void drawPlacementPreview(const thoth::game::Simulation& sim, thoth::game::Direc
     DrawRectangle(labelX, labelY, textWidth + 8, 13, Color{12, 15, 16, 210});
     DrawRectangleLines(labelX, labelY, textWidth + 8, 13, Color{0, 0, 0, 170});
     DrawText(label.c_str(), labelX + 4, labelY + 2, fontSize, valid ? Color{180, 248, 196, 255} : Color{255, 166, 166, 255});
+}
+
+void drawBuildGridOverlay(const thoth::game::Simulation& sim)
+{
+    if (!selectedBuildToolActive(sim)) {
+        return;
+    }
+
+    const auto& player = sim.player();
+    const int centerX = player.x + thoth::game::dx(player.facing);
+    const int centerY = player.y + thoth::game::dy(player.facing);
+    constexpr int radius = 2;
+    const int left = (centerX - radius) * kTilePixels;
+    const int top = (centerY - radius) * kTilePixels;
+    const int size = ((radius * 2) + 1) * kTilePixels;
+    const Color line = Color{8, 12, 12, 52};
+
+    for (int i = 0; i <= (radius * 2) + 1; ++i) {
+        const int x = left + (i * kTilePixels);
+        const int y = top + (i * kTilePixels);
+        DrawLine(x, top, x, top + size, line);
+        DrawLine(left, y, left + size, y, line);
+    }
 }
 
 bool machineShowsDirection(thoth::game::MachineKind kind)
@@ -5293,33 +5359,29 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
                 drawTileDetail(tile.id, x, y);
             }
             drawResourceRichnessPips(tile, x, y);
-            DrawRectangleLines(
-                x * kTilePixels,
-                y * kTilePixels,
-                kTilePixels,
-                kTilePixels,
-                Color{0, 0, 0, 12});
         }
     }
 
+    const float playerDrawX = state.renderPlayerReady ? state.renderPlayerX : static_cast<float>(player.x);
+    const float playerDrawY = state.renderPlayerReady ? state.renderPlayerY : static_cast<float>(player.y);
     const Rectangle playerDestination{
-        static_cast<float>(player.x * kTilePixels + 3),
-        static_cast<float>(player.y * kTilePixels + 3),
+        (playerDrawX * static_cast<float>(kTilePixels)) + 3.0f,
+        (playerDrawY * static_cast<float>(kTilePixels)) + 3.0f,
         static_cast<float>(kTilePixels - 6),
         static_cast<float>(kTilePixels - 6),
     };
     if (!drawSprite(SpriteId::Player, playerDestination)) {
         DrawRectangle(
-            player.x * kTilePixels + 4,
-            player.y * kTilePixels + 4,
+            static_cast<int>((playerDrawX * static_cast<float>(kTilePixels)) + 4.0f),
+            static_cast<int>((playerDrawY * static_cast<float>(kTilePixels)) + 4.0f),
             kTilePixels - 8,
             kTilePixels - 8,
             Color{235, 238, 230, 255});
     }
     drawDirectionArrow(
         Vector2{
-            static_cast<float>(player.x * kTilePixels + (kTilePixels / 2)),
-            static_cast<float>(player.y * kTilePixels + (kTilePixels / 2))},
+            (playerDrawX * static_cast<float>(kTilePixels)) + (static_cast<float>(kTilePixels) * 0.5f),
+            (playerDrawY * static_cast<float>(kTilePixels)) + (static_cast<float>(kTilePixels) * 0.5f)},
         player.facing,
         13.0f,
         Color{32, 42, 42, 255});
@@ -5374,8 +5436,11 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
     const int tx = player.x + thoth::game::dx(player.facing);
     const int ty = player.y + thoth::game::dy(player.facing);
     const auto targetTile = sim.world().getTile(tx, ty);
-    const Color targetColor = thoth::game::isMineable(targetTile.id) ? Color{246, 220, 118, 210} : Color{255, 255, 255, 120};
-    DrawRectangleLines(tx * kTilePixels + 1, ty * kTilePixels + 1, kTilePixels - 2, kTilePixels - 2, targetColor);
+    const bool buildTarget = selectedBuildToolActive(sim);
+    if (thoth::game::isMineable(targetTile.id) || buildTarget) {
+        const Color targetColor = thoth::game::isMineable(targetTile.id) ? Color{246, 220, 118, 190} : Color{255, 255, 255, 96};
+        DrawRectangleLines(tx * kTilePixels + 1, ty * kTilePixels + 1, kTilePixels - 2, kTilePixels - 2, targetColor);
+    }
 
     if (state.feedbackTicks > 0) {
         DrawRectangle(
@@ -5386,6 +5451,7 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
             Color{state.feedbackColor.r, state.feedbackColor.g, state.feedbackColor.b, 82});
     }
 
+    drawBuildGridOverlay(sim);
     drawPlacementPreview(sim, state.buildDirection);
 }
 
@@ -6181,12 +6247,13 @@ bool saveWindowSmokeScreenshot(const std::filesystem::path& path, std::string* e
     state.audioSource = audio.source;
     syncProductionCounters(simulation, state);
     syncMachineIssueCounters(simulation, state);
+    updatePlayerVisual(simulation, state);
 
     Camera2D camera{};
     camera.offset = Vector2{kScreenWidth * 0.5f, kScreenHeight * 0.5f};
     camera.target = Vector2{
-        (simulation.player().x * kTilePixels) + (kTilePixels * 0.5f),
-        (simulation.player().y * kTilePixels) + (kTilePixels * 0.5f)};
+        (state.renderPlayerX * static_cast<float>(kTilePixels)) + (static_cast<float>(kTilePixels) * 0.5f),
+        (state.renderPlayerY * static_cast<float>(kTilePixels)) + (static_cast<float>(kTilePixels) * 0.5f)};
     camera.zoom = 1.0f;
 
     bool saved = false;
@@ -6282,9 +6349,10 @@ int main(int argc, char** argv)
             --state.machineIssueCueCooldown;
         }
 
+        updatePlayerVisual(sim, state);
         camera.target = Vector2{
-            (sim.player().x * kTilePixels) + (kTilePixels * 0.5f),
-            (sim.player().y * kTilePixels) + (kTilePixels * 0.5f)};
+            (state.renderPlayerX * static_cast<float>(kTilePixels)) + (static_cast<float>(kTilePixels) * 0.5f),
+            (state.renderPlayerY * static_cast<float>(kTilePixels)) + (static_cast<float>(kTilePixels) * 0.5f)};
 
         BeginDrawing();
         ClearBackground(Color{16, 18, 18, 255});
