@@ -6143,7 +6143,9 @@ void drawHud(const thoth::game::Simulation& sim, const AppState& state)
         drawPanel(462, 12, 364, "Controls", help);
     }
 
-    drawMachinePanel(sim, state);
+    if (state.inventoryOpen || state.debug) {
+        drawMachinePanel(sim, state);
+    }
 
     drawHotbar(sim);
 
