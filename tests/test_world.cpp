@@ -427,6 +427,7 @@ void testMarshBossSummonPersistenceAndReward()
     auto snapshot = sim.snapshot();
     snapshot.player.x = -1;
     snapshot.player.y = 18;
+    snapshot.productionTotals.waterBarrels = 3;
     snapshot.player.inventory = {
         ItemStack{ItemId::WaterBarrel, 1},
         ItemStack{ItemId::ReedFiber, 3},
@@ -485,6 +486,7 @@ void testBadlandsBossSummonPersistenceAndReward()
     auto snapshot = sim.snapshot();
     snapshot.player.x = 35;
     snapshot.player.y = 20;
+    snapshot.productionTotals.poweredOre = 8;
     snapshot.player.inventory = {
         ItemStack{ItemId::Basalt, 4},
         ItemStack{ItemId::IronPlate, 4},
@@ -599,6 +601,7 @@ void testFrostBossSummonPersistenceAndReward()
     auto snapshot = sim.snapshot();
     snapshot.player.x = -19;
     snapshot.player.y = 0;
+    snapshot.productionTotals.logisticDeliveries = 3;
     snapshot.player.inventory = {
         ItemStack{ItemId::IceShard, 4},
         ItemStack{ItemId::CircuitBoard, 2},
@@ -672,6 +675,10 @@ void testRiftBossRequiresArchiveAndRiftProgress()
     snapshot.player.y = 20;
     snapshot.productionTotals.archiveSignals = 1;
     snapshot.productionTotals.riftJumps = 1;
+    snapshot.productionTotals.outpostBiomeMask =
+        biomeMaskForTest(BiomeKind::Marsh) |
+        biomeMaskForTest(BiomeKind::Desert) |
+        biomeMaskForTest(BiomeKind::Badlands);
     snapshot.player.inventory = {
         ItemStack{ItemId::BeaconCore, 1},
         ItemStack{ItemId::Crystal, 2},
@@ -710,6 +717,57 @@ void testRiftBossRequiresArchiveAndRiftProgress()
     require(loaded->itemCount(ItemId::RiftCrown) == 1, "Rift Signal Tyrant should drop a rift relic");
     require(loaded->productionTotals().bossesDefeated == 1, "Rift Signal Tyrant should increment boss total");
     require(loaded->productionTotals().bossRelicsClaimed == 1, "Rift Signal Tyrant should increment relic total");
+}
+
+void testBossProductionExamsGateSummons()
+{
+    using namespace thoth::game;
+
+    const auto containsMarshBoss = [](const Simulation& sim) {
+        for (const auto& entity : sim.entities()) {
+            if (entity.kind == EntityKind::MarshBroodheart) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    Simulation blocked(20260611);
+    auto snapshot = blocked.snapshot();
+    snapshot.player.x = -1;
+    snapshot.player.y = 18;
+    snapshot.player.inventory = {
+        ItemStack{ItemId::WaterBarrel, 1},
+        ItemStack{ItemId::ReedFiber, 3},
+        ItemStack{ItemId::SciencePack, 1},
+    };
+    blocked.restore(snapshot);
+    const auto exams = blocked.bossExamProgress();
+    require(exams.size() == 5, "boss exams should cover the five biome bosses");
+    require(blocked.currentBossExamText().find("Broodheart exam") != std::string::npos,
+        "boss exam guidance should surface the first incomplete exam");
+    blocked.queue(Command::interact(Direction::East));
+    blocked.step();
+    require(!containsMarshBoss(blocked), "incomplete production exam should block boss summoning");
+    require(blocked.itemCount(ItemId::WaterBarrel) == 1 &&
+            blocked.itemCount(ItemId::ReedFiber) == 3 &&
+            blocked.itemCount(ItemId::SciencePack) == 1,
+        "blocked boss exam should not consume the prepared offering");
+
+    Simulation ready(20260611);
+    snapshot = ready.snapshot();
+    snapshot.player.x = -1;
+    snapshot.player.y = 18;
+    snapshot.productionTotals.waterBarrels = 3;
+    snapshot.player.inventory = {
+        ItemStack{ItemId::WaterBarrel, 1},
+        ItemStack{ItemId::ReedFiber, 3},
+        ItemStack{ItemId::SciencePack, 1},
+    };
+    ready.restore(snapshot);
+    ready.queue(Command::interact(Direction::East));
+    ready.step();
+    require(containsMarshBoss(ready), "completed production exam should allow boss summoning");
 }
 
 void testSimulationMovementAndMining()
@@ -3550,6 +3608,9 @@ void testPlaytestTelemetryText()
         "telemetry should include pressure event deck state");
     require(telemetry.find("\"supply_completed\"") != std::string::npos,
         "telemetry should include contract progress");
+    require(telemetry.find("\"boss_exam_completed\"") != std::string::npos &&
+            telemetry.find("\"boss_exam\"") != std::string::npos,
+        "telemetry should include boss exam progress and guidance");
     require(telemetry.find("\"chest\": 1") != std::string::npos,
         "telemetry should include machine counts");
     require(telemetry.find("\"marsh\"") != std::string::npos && telemetry.find("\"desert\"") != std::string::npos,
@@ -3735,6 +3796,7 @@ int main()
     testBadlandsBossSummonPersistenceAndReward();
     testFrostBossSummonPersistenceAndReward();
     testRiftBossRequiresArchiveAndRiftProgress();
+    testBossProductionExamsGateSummons();
     testSimulationMovementAndMining();
     testCraftingHotbarAndPlacement();
     testAssignHotbarCommand();

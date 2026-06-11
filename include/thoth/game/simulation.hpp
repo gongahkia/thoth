@@ -181,6 +181,15 @@ enum class EntityKind : std::uint8_t {
     RiftSignalTyrant,
 };
 
+struct BossExamProgress {
+    EntityKind boss = EntityKind::MarshBroodheart;
+    BiomeKind biome = BiomeKind::Grassland;
+    std::string label;
+    int current = 0;
+    int required = 0;
+    bool complete = false;
+};
+
 struct Entity {
     std::uint32_t id = 0;
     EntityKind kind = EntityKind::Deer;
@@ -299,6 +308,8 @@ public:
     [[nodiscard]] std::string currentBiomeContractText() const;
     [[nodiscard]] std::vector<BiomeHazardState> biomeHazards() const;
     [[nodiscard]] std::string currentBiomeHazardText() const;
+    [[nodiscard]] std::vector<BossExamProgress> bossExamProgress() const;
+    [[nodiscard]] std::string currentBossExamText() const;
     [[nodiscard]] std::string currentDemoGoalText() const;
     [[nodiscard]] std::string objectiveMarkerText() const;
     [[nodiscard]] std::string milestoneText() const;
@@ -359,6 +370,7 @@ private:
     void updateBossPhases();
     [[nodiscard]] PressureEventCard pressureEventForTick(std::uint64_t waveTick) const;
     [[nodiscard]] std::vector<EntityKind> pressureEventSpawns(const PressureEventCard& card) const;
+    [[nodiscard]] bool bossExamComplete(EntityKind boss) const;
     [[nodiscard]] bool spawnEntityNear(int x, int y, int z, EntityKind kind, int range);
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y) const;
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y, int z) const;

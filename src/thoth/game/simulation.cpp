@@ -1162,6 +1162,71 @@ std::string Simulation::currentBiomeHazardText() const
         hazard.effect + "; " + hazard.mitigation;
 }
 
+std::vector<BossExamProgress> Simulation::bossExamProgress() const
+{
+    std::vector<BossExamProgress> exams;
+    exams.reserve(5);
+    const auto addExam = [&exams](EntityKind boss, BiomeKind biome, std::string label, int current, int required) {
+        exams.push_back(BossExamProgress{
+            boss,
+            biome,
+            std::move(label),
+            current,
+            required,
+            current >= required});
+    };
+
+    addExam(
+        EntityKind::MarshBroodheart,
+        BiomeKind::Marsh,
+        "Broodheart exam: pump 3 water barrels before opening the hive",
+        productionTotals_.waterBarrels,
+        3);
+    addExam(
+        EntityKind::GlassMaw,
+        BiomeKind::Desert,
+        "Glass Maw exam: stockpile 3 sand glass at the spire",
+        totalItemCount(ItemId::SandGlass),
+        3);
+    addExam(
+        EntityKind::BadlandsWarden,
+        BiomeKind::Badlands,
+        "Warden exam: extract 8 powered ore before challenging the foundry",
+        productionTotals_.poweredOre,
+        8);
+    addExam(
+        EntityKind::FrostNullifier,
+        BiomeKind::Snowfield,
+        "Frost exam: complete 3 logistic deliveries before entering the vault",
+        productionTotals_.logisticDeliveries,
+        3);
+    const int riftCurrent =
+        (productionTotals_.archiveSignals > 0 ? 1 : 0) +
+        (productionTotals_.riftJumps > 0 ? 1 : 0) +
+        std::min(3, activatedOutpostBiomeCount());
+    addExam(
+        EntityKind::RiftSignalTyrant,
+        BiomeKind::CrystalField,
+        "Rift exam: charge archive, open a rift jump, and stabilize 3 outposts",
+        riftCurrent,
+        5);
+    return exams;
+}
+
+std::string Simulation::currentBossExamText() const
+{
+    const auto exams = bossExamProgress();
+    for (std::size_t index = 0; index < exams.size(); ++index) {
+        const auto& exam = exams[index];
+        if (!exam.complete) {
+            return "boss exam " + std::to_string(index + 1) + "/" + std::to_string(exams.size()) +
+                ": " + exam.label + " (" + std::to_string(std::min(exam.current, exam.required)) +
+                "/" + std::to_string(exam.required) + ")";
+        }
+    }
+    return "boss exams complete: factory has proven fluid, glass, power, logistics, and rift readiness";
+}
+
 std::string Simulation::currentDemoGoalText() const
 {
     if (mainObjectiveComplete() && productionTotals_.bossRelicsClaimed >= 5) {
@@ -1288,6 +1353,13 @@ std::string Simulation::playtestTelemetryText() const
         totalPowerDemand += network.demand;
     }
 
+    const auto bossExams = bossExamProgress();
+    const auto completedBossExams = static_cast<int>(std::count_if(
+        bossExams.begin(),
+        bossExams.end(),
+        [](const BossExamProgress& exam) {
+            return exam.complete;
+        }));
     const auto pressureEvent = nextPressureEvent();
 
     std::ostringstream out;
@@ -1301,7 +1373,9 @@ std::string Simulation::playtestTelemetryText() const
     out << "  \"contracts\": {\"supply_completed\": " << completedSupplyContracts()
         << ", \"supply_total\": " << totalSupplyContracts()
         << ", \"biome_completed\": " << completedBiomeContracts()
-        << ", \"biome_total\": " << biomeContractProgress().size() << "},\n";
+        << ", \"biome_total\": " << biomeContractProgress().size()
+        << ", \"boss_exam_completed\": " << completedBossExams
+        << ", \"boss_exam_total\": " << bossExams.size() << "},\n";
     out << "  \"pressure\": {\"level\": " << factoryPressureLevel()
         << ", \"ticks_until_wave\": " << ticksUntilNextPressureWave()
         << ", \"waves_repelled\": " << productionTotals_.pressureWavesRepelled
@@ -1386,6 +1460,7 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"supply_contract\": " << jsonString(currentSupplyContractText())
         << ", \"biome_contract\": " << jsonString(currentBiomeContractText())
         << ", \"biome_hazard\": " << jsonString(currentBiomeHazardText())
+        << ", \"boss_exam\": " << jsonString(currentBossExamText())
         << ", \"pressure_deck\": " << jsonString(pressureEventDeckText())
         << ", \"marker\": " << jsonString(objectiveMarkerText())
         << ", \"milestone\": " << jsonString(milestoneText()) << "}\n";
@@ -1861,6 +1936,16 @@ void Simulation::interact(Direction direction)
     }
 }
 
+bool Simulation::bossExamComplete(EntityKind boss) const
+{
+    for (const auto& exam : bossExamProgress()) {
+        if (exam.boss == boss) {
+            return exam.complete;
+        }
+    }
+    return false;
+}
+
 bool Simulation::trySummonMarshBoss(int x, int y, int z)
 {
     const auto lair = world_.lairAt(x, y, z);
@@ -1871,6 +1956,9 @@ bool Simulation::trySummonMarshBoss(int x, int y, int z)
         if (entity.kind == EntityKind::MarshBroodheart && entity.hp > 0) {
             return true;
         }
+    }
+    if (!bossExamComplete(EntityKind::MarshBroodheart)) {
+        return false;
     }
     if (!player_.inventory.canConsume(ItemId::WaterBarrel, 1) ||
         !player_.inventory.canConsume(ItemId::ReedFiber, 3) ||
@@ -1933,6 +2021,9 @@ bool Simulation::trySummonBadlandsBoss(int x, int y, int z)
             return true;
         }
     }
+    if (!bossExamComplete(EntityKind::BadlandsWarden)) {
+        return false;
+    }
     if (!player_.inventory.canConsume(ItemId::Basalt, 4) ||
         !player_.inventory.canConsume(ItemId::IronPlate, 4) ||
         !player_.inventory.canConsume(ItemId::AdvancedSciencePack, 1)) {
@@ -1993,6 +2084,9 @@ bool Simulation::trySummonGlassBoss(int x, int y, int z)
         if (entity.kind == EntityKind::GlassMaw && entity.hp > 0) {
             return true;
         }
+    }
+    if (!bossExamComplete(EntityKind::GlassMaw)) {
+        return false;
     }
     if (!player_.inventory.canConsume(ItemId::SandGlass, 3) ||
         !player_.inventory.canConsume(ItemId::CactusFiber, 3) ||
@@ -2055,6 +2149,9 @@ bool Simulation::trySummonFrostBoss(int x, int y, int z)
             return true;
         }
     }
+    if (!bossExamComplete(EntityKind::FrostNullifier)) {
+        return false;
+    }
     if (!player_.inventory.canConsume(ItemId::IceShard, 4) ||
         !player_.inventory.canConsume(ItemId::CircuitBoard, 2) ||
         !player_.inventory.canConsume(ItemId::AdvancedSciencePack, 1)) {
@@ -2111,7 +2208,7 @@ bool Simulation::trySummonRiftBoss(int x, int y, int z)
     if (!lair || *lair != LairKind::CrystalVault) {
         return false;
     }
-    if (productionTotals_.archiveSignals <= 0 || productionTotals_.riftJumps <= 0) {
+    if (!bossExamComplete(EntityKind::RiftSignalTyrant)) {
         return false;
     }
     for (const auto& entity : entities_) {
