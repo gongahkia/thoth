@@ -89,6 +89,7 @@ struct Machine {
     ItemId requestItem = ItemId::None;
     int requestThreshold = 0;
     MachineStatus status = MachineStatus::Idle;
+    int durability = 0;
 };
 
 // Prototype power rules:
@@ -349,6 +350,11 @@ private:
     [[nodiscard]] bool isPowerPole(MachineKind kind) const;
     [[nodiscard]] bool isPowerConsumer(MachineKind kind) const;
     [[nodiscard]] bool isLogisticStorage(MachineKind kind) const;
+    [[nodiscard]] int machineMaxDurability(MachineKind kind) const;
+    [[nodiscard]] int tileMaxDurability(TileId id) const;
+    [[nodiscard]] bool isDamageableStructureTile(TileId id) const;
+    [[nodiscard]] bool damageStructureAt(int x, int y, int z, int amount);
+    [[nodiscard]] bool damageAdjacentStructure(Entity& entity, int amount);
     [[nodiscard]] int powerDemand(MachineKind kind) const;
     [[nodiscard]] bool hasAdjacentWater(int x, int y) const;
     [[nodiscard]] bool hasAdjacentWater(int x, int y, int z) const;

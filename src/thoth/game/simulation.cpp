@@ -1061,6 +1061,12 @@ void Simulation::restore(const SimulationSnapshot& snapshot)
         } else if (machine.kind == MachineKind::Furnace && machine.progress > 0 && machine.recipeKey.empty()) {
             machine.recipeKey = "iron_plate";
         }
+        const int maxDurability = machineMaxDurability(machine.kind);
+        if (machine.durability <= 0) {
+            machine.durability = maxDurability;
+        } else {
+            machine.durability = std::min(machine.durability, maxDurability);
+        }
     }
     rebuildMachineCellIndex();
     logisticJobs_ = snapshot.logisticJobs;
@@ -1189,7 +1195,8 @@ void Simulation::mine(Direction direction)
     }
 
     const auto& def = tileDef(tile.id);
-    addItem(def.drop, std::max(1, tile.data));
+    const int dropCount = isDamageableStructureTile(tile.id) ? 1 : std::max(1, tile.data);
+    addItem(def.drop, dropCount);
     world_.setTile(tx, ty, player_.z, Tile{minedReplacement(tile.id), 0});
 }
 
@@ -1253,6 +1260,7 @@ void Simulation::placeMachine(Direction direction, ItemId item, Direction orient
     machine.y = ty;
     machine.z = player_.z;
     machine.direction = orientation;
+    machine.durability = machineMaxDurability(machine.kind);
     if (machine.kind == MachineKind::Assembler) {
         machine.recipeKey = "science_pack";
     }
@@ -2927,6 +2935,149 @@ bool Simulation::isLogisticStorage(MachineKind kind) const
     return kind == MachineKind::ProviderChest || kind == MachineKind::RequesterChest;
 }
 
+int Simulation::machineMaxDurability(MachineKind kind) const
+{
+    switch (kind) {
+    case MachineKind::Belt:
+    case MachineKind::FastBelt:
+    case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
+    case MachineKind::Splitter:
+    case MachineKind::Pipe:
+        return 3;
+    case MachineKind::PowerPole:
+    case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
+    case MachineKind::Workbench:
+    case MachineKind::OffshorePump:
+        return 4;
+    case MachineKind::BurnerMiner:
+    case MachineKind::Furnace:
+    case MachineKind::ElectricMiner:
+    case MachineKind::Assembler:
+    case MachineKind::Lab:
+    case MachineKind::Generator:
+    case MachineKind::LogisticPort:
+    case MachineKind::TrainStop:
+        return 5;
+    case MachineKind::ArchiveTerminal:
+    case MachineKind::GuardTower:
+    case MachineKind::OutpostBeacon:
+    case MachineKind::RepairPylon:
+    case MachineKind::PressureRelay:
+    case MachineKind::ArcTower:
+        return 6;
+    case MachineKind::RiftGate:
+        return 8;
+    }
+    return 4;
+}
+
+int Simulation::tileMaxDurability(TileId id) const
+{
+    switch (id) {
+    case TileId::PlankWall:
+        return 4;
+    case TileId::Door:
+        return 5;
+    case TileId::Wall:
+        return 6;
+    case TileId::Dirt:
+    case TileId::Floor:
+    case TileId::Grass:
+    case TileId::Beach:
+    case TileId::Mud:
+    case TileId::Sand:
+    case TileId::Snow:
+    case TileId::Ice:
+    case TileId::Water:
+    case TileId::DeepWater:
+    case TileId::Coral:
+    case TileId::Stone:
+    case TileId::Basalt:
+    case TileId::Crystal:
+    case TileId::IronOre:
+    case TileId::CopperOre:
+    case TileId::CoalOre:
+    case TileId::Tree:
+    case TileId::Reeds:
+    case TileId::Cactus:
+    case TileId::StairsUp:
+    case TileId::StairsDown:
+    case TileId::Bed:
+    case TileId::DungeonFloor:
+    case TileId::DungeonWall:
+        return 0;
+    }
+    return 0;
+}
+
+bool Simulation::isDamageableStructureTile(TileId id) const
+{
+    return id == TileId::Wall || id == TileId::PlankWall || id == TileId::Door;
+}
+
+bool Simulation::damageStructureAt(int x, int y, int z, int amount)
+{
+    if (amount <= 0) {
+        return false;
+    }
+
+    if (auto* machine = machineAt(x, y, z); machine != nullptr) {
+        const auto machineId = machine->id;
+        const int maxDurability = machineMaxDurability(machine->kind);
+        if (machine->durability <= 0) {
+            machine->durability = maxDurability;
+        }
+        machine->durability -= amount;
+        if (machine->durability > 0) {
+            return true;
+        }
+
+        const auto found = std::find_if(machines_.begin(), machines_.end(), [machineId](const Machine& candidate) {
+            return candidate.id == machineId;
+        });
+        if (found != machines_.end()) {
+            machines_.erase(found);
+            rebuildMachineCellIndex();
+        }
+        return true;
+    }
+
+    const auto tile = world_.getTile(x, y, z);
+    if (!isDamageableStructureTile(tile.id)) {
+        return false;
+    }
+
+    const int maxDurability = tileMaxDurability(tile.id);
+    const int currentDurability = tile.data <= 0 ? maxDurability : std::min(tile.data, maxDurability);
+    const int remaining = currentDurability - amount;
+    if (remaining <= 0) {
+        world_.setTile(x, y, z, Tile{TileId::Floor, 0});
+    } else {
+        world_.setTile(x, y, z, Tile{tile.id, remaining});
+    }
+    return true;
+}
+
+bool Simulation::damageAdjacentStructure(Entity& entity, int amount)
+{
+    constexpr std::array<Direction, 4> kDirections{{
+        Direction::North,
+        Direction::East,
+        Direction::South,
+        Direction::West,
+    }};
+    for (const auto direction : kDirections) {
+        if (damageStructureAt(entity.x + dx(direction), entity.y + dy(direction), entity.z, amount)) {
+            entity.facing = direction;
+            return true;
+        }
+    }
+    return false;
+}
+
 int Simulation::powerDemand(MachineKind kind) const
 {
     if (kind == MachineKind::ElectricMiner) {
@@ -3555,6 +3706,17 @@ void Simulation::updateEntities()
             player_.hp = std::max(0, player_.hp - 1);
             entity.cooldown = 30;
             continue;
+        }
+        if (isHostile(entity.kind) && entity.cooldown == 0) {
+            const bool isBoss = entity.kind == EntityKind::MarshBroodheart ||
+                entity.kind == EntityKind::GlassMaw ||
+                entity.kind == EntityKind::BadlandsWarden ||
+                entity.kind == EntityKind::FrostNullifier ||
+                entity.kind == EntityKind::RiftSignalTyrant;
+            if (damageAdjacentStructure(entity, isBoss ? 2 : 1)) {
+                entity.cooldown = isBoss ? 35 : 45;
+                continue;
+            }
         }
         if (isHostile(entity.kind) && distance <= 6 && (tick_ % 12U) == 0U) {
             const int stepX = player_.x == entity.x ? 0 : (player_.x > entity.x ? 1 : -1);

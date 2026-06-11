@@ -91,6 +91,7 @@ std::string canonicalSignature(const thoth::game::Simulation& sim)
         out << "," << machine.id << ":" << thoth::game::toString(machine.kind)
             << ":" << machine.x << ":" << machine.y << ":" << static_cast<int>(machine.direction)
             << ":" << machine.progress << ":" << machine.fuelTicks
+            << ":" << machine.durability
             << ":" << thoth::game::toString(machine.status)
             << ":" << thoth::game::toString(machine.carriedItem)
             << ":" << thoth::game::toString(machine.outputItem)
@@ -143,6 +144,7 @@ std::string persistedSignature(const thoth::game::Simulation& sim)
         out << "," << machine.id << ":" << thoth::game::toString(machine.kind)
             << ":" << machine.x << ":" << machine.y << ":" << static_cast<int>(machine.direction)
             << ":" << machine.progress << ":" << machine.fuelTicks
+            << ":" << machine.durability
             << ":" << thoth::game::toString(machine.carriedItem)
             << ":" << thoth::game::toString(machine.outputItem)
             << ":" << (machine.recipeKey.empty() ? "none" : machine.recipeKey);
@@ -926,6 +928,7 @@ void testRichPersistedStateRoundTrip()
     furnace.direction = Direction::East;
     furnace.progress = 17;
     furnace.fuelTicks = 42;
+    furnace.durability = 2;
     furnace.outputItem = ItemId::IronPlate;
     furnace.recipeKey = "iron_plate";
     require(furnace.inventory.add(ItemId::IronOre, 1), "test should seed furnace input");
@@ -973,6 +976,8 @@ void testRichPersistedStateRoundTrip()
         "outpost biome mask should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Marsh), "marsh outpost coverage should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Desert), "desert outpost coverage should persist");
+    const auto* loadedFurnace = loaded->machineAt(1, 1);
+    require(loadedFurnace != nullptr && loadedFurnace->durability == 2, "partial machine durability should persist");
 }
 
 void prepareReplayWorld(thoth::game::Simulation& sim)
@@ -1345,6 +1350,66 @@ void testBossPhaseBehaviors()
         arcedWarden.step();
     }
     require(arcedWarden.entities().empty(), "arc tower should still break Badlands Warden armor");
+}
+
+void testHostilesDamageStructuresDeterministically()
+{
+    using namespace thoth::game;
+
+    Simulation wallSim(20260611);
+    auto snapshot = wallSim.snapshot();
+    snapshot.player.x = 20;
+    snapshot.player.y = 20;
+    snapshot.nextEntityId = 2;
+    snapshot.tiles = {TileSnapshot{1, 0, Tile{TileId::Wall, 1}}};
+    snapshot.entities = {Entity{1, EntityKind::Slime, 0, 0, 0, 2, Direction::East, 0}};
+    wallSim.restore(snapshot);
+    wallSim.step();
+    require(wallSim.world().getTile(1, 0).id == TileId::Floor, "hostile should break weakened adjacent wall");
+
+    Simulation machineSim(20260611);
+    snapshot = machineSim.snapshot();
+    snapshot.player.x = 20;
+    snapshot.player.y = 20;
+    snapshot.nextEntityId = 2;
+    snapshot.nextMachineId = 2;
+    Machine chest;
+    chest.id = 1;
+    chest.kind = MachineKind::Chest;
+    chest.x = 1;
+    chest.y = 0;
+    chest.durability = 1;
+    snapshot.machines = {chest};
+    snapshot.entities = {Entity{1, EntityKind::Slime, 0, 0, 0, 2, Direction::East, 0}};
+    machineSim.restore(snapshot);
+    machineSim.step();
+    require(machineSim.machineAt(1, 0) == nullptr, "hostile should destroy weakened adjacent machine");
+
+    Simulation restored(20260611);
+    snapshot = restored.snapshot();
+    snapshot.nextMachineId = 2;
+    chest.durability = 0;
+    snapshot.machines = {chest};
+    restored.restore(snapshot);
+    const auto* restoredChest = restored.machineAt(1, 0);
+    require(restoredChest != nullptr && restoredChest->durability > 1,
+        "restoring old snapshots should initialize missing machine durability");
+
+    auto damagedSnapshot = restored.snapshot();
+    for (auto& machine : damagedSnapshot.machines) {
+        if (machine.id == chest.id) {
+            machine.durability = 2;
+        }
+    }
+    restored.restore(damagedSnapshot);
+    const auto path = std::filesystem::temp_directory_path() / "thoth_durability_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(restored, path, &error), "durability save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    std::filesystem::remove(path);
+    require(loaded.has_value(), "durability load should succeed: " + error);
+    const auto* loadedChest = loaded->machineAt(1, 0);
+    require(loadedChest != nullptr && loadedChest->durability == 2, "machine durability should round trip through save");
 }
 
 void stepCommand(thoth::game::Simulation& sim, thoth::game::Command command)
@@ -3422,6 +3487,7 @@ int main()
     testGuardTowerRequiresPowerAndDefeatsHostile();
     testArcTowerHasLongerPoweredRange();
     testBossPhaseBehaviors();
+    testHostilesDamageStructuresDeterministically();
     testOutpostBeaconRequiresPowerAndBiomeInput();
     testRepairPylonRebuildsAdjacentWallGap();
     testPressureRelayMitigatesFactoryPressure();

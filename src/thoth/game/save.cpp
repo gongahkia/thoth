@@ -180,7 +180,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 12\n";
+    output << "THOTH_SAVE 13\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -218,7 +218,8 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
                << toString(machine.circuitComparator) << ' '
                << machine.circuitThreshold << ' '
                << toString(machine.requestItem) << ' '
-               << machine.requestThreshold << "\n";
+               << machine.requestThreshold << ' '
+               << machine.durability << "\n";
         const auto inventory = machine.inventory.stacks();
         output << "machine_inventory " << inventory.size() << "\n";
         for (const auto& stack : inventory) {
@@ -287,7 +288,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 12)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 13)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -466,6 +467,9 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
                 !readValue(input, machine.circuitThreshold, "machine circuit threshold", error) ||
                 !readValue(input, requestKey, "machine request item", error) ||
                 !readValue(input, machine.requestThreshold, "machine request threshold", error))) {
+            return std::nullopt;
+        }
+        if (version >= 13 && !readValue(input, machine.durability, "machine durability", error)) {
             return std::nullopt;
         }
 
