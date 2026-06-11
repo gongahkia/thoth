@@ -1274,7 +1274,8 @@ void Simulation::interact(Direction direction)
         return;
     }
 
-    if (tile.id == TileId::StairsDown && trySummonMarshBoss(tx, ty, player_.z)) {
+    if (tile.id == TileId::StairsDown &&
+        (trySummonMarshBoss(tx, ty, player_.z) || trySummonBadlandsBoss(tx, ty, player_.z))) {
         return;
     }
 
@@ -1347,6 +1348,67 @@ bool Simulation::trySummonMarshBoss(int x, int y, int z)
     addItem(ItemId::WaterBarrel, 1);
     addItem(ItemId::ReedFiber, 3);
     addItem(ItemId::SciencePack, 1);
+    return true;
+}
+
+bool Simulation::trySummonBadlandsBoss(int x, int y, int z)
+{
+    const auto lair = world_.lairAt(x, y, z);
+    if (!lair || *lair != LairKind::BadlandsFoundry) {
+        return false;
+    }
+    for (const auto& entity : entities_) {
+        if (entity.kind == EntityKind::BadlandsWarden && entity.hp > 0) {
+            return true;
+        }
+    }
+    if (!player_.inventory.canConsume(ItemId::Basalt, 4) ||
+        !player_.inventory.canConsume(ItemId::IronPlate, 4) ||
+        !player_.inventory.canConsume(ItemId::AdvancedSciencePack, 1)) {
+        return false;
+    }
+
+    const auto consumedBasalt = consumeItem(ItemId::Basalt, 4);
+    const auto consumedIron = consumeItem(ItemId::IronPlate, 4);
+    const auto consumedScience = consumeItem(ItemId::AdvancedSciencePack, 1);
+    (void)consumedBasalt;
+    (void)consumedIron;
+    (void)consumedScience;
+
+    constexpr std::array<std::pair<int, int>, 8> kOffsets{{
+        {-2, 0},
+        {2, 0},
+        {0, -2},
+        {0, 2},
+        {-2, -1},
+        {2, 1},
+        {-1, 2},
+        {1, -2},
+    }};
+    for (const auto& [offsetX, offsetY] : kOffsets) {
+        const int sx = x + offsetX;
+        const int sy = y + offsetY;
+        if (world_.lairAt(sx, sy, z) != lair ||
+            !world_.isWalkable(sx, sy, z) ||
+            entityAt(sx, sy, z) != nullptr ||
+            machineAt(sx, sy, z) != nullptr) {
+            continue;
+        }
+        Entity boss;
+        boss.id = nextEntityId_++;
+        boss.kind = EntityKind::BadlandsWarden;
+        boss.x = sx;
+        boss.y = sy;
+        boss.z = z;
+        boss.hp = entityMaxHp(boss.kind);
+        boss.facing = Direction::South;
+        boss.cooldown = 45;
+        entities_.push_back(boss);
+        return true;
+    }
+    addItem(ItemId::Basalt, 4);
+    addItem(ItemId::IronPlate, 4);
+    addItem(ItemId::AdvancedSciencePack, 1);
     return true;
 }
 
@@ -2534,7 +2596,8 @@ bool Simulation::isHostile(EntityKind kind) const
         kind == EntityKind::Skeleton ||
         kind == EntityKind::CaveCrawler ||
         kind == EntityKind::DungeonSentinel ||
-        kind == EntityKind::MarshBroodheart;
+        kind == EntityKind::MarshBroodheart ||
+        kind == EntityKind::BadlandsWarden;
 }
 
 ItemId Simulation::entityDrop(EntityKind kind) const
@@ -2558,6 +2621,8 @@ ItemId Simulation::entityDrop(EntityKind kind) const
         return ItemId::Crystal;
     case EntityKind::MarshBroodheart:
         return ItemId::Venom;
+    case EntityKind::BadlandsWarden:
+        return ItemId::Bone;
     }
     return ItemId::None;
 }
@@ -2567,6 +2632,8 @@ int Simulation::entityDropCount(EntityKind kind) const
     switch (kind) {
     case EntityKind::MarshBroodheart:
         return 4;
+    case EntityKind::BadlandsWarden:
+        return 6;
     case EntityKind::Deer:
     case EntityKind::Chicken:
     case EntityKind::Crab:
@@ -2597,6 +2664,8 @@ int Simulation::entityMaxHp(EntityKind kind) const
         return 6;
     case EntityKind::MarshBroodheart:
         return 14;
+    case EntityKind::BadlandsWarden:
+        return 18;
     }
     return 1;
 }
@@ -2608,7 +2677,7 @@ void Simulation::defeatEntity(std::size_t entityIndex)
     }
     const auto kind = entities_[entityIndex].kind;
     addItem(entityDrop(kind), entityDropCount(kind));
-    if (kind == EntityKind::MarshBroodheart) {
+    if (kind == EntityKind::MarshBroodheart || kind == EntityKind::BadlandsWarden) {
         ++productionTotals_.bossesDefeated;
     }
     ++productionTotals_.creaturesDefeated;

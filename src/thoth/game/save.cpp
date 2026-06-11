@@ -61,6 +61,8 @@ std::string_view entityKindToString(EntityKind kind)
         return "dungeon_sentinel";
     case EntityKind::MarshBroodheart:
         return "marsh_broodheart";
+    case EntityKind::BadlandsWarden:
+        return "badlands_warden";
     }
     return "deer";
 }
@@ -93,6 +95,9 @@ std::optional<EntityKind> entityKindFromKey(std::string_view key)
     }
     if (key == "marsh_broodheart") {
         return EntityKind::MarshBroodheart;
+    }
+    if (key == "badlands_warden") {
+        return EntityKind::BadlandsWarden;
     }
     return std::nullopt;
 }

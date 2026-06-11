@@ -422,6 +422,62 @@ void testMarshBossSummonPersistenceAndReward()
     require(loaded->productionTotals().creaturesDefeated >= 1, "boss defeat should also count as creature defeat");
 }
 
+void testBadlandsBossSummonPersistenceAndReward()
+{
+    using namespace thoth::game;
+
+    const auto containsBoss = [](const Simulation& sim) {
+        for (const auto& entity : sim.entities()) {
+            if (entity.kind == EntityKind::BadlandsWarden) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    Simulation sim(20260611);
+    auto snapshot = sim.snapshot();
+    snapshot.player.x = 35;
+    snapshot.player.y = 20;
+    snapshot.player.inventory = {
+        ItemStack{ItemId::Basalt, 4},
+        ItemStack{ItemId::IronPlate, 4},
+        ItemStack{ItemId::AdvancedSciencePack, 1},
+    };
+    sim.restore(snapshot);
+
+    sim.queue(Command::interact(Direction::East));
+    sim.step();
+    require(containsBoss(sim), "prepared badlands foundry interaction should summon Warden");
+    require(sim.itemCount(ItemId::Basalt) == 0, "Warden summon should consume basalt");
+    require(sim.itemCount(ItemId::IronPlate) == 0, "Warden summon should consume iron plates");
+    require(sim.itemCount(ItemId::AdvancedSciencePack) == 0, "Warden summon should consume advanced science");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_badlands_boss_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "badlands boss save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    std::filesystem::remove(path);
+    require(loaded.has_value(), "badlands boss load should succeed: " + error);
+    require(containsBoss(*loaded), "badlands boss save/load should preserve active boss");
+
+    for (int i = 0; i < 10 && containsBoss(*loaded); ++i) {
+        for (const auto& entity : loaded->entities()) {
+            if (entity.kind == EntityKind::BadlandsWarden) {
+                loaded->player().x = entity.x + 1;
+                loaded->player().y = entity.y;
+                loaded->player().z = entity.z;
+                break;
+            }
+        }
+        loaded->queue(Command::attack(Direction::West));
+        loaded->step();
+    }
+    require(!containsBoss(*loaded), "repeated attacks should defeat Badlands Warden");
+    require(loaded->itemCount(ItemId::Bone) == 6, "Badlands Warden should drop bone reward bundle");
+    require(loaded->productionTotals().bossesDefeated == 1, "Badlands Warden should increment boss total");
+}
+
 void testSimulationMovementAndMining()
 {
     thoth::game::Simulation sim(1);
@@ -2768,6 +2824,7 @@ int main()
     testBiomeLairGeneration();
     testLairEnemyPressureSpawnsBiomeHostiles();
     testMarshBossSummonPersistenceAndReward();
+    testBadlandsBossSummonPersistenceAndReward();
     testSimulationMovementAndMining();
     testCraftingHotbarAndPlacement();
     testAssignHotbarCommand();

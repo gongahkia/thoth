@@ -148,6 +148,7 @@ enum class EntityKind : std::uint8_t {
     CaveCrawler,
     DungeonSentinel,
     MarshBroodheart,
+    BadlandsWarden,
 };
 
 struct Entity {
@@ -283,6 +284,7 @@ private:
     void interact(Direction direction);
     void attack(Direction direction);
     [[nodiscard]] bool trySummonMarshBoss(int x, int y, int z);
+    [[nodiscard]] bool trySummonBadlandsBoss(int x, int y, int z);
     void updateMachines();
     void updateEntities();
     void ensureLocalEntities();
