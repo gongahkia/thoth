@@ -1021,13 +1021,40 @@ std::string Simulation::pressureWaveAlertText() const
     if (ticks < 0) {
         return "wave alert: none; pressure below raid threshold";
     }
+    const auto event = nextPressureEvent();
     if (ticks == 0) {
-        return "wave alert: hostile probe incoming now";
+        return "wave alert: " + event.label + " incoming now";
     }
     const auto severity = factoryPressureLevel() >= 220 ? "surge" : "probe";
     const auto unit = ticks == 1 ? " tick" : " ticks";
     return "wave alert: next " + std::string(severity) + " in " + std::to_string(ticks) +
-        unit + "; relays repelled " + std::to_string(productionTotals_.pressureWavesRepelled);
+        unit + "; event " + event.label +
+        "; relays repelled " + std::to_string(productionTotals_.pressureWavesRepelled);
+}
+
+PressureEventCard Simulation::nextPressureEvent() const
+{
+    const int ticks = ticksUntilNextPressureWave();
+    if (ticks < 0) {
+        return PressureEventCard{
+            "none",
+            "Dormant",
+            0,
+            0,
+            "pressure is below the raid threshold",
+            "keep scaling production and build defenses before the threshold"};
+    }
+    return pressureEventForTick(tick_ + static_cast<std::uint64_t>(ticks));
+}
+
+std::string Simulation::pressureEventDeckText() const
+{
+    const auto event = nextPressureEvent();
+    if (event.spawnCount <= 0) {
+        return "pressure deck: dormant; " + event.effect;
+    }
+    return "pressure deck: " + event.label + " L" + std::to_string(event.severity) +
+        " x" + std::to_string(event.spawnCount) + "; " + event.effect + "; " + event.counterplay;
 }
 
 bool Simulation::mainObjectiveComplete() const
@@ -1261,6 +1288,8 @@ std::string Simulation::playtestTelemetryText() const
         totalPowerDemand += network.demand;
     }
 
+    const auto pressureEvent = nextPressureEvent();
+
     std::ostringstream out;
     out << "{\n";
     out << "  \"schema\": \"thoth.playtest.telemetry.v1\",\n";
@@ -1276,6 +1305,10 @@ std::string Simulation::playtestTelemetryText() const
     out << "  \"pressure\": {\"level\": " << factoryPressureLevel()
         << ", \"ticks_until_wave\": " << ticksUntilNextPressureWave()
         << ", \"waves_repelled\": " << productionTotals_.pressureWavesRepelled
+        << ", \"event_key\": " << jsonString(pressureEvent.key)
+        << ", \"event_label\": " << jsonString(pressureEvent.label)
+        << ", \"event_severity\": " << pressureEvent.severity
+        << ", \"event_spawns\": " << pressureEvent.spawnCount
         << ", \"alert\": " << jsonString(pressureWaveAlertText()) << "},\n";
     out << "  \"production\": {\"iron_plates\": " << productionTotals_.ironPlates
         << ", \"copper_plates\": " << productionTotals_.copperPlates
@@ -1353,6 +1386,7 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"supply_contract\": " << jsonString(currentSupplyContractText())
         << ", \"biome_contract\": " << jsonString(currentBiomeContractText())
         << ", \"biome_hazard\": " << jsonString(currentBiomeHazardText())
+        << ", \"pressure_deck\": " << jsonString(pressureEventDeckText())
         << ", \"marker\": " << jsonString(objectiveMarkerText())
         << ", \"milestone\": " << jsonString(milestoneText()) << "}\n";
     out << "}\n";
@@ -4112,6 +4146,166 @@ void Simulation::ensureLairEntities()
     }
 }
 
+PressureEventCard Simulation::pressureEventForTick(std::uint64_t waveTick) const
+{
+    const int pressure = factoryPressureLevel();
+    if (productionTotals_.sciencePacks == 0 || pressure < 120) {
+        return PressureEventCard{
+            "none",
+            "Dormant",
+            0,
+            0,
+            "pressure is below the raid threshold",
+            "keep scaling production and build defenses before the threshold"};
+    }
+
+    int severity = 1;
+    if (pressure >= 220) {
+        severity = 2;
+    }
+    if (pressure >= 320) {
+        severity = 3;
+    }
+    if (activatedOutpostBiomeCount() >= 3 && severity > 1) {
+        --severity;
+    }
+
+    const auto waveIndex = static_cast<int>(
+        (waveTick / 300U) +
+        (world_.seed() % 23U) +
+        static_cast<std::uint64_t>(productionTotals_.riftJumps * 5) +
+        static_cast<std::uint64_t>(productionTotals_.archiveSignals * 3) +
+        static_cast<std::uint64_t>(productionTotals_.pressureWavesRepelled));
+
+    if (pressure >= 260 && productionTotals_.riftJumps > 0 && (waveIndex % 4) == 0) {
+        return PressureEventCard{
+            "rift_stalker_incursion",
+            "Rift Stalker Incursion",
+            severity,
+            severity >= 3 ? 3 : 2,
+            "stalkers phase in around the factory perimeter",
+            "arc towers and full outpost coverage reduce the chaos window"};
+    }
+
+    if (pressure >= 220) {
+        switch (waveIndex % 4) {
+        case 0:
+            return PressureEventCard{
+                "siege_line",
+                "Siege Line",
+                severity,
+                severity >= 3 ? 3 : 2,
+                "skeletons arrive in a small formation and pressure walls",
+                "keep repair pylons loaded and towers powered"};
+        case 1:
+            return PressureEventCard{
+                "wisp_interference",
+                "Wisp Interference",
+                severity,
+                2,
+                "null wisps ride the wave and threaten active machines",
+                "spread production blocks and cover crystal-side builds"};
+        case 2:
+            return PressureEventCard{
+                "brood_overflow",
+                "Brood Overflow",
+                severity,
+                severity >= 3 ? 4 : 3,
+                "fast slimes flood multiple approach lanes",
+                "belts and walls buy time while guard towers thin the pack"};
+        default:
+            return PressureEventCard{
+                "mixed_raid",
+                "Mixed Raid",
+                severity,
+                severity >= 3 ? 3 : 2,
+                "slimes and skeletons arrive together",
+                "pair relays with overlapping guard and arc tower coverage"};
+        }
+    }
+
+    switch (waveIndex % 3) {
+    case 0:
+        return PressureEventCard{
+            "scout_probe",
+            "Scout Probe",
+            severity,
+            1,
+            "a lone hostile tests the nearest open approach",
+            "clear it quickly before the next deck card escalates"};
+    case 1:
+        return PressureEventCard{
+            "splitter_sappers",
+            "Splitter Sappers",
+            severity,
+            2,
+            "two weak attackers probe separate approach lanes",
+            "early walls or one powered guard tower can stabilize this wave"};
+    default:
+        return PressureEventCard{
+            "bone_scout",
+            "Bone Scout",
+            severity,
+            pressure >= 180 ? 2 : 1,
+            "a tougher scout appears once science pressure climbs",
+            "build a guard tower before scaling advanced science"};
+    }
+}
+
+std::vector<EntityKind> Simulation::pressureEventSpawns(const PressureEventCard& card) const
+{
+    std::vector<EntityKind> spawns;
+    spawns.reserve(static_cast<std::size_t>(std::max(0, card.spawnCount)));
+
+    if (card.key == "rift_stalker_incursion") {
+        for (int i = 0; i < card.spawnCount; ++i) {
+            spawns.push_back(i == 0 ? EntityKind::RiftStalker : EntityKind::Skeleton);
+        }
+        return spawns;
+    }
+    if (card.key == "siege_line") {
+        for (int i = 0; i < card.spawnCount; ++i) {
+            spawns.push_back(EntityKind::Skeleton);
+        }
+        return spawns;
+    }
+    if (card.key == "wisp_interference") {
+        spawns.push_back(EntityKind::NullWisp);
+        if (card.spawnCount > 1) {
+            spawns.push_back(EntityKind::Skeleton);
+        }
+        return spawns;
+    }
+    if (card.key == "brood_overflow") {
+        for (int i = 0; i < card.spawnCount; ++i) {
+            spawns.push_back(EntityKind::Slime);
+        }
+        return spawns;
+    }
+    if (card.key == "mixed_raid") {
+        for (int i = 0; i < card.spawnCount; ++i) {
+            spawns.push_back((i % 2) == 0 ? EntityKind::Slime : EntityKind::Skeleton);
+        }
+        return spawns;
+    }
+    if (card.key == "bone_scout") {
+        for (int i = 0; i < card.spawnCount; ++i) {
+            spawns.push_back(EntityKind::Skeleton);
+        }
+        return spawns;
+    }
+    if (card.key == "splitter_sappers") {
+        for (int i = 0; i < card.spawnCount; ++i) {
+            spawns.push_back(EntityKind::Slime);
+        }
+        return spawns;
+    }
+    if (card.key == "scout_probe") {
+        spawns.push_back(EntityKind::Slime);
+    }
+    return spawns;
+}
+
 void Simulation::ensureFactoryPressureEntity()
 {
     if (entities_.size() >= 80 ||
@@ -4138,31 +4332,38 @@ void Simulation::ensureFactoryPressureEntity()
         {-9, -4},
     }};
 
-    const auto kind = factoryPressureLevel() >= 220 ? EntityKind::Skeleton : EntityKind::Slime;
-    for (const auto& [offsetX, offsetY] : kOffsets) {
-        const int x = player_.x + offsetX;
-        const int y = player_.y + offsetY;
-        if ((x == player_.x && y == player_.y) ||
-            machineAt(x, y, player_.z) != nullptr ||
-            entityAt(x, y, player_.z) != nullptr) {
-            continue;
-        }
-        const auto tile = world_.getTile(x, y, player_.z);
-        if (isWaterTile(tile.id) || !world_.isWalkable(x, y, player_.z)) {
-            continue;
-        }
+    const auto event = pressureEventForTick(tick_);
+    const auto spawns = pressureEventSpawns(event);
+    for (std::size_t spawnIndex = 0; spawnIndex < spawns.size() && entities_.size() < 80; ++spawnIndex) {
+        const auto kind = spawns[spawnIndex];
+        const auto startOffset = static_cast<std::size_t>(
+            ((tick_ / 300U) + spawnIndex * 3U + static_cast<std::uint64_t>(event.severity)) % kOffsets.size());
+        for (std::size_t attempt = 0; attempt < kOffsets.size(); ++attempt) {
+            const auto& [offsetX, offsetY] = kOffsets[(startOffset + attempt) % kOffsets.size()];
+            const int x = player_.x + offsetX;
+            const int y = player_.y + offsetY;
+            if ((x == player_.x && y == player_.y) ||
+                machineAt(x, y, player_.z) != nullptr ||
+                entityAt(x, y, player_.z) != nullptr) {
+                continue;
+            }
+            const auto tile = world_.getTile(x, y, player_.z);
+            if (isWaterTile(tile.id) || !world_.isWalkable(x, y, player_.z)) {
+                continue;
+            }
 
-        Entity entity;
-        entity.id = nextEntityId_++;
-        entity.kind = kind;
-        entity.x = x;
-        entity.y = y;
-        entity.z = player_.z;
-        entity.hp = entityMaxHp(entity.kind);
-        entity.facing = Direction::South;
-        entity.cooldown = 20;
-        entities_.push_back(entity);
-        return;
+            Entity entity;
+            entity.id = nextEntityId_++;
+            entity.kind = kind;
+            entity.x = x;
+            entity.y = y;
+            entity.z = player_.z;
+            entity.hp = entityMaxHp(entity.kind);
+            entity.facing = Direction::South;
+            entity.cooldown = 20;
+            entities_.push_back(entity);
+            break;
+        }
     }
 }
 

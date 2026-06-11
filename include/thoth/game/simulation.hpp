@@ -151,6 +151,15 @@ struct BiomeHazardState {
     std::string mitigation;
 };
 
+struct PressureEventCard {
+    std::string key;
+    std::string label;
+    int severity = 0;
+    int spawnCount = 0;
+    std::string effect;
+    std::string counterplay;
+};
+
 enum class EntityKind : std::uint8_t {
     Deer,
     Chicken,
@@ -279,6 +288,8 @@ public:
     [[nodiscard]] int ticksUntilNextPressureWave() const;
     [[nodiscard]] std::string factoryPressureText() const;
     [[nodiscard]] std::string pressureWaveAlertText() const;
+    [[nodiscard]] PressureEventCard nextPressureEvent() const;
+    [[nodiscard]] std::string pressureEventDeckText() const;
     [[nodiscard]] bool mainObjectiveComplete() const;
     [[nodiscard]] bool hasActivatedOutpostBiome(BiomeKind biome) const;
     [[nodiscard]] int activatedOutpostBiomeCount() const;
@@ -346,6 +357,8 @@ private:
     void updateArcTowers();
     void updateBiomeHazards();
     void updateBossPhases();
+    [[nodiscard]] PressureEventCard pressureEventForTick(std::uint64_t waveTick) const;
+    [[nodiscard]] std::vector<EntityKind> pressureEventSpawns(const PressureEventCard& card) const;
     [[nodiscard]] bool spawnEntityNear(int x, int y, int z, EntityKind kind, int range);
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y) const;
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y, int z) const;

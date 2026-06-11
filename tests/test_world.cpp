@@ -3453,8 +3453,13 @@ void testFactoryPressureSpawnsHostileProbe()
     require(sim.factoryPressureText().find("raids possible") != std::string::npos,
         "pressure text should warn when raids can spawn");
     require(sim.ticksUntilNextPressureWave() == 0, "pressure wave should be immediate on cadence tick");
+    const auto event = sim.nextPressureEvent();
+    require(event.spawnCount >= 1 && event.severity >= 1,
+        "pressure event deck should expose a spawn card when a wave is due");
     require(sim.pressureWaveAlertText().find("incoming now") != std::string::npos,
-        "pressure wave alert should report immediate incoming probe");
+        "pressure wave alert should report immediate incoming event");
+    require(sim.pressureEventDeckText().find(event.label) != std::string::npos,
+        "pressure event deck text should describe the due card");
     sim.step();
 
     bool foundHostile = false;
@@ -3474,6 +3479,43 @@ void testFactoryPressureSpawnsHostileProbe()
     require(pending.ticksUntilNextPressureWave() == 1, "pressure wave alert should count down to next cadence");
     require(pending.pressureWaveAlertText().find("1 tick") != std::string::npos,
         "pressure wave alert should include ticks remaining");
+
+    Simulation surge(20260611);
+    snapshot = surge.snapshot();
+    snapshot.tick = 300;
+    snapshot.productionTotals.sciencePacks = 20;
+    snapshot.productionTotals.advancedSciencePacks = 5;
+    snapshot.productionTotals.riftJumps = 1;
+    snapshot.productionTotals.archiveSignals = 1;
+    snapshot.tiles = {
+        TileSnapshot{0, -10, Tile{TileId::Floor, 0}},
+        TileSnapshot{8, -6, Tile{TileId::Floor, 0}},
+        TileSnapshot{10, 0, Tile{TileId::Floor, 0}},
+        TileSnapshot{8, 6, Tile{TileId::Floor, 0}},
+        TileSnapshot{0, 10, Tile{TileId::Floor, 0}},
+        TileSnapshot{-8, 6, Tile{TileId::Floor, 0}},
+        TileSnapshot{-10, 0, Tile{TileId::Floor, 0}},
+        TileSnapshot{-8, -6, Tile{TileId::Floor, 0}},
+        TileSnapshot{4, -9, Tile{TileId::Floor, 0}},
+        TileSnapshot{9, 4, Tile{TileId::Floor, 0}},
+        TileSnapshot{-4, 9, Tile{TileId::Floor, 0}},
+        TileSnapshot{-9, -4, Tile{TileId::Floor, 0}},
+    };
+    surge.restore(snapshot);
+    const auto surgeEvent = surge.nextPressureEvent();
+    require(surgeEvent.severity >= 2 && surgeEvent.spawnCount >= 2,
+        "high pressure should draw a multi-spawn event card");
+    surge.step();
+    int hostileCount = 0;
+    for (const auto& entity : surge.entities()) {
+        if (entity.kind == EntityKind::Slime ||
+            entity.kind == EntityKind::Skeleton ||
+            entity.kind == EntityKind::NullWisp ||
+            entity.kind == EntityKind::RiftStalker) {
+            ++hostileCount;
+        }
+    }
+    require(hostileCount >= 2, "high-pressure event cards should spawn multiple hostiles");
 }
 
 void testPlaytestTelemetryText()
@@ -3503,6 +3545,9 @@ void testPlaytestTelemetryText()
         "telemetry should include schema");
     require(telemetry.find("\"ticks_until_wave\": 1") != std::string::npos,
         "telemetry should include pressure countdown");
+    require(telemetry.find("\"event_key\"") != std::string::npos &&
+            telemetry.find("\"event_label\"") != std::string::npos,
+        "telemetry should include pressure event deck state");
     require(telemetry.find("\"supply_completed\"") != std::string::npos,
         "telemetry should include contract progress");
     require(telemetry.find("\"chest\": 1") != std::string::npos,
