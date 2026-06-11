@@ -180,7 +180,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 15\n";
+    output << "THOTH_SAVE 16\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -273,7 +273,9 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
            << snapshot.productionTotals.bossRelicsClaimed << ' '
            << snapshot.productionTotals.outpostBiomeMask << ' '
            << snapshot.productionTotals.outpostDeliveries << ' '
-           << snapshot.productionTotals.outpostDeliveryBiomeMask << "\n";
+           << snapshot.productionTotals.outpostDeliveryBiomeMask << ' '
+           << snapshot.productionTotals.scrapRecovered << ' '
+           << snapshot.productionTotals.scrapRecycled << "\n";
 
     return true;
 }
@@ -291,7 +293,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 15)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 16)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -707,6 +709,11 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         if (version >= 14 &&
             (!readValue(input, snapshot.productionTotals.outpostDeliveries, "outpost delivery total", error) ||
                 !readValue(input, snapshot.productionTotals.outpostDeliveryBiomeMask, "outpost delivery biome mask", error))) {
+            return std::nullopt;
+        }
+        if (version >= 16 &&
+            (!readValue(input, snapshot.productionTotals.scrapRecovered, "scrap recovered total", error) ||
+                !readValue(input, snapshot.productionTotals.scrapRecycled, "scrap recycled total", error))) {
             return std::nullopt;
         }
     }

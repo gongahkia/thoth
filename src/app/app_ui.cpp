@@ -69,6 +69,8 @@ std::string shortItemName(thoth::game::ItemId item)
         return "slime";
     case ItemId::Venom:
         return "venom";
+    case ItemId::Scrap:
+        return "scrap";
     case ItemId::MarshHeart:
         return "m-heart";
     case ItemId::GlassHeart:
@@ -894,6 +896,8 @@ const std::vector<CraftMenuEntry>& craftMenuEntries()
         {"train_stop", ""},
         {"rift_gate", ""},
         {"guard_tower", ""},
+        {"salvage_iron_plate", ""},
+        {"salvage_copper_plate", ""},
     };
     return entries;
 }

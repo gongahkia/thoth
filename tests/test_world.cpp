@@ -974,6 +974,8 @@ void testRichPersistedStateRoundTrip()
     snapshot.productionTotals.outpostDeliveryBiomeMask =
         biomeMaskForTest(thoth::game::BiomeKind::Marsh) |
         biomeMaskForTest(thoth::game::BiomeKind::Desert);
+    snapshot.productionTotals.scrapRecovered = 5;
+    snapshot.productionTotals.scrapRecycled = 2;
 
     Machine belt;
     belt.id = 1;
@@ -1051,6 +1053,8 @@ void testRichPersistedStateRoundTrip()
     require(loaded->productionTotals().outpostDeliveries == 2, "outpost delivery total should persist");
     require(loaded->productionTotals().outpostDeliveryBiomeMask == snapshot.productionTotals.outpostDeliveryBiomeMask,
         "outpost delivery biome mask should persist");
+    require(loaded->productionTotals().scrapRecovered == 5, "scrap recovered total should persist");
+    require(loaded->productionTotals().scrapRecycled == 2, "scrap recycled total should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Marsh), "marsh outpost coverage should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Desert), "desert outpost coverage should persist");
     const auto* loadedFurnace = loaded->machineAt(1, 1);
@@ -1455,15 +1459,37 @@ void testHostilesDamageStructuresDeterministically()
     snapshot.nextMachineId = 2;
     Machine chest;
     chest.id = 1;
-    chest.kind = MachineKind::Chest;
+    chest.kind = MachineKind::PressureRelay;
     chest.x = 1;
     chest.y = 0;
     chest.durability = 1;
+    chest.socketedRelic = ItemId::GlassHeart;
     snapshot.machines = {chest};
     snapshot.entities = {Entity{1, EntityKind::Slime, 0, 0, 0, 2, Direction::East, 0}};
     machineSim.restore(snapshot);
     machineSim.step();
     require(machineSim.machineAt(1, 0) == nullptr, "hostile should destroy weakened adjacent machine");
+    require(machineSim.itemCount(ItemId::Scrap) == 3, "destroyed machine should recover scrap");
+    require(machineSim.itemCount(ItemId::GlassHeart) == 1, "destroyed socketed machine should recover its relic");
+    require(machineSim.productionTotals().scrapRecovered == 3, "scrap recovery total should increment");
+
+    Simulation salvage(20260611);
+    snapshot = salvage.snapshot();
+    snapshot.player.inventory = {ItemStack{ItemId::Scrap, 3}};
+    Machine workbench;
+    workbench.id = 1;
+    workbench.kind = MachineKind::Workbench;
+    workbench.x = 1;
+    workbench.y = 0;
+    snapshot.nextMachineId = 2;
+    snapshot.machines = {workbench};
+    salvage.restore(snapshot);
+    salvage.queue(Command::craft("salvage_iron_plate"));
+    salvage.step();
+    require(salvage.itemCount(ItemId::Scrap) == 0 && salvage.itemCount(ItemId::IronPlate) == 1,
+        "salvage recipe should recycle scrap into a plate");
+    require(salvage.productionTotals().scrapRecycled == 1, "scrap recycled total should increment");
+    require(salvage.productionTotals().ironPlates == 1, "salvaged plate should count as plate production");
 
     Simulation restored(20260611);
     snapshot = restored.snapshot();
@@ -3731,6 +3757,9 @@ void testPlaytestTelemetryText()
         "telemetry should include machine counts");
     require(telemetry.find("\"socketed_relics\"") != std::string::npos,
         "telemetry should include socketed relic count");
+    require(telemetry.find("\"scrap_recovered\"") != std::string::npos &&
+            telemetry.find("\"scrap_recycled\"") != std::string::npos,
+        "telemetry should include salvage economy counters");
     require(telemetry.find("\"marsh\"") != std::string::npos && telemetry.find("\"desert\"") != std::string::npos,
         "telemetry should include activated outpost biomes");
     require(telemetry.find("\"guidance\"") != std::string::npos,

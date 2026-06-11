@@ -136,6 +136,8 @@ struct ProductionTotals {
     int outpostBiomeMask = 0;
     int outpostDeliveries = 0;
     int outpostDeliveryBiomeMask = 0;
+    int scrapRecovered = 0;
+    int scrapRecycled = 0;
 };
 
 struct BiomeContractProgress {

@@ -1514,7 +1514,9 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"bosses_defeated\": " << productionTotals_.bossesDefeated
         << ", \"boss_relics_claimed\": " << productionTotals_.bossRelicsClaimed
         << ", \"outposts_activated\": " << productionTotals_.outpostsActivated
-        << ", \"outpost_deliveries\": " << productionTotals_.outpostDeliveries << "},\n";
+        << ", \"outpost_deliveries\": " << productionTotals_.outpostDeliveries
+        << ", \"scrap_recovered\": " << productionTotals_.scrapRecovered
+        << ", \"scrap_recycled\": " << productionTotals_.scrapRecycled << "},\n";
     out << "  \"entities\": {\"total\": " << entities_.size()
         << ", \"hostile\": " << hostileEntities
         << ", \"active_bosses\": " << activeBosses
@@ -1950,6 +1952,14 @@ void Simulation::craft(std::string_view recipeKey)
     }
 
     addItem(recipe->output.item, recipe->output.count);
+    if (recipe->output.item == ItemId::IronPlate) {
+        productionTotals_.ironPlates += recipe->output.count;
+    } else if (recipe->output.item == ItemId::CopperPlate) {
+        productionTotals_.copperPlates += recipe->output.count;
+    }
+    if (recipeKey == "salvage_iron_plate" || recipeKey == "salvage_copper_plate") {
+        productionTotals_.scrapRecycled += recipe->output.count;
+    }
 }
 
 void Simulation::selectHotbar(int index)
@@ -3893,6 +3903,7 @@ bool Simulation::damageStructureAt(int x, int y, int z, int amount)
     if (auto* machine = machineAt(x, y, z); machine != nullptr) {
         const auto machineId = machine->id;
         const int maxDurability = machineMaxDurability(machine->kind);
+        const auto socketedRelic = machine->socketedRelic;
         if (machine->durability <= 0) {
             machine->durability = maxDurability;
         }
@@ -3901,6 +3912,12 @@ bool Simulation::damageStructureAt(int x, int y, int z, int amount)
             return true;
         }
 
+        const int recoveredScrap = std::max(1, maxDurability / 2);
+        addItem(ItemId::Scrap, recoveredScrap);
+        productionTotals_.scrapRecovered += recoveredScrap;
+        if (socketedRelic != ItemId::None) {
+            addItem(socketedRelic, 1);
+        }
         const auto found = std::find_if(machines_.begin(), machines_.end(), [machineId](const Machine& candidate) {
             return candidate.id == machineId;
         });

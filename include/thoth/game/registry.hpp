@@ -62,6 +62,7 @@ enum class ItemId : std::uint8_t {
     Bone,
     Slime,
     Venom,
+    Scrap,
     MarshHeart,
     GlassHeart,
     WardenCore,

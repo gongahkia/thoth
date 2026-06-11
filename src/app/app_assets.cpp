@@ -1244,6 +1244,7 @@ SpriteId itemSprite(thoth::game::ItemId item)
     case ItemId::CoralShard:
         return SpriteId::TileWater;
     case ItemId::Basalt:
+    case ItemId::Scrap:
     case ItemId::Bone:
         return SpriteId::ItemStone;
     case ItemId::Hide:
@@ -1646,6 +1647,7 @@ Color itemColor(thoth::game::ItemId item)
     case ItemId::IceShard:
         return Color{154, 218, 230, 255};
     case ItemId::Basalt:
+    case ItemId::Scrap:
     case ItemId::Bone:
         return Color{118, 118, 126, 255};
     case ItemId::Crystal:
