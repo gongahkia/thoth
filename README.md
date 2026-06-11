@@ -15,7 +15,7 @@ Thoth is a small-scope "Factorio meets Minecraft" prototype:
 - Automate iron-plus-copper science packs and unlock faster logistics, electric power, circuit inserters, advanced science, and logistic drones.
 - Charge powered archive terminals with beacon cores, then open rift gates to a resource-rich outer dimension band.
 - Fulfill visible supply contracts that turn the sandbox into a clear plate-to-rift objective chain.
-- Manage factory pressure: meaningful science output can attract periodic hostile probes.
+- Push into biome lairs, prepare boss summons with factory output, and defend against pressure with powered guard towers.
 - Save, load, and replay deterministic simulation state.
 
 The renderer is intentionally simple. The engineering focus is a headless deterministic simulation with a practical raylib front end.
@@ -28,7 +28,7 @@ Implemented in C++:
 - Validated data registries for tiles, items, machines, recipes, and technologies.
 - Player movement, mining, placing, inventory, hotbar, and workbench-gated machine crafting.
 - Belts with deterministic item transport and fast belts after research.
-- Chests, provider/requester chests, inserters, circuit inserters, burner miners, furnaces, assemblers, labs, generators, power poles, electric miners, logistic ports, and logistic drones.
+- Chests, provider/requester chests, inserters, circuit inserters, burner miners, furnaces, assemblers, labs, generators, power poles, electric miners, logistic ports, logistic drones, and guard towers.
 - Splitters, train stops, offshore pumps, pipes, water barrels, beacon cores, archive terminals, and rift gates.
 - Finite iron, copper, and coal resource tiles that deplete through miners, with richer ore farther from spawn to create expansion pressure.
 - Iron and copper ore-to-plate resource chains through miners, furnaces, inserters, belts, and chests.
@@ -36,7 +36,9 @@ Implemented in C++:
 - Circuit inserter filters/thresholds and powered provider/requester drone deliveries.
 - Powered archive charging, train-stop cargo hops, pump-to-pipe water movement, and rift-gate travel to a deterministic high-resource outer band.
 - Supply contracts for iron, copper, science, powered mining, logistics, advanced science, archive charging, and rift travel, with an explicit main-objective completion state.
+- Biome contracts, deterministic Marsh/Badlands/Crystal lairs, lair-specific hostile pressure, and three prepared boss summons: Marsh Broodheart, Badlands Warden, and Rift Signal Tyrant.
 - Factory pressure readouts plus deterministic hostile probe spawns once science production makes the factory visible enough to defend.
+- Powered guard towers that target hostile entities deterministically.
 - Deterministic power network recomputation.
 - Plain-text save/load and replay foundation.
 - Headless tests for world generation, registries, automation, chunk-boundary factory lines, rich save/load state, replay, research, power, workbench gating, circuit inserter config, and logistic delivery persistence.
@@ -50,7 +52,7 @@ Still rough:
 - Generated sprite atlas fallback remains available for reference and recovery.
 - Inventory, machine, and build menus have scan-first state labels now, but still need a final visual design pass.
 - Authored audio cue source is present as `assets/audio/thoth_cues.sfx`, with tuned deterministic WAV exports for core work, UI, error, save/load, and production feedback; final live-listening mix polish is still pending.
-- The game now has an explicit completion state, but post-victory play still needs richer reasons to keep optimizing, defending, and expanding.
+- The game now has an explicit completion state and a boss ladder, but post-victory play still needs richer repeatable contracts and better live tuning.
 
 ## Build And Run
 
@@ -220,6 +222,7 @@ Near-term work:
 
 - Polish final visual design and expand recipe configuration only when more machine recipes exist.
 - Polish final atlas styling and the authored WAV cue pack in live play.
-- Deepen post-victory play with optional timed contracts, stronger outpost logistics, and defense tools that make pressure fair to manage.
-- Add more meaningful exploration payoffs in the rift band instead of only richer resource density.
+- Deepen post-victory play with optional timed contracts and stronger outpost logistics.
+- Add bespoke sprite/audio/UI polish for lairs, guard towers, and bosses after live playtesting validates the pacing.
+- Add more meaningful exploration payoffs in the rift band beyond the current late boss gate and richer resource density.
 - Strengthen performance guardrails for larger factories.
