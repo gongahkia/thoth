@@ -361,6 +361,7 @@ Current C++ prototype polish:
 
 - Raylib world view uses a reviewable authored pixel sprite source at `assets/sprites/thoth_atlas.art`, now with second-pass readability polish for terrain, item, machine, and player silhouettes plus deterministic per-coordinate tile tint/flip variants to reduce repeated terrain patterns. It can export to `assets/sprites/thoth_atlas.png` with `make cpp-export-authored-atlas`, still supports `assets/sprites/thoth_atlas.png` as an external override, can export the generated fallback atlas with `F6` or `make cpp-export-atlas`, validates source/exported dimensions with `make cpp-validate-assets`, and layers tick-based belt travel dashes, working-machine pulses, finite-resource richness pips, status dots, on-world issue badges, direction arrows, and progress bars over sprites.
 - HUD shows objective text, guided first-line, science/research, and power-progression checklists with reactive next-step hints, compact inventory status, an expandable inventory grid with hotbar assignment and role badges, an interactive build-menu card grid with ready/need states, faced-machine deposit/take controls with item labels/counts plus 1x/5x/all batch transfer amounts, explicit furnace and assembler recipe selection, compact state/process/action chips, compact recipe/input/resource/power diagnostics and actionable troubleshooting text, machine process-flow strips, ghost placement previews with invalid-reason labels, production milestone feedback, authored audio cue source at `assets/audio/thoth_cues.sfx` with tuned low/mid/bright cue roles, `make cpp-export-authored-audio` WAV export, `make cpp-validate-assets` source/WAV validation, F11 in-app cue audition, generated fallback tones, machine/debug, power, status counts, per-machine issue summaries, simulation tick cost, and hotbar item counts.
+- Gameplay now has supply contracts from first plates through rift travel, a deterministic factory-pressure score with hostile probes after meaningful science production, and an explicit main-objective completion state.
 - The raylib app shell is split into focused app modules for assets/audio, CLI validation/export, input, deterministic preview/window smoke, runtime loop, and UI/rendering, with `src/app/main.cpp` kept as a small dispatch entry point.
 - `assets/replays/ore_to_plate.thothreplay` is a packaged deterministic demo replay for the first automation line, `assets/replays/science_research.thothreplay` proves assembler-to-lab science/research progression, and `assets/replays/full_flow.thothreplay` runs a 60-second mining-to-research-to-electric-mining flow; `make cpp-validate-replays` validates all packaged replays without opening a raylib window.
 - `make cpp-export-media-preview` writes `assets/previews/thoth_full_flow_preview.png` from the full-flow replay without opening a raylib window, giving the project a deterministic screenshot-style artifact for review. `make cpp-smoke-window` opens the actual raylib app, loads the authored visual/audio assets, renders the full-flow replay state, captures `assets/previews/thoth_window_smoke.png`, verifies the capture dimensions, and runs in CI through Xvfb.
@@ -378,10 +379,11 @@ Current vertical-slice blockers:
 
 Beyond-MVP completeness candidates:
 
-- Add a real end condition beyond replay/demo flow, for example a launch/build objective, final milestone chain, or explicit portfolio win state.
-- Extend progression past the current short ladder with more tech tiers, more intermediate parts, and a stronger late-game reason to keep expanding after electric mining/logistics.
-- Add deeper factory tools only after the current loop is polished: splitters, underground belts, richer filters, richer circuit network behavior, fluids/pumps, carts/trains, or larger logistic-network constraints.
-- Add stronger expansion pressure if desired: wider resource distances, terrain pressure, power/fuel constraints, or light hostile/environmental pressure that supports automation instead of distracting from it.
+- Turn supply contracts into a richer campaign spine: optional timed quotas, contract tiers tied to biomes/outposts, and repeatable post-victory optimization targets.
+- Extend progression past the current short ladder with more tech tiers, more intermediate parts, and stronger late-game reasons to keep expanding after electric mining/logistics.
+- Add fair defense tools to match factory pressure: turret-like machines, wall repair loops, pressure reducers, alert UI, and tests proving raids stay deterministic.
+- Add deeper factory tools only after the current loop is polished: underground belts, richer filters, richer circuit network behavior, larger fluid constraints, carts/trains, or larger logistic-network constraints.
+- Make exploration pay off mechanically: rift-only resources, contracts that require remote outposts, and archive secrets that alter factory planning instead of only increasing ore density.
 
 ## Testing Strategy
 
@@ -431,9 +433,10 @@ Mitigation: do not pitch this as a general voxel engine. Pitch it as a complete 
 ## Immediate Next Actions
 
 1. Use manual live play after the Xvfb-backed window smoke to validate authored sprite/audio readability in motion and adjust mix issues that only show up interactively.
-2. Add a clearer explicit win condition after the archive/rift objective chain.
-3. Keep scaling past the current 4,096-machine stress benchmark and optimize the first bottleneck that appears in larger factories.
-4. Add focused tests and benchmarks as new late-game systems land.
+2. Playtest the new supply-contract and pressure loops for pacing: contract thresholds, pressure cadence, spawn distance, and whether walls/terrain make defense readable.
+3. Prototype one matching defense machine before increasing pressure intensity.
+4. Keep scaling past the current 4,096-machine stress benchmark and optimize the first bottleneck that appears in larger factories.
+5. Add focused tests and benchmarks as new late-game systems land.
 
 ## Confidence
 

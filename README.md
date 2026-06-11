@@ -14,6 +14,8 @@ Thoth is a small-scope "Factorio meets Minecraft" prototype:
 - Build an ore-to-plate factory line.
 - Automate iron-plus-copper science packs and unlock faster logistics, electric power, circuit inserters, advanced science, and logistic drones.
 - Charge powered archive terminals with beacon cores, then open rift gates to a resource-rich outer dimension band.
+- Fulfill visible supply contracts that turn the sandbox into a clear plate-to-rift objective chain.
+- Manage factory pressure: meaningful science output can attract periodic hostile probes.
 - Save, load, and replay deterministic simulation state.
 
 The renderer is intentionally simple. The engineering focus is a headless deterministic simulation with a practical raylib front end.
@@ -33,6 +35,8 @@ Implemented in C++:
 - Small tech tree with iron-plus-copper science, advanced science, circuit inserters, logistic networks, and copper-dependent power machines.
 - Circuit inserter filters/thresholds and powered provider/requester drone deliveries.
 - Powered archive charging, train-stop cargo hops, pump-to-pipe water movement, and rift-gate travel to a deterministic high-resource outer band.
+- Supply contracts for iron, copper, science, powered mining, logistics, advanced science, archive charging, and rift travel, with an explicit main-objective completion state.
+- Factory pressure readouts plus deterministic hostile probe spawns once science production makes the factory visible enough to defend.
 - Deterministic power network recomputation.
 - Plain-text save/load and replay foundation.
 - Headless tests for world generation, registries, automation, chunk-boundary factory lines, rich save/load state, replay, research, power, workbench gating, circuit inserter config, and logistic delivery persistence.
@@ -46,7 +50,7 @@ Still rough:
 - Generated sprite atlas fallback remains available for reference and recovery.
 - Inventory, machine, and build menus have scan-first state labels now, but still need a final visual design pass.
 - Authored audio cue source is present as `assets/audio/thoth_cues.sfx`, with tuned deterministic WAV exports for core work, UI, error, save/load, and production feedback; final live-listening mix polish is still pending.
-- The game still needs a stronger explicit win state beyond the current archive/rift objective chain.
+- The game now has an explicit completion state, but post-victory play still needs richer reasons to keep optimizing, defending, and expanding.
 
 ## Build And Run
 
@@ -216,5 +220,6 @@ Near-term work:
 
 - Polish final visual design and expand recipe configuration only when more machine recipes exist.
 - Polish final atlas styling and the authored WAV cue pack in live play.
-- Add a clearer final objective/win milestone after the current research/logistics ladder.
+- Deepen post-victory play with optional timed contracts, stronger outpost logistics, and defense tools that make pressure fair to manage.
+- Add more meaningful exploration payoffs in the rift band instead of only richer resource density.
 - Strengthen performance guardrails for larger factories.
