@@ -1769,7 +1769,7 @@ void Simulation::attack(Direction direction)
         if (entity.x != tx || entity.y != ty || entity.z != player_.z || entity.hp <= 0) {
             continue;
         }
-        entity.hp -= 2;
+        entity.hp -= playerAttackDamage(entity);
         if (entity.hp > 0) {
             return;
         }
@@ -2560,7 +2560,8 @@ void Simulation::updateGuardTowers()
             continue;
         }
 
-        entities_[targetIndex].hp -= 2;
+        const int damage = entities_[targetIndex].kind == EntityKind::BadlandsWarden ? 1 : 2;
+        entities_[targetIndex].hp -= damage;
         machine.progress = 0;
         if (entities_[targetIndex].hp <= 0) {
             defeatEntity(targetIndex);
@@ -3117,6 +3118,16 @@ bool Simulation::isHostile(EntityKind kind) const
         kind == EntityKind::RiftSignalTyrant;
 }
 
+int Simulation::playerAttackDamage(const Entity& entity) const
+{
+    if (entity.kind == EntityKind::GlassMaw &&
+        productionTotals_.pressureWavesRepelled == 0 &&
+        (tick_ % 80U) < 40U) {
+        return 1;
+    }
+    return 2;
+}
+
 ItemId Simulation::entityDrop(EntityKind kind) const
 {
     switch (kind) {
@@ -3440,8 +3451,97 @@ void Simulation::ensureFactoryPressureEntity()
     }
 }
 
+bool Simulation::spawnEntityNear(int x, int y, int z, EntityKind kind, int range)
+{
+    if (entities_.size() >= 80) {
+        return false;
+    }
+    for (int distance = 1; distance <= range; ++distance) {
+        for (int offsetY = -distance; offsetY <= distance; ++offsetY) {
+            for (int offsetX = -distance; offsetX <= distance; ++offsetX) {
+                if (absInt(offsetX) + absInt(offsetY) != distance) {
+                    continue;
+                }
+                const int sx = x + offsetX;
+                const int sy = y + offsetY;
+                if ((sx == player_.x && sy == player_.y && z == player_.z) ||
+                    machineAt(sx, sy, z) != nullptr ||
+                    entityAt(sx, sy, z) != nullptr ||
+                    !world_.isWalkable(sx, sy, z)) {
+                    continue;
+                }
+
+                Entity entity;
+                entity.id = nextEntityId_++;
+                entity.kind = kind;
+                entity.x = sx;
+                entity.y = sy;
+                entity.z = z;
+                entity.hp = entityMaxHp(entity.kind);
+                entity.facing = Direction::South;
+                entity.cooldown = 20;
+                entities_.push_back(entity);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void Simulation::updateBossPhases()
+{
+    struct SpawnRequest {
+        int x = 0;
+        int y = 0;
+        int z = 0;
+        EntityKind kind = EntityKind::Slime;
+        int range = 1;
+    };
+
+    struct PulseRequest {
+        int x = 0;
+        int y = 0;
+        int z = 0;
+    };
+
+    std::vector<SpawnRequest> spawns;
+    std::vector<PulseRequest> frostPulses;
+    for (const auto& entity : entities_) {
+        if (entity.hp <= 0 || entity.z != player_.z || tick_ == 0) {
+            continue;
+        }
+        if (entity.kind == EntityKind::MarshBroodheart &&
+            entity.hp <= entityMaxHp(entity.kind) / 2 &&
+            (tick_ % 90U) == 0U) {
+            spawns.push_back(SpawnRequest{entity.x, entity.y, entity.z, EntityKind::Slime, 3});
+        } else if (entity.kind == EntityKind::FrostNullifier &&
+            (tick_ % 120U) == 0U) {
+            frostPulses.push_back(PulseRequest{entity.x, entity.y, entity.z});
+        } else if (entity.kind == EntityKind::RiftSignalTyrant &&
+            activatedOutpostBiomeCount() < static_cast<int>(kRequiredOutpostBiomes.size()) &&
+            (tick_ % 90U) == 0U) {
+            spawns.push_back(SpawnRequest{entity.x, entity.y, entity.z, EntityKind::RiftStalker, 3});
+        }
+    }
+
+    for (const auto& pulse : frostPulses) {
+        for (auto& machine : machines_) {
+            if (manhattanDistance(machine.x, machine.y, machine.z, pulse.x, pulse.y, pulse.z) > 3) {
+                continue;
+            }
+            machine.progress = 0;
+            machine.status = MachineStatus::MissingPower;
+        }
+    }
+
+    for (const auto& spawn : spawns) {
+        (void)spawnEntityNear(spawn.x, spawn.y, spawn.z, spawn.kind, spawn.range);
+    }
+}
+
 void Simulation::updateEntities()
 {
+    updateBossPhases();
     for (auto& entity : entities_) {
         if (entity.cooldown > 0) {
             --entity.cooldown;

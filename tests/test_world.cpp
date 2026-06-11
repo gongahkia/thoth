@@ -41,6 +41,16 @@ int biomeMaskForTest(thoth::game::BiomeKind biome)
     return 1 << static_cast<int>(biome);
 }
 
+bool containsEntityKind(const thoth::game::Simulation& sim, thoth::game::EntityKind kind)
+{
+    for (const auto& entity : sim.entities()) {
+        if (entity.kind == kind) {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::string canonicalSignature(const thoth::game::Simulation& sim)
 {
     const auto snapshot = sim.snapshot();
@@ -552,7 +562,7 @@ void testGlassBossSummonPersistenceAndReward()
     require(loaded.has_value(), "glass boss load should succeed: " + error);
     require(containsBoss(*loaded), "glass boss save/load should preserve active boss");
 
-    for (int i = 0; i < 9 && containsBoss(*loaded); ++i) {
+    for (int i = 0; i < 17 && containsBoss(*loaded); ++i) {
         for (const auto& entity : loaded->entities()) {
             if (entity.kind == EntityKind::GlassMaw) {
                 loaded->player().x = entity.x + 1;
@@ -564,7 +574,7 @@ void testGlassBossSummonPersistenceAndReward()
         loaded->queue(Command::attack(Direction::West));
         loaded->step();
     }
-    require(!containsBoss(*loaded), "repeated attacks should defeat Glass Maw");
+    require(!containsBoss(*loaded), "unmitigated repeated attacks should defeat hardened Glass Maw");
     require(loaded->itemCount(ItemId::GlassHeart) == 1, "Glass Maw should drop a glass relic");
     require(loaded->productionTotals().bossesDefeated == 1, "Glass Maw should increment boss total");
     require(loaded->productionTotals().bossRelicsClaimed == 1, "Glass Maw should increment relic total");
@@ -1195,6 +1205,146 @@ thoth::game::Machine* placeMachineAtOnTile(
     auto* machine = sim.machineAt(x, y);
     require(machine != nullptr, "placed machine should exist on custom tile");
     return machine;
+}
+
+void testBossPhaseBehaviors()
+{
+    using namespace thoth::game;
+
+    const auto clearBossArena = [](Simulation& sim) {
+        for (int y = 2; y <= 8; ++y) {
+            for (int x = 2; x <= 8; ++x) {
+                sim.world().setTile(x, y, Tile{TileId::Floor, 0});
+            }
+        }
+    };
+
+    Simulation hardenedGlass(20260611);
+    auto snapshot = hardenedGlass.snapshot();
+    snapshot.tick = 1;
+    snapshot.player.x = 0;
+    snapshot.player.y = 0;
+    snapshot.nextEntityId = 2;
+    snapshot.entities = {Entity{1, EntityKind::GlassMaw, 1, 0, 0, 16, Direction::West, 20}};
+    hardenedGlass.restore(snapshot);
+    hardenedGlass.queue(Command::attack(Direction::East));
+    hardenedGlass.step();
+    require(hardenedGlass.entities().size() == 1 && hardenedGlass.entities().front().hp == 15,
+        "unmitigated Glass Maw armor phase should reduce player attack damage");
+
+    Simulation softenedGlass(20260611);
+    snapshot.productionTotals.pressureWavesRepelled = 1;
+    snapshot.entities = {Entity{1, EntityKind::GlassMaw, 1, 0, 0, 16, Direction::West, 20}};
+    softenedGlass.restore(snapshot);
+    softenedGlass.queue(Command::attack(Direction::East));
+    softenedGlass.step();
+    require(softenedGlass.entities().size() == 1 && softenedGlass.entities().front().hp == 14,
+        "pressure relay progress should soften Glass Maw armor");
+
+    Simulation marsh(20260611);
+    snapshot = marsh.snapshot();
+    snapshot.tick = 90;
+    snapshot.player.x = 20;
+    snapshot.player.y = 20;
+    snapshot.nextEntityId = 2;
+    snapshot.entities = {Entity{1, EntityKind::MarshBroodheart, 5, 5, 0, 7, Direction::South, 20}};
+    marsh.restore(snapshot);
+    clearBossArena(marsh);
+    marsh.step();
+    require(containsEntityKind(marsh, EntityKind::Slime), "wounded Broodheart should spawn slime adds on phase cadence");
+
+    Simulation frost(20260611);
+    snapshot = frost.snapshot();
+    snapshot.tick = 120;
+    snapshot.player.x = 20;
+    snapshot.player.y = 20;
+    snapshot.nextEntityId = 2;
+    snapshot.entities = {Entity{1, EntityKind::FrostNullifier, 5, 5, 0, 20, Direction::South, 20}};
+    snapshot.nextMachineId = 3;
+    Machine chest;
+    chest.id = 2;
+    chest.kind = MachineKind::Chest;
+    chest.x = 6;
+    chest.y = 5;
+    chest.progress = 11;
+    chest.status = MachineStatus::Working;
+    snapshot.machines = {chest};
+    frost.restore(snapshot);
+    clearBossArena(frost);
+    frost.step();
+    const auto* chilledChest = frost.machineAt(6, 5);
+    require(chilledChest != nullptr && chilledChest->progress == 0 && chilledChest->status == MachineStatus::MissingPower,
+        "Frost Nullifier phase pulse should stall nearby machine progress");
+
+    Simulation rift(20260611);
+    snapshot = rift.snapshot();
+    snapshot.tick = 90;
+    snapshot.player.x = 20;
+    snapshot.player.y = 20;
+    snapshot.nextEntityId = 2;
+    snapshot.entities = {Entity{1, EntityKind::RiftSignalTyrant, 5, 5, 0, 24, Direction::South, 20}};
+    rift.restore(snapshot);
+    clearBossArena(rift);
+    rift.step();
+    require(containsEntityKind(rift, EntityKind::RiftStalker),
+        "Rift Signal Tyrant should spawn stalkers before outpost biome coverage is complete");
+
+    Simulation coveredRift(20260611);
+    snapshot.productionTotals.outpostBiomeMask =
+        biomeMaskForTest(BiomeKind::Marsh) |
+        biomeMaskForTest(BiomeKind::Desert) |
+        biomeMaskForTest(BiomeKind::Badlands) |
+        biomeMaskForTest(BiomeKind::Snowfield) |
+        biomeMaskForTest(BiomeKind::CrystalField);
+    snapshot.entities = {Entity{1, EntityKind::RiftSignalTyrant, 5, 5, 0, 24, Direction::South, 20}};
+    coveredRift.restore(snapshot);
+    clearBossArena(coveredRift);
+    coveredRift.step();
+    require(!containsEntityKind(coveredRift, EntityKind::RiftStalker),
+        "complete outpost biome coverage should suppress Rift Signal Tyrant stalker summons");
+
+    Simulation guardedWarden(20260611);
+    auto* generator = placeMachineAt(guardedWarden, ItemId::Generator, 0, 0, Direction::East);
+    placeMachineAt(guardedWarden, ItemId::PowerPole, 1, 0, Direction::East);
+    auto* guardTower = placeMachineAt(guardedWarden, ItemId::GuardTower, 2, 0, Direction::East);
+    require(generator != nullptr && guardTower != nullptr, "Warden guard tower test machines should place");
+    snapshot = guardedWarden.snapshot();
+    snapshot.player.x = 20;
+    snapshot.player.y = 20;
+    snapshot.nextEntityId = 2;
+    snapshot.entities = {Entity{1, EntityKind::BadlandsWarden, 5, 0, 0, 2, Direction::West, 20}};
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::Generator) {
+            machine.fuelTicks = 200;
+        }
+    }
+    guardedWarden.restore(snapshot);
+    for (int i = 0; i < 45; ++i) {
+        guardedWarden.step();
+    }
+    require(guardedWarden.entities().size() == 1 && guardedWarden.entities().front().hp == 1,
+        "Badlands Warden should resist basic guard tower volleys");
+
+    Simulation arcedWarden(20260611);
+    generator = placeMachineAt(arcedWarden, ItemId::Generator, 0, 0, Direction::East);
+    placeMachineAt(arcedWarden, ItemId::PowerPole, 1, 0, Direction::East);
+    auto* arcTower = placeMachineAt(arcedWarden, ItemId::ArcTower, 2, 0, Direction::East);
+    require(generator != nullptr && arcTower != nullptr, "Warden arc tower test machines should place");
+    snapshot = arcedWarden.snapshot();
+    snapshot.player.x = 20;
+    snapshot.player.y = 20;
+    snapshot.nextEntityId = 2;
+    snapshot.entities = {Entity{1, EntityKind::BadlandsWarden, 9, 0, 0, 4, Direction::West, 20}};
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::Generator) {
+            machine.fuelTicks = 200;
+        }
+    }
+    arcedWarden.restore(snapshot);
+    for (int i = 0; i < 30; ++i) {
+        arcedWarden.step();
+    }
+    require(arcedWarden.entities().empty(), "arc tower should still break Badlands Warden armor");
 }
 
 void stepCommand(thoth::game::Simulation& sim, thoth::game::Command command)
@@ -3271,6 +3421,7 @@ int main()
     testUnderpoweredNetworkStopsElectricMachinesDeterministically();
     testGuardTowerRequiresPowerAndDefeatsHostile();
     testArcTowerHasLongerPoweredRange();
+    testBossPhaseBehaviors();
     testOutpostBeaconRequiresPowerAndBiomeInput();
     testRepairPylonRebuildsAdjacentWallGap();
     testPressureRelayMitigatesFactoryPressure();

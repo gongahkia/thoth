@@ -330,6 +330,8 @@ private:
     void updateRepairPylons();
     void updatePressureRelays();
     void updateArcTowers();
+    void updateBossPhases();
+    [[nodiscard]] bool spawnEntityNear(int x, int y, int z, EntityKind kind, int range);
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y) const;
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y, int z) const;
     [[nodiscard]] bool acceptItemAt(int x, int y, ItemId item);
@@ -361,6 +363,7 @@ private:
     [[nodiscard]] std::vector<std::uint32_t> poweredLogisticPortIds() const;
     [[nodiscard]] bool isWaterTile(TileId id) const;
     [[nodiscard]] bool isHostile(EntityKind kind) const;
+    [[nodiscard]] int playerAttackDamage(const Entity& entity) const;
     [[nodiscard]] ItemId entityDrop(EntityKind kind) const;
     [[nodiscard]] int entityDropCount(EntityKind kind) const;
     [[nodiscard]] int entityMaxHp(EntityKind kind) const;
