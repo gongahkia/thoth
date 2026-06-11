@@ -1590,6 +1590,7 @@ std::string machineHintText(const thoth::game::Simulation& sim, const thoth::gam
     case MachineKind::LogisticPort:
         return "drones " + std::to_string(machine.inventory.count(ItemId::LogisticDrone)) +
             " jobs " + std::to_string(static_cast<int>(sim.logisticJobs().size())) + " " +
+            "scout " + std::to_string(machine.progress) + "/120 " +
             powerNetworkDetail(sim, machine);
     case MachineKind::ArchiveTerminal:
         if (machine.status == MachineStatus::MissingInput) {
@@ -2949,7 +2950,9 @@ void drawMachineFlowStrip(const thoth::game::Simulation& sim, const thoth::game:
     }
     case MachineKind::LogisticPort:
         inputs.push_back(FlowStack{ItemId::LogisticDrone, machine.inventory.count(ItemId::LogisticDrone), 1});
-        detail = "jobs " + std::to_string(static_cast<int>(sim.logisticJobs().size()));
+        inputs.push_back(FlowStack{ItemId::SciencePack, machine.inventory.count(ItemId::SciencePack), 1});
+        detail = "jobs " + std::to_string(static_cast<int>(sim.logisticJobs().size())) +
+            " scout " + std::to_string(machine.progress) + "/120";
         break;
     case MachineKind::ArchiveTerminal:
         inputs.push_back(FlowStack{ItemId::BeaconCore, machine.inventory.count(ItemId::BeaconCore), 1});
@@ -3275,6 +3278,7 @@ void drawHud(const thoth::game::Simulation& sim, const AppState& state)
         appendWrapped(objective, sim.objectiveMarkerText(), 48);
         appendWrapped(objective, objectiveText(sim), 48);
         appendWrapped(objective, sim.factoryDashboardText(), 48);
+        appendWrapped(objective, sim.scoutAutomationText(), 48);
         appendWrapped(objective, sim.currentSupplyContractText(), 48);
         appendWrapped(objective, sim.currentBiomeContractText(), 48);
         appendWrapped(objective, sim.currentOutpostDeliveryText(), 48);

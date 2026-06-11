@@ -180,7 +180,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 18\n";
+    output << "THOTH_SAVE 19\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -279,7 +279,10 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
            << snapshot.productionTotals.pressureEnemiesDefeated << ' '
            << snapshot.productionTotals.pressureWaveRewardsClaimed << ' '
            << snapshot.productionTotals.riftStormsTriggered << ' '
-           << snapshot.productionTotals.riftStormsSurvived << "\n";
+           << snapshot.productionTotals.riftStormsSurvived << ' '
+           << snapshot.productionTotals.scoutDispatches << ' '
+           << snapshot.productionTotals.scoutMaterialsRecovered << ' '
+           << snapshot.productionTotals.scoutedBiomeMask << "\n";
 
     output << "rift_storm "
            << snapshot.riftStorm.severity << ' '
@@ -302,7 +305,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 18)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 19)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -740,6 +743,12 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         if (version >= 18 &&
             (!readValue(input, snapshot.productionTotals.riftStormsTriggered, "rift storm triggered total", error) ||
                 !readValue(input, snapshot.productionTotals.riftStormsSurvived, "rift storm survived total", error))) {
+            return std::nullopt;
+        }
+        if (version >= 19 &&
+            (!readValue(input, snapshot.productionTotals.scoutDispatches, "scout dispatch total", error) ||
+                !readValue(input, snapshot.productionTotals.scoutMaterialsRecovered, "scout material total", error) ||
+                !readValue(input, snapshot.productionTotals.scoutedBiomeMask, "scouted biome mask", error))) {
             return std::nullopt;
         }
     }

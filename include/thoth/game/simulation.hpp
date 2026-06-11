@@ -142,6 +142,9 @@ struct ProductionTotals {
     int pressureWaveRewardsClaimed = 0;
     int riftStormsTriggered = 0;
     int riftStormsSurvived = 0;
+    int scoutDispatches = 0;
+    int scoutMaterialsRecovered = 0;
+    int scoutedBiomeMask = 0;
 };
 
 struct RiftStormState {
@@ -347,6 +350,10 @@ public:
     [[nodiscard]] std::vector<OutpostDeliveryProgress> outpostDeliveryProgress() const;
     [[nodiscard]] int completedOutpostDeliveryContracts() const;
     [[nodiscard]] std::string currentOutpostDeliveryText() const;
+    [[nodiscard]] bool hasScoutedBiome(BiomeKind biome) const;
+    [[nodiscard]] int scoutedBiomeCount() const;
+    [[nodiscard]] std::vector<BiomeKind> scoutedBiomes() const;
+    [[nodiscard]] std::string scoutAutomationText() const;
     [[nodiscard]] int completedBiomeContracts() const;
     [[nodiscard]] std::vector<BiomeContractProgress> biomeContractProgress() const;
     [[nodiscard]] std::string currentBiomeContractText() const;
@@ -400,6 +407,7 @@ private:
     void updateAssemblers();
     void updateLabs();
     void updateLogistics();
+    void updateScoutAutomation(const std::vector<std::uint32_t>& poweredPorts);
     void updateTrainStops();
     void updateFluidPumps();
     void updatePipes();
@@ -438,6 +446,7 @@ private:
     [[nodiscard]] bool isPowerPole(MachineKind kind) const;
     [[nodiscard]] bool isPowerConsumer(MachineKind kind) const;
     [[nodiscard]] bool isLogisticStorage(MachineKind kind) const;
+    [[nodiscard]] BiomeKind scoutTargetBiome(const Machine& port) const;
     [[nodiscard]] int machineMaxDurability(MachineKind kind) const;
     [[nodiscard]] int tileMaxDurability(TileId id) const;
     [[nodiscard]] bool isDamageableStructureTile(TileId id) const;

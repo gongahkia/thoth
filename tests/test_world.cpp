@@ -980,6 +980,11 @@ void testRichPersistedStateRoundTrip()
     snapshot.productionTotals.pressureWaveRewardsClaimed = 1;
     snapshot.productionTotals.riftStormsTriggered = 2;
     snapshot.productionTotals.riftStormsSurvived = 1;
+    snapshot.productionTotals.scoutDispatches = 3;
+    snapshot.productionTotals.scoutMaterialsRecovered = 6;
+    snapshot.productionTotals.scoutedBiomeMask =
+        biomeMaskForTest(thoth::game::BiomeKind::Marsh) |
+        biomeMaskForTest(thoth::game::BiomeKind::Desert);
     snapshot.riftStorm = thoth::game::RiftStormState{3, 45, 120};
 
     Machine belt;
@@ -1064,6 +1069,10 @@ void testRichPersistedStateRoundTrip()
     require(loaded->productionTotals().pressureWaveRewardsClaimed == 1, "pressure reward total should persist");
     require(loaded->productionTotals().riftStormsTriggered == 2, "rift storm trigger total should persist");
     require(loaded->productionTotals().riftStormsSurvived == 1, "rift storm survived total should persist");
+    require(loaded->productionTotals().scoutDispatches == 3, "scout dispatch total should persist");
+    require(loaded->productionTotals().scoutMaterialsRecovered == 6, "scout material total should persist");
+    require(loaded->hasScoutedBiome(thoth::game::BiomeKind::Marsh), "marsh scouting should persist");
+    require(loaded->hasScoutedBiome(thoth::game::BiomeKind::Desert), "desert scouting should persist");
     require(loaded->riftStorm().severity == 3 &&
             loaded->riftStorm().ticksRemaining == 45 &&
             loaded->riftStorm().cooldownTicks == 120,
@@ -3358,6 +3367,52 @@ void testLogisticDeliveryPersistsInFlight()
     require(loaded->productionTotals().logisticDeliveries == 1, "delivery should increment production total");
 }
 
+void testLogisticPortAutomatesScoutDispatches()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    placeMachineAt(sim, ItemId::Generator, 0, 1, Direction::South);
+    placeMachineAt(sim, ItemId::PowerPole, 1, 1, Direction::East);
+    placeMachineAt(sim, ItemId::LogisticPort, 1, 0, Direction::East);
+
+    auto* generator = sim.machineAt(0, 1);
+    auto* port = sim.machineAt(1, 0);
+    require(generator != nullptr && generator->inventory.add(ItemId::Coal, 3), "test should fuel scout generator");
+    require(port != nullptr && port->inventory.add(ItemId::LogisticDrone, 1), "test should add scout drone");
+    require(port->inventory.add(ItemId::SciencePack, 1), "test should add scout science pack");
+
+    sim.step();
+    port = sim.machineAt(1, 0);
+    require(port != nullptr && port->progress > 0, "powered logistic port should start a scout dispatch");
+    require(port->carriedItem == ItemId::ReedFiber, "first scout should target marsh sample recovery");
+    require(port->inventory.count(ItemId::SciencePack) == 0, "scout dispatch should consume science");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_scout_dispatch_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "scout save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    require(loaded.has_value(), "scout load should succeed: " + error);
+    std::filesystem::remove(path);
+    const auto* loadedPort = loaded->machineAt(1, 0);
+    require(loadedPort != nullptr && loadedPort->progress == port->progress &&
+            loadedPort->carriedItem == ItemId::ReedFiber,
+        "in-flight scout dispatch should persist through save/load");
+
+    for (int i = 0; i < 130; ++i) {
+        loaded->step();
+    }
+
+    loadedPort = loaded->machineAt(1, 0);
+    require(loadedPort != nullptr && loadedPort->inventory.count(ItemId::ReedFiber) >= 2,
+        "completed scout should return biome materials to the logistic port");
+    require(loaded->productionTotals().scoutDispatches == 1, "scout dispatch total should increment");
+    require(loaded->productionTotals().scoutMaterialsRecovered == 2, "scout material total should increment");
+    require(loaded->hasScoutedBiome(BiomeKind::Marsh), "completed scout should mark the biome as scouted");
+    require(loaded->scoutAutomationText().find("scouted 1/6") != std::string::npos,
+        "scout text should summarize mapped biome coverage");
+}
+
 void testArchiveTerminalChargesWhenPowered()
 {
     using thoth::game::Direction;
@@ -4003,6 +4058,10 @@ void testPlaytestTelemetryText()
     require(telemetry.find("\"factory_dashboard\"") != std::string::npos &&
             telemetry.find("\"Power\"") != std::string::npos,
         "telemetry should include factory dashboard panels");
+    require(telemetry.find("\"scout_dispatches\"") != std::string::npos &&
+            telemetry.find("\"scouted_biomes\"") != std::string::npos &&
+            telemetry.find("\"scouts\"") != std::string::npos,
+        "telemetry should include scout automation counters and guidance");
     require(telemetry.find("\"marsh\"") != std::string::npos && telemetry.find("\"desert\"") != std::string::npos,
         "telemetry should include activated outpost biomes");
     require(telemetry.find("\"guidance\"") != std::string::npos,
@@ -4238,6 +4297,7 @@ int main()
     testTechChainUnlocksCircuitsAndLogistics();
     testCircuitInserterFilterThresholdAndSaveLoad();
     testLogisticDeliveryPersistsInFlight();
+    testLogisticPortAutomatesScoutDispatches();
     testArchiveTerminalChargesWhenPowered();
     testSplitterAlternatesSideOutputs();
     testTrainStopsTransferItems();

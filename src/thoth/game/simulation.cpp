@@ -20,6 +20,7 @@ constexpr int kPowerMachineReach = 2;
 constexpr int kLogisticPortRange = 4;
 constexpr int kMinLogisticJobTicks = 20;
 constexpr int kMaxLogisticJobTicks = 240;
+constexpr int kScoutDispatchTicks = 120;
 constexpr int kArchiveTerminalTicks = 360;
 constexpr int kTrainStopTicks = 90;
 constexpr int kPumpTicks = 30;
@@ -51,6 +52,15 @@ constexpr std::array<BiomeKind, 5> kRequiredOutpostBiomes{{
     BiomeKind::Badlands,
     BiomeKind::Snowfield,
     BiomeKind::CrystalField,
+}};
+
+constexpr std::array<BiomeKind, 6> kScoutBiomes{{
+    BiomeKind::Marsh,
+    BiomeKind::Desert,
+    BiomeKind::Badlands,
+    BiomeKind::Snowfield,
+    BiomeKind::CrystalField,
+    BiomeKind::Rift,
 }};
 
 int absInt(int value)
@@ -288,6 +298,55 @@ bool isOrganicHazardItem(ItemId item)
         item == ItemId::CactusFiber ||
         item == ItemId::Slime ||
         item == ItemId::Hide;
+}
+
+ItemId scoutRewardForBiome(BiomeKind biome)
+{
+    switch (biome) {
+    case BiomeKind::Marsh:
+        return ItemId::ReedFiber;
+    case BiomeKind::Desert:
+        return ItemId::CactusFiber;
+    case BiomeKind::Badlands:
+        return ItemId::Basalt;
+    case BiomeKind::Snowfield:
+        return ItemId::IceShard;
+    case BiomeKind::CrystalField:
+        return ItemId::Crystal;
+    case BiomeKind::Rift:
+        return ItemId::Scrap;
+    case BiomeKind::Grassland:
+        return ItemId::Wood;
+    }
+    return ItemId::Wood;
+}
+
+int scoutRewardCountForBiome(BiomeKind biome)
+{
+    if (biome == BiomeKind::Rift || biome == BiomeKind::CrystalField) {
+        return 1;
+    }
+    return 2;
+}
+
+std::optional<BiomeKind> scoutBiomeForReward(ItemId item)
+{
+    switch (item) {
+    case ItemId::ReedFiber:
+        return BiomeKind::Marsh;
+    case ItemId::CactusFiber:
+        return BiomeKind::Desert;
+    case ItemId::Basalt:
+        return BiomeKind::Badlands;
+    case ItemId::IceShard:
+        return BiomeKind::Snowfield;
+    case ItemId::Crystal:
+        return BiomeKind::CrystalField;
+    case ItemId::Scrap:
+        return BiomeKind::Rift;
+    default:
+        return std::nullopt;
+    }
 }
 
 bool isHeatSensitiveMachine(MachineKind kind)
@@ -1287,6 +1346,15 @@ std::vector<FactoryDashboardPanel> Simulation::factoryDashboard() const
         false);
 
     addPanel(
+        "exploration",
+        "Exploration",
+        scoutedBiomeCount() >= static_cast<int>(kScoutBiomes.size()) ? "mapped" : "scouting",
+        scoutAutomationText(),
+        scoutedBiomeCount(),
+        static_cast<int>(kScoutBiomes.size()),
+        false);
+
+    addPanel(
         "rift",
         "Rift",
         riftStormActive() ? "storm" : (productionTotals_.riftJumps > 0 ? "open" : "locked"),
@@ -1409,6 +1477,70 @@ std::string Simulation::currentOutpostDeliveryText() const
         }
     }
     return "outpost deliveries complete: all stabilized biomes have accepted local supply";
+}
+
+bool Simulation::hasScoutedBiome(BiomeKind biome) const
+{
+    return hasBiomeMask(productionTotals_.scoutedBiomeMask, biome);
+}
+
+int Simulation::scoutedBiomeCount() const
+{
+    int count = 0;
+    for (const auto biome : kScoutBiomes) {
+        if (hasScoutedBiome(biome)) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+std::vector<BiomeKind> Simulation::scoutedBiomes() const
+{
+    std::vector<BiomeKind> biomes;
+    for (const auto biome : kScoutBiomes) {
+        if (hasScoutedBiome(biome)) {
+            biomes.push_back(biome);
+        }
+    }
+    return biomes;
+}
+
+std::string Simulation::scoutAutomationText() const
+{
+    int poweredPorts = 0;
+    const Machine* activePort = nullptr;
+    const Machine* readyPort = nullptr;
+    for (const auto& machine : machines_) {
+        if (machine.kind != MachineKind::LogisticPort || !isMachinePowered(machine.id)) {
+            continue;
+        }
+        ++poweredPorts;
+        if (machine.progress > 0 && machine.carriedItem != ItemId::None) {
+            activePort = &machine;
+            break;
+        }
+        if (readyPort == nullptr) {
+            readyPort = &machine;
+        }
+    }
+
+    const auto countText = std::to_string(scoutedBiomeCount()) + "/" +
+        std::to_string(kScoutBiomes.size());
+    if (activePort != nullptr) {
+        return "scouts: dispatching " + std::string(toString(activePort->carriedItem)) +
+            " sample " + std::to_string(activePort->progress) + "/" +
+            std::to_string(kScoutDispatchTicks) + "; scouted " + countText;
+    }
+    if (poweredPorts == 0) {
+        return "scouts: offline; power a logistic port with drones and science packs";
+    }
+    if (readyPort != nullptr) {
+        return "scouts: ready from " + std::to_string(poweredPorts) +
+            " powered port(s); next target " + std::string(toString(scoutTargetBiome(*readyPort))) +
+            "; scouted " + countText;
+    }
+    return "scouts: scouted " + countText;
 }
 
 int Simulation::completedBiomeContracts() const
@@ -1741,7 +1873,9 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"pressure_enemies_defeated\": " << productionTotals_.pressureEnemiesDefeated
         << ", \"pressure_wave_rewards_claimed\": " << productionTotals_.pressureWaveRewardsClaimed
         << ", \"rift_storms_triggered\": " << productionTotals_.riftStormsTriggered
-        << ", \"rift_storms_survived\": " << productionTotals_.riftStormsSurvived << "},\n";
+        << ", \"rift_storms_survived\": " << productionTotals_.riftStormsSurvived
+        << ", \"scout_dispatches\": " << productionTotals_.scoutDispatches
+        << ", \"scout_materials_recovered\": " << productionTotals_.scoutMaterialsRecovered << "},\n";
     out << "  \"entities\": {\"total\": " << entities_.size()
         << ", \"hostile\": " << hostileEntities
         << ", \"active_bosses\": " << activeBosses
@@ -1837,10 +1971,20 @@ std::string Simulation::playtestTelemetryText() const
         wroteDeliveryBiome = true;
     }
     out << "],\n";
+    out << "  \"scouted_biomes\": [";
+    const auto scouted = scoutedBiomes();
+    for (std::size_t i = 0; i < scouted.size(); ++i) {
+        if (i > 0) {
+            out << ", ";
+        }
+        out << jsonString(toString(scouted[i]));
+    }
+    out << "],\n";
     out << "  \"guidance\": {\"goal\": " << jsonString(currentDemoGoalText())
         << ", \"supply_contract\": " << jsonString(currentSupplyContractText())
         << ", \"biome_contract\": " << jsonString(currentBiomeContractText())
         << ", \"outpost_delivery\": " << jsonString(currentOutpostDeliveryText())
+        << ", \"scouts\": " << jsonString(scoutAutomationText())
         << ", \"biome_hazard\": " << jsonString(currentBiomeHazardText())
         << ", \"boss_exam\": " << jsonString(currentBossExamText())
         << ", \"pressure_deck\": " << jsonString(pressureEventDeckText())
@@ -3191,7 +3335,8 @@ void Simulation::updateLogistics()
             [portId](const LogisticJob& job) {
                 return job.portId == portId;
             }));
-        int availableDrones = port->inventory.count(ItemId::LogisticDrone) - activeJobs;
+        const int activeScout = port->progress > 0 && port->carriedItem != ItemId::None ? 1 : 0;
+        int availableDrones = port->inventory.count(ItemId::LogisticDrone) - activeJobs - activeScout;
         while (availableDrones > 0) {
             Machine* selectedRequester = nullptr;
             Machine* selectedProvider = nullptr;
@@ -3246,6 +3391,79 @@ void Simulation::updateLogistics()
                 totalTicks});
             --availableDrones;
         }
+    }
+
+    updateScoutAutomation(poweredPorts);
+}
+
+BiomeKind Simulation::scoutTargetBiome(const Machine& port) const
+{
+    for (const auto biome : kScoutBiomes) {
+        if (biome == BiomeKind::Rift && productionTotals_.riftJumps <= 0) {
+            continue;
+        }
+        if (!hasScoutedBiome(biome)) {
+            return biome;
+        }
+    }
+
+    const std::size_t unlockedBiomes = productionTotals_.riftJumps > 0 ? kScoutBiomes.size() : kScoutBiomes.size() - 1;
+    const auto index = static_cast<std::size_t>((tick_ / kScoutDispatchTicks) + port.id) % unlockedBiomes;
+    return kScoutBiomes[index];
+}
+
+void Simulation::updateScoutAutomation(const std::vector<std::uint32_t>& poweredPorts)
+{
+    for (const auto portId : poweredPorts) {
+        auto* port = machineById(portId);
+        if (port == nullptr || port->kind != MachineKind::LogisticPort) {
+            continue;
+        }
+
+        const int activeJobs = static_cast<int>(std::count_if(
+            logisticJobs_.begin(),
+            logisticJobs_.end(),
+            [portId](const LogisticJob& job) {
+                return job.portId == portId;
+            }));
+        const int activeScout = port->progress > 0 && port->carriedItem != ItemId::None ? 1 : 0;
+        const int availableDrones = port->inventory.count(ItemId::LogisticDrone) - activeJobs - activeScout;
+        if (port->progress == 0 && port->carriedItem == ItemId::None) {
+            if (availableDrones <= 0) {
+                port->status = MachineStatus::MissingInput;
+                continue;
+            }
+            if (!port->inventory.consume(ItemId::SciencePack, 1) &&
+                !port->inventory.consume(ItemId::AdvancedSciencePack, 1)) {
+                port->status = MachineStatus::MissingInput;
+                continue;
+            }
+            port->carriedItem = scoutRewardForBiome(scoutTargetBiome(*port));
+        }
+
+        if (port->carriedItem == ItemId::None) {
+            continue;
+        }
+
+        const int charge = 1 + (riftStormActive() ? 1 : 0);
+        port->progress = std::min(port->progress + charge, kScoutDispatchTicks);
+        port->status = MachineStatus::Working;
+        if (port->progress < kScoutDispatchTicks) {
+            continue;
+        }
+
+        const auto biome = scoutBiomeForReward(port->carriedItem).value_or(scoutTargetBiome(*port));
+        const int recovered = scoutRewardCountForBiome(biome);
+        if (!port->inventory.add(port->carriedItem, recovered)) {
+            port->status = MachineStatus::OutputBlocked;
+            continue;
+        }
+        productionTotals_.scoutedBiomeMask |= biomeMask(biome);
+        ++productionTotals_.scoutDispatches;
+        productionTotals_.scoutMaterialsRecovered += recovered;
+        port->progress = 0;
+        port->carriedItem = ItemId::None;
+        port->status = MachineStatus::Idle;
     }
 }
 
