@@ -180,7 +180,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 16\n";
+    output << "THOTH_SAVE 17\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -234,7 +234,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
         output << "entity " << entity.id << ' ' << entityKindToString(entity.kind) << ' '
                << entity.x << ' ' << entity.y << ' ' << entity.z << ' '
                << entity.hp << ' ' << directionToString(entity.facing) << ' '
-               << entity.cooldown << "\n";
+               << entity.cooldown << ' ' << (entity.pressureSpawn ? 1 : 0) << "\n";
     }
 
     output << "research " << (snapshot.activeTech.empty() ? "none" : snapshot.activeTech) << ' '
@@ -275,7 +275,9 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
            << snapshot.productionTotals.outpostDeliveries << ' '
            << snapshot.productionTotals.outpostDeliveryBiomeMask << ' '
            << snapshot.productionTotals.scrapRecovered << ' '
-           << snapshot.productionTotals.scrapRecycled << "\n";
+           << snapshot.productionTotals.scrapRecycled << ' '
+           << snapshot.productionTotals.pressureEnemiesDefeated << ' '
+           << snapshot.productionTotals.pressureWaveRewardsClaimed << "\n";
 
     return true;
 }
@@ -293,7 +295,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 16)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 17)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -571,6 +573,13 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
                 !readValue(input, entity.cooldown, "entity cooldown", error)) {
                 return std::nullopt;
             }
+            if (version >= 17) {
+                int pressureSpawn = 0;
+                if (!readValue(input, pressureSpawn, "entity pressure spawn", error)) {
+                    return std::nullopt;
+                }
+                entity.pressureSpawn = pressureSpawn != 0;
+            }
             const auto parsedKind = entityKindFromKey(kindKey);
             const auto parsedDirection = directionFromKey(facingKey);
             if (!parsedKind || !parsedDirection || entity.id == 0 || entity.hp <= 0) {
@@ -714,6 +723,11 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         if (version >= 16 &&
             (!readValue(input, snapshot.productionTotals.scrapRecovered, "scrap recovered total", error) ||
                 !readValue(input, snapshot.productionTotals.scrapRecycled, "scrap recycled total", error))) {
+            return std::nullopt;
+        }
+        if (version >= 17 &&
+            (!readValue(input, snapshot.productionTotals.pressureEnemiesDefeated, "pressure enemy defeated total", error) ||
+                !readValue(input, snapshot.productionTotals.pressureWaveRewardsClaimed, "pressure wave reward total", error))) {
             return std::nullopt;
         }
     }

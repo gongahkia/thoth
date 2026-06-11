@@ -1103,11 +1103,16 @@ PressureEventCard Simulation::nextPressureEvent() const
 std::string Simulation::pressureEventDeckText() const
 {
     const auto event = nextPressureEvent();
+    const auto rewards = "; pressure kills " +
+        std::to_string(productionTotals_.pressureEnemiesDefeated) +
+        "; rewards claimed " +
+        std::to_string(productionTotals_.pressureWaveRewardsClaimed);
     if (event.spawnCount <= 0) {
-        return "pressure deck: dormant; " + event.effect;
+        return "pressure deck: dormant; " + event.effect + rewards;
     }
     return "pressure deck: " + event.label + " L" + std::to_string(event.severity) +
-        " x" + std::to_string(event.spawnCount) + "; " + event.effect + "; " + event.counterplay;
+        " x" + std::to_string(event.spawnCount) + "; " + event.effect + "; " + event.counterplay +
+        rewards;
 }
 
 bool Simulation::mainObjectiveComplete() const
@@ -1516,7 +1521,9 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"outposts_activated\": " << productionTotals_.outpostsActivated
         << ", \"outpost_deliveries\": " << productionTotals_.outpostDeliveries
         << ", \"scrap_recovered\": " << productionTotals_.scrapRecovered
-        << ", \"scrap_recycled\": " << productionTotals_.scrapRecycled << "},\n";
+        << ", \"scrap_recycled\": " << productionTotals_.scrapRecycled
+        << ", \"pressure_enemies_defeated\": " << productionTotals_.pressureEnemiesDefeated
+        << ", \"pressure_wave_rewards_claimed\": " << productionTotals_.pressureWaveRewardsClaimed << "},\n";
     out << "  \"entities\": {\"total\": " << entities_.size()
         << ", \"hostile\": " << hostileEntities
         << ", \"active_bosses\": " << activeBosses
@@ -4281,7 +4288,24 @@ void Simulation::defeatEntity(std::size_t entityIndex)
         return;
     }
     const auto kind = entities_[entityIndex].kind;
+    const bool pressureSpawn = entities_[entityIndex].pressureSpawn;
     addItem(entityDrop(kind), entityDropCount(kind));
+    if (pressureSpawn) {
+        ++productionTotals_.pressureEnemiesDefeated;
+        ++productionTotals_.scrapRecovered;
+        addItem(ItemId::Scrap, 1);
+
+        if ((productionTotals_.pressureEnemiesDefeated % 3) == 0) {
+            if (factoryPressureLevel() >= 220) {
+                ++productionTotals_.advancedSciencePacks;
+                addItem(ItemId::AdvancedSciencePack, 1);
+            } else {
+                ++productionTotals_.sciencePacks;
+                addItem(ItemId::SciencePack, 1);
+            }
+            ++productionTotals_.pressureWaveRewardsClaimed;
+        }
+    }
     if (kind == EntityKind::MarshBroodheart ||
         kind == EntityKind::GlassMaw ||
         kind == EntityKind::BadlandsWarden ||
@@ -4652,6 +4676,7 @@ void Simulation::ensureFactoryPressureEntity()
             entity.hp = entityMaxHp(entity.kind);
             entity.facing = Direction::South;
             entity.cooldown = 20;
+            entity.pressureSpawn = true;
             entities_.push_back(entity);
             break;
         }

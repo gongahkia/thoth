@@ -976,6 +976,8 @@ void testRichPersistedStateRoundTrip()
         biomeMaskForTest(thoth::game::BiomeKind::Desert);
     snapshot.productionTotals.scrapRecovered = 5;
     snapshot.productionTotals.scrapRecycled = 2;
+    snapshot.productionTotals.pressureEnemiesDefeated = 4;
+    snapshot.productionTotals.pressureWaveRewardsClaimed = 1;
 
     Machine belt;
     belt.id = 1;
@@ -1055,6 +1057,8 @@ void testRichPersistedStateRoundTrip()
         "outpost delivery biome mask should persist");
     require(loaded->productionTotals().scrapRecovered == 5, "scrap recovered total should persist");
     require(loaded->productionTotals().scrapRecycled == 2, "scrap recycled total should persist");
+    require(loaded->productionTotals().pressureEnemiesDefeated == 4, "pressure enemy total should persist");
+    require(loaded->productionTotals().pressureWaveRewardsClaimed == 1, "pressure reward total should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Marsh), "marsh outpost coverage should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Desert), "desert outpost coverage should persist");
     const auto* loadedFurnace = loaded->machineAt(1, 1);
@@ -3660,12 +3664,15 @@ void testFactoryPressureSpawnsHostileProbe()
     sim.step();
 
     bool foundHostile = false;
+    bool foundPressureHostile = false;
     for (const auto& entity : sim.entities()) {
-        foundHostile = foundHostile ||
-            entity.kind == EntityKind::Slime ||
+        const bool hostile = entity.kind == EntityKind::Slime ||
             entity.kind == EntityKind::Skeleton;
+        foundHostile = foundHostile || hostile;
+        foundPressureHostile = foundPressureHostile || (hostile && entity.pressureSpawn);
     }
     require(foundHostile, "factory pressure should spawn a hostile probe on cadence");
+    require(foundPressureHostile, "factory pressure hostiles should be tagged for wave rewards");
     require(sim.player().hp == 20, "pressure probe should not deal immediate spawn damage");
 
     Simulation pending(20260611);
@@ -3704,15 +3711,97 @@ void testFactoryPressureSpawnsHostileProbe()
         "high pressure should draw a multi-spawn event card");
     surge.step();
     int hostileCount = 0;
+    int pressureHostileCount = 0;
     for (const auto& entity : surge.entities()) {
         if (entity.kind == EntityKind::Slime ||
             entity.kind == EntityKind::Skeleton ||
             entity.kind == EntityKind::NullWisp ||
             entity.kind == EntityKind::RiftStalker) {
             ++hostileCount;
+            if (entity.pressureSpawn) {
+                ++pressureHostileCount;
+            }
         }
     }
     require(hostileCount >= 2, "high-pressure event cards should spawn multiple hostiles");
+    require(pressureHostileCount >= 2, "high-pressure event hostiles should be tagged for wave rewards");
+}
+
+void testPressureWaveRewardsAndPersistence()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    auto snapshot = sim.snapshot();
+    snapshot.tick = 1;
+    snapshot.player.x = 0;
+    snapshot.player.y = 0;
+    snapshot.player.facing = Direction::East;
+    snapshot.productionTotals.sciencePacks = 10;
+    snapshot.nextEntityId = 4;
+    snapshot.entities = {
+        Entity{1, EntityKind::Slime, 1, 0, 0, 1, Direction::West, 5, true},
+        Entity{2, EntityKind::Slime, 0, 1, 0, 1, Direction::North, 5, true},
+        Entity{3, EntityKind::Slime, -1, 0, 0, 1, Direction::East, 5, true},
+    };
+    sim.restore(snapshot);
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_pressure_reward_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "pressure reward save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    require(loaded.has_value(), "pressure reward load should succeed: " + error);
+    std::filesystem::remove(path);
+    require(
+        loaded->entities().size() == 3 &&
+            loaded->entities().front().pressureSpawn,
+        "pressure spawn provenance should persist through save/load");
+
+    loaded->queue(Command::attack(Direction::East));
+    loaded->step();
+    loaded->queue(Command::attack(Direction::South));
+    loaded->step();
+    loaded->queue(Command::attack(Direction::West));
+    loaded->step();
+
+    require(loaded->entities().empty(), "three pressure enemies should be defeated");
+    require(loaded->itemCount(ItemId::Scrap) == 3, "pressure kills should recover scrap");
+    require(loaded->itemCount(ItemId::SciencePack) == 1, "every third lower-pressure kill should grant science");
+    require(loaded->productionTotals().scrapRecovered == 3, "pressure scrap should count as recovered scrap");
+    require(loaded->productionTotals().pressureEnemiesDefeated == 3, "pressure kill total should increment");
+    require(loaded->productionTotals().pressureWaveRewardsClaimed == 1, "pressure reward total should increment");
+    require(loaded->productionTotals().sciencePacks == 11, "science reward should advance production pressure");
+
+    Simulation highPressure(20260611);
+    snapshot = highPressure.snapshot();
+    snapshot.tick = 1;
+    snapshot.player.x = 0;
+    snapshot.player.y = 0;
+    snapshot.productionTotals.sciencePacks = 20;
+    snapshot.productionTotals.advancedSciencePacks = 5;
+    snapshot.productionTotals.riftJumps = 1;
+    snapshot.productionTotals.archiveSignals = 1;
+    snapshot.nextEntityId = 4;
+    snapshot.entities = {
+        Entity{1, EntityKind::Skeleton, 1, 0, 0, 1, Direction::West, 5, true},
+        Entity{2, EntityKind::Skeleton, 0, 1, 0, 1, Direction::North, 5, true},
+        Entity{3, EntityKind::Skeleton, -1, 0, 0, 1, Direction::East, 5, true},
+    };
+    highPressure.restore(snapshot);
+
+    highPressure.queue(Command::attack(Direction::East));
+    highPressure.step();
+    highPressure.queue(Command::attack(Direction::South));
+    highPressure.step();
+    highPressure.queue(Command::attack(Direction::West));
+    highPressure.step();
+
+    require(highPressure.itemCount(ItemId::AdvancedSciencePack) == 1,
+        "every third surge-pressure kill should grant advanced science");
+    require(highPressure.productionTotals().advancedSciencePacks == 6,
+        "advanced pressure reward should advance production pressure");
+    require(highPressure.productionTotals().pressureWaveRewardsClaimed == 1,
+        "surge pressure reward should increment reward total");
 }
 
 void testPlaytestTelemetryText()
@@ -3760,6 +3849,9 @@ void testPlaytestTelemetryText()
     require(telemetry.find("\"scrap_recovered\"") != std::string::npos &&
             telemetry.find("\"scrap_recycled\"") != std::string::npos,
         "telemetry should include salvage economy counters");
+    require(telemetry.find("\"pressure_enemies_defeated\"") != std::string::npos &&
+            telemetry.find("\"pressure_wave_rewards_claimed\"") != std::string::npos,
+        "telemetry should include pressure wave reward counters");
     require(telemetry.find("\"marsh\"") != std::string::npos && telemetry.find("\"desert\"") != std::string::npos,
         "telemetry should include activated outpost biomes");
     require(telemetry.find("\"guidance\"") != std::string::npos,
@@ -4006,6 +4098,7 @@ int main()
     testDungeonGenerationAndEntityCombatSaveLoad();
     testSupplyContractProgression();
     testFactoryPressureSpawnsHostileProbe();
+    testPressureWaveRewardsAndPersistence();
     testPlaytestTelemetryText();
     testBiomeHazardsAffectMachines();
     testBiomeContractProgression();
