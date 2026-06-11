@@ -2226,6 +2226,8 @@ Color entityColor(thoth::game::EntityKind kind)
         return Color{132, 226, 122, 255};
     case EntityKind::BadlandsWarden:
         return Color{188, 126, 84, 255};
+    case EntityKind::RiftSignalTyrant:
+        return Color{204, 126, 255, 255};
     }
     return Color{220, 220, 220, 255};
 }

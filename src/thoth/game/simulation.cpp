@@ -1275,7 +1275,9 @@ void Simulation::interact(Direction direction)
     }
 
     if (tile.id == TileId::StairsDown &&
-        (trySummonMarshBoss(tx, ty, player_.z) || trySummonBadlandsBoss(tx, ty, player_.z))) {
+        (trySummonMarshBoss(tx, ty, player_.z) ||
+            trySummonBadlandsBoss(tx, ty, player_.z) ||
+            trySummonRiftBoss(tx, ty, player_.z))) {
         return;
     }
 
@@ -1409,6 +1411,70 @@ bool Simulation::trySummonBadlandsBoss(int x, int y, int z)
     addItem(ItemId::Basalt, 4);
     addItem(ItemId::IronPlate, 4);
     addItem(ItemId::AdvancedSciencePack, 1);
+    return true;
+}
+
+bool Simulation::trySummonRiftBoss(int x, int y, int z)
+{
+    const auto lair = world_.lairAt(x, y, z);
+    if (!lair || *lair != LairKind::CrystalVault) {
+        return false;
+    }
+    if (productionTotals_.archiveSignals <= 0 || productionTotals_.riftJumps <= 0) {
+        return false;
+    }
+    for (const auto& entity : entities_) {
+        if (entity.kind == EntityKind::RiftSignalTyrant && entity.hp > 0) {
+            return true;
+        }
+    }
+    if (!player_.inventory.canConsume(ItemId::BeaconCore, 1) ||
+        !player_.inventory.canConsume(ItemId::Crystal, 2) ||
+        !player_.inventory.canConsume(ItemId::AdvancedSciencePack, 2)) {
+        return false;
+    }
+
+    const auto consumedCore = consumeItem(ItemId::BeaconCore, 1);
+    const auto consumedCrystal = consumeItem(ItemId::Crystal, 2);
+    const auto consumedScience = consumeItem(ItemId::AdvancedSciencePack, 2);
+    (void)consumedCore;
+    (void)consumedCrystal;
+    (void)consumedScience;
+
+    constexpr std::array<std::pair<int, int>, 8> kOffsets{{
+        {-2, 0},
+        {2, 0},
+        {0, -2},
+        {0, 2},
+        {-2, -1},
+        {2, 1},
+        {-1, 2},
+        {1, -2},
+    }};
+    for (const auto& [offsetX, offsetY] : kOffsets) {
+        const int sx = x + offsetX;
+        const int sy = y + offsetY;
+        if (world_.lairAt(sx, sy, z) != lair ||
+            !world_.isWalkable(sx, sy, z) ||
+            entityAt(sx, sy, z) != nullptr ||
+            machineAt(sx, sy, z) != nullptr) {
+            continue;
+        }
+        Entity boss;
+        boss.id = nextEntityId_++;
+        boss.kind = EntityKind::RiftSignalTyrant;
+        boss.x = sx;
+        boss.y = sy;
+        boss.z = z;
+        boss.hp = entityMaxHp(boss.kind);
+        boss.facing = Direction::South;
+        boss.cooldown = 50;
+        entities_.push_back(boss);
+        return true;
+    }
+    addItem(ItemId::BeaconCore, 1);
+    addItem(ItemId::Crystal, 2);
+    addItem(ItemId::AdvancedSciencePack, 2);
     return true;
 }
 
@@ -2597,7 +2663,8 @@ bool Simulation::isHostile(EntityKind kind) const
         kind == EntityKind::CaveCrawler ||
         kind == EntityKind::DungeonSentinel ||
         kind == EntityKind::MarshBroodheart ||
-        kind == EntityKind::BadlandsWarden;
+        kind == EntityKind::BadlandsWarden ||
+        kind == EntityKind::RiftSignalTyrant;
 }
 
 ItemId Simulation::entityDrop(EntityKind kind) const
@@ -2623,6 +2690,8 @@ ItemId Simulation::entityDrop(EntityKind kind) const
         return ItemId::Venom;
     case EntityKind::BadlandsWarden:
         return ItemId::Bone;
+    case EntityKind::RiftSignalTyrant:
+        return ItemId::Crystal;
     }
     return ItemId::None;
 }
@@ -2634,6 +2703,8 @@ int Simulation::entityDropCount(EntityKind kind) const
         return 4;
     case EntityKind::BadlandsWarden:
         return 6;
+    case EntityKind::RiftSignalTyrant:
+        return 8;
     case EntityKind::Deer:
     case EntityKind::Chicken:
     case EntityKind::Crab:
@@ -2666,6 +2737,8 @@ int Simulation::entityMaxHp(EntityKind kind) const
         return 14;
     case EntityKind::BadlandsWarden:
         return 18;
+    case EntityKind::RiftSignalTyrant:
+        return 24;
     }
     return 1;
 }
@@ -2677,7 +2750,9 @@ void Simulation::defeatEntity(std::size_t entityIndex)
     }
     const auto kind = entities_[entityIndex].kind;
     addItem(entityDrop(kind), entityDropCount(kind));
-    if (kind == EntityKind::MarshBroodheart || kind == EntityKind::BadlandsWarden) {
+    if (kind == EntityKind::MarshBroodheart ||
+        kind == EntityKind::BadlandsWarden ||
+        kind == EntityKind::RiftSignalTyrant) {
         ++productionTotals_.bossesDefeated;
     }
     ++productionTotals_.creaturesDefeated;

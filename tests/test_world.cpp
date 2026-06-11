@@ -478,6 +478,78 @@ void testBadlandsBossSummonPersistenceAndReward()
     require(loaded->productionTotals().bossesDefeated == 1, "Badlands Warden should increment boss total");
 }
 
+void testRiftBossRequiresArchiveAndRiftProgress()
+{
+    using namespace thoth::game;
+
+    const auto containsBoss = [](const Simulation& sim) {
+        for (const auto& entity : sim.entities()) {
+            if (entity.kind == EntityKind::RiftSignalTyrant) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    Simulation blocked(20260611);
+    auto snapshot = blocked.snapshot();
+    snapshot.player.x = -37;
+    snapshot.player.y = 20;
+    snapshot.player.inventory = {
+        ItemStack{ItemId::BeaconCore, 1},
+        ItemStack{ItemId::Crystal, 2},
+        ItemStack{ItemId::AdvancedSciencePack, 2},
+    };
+    blocked.restore(snapshot);
+    blocked.queue(Command::interact(Direction::East));
+    blocked.step();
+    require(!containsBoss(blocked), "rift boss should not summon before archive and rift progress");
+
+    Simulation sim(20260611);
+    snapshot = sim.snapshot();
+    snapshot.player.x = -37;
+    snapshot.player.y = 20;
+    snapshot.productionTotals.archiveSignals = 1;
+    snapshot.productionTotals.riftJumps = 1;
+    snapshot.player.inventory = {
+        ItemStack{ItemId::BeaconCore, 1},
+        ItemStack{ItemId::Crystal, 2},
+        ItemStack{ItemId::AdvancedSciencePack, 2},
+    };
+    sim.restore(snapshot);
+
+    sim.queue(Command::interact(Direction::East));
+    sim.step();
+    require(containsBoss(sim), "prepared crystal vault interaction should summon Rift Signal Tyrant");
+    require(sim.itemCount(ItemId::BeaconCore) == 0, "Rift boss summon should consume beacon core");
+    require(sim.itemCount(ItemId::Crystal) == 0, "Rift boss summon should consume crystals");
+    require(sim.itemCount(ItemId::AdvancedSciencePack) == 0, "Rift boss summon should consume advanced science");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_rift_boss_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "rift boss save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    std::filesystem::remove(path);
+    require(loaded.has_value(), "rift boss load should succeed: " + error);
+    require(containsBoss(*loaded), "rift boss save/load should preserve active boss");
+
+    for (int i = 0; i < 13 && containsBoss(*loaded); ++i) {
+        for (const auto& entity : loaded->entities()) {
+            if (entity.kind == EntityKind::RiftSignalTyrant) {
+                loaded->player().x = entity.x + 1;
+                loaded->player().y = entity.y;
+                loaded->player().z = entity.z;
+                break;
+            }
+        }
+        loaded->queue(Command::attack(Direction::West));
+        loaded->step();
+    }
+    require(!containsBoss(*loaded), "repeated attacks should defeat Rift Signal Tyrant");
+    require(loaded->itemCount(ItemId::Crystal) == 8, "Rift Signal Tyrant should drop crystal reward bundle");
+    require(loaded->productionTotals().bossesDefeated == 1, "Rift Signal Tyrant should increment boss total");
+}
+
 void testSimulationMovementAndMining()
 {
     thoth::game::Simulation sim(1);
@@ -2825,6 +2897,7 @@ int main()
     testLairEnemyPressureSpawnsBiomeHostiles();
     testMarshBossSummonPersistenceAndReward();
     testBadlandsBossSummonPersistenceAndReward();
+    testRiftBossRequiresArchiveAndRiftProgress();
     testSimulationMovementAndMining();
     testCraftingHotbarAndPlacement();
     testAssignHotbarCommand();
