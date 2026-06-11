@@ -297,6 +297,33 @@ void testEarlyBiomeTiles()
     require(foundMud, "early world should include mud biome tiles");
 }
 
+void testBiomeLairGeneration()
+{
+    using thoth::game::BiomeKind;
+    using thoth::game::LairKind;
+    using thoth::game::TileId;
+
+    thoth::game::World world(99);
+    require(world.biomeAt(0, 18) == BiomeKind::Marsh, "marsh lair should sit in early marsh");
+    require(world.biomeAt(36, 20) == BiomeKind::Badlands, "badlands lair should sit in early badlands");
+    require(world.biomeAt(-36, 20) == BiomeKind::CrystalField, "crystal lair should sit in early crystal field");
+
+    require(world.lairAt(0, 18).has_value() && *world.lairAt(0, 18) == LairKind::MarshHive,
+        "marsh hive center should report lair identity");
+    require(world.lairAt(36, 20).has_value() && *world.lairAt(36, 20) == LairKind::BadlandsFoundry,
+        "badlands foundry center should report lair identity");
+    require(world.lairAt(-36, 20).has_value() && *world.lairAt(-36, 20) == LairKind::CrystalVault,
+        "crystal vault center should report lair identity");
+    require(!world.lairAt(60, 60).has_value(), "ordinary terrain should not report a lair");
+    require(thoth::game::toString(LairKind::CrystalVault) == "crystal_vault", "lair key should be stable");
+
+    require(world.getTile(0, 18).id == TileId::StairsDown, "lair center should be an entrance");
+    require(world.getTile(1, 18).id == TileId::DungeonFloor, "lair interior should be walkable floor");
+    require(world.getTile(5, 18).id == TileId::DungeonWall, "lair perimeter should be wall");
+    require(world.getTile(-35, 20).id == TileId::Crystal, "crystal vault should expose crystal rewards");
+    require(world.getTile(37, 20).id == TileId::Basalt, "badlands foundry should expose basalt rewards");
+}
+
 void testSimulationMovementAndMining()
 {
     thoth::game::Simulation sim(1);
@@ -2606,6 +2633,7 @@ int main()
     testChunkBoundaryMutation();
     testStarterResources();
     testEarlyBiomeTiles();
+    testBiomeLairGeneration();
     testSimulationMovementAndMining();
     testCraftingHotbarAndPlacement();
     testAssignHotbarCommand();

@@ -5,6 +5,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -21,6 +22,12 @@ enum class BiomeKind : std::uint8_t {
     Badlands,
     CrystalField,
     Rift,
+};
+
+enum class LairKind : std::uint8_t {
+    MarshHive,
+    BadlandsFoundry,
+    CrystalVault,
 };
 
 struct Tile {
@@ -58,6 +65,7 @@ public:
     [[nodiscard]] bool isWalkable(int x, int y) const;
     [[nodiscard]] bool isWalkable(int x, int y, int z) const;
     [[nodiscard]] BiomeKind biomeAt(int x, int y, int z = 0) const;
+    [[nodiscard]] std::optional<LairKind> lairAt(int x, int y, int z = 0) const;
     [[nodiscard]] std::size_t loadedChunkCount() const;
     [[nodiscard]] std::vector<TileSnapshot> loadedTiles() const;
     void clearLoadedChunks();
@@ -76,5 +84,6 @@ private:
 [[nodiscard]] int floorDiv(int value, int divisor);
 [[nodiscard]] int floorMod(int value, int divisor);
 [[nodiscard]] std::string_view toString(BiomeKind biome);
+[[nodiscard]] std::string_view toString(LairKind lair);
 
 } // namespace thoth::game

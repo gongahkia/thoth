@@ -23,6 +23,20 @@ struct PatchHit {
     int radius = 0;
 };
 
+struct LairStamp {
+    LairKind kind = LairKind::MarshHive;
+    int centerX = 0;
+    int centerY = 0;
+};
+
+constexpr int kLairRadius = 5;
+
+constexpr std::array<LairStamp, 3> kLairStamps{{
+    {LairKind::MarshHive, 0, 18},
+    {LairKind::BadlandsFoundry, 36, 20},
+    {LairKind::CrystalVault, -36, 20},
+}};
+
 int resourceRichness(std::uint64_t seed, int x, int y)
 {
     const auto richness = thoth::core::hashCoordinates(seed ^ 0x51c3a5edULL, x, y);
@@ -71,6 +85,17 @@ bool sparsePatchDetail(std::uint64_t seed, int x, int y, int threshold)
     return static_cast<int>(thoth::core::hashCoordinates(seed, x, y) % 1000U) < threshold;
 }
 
+std::optional<LairStamp> lairStampAt(int x, int y)
+{
+    for (const auto& lair : kLairStamps) {
+        if (std::abs(x - lair.centerX) <= kLairRadius &&
+            std::abs(y - lair.centerY) <= kLairRadius) {
+            return lair;
+        }
+    }
+    return std::nullopt;
+}
+
 void selectBiome(PatchHit hit, BiomeKind candidate, PatchHit& bestHit, BiomeKind& biome)
 {
     if (hit.hit && (!bestHit.hit || hit.distanceSquared < bestHit.distanceSquared)) {
@@ -89,6 +114,12 @@ BiomeKind generatedBiomeAt(std::uint64_t seed, int x, int y)
     }
     if (inside(x, -8, 8) && inside(y, 8, 22)) {
         return BiomeKind::Marsh;
+    }
+    if (inside(x, 28, 44) && inside(y, 12, 28)) {
+        return BiomeKind::Badlands;
+    }
+    if (inside(x, -44, -28) && inside(y, 12, 28)) {
+        return BiomeKind::CrystalField;
     }
 
     PatchHit bestHit;
@@ -192,6 +223,19 @@ std::string_view toString(BiomeKind biome)
     return "grassland";
 }
 
+std::string_view toString(LairKind lair)
+{
+    switch (lair) {
+    case LairKind::MarshHive:
+        return "marsh_hive";
+    case LairKind::BadlandsFoundry:
+        return "badlands_foundry";
+    case LairKind::CrystalVault:
+        return "crystal_vault";
+    }
+    return "marsh_hive";
+}
+
 World::World(std::uint64_t seed)
     : seed_(seed)
 {
@@ -270,6 +314,18 @@ BiomeKind World::biomeAt(int x, int y, int z) const
         return BiomeKind::Rift;
     }
     return generatedBiomeAt(seed_, x, y);
+}
+
+std::optional<LairKind> World::lairAt(int x, int y, int z) const
+{
+    if (z != 0) {
+        return std::nullopt;
+    }
+    const auto lair = lairStampAt(x, y);
+    if (!lair) {
+        return std::nullopt;
+    }
+    return lair->kind;
 }
 
 std::size_t World::loadedChunkCount() const
@@ -393,6 +449,28 @@ Tile World::generateTile(int x, int y, int z) const
     }
     if (inside(x, -2, 9) && inside(y, -3, 3)) {
         return Tile{TileId::Grass, 0};
+    }
+
+    if (const auto lair = lairStampAt(x, y)) {
+        const int localX = std::abs(x - lair->centerX);
+        const int localY = std::abs(y - lair->centerY);
+        if (localX == kLairRadius || localY == kLairRadius) {
+            return Tile{TileId::DungeonWall, 0};
+        }
+        if (localX == 0 && localY == 0) {
+            return Tile{TileId::StairsDown, 0};
+        }
+        if (lair->kind == LairKind::MarshHive &&
+            ((localX == 3 && localY <= 2) || (localY == 3 && localX <= 2))) {
+            return Tile{TileId::Reeds, 1};
+        }
+        if (lair->kind == LairKind::CrystalVault && localX <= 1 && localY <= 1) {
+            return Tile{TileId::Crystal, 1};
+        }
+        if (lair->kind == LairKind::BadlandsFoundry && localX <= 1 && localY <= 1) {
+            return Tile{TileId::Basalt, 2};
+        }
+        return Tile{TileId::DungeonFloor, 0};
     }
 
     if (std::abs(x) >= kRiftOffset - 256) {
