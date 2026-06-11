@@ -3568,6 +3568,61 @@ void testRiftStormsAffectRiftGatesAndPressureDeck()
         "Rift Crown sockets should suppress gate-leaked storm stalkers");
 }
 
+void testFactoryDashboardSummarizesActionableSystems()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    placeMachineAt(sim, ItemId::PowerPole, 0, 1, Direction::South);
+    placeMachineAtOnTile(sim, ItemId::ElectricMiner, 1, 1, Direction::East, Tile{TileId::IronOre, 2});
+
+    auto snapshot = sim.snapshot();
+    snapshot.tick = 299;
+    snapshot.player.x = 0;
+    snapshot.player.y = 0;
+    snapshot.productionTotals.sciencePacks = 10;
+    snapshot.productionTotals.riftJumps = 1;
+    snapshot.riftStorm = RiftStormState{2, 80, 120};
+    snapshot.entities = {
+        Entity{100, EntityKind::Skeleton, 5, 5, 0, 2, Direction::South, 20},
+    };
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::ElectricMiner) {
+            machine.durability = 1;
+        }
+    }
+    sim.restore(snapshot);
+    sim.step();
+
+    const auto panels = sim.factoryDashboard();
+    const auto findPanel = [&panels](std::string_view key) -> const FactoryDashboardPanel* {
+        for (const auto& panel : panels) {
+            if (panel.key == key) {
+                return &panel;
+            }
+        }
+        return nullptr;
+    };
+
+    const auto* power = findPanel("power");
+    require(power != nullptr && power->urgent && power->status == "underpowered",
+        "dashboard should flag underpowered factory networks");
+    const auto* pressure = findPanel("pressure");
+    require(pressure != nullptr && pressure->urgent && pressure->status == "raid-ready",
+        "dashboard should flag imminent pressure waves");
+    const auto* defense = findPanel("defense");
+    require(defense != nullptr && defense->urgent && defense->current >= 1,
+        "dashboard should flag active hostiles");
+    const auto* repairs = findPanel("repairs");
+    require(repairs != nullptr && repairs->urgent && repairs->current >= 1,
+        "dashboard should flag damaged machines or structures");
+    const auto* rift = findPanel("rift");
+    require(rift != nullptr && rift->urgent && rift->status == "storm",
+        "dashboard should flag active rift storms");
+    require(sim.factoryDashboardText().find("urgent") != std::string::npos,
+        "dashboard summary should prioritize urgent panels");
+}
+
 void testBiomeMaterialsAndBiomeCrafting()
 {
     using namespace thoth::game;
@@ -3945,6 +4000,9 @@ void testPlaytestTelemetryText()
     require(telemetry.find("\"rift_storm\"") != std::string::npos &&
             telemetry.find("\"rift_storms_triggered\"") != std::string::npos,
         "telemetry should include rift storm state and counters");
+    require(telemetry.find("\"factory_dashboard\"") != std::string::npos &&
+            telemetry.find("\"Power\"") != std::string::npos,
+        "telemetry should include factory dashboard panels");
     require(telemetry.find("\"marsh\"") != std::string::npos && telemetry.find("\"desert\"") != std::string::npos,
         "telemetry should include activated outpost biomes");
     require(telemetry.find("\"guidance\"") != std::string::npos,
@@ -4186,6 +4244,7 @@ int main()
     testPumpPipeMovesWaterBarrels();
     testRiftGateTeleportsToOuterDimensionBand();
     testRiftStormsAffectRiftGatesAndPressureDeck();
+    testFactoryDashboardSummarizesActionableSystems();
     testBiomeMaterialsAndBiomeCrafting();
     testBoatTraversalAndExit();
     testHouseDoorAndLayerStairs();

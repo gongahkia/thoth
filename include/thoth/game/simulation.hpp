@@ -150,6 +150,16 @@ struct RiftStormState {
     int cooldownTicks = 0;
 };
 
+struct FactoryDashboardPanel {
+    std::string key;
+    std::string label;
+    std::string status;
+    std::string detail;
+    int current = 0;
+    int target = 0;
+    bool urgent = false;
+};
+
 struct BiomeContractProgress {
     BiomeKind biome = BiomeKind::Grassland;
     std::string label;
@@ -326,6 +336,8 @@ public:
     [[nodiscard]] std::string pressureEventDeckText() const;
     [[nodiscard]] const RiftStormState& riftStorm() const;
     [[nodiscard]] std::string riftStormText() const;
+    [[nodiscard]] std::vector<FactoryDashboardPanel> factoryDashboard() const;
+    [[nodiscard]] std::string factoryDashboardText() const;
     [[nodiscard]] bool mainObjectiveComplete() const;
     [[nodiscard]] bool hasActivatedOutpostBiome(BiomeKind biome) const;
     [[nodiscard]] int activatedOutpostBiomeCount() const;

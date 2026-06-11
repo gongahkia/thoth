@@ -1142,6 +1142,188 @@ std::string Simulation::riftStormText() const
     return "rift storm: charged; deep rift travel or lingering in the rift band can trigger the next storm";
 }
 
+std::vector<FactoryDashboardPanel> Simulation::factoryDashboard() const
+{
+    std::vector<FactoryDashboardPanel> panels;
+    panels.reserve(7);
+    const auto addPanel = [&panels](
+                              std::string key,
+                              std::string label,
+                              std::string status,
+                              std::string detail,
+                              int current,
+                              int target,
+                              bool urgent) {
+        panels.push_back(FactoryDashboardPanel{
+            std::move(key),
+            std::move(label),
+            std::move(status),
+            std::move(detail),
+            current,
+            target,
+            urgent});
+    };
+
+    int poweredNetworks = 0;
+    int totalPowerSupply = 0;
+    int totalPowerDemand = 0;
+    for (const auto& network : powerNetworks_) {
+        if (network.powered) {
+            ++poweredNetworks;
+        }
+        totalPowerSupply += network.supply;
+        totalPowerDemand += network.demand;
+    }
+    addPanel(
+        "power",
+        "Power",
+        totalPowerDemand == 0 ? "idle" : (totalPowerSupply >= totalPowerDemand ? "stable" : "underpowered"),
+        "networks " + std::to_string(poweredNetworks) + "/" + std::to_string(powerNetworks_.size()) +
+            "; supply " + std::to_string(totalPowerSupply) + "/" + std::to_string(totalPowerDemand),
+        totalPowerSupply,
+        totalPowerDemand,
+        totalPowerDemand > totalPowerSupply);
+
+    const int pressure = factoryPressureLevel();
+    const int ticksUntilWave = ticksUntilNextPressureWave();
+    const bool waveSoon = ticksUntilWave >= 0 && ticksUntilWave <= 30;
+    addPanel(
+        "pressure",
+        "Factory Pressure",
+        pressure >= 220 ? "surge" : (pressure >= 120 ? "raid-ready" : "watched"),
+        ticksUntilWave < 0
+            ? "below wave threshold; " + pressureEventDeckText()
+            : "next wave in " + std::to_string(ticksUntilWave) + " ticks; " + pressureEventDeckText(),
+        pressure,
+        pressure >= 220 ? 320 : 120,
+        pressure >= 220 || waveSoon);
+
+    int hostileEntities = 0;
+    int activeBosses = 0;
+    for (const auto& entity : entities_) {
+        if (isHostile(entity.kind)) {
+            ++hostileEntities;
+        }
+        if (entity.kind == EntityKind::MarshBroodheart ||
+            entity.kind == EntityKind::GlassMaw ||
+            entity.kind == EntityKind::BadlandsWarden ||
+            entity.kind == EntityKind::FrostNullifier ||
+            entity.kind == EntityKind::RiftSignalTyrant) {
+            ++activeBosses;
+        }
+    }
+    addPanel(
+        "defense",
+        "Defense",
+        activeBosses > 0 ? "boss" : (hostileEntities > 0 ? "hostiles" : "clear"),
+        "hostiles " + std::to_string(hostileEntities) +
+            "; bosses " + std::to_string(activeBosses) +
+            "; pressure kills " + std::to_string(productionTotals_.pressureEnemiesDefeated),
+        hostileEntities,
+        0,
+        hostileEntities > 0 || activeBosses > 0);
+
+    int damagedMachines = 0;
+    for (const auto& machine : machines_) {
+        const int maxDurability = machineMaxDurability(machine.kind);
+        if (machine.durability > 0 && machine.durability < maxDurability) {
+            ++damagedMachines;
+        }
+    }
+    int damagedStructureTiles = 0;
+    for (const auto& tile : world_.loadedTiles()) {
+        if (isDamageableStructureTile(tile.tile.id) && tile.tile.data > 0) {
+            ++damagedStructureTiles;
+        }
+    }
+    const int damagedAssets = damagedMachines + damagedStructureTiles;
+    addPanel(
+        "repairs",
+        "Repairs",
+        damagedAssets > 0 ? "damaged" : "stable",
+        "machines " + std::to_string(damagedMachines) +
+            "; structures " + std::to_string(damagedStructureTiles),
+        damagedAssets,
+        0,
+        damagedAssets > 0);
+
+    const auto bossExams = bossExamProgress();
+    const int completedBossExams = static_cast<int>(std::count_if(
+        bossExams.begin(),
+        bossExams.end(),
+        [](const BossExamProgress& exam) {
+            return exam.complete;
+        }));
+    const int completedProgress =
+        completedSupplyContracts() +
+        completedBiomeContracts() +
+        completedOutpostDeliveryContracts() +
+        completedBossExams;
+    const int totalProgress =
+        totalSupplyContracts() +
+        static_cast<int>(biomeContractProgress().size()) +
+        static_cast<int>(outpostDeliveryProgress().size()) +
+        static_cast<int>(bossExams.size());
+    addPanel(
+        "progression",
+        "Progression",
+        completedProgress >= totalProgress ? "complete" : "in-progress",
+        currentSupplyContractText() + "; " + currentBossExamText(),
+        completedProgress,
+        totalProgress,
+        false);
+
+    const int logisticsCurrent = productionTotals_.logisticDeliveries + productionTotals_.outpostDeliveries;
+    const int logisticsTarget = 3 + static_cast<int>(outpostDeliveryProgress().size());
+    addPanel(
+        "logistics",
+        "Logistics",
+        logisticJobs_.empty() ? "idle" : "moving",
+        "jobs " + std::to_string(logisticJobs_.size()) +
+            "; deliveries " + std::to_string(productionTotals_.logisticDeliveries) +
+            "; outposts " + std::to_string(productionTotals_.outpostDeliveries),
+        logisticsCurrent,
+        logisticsTarget,
+        false);
+
+    addPanel(
+        "rift",
+        "Rift",
+        riftStormActive() ? "storm" : (productionTotals_.riftJumps > 0 ? "open" : "locked"),
+        riftStormText(),
+        productionTotals_.riftJumps,
+        2,
+        riftStormActive());
+
+    return panels;
+}
+
+std::string Simulation::factoryDashboardText() const
+{
+    const auto panels = factoryDashboard();
+    const auto urgent = std::find_if(
+        panels.begin(),
+        panels.end(),
+        [](const FactoryDashboardPanel& panel) {
+            return panel.urgent;
+        });
+    if (urgent != panels.end()) {
+        return "dashboard: urgent " + urgent->label + " (" + urgent->status + "); " + urgent->detail;
+    }
+
+    const auto incomplete = std::find_if(
+        panels.begin(),
+        panels.end(),
+        [](const FactoryDashboardPanel& panel) {
+            return panel.target > 0 && panel.current < panel.target;
+        });
+    if (incomplete != panels.end()) {
+        return "dashboard: next " + incomplete->label + " (" + incomplete->status + "); " + incomplete->detail;
+    }
+
+    return "dashboard: all tracked systems stable";
+}
+
 bool Simulation::mainObjectiveComplete() const
 {
     return productionTotals_.riftJumps > 0 &&
@@ -1609,6 +1791,26 @@ std::string Simulation::playtestTelemetryText() const
             << ", \"mitigation\": " << jsonString(hazard.mitigation) << "}";
     }
     if (!hazards.empty()) {
+        out << "\n  ";
+    }
+    out << "],\n";
+
+    out << "  \"factory_dashboard\": [";
+    const auto dashboardPanels = factoryDashboard();
+    for (std::size_t i = 0; i < dashboardPanels.size(); ++i) {
+        const auto& panel = dashboardPanels[i];
+        if (i > 0) {
+            out << ",";
+        }
+        out << "\n    {\"key\": " << jsonString(panel.key)
+            << ", \"label\": " << jsonString(panel.label)
+            << ", \"status\": " << jsonString(panel.status)
+            << ", \"urgent\": " << (panel.urgent ? "true" : "false")
+            << ", \"current\": " << panel.current
+            << ", \"target\": " << panel.target
+            << ", \"detail\": " << jsonString(panel.detail) << "}";
+    }
+    if (!dashboardPanels.empty()) {
         out << "\n  ";
     }
     out << "],\n";
