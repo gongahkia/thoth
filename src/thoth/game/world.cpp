@@ -31,9 +31,11 @@ struct LairStamp {
 
 constexpr int kLairRadius = 5;
 
-constexpr std::array<LairStamp, 3> kLairStamps{{
+constexpr std::array<LairStamp, 5> kLairStamps{{
     {LairKind::MarshHive, 0, 18},
+    {LairKind::GlassSpire, 18, -2},
     {LairKind::BadlandsFoundry, 36, 20},
+    {LairKind::FrostVault, -18, 0},
     {LairKind::CrystalVault, -36, 20},
 }};
 
@@ -228,8 +230,12 @@ std::string_view toString(LairKind lair)
     switch (lair) {
     case LairKind::MarshHive:
         return "marsh_hive";
+    case LairKind::GlassSpire:
+        return "glass_spire";
     case LairKind::BadlandsFoundry:
         return "badlands_foundry";
+    case LairKind::FrostVault:
+        return "frost_vault";
     case LairKind::CrystalVault:
         return "crystal_vault";
     }
@@ -463,6 +469,14 @@ Tile World::generateTile(int x, int y, int z) const
         if (lair->kind == LairKind::MarshHive &&
             ((localX == 3 && localY <= 2) || (localY == 3 && localX <= 2))) {
             return Tile{TileId::Reeds, 1};
+        }
+        if (lair->kind == LairKind::GlassSpire &&
+            ((localX <= 1 && localY <= 2) || (localY == 3 && localX <= 1))) {
+            return Tile{TileId::Cactus, 1};
+        }
+        if (lair->kind == LairKind::FrostVault &&
+            ((localX <= 1 && localY <= 2) || (localY == 3 && localX <= 1))) {
+            return Tile{TileId::Ice, 1};
         }
         if (lair->kind == LairKind::CrystalVault && localX <= 1 && localY <= 1) {
             return Tile{TileId::Crystal, 1};

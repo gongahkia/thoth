@@ -26,7 +26,9 @@ enum class BiomeKind : std::uint8_t {
 
 enum class LairKind : std::uint8_t {
     MarshHive,
+    GlassSpire,
     BadlandsFoundry,
+    FrostVault,
     CrystalVault,
 };
 
