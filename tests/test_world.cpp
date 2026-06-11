@@ -3511,6 +3511,118 @@ void testPlaytestTelemetryText()
         "telemetry should include activated outpost biomes");
     require(telemetry.find("\"guidance\"") != std::string::npos,
         "telemetry should include current guidance strings");
+    require(telemetry.find("\"biome_hazards\"") != std::string::npos &&
+            telemetry.find("Desert heat") != std::string::npos,
+        "telemetry should include biome hazard summaries");
+}
+
+void testBiomeHazardsAffectMachines()
+{
+    using namespace thoth::game;
+
+    Simulation desert(20260611);
+    auto snapshot = desert.snapshot();
+    snapshot.tick = 120;
+    snapshot.player.x = 18;
+    snapshot.player.y = -2;
+    snapshot.nextMachineId = 2;
+    Machine furnace;
+    furnace.id = 1;
+    furnace.kind = MachineKind::Furnace;
+    furnace.x = 18;
+    furnace.y = -2;
+    furnace.durability = 5;
+    snapshot.machines = {furnace};
+    desert.restore(snapshot);
+    desert.step();
+    const auto* heatedFurnace = desert.machineAt(18, -2);
+    require(heatedFurnace != nullptr && heatedFurnace->durability == 4,
+        "desert heat should damage an uncooled production machine");
+    require(desert.currentBiomeHazardText().find("Desert heat") != std::string::npos,
+        "current biome hazard text should name the player's biome hazard");
+
+    Simulation cooledDesert(20260611);
+    snapshot = cooledDesert.snapshot();
+    snapshot.tick = 120;
+    snapshot.nextMachineId = 2;
+    furnace.inventory.clear();
+    require(furnace.inventory.add(ItemId::WaterBarrel, 1), "test should seed coolant");
+    furnace.durability = 5;
+    snapshot.machines = {furnace};
+    cooledDesert.restore(snapshot);
+    cooledDesert.step();
+    const auto* cooledFurnace = cooledDesert.machineAt(18, -2);
+    require(cooledFurnace != nullptr && cooledFurnace->durability == 5 &&
+            cooledFurnace->inventory.count(ItemId::WaterBarrel) == 0,
+        "water barrels should cool desert machines instead of taking durability damage");
+
+    Simulation marsh(20260611);
+    snapshot = marsh.snapshot();
+    snapshot.tick = 180;
+    snapshot.nextMachineId = 2;
+    Machine chest;
+    chest.id = 1;
+    chest.kind = MachineKind::Chest;
+    chest.x = 0;
+    chest.y = 12;
+    require(chest.inventory.add(ItemId::ReedFiber, 2), "test should seed organic stockpile");
+    snapshot.machines = {chest};
+    marsh.restore(snapshot);
+    marsh.step();
+    const auto* rottedChest = marsh.machineAt(0, 12);
+    require(rottedChest != nullptr && rottedChest->inventory.count(ItemId::ReedFiber) == 1,
+        "marsh rot should decay organic items stored in machines");
+
+    Simulation badlands(20260611);
+    snapshot = badlands.snapshot();
+    snapshot.tick = 90;
+    snapshot.nextMachineId = 2;
+    Machine assembler;
+    assembler.id = 1;
+    assembler.kind = MachineKind::Assembler;
+    assembler.x = 36;
+    assembler.y = 20;
+    assembler.recipeKey = "science_pack";
+    assembler.progress = 3;
+    assembler.status = MachineStatus::Working;
+    snapshot.machines = {assembler};
+    badlands.restore(snapshot);
+    badlands.step();
+    const auto* slaggedAssembler = badlands.machineAt(36, 20);
+    require(slaggedAssembler != nullptr && slaggedAssembler->inventory.count(ItemId::Basalt) >= 1,
+        "badlands slag should add basalt byproduct to active industrial machines");
+
+    Simulation snowfield(20260611);
+    snapshot = snowfield.snapshot();
+    snapshot.tick = 90;
+    snapshot.nextMachineId = 2;
+    assembler.x = -18;
+    assembler.y = 0;
+    assembler.progress = 3;
+    assembler.status = MachineStatus::Working;
+    assembler.inventory.clear();
+    snapshot.machines = {assembler};
+    snowfield.restore(snapshot);
+    snowfield.step();
+    const auto* frozenAssembler = snowfield.machineAt(-18, 0);
+    require(frozenAssembler != nullptr && frozenAssembler->progress == 3 &&
+            frozenAssembler->status == MachineStatus::MissingFuel,
+        "snowfield freeze should stall unheated machine progress");
+
+    Simulation crystal(20260611);
+    snapshot = crystal.snapshot();
+    snapshot.tick = 150;
+    snapshot.nextMachineId = 2;
+    assembler.x = -36;
+    assembler.y = 20;
+    assembler.progress = 3;
+    assembler.status = MachineStatus::Working;
+    snapshot.machines = {assembler};
+    crystal.restore(snapshot);
+    crystal.step();
+    const auto* resonantAssembler = crystal.machineAt(-36, 20);
+    require(resonantAssembler != nullptr && resonantAssembler->progress >= 5,
+        "crystal resonance should accelerate active machine progress");
 }
 
 void testBiomeContractProgression()
@@ -3640,6 +3752,7 @@ int main()
     testSupplyContractProgression();
     testFactoryPressureSpawnsHostileProbe();
     testPlaytestTelemetryText();
+    testBiomeHazardsAffectMachines();
     testBiomeContractProgression();
 
     std::cout << "thoth_tests passed\n";

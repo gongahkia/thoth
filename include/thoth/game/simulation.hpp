@@ -143,6 +143,14 @@ struct BiomeContractProgress {
     bool complete = false;
 };
 
+struct BiomeHazardState {
+    BiomeKind biome = BiomeKind::Grassland;
+    std::string label;
+    int level = 0;
+    std::string effect;
+    std::string mitigation;
+};
+
 enum class EntityKind : std::uint8_t {
     Deer,
     Chicken,
@@ -278,6 +286,8 @@ public:
     [[nodiscard]] int completedBiomeContracts() const;
     [[nodiscard]] std::vector<BiomeContractProgress> biomeContractProgress() const;
     [[nodiscard]] std::string currentBiomeContractText() const;
+    [[nodiscard]] std::vector<BiomeHazardState> biomeHazards() const;
+    [[nodiscard]] std::string currentBiomeHazardText() const;
     [[nodiscard]] std::string currentDemoGoalText() const;
     [[nodiscard]] std::string objectiveMarkerText() const;
     [[nodiscard]] std::string milestoneText() const;
@@ -334,6 +344,7 @@ private:
     void updateRepairPylons();
     void updatePressureRelays();
     void updateArcTowers();
+    void updateBiomeHazards();
     void updateBossPhases();
     [[nodiscard]] bool spawnEntityNear(int x, int y, int z, EntityKind kind, int range);
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y) const;

@@ -33,6 +33,11 @@ constexpr int kOutpostBeaconTicks = 80;
 constexpr int kRepairPylonTicks = 60;
 constexpr int kPressureRelayTicks = 120;
 constexpr int kRiftOffset = 4096;
+constexpr int kDesertHeatBaseTicks = 120;
+constexpr int kBadlandsSlagBaseTicks = 90;
+constexpr int kSnowfieldFreezeBaseTicks = 90;
+constexpr int kMarshRotBaseTicks = 180;
+constexpr int kCrystalResonanceBaseTicks = 150;
 
 constexpr std::array<BiomeKind, 5> kRequiredOutpostBiomes{{
     BiomeKind::Marsh,
@@ -248,6 +253,163 @@ int countOutpostBiomeCoverage(int mask)
         }
     }
     return count;
+}
+
+int biomeHazardLevel(int pressure, bool outpostStabilized)
+{
+    int level = 1;
+    if (pressure >= 120) {
+        ++level;
+    }
+    if (pressure >= 220) {
+        ++level;
+    }
+    if (outpostStabilized && level > 1) {
+        --level;
+    }
+    return level;
+}
+
+int hazardCadence(int baseTicks, int level)
+{
+    return std::max(30, baseTicks - ((std::max(1, level) - 1) * 30));
+}
+
+bool isOrganicHazardItem(ItemId item)
+{
+    return item == ItemId::ReedFiber ||
+        item == ItemId::Kelp ||
+        item == ItemId::CactusFiber ||
+        item == ItemId::Slime ||
+        item == ItemId::Hide;
+}
+
+bool isHeatSensitiveMachine(MachineKind kind)
+{
+    switch (kind) {
+    case MachineKind::BurnerMiner:
+    case MachineKind::Furnace:
+    case MachineKind::ElectricMiner:
+    case MachineKind::Assembler:
+    case MachineKind::Lab:
+    case MachineKind::Generator:
+    case MachineKind::LogisticPort:
+    case MachineKind::ArchiveTerminal:
+    case MachineKind::RiftGate:
+    case MachineKind::OutpostBeacon:
+    case MachineKind::GuardTower:
+    case MachineKind::RepairPylon:
+    case MachineKind::PressureRelay:
+    case MachineKind::ArcTower:
+        return true;
+    case MachineKind::Belt:
+    case MachineKind::FastBelt:
+    case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
+    case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
+    case MachineKind::Workbench:
+    case MachineKind::Splitter:
+    case MachineKind::TrainStop:
+    case MachineKind::Pipe:
+    case MachineKind::OffshorePump:
+    case MachineKind::PowerPole:
+        return false;
+    }
+    return false;
+}
+
+bool isActiveIndustrialMachine(const Machine& machine)
+{
+    switch (machine.kind) {
+    case MachineKind::BurnerMiner:
+    case MachineKind::Furnace:
+    case MachineKind::ElectricMiner:
+    case MachineKind::Assembler:
+    case MachineKind::Lab:
+    case MachineKind::Generator:
+    case MachineKind::LogisticPort:
+    case MachineKind::ArchiveTerminal:
+    case MachineKind::RiftGate:
+    case MachineKind::OutpostBeacon:
+    case MachineKind::GuardTower:
+    case MachineKind::RepairPylon:
+    case MachineKind::PressureRelay:
+    case MachineKind::ArcTower:
+        return machine.progress > 0 || machine.fuelTicks > 0 || machine.status == MachineStatus::Working;
+    case MachineKind::Belt:
+    case MachineKind::FastBelt:
+    case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
+    case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
+    case MachineKind::Workbench:
+    case MachineKind::Splitter:
+    case MachineKind::TrainStop:
+    case MachineKind::Pipe:
+    case MachineKind::OffshorePump:
+    case MachineKind::PowerPole:
+        return false;
+    }
+    return false;
+}
+
+BiomeHazardState biomeHazardFor(BiomeKind biome, int level)
+{
+    switch (biome) {
+    case BiomeKind::Marsh:
+        return BiomeHazardState{
+            biome,
+            "Marsh rot",
+            level,
+            "unsealed organic inputs decay inside machines and stockpiles",
+            "activate a marsh outpost or move organics through sealed routes quickly"};
+    case BiomeKind::Desert:
+        return BiomeHazardState{
+            biome,
+            "Desert heat",
+            level,
+            "machines consume water barrels as coolant or lose durability",
+            "pipe or deliver water barrels before running desert industry"};
+    case BiomeKind::Badlands:
+        return BiomeHazardState{
+            biome,
+            "Badlands slag",
+            level,
+            "active industrial machines shed basalt byproduct while working",
+            "route basalt into walls, contracts, or later salvage chains"};
+    case BiomeKind::Snowfield:
+        return BiomeHazardState{
+            biome,
+            "Snowfield freeze",
+            level,
+            "unheated machines lose progress during cold pulses",
+            "keep coal or active fuel in machines before long snow runs"};
+    case BiomeKind::CrystalField:
+        return BiomeHazardState{
+            biome,
+            "Crystal resonance",
+            level,
+            "working machines surge forward but can attract null wisps",
+            "stabilize the biome with an outpost and defend resonant builds"};
+    case BiomeKind::Rift:
+        return BiomeHazardState{
+            biome,
+            "Rift shear",
+            level,
+            "rift machinery operates under volatile pressure bands",
+            "complete outpost coverage before committing deep rift infrastructure"};
+    case BiomeKind::Grassland:
+        return BiomeHazardState{
+            biome,
+            "Stable grassland",
+            0,
+            "no active biome hazard",
+            "use this area for the starter factory and safe routing"};
+    }
+    return BiomeHazardState{biome, "Unknown", level, "no active biome hazard", "none"};
 }
 
 std::string jsonString(std::string_view text)
@@ -947,6 +1109,32 @@ std::string Simulation::currentBiomeContractText() const
     return "biome contracts complete: outposts proved across marsh, desert, badlands, snowfield, crystal, and rift";
 }
 
+std::vector<BiomeHazardState> Simulation::biomeHazards() const
+{
+    std::vector<BiomeHazardState> hazards;
+    hazards.reserve(6);
+    for (const auto biome : {BiomeKind::Marsh, BiomeKind::Desert, BiomeKind::Badlands,
+             BiomeKind::Snowfield, BiomeKind::CrystalField, BiomeKind::Rift}) {
+        hazards.push_back(biomeHazardFor(
+            biome,
+            biomeHazardLevel(factoryPressureLevel(), hasActivatedOutpostBiome(biome))));
+    }
+    return hazards;
+}
+
+std::string Simulation::currentBiomeHazardText() const
+{
+    const auto biome = world_.biomeAt(player_.x, player_.y, player_.z);
+    const auto hazard = biomeHazardFor(
+        biome,
+        biomeHazardLevel(factoryPressureLevel(), hasActivatedOutpostBiome(biome)));
+    if (hazard.level <= 0) {
+        return "hazard: " + std::string(toString(biome)) + " stable; no active biome hazard";
+    }
+    return "hazard: " + hazard.label + " L" + std::to_string(hazard.level) + "; " +
+        hazard.effect + "; " + hazard.mitigation;
+}
+
 std::string Simulation::currentDemoGoalText() const
 {
     if (mainObjectiveComplete() && productionTotals_.bossRelicsClaimed >= 5) {
@@ -1134,6 +1322,24 @@ std::string Simulation::playtestTelemetryText() const
     }
     out << "},\n";
 
+    out << "  \"biome_hazards\": [";
+    const auto hazards = biomeHazards();
+    for (std::size_t i = 0; i < hazards.size(); ++i) {
+        const auto& hazard = hazards[i];
+        if (i > 0) {
+            out << ",";
+        }
+        out << "\n    {\"biome\": " << jsonString(toString(hazard.biome))
+            << ", \"label\": " << jsonString(hazard.label)
+            << ", \"level\": " << hazard.level
+            << ", \"effect\": " << jsonString(hazard.effect)
+            << ", \"mitigation\": " << jsonString(hazard.mitigation) << "}";
+    }
+    if (!hazards.empty()) {
+        out << "\n  ";
+    }
+    out << "],\n";
+
     out << "  \"activated_outpost_biomes\": [";
     const auto biomes = activatedOutpostBiomes();
     for (std::size_t i = 0; i < biomes.size(); ++i) {
@@ -1146,6 +1352,7 @@ std::string Simulation::playtestTelemetryText() const
     out << "  \"guidance\": {\"goal\": " << jsonString(currentDemoGoalText())
         << ", \"supply_contract\": " << jsonString(currentSupplyContractText())
         << ", \"biome_contract\": " << jsonString(currentBiomeContractText())
+        << ", \"biome_hazard\": " << jsonString(currentBiomeHazardText())
         << ", \"marker\": " << jsonString(objectiveMarkerText())
         << ", \"milestone\": " << jsonString(milestoneText()) << "}\n";
     out << "}\n";
@@ -1968,6 +2175,7 @@ void Simulation::updateMachines()
     updateRepairPylons();
     updatePressureRelays();
     updateArcTowers();
+    updateBiomeHazards();
 }
 
 void Simulation::updatePowerNetworks()
@@ -2932,6 +3140,108 @@ void Simulation::updatePressureRelays()
         machine.progress = 0;
         machine.status = MachineStatus::Idle;
     }
+}
+
+void Simulation::updateBiomeHazards()
+{
+    if (tick_ == 0) {
+        return;
+    }
+
+    const int pressure = factoryPressureLevel();
+    std::vector<std::uint32_t> destroyedMachineIds;
+    for (auto& machine : machines_) {
+        const auto biome = world_.biomeAt(machine.x, machine.y, machine.z);
+        const int level = biomeHazardLevel(pressure, hasActivatedOutpostBiome(biome));
+
+        if (biome == BiomeKind::Marsh) {
+            const int cadence = hazardCadence(kMarshRotBaseTicks, level);
+            if ((tick_ % static_cast<std::uint64_t>(cadence)) != 0U) {
+                continue;
+            }
+            for (const auto& stack : machine.inventory.stacks()) {
+                if (isOrganicHazardItem(stack.item) && machine.inventory.consume(stack.item, 1)) {
+                    machine.status = MachineStatus::OutputBlocked;
+                    break;
+                }
+            }
+            continue;
+        }
+
+        if (biome == BiomeKind::Desert) {
+            if (!isHeatSensitiveMachine(machine.kind)) {
+                continue;
+            }
+            const int cadence = hazardCadence(kDesertHeatBaseTicks, level);
+            if ((tick_ % static_cast<std::uint64_t>(cadence)) != 0U) {
+                continue;
+            }
+            if (machine.inventory.consume(ItemId::WaterBarrel, 1)) {
+                continue;
+            }
+            const int maxDurability = machineMaxDurability(machine.kind);
+            if (machine.durability <= 0) {
+                machine.durability = maxDurability;
+            }
+            machine.durability -= level >= 3 ? 2 : 1;
+            machine.status = MachineStatus::MissingInput;
+            if (machine.durability <= 0) {
+                destroyedMachineIds.push_back(machine.id);
+            }
+            continue;
+        }
+
+        if (biome == BiomeKind::Badlands) {
+            if (!isActiveIndustrialMachine(machine)) {
+                continue;
+            }
+            const int cadence = hazardCadence(kBadlandsSlagBaseTicks, level);
+            if ((tick_ % static_cast<std::uint64_t>(cadence)) == 0U) {
+                const auto added = machine.inventory.add(ItemId::Basalt, level >= 3 ? 2 : 1);
+                (void)added;
+            }
+            continue;
+        }
+
+        if (biome == BiomeKind::Snowfield) {
+            if (machine.progress <= 0 || machine.inventory.count(ItemId::Coal) > 0 || machine.fuelTicks > 0) {
+                continue;
+            }
+            const int cadence = hazardCadence(kSnowfieldFreezeBaseTicks, level);
+            if ((tick_ % static_cast<std::uint64_t>(cadence)) == 0U) {
+                machine.progress = std::max(0, machine.progress - level);
+                machine.status = MachineStatus::MissingFuel;
+            }
+            continue;
+        }
+
+        if (biome == BiomeKind::CrystalField) {
+            if (!isActiveIndustrialMachine(machine) || machine.progress <= 0) {
+                continue;
+            }
+            const int cadence = hazardCadence(kCrystalResonanceBaseTicks, level);
+            if ((tick_ % static_cast<std::uint64_t>(cadence)) != 0U) {
+                continue;
+            }
+            machine.progress += level;
+            if (level >= 2 && (tick_ % static_cast<std::uint64_t>(cadence * 2)) == 0U) {
+                (void)spawnEntityNear(machine.x, machine.y, machine.z, EntityKind::NullWisp, 4);
+            }
+        }
+    }
+
+    if (destroyedMachineIds.empty()) {
+        return;
+    }
+    machines_.erase(
+        std::remove_if(
+            machines_.begin(),
+            machines_.end(),
+            [&destroyedMachineIds](const Machine& machine) {
+                return containsId(destroyedMachineIds, machine.id);
+            }),
+        machines_.end());
+    rebuildMachineCellIndex();
 }
 
 bool Simulation::canPlaceMachine(MachineKind kind, int x, int y) const
