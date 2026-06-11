@@ -2659,9 +2659,14 @@ bool Simulation::isWaterTile(TileId id) const
 bool Simulation::isHostile(EntityKind kind) const
 {
     return kind == EntityKind::Slime ||
+        kind == EntityKind::GlassSkitter ||
+        kind == EntityKind::SunScarab ||
         kind == EntityKind::Skeleton ||
         kind == EntityKind::CaveCrawler ||
+        kind == EntityKind::FrostCrawler ||
+        kind == EntityKind::NullWisp ||
         kind == EntityKind::DungeonSentinel ||
+        kind == EntityKind::RiftStalker ||
         kind == EntityKind::MarshBroodheart ||
         kind == EntityKind::BadlandsWarden ||
         kind == EntityKind::RiftSignalTyrant;
@@ -2680,11 +2685,21 @@ ItemId Simulation::entityDrop(EntityKind kind) const
         return ItemId::Kelp;
     case EntityKind::Slime:
         return ItemId::Slime;
+    case EntityKind::GlassSkitter:
+        return ItemId::CactusFiber;
+    case EntityKind::SunScarab:
+        return ItemId::SandGlass;
     case EntityKind::Skeleton:
         return ItemId::Bone;
     case EntityKind::CaveCrawler:
         return ItemId::Venom;
+    case EntityKind::FrostCrawler:
+        return ItemId::IceShard;
+    case EntityKind::NullWisp:
+        return ItemId::Crystal;
     case EntityKind::DungeonSentinel:
+        return ItemId::Crystal;
+    case EntityKind::RiftStalker:
         return ItemId::Crystal;
     case EntityKind::MarshBroodheart:
         return ItemId::Venom;
@@ -2710,9 +2725,14 @@ int Simulation::entityDropCount(EntityKind kind) const
     case EntityKind::Crab:
     case EntityKind::Fish:
     case EntityKind::Slime:
+    case EntityKind::GlassSkitter:
+    case EntityKind::SunScarab:
     case EntityKind::Skeleton:
     case EntityKind::CaveCrawler:
+    case EntityKind::FrostCrawler:
+    case EntityKind::NullWisp:
     case EntityKind::DungeonSentinel:
+    case EntityKind::RiftStalker:
         return 1;
     }
     return 1;
@@ -2728,11 +2748,19 @@ int Simulation::entityMaxHp(EntityKind kind) const
     case EntityKind::Crab:
     case EntityKind::Slime:
         return 2;
+    case EntityKind::GlassSkitter:
+        return 3;
+    case EntityKind::SunScarab:
     case EntityKind::Skeleton:
     case EntityKind::CaveCrawler:
+    case EntityKind::FrostCrawler:
         return 4;
+    case EntityKind::NullWisp:
+        return 5;
     case EntityKind::DungeonSentinel:
         return 6;
+    case EntityKind::RiftStalker:
+        return 8;
     case EntityKind::MarshBroodheart:
         return 14;
     case EntityKind::BadlandsWarden:
@@ -2781,6 +2809,11 @@ std::optional<EntityKind> Simulation::localEntityKindForTile(int x, int y, int z
     }
     if (isWaterTile(tile.id) && static_cast<int>(roll % 1000U) < 45) {
         return tile.id == TileId::Coral ? EntityKind::Crab : EntityKind::Fish;
+    }
+    if (world_.biomeAt(x, y, z) == BiomeKind::Rift &&
+        world_.isWalkable(x, y, z) &&
+        static_cast<int>(roll % 1000U) < 45) {
+        return EntityKind::RiftStalker;
     }
     if ((tile.id == TileId::Beach || tile.id == TileId::Sand) && static_cast<int>(roll % 1000U) < 35) {
         return EntityKind::Crab;
@@ -2861,8 +2894,12 @@ void Simulation::ensureLairEntities()
     }};
 
     EntityKind kind = EntityKind::Slime;
-    if (*lair == LairKind::BadlandsFoundry) {
+    if (*lair == LairKind::GlassSpire) {
+        kind = nearbyHostiles == 0 ? EntityKind::GlassSkitter : EntityKind::SunScarab;
+    } else if (*lair == LairKind::BadlandsFoundry) {
         kind = nearbyHostiles == 0 ? EntityKind::Skeleton : EntityKind::CaveCrawler;
+    } else if (*lair == LairKind::FrostVault) {
+        kind = nearbyHostiles == 0 ? EntityKind::FrostCrawler : EntityKind::NullWisp;
     } else if (*lair == LairKind::CrystalVault) {
         kind = EntityKind::DungeonSentinel;
     }

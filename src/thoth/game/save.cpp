@@ -53,12 +53,22 @@ std::string_view entityKindToString(EntityKind kind)
         return "fish";
     case EntityKind::Slime:
         return "slime";
+    case EntityKind::GlassSkitter:
+        return "glass_skitter";
+    case EntityKind::SunScarab:
+        return "sun_scarab";
     case EntityKind::Skeleton:
         return "skeleton";
     case EntityKind::CaveCrawler:
         return "cave_crawler";
+    case EntityKind::FrostCrawler:
+        return "frost_crawler";
+    case EntityKind::NullWisp:
+        return "null_wisp";
     case EntityKind::DungeonSentinel:
         return "dungeon_sentinel";
+    case EntityKind::RiftStalker:
+        return "rift_stalker";
     case EntityKind::MarshBroodheart:
         return "marsh_broodheart";
     case EntityKind::BadlandsWarden:
@@ -86,14 +96,29 @@ std::optional<EntityKind> entityKindFromKey(std::string_view key)
     if (key == "slime") {
         return EntityKind::Slime;
     }
+    if (key == "glass_skitter") {
+        return EntityKind::GlassSkitter;
+    }
+    if (key == "sun_scarab") {
+        return EntityKind::SunScarab;
+    }
     if (key == "skeleton") {
         return EntityKind::Skeleton;
     }
     if (key == "cave_crawler") {
         return EntityKind::CaveCrawler;
     }
+    if (key == "frost_crawler") {
+        return EntityKind::FrostCrawler;
+    }
+    if (key == "null_wisp") {
+        return EntityKind::NullWisp;
+    }
     if (key == "dungeon_sentinel") {
         return EntityKind::DungeonSentinel;
+    }
+    if (key == "rift_stalker") {
+        return EntityKind::RiftStalker;
     }
     if (key == "marsh_broodheart") {
         return EntityKind::MarshBroodheart;

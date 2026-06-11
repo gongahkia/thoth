@@ -2216,12 +2216,22 @@ Color entityColor(thoth::game::EntityKind kind)
         return Color{84, 172, 222, 255};
     case EntityKind::Slime:
         return Color{92, 206, 112, 255};
+    case EntityKind::GlassSkitter:
+        return Color{238, 190, 86, 255};
+    case EntityKind::SunScarab:
+        return Color{228, 142, 58, 255};
     case EntityKind::Skeleton:
         return Color{212, 212, 196, 255};
     case EntityKind::CaveCrawler:
         return Color{138, 74, 168, 255};
+    case EntityKind::FrostCrawler:
+        return Color{138, 212, 232, 255};
+    case EntityKind::NullWisp:
+        return Color{176, 232, 255, 255};
     case EntityKind::DungeonSentinel:
         return Color{112, 210, 218, 255};
+    case EntityKind::RiftStalker:
+        return Color{172, 92, 232, 255};
     case EntityKind::MarshBroodheart:
         return Color{132, 226, 122, 255};
     case EntityKind::BadlandsWarden:

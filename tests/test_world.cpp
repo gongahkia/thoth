@@ -365,6 +365,24 @@ void testLairEnemyPressureSpawnsBiomeHostiles()
     require(containsKind(badlands, EntityKind::Skeleton), "badlands foundry should spawn skeleton pressure");
     require(badlands.player().hp == 20, "badlands lair spawn should not deal immediate damage");
 
+    Simulation desert(20260611);
+    snapshot = desert.snapshot();
+    snapshot.player.x = 18;
+    snapshot.player.y = -2;
+    desert.restore(snapshot);
+    desert.step();
+    require(containsKind(desert, EntityKind::GlassSkitter), "glass spire should spawn glass skitter pressure");
+    require(desert.player().hp == 20, "glass spire spawn should not deal immediate damage");
+
+    Simulation snow(20260611);
+    snapshot = snow.snapshot();
+    snapshot.player.x = -18;
+    snapshot.player.y = 0;
+    snow.restore(snapshot);
+    snow.step();
+    require(containsKind(snow, EntityKind::FrostCrawler), "frost vault should spawn frost crawler pressure");
+    require(snow.player().hp == 20, "frost vault spawn should not deal immediate damage");
+
     Simulation crystal(20260611);
     snapshot = crystal.snapshot();
     snapshot.player.x = -36;
