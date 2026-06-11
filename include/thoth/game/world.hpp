@@ -5,12 +5,23 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
 namespace thoth::game {
 
 inline constexpr int kChunkSize = 32;
+
+enum class BiomeKind : std::uint8_t {
+    Grassland,
+    Desert,
+    Snowfield,
+    Marsh,
+    Badlands,
+    CrystalField,
+    Rift,
+};
 
 struct Tile {
     TileId id = TileId::Grass;
@@ -46,6 +57,7 @@ public:
     [[nodiscard]] bool isWalkable(int x, int y, int z);
     [[nodiscard]] bool isWalkable(int x, int y) const;
     [[nodiscard]] bool isWalkable(int x, int y, int z) const;
+    [[nodiscard]] BiomeKind biomeAt(int x, int y, int z = 0) const;
     [[nodiscard]] std::size_t loadedChunkCount() const;
     [[nodiscard]] std::vector<TileSnapshot> loadedTiles() const;
     void clearLoadedChunks();
@@ -63,5 +75,6 @@ private:
 
 [[nodiscard]] int floorDiv(int value, int divisor);
 [[nodiscard]] int floorMod(int value, int divisor);
+[[nodiscard]] std::string_view toString(BiomeKind biome);
 
 } // namespace thoth::game

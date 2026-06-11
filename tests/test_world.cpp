@@ -267,7 +267,15 @@ void testStarterResources()
 
 void testEarlyBiomeTiles()
 {
+    using thoth::game::BiomeKind;
+
     thoth::game::World world(99);
+    require(world.biomeAt(12, 0) == BiomeKind::Desert, "public biome query should expose starter desert");
+    require(world.biomeAt(-12, 0) == BiomeKind::Snowfield, "public biome query should expose starter snowfield");
+    require(world.biomeAt(0, 12) == BiomeKind::Marsh, "public biome query should expose starter marsh");
+    require(world.biomeAt(4096, 0) == BiomeKind::Rift, "public biome query should expose rift band");
+    require(thoth::game::toString(world.biomeAt(12, 0)) == "desert", "biome key should be stable");
+
     bool foundSand = false;
     bool foundSnow = false;
     bool foundMud = false;

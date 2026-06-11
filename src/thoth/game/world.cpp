@@ -23,15 +23,6 @@ struct PatchHit {
     int radius = 0;
 };
 
-enum class BiomeKind {
-    Grassland,
-    Desert,
-    Snowfield,
-    Marsh,
-    Badlands,
-    CrystalField,
-};
-
 int resourceRichness(std::uint64_t seed, int x, int y)
 {
     const auto richness = thoth::core::hashCoordinates(seed ^ 0x51c3a5edULL, x, y);
@@ -88,7 +79,7 @@ void selectBiome(PatchHit hit, BiomeKind candidate, PatchHit& bestHit, BiomeKind
     }
 }
 
-BiomeKind biomeAt(std::uint64_t seed, int x, int y)
+BiomeKind generatedBiomeAt(std::uint64_t seed, int x, int y)
 {
     if (inside(x, 10, 24) && inside(y, -12, 8)) {
         return BiomeKind::Desert;
@@ -123,6 +114,8 @@ int treeDetailThreshold(BiomeKind biome)
         return 80;
     case BiomeKind::CrystalField:
         return 180;
+    case BiomeKind::Rift:
+        return 120;
     case BiomeKind::Grassland:
         return 560;
     }
@@ -152,6 +145,8 @@ TileId baseTerrain(BiomeKind biome, std::uint64_t terrain)
             return TileId::Stone;
         }
         return roll < 760 ? TileId::Basalt : TileId::Dirt;
+    case BiomeKind::Rift:
+        return roll < 650 ? TileId::Stone : TileId::Dirt;
     case BiomeKind::Grassland:
         return roll < 230 ? TileId::Dirt : TileId::Grass;
     }
@@ -174,6 +169,27 @@ int floorMod(int value, int divisor)
 {
     const int result = value % divisor;
     return result < 0 ? result + std::abs(divisor) : result;
+}
+
+std::string_view toString(BiomeKind biome)
+{
+    switch (biome) {
+    case BiomeKind::Grassland:
+        return "grassland";
+    case BiomeKind::Desert:
+        return "desert";
+    case BiomeKind::Snowfield:
+        return "snowfield";
+    case BiomeKind::Marsh:
+        return "marsh";
+    case BiomeKind::Badlands:
+        return "badlands";
+    case BiomeKind::CrystalField:
+        return "crystal_field";
+    case BiomeKind::Rift:
+        return "rift";
+    }
+    return "grassland";
 }
 
 World::World(std::uint64_t seed)
@@ -245,6 +261,15 @@ bool World::isWalkable(int x, int y, int z) const
         return true;
     }
     return game::isWalkable(tile.id);
+}
+
+BiomeKind World::biomeAt(int x, int y, int z) const
+{
+    (void)z;
+    if (std::abs(x) >= kRiftOffset - 256) {
+        return BiomeKind::Rift;
+    }
+    return generatedBiomeAt(seed_, x, y);
 }
 
 std::size_t World::loadedChunkCount() const
@@ -390,7 +415,7 @@ Tile World::generateTile(int x, int y, int z) const
         return Tile{TileId::Dirt, 0};
     }
 
-    const auto biome = biomeAt(seed_, x, y);
+    const auto biome = biomeAt(x, y, z);
 
     const auto ocean = findPatch(seed_ ^ 0x6f6365616eULL, x, y, 96, 210, 18, 34);
     if (ocean.hit) {
