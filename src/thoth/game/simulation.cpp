@@ -26,6 +26,7 @@ constexpr int kPipeTicks = 3;
 constexpr int kRiftGateTicks = 180;
 constexpr int kGuardTowerTicks = 45;
 constexpr int kGuardTowerRange = 5;
+constexpr int kOutpostBeaconTicks = 80;
 constexpr int kRiftOffset = 4096;
 
 int absInt(int value)
@@ -187,6 +188,27 @@ ItemId resourceTileOutput(TileId id)
         return ItemId::None;
     }
     return ItemId::None;
+}
+
+ItemId outpostActivationItem(BiomeKind biome)
+{
+    switch (biome) {
+    case BiomeKind::Marsh:
+        return ItemId::WaterBarrel;
+    case BiomeKind::Desert:
+        return ItemId::SandGlass;
+    case BiomeKind::Badlands:
+        return ItemId::Basalt;
+    case BiomeKind::Snowfield:
+        return ItemId::IceShard;
+    case BiomeKind::CrystalField:
+        return ItemId::Crystal;
+    case BiomeKind::Rift:
+        return ItemId::BeaconCore;
+    case BiomeKind::Grassland:
+        return ItemId::Stone;
+    }
+    return ItemId::Stone;
 }
 
 void depleteResourceTile(World& world, int x, int y, int z)
@@ -783,6 +805,7 @@ std::vector<BiomeContractProgress> Simulation::biomeContractProgress() const
     addContract(BiomeKind::Badlands, "Badlands: stockpile 6 basalt", totalItemCount(ItemId::Basalt), 6);
     addContract(BiomeKind::CrystalField, "Crystal Field: stockpile 3 crystal", totalItemCount(ItemId::Crystal), 3);
     addContract(BiomeKind::Rift, "Rift: complete 2 rift jumps", productionTotals_.riftJumps, 2);
+    addContract(BiomeKind::Rift, "Outposts: activate 2 powered biome beacons", productionTotals_.outpostsActivated, 2);
     return contracts;
 }
 
@@ -1637,6 +1660,7 @@ void Simulation::updateMachines()
     updatePipes();
     updateArchiveTerminals();
     updateRiftGates();
+    updateOutpostBeacons();
     updateGuardTowers();
 }
 
@@ -2331,6 +2355,34 @@ void Simulation::updateRiftGates()
     }
 }
 
+void Simulation::updateOutpostBeacons()
+{
+    for (auto& machine : machines_) {
+        if (machine.kind != MachineKind::OutpostBeacon) {
+            continue;
+        }
+        if (machine.progress >= kOutpostBeaconTicks) {
+            machine.status = MachineStatus::Idle;
+            continue;
+        }
+        if (!isMachinePowered(machine.id)) {
+            machine.status = MachineStatus::MissingPower;
+            continue;
+        }
+        const auto activationItem = outpostActivationItem(world_.biomeAt(machine.x, machine.y, machine.z));
+        if (machine.progress == 0 && !machine.inventory.consume(activationItem, 1)) {
+            machine.status = MachineStatus::MissingInput;
+            continue;
+        }
+        machine.progress = std::min(machine.progress + 1, kOutpostBeaconTicks);
+        machine.status = MachineStatus::Working;
+        if (machine.progress >= kOutpostBeaconTicks) {
+            ++productionTotals_.outpostsActivated;
+            machine.status = MachineStatus::Idle;
+        }
+    }
+}
+
 void Simulation::updateGuardTowers()
 {
     for (auto& machine : machines_) {
@@ -2500,6 +2552,9 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
             return false;
         }
         return machine.inventory.add(item, 1);
+    case MachineKind::OutpostBeacon:
+        return item == outpostActivationItem(world_.biomeAt(machine.x, machine.y, machine.z)) &&
+            machine.inventory.add(item, 1);
     case MachineKind::PowerPole:
     case MachineKind::ElectricMiner:
     case MachineKind::OffshorePump:
@@ -2611,7 +2666,8 @@ bool Simulation::isPowerConsumer(MachineKind kind) const
         kind == MachineKind::LogisticPort ||
         kind == MachineKind::ArchiveTerminal ||
         kind == MachineKind::RiftGate ||
-        kind == MachineKind::GuardTower;
+        kind == MachineKind::GuardTower ||
+        kind == MachineKind::OutpostBeacon;
 }
 
 bool Simulation::isLogisticStorage(MachineKind kind) const
@@ -2632,6 +2688,9 @@ int Simulation::powerDemand(MachineKind kind) const
     }
     if (kind == MachineKind::ArchiveTerminal || kind == MachineKind::RiftGate) {
         return 2;
+    }
+    if (kind == MachineKind::OutpostBeacon) {
+        return 1;
     }
     return 0;
 }

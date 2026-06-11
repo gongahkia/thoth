@@ -2487,6 +2487,47 @@ void testGuardTowerRequiresPowerAndDefeatsHostile()
         "guard tower should report a defense status after firing");
 }
 
+void testOutpostBeaconRequiresPowerAndBiomeInput()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    auto* generator = placeMachineAt(sim, ItemId::Generator, 16, -2, Direction::East);
+    placeMachineAt(sim, ItemId::PowerPole, 17, -2, Direction::East);
+    auto* outpost = placeMachineAt(sim, ItemId::OutpostBeacon, 18, -2, Direction::East);
+    require(generator != nullptr && outpost != nullptr, "outpost test machines should place");
+    require(outpost->inventory.add(ItemId::SandGlass, 1), "test should seed desert outpost input");
+
+    auto snapshot = sim.snapshot();
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::Generator) {
+            machine.fuelTicks = 200;
+        }
+    }
+    sim.restore(snapshot);
+
+    for (int i = 0; i < 80; ++i) {
+        sim.step();
+    }
+
+    const auto* restoredOutpost = sim.machineAt(18, -2);
+    require(restoredOutpost != nullptr && restoredOutpost->kind == MachineKind::OutpostBeacon,
+        "outpost beacon should persist");
+    require(restoredOutpost->progress == 80, "powered outpost should finish activation");
+    require(restoredOutpost->inventory.count(ItemId::SandGlass) == 0, "outpost should consume biome input");
+    require(sim.productionTotals().outpostsActivated == 1, "outpost activation should increment production total");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_outpost_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "outpost save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    std::filesystem::remove(path);
+    require(loaded.has_value(), "outpost load should succeed: " + error);
+    require(loaded->productionTotals().outpostsActivated == 1, "outpost activation should survive save/load");
+    const auto* loadedOutpost = loaded->machineAt(18, -2);
+    require(loadedOutpost != nullptr && loadedOutpost->progress == 80, "activated outpost should survive save/load");
+}
+
 void testPowerNetworkRecomputesAfterSaveLoad()
 {
     using thoth::game::Direction;
@@ -3011,7 +3052,7 @@ void testBiomeContractProgression()
 
     Simulation sim(20260611);
     auto progress = sim.biomeContractProgress();
-    require(progress.size() == 5, "biome contracts should expose five progression goals");
+    require(progress.size() == 6, "biome contracts should expose six progression goals");
     require(sim.completedBiomeContracts() == 0, "fresh simulation should have no completed biome contracts");
     require(progress.front().biome == BiomeKind::Marsh, "first biome contract should begin in the marsh");
     require(sim.currentBiomeContractText().find("water barrels") != std::string::npos,
@@ -3020,6 +3061,7 @@ void testBiomeContractProgression()
     auto snapshot = sim.snapshot();
     snapshot.productionTotals.waterBarrels = 3;
     snapshot.productionTotals.riftJumps = 2;
+    snapshot.productionTotals.outpostsActivated = 2;
     snapshot.player.inventory = {
         ItemStack{ItemId::SandGlass, 2},
         ItemStack{ItemId::Basalt, 6},
@@ -3091,6 +3133,7 @@ int main()
     testElectricMinerRequiresPowerAndProducesOre();
     testUnderpoweredNetworkStopsElectricMachinesDeterministically();
     testGuardTowerRequiresPowerAndDefeatsHostile();
+    testOutpostBeaconRequiresPowerAndBiomeInput();
     testPowerNetworkRecomputesAfterSaveLoad();
     testWorkbenchRequiredForMachineCrafting();
     testTechChainUnlocksCircuitsAndLogistics();
