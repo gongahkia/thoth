@@ -321,6 +321,7 @@ private:
     void updateRiftGates();
     void updateOutpostBeacons();
     void updateGuardTowers();
+    void updateRepairPylons();
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y) const;
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y, int z) const;
     [[nodiscard]] bool acceptItemAt(int x, int y, ItemId item);

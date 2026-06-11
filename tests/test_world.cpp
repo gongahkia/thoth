@@ -2528,6 +2528,39 @@ void testOutpostBeaconRequiresPowerAndBiomeInput()
     require(loadedOutpost != nullptr && loadedOutpost->progress == 80, "activated outpost should survive save/load");
 }
 
+void testRepairPylonRebuildsAdjacentWallGap()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    auto* generator = placeMachineAt(sim, ItemId::Generator, 0, 0, Direction::East);
+    placeMachineAt(sim, ItemId::PowerPole, 1, 0, Direction::East);
+    auto* pylon = placeMachineAt(sim, ItemId::RepairPylon, 2, 0, Direction::East);
+    require(generator != nullptr && pylon != nullptr, "repair pylon test machines should place");
+    require(pylon->inventory.add(ItemId::Wall, 1), "test should seed repair wall item");
+
+    auto snapshot = sim.snapshot();
+    snapshot.tiles.push_back(TileSnapshot{2, -1, Tile{TileId::Wall, 0}});
+    snapshot.tiles.push_back(TileSnapshot{3, 0, Tile{TileId::Floor, 0}});
+    snapshot.tiles.push_back(TileSnapshot{2, 1, Tile{TileId::Wall, 0}});
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::Generator) {
+            machine.fuelTicks = 200;
+        }
+    }
+    sim.restore(snapshot);
+
+    for (int i = 0; i < 60; ++i) {
+        sim.step();
+    }
+
+    const auto* restoredPylon = sim.machineAt(2, 0);
+    require(restoredPylon != nullptr && restoredPylon->kind == MachineKind::RepairPylon,
+        "repair pylon should persist");
+    require(sim.world().getTile(3, 0).id == TileId::Wall, "repair pylon should rebuild adjacent wall gap");
+    require(restoredPylon->inventory.count(ItemId::Wall) == 0, "repair pylon should consume wall item");
+}
+
 void testPowerNetworkRecomputesAfterSaveLoad()
 {
     using thoth::game::Direction;
@@ -3134,6 +3167,7 @@ int main()
     testUnderpoweredNetworkStopsElectricMachinesDeterministically();
     testGuardTowerRequiresPowerAndDefeatsHostile();
     testOutpostBeaconRequiresPowerAndBiomeInput();
+    testRepairPylonRebuildsAdjacentWallGap();
     testPowerNetworkRecomputesAfterSaveLoad();
     testWorkbenchRequiredForMachineCrafting();
     testTechChainUnlocksCircuitsAndLogistics();

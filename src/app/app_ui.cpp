@@ -139,6 +139,8 @@ std::string shortItemName(thoth::game::ItemId item)
         return "tower";
     case ItemId::OutpostBeacon:
         return "beacon";
+    case ItemId::RepairPylon:
+        return "repair";
     case ItemId::Wall:
         return "wall";
     case ItemId::PlankWall:
@@ -209,6 +211,8 @@ std::string machineGlyph(thoth::game::MachineKind kind)
         return "D";
     case MachineKind::OutpostBeacon:
         return "Q";
+    case MachineKind::RepairPylon:
+        return "J";
     }
     return "?";
 }
@@ -259,6 +263,9 @@ float machineProgressRatio(const thoth::game::Machine& machine)
         break;
     case MachineKind::OutpostBeacon:
         denominator = 80;
+        break;
+    case MachineKind::RepairPylon:
+        denominator = 60;
         break;
     case MachineKind::Belt:
     case MachineKind::FastBelt:
@@ -935,6 +942,8 @@ bool machineCanAcceptForPanel(const thoth::game::Machine& machine, thoth::game::
             item == ItemId::Crystal ||
             item == ItemId::BeaconCore ||
             item == ItemId::Stone;
+    case MachineKind::RepairPylon:
+        return item == ItemId::Wall || item == ItemId::PlankWall;
     case MachineKind::Inserter:
     case MachineKind::CircuitInserter:
     case MachineKind::Workbench:
@@ -1535,6 +1544,15 @@ std::string machineHintText(const thoth::game::Simulation& sim, const thoth::gam
         return "outpost charge " + std::to_string(machine.progress) + "/80 activated " +
             std::to_string(sim.productionTotals().outpostsActivated) + " " +
             powerNetworkDetail(sim, machine);
+    case MachineKind::RepairPylon:
+        if (machine.status == MachineStatus::MissingPower) {
+            return powerNetworkDetail(sim, machine);
+        }
+        if (machine.status == MachineStatus::MissingInput) {
+            return "deposit walls for adjacent repairs";
+        }
+        return "repair charge " + std::to_string(machine.progress) + "/60 " +
+            powerNetworkDetail(sim, machine);
     case MachineKind::Workbench:
         return "crafting station";
     }
@@ -1652,6 +1670,8 @@ std::string machineProcessChipText(const thoth::game::Simulation& sim, const tho
         return "guard " + std::to_string(machine.progress) + "/45";
     case MachineKind::OutpostBeacon:
         return "outpost " + std::to_string(machine.progress) + "/80";
+    case MachineKind::RepairPylon:
+        return "repair " + std::to_string(machine.progress) + "/60";
     case MachineKind::Workbench:
         return "hand recipes";
     case MachineKind::Furnace:
@@ -2079,6 +2099,8 @@ bool machineShowsDirection(thoth::game::MachineKind kind)
     case MachineKind::RiftGate:
     case MachineKind::GuardTower:
     case MachineKind::OutpostBeacon:
+        return false;
+    case MachineKind::RepairPylon:
         return false;
     }
     return false;
@@ -2838,6 +2860,11 @@ void drawMachineFlowStrip(const thoth::game::Simulation& sim, const thoth::game:
             inputs.push_back(FlowStack{stack.item, stack.count, 1});
         }
         detail = "outpost " + std::to_string(machine.progress) + "/80 " + powerNetworkDetail(sim, machine);
+        break;
+    case MachineKind::RepairPylon:
+        inputs.push_back(FlowStack{ItemId::Wall, machine.inventory.count(ItemId::Wall), 1});
+        inputs.push_back(FlowStack{ItemId::PlankWall, machine.inventory.count(ItemId::PlankWall), 1});
+        detail = "repair " + std::to_string(machine.progress) + "/60 " + powerNetworkDetail(sim, machine);
         break;
     case MachineKind::Workbench:
         detail = "hand crafting helper";

@@ -98,6 +98,7 @@ const std::vector<ItemDef> kItems = {
     {ItemId::RiftGate, "rift_gate", "Rift Gate", 5, TileId::Floor, false, MachineKind::RiftGate, true},
     {ItemId::GuardTower, "guard_tower", "Guard Tower", 20, TileId::Floor, false, MachineKind::GuardTower, true},
     {ItemId::OutpostBeacon, "outpost_beacon", "Outpost Beacon", 20, TileId::Floor, false, MachineKind::OutpostBeacon, true},
+    {ItemId::RepairPylon, "repair_pylon", "Repair Pylon", 20, TileId::Floor, false, MachineKind::RepairPylon, true},
     {ItemId::Wall, "wall", "Wall", 100, TileId::Wall, true, MachineKind::Chest, false},
     {ItemId::PlankWall, "plank_wall", "Plank Wall", 100, TileId::PlankWall, true, MachineKind::Chest, false},
     {ItemId::Door, "door", "Door", 20, TileId::Door, true, MachineKind::Chest, false},
@@ -132,6 +133,7 @@ const std::vector<MachineDef> kMachines = {
     {MachineKind::RiftGate, "rift_gate", "Rift Gate", 1, 1, false, true, false, 2, MachineBehaviorKind::RiftGate},
     {MachineKind::GuardTower, "guard_tower", "Guard Tower", 1, 1, false, true, false, 0, MachineBehaviorKind::GuardTower},
     {MachineKind::OutpostBeacon, "outpost_beacon", "Outpost Beacon", 1, 1, false, true, false, 3, MachineBehaviorKind::OutpostBeacon},
+    {MachineKind::RepairPylon, "repair_pylon", "Repair Pylon", 1, 1, false, true, false, 4, MachineBehaviorKind::RepairPylon},
 };
 
 const std::vector<RecipeDef> kRecipes = {
@@ -176,11 +178,12 @@ const std::vector<RecipeDef> kRecipes = {
     {"rift_gate", {ItemStack{ItemId::BeaconCore, 1}, ItemStack{ItemId::AdvancedSciencePack, 3}, ItemStack{ItemId::CopperPlate, 8}}, ItemStack{ItemId::RiftGate, 1}, 160, "workbench", false},
     {"guard_tower", {ItemStack{ItemId::IronPlate, 4}, ItemStack{ItemId::CopperPlate, 2}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::GuardTower, 1}, 70, "workbench", false},
     {"outpost_beacon", {ItemStack{ItemId::IronPlate, 6}, ItemStack{ItemId::CopperPlate, 4}, ItemStack{ItemId::CircuitBoard, 2}}, ItemStack{ItemId::OutpostBeacon, 1}, 90, "workbench", false},
+    {"repair_pylon", {ItemStack{ItemId::IronPlate, 4}, ItemStack{ItemId::CopperPlate, 2}, ItemStack{ItemId::MarshHeart, 1}}, ItemStack{ItemId::RepairPylon, 1}, 90, "workbench", false},
 };
 
 const std::vector<TechDef> kTechs = {
     {"logistics_1", "Logistics 1", {ItemStack{ItemId::SciencePack, 3}}, 20, {"fast_belt", "generator", "power_pole", "electric_miner", "splitter", "pipe"}},
-    {"automation_control", "Automation Control", {ItemStack{ItemId::SciencePack, 4}}, 24, {"circuit_board", "advanced_science_pack", "crystal_lens", "circuit_inserter", "offshore_pump", "guard_tower"}},
+    {"automation_control", "Automation Control", {ItemStack{ItemId::SciencePack, 4}}, 24, {"circuit_board", "advanced_science_pack", "crystal_lens", "circuit_inserter", "offshore_pump", "guard_tower", "repair_pylon"}},
     {"logistic_network", "Logistic Network", {ItemStack{ItemId::AdvancedSciencePack, 5}}, 30, {"provider_chest", "requester_chest", "logistic_port", "logistic_drone", "beacon_core", "archive_terminal", "train_stop", "rift_gate", "outpost_beacon"}},
 };
 
@@ -365,6 +368,8 @@ std::string_view toString(MachineBehaviorKind behavior)
         return "guard_tower";
     case MachineBehaviorKind::OutpostBeacon:
         return "outpost_beacon";
+    case MachineBehaviorKind::RepairPylon:
+        return "repair_pylon";
     }
     return "unknown";
 }

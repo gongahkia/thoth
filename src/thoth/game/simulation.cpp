@@ -27,6 +27,7 @@ constexpr int kRiftGateTicks = 180;
 constexpr int kGuardTowerTicks = 45;
 constexpr int kGuardTowerRange = 5;
 constexpr int kOutpostBeaconTicks = 80;
+constexpr int kRepairPylonTicks = 60;
 constexpr int kRiftOffset = 4096;
 
 int absInt(int value)
@@ -209,6 +210,32 @@ ItemId outpostActivationItem(BiomeKind biome)
         return ItemId::Stone;
     }
     return ItemId::Stone;
+}
+
+bool isRepairableWallGap(TileId tile)
+{
+    return tile == TileId::Floor || tile == TileId::DungeonFloor || tile == TileId::Grass || tile == TileId::Dirt;
+}
+
+std::optional<std::pair<int, int>> repairTargetNear(const World& world, const Simulation& sim, const Machine& machine)
+{
+    constexpr std::array<Direction, 4> kDirections{{
+        Direction::North,
+        Direction::East,
+        Direction::South,
+        Direction::West,
+    }};
+    for (const auto direction : kDirections) {
+        const int x = machine.x + dx(direction);
+        const int y = machine.y + dy(direction);
+        if (sim.machineAt(x, y, machine.z) != nullptr || sim.entityAt(x, y, machine.z) != nullptr) {
+            continue;
+        }
+        if (isRepairableWallGap(world.getTile(x, y, machine.z).id)) {
+            return std::pair<int, int>{x, y};
+        }
+    }
+    return std::nullopt;
 }
 
 void depleteResourceTile(World& world, int x, int y, int z)
@@ -1662,6 +1689,7 @@ void Simulation::updateMachines()
     updateRiftGates();
     updateOutpostBeacons();
     updateGuardTowers();
+    updateRepairPylons();
 }
 
 void Simulation::updatePowerNetworks()
@@ -2429,6 +2457,39 @@ void Simulation::updateGuardTowers()
     }
 }
 
+void Simulation::updateRepairPylons()
+{
+    for (auto& machine : machines_) {
+        if (machine.kind != MachineKind::RepairPylon) {
+            continue;
+        }
+        if (!isMachinePowered(machine.id)) {
+            machine.status = MachineStatus::MissingPower;
+            continue;
+        }
+        const auto target = repairTargetNear(world_, *this, machine);
+        if (!target) {
+            machine.progress = 0;
+            machine.status = MachineStatus::Idle;
+            continue;
+        }
+        if (machine.progress == 0 &&
+            !machine.inventory.consume(ItemId::Wall, 1) &&
+            !machine.inventory.consume(ItemId::PlankWall, 1)) {
+            machine.status = MachineStatus::MissingInput;
+            continue;
+        }
+        machine.progress = std::min(machine.progress + 1, kRepairPylonTicks);
+        machine.status = MachineStatus::Working;
+        if (machine.progress < kRepairPylonTicks) {
+            continue;
+        }
+        world_.setTile(target->first, target->second, machine.z, Tile{TileId::Wall, 0});
+        machine.progress = 0;
+        machine.status = MachineStatus::Idle;
+    }
+}
+
 bool Simulation::canPlaceMachine(MachineKind kind, int x, int y) const
 {
     return canPlaceMachine(kind, x, y, 0);
@@ -2555,6 +2616,8 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
     case MachineKind::OutpostBeacon:
         return item == outpostActivationItem(world_.biomeAt(machine.x, machine.y, machine.z)) &&
             machine.inventory.add(item, 1);
+    case MachineKind::RepairPylon:
+        return (item == ItemId::Wall || item == ItemId::PlankWall) && machine.inventory.add(item, 1);
     case MachineKind::PowerPole:
     case MachineKind::ElectricMiner:
     case MachineKind::OffshorePump:
@@ -2667,7 +2730,8 @@ bool Simulation::isPowerConsumer(MachineKind kind) const
         kind == MachineKind::ArchiveTerminal ||
         kind == MachineKind::RiftGate ||
         kind == MachineKind::GuardTower ||
-        kind == MachineKind::OutpostBeacon;
+        kind == MachineKind::OutpostBeacon ||
+        kind == MachineKind::RepairPylon;
 }
 
 bool Simulation::isLogisticStorage(MachineKind kind) const
@@ -2690,6 +2754,9 @@ int Simulation::powerDemand(MachineKind kind) const
         return 2;
     }
     if (kind == MachineKind::OutpostBeacon) {
+        return 1;
+    }
+    if (kind == MachineKind::RepairPylon) {
         return 1;
     }
     return 0;
