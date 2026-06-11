@@ -719,6 +719,33 @@ std::string Simulation::currentSupplyContractText() const
     return "contract complete: supply chain proved across plates, science, logistics, archive, and rift";
 }
 
+int Simulation::factoryPressureLevel() const
+{
+    return productionTotals_.ironPlates +
+        productionTotals_.copperPlates +
+        productionTotals_.sciencePacks * 12 +
+        productionTotals_.advancedSciencePacks * 24 +
+        productionTotals_.poweredOre / 2 +
+        productionTotals_.logisticDeliveries * 8 +
+        productionTotals_.archiveSignals * 50 +
+        productionTotals_.riftJumps * 80;
+}
+
+std::string Simulation::factoryPressureText() const
+{
+    const int pressure = factoryPressureLevel();
+    if (pressure < 60 || productionTotals_.sciencePacks == 0) {
+        return "pressure: quiet (" + std::to_string(pressure) + ")";
+    }
+    if (pressure < 120) {
+        return "pressure: watched (" + std::to_string(pressure) + "); keep walls and exits clear";
+    }
+    if (pressure < 220) {
+        return "pressure: raids possible (" + std::to_string(pressure) + "); clear hostiles before expanding";
+    }
+    return "pressure: hostile surge (" + std::to_string(pressure) + "); secure the factory perimeter";
+}
+
 std::string Simulation::milestoneText() const
 {
     if (productionTotals_.riftJumps > 0) {
@@ -2398,7 +2425,11 @@ std::optional<EntityKind> Simulation::localEntityKindForTile(int x, int y, int z
 
 void Simulation::ensureLocalEntities()
 {
-    if (entities_.size() >= 80 || (!entities_.empty() && player_.z >= 0)) {
+    if (entities_.size() >= 80) {
+        return;
+    }
+    if (!entities_.empty() && player_.z >= 0) {
+        ensureFactoryPressureEntity();
         return;
     }
     constexpr int kSpawnRadius = 9;
@@ -2421,6 +2452,61 @@ void Simulation::ensureLocalEntities()
             entity.facing = Direction::South;
             entities_.push_back(entity);
         }
+    }
+    ensureFactoryPressureEntity();
+}
+
+void Simulation::ensureFactoryPressureEntity()
+{
+    if (entities_.size() >= 80 ||
+        player_.z != 0 ||
+        tick_ == 0 ||
+        (tick_ % 300U) != 0U ||
+        productionTotals_.sciencePacks == 0 ||
+        factoryPressureLevel() < 120) {
+        return;
+    }
+
+    constexpr std::array<std::pair<int, int>, 12> kOffsets{{
+        {0, -10},
+        {8, -6},
+        {10, 0},
+        {8, 6},
+        {0, 10},
+        {-8, 6},
+        {-10, 0},
+        {-8, -6},
+        {4, -9},
+        {9, 4},
+        {-4, 9},
+        {-9, -4},
+    }};
+
+    const auto kind = factoryPressureLevel() >= 220 ? EntityKind::Skeleton : EntityKind::Slime;
+    for (const auto& [offsetX, offsetY] : kOffsets) {
+        const int x = player_.x + offsetX;
+        const int y = player_.y + offsetY;
+        if ((x == player_.x && y == player_.y) ||
+            machineAt(x, y, player_.z) != nullptr ||
+            entityAt(x, y, player_.z) != nullptr) {
+            continue;
+        }
+        const auto tile = world_.getTile(x, y, player_.z);
+        if (isWaterTile(tile.id) || !world_.isWalkable(x, y, player_.z)) {
+            continue;
+        }
+
+        Entity entity;
+        entity.id = nextEntityId_++;
+        entity.kind = kind;
+        entity.x = x;
+        entity.y = y;
+        entity.z = player_.z;
+        entity.hp = entityMaxHp(entity.kind);
+        entity.facing = Direction::South;
+        entity.cooldown = 20;
+        entities_.push_back(entity);
+        return;
     }
 }
 

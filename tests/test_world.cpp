@@ -2516,6 +2516,43 @@ void testSupplyContractProgression()
         "completed contract text should show completion");
 }
 
+void testFactoryPressureSpawnsHostileProbe()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    auto snapshot = sim.snapshot();
+    snapshot.tick = 300;
+    snapshot.nextEntityId = 2;
+    snapshot.entities.push_back(Entity{1, EntityKind::Deer, 20, 20, 0, 2, Direction::South, 0});
+    snapshot.productionTotals.sciencePacks = 10;
+    snapshot.tiles = {
+        TileSnapshot{0, -10, Tile{TileId::Floor, 0}},
+        TileSnapshot{8, -6, Tile{TileId::Floor, 0}},
+        TileSnapshot{10, 0, Tile{TileId::Floor, 0}},
+        TileSnapshot{8, 6, Tile{TileId::Floor, 0}},
+        TileSnapshot{0, 10, Tile{TileId::Floor, 0}},
+        TileSnapshot{-8, 6, Tile{TileId::Floor, 0}},
+        TileSnapshot{-10, 0, Tile{TileId::Floor, 0}},
+        TileSnapshot{-8, -6, Tile{TileId::Floor, 0}},
+    };
+    sim.restore(snapshot);
+
+    require(sim.factoryPressureLevel() >= 120, "science production should create pressure");
+    require(sim.factoryPressureText().find("raids possible") != std::string::npos,
+        "pressure text should warn when raids can spawn");
+    sim.step();
+
+    bool foundHostile = false;
+    for (const auto& entity : sim.entities()) {
+        foundHostile = foundHostile ||
+            entity.kind == EntityKind::Slime ||
+            entity.kind == EntityKind::Skeleton;
+    }
+    require(foundHostile, "factory pressure should spawn a hostile probe on cadence");
+    require(sim.player().hp == 20, "pressure probe should not deal immediate spawn damage");
+}
+
 } // namespace
 
 int main()
@@ -2580,6 +2617,7 @@ int main()
     testHouseDoorAndLayerStairs();
     testDungeonGenerationAndEntityCombatSaveLoad();
     testSupplyContractProgression();
+    testFactoryPressureSpawnsHostileProbe();
 
     std::cout << "thoth_tests passed\n";
     return 0;

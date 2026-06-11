@@ -243,6 +243,8 @@ public:
     [[nodiscard]] int completedSupplyContracts() const;
     [[nodiscard]] int totalSupplyContracts() const;
     [[nodiscard]] std::string currentSupplyContractText() const;
+    [[nodiscard]] int factoryPressureLevel() const;
+    [[nodiscard]] std::string factoryPressureText() const;
     [[nodiscard]] std::string milestoneText() const;
     [[nodiscard]] bool isMachinePowered(std::uint32_t machineId) const;
     [[nodiscard]] SimulationSnapshot snapshot() const;
@@ -269,6 +271,7 @@ private:
     void updateMachines();
     void updateEntities();
     void ensureLocalEntities();
+    void ensureFactoryPressureEntity();
     void updatePowerNetworks();
     void updateMiners();
     void updateElectricMiners();

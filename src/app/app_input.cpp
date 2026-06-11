@@ -85,6 +85,7 @@ std::string factoryStatsText(const thoth::game::Simulation& sim)
         " archive=" + std::to_string(sim.productionTotals().archiveSignals) +
         " rift=" + std::to_string(sim.productionTotals().riftJumps) +
         " deliveries=" + std::to_string(sim.productionTotals().logisticDeliveries) +
+        " pressure=" + std::to_string(sim.factoryPressureLevel()) +
         " chests=" + std::to_string(machineCount(sim, MachineKind::Chest)) +
         " belts_loaded=" + std::to_string(beltItemCount(sim)) +
         " plates_in_chests=" + std::to_string(itemCountInMachines(sim, MachineKind::Chest, ItemId::IronPlate)) +
