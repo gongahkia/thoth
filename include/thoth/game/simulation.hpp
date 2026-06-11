@@ -283,6 +283,7 @@ private:
     void updateMachines();
     void updateEntities();
     void ensureLocalEntities();
+    void ensureLairEntities();
     void ensureFactoryPressureEntity();
     void updatePowerNetworks();
     void updateMiners();

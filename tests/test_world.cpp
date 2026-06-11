@@ -324,6 +324,47 @@ void testBiomeLairGeneration()
     require(world.getTile(37, 20).id == TileId::Basalt, "badlands foundry should expose basalt rewards");
 }
 
+void testLairEnemyPressureSpawnsBiomeHostiles()
+{
+    using namespace thoth::game;
+
+    const auto containsKind = [](const Simulation& sim, EntityKind kind) {
+        for (const auto& entity : sim.entities()) {
+            if (entity.kind == kind) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    Simulation marsh(20260611);
+    auto snapshot = marsh.snapshot();
+    snapshot.player.x = 0;
+    snapshot.player.y = 18;
+    marsh.restore(snapshot);
+    marsh.step();
+    require(containsKind(marsh, EntityKind::Slime), "marsh hive should spawn slime pressure");
+    require(marsh.player().hp == 20, "marsh lair spawn should not deal immediate damage");
+
+    Simulation badlands(20260611);
+    snapshot = badlands.snapshot();
+    snapshot.player.x = 36;
+    snapshot.player.y = 20;
+    badlands.restore(snapshot);
+    badlands.step();
+    require(containsKind(badlands, EntityKind::Skeleton), "badlands foundry should spawn skeleton pressure");
+    require(badlands.player().hp == 20, "badlands lair spawn should not deal immediate damage");
+
+    Simulation crystal(20260611);
+    snapshot = crystal.snapshot();
+    snapshot.player.x = -36;
+    snapshot.player.y = 20;
+    crystal.restore(snapshot);
+    crystal.step();
+    require(containsKind(crystal, EntityKind::DungeonSentinel), "crystal vault should spawn sentinel pressure");
+    require(crystal.player().hp == 20, "crystal lair spawn should not deal immediate damage");
+}
+
 void testSimulationMovementAndMining()
 {
     thoth::game::Simulation sim(1);
@@ -2634,6 +2675,7 @@ int main()
     testStarterResources();
     testEarlyBiomeTiles();
     testBiomeLairGeneration();
+    testLairEnemyPressureSpawnsBiomeHostiles();
     testSimulationMovementAndMining();
     testCraftingHotbarAndPlacement();
     testAssignHotbarCommand();

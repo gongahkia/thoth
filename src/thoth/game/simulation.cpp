@@ -2496,6 +2496,11 @@ void Simulation::ensureLocalEntities()
     if (entities_.size() >= 80) {
         return;
     }
+    if (player_.z >= 0 && world_.lairAt(player_.x, player_.y, player_.z).has_value()) {
+        ensureLairEntities();
+        ensureFactoryPressureEntity();
+        return;
+    }
     if (!entities_.empty() && player_.z >= 0) {
         ensureFactoryPressureEntity();
         return;
@@ -2522,6 +2527,70 @@ void Simulation::ensureLocalEntities()
         }
     }
     ensureFactoryPressureEntity();
+}
+
+void Simulation::ensureLairEntities()
+{
+    const auto lair = world_.lairAt(player_.x, player_.y, player_.z);
+    if (!lair || entities_.size() >= 80) {
+        return;
+    }
+
+    int nearbyHostiles = 0;
+    for (const auto& entity : entities_) {
+        if (entity.z == player_.z &&
+            isHostile(entity.kind) &&
+            world_.lairAt(entity.x, entity.y, entity.z) == lair &&
+            manhattanDistance(entity.x, entity.y, entity.z, player_.x, player_.y, player_.z) <= 12) {
+            ++nearbyHostiles;
+        }
+    }
+    if (nearbyHostiles >= 3 || (nearbyHostiles > 0 && (tick_ % 90U) != 0U)) {
+        return;
+    }
+
+    constexpr std::array<std::pair<int, int>, 8> kOffsets{{
+        {3, 0},
+        {-3, 0},
+        {0, 3},
+        {0, -3},
+        {2, 2},
+        {-2, 2},
+        {2, -2},
+        {-2, -2},
+    }};
+
+    EntityKind kind = EntityKind::Slime;
+    if (*lair == LairKind::BadlandsFoundry) {
+        kind = nearbyHostiles == 0 ? EntityKind::Skeleton : EntityKind::CaveCrawler;
+    } else if (*lair == LairKind::CrystalVault) {
+        kind = EntityKind::DungeonSentinel;
+    }
+
+    for (const auto& [offsetX, offsetY] : kOffsets) {
+        const int x = player_.x + offsetX;
+        const int y = player_.y + offsetY;
+        const auto candidateLair = world_.lairAt(x, y, player_.z);
+        if (!candidateLair ||
+            *candidateLair != *lair ||
+            entityAt(x, y, player_.z) != nullptr ||
+            machineAt(x, y, player_.z) != nullptr ||
+            !world_.isWalkable(x, y, player_.z)) {
+            continue;
+        }
+
+        Entity entity;
+        entity.id = nextEntityId_++;
+        entity.kind = kind;
+        entity.x = x;
+        entity.y = y;
+        entity.z = player_.z;
+        entity.hp = entityMaxHp(entity.kind);
+        entity.facing = Direction::South;
+        entity.cooldown = 20;
+        entities_.push_back(entity);
+        return;
+    }
 }
 
 void Simulation::ensureFactoryPressureEntity()
