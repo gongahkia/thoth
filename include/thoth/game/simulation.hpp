@@ -153,7 +153,9 @@ enum class EntityKind : std::uint8_t {
     DungeonSentinel,
     RiftStalker,
     MarshBroodheart,
+    GlassMaw,
     BadlandsWarden,
+    FrostNullifier,
     RiftSignalTyrant,
 };
 
@@ -290,7 +292,9 @@ private:
     void interact(Direction direction);
     void attack(Direction direction);
     [[nodiscard]] bool trySummonMarshBoss(int x, int y, int z);
+    [[nodiscard]] bool trySummonGlassBoss(int x, int y, int z);
     [[nodiscard]] bool trySummonBadlandsBoss(int x, int y, int z);
+    [[nodiscard]] bool trySummonFrostBoss(int x, int y, int z);
     [[nodiscard]] bool trySummonRiftBoss(int x, int y, int z);
     void updateMachines();
     void updateEntities();

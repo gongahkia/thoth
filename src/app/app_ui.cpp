@@ -2234,8 +2234,12 @@ Color entityColor(thoth::game::EntityKind kind)
         return Color{172, 92, 232, 255};
     case EntityKind::MarshBroodheart:
         return Color{132, 226, 122, 255};
+    case EntityKind::GlassMaw:
+        return Color{255, 198, 90, 255};
     case EntityKind::BadlandsWarden:
         return Color{188, 126, 84, 255};
+    case EntityKind::FrostNullifier:
+        return Color{132, 226, 255, 255};
     case EntityKind::RiftSignalTyrant:
         return Color{204, 126, 255, 255};
     }

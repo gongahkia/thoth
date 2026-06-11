@@ -506,6 +506,118 @@ void testBadlandsBossSummonPersistenceAndReward()
     require(loaded->productionTotals().bossesDefeated == 1, "Badlands Warden should increment boss total");
 }
 
+void testGlassBossSummonPersistenceAndReward()
+{
+    using namespace thoth::game;
+
+    const auto containsBoss = [](const Simulation& sim) {
+        for (const auto& entity : sim.entities()) {
+            if (entity.kind == EntityKind::GlassMaw) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    Simulation sim(20260611);
+    auto snapshot = sim.snapshot();
+    snapshot.player.x = 17;
+    snapshot.player.y = -2;
+    snapshot.player.inventory = {
+        ItemStack{ItemId::SandGlass, 3},
+        ItemStack{ItemId::CactusFiber, 3},
+        ItemStack{ItemId::SciencePack, 1},
+    };
+    sim.restore(snapshot);
+
+    sim.queue(Command::interact(Direction::East));
+    sim.step();
+    require(containsBoss(sim), "prepared glass spire interaction should summon Glass Maw");
+    require(sim.itemCount(ItemId::SandGlass) == 0, "Glass Maw summon should consume sand glass");
+    require(sim.itemCount(ItemId::CactusFiber) == 0, "Glass Maw summon should consume cactus fiber");
+    require(sim.itemCount(ItemId::SciencePack) == 0, "Glass Maw summon should consume science");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_glass_boss_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "glass boss save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    std::filesystem::remove(path);
+    require(loaded.has_value(), "glass boss load should succeed: " + error);
+    require(containsBoss(*loaded), "glass boss save/load should preserve active boss");
+
+    for (int i = 0; i < 9 && containsBoss(*loaded); ++i) {
+        for (const auto& entity : loaded->entities()) {
+            if (entity.kind == EntityKind::GlassMaw) {
+                loaded->player().x = entity.x + 1;
+                loaded->player().y = entity.y;
+                loaded->player().z = entity.z;
+                break;
+            }
+        }
+        loaded->queue(Command::attack(Direction::West));
+        loaded->step();
+    }
+    require(!containsBoss(*loaded), "repeated attacks should defeat Glass Maw");
+    require(loaded->itemCount(ItemId::SandGlass) == 5, "Glass Maw should drop sand glass reward bundle");
+    require(loaded->productionTotals().bossesDefeated == 1, "Glass Maw should increment boss total");
+}
+
+void testFrostBossSummonPersistenceAndReward()
+{
+    using namespace thoth::game;
+
+    const auto containsBoss = [](const Simulation& sim) {
+        for (const auto& entity : sim.entities()) {
+            if (entity.kind == EntityKind::FrostNullifier) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    Simulation sim(20260611);
+    auto snapshot = sim.snapshot();
+    snapshot.player.x = -19;
+    snapshot.player.y = 0;
+    snapshot.player.inventory = {
+        ItemStack{ItemId::IceShard, 4},
+        ItemStack{ItemId::CircuitBoard, 2},
+        ItemStack{ItemId::AdvancedSciencePack, 1},
+    };
+    sim.restore(snapshot);
+
+    sim.queue(Command::interact(Direction::East));
+    sim.step();
+    require(containsBoss(sim), "prepared frost vault interaction should summon Frost Nullifier");
+    require(sim.itemCount(ItemId::IceShard) == 0, "Frost Nullifier summon should consume ice shards");
+    require(sim.itemCount(ItemId::CircuitBoard) == 0, "Frost Nullifier summon should consume circuit boards");
+    require(sim.itemCount(ItemId::AdvancedSciencePack) == 0, "Frost Nullifier summon should consume advanced science");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_frost_boss_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "frost boss save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    std::filesystem::remove(path);
+    require(loaded.has_value(), "frost boss load should succeed: " + error);
+    require(containsBoss(*loaded), "frost boss save/load should preserve active boss");
+
+    for (int i = 0; i < 11 && containsBoss(*loaded); ++i) {
+        for (const auto& entity : loaded->entities()) {
+            if (entity.kind == EntityKind::FrostNullifier) {
+                loaded->player().x = entity.x + 1;
+                loaded->player().y = entity.y;
+                loaded->player().z = entity.z;
+                break;
+            }
+        }
+        loaded->queue(Command::attack(Direction::West));
+        loaded->step();
+    }
+    require(!containsBoss(*loaded), "repeated attacks should defeat Frost Nullifier");
+    require(loaded->itemCount(ItemId::IceShard) == 7, "Frost Nullifier should drop ice shard reward bundle");
+    require(loaded->productionTotals().bossesDefeated == 1, "Frost Nullifier should increment boss total");
+}
+
 void testRiftBossRequiresArchiveAndRiftProgress()
 {
     using namespace thoth::game;
@@ -2924,7 +3036,9 @@ int main()
     testBiomeLairGeneration();
     testLairEnemyPressureSpawnsBiomeHostiles();
     testMarshBossSummonPersistenceAndReward();
+    testGlassBossSummonPersistenceAndReward();
     testBadlandsBossSummonPersistenceAndReward();
+    testFrostBossSummonPersistenceAndReward();
     testRiftBossRequiresArchiveAndRiftProgress();
     testSimulationMovementAndMining();
     testCraftingHotbarAndPlacement();

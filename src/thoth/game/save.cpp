@@ -71,8 +71,12 @@ std::string_view entityKindToString(EntityKind kind)
         return "rift_stalker";
     case EntityKind::MarshBroodheart:
         return "marsh_broodheart";
+    case EntityKind::GlassMaw:
+        return "glass_maw";
     case EntityKind::BadlandsWarden:
         return "badlands_warden";
+    case EntityKind::FrostNullifier:
+        return "frost_nullifier";
     case EntityKind::RiftSignalTyrant:
         return "rift_signal_tyrant";
     }
@@ -123,8 +127,14 @@ std::optional<EntityKind> entityKindFromKey(std::string_view key)
     if (key == "marsh_broodheart") {
         return EntityKind::MarshBroodheart;
     }
+    if (key == "glass_maw") {
+        return EntityKind::GlassMaw;
+    }
     if (key == "badlands_warden") {
         return EntityKind::BadlandsWarden;
+    }
+    if (key == "frost_nullifier") {
+        return EntityKind::FrostNullifier;
     }
     if (key == "rift_signal_tyrant") {
         return EntityKind::RiftSignalTyrant;

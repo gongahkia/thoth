@@ -1276,7 +1276,9 @@ void Simulation::interact(Direction direction)
 
     if (tile.id == TileId::StairsDown &&
         (trySummonMarshBoss(tx, ty, player_.z) ||
+            trySummonGlassBoss(tx, ty, player_.z) ||
             trySummonBadlandsBoss(tx, ty, player_.z) ||
+            trySummonFrostBoss(tx, ty, player_.z) ||
             trySummonRiftBoss(tx, ty, player_.z))) {
         return;
     }
@@ -1410,6 +1412,128 @@ bool Simulation::trySummonBadlandsBoss(int x, int y, int z)
     }
     addItem(ItemId::Basalt, 4);
     addItem(ItemId::IronPlate, 4);
+    addItem(ItemId::AdvancedSciencePack, 1);
+    return true;
+}
+
+bool Simulation::trySummonGlassBoss(int x, int y, int z)
+{
+    const auto lair = world_.lairAt(x, y, z);
+    if (!lair || *lair != LairKind::GlassSpire) {
+        return false;
+    }
+    for (const auto& entity : entities_) {
+        if (entity.kind == EntityKind::GlassMaw && entity.hp > 0) {
+            return true;
+        }
+    }
+    if (!player_.inventory.canConsume(ItemId::SandGlass, 3) ||
+        !player_.inventory.canConsume(ItemId::CactusFiber, 3) ||
+        !player_.inventory.canConsume(ItemId::SciencePack, 1)) {
+        return false;
+    }
+
+    const auto consumedGlass = consumeItem(ItemId::SandGlass, 3);
+    const auto consumedCactus = consumeItem(ItemId::CactusFiber, 3);
+    const auto consumedScience = consumeItem(ItemId::SciencePack, 1);
+    (void)consumedGlass;
+    (void)consumedCactus;
+    (void)consumedScience;
+
+    constexpr std::array<std::pair<int, int>, 8> kOffsets{{
+        {-2, 0},
+        {2, 0},
+        {0, -2},
+        {0, 2},
+        {-2, -1},
+        {2, 1},
+        {-1, 2},
+        {1, -2},
+    }};
+    for (const auto& [offsetX, offsetY] : kOffsets) {
+        const int sx = x + offsetX;
+        const int sy = y + offsetY;
+        if (world_.lairAt(sx, sy, z) != lair ||
+            !world_.isWalkable(sx, sy, z) ||
+            entityAt(sx, sy, z) != nullptr ||
+            machineAt(sx, sy, z) != nullptr) {
+            continue;
+        }
+        Entity boss;
+        boss.id = nextEntityId_++;
+        boss.kind = EntityKind::GlassMaw;
+        boss.x = sx;
+        boss.y = sy;
+        boss.z = z;
+        boss.hp = entityMaxHp(boss.kind);
+        boss.facing = Direction::South;
+        boss.cooldown = 42;
+        entities_.push_back(boss);
+        return true;
+    }
+    addItem(ItemId::SandGlass, 3);
+    addItem(ItemId::CactusFiber, 3);
+    addItem(ItemId::SciencePack, 1);
+    return true;
+}
+
+bool Simulation::trySummonFrostBoss(int x, int y, int z)
+{
+    const auto lair = world_.lairAt(x, y, z);
+    if (!lair || *lair != LairKind::FrostVault) {
+        return false;
+    }
+    for (const auto& entity : entities_) {
+        if (entity.kind == EntityKind::FrostNullifier && entity.hp > 0) {
+            return true;
+        }
+    }
+    if (!player_.inventory.canConsume(ItemId::IceShard, 4) ||
+        !player_.inventory.canConsume(ItemId::CircuitBoard, 2) ||
+        !player_.inventory.canConsume(ItemId::AdvancedSciencePack, 1)) {
+        return false;
+    }
+
+    const auto consumedIce = consumeItem(ItemId::IceShard, 4);
+    const auto consumedCircuits = consumeItem(ItemId::CircuitBoard, 2);
+    const auto consumedScience = consumeItem(ItemId::AdvancedSciencePack, 1);
+    (void)consumedIce;
+    (void)consumedCircuits;
+    (void)consumedScience;
+
+    constexpr std::array<std::pair<int, int>, 8> kOffsets{{
+        {-2, 0},
+        {2, 0},
+        {0, -2},
+        {0, 2},
+        {-2, -1},
+        {2, 1},
+        {-1, 2},
+        {1, -2},
+    }};
+    for (const auto& [offsetX, offsetY] : kOffsets) {
+        const int sx = x + offsetX;
+        const int sy = y + offsetY;
+        if (world_.lairAt(sx, sy, z) != lair ||
+            !world_.isWalkable(sx, sy, z) ||
+            entityAt(sx, sy, z) != nullptr ||
+            machineAt(sx, sy, z) != nullptr) {
+            continue;
+        }
+        Entity boss;
+        boss.id = nextEntityId_++;
+        boss.kind = EntityKind::FrostNullifier;
+        boss.x = sx;
+        boss.y = sy;
+        boss.z = z;
+        boss.hp = entityMaxHp(boss.kind);
+        boss.facing = Direction::South;
+        boss.cooldown = 48;
+        entities_.push_back(boss);
+        return true;
+    }
+    addItem(ItemId::IceShard, 4);
+    addItem(ItemId::CircuitBoard, 2);
     addItem(ItemId::AdvancedSciencePack, 1);
     return true;
 }
@@ -2668,7 +2792,9 @@ bool Simulation::isHostile(EntityKind kind) const
         kind == EntityKind::DungeonSentinel ||
         kind == EntityKind::RiftStalker ||
         kind == EntityKind::MarshBroodheart ||
+        kind == EntityKind::GlassMaw ||
         kind == EntityKind::BadlandsWarden ||
+        kind == EntityKind::FrostNullifier ||
         kind == EntityKind::RiftSignalTyrant;
 }
 
@@ -2703,8 +2829,12 @@ ItemId Simulation::entityDrop(EntityKind kind) const
         return ItemId::Crystal;
     case EntityKind::MarshBroodheart:
         return ItemId::Venom;
+    case EntityKind::GlassMaw:
+        return ItemId::SandGlass;
     case EntityKind::BadlandsWarden:
         return ItemId::Bone;
+    case EntityKind::FrostNullifier:
+        return ItemId::IceShard;
     case EntityKind::RiftSignalTyrant:
         return ItemId::Crystal;
     }
@@ -2716,8 +2846,12 @@ int Simulation::entityDropCount(EntityKind kind) const
     switch (kind) {
     case EntityKind::MarshBroodheart:
         return 4;
+    case EntityKind::GlassMaw:
+        return 5;
     case EntityKind::BadlandsWarden:
         return 6;
+    case EntityKind::FrostNullifier:
+        return 7;
     case EntityKind::RiftSignalTyrant:
         return 8;
     case EntityKind::Deer:
@@ -2763,8 +2897,12 @@ int Simulation::entityMaxHp(EntityKind kind) const
         return 8;
     case EntityKind::MarshBroodheart:
         return 14;
+    case EntityKind::GlassMaw:
+        return 16;
     case EntityKind::BadlandsWarden:
         return 18;
+    case EntityKind::FrostNullifier:
+        return 20;
     case EntityKind::RiftSignalTyrant:
         return 24;
     }
@@ -2779,7 +2917,9 @@ void Simulation::defeatEntity(std::size_t entityIndex)
     const auto kind = entities_[entityIndex].kind;
     addItem(entityDrop(kind), entityDropCount(kind));
     if (kind == EntityKind::MarshBroodheart ||
+        kind == EntityKind::GlassMaw ||
         kind == EntityKind::BadlandsWarden ||
+        kind == EntityKind::FrostNullifier ||
         kind == EntityKind::RiftSignalTyrant) {
         ++productionTotals_.bossesDefeated;
     }
