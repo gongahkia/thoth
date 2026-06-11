@@ -180,7 +180,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 17\n";
+    output << "THOTH_SAVE 18\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -277,7 +277,14 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
            << snapshot.productionTotals.scrapRecovered << ' '
            << snapshot.productionTotals.scrapRecycled << ' '
            << snapshot.productionTotals.pressureEnemiesDefeated << ' '
-           << snapshot.productionTotals.pressureWaveRewardsClaimed << "\n";
+           << snapshot.productionTotals.pressureWaveRewardsClaimed << ' '
+           << snapshot.productionTotals.riftStormsTriggered << ' '
+           << snapshot.productionTotals.riftStormsSurvived << "\n";
+
+    output << "rift_storm "
+           << snapshot.riftStorm.severity << ' '
+           << snapshot.riftStorm.ticksRemaining << ' '
+           << snapshot.riftStorm.cooldownTicks << "\n";
 
     return true;
 }
@@ -295,7 +302,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 17)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 18)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -728,6 +735,20 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         if (version >= 17 &&
             (!readValue(input, snapshot.productionTotals.pressureEnemiesDefeated, "pressure enemy defeated total", error) ||
                 !readValue(input, snapshot.productionTotals.pressureWaveRewardsClaimed, "pressure wave reward total", error))) {
+            return std::nullopt;
+        }
+        if (version >= 18 &&
+            (!readValue(input, snapshot.productionTotals.riftStormsTriggered, "rift storm triggered total", error) ||
+                !readValue(input, snapshot.productionTotals.riftStormsSurvived, "rift storm survived total", error))) {
+            return std::nullopt;
+        }
+    }
+
+    if (version >= 18) {
+        if (!expectToken(input, "rift_storm", error) ||
+            !readValue(input, snapshot.riftStorm.severity, "rift storm severity", error) ||
+            !readValue(input, snapshot.riftStorm.ticksRemaining, "rift storm ticks remaining", error) ||
+            !readValue(input, snapshot.riftStorm.cooldownTicks, "rift storm cooldown", error)) {
             return std::nullopt;
         }
     }

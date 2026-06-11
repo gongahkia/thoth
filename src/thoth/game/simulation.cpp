@@ -25,6 +25,7 @@ constexpr int kTrainStopTicks = 90;
 constexpr int kPumpTicks = 30;
 constexpr int kPipeTicks = 3;
 constexpr int kRiftGateTicks = 180;
+constexpr int kRiftCrownGateTicks = 120;
 constexpr int kGuardTowerTicks = 45;
 constexpr int kGuardTowerRange = 5;
 constexpr int kArcTowerTicks = 30;
@@ -39,6 +40,10 @@ constexpr int kBadlandsSlagBaseTicks = 90;
 constexpr int kSnowfieldFreezeBaseTicks = 90;
 constexpr int kMarshRotBaseTicks = 180;
 constexpr int kCrystalResonanceBaseTicks = 150;
+constexpr int kRiftStormBaseTicks = 120;
+constexpr int kRiftStormCooldownTicks = 300;
+constexpr int kRiftStormSpawnCadence = 45;
+constexpr int kRiftStormJoltCadence = 60;
 
 constexpr std::array<BiomeKind, 5> kRequiredOutpostBiomes{{
     BiomeKind::Marsh,
@@ -1115,6 +1120,28 @@ std::string Simulation::pressureEventDeckText() const
         rewards;
 }
 
+const RiftStormState& Simulation::riftStorm() const
+{
+    return riftStorm_;
+}
+
+std::string Simulation::riftStormText() const
+{
+    if (riftStorm_.ticksRemaining > 0) {
+        return "rift storm: active L" + std::to_string(riftStorm_.severity) +
+            " for " + std::to_string(riftStorm_.ticksRemaining) +
+            " ticks; gates charge faster but unanchored gates shed stalkers; socket Rift Crown or stabilize a rift outpost";
+    }
+    if (productionTotals_.riftJumps == 0) {
+        return "rift storm: dormant; first rift jump can tear open a storm";
+    }
+    if (riftStorm_.cooldownTicks > 0) {
+        return "rift storm: residual static for " + std::to_string(riftStorm_.cooldownTicks) +
+            " ticks; use the lull to repair gates and restock defenses";
+    }
+    return "rift storm: charged; deep rift travel or lingering in the rift band can trigger the next storm";
+}
+
 bool Simulation::mainObjectiveComplete() const
 {
     return productionTotals_.riftJumps > 0 &&
@@ -1508,6 +1535,13 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"event_severity\": " << pressureEvent.severity
         << ", \"event_spawns\": " << pressureEvent.spawnCount
         << ", \"alert\": " << jsonString(pressureWaveAlertText()) << "},\n";
+    out << "  \"rift_storm\": {\"active\": " << (riftStormActive() ? "true" : "false")
+        << ", \"severity\": " << riftStorm_.severity
+        << ", \"ticks_remaining\": " << riftStorm_.ticksRemaining
+        << ", \"cooldown_ticks\": " << riftStorm_.cooldownTicks
+        << ", \"triggered\": " << productionTotals_.riftStormsTriggered
+        << ", \"survived\": " << productionTotals_.riftStormsSurvived
+        << ", \"summary\": " << jsonString(riftStormText()) << "},\n";
     out << "  \"production\": {\"iron_plates\": " << productionTotals_.ironPlates
         << ", \"copper_plates\": " << productionTotals_.copperPlates
         << ", \"science_packs\": " << productionTotals_.sciencePacks
@@ -1523,7 +1557,9 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"scrap_recovered\": " << productionTotals_.scrapRecovered
         << ", \"scrap_recycled\": " << productionTotals_.scrapRecycled
         << ", \"pressure_enemies_defeated\": " << productionTotals_.pressureEnemiesDefeated
-        << ", \"pressure_wave_rewards_claimed\": " << productionTotals_.pressureWaveRewardsClaimed << "},\n";
+        << ", \"pressure_wave_rewards_claimed\": " << productionTotals_.pressureWaveRewardsClaimed
+        << ", \"rift_storms_triggered\": " << productionTotals_.riftStormsTriggered
+        << ", \"rift_storms_survived\": " << productionTotals_.riftStormsSurvived << "},\n";
     out << "  \"entities\": {\"total\": " << entities_.size()
         << ", \"hostile\": " << hostileEntities
         << ", \"active_bosses\": " << activeBosses
@@ -1606,6 +1642,7 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"biome_hazard\": " << jsonString(currentBiomeHazardText())
         << ", \"boss_exam\": " << jsonString(currentBossExamText())
         << ", \"pressure_deck\": " << jsonString(pressureEventDeckText())
+        << ", \"rift_storm\": " << jsonString(riftStormText())
         << ", \"marker\": " << jsonString(objectiveMarkerText())
         << ", \"milestone\": " << jsonString(milestoneText()) << "}\n";
     out << "}\n";
@@ -1641,6 +1678,7 @@ SimulationSnapshot Simulation::snapshot() const
     result.entities = entities_;
     result.logisticJobs = logisticJobs_;
     result.productionTotals = productionTotals_;
+    result.riftStorm = riftStorm_;
     result.activeTech = activeTech_;
     result.researchProgress = researchProgress_;
     result.completedTechs = completedTechs_;
@@ -1691,6 +1729,10 @@ void Simulation::restore(const SimulationSnapshot& snapshot)
     rebuildMachineCellIndex();
     logisticJobs_ = snapshot.logisticJobs;
     productionTotals_ = snapshot.productionTotals;
+    riftStorm_ = snapshot.riftStorm;
+    riftStorm_.severity = std::clamp(riftStorm_.severity, 0, 4);
+    riftStorm_.ticksRemaining = std::max(0, riftStorm_.ticksRemaining);
+    riftStorm_.cooldownTicks = std::max(0, riftStorm_.cooldownTicks);
     completedTechs_ = snapshot.completedTechs;
     unlockedRecipes_ = snapshot.unlockedRecipes;
     activeTech_ = snapshot.activeTech.empty() ? nextIncompleteTech() : snapshot.activeTech;
@@ -2456,6 +2498,7 @@ void Simulation::updateMachines()
     updatePipes();
     updateArchiveTerminals();
     updateRiftGates();
+    updateRiftStorms();
     updateOutpostBeacons();
     updateGuardTowers();
     updateRepairPylons();
@@ -3143,14 +3186,15 @@ void Simulation::updateRiftGates()
             machine.status = MachineStatus::MissingInput;
             continue;
         }
-        const int goalTicks = machine.socketedRelic == ItemId::RiftCrown ? 120 : kRiftGateTicks;
-        machine.progress = std::min(machine.progress + 1, goalTicks);
+        const int goalTicks = machine.socketedRelic == ItemId::RiftCrown ? kRiftCrownGateTicks : kRiftGateTicks;
+        machine.progress = std::min(machine.progress + 1 + riftStormChargeBonus(machine), goalTicks);
         machine.status = MachineStatus::Working;
         if (machine.progress < goalTicks) {
             continue;
         }
         player_.x += player_.x >= (kRiftOffset / 2) ? -kRiftOffset : kRiftOffset;
         ++productionTotals_.riftJumps;
+        startRiftStorm(currentRiftStormSeverity());
         machine.progress = 0;
         machine.status = MachineStatus::Idle;
     }
@@ -3454,6 +3498,124 @@ void Simulation::updatePressureRelays()
         productionTotals_.pressureWavesRepelled += machine.socketedRelic == ItemId::GlassHeart ? 2 : 1;
         machine.progress = 0;
         machine.status = MachineStatus::Idle;
+    }
+}
+
+bool Simulation::riftStormActive() const
+{
+    return riftStorm_.severity > 0 && riftStorm_.ticksRemaining > 0;
+}
+
+int Simulation::currentRiftStormSeverity() const
+{
+    int severity = 1 + std::min(3, productionTotals_.riftJumps / 2);
+    if (factoryPressureLevel() >= 220) {
+        ++severity;
+    }
+    if (world_.biomeAt(player_.x, player_.y, player_.z) == BiomeKind::Rift) {
+        ++severity;
+    }
+    if (hasActivatedOutpostBiome(BiomeKind::Rift)) {
+        --severity;
+    }
+    if (productionTotals_.pressureWavesRepelled >= 3) {
+        --severity;
+    }
+    return std::clamp(severity, 1, 4);
+}
+
+int Simulation::riftStormChargeBonus(const Machine& machine) const
+{
+    if (!riftStormActive() || machine.kind != MachineKind::RiftGate) {
+        return 0;
+    }
+    if (machine.socketedRelic == ItemId::RiftCrown) {
+        return 1 + (riftStorm_.severity / 2);
+    }
+    return 1;
+}
+
+void Simulation::startRiftStorm(int severity)
+{
+    const int normalizedSeverity = std::clamp(severity, 1, 4);
+    const int duration = kRiftStormBaseTicks + (normalizedSeverity * 30);
+    ++productionTotals_.riftStormsTriggered;
+
+    if (riftStormActive()) {
+        riftStorm_.severity = std::max(riftStorm_.severity, normalizedSeverity);
+        riftStorm_.ticksRemaining = std::max(riftStorm_.ticksRemaining, duration);
+        riftStorm_.cooldownTicks = std::max(riftStorm_.cooldownTicks, kRiftStormCooldownTicks);
+        return;
+    }
+
+    riftStorm_.severity = normalizedSeverity;
+    riftStorm_.ticksRemaining = duration;
+    riftStorm_.cooldownTicks = kRiftStormCooldownTicks;
+}
+
+void Simulation::updateRiftStorms()
+{
+    if (!riftStormActive()) {
+        if (riftStorm_.cooldownTicks > 0) {
+            --riftStorm_.cooldownTicks;
+        }
+        if (productionTotals_.riftJumps > 0 &&
+            riftStorm_.cooldownTicks == 0 &&
+            tick_ > 0 &&
+            world_.biomeAt(player_.x, player_.y, player_.z) == BiomeKind::Rift &&
+            (tick_ % 240U) == 0U) {
+            startRiftStorm(currentRiftStormSeverity());
+        }
+        return;
+    }
+
+    const int severity = std::clamp(riftStorm_.severity, 1, 4);
+    if (tick_ > 0 && (tick_ % static_cast<std::uint64_t>(kRiftStormSpawnCadence)) == 0U) {
+        int spawnBudget = std::min(3, 1 + (severity / 2));
+        if (world_.biomeAt(player_.x, player_.y, player_.z) == BiomeKind::Rift &&
+            spawnBudget > 0 &&
+            spawnEntityNear(player_.x, player_.y, player_.z, EntityKind::RiftStalker, 7)) {
+            --spawnBudget;
+        }
+        for (const auto& machine : machines_) {
+            if (spawnBudget <= 0) {
+                break;
+            }
+            if (machine.kind != MachineKind::RiftGate ||
+                machine.socketedRelic == ItemId::RiftCrown) {
+                continue;
+            }
+            const auto biome = world_.biomeAt(machine.x, machine.y, machine.z);
+            if (hasActivatedOutpostBiome(biome) && severity <= 2) {
+                continue;
+            }
+            if (spawnEntityNear(machine.x, machine.y, machine.z, EntityKind::RiftStalker, 5)) {
+                --spawnBudget;
+            }
+        }
+    }
+
+    if (tick_ > 0 && (tick_ % static_cast<std::uint64_t>(kRiftStormJoltCadence)) == 0U) {
+        for (auto& machine : machines_) {
+            if (machine.kind != MachineKind::RiftGate || machine.progress <= 0) {
+                continue;
+            }
+            if (machine.socketedRelic == ItemId::RiftCrown) {
+                machine.progress = std::min(machine.progress + severity * 2, kRiftCrownGateTicks);
+                machine.status = MachineStatus::Working;
+                continue;
+            }
+            machine.progress = std::max(0, machine.progress - severity);
+            machine.status = MachineStatus::OutputBlocked;
+        }
+    }
+
+    --riftStorm_.ticksRemaining;
+    if (riftStorm_.ticksRemaining <= 0) {
+        riftStorm_.severity = 0;
+        riftStorm_.ticksRemaining = 0;
+        riftStorm_.cooldownTicks = std::max(riftStorm_.cooldownTicks, kRiftStormCooldownTicks);
+        ++productionTotals_.riftStormsSurvived;
     }
 }
 
@@ -4492,6 +4654,16 @@ PressureEventCard Simulation::pressureEventForTick(std::uint64_t waveTick) const
         static_cast<std::uint64_t>(productionTotals_.archiveSignals * 3) +
         static_cast<std::uint64_t>(productionTotals_.pressureWavesRepelled));
 
+    if (riftStormActive() && pressure >= 180 && productionTotals_.riftJumps > 0 && (waveIndex % 2) == 0) {
+        return PressureEventCard{
+            "rift_storm_breach",
+            "Rift Storm Breach",
+            std::max(severity, riftStorm_.severity),
+            std::min(4, 1 + riftStorm_.severity),
+            "the active storm folds stalkers into the next pressure wave",
+            "anchor rift gates with the Rift Crown and hold arc tower coverage"};
+    }
+
     if (pressure >= 260 && productionTotals_.riftJumps > 0 && (waveIndex % 4) == 0) {
         return PressureEventCard{
             "rift_stalker_incursion",
@@ -4575,6 +4747,12 @@ std::vector<EntityKind> Simulation::pressureEventSpawns(const PressureEventCard&
     if (card.key == "rift_stalker_incursion") {
         for (int i = 0; i < card.spawnCount; ++i) {
             spawns.push_back(i == 0 ? EntityKind::RiftStalker : EntityKind::Skeleton);
+        }
+        return spawns;
+    }
+    if (card.key == "rift_storm_breach") {
+        for (int i = 0; i < card.spawnCount; ++i) {
+            spawns.push_back((i % 2) == 0 ? EntityKind::RiftStalker : EntityKind::NullWisp);
         }
         return spawns;
     }

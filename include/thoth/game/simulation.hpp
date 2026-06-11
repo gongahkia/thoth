@@ -140,6 +140,14 @@ struct ProductionTotals {
     int scrapRecycled = 0;
     int pressureEnemiesDefeated = 0;
     int pressureWaveRewardsClaimed = 0;
+    int riftStormsTriggered = 0;
+    int riftStormsSurvived = 0;
+};
+
+struct RiftStormState {
+    int severity = 0;
+    int ticksRemaining = 0;
+    int cooldownTicks = 0;
 };
 
 struct BiomeContractProgress {
@@ -270,6 +278,7 @@ struct SimulationSnapshot {
     std::vector<Entity> entities;
     std::vector<LogisticJob> logisticJobs;
     ProductionTotals productionTotals;
+    RiftStormState riftStorm;
     std::string activeTech = "logistics_1";
     int researchProgress = 0;
     std::vector<std::string> completedTechs;
@@ -315,6 +324,8 @@ public:
     [[nodiscard]] std::string pressureWaveAlertText() const;
     [[nodiscard]] PressureEventCard nextPressureEvent() const;
     [[nodiscard]] std::string pressureEventDeckText() const;
+    [[nodiscard]] const RiftStormState& riftStorm() const;
+    [[nodiscard]] std::string riftStormText() const;
     [[nodiscard]] bool mainObjectiveComplete() const;
     [[nodiscard]] bool hasActivatedOutpostBiome(BiomeKind biome) const;
     [[nodiscard]] int activatedOutpostBiomeCount() const;
@@ -387,8 +398,13 @@ private:
     void updateRepairPylons();
     void updatePressureRelays();
     void updateArcTowers();
+    void updateRiftStorms();
     void updateBiomeHazards();
     void updateBossPhases();
+    void startRiftStorm(int severity);
+    [[nodiscard]] int currentRiftStormSeverity() const;
+    [[nodiscard]] int riftStormChargeBonus(const Machine& machine) const;
+    [[nodiscard]] bool riftStormActive() const;
     [[nodiscard]] PressureEventCard pressureEventForTick(std::uint64_t waveTick) const;
     [[nodiscard]] std::vector<EntityKind> pressureEventSpawns(const PressureEventCard& card) const;
     [[nodiscard]] bool bossExamComplete(EntityKind boss) const;
@@ -461,6 +477,7 @@ private:
     std::vector<std::uint32_t> poweredMachineIds_;
     std::vector<LogisticJob> logisticJobs_;
     ProductionTotals productionTotals_;
+    RiftStormState riftStorm_;
 };
 
 [[nodiscard]] int dx(Direction direction);

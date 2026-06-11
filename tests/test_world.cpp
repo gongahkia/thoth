@@ -978,6 +978,9 @@ void testRichPersistedStateRoundTrip()
     snapshot.productionTotals.scrapRecycled = 2;
     snapshot.productionTotals.pressureEnemiesDefeated = 4;
     snapshot.productionTotals.pressureWaveRewardsClaimed = 1;
+    snapshot.productionTotals.riftStormsTriggered = 2;
+    snapshot.productionTotals.riftStormsSurvived = 1;
+    snapshot.riftStorm = thoth::game::RiftStormState{3, 45, 120};
 
     Machine belt;
     belt.id = 1;
@@ -1059,6 +1062,12 @@ void testRichPersistedStateRoundTrip()
     require(loaded->productionTotals().scrapRecycled == 2, "scrap recycled total should persist");
     require(loaded->productionTotals().pressureEnemiesDefeated == 4, "pressure enemy total should persist");
     require(loaded->productionTotals().pressureWaveRewardsClaimed == 1, "pressure reward total should persist");
+    require(loaded->productionTotals().riftStormsTriggered == 2, "rift storm trigger total should persist");
+    require(loaded->productionTotals().riftStormsSurvived == 1, "rift storm survived total should persist");
+    require(loaded->riftStorm().severity == 3 &&
+            loaded->riftStorm().ticksRemaining == 45 &&
+            loaded->riftStorm().cooldownTicks == 120,
+        "active rift storm state should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Marsh), "marsh outpost coverage should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Desert), "desert outpost coverage should persist");
     const auto* loadedFurnace = loaded->machineAt(1, 1);
@@ -3476,6 +3485,87 @@ void testRiftGateTeleportsToOuterDimensionBand()
 
     require(sim.productionTotals().riftJumps == 1, "powered rift gate should complete one jump");
     require(sim.player().x >= 4096, "rift gate should move player to the outer dimension band");
+    require(sim.productionTotals().riftStormsTriggered == 1, "rift jump should trigger a rift storm");
+    require(sim.riftStorm().ticksRemaining > 0, "rift storm should remain active after a fresh jump");
+    require(sim.riftStormText().find("active") != std::string::npos,
+        "rift storm text should expose active storm state");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_rift_storm_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "rift storm save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    require(loaded.has_value(), "rift storm load should succeed: " + error);
+    std::filesystem::remove(path);
+    require(loaded->riftStorm().ticksRemaining == sim.riftStorm().ticksRemaining,
+        "rift storm countdown should persist through save/load");
+    require(loaded->productionTotals().riftStormsTriggered == 1,
+        "rift storm trigger total should persist through save/load");
+}
+
+void testRiftStormsAffectRiftGatesAndPressureDeck()
+{
+    using namespace thoth::game;
+
+    Simulation unanchored(0);
+    placeMachineAt(unanchored, ItemId::Generator, 4096, 1, Direction::South);
+    placeMachineAt(unanchored, ItemId::PowerPole, 4097, 1, Direction::East);
+    placeMachineAt(unanchored, ItemId::RiftGate, 4097, 0, Direction::East);
+    auto* generator = unanchored.machineAt(4096, 1);
+    require(generator != nullptr && generator->inventory.add(ItemId::Coal, 3), "test should fuel storm generator");
+
+    auto snapshot = unanchored.snapshot();
+    snapshot.tick = 180;
+    snapshot.player.x = 0;
+    snapshot.player.y = 0;
+    snapshot.productionTotals.riftJumps = 1;
+    snapshot.productionTotals.sciencePacks = 15;
+    snapshot.riftStorm = RiftStormState{3, 90, 100};
+    snapshot.entities.clear();
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::RiftGate) {
+            machine.progress = 40;
+        }
+    }
+    unanchored.restore(snapshot);
+
+    const auto event = unanchored.nextPressureEvent();
+    require(event.key == "rift_storm_breach", "active rift storms should inject rift breaches into the pressure deck");
+    unanchored.step();
+    const auto* unanchoredGate = unanchored.machineAt(4097, 0);
+    require(unanchoredGate != nullptr && unanchoredGate->progress < 40,
+        "unanchored rift gates should lose charge during storm jolts");
+    require(containsEntityKind(unanchored, EntityKind::RiftStalker),
+        "unanchored rift gates should leak rift stalkers during storm spawn ticks");
+
+    Simulation anchored(0);
+    placeMachineAt(anchored, ItemId::Generator, 4096, 1, Direction::South);
+    placeMachineAt(anchored, ItemId::PowerPole, 4097, 1, Direction::East);
+    placeMachineAt(anchored, ItemId::RiftGate, 4097, 0, Direction::East);
+    generator = anchored.machineAt(4096, 1);
+    require(generator != nullptr && generator->inventory.add(ItemId::Coal, 3), "test should fuel anchored generator");
+
+    snapshot = anchored.snapshot();
+    snapshot.tick = 180;
+    snapshot.player.x = 0;
+    snapshot.player.y = 0;
+    snapshot.productionTotals.riftJumps = 1;
+    snapshot.productionTotals.sciencePacks = 15;
+    snapshot.riftStorm = RiftStormState{3, 90, 100};
+    snapshot.entities.clear();
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::RiftGate) {
+            machine.progress = 40;
+            machine.socketedRelic = ItemId::RiftCrown;
+        }
+    }
+    anchored.restore(snapshot);
+    anchored.step();
+
+    const auto* anchoredGate = anchored.machineAt(4097, 0);
+    require(anchoredGate != nullptr && anchoredGate->progress > 40,
+        "Rift Crown sockets should convert storm jolts into extra gate charge");
+    require(!containsEntityKind(anchored, EntityKind::RiftStalker),
+        "Rift Crown sockets should suppress gate-leaked storm stalkers");
 }
 
 void testBiomeMaterialsAndBiomeCrafting()
@@ -3852,6 +3942,9 @@ void testPlaytestTelemetryText()
     require(telemetry.find("\"pressure_enemies_defeated\"") != std::string::npos &&
             telemetry.find("\"pressure_wave_rewards_claimed\"") != std::string::npos,
         "telemetry should include pressure wave reward counters");
+    require(telemetry.find("\"rift_storm\"") != std::string::npos &&
+            telemetry.find("\"rift_storms_triggered\"") != std::string::npos,
+        "telemetry should include rift storm state and counters");
     require(telemetry.find("\"marsh\"") != std::string::npos && telemetry.find("\"desert\"") != std::string::npos,
         "telemetry should include activated outpost biomes");
     require(telemetry.find("\"guidance\"") != std::string::npos,
@@ -4092,6 +4185,7 @@ int main()
     testTrainStopsTransferItems();
     testPumpPipeMovesWaterBarrels();
     testRiftGateTeleportsToOuterDimensionBand();
+    testRiftStormsAffectRiftGatesAndPressureDeck();
     testBiomeMaterialsAndBiomeCrafting();
     testBoatTraversalAndExit();
     testHouseDoorAndLayerStairs();
