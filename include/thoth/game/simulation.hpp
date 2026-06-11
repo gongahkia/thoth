@@ -245,6 +245,7 @@ public:
     [[nodiscard]] std::string currentSupplyContractText() const;
     [[nodiscard]] int factoryPressureLevel() const;
     [[nodiscard]] std::string factoryPressureText() const;
+    [[nodiscard]] bool mainObjectiveComplete() const;
     [[nodiscard]] std::string milestoneText() const;
     [[nodiscard]] bool isMachinePowered(std::uint32_t machineId) const;
     [[nodiscard]] SimulationSnapshot snapshot() const;

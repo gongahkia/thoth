@@ -746,8 +746,17 @@ std::string Simulation::factoryPressureText() const
     return "pressure: hostile surge (" + std::to_string(pressure) + "); secure the factory perimeter";
 }
 
+bool Simulation::mainObjectiveComplete() const
+{
+    return productionTotals_.riftJumps > 0 &&
+        completedSupplyContracts() >= totalSupplyContracts();
+}
+
 std::string Simulation::milestoneText() const
 {
+    if (mainObjectiveComplete()) {
+        return "milestone: main objective complete; optimize the factory or push deeper into the rift";
+    }
     if (productionTotals_.riftJumps > 0) {
         return "milestone: rift reached; mine the rich outer world and route it back";
     }

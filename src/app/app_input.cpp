@@ -118,6 +118,9 @@ std::string objectiveText(const thoth::game::Simulation& sim)
     using thoth::game::ItemId;
     using thoth::game::MachineKind;
 
+    if (sim.mainObjectiveComplete()) {
+        return "objective complete: archive, logistics, science, power, and rift chain stabilized";
+    }
     if (sim.completedSupplyContracts() < sim.totalSupplyContracts()) {
         return "objective: fulfill the next supply contract";
     }

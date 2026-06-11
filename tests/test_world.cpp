@@ -2505,6 +2505,7 @@ void testSupplyContractProgression()
     sim.restore(snapshot);
 
     require(sim.completedSupplyContracts() == 7, "seven completed counters should satisfy seven contracts");
+    require(!sim.mainObjectiveComplete(), "main objective should wait for the final rift contract");
     require(sim.currentSupplyContractText().find("rift jump") != std::string::npos,
         "last contract should ask for the rift jump");
 
@@ -2512,8 +2513,11 @@ void testSupplyContractProgression()
     snapshot.productionTotals.riftJumps = 1;
     sim.restore(snapshot);
     require(sim.completedSupplyContracts() == sim.totalSupplyContracts(), "all counters should complete all contracts");
+    require(sim.mainObjectiveComplete(), "all contracts including rift should complete the main objective");
     require(sim.currentSupplyContractText().find("contract complete") != std::string::npos,
         "completed contract text should show completion");
+    require(sim.milestoneText().find("main objective complete") != std::string::npos,
+        "milestone text should surface the completed main objective");
 }
 
 void testFactoryPressureSpawnsHostileProbe()
