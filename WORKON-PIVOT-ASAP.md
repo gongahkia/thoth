@@ -1,10 +1,10 @@
 # Pivot ASAP: C++/raylib Block Automation Sandbox
 
 Date: 2026-05-15
-Updated: 2026-06-10
-Status: implementation direction pivoted from Lua/Love2D to C++17/raylib; legacy Lua source removed from the active repo
+Updated: 2026-06-11
+Status: implementation direction settled on C++17/raylib; legacy Lua/Love2D source and scaffold plans are obsolete for this active repo
 
-GitHub issue triage on 2026-06-10: `#37`, `#38`, `#39`, `#40`, and `#41` through `#47` are closed as implemented in the C++17/raylib codebase. Still open: `#35` for product/repo decisions, `#36` as a stale Lua/Love2D scaffold issue that should be closed or rewritten, `#48` for final polish, and `#49` for ongoing tests/performance guardrails.
+GitHub issue triage on 2026-06-11: `#35` and `#36` are resolved by keeping `Thoth` as the C++/raylib game repo and closing the stale Lua/Love2D scaffold path. `#37`, `#38`, `#39`, `#40`, and `#41` through `#47` are closed as implemented in the C++17/raylib codebase. Remaining active planning tracks: `#48` for final polish and `#49` for ongoing tests/performance guardrails.
 
 ## Working Assumption
 
@@ -34,7 +34,7 @@ Infinifactory can still inform placement tools, simulation previews, and debuggi
 
 ## Why This Still Fits Thoth
 
-The old Lua repo is a framework, not a game. If that code is being discarded, keep the useful architecture ideas and reimplement them in C++ instead of porting line-by-line:
+The old Lua repo was a framework, not a game. That implementation path has been discarded; keep the useful architecture ideas in the C++ codebase instead of porting line-by-line:
 
 - Fixed-step simulation with ordered systems.
 - Input commands recorded separately from rendering.
@@ -168,6 +168,13 @@ include/thoth/
     world.hpp
 src/
   app/
+    app_assets.cpp
+    app_cli.cpp
+    app_input.cpp
+    app_preview.cpp
+    app_runtime.cpp
+    app_ui.cpp
+    app_internal.hpp
     main.cpp
   thoth/
     core/
@@ -176,7 +183,7 @@ tests/
   test_world.cpp
 ```
 
-This keeps the simulation library independent from raylib while giving the desktop app a thin raylib entry point.
+This keeps the simulation library independent from raylib while giving the desktop app a focused set of raylib-facing modules and a thin executable entry point.
 
 ## Data Model Sketch
 
@@ -251,10 +258,12 @@ This is the minimum "Factorio meets Minecraft in C++/raylib" proof.
 
 ### Phase 0: Lock Direction
 
-- Pick working title, probably not `Thoth` if this becomes a game.
-- Decide whether this repo becomes the game repo or keeps Thoth as a library with a bundled game.
-- Keep raylib as the first target.
-- Define the MVP item list and recipe list.
+Resolved direction:
+
+- Keep `Thoth` as the working product/repo name for now.
+- Treat this repository as the C++/raylib game repo, with the reusable headless simulation kept in `thoth_core`.
+- Keep raylib as the first desktop target.
+- Treat Lua/Love2D scaffold work as obsolete unless a future separate port is explicitly opened.
 
 Current C++ registry status:
 
@@ -352,6 +361,7 @@ Current C++ prototype polish:
 
 - Raylib world view uses a reviewable authored pixel sprite source at `assets/sprites/thoth_atlas.art`, now with second-pass readability polish for terrain, item, machine, and player silhouettes plus deterministic per-coordinate tile tint/flip variants to reduce repeated terrain patterns. It can export to `assets/sprites/thoth_atlas.png` with `make cpp-export-authored-atlas`, still supports `assets/sprites/thoth_atlas.png` as an external override, can export the generated fallback atlas with `F6` or `make cpp-export-atlas`, validates source/exported dimensions with `make cpp-validate-assets`, and layers tick-based belt travel dashes, working-machine pulses, finite-resource richness pips, status dots, on-world issue badges, direction arrows, and progress bars over sprites.
 - HUD shows objective text, guided first-line, science/research, and power-progression checklists with reactive next-step hints, compact inventory status, an expandable inventory grid with hotbar assignment and role badges, an interactive build-menu card grid with ready/need states, faced-machine deposit/take controls with item labels/counts plus 1x/5x/all batch transfer amounts, explicit furnace and assembler recipe selection, compact state/process/action chips, compact recipe/input/resource/power diagnostics and actionable troubleshooting text, machine process-flow strips, ghost placement previews with invalid-reason labels, production milestone feedback, authored audio cue source at `assets/audio/thoth_cues.sfx` with tuned low/mid/bright cue roles, `make cpp-export-authored-audio` WAV export, `make cpp-validate-assets` source/WAV validation, F11 in-app cue audition, generated fallback tones, machine/debug, power, status counts, per-machine issue summaries, simulation tick cost, and hotbar item counts.
+- The raylib app shell is split into focused app modules for assets/audio, CLI validation/export, input, deterministic preview/window smoke, runtime loop, and UI/rendering, with `src/app/main.cpp` kept as a small dispatch entry point.
 - `assets/replays/ore_to_plate.thothreplay` is a packaged deterministic demo replay for the first automation line, `assets/replays/science_research.thothreplay` proves assembler-to-lab science/research progression, and `assets/replays/full_flow.thothreplay` runs a 60-second mining-to-research-to-electric-mining flow; `make cpp-validate-replays` validates all packaged replays without opening a raylib window.
 - `make cpp-export-media-preview` writes `assets/previews/thoth_full_flow_preview.png` from the full-flow replay without opening a raylib window, giving the project a deterministic screenshot-style artifact for review. `make cpp-smoke-window` opens the actual raylib app, loads the authored visual/audio assets, renders the full-flow replay state, captures `assets/previews/thoth_window_smoke.png`, verifies the capture dimensions, and runs in CI through Xvfb.
 - Simulation machine lookups use a rebuilt coordinate index for stationary machines, improving the local 4,096-machine benchmark sample from about 9.57 ms/tick to 7.27 ms/tick while preserving save/load and replay determinism.
@@ -363,8 +373,6 @@ Success condition: a viewer can understand the game in one minute and trust the 
 
 Current vertical-slice blockers:
 
-- Resolve `#35`: choose/defer the product name and final repo positioning so the project stops carrying old engine/pivot ambiguity.
-- Resolve `#36`: close as not planned or rewrite it for the C++/raylib repo shape; the Lua/Love2D scaffold target is obsolete.
 - Finish `#48`: do a live-play visual pass, final UI pass, authored audio mix pass, and any readability fixes that only show up in motion.
 - Keep `#49` open: add focused tests/benchmarks as new systems land, and extend stress coverage past the current 4,096-machine sample when needed.
 
@@ -396,6 +404,8 @@ Tests should sell the systems quality:
 
 Local verification on 2026-06-10 passed `make test`, `make cpp-validate-replays`, `make cpp-validate-assets`, `make cpp-benchmark`, and a non-mutating `/tmp` media preview export.
 
+Local verification on 2026-06-11 passed `make test`, `make cpp-validate-replays`, `make cpp-validate-assets`, `/tmp` media preview export, headless app-off CMake build/test, `make cpp-benchmark`, `make cpp-benchmark-large`, and `make cpp-benchmark-stress` after the raylib app shell was split into focused modules. Local `xvfb-run` was unavailable for the window-smoke command; CI still covers that path with Xvfb.
+
 ## Main Risks
 
 ### Risk: "C++ Minecraft" Becomes Too Large
@@ -420,10 +430,10 @@ Mitigation: do not pitch this as a general voxel engine. Pitch it as a complete 
 
 ## Immediate Next Actions
 
-1. Decide whether `Workbench` should become a real crafting station or be removed from the MVP ladder.
-2. Close or rewrite stale Lua/Love2D issue `#36`, then settle `#35` naming/repo-positioning choices.
-3. Use manual live play after the Xvfb-backed window smoke to validate authored sprite/audio readability in motion and adjust mix issues that only show up interactively.
-4. Keep scaling past the current 4,096-machine stress benchmark and optimize the first bottleneck that appears in larger factories.
+1. Use manual live play after the Xvfb-backed window smoke to validate authored sprite/audio readability in motion and adjust mix issues that only show up interactively.
+2. Add a clearer explicit win condition after the archive/rift objective chain.
+3. Keep scaling past the current 4,096-machine stress benchmark and optimize the first bottleneck that appears in larger factories.
+4. Add focused tests and benchmarks as new late-game systems land.
 
 ## Confidence
 

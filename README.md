@@ -1,8 +1,8 @@
 # Thoth
 
-Thoth is a C++17/raylib top-down block automation sandbox.
+Thoth is the C++17/raylib top-down block automation sandbox in this repository.
 
-The game code lives in `include/thoth` and `src/thoth`, with a thin raylib desktop app in `src/app/main.cpp`.
+The deterministic simulation lives in `include/thoth` and `src/thoth`. The raylib desktop app lives in focused modules under `src/app`, with `src/app/main.cpp` kept as the small executable entry point.
 
 ## Game Direction
 
@@ -188,7 +188,7 @@ make cpp-run
 - Tests exercise the factory loop rather than only rendering.
 - `make cpp-benchmark`, `make cpp-benchmark-large`, and `make cpp-benchmark-stress` run deterministic mixed factories without opening a window.
 - `make cpp-smoke-window` opens the raylib app, loads the authored atlas and WAV cues, renders the full-flow replay state, saves `assets/previews/thoth_window_smoke.png`, and runs in CI through Xvfb.
-- The app is a thin UI shell over the deterministic game model.
+- The app is a thin UI shell over the deterministic game model, split into focused asset, CLI, input, preview, runtime, and UI/render modules.
 
 ## Repository Shape
 
@@ -197,7 +197,7 @@ include/thoth/
   core/
   game/
 src/
-  app/                 raylib desktop app
+  app/                 raylib desktop app modules and executable entry point
   thoth/core/          deterministic utilities
   thoth/game/          headless simulation, registry, save, replay, world
 tests/                 C++ simulation tests
@@ -210,7 +210,7 @@ assets/audio/          authored audio cue source, WAV cue exports, and generated
 
 ## Roadmap
 
-The current plan lives in `WORKON-PIVOT-ASAP.md` and GitHub issues `#35` through `#49`.
+The current plan lives in `WORKON-PIVOT-ASAP.md`. The old Lua/Love2D pivot questions in GitHub issues `#35` and `#36` are obsolete now that this repo is settled as the C++/raylib game codebase.
 
 Near-term work:
 

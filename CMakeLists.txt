@@ -57,6 +57,12 @@ if(THOTH_BUILD_APP)
     endif()
 
     add_executable(thoth_raylib
+        src/app/app_assets.cpp
+        src/app/app_cli.cpp
+        src/app/app_input.cpp
+        src/app/app_preview.cpp
+        src/app/app_runtime.cpp
+        src/app/app_ui.cpp
         src/app/main.cpp)
 
     target_link_libraries(thoth_raylib
