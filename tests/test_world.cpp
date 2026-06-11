@@ -968,6 +968,10 @@ void testRichPersistedStateRoundTrip()
     snapshot.productionTotals.outpostBiomeMask =
         biomeMaskForTest(thoth::game::BiomeKind::Marsh) |
         biomeMaskForTest(thoth::game::BiomeKind::Desert);
+    snapshot.productionTotals.outpostDeliveries = 2;
+    snapshot.productionTotals.outpostDeliveryBiomeMask =
+        biomeMaskForTest(thoth::game::BiomeKind::Marsh) |
+        biomeMaskForTest(thoth::game::BiomeKind::Desert);
 
     Machine belt;
     belt.id = 1;
@@ -1032,6 +1036,9 @@ void testRichPersistedStateRoundTrip()
     require(loaded->productionTotals().bossRelicsClaimed == 2, "boss relic total should persist");
     require(loaded->productionTotals().outpostBiomeMask == snapshot.productionTotals.outpostBiomeMask,
         "outpost biome mask should persist");
+    require(loaded->productionTotals().outpostDeliveries == 2, "outpost delivery total should persist");
+    require(loaded->productionTotals().outpostDeliveryBiomeMask == snapshot.productionTotals.outpostDeliveryBiomeMask,
+        "outpost delivery biome mask should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Marsh), "marsh outpost coverage should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Desert), "desert outpost coverage should persist");
     const auto* loadedFurnace = loaded->machineAt(1, 1);
@@ -2836,6 +2843,33 @@ void testOutpostBeaconRequiresPowerAndBiomeInput()
     require(sim.hasActivatedOutpostBiome(BiomeKind::Desert), "outpost activation should track desert coverage");
     require(sim.activatedOutpostBiomeCount() == 1, "one unique outpost biome should be covered");
     require(sim.activatedOutpostBiomes().size() == 1, "activated outpost list should expose unique biomes");
+    require(sim.currentOutpostDeliveryText().find("desert delivery") != std::string::npos,
+        "outpost delivery guidance should ask for the activated biome's local supply");
+
+    snapshot = sim.snapshot();
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::Generator) {
+            machine.fuelTicks = 220;
+        }
+        if (machine.kind == MachineKind::OutpostBeacon) {
+            require(machine.inventory.add(ItemId::SandGlass, 1), "test should seed a desert delivery item");
+        }
+    }
+    sim.restore(snapshot);
+
+    for (int i = 0; i < 100; ++i) {
+        sim.step();
+    }
+
+    restoredOutpost = sim.machineAt(18, -2);
+    require(restoredOutpost != nullptr && restoredOutpost->progress == 80,
+        "completed outpost delivery should reset to activated idle progress");
+    require(restoredOutpost->inventory.count(ItemId::SandGlass) == 0,
+        "outpost delivery should consume the local biome item");
+    require(sim.productionTotals().outpostDeliveries == 1, "outpost delivery should increment production total");
+    require(sim.hasCompletedOutpostDeliveryBiome(BiomeKind::Desert),
+        "outpost delivery should track the delivered biome");
+    require(sim.outpostDeliveryBiomeCount() == 1, "one unique outpost delivery biome should be covered");
 
     const auto path = std::filesystem::temp_directory_path() / "thoth_outpost_roundtrip.txt";
     std::string error;
@@ -2844,7 +2878,10 @@ void testOutpostBeaconRequiresPowerAndBiomeInput()
     std::filesystem::remove(path);
     require(loaded.has_value(), "outpost load should succeed: " + error);
     require(loaded->productionTotals().outpostsActivated == 1, "outpost activation should survive save/load");
+    require(loaded->productionTotals().outpostDeliveries == 1, "outpost delivery should survive save/load");
     require(loaded->hasActivatedOutpostBiome(BiomeKind::Desert), "outpost biome coverage should survive save/load");
+    require(loaded->hasCompletedOutpostDeliveryBiome(BiomeKind::Desert),
+        "outpost delivery biome coverage should survive save/load");
     const auto* loadedOutpost = loaded->machineAt(18, -2);
     require(loadedOutpost != nullptr && loadedOutpost->progress == 80, "activated outpost should survive save/load");
 }
@@ -3611,6 +3648,9 @@ void testPlaytestTelemetryText()
     require(telemetry.find("\"boss_exam_completed\"") != std::string::npos &&
             telemetry.find("\"boss_exam\"") != std::string::npos,
         "telemetry should include boss exam progress and guidance");
+    require(telemetry.find("\"outpost_delivery_completed\"") != std::string::npos &&
+            telemetry.find("\"outpost_delivery\"") != std::string::npos,
+        "telemetry should include outpost delivery progress and guidance");
     require(telemetry.find("\"chest\": 1") != std::string::npos,
         "telemetry should include machine counts");
     require(telemetry.find("\"marsh\"") != std::string::npos && telemetry.find("\"desert\"") != std::string::npos,

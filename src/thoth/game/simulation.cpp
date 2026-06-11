@@ -30,6 +30,7 @@ constexpr int kGuardTowerRange = 5;
 constexpr int kArcTowerTicks = 30;
 constexpr int kArcTowerRange = 7;
 constexpr int kOutpostBeaconTicks = 80;
+constexpr int kOutpostDeliveryTicks = 100;
 constexpr int kRepairPylonTicks = 60;
 constexpr int kPressureRelayTicks = 120;
 constexpr int kRiftOffset = 4096;
@@ -1084,6 +1085,66 @@ std::vector<BiomeKind> Simulation::activatedOutpostBiomes() const
     return biomes;
 }
 
+bool Simulation::hasCompletedOutpostDeliveryBiome(BiomeKind biome) const
+{
+    return hasBiomeMask(productionTotals_.outpostDeliveryBiomeMask, biome);
+}
+
+int Simulation::outpostDeliveryBiomeCount() const
+{
+    return countOutpostBiomeCoverage(productionTotals_.outpostDeliveryBiomeMask);
+}
+
+std::vector<OutpostDeliveryProgress> Simulation::outpostDeliveryProgress() const
+{
+    std::vector<OutpostDeliveryProgress> progress;
+    progress.reserve(kRequiredOutpostBiomes.size());
+    for (const auto biome : kRequiredOutpostBiomes) {
+        const auto label = std::string(toString(biome)) + " delivery: feed an activated outpost " +
+            std::string(toString(outpostActivationItem(biome)));
+        progress.push_back(OutpostDeliveryProgress{
+            biome,
+            label,
+            hasCompletedOutpostDeliveryBiome(biome) ? 1 : 0,
+            1,
+            hasCompletedOutpostDeliveryBiome(biome)});
+    }
+    return progress;
+}
+
+int Simulation::completedOutpostDeliveryContracts() const
+{
+    int completed = 0;
+    for (const auto& delivery : outpostDeliveryProgress()) {
+        if (delivery.complete) {
+            ++completed;
+        }
+    }
+    return completed;
+}
+
+std::string Simulation::currentOutpostDeliveryText() const
+{
+    const auto deliveries = outpostDeliveryProgress();
+    for (std::size_t index = 0; index < deliveries.size(); ++index) {
+        const auto& delivery = deliveries[index];
+        if (!delivery.complete && hasActivatedOutpostBiome(delivery.biome)) {
+            return "outpost delivery " + std::to_string(index + 1) + "/" +
+                std::to_string(deliveries.size()) + ": " + delivery.label + " (" +
+                std::to_string(delivery.current) + "/" + std::to_string(delivery.required) + ")";
+        }
+    }
+    for (std::size_t index = 0; index < deliveries.size(); ++index) {
+        const auto& delivery = deliveries[index];
+        if (!delivery.complete) {
+            return "outpost delivery " + std::to_string(index + 1) + "/" +
+                std::to_string(deliveries.size()) + ": " + delivery.label + " (" +
+                std::to_string(delivery.current) + "/" + std::to_string(delivery.required) + ")";
+        }
+    }
+    return "outpost deliveries complete: all stabilized biomes have accepted local supply";
+}
+
 int Simulation::completedBiomeContracts() const
 {
     int completed = 0;
@@ -1374,6 +1435,8 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"supply_total\": " << totalSupplyContracts()
         << ", \"biome_completed\": " << completedBiomeContracts()
         << ", \"biome_total\": " << biomeContractProgress().size()
+        << ", \"outpost_delivery_completed\": " << completedOutpostDeliveryContracts()
+        << ", \"outpost_delivery_total\": " << outpostDeliveryProgress().size()
         << ", \"boss_exam_completed\": " << completedBossExams
         << ", \"boss_exam_total\": " << bossExams.size() << "},\n";
     out << "  \"pressure\": {\"level\": " << factoryPressureLevel()
@@ -1394,7 +1457,8 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"rift_jumps\": " << productionTotals_.riftJumps
         << ", \"bosses_defeated\": " << productionTotals_.bossesDefeated
         << ", \"boss_relics_claimed\": " << productionTotals_.bossRelicsClaimed
-        << ", \"outposts_activated\": " << productionTotals_.outpostsActivated << "},\n";
+        << ", \"outposts_activated\": " << productionTotals_.outpostsActivated
+        << ", \"outpost_deliveries\": " << productionTotals_.outpostDeliveries << "},\n";
     out << "  \"entities\": {\"total\": " << entities_.size()
         << ", \"hostile\": " << hostileEntities
         << ", \"active_bosses\": " << activeBosses
@@ -1456,9 +1520,23 @@ std::string Simulation::playtestTelemetryText() const
         out << jsonString(toString(biomes[i]));
     }
     out << "],\n";
+    out << "  \"completed_outpost_delivery_biomes\": [";
+    bool wroteDeliveryBiome = false;
+    for (const auto biome : kRequiredOutpostBiomes) {
+        if (!hasCompletedOutpostDeliveryBiome(biome)) {
+            continue;
+        }
+        if (wroteDeliveryBiome) {
+            out << ", ";
+        }
+        out << jsonString(toString(biome));
+        wroteDeliveryBiome = true;
+    }
+    out << "],\n";
     out << "  \"guidance\": {\"goal\": " << jsonString(currentDemoGoalText())
         << ", \"supply_contract\": " << jsonString(currentSupplyContractText())
         << ", \"biome_contract\": " << jsonString(currentBiomeContractText())
+        << ", \"outpost_delivery\": " << jsonString(currentOutpostDeliveryText())
         << ", \"biome_hazard\": " << jsonString(currentBiomeHazardText())
         << ", \"boss_exam\": " << jsonString(currentBossExamText())
         << ", \"pressure_deck\": " << jsonString(pressureEventDeckText())
@@ -3007,6 +3085,26 @@ void Simulation::updateOutpostBeacons()
             continue;
         }
         if (machine.progress >= kOutpostBeaconTicks) {
+            if (!isMachinePowered(machine.id)) {
+                machine.status = MachineStatus::MissingPower;
+                continue;
+            }
+            const auto deliveryItem = outpostActivationItem(world_.biomeAt(machine.x, machine.y, machine.z));
+            if (!machine.inventory.canConsume(deliveryItem, 1)) {
+                machine.progress = kOutpostBeaconTicks;
+                machine.status = MachineStatus::Idle;
+                continue;
+            }
+            machine.progress = std::min(machine.progress + 1, kOutpostBeaconTicks + kOutpostDeliveryTicks);
+            machine.status = MachineStatus::Working;
+            if (machine.progress < kOutpostBeaconTicks + kOutpostDeliveryTicks) {
+                continue;
+            }
+            const auto delivered = machine.inventory.consume(deliveryItem, 1);
+            (void)delivered;
+            ++productionTotals_.outpostDeliveries;
+            productionTotals_.outpostDeliveryBiomeMask |= biomeMask(world_.biomeAt(machine.x, machine.y, machine.z));
+            machine.progress = kOutpostBeaconTicks;
             machine.status = MachineStatus::Idle;
             continue;
         }

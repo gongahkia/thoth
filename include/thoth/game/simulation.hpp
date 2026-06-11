@@ -133,6 +133,8 @@ struct ProductionTotals {
     int pressureWavesRepelled = 0;
     int bossRelicsClaimed = 0;
     int outpostBiomeMask = 0;
+    int outpostDeliveries = 0;
+    int outpostDeliveryBiomeMask = 0;
 };
 
 struct BiomeContractProgress {
@@ -183,6 +185,14 @@ enum class EntityKind : std::uint8_t {
 
 struct BossExamProgress {
     EntityKind boss = EntityKind::MarshBroodheart;
+    BiomeKind biome = BiomeKind::Grassland;
+    std::string label;
+    int current = 0;
+    int required = 0;
+    bool complete = false;
+};
+
+struct OutpostDeliveryProgress {
     BiomeKind biome = BiomeKind::Grassland;
     std::string label;
     int current = 0;
@@ -303,6 +313,11 @@ public:
     [[nodiscard]] bool hasActivatedOutpostBiome(BiomeKind biome) const;
     [[nodiscard]] int activatedOutpostBiomeCount() const;
     [[nodiscard]] std::vector<BiomeKind> activatedOutpostBiomes() const;
+    [[nodiscard]] bool hasCompletedOutpostDeliveryBiome(BiomeKind biome) const;
+    [[nodiscard]] int outpostDeliveryBiomeCount() const;
+    [[nodiscard]] std::vector<OutpostDeliveryProgress> outpostDeliveryProgress() const;
+    [[nodiscard]] int completedOutpostDeliveryContracts() const;
+    [[nodiscard]] std::string currentOutpostDeliveryText() const;
     [[nodiscard]] int completedBiomeContracts() const;
     [[nodiscard]] std::vector<BiomeContractProgress> biomeContractProgress() const;
     [[nodiscard]] std::string currentBiomeContractText() const;

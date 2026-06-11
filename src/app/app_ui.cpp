@@ -1558,6 +1558,11 @@ std::string machineHintText(const thoth::game::Simulation& sim, const thoth::gam
         if (machine.status == MachineStatus::MissingInput) {
             return "deposit local biome activation item";
         }
+        if (machine.progress >= 80) {
+            return "outpost delivery " + std::to_string(machine.progress - 80) + "/100 delivered " +
+                std::to_string(sim.productionTotals().outpostDeliveries) + " " +
+                powerNetworkDetail(sim, machine);
+        }
         return "outpost charge " + std::to_string(machine.progress) + "/80 activated " +
             std::to_string(sim.productionTotals().outpostsActivated) + " " +
             powerNetworkDetail(sim, machine);
@@ -2899,7 +2904,12 @@ void drawMachineFlowStrip(const thoth::game::Simulation& sim, const thoth::game:
         for (const auto& stack : machine.inventory.stacks()) {
             inputs.push_back(FlowStack{stack.item, stack.count, 1});
         }
-        detail = "outpost " + std::to_string(machine.progress) + "/80 " + powerNetworkDetail(sim, machine);
+        if (machine.progress >= 80) {
+            detail = "outpost delivery " + std::to_string(machine.progress - 80) + "/100 " +
+                powerNetworkDetail(sim, machine);
+        } else {
+            detail = "outpost " + std::to_string(machine.progress) + "/80 " + powerNetworkDetail(sim, machine);
+        }
         break;
     case MachineKind::RepairPylon:
         inputs.push_back(FlowStack{ItemId::Wall, machine.inventory.count(ItemId::Wall), 1});
@@ -3180,6 +3190,7 @@ void drawHud(const thoth::game::Simulation& sim, const AppState& state)
         appendWrapped(objective, objectiveText(sim), 48);
         appendWrapped(objective, sim.currentSupplyContractText(), 48);
         appendWrapped(objective, sim.currentBiomeContractText(), 48);
+        appendWrapped(objective, sim.currentOutpostDeliveryText(), 48);
         appendWrapped(objective, sim.currentBiomeHazardText(), 48);
         appendWrapped(objective, sim.currentBossExamText(), 48);
         appendWrapped(objective, sim.factoryPressureText(), 48);

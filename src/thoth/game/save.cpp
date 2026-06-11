@@ -180,7 +180,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 13\n";
+    output << "THOTH_SAVE 14\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -270,7 +270,9 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
            << snapshot.productionTotals.outpostsActivated << ' '
            << snapshot.productionTotals.pressureWavesRepelled << ' '
            << snapshot.productionTotals.bossRelicsClaimed << ' '
-           << snapshot.productionTotals.outpostBiomeMask << "\n";
+           << snapshot.productionTotals.outpostBiomeMask << ' '
+           << snapshot.productionTotals.outpostDeliveries << ' '
+           << snapshot.productionTotals.outpostDeliveryBiomeMask << "\n";
 
     return true;
 }
@@ -288,7 +290,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 13)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 14)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -693,6 +695,11 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         }
         if (version >= 12 &&
             !readValue(input, snapshot.productionTotals.outpostBiomeMask, "outpost biome mask", error)) {
+            return std::nullopt;
+        }
+        if (version >= 14 &&
+            (!readValue(input, snapshot.productionTotals.outpostDeliveries, "outpost delivery total", error) ||
+                !readValue(input, snapshot.productionTotals.outpostDeliveryBiomeMask, "outpost delivery biome mask", error))) {
             return std::nullopt;
         }
     }
