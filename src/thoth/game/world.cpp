@@ -324,7 +324,7 @@ BiomeKind World::biomeAt(int x, int y, int z) const
 
 std::optional<LairKind> World::lairAt(int x, int y, int z) const
 {
-    if (z != 0) {
+    if (z != 0 && z != -1) {
         return std::nullopt;
     }
     const auto lair = lairStampAt(x, y);
@@ -421,6 +421,37 @@ Tile World::generateTile(int x, int y, int z) const
         return Tile{TileId::Floor, 0};
     }
     if (z < 0) {
+        if (z == -1) {
+            if (const auto lair = lairStampAt(x, y)) {
+                const int localX = std::abs(x - lair->centerX);
+                const int localY = std::abs(y - lair->centerY);
+                if (localX == kLairRadius || localY == kLairRadius) {
+                    return Tile{TileId::DungeonWall, 0};
+                }
+                if (localX == 0 && localY == 0) {
+                    return Tile{TileId::StairsUp, 0};
+                }
+                if ((localX == 3 && localY == 1) || (localX == 1 && localY == 3)) {
+                    switch (lair->kind) {
+                    case LairKind::MarshHive:
+                        return Tile{TileId::Reeds, 2};
+                    case LairKind::GlassSpire:
+                        return Tile{TileId::Cactus, 2};
+                    case LairKind::BadlandsFoundry:
+                        return Tile{TileId::Basalt, 3};
+                    case LairKind::FrostVault:
+                        return Tile{TileId::Ice, 2};
+                    case LairKind::CrystalVault:
+                        return Tile{TileId::Crystal, 2};
+                    }
+                }
+                if ((localX == 4 && localY == 2) || (localX == 2 && localY == 4)) {
+                    return Tile{TileId::DungeonWall, 0};
+                }
+                return Tile{TileId::DungeonFloor, 0};
+            }
+        }
+
         const int lx = floorMod(x, 16);
         const int ly = floorMod(y, 16);
         const bool room = inside(lx, 3, 12) && inside(ly, 3, 12);

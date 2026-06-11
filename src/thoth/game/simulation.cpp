@@ -2459,6 +2459,16 @@ void Simulation::interact(Direction direction)
         return;
     }
 
+    if (player_.z < 0 && world_.lairAt(tx, ty, player_.z).has_value()) {
+        const auto reward = resourceTileOutput(tile.id);
+        if (reward != ItemId::None) {
+            addItem(reward, std::max(2, tile.data + 1));
+            world_.setTile(tx, ty, player_.z, Tile{TileId::DungeonFloor, 0});
+            ++productionTotals_.dungeonChestsOpened;
+            return;
+        }
+    }
+
     if (tile.id == TileId::StairsDown &&
         (trySummonMarshBoss(tx, ty, player_.z) ||
             trySummonGlassBoss(tx, ty, player_.z) ||
@@ -4942,9 +4952,11 @@ void Simulation::ensureLocalEntities()
     if (entities_.size() >= 80) {
         return;
     }
-    if (player_.z >= 0 && world_.lairAt(player_.x, player_.y, player_.z).has_value()) {
+    if (world_.lairAt(player_.x, player_.y, player_.z).has_value()) {
         ensureLairEntities();
-        ensureFactoryPressureEntity();
+        if (player_.z >= 0) {
+            ensureFactoryPressureEntity();
+        }
         return;
     }
     if (!entities_.empty() && player_.z >= 0) {

@@ -351,6 +351,14 @@ void testBiomeLairGeneration()
     require(world.getTile(-17, 0).id == TileId::Ice, "frost vault should expose ice rewards");
     require(world.getTile(-35, 20).id == TileId::Crystal, "crystal vault should expose crystal rewards");
     require(world.getTile(37, 20).id == TileId::Basalt, "badlands foundry should expose basalt rewards");
+
+    require(world.lairAt(0, 18, -1).has_value() && *world.lairAt(0, 18, -1) == LairKind::MarshHive,
+        "marsh hive interior should report lair identity");
+    require(world.getTile(0, 18, -1).id == TileId::StairsUp, "lair interior center should return to surface");
+    require(world.getTile(1, 18, -1).id == TileId::DungeonFloor, "lair interior should have walkable floor");
+    require(world.getTile(3, 19, -1).id == TileId::Reeds, "marsh hive interior should expose cache reeds");
+    require(world.getTile(21, -1, -1).id == TileId::Cactus, "glass spire interior should expose cache cactus");
+    require(world.getTile(39, 21, -1).id == TileId::Basalt, "badlands interior should expose cache basalt");
 }
 
 void testLairEnemyPressureSpawnsBiomeHostiles()
@@ -410,6 +418,56 @@ void testLairEnemyPressureSpawnsBiomeHostiles()
     crystal.step();
     require(containsKind(crystal, EntityKind::DungeonSentinel), "crystal vault should spawn sentinel pressure");
     require(crystal.player().hp == 20, "crystal lair spawn should not deal immediate damage");
+}
+
+void testLairInteriorEntryCacheAndPersistence()
+{
+    using namespace thoth::game;
+
+    const auto containsInteriorSlime = [](const Simulation& sim) {
+        for (const auto& entity : sim.entities()) {
+            if (entity.kind == EntityKind::Slime && entity.z == -1) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    Simulation sim(20260611);
+    auto snapshot = sim.snapshot();
+    snapshot.player.x = -1;
+    snapshot.player.y = 18;
+    sim.restore(snapshot);
+
+    sim.queue(Command::interact(Direction::East));
+    sim.step();
+    require(sim.player().x == 0 && sim.player().y == 18 && sim.player().z == -1,
+        "lair entrance should move player into the interior layer when boss summon is not ready");
+    require(sim.world().getTile(0, 18, -1).id == TileId::StairsUp,
+        "lair interior should contain a return stair");
+
+    sim.step();
+    require(containsInteriorSlime(sim), "marsh hive interior should spawn marsh hostiles");
+
+    sim.player().x = 2;
+    sim.player().y = 19;
+    sim.player().z = -1;
+    sim.queue(Command::interact(Direction::East));
+    sim.step();
+    require(sim.itemCount(ItemId::ReedFiber) >= 3, "interior cache should grant a richer biome material reward");
+    require(sim.productionTotals().dungeonChestsOpened == 1, "interior cache should increment dungeon cache total");
+    require(sim.world().getTile(3, 19, -1).id == TileId::DungeonFloor, "looted interior cache should become floor");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_lair_interior_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "lair interior save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    require(loaded.has_value(), "lair interior load should succeed: " + error);
+    std::filesystem::remove(path);
+    require(loaded->world().getTile(3, 19, -1).id == TileId::DungeonFloor,
+        "looted interior cache terrain should persist");
+    require(loaded->productionTotals().dungeonChestsOpened == 1,
+        "interior cache total should persist");
 }
 
 void testMarshBossSummonPersistenceAndReward()
@@ -4240,6 +4298,7 @@ int main()
     testEarlyBiomeTiles();
     testBiomeLairGeneration();
     testLairEnemyPressureSpawnsBiomeHostiles();
+    testLairInteriorEntryCacheAndPersistence();
     testMarshBossSummonPersistenceAndReward();
     testGlassBossSummonPersistenceAndReward();
     testBadlandsBossSummonPersistenceAndReward();
