@@ -92,6 +92,7 @@ std::string canonicalSignature(const thoth::game::Simulation& sim)
             << ":" << machine.x << ":" << machine.y << ":" << static_cast<int>(machine.direction)
             << ":" << machine.progress << ":" << machine.fuelTicks
             << ":" << machine.durability
+            << ":" << thoth::game::toString(machine.socketedRelic)
             << ":" << thoth::game::toString(machine.status)
             << ":" << thoth::game::toString(machine.carriedItem)
             << ":" << thoth::game::toString(machine.outputItem)
@@ -145,6 +146,7 @@ std::string persistedSignature(const thoth::game::Simulation& sim)
             << ":" << machine.x << ":" << machine.y << ":" << static_cast<int>(machine.direction)
             << ":" << machine.progress << ":" << machine.fuelTicks
             << ":" << machine.durability
+            << ":" << thoth::game::toString(machine.socketedRelic)
             << ":" << thoth::game::toString(machine.carriedItem)
             << ":" << thoth::game::toString(machine.outputItem)
             << ":" << (machine.recipeKey.empty() ? "none" : machine.recipeKey);
@@ -1019,6 +1021,16 @@ void testRichPersistedStateRoundTrip()
     require(lab.inventory.add(ItemId::SciencePack, 1), "test should seed lab science input");
     snapshot.machines.push_back(lab);
 
+    Machine relay;
+    relay.id = 5;
+    relay.kind = MachineKind::PressureRelay;
+    relay.x = 4;
+    relay.y = 1;
+    relay.direction = Direction::North;
+    relay.socketedRelic = ItemId::GlassHeart;
+    require(relay.inventory.add(ItemId::AdvancedSciencePack, 1), "test should seed relay science input");
+    snapshot.machines.push_back(relay);
+
     const auto sim = Simulation::fromSnapshot(snapshot);
     const auto path = std::filesystem::temp_directory_path() / "thoth_rich_persisted_state_roundtrip.txt";
     std::string error;
@@ -1043,6 +1055,9 @@ void testRichPersistedStateRoundTrip()
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Desert), "desert outpost coverage should persist");
     const auto* loadedFurnace = loaded->machineAt(1, 1);
     require(loadedFurnace != nullptr && loadedFurnace->durability == 2, "partial machine durability should persist");
+    const auto* loadedRelay = loaded->machineAt(4, 1);
+    require(loadedRelay != nullptr && loadedRelay->socketedRelic == ItemId::GlassHeart,
+        "socketed relic should persist");
 }
 
 void prepareReplayWorld(thoth::game::Simulation& sim)
@@ -3035,6 +3050,67 @@ void testPressureRelayMitigatesFactoryPressure()
         "pressure text should reflect mitigation");
 }
 
+void testRelicSocketsModifyAndPersistMachines()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    auto* generator = placeMachineAt(sim, ItemId::Generator, 0, 0, Direction::East);
+    placeMachineAt(sim, ItemId::PowerPole, 1, 0, Direction::East);
+    auto* relay = placeMachineAt(sim, ItemId::PressureRelay, 2, 0, Direction::East);
+    require(generator != nullptr && relay != nullptr, "relic socket test machines should place");
+
+    require(sim.player().inventory.add(ItemId::GlassHeart, 1), "test should seed glass relic");
+    sim.player().x = 1;
+    sim.player().y = 0;
+    sim.queue(Command::depositItem(Direction::East, ItemId::GlassHeart));
+    sim.step();
+    relay = sim.machineAt(2, 0);
+    require(relay != nullptr && relay->socketedRelic == ItemId::GlassHeart,
+        "depositing a compatible relic should socket it into the machine");
+    require(sim.itemCount(ItemId::GlassHeart) == 0, "socketed relic should leave player inventory");
+
+    auto snapshot = sim.snapshot();
+    snapshot.productionTotals.sciencePacks = 10;
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::Generator) {
+            machine.fuelTicks = 140;
+        }
+        if (machine.kind == MachineKind::PressureRelay) {
+            require(machine.inventory.add(ItemId::AdvancedSciencePack, 1), "test should seed relay input");
+        }
+    }
+    sim.restore(snapshot);
+
+    for (int i = 0; i < 90; ++i) {
+        sim.step();
+    }
+    relay = sim.machineAt(2, 0);
+    require(relay != nullptr && relay->socketedRelic == ItemId::GlassHeart,
+        "socketed relic should remain installed after the machine completes a cycle");
+    require(sim.productionTotals().pressureWavesRepelled == 2,
+        "Glass Heart socket should double pressure relay mitigation");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_relic_socket_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "relic socket save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    std::filesystem::remove(path);
+    require(loaded.has_value(), "relic socket load should succeed: " + error);
+    const auto* loadedRelay = loaded->machineAt(2, 0);
+    require(loadedRelay != nullptr && loadedRelay->socketedRelic == ItemId::GlassHeart,
+        "loaded relay should preserve socketed relic");
+
+    loaded->player().x = 1;
+    loaded->player().y = 0;
+    loaded->queue(Command::withdrawItem(Direction::East, ItemId::GlassHeart));
+    loaded->step();
+    loadedRelay = loaded->machineAt(2, 0);
+    require(loadedRelay != nullptr && loadedRelay->socketedRelic == ItemId::None,
+        "withdraw should remove a socketed relic");
+    require(loaded->itemCount(ItemId::GlassHeart) == 1, "withdrawn socketed relic should return to inventory");
+}
+
 void testPowerNetworkRecomputesAfterSaveLoad()
 {
     using thoth::game::Direction;
@@ -3653,6 +3729,8 @@ void testPlaytestTelemetryText()
         "telemetry should include outpost delivery progress and guidance");
     require(telemetry.find("\"chest\": 1") != std::string::npos,
         "telemetry should include machine counts");
+    require(telemetry.find("\"socketed_relics\"") != std::string::npos,
+        "telemetry should include socketed relic count");
     require(telemetry.find("\"marsh\"") != std::string::npos && telemetry.find("\"desert\"") != std::string::npos,
         "telemetry should include activated outpost biomes");
     require(telemetry.find("\"guidance\"") != std::string::npos,
@@ -3882,6 +3960,7 @@ int main()
     testRepairPylonRebuildsAdjacentWallGap();
     testRepairPylonRestoresDamagedStructures();
     testPressureRelayMitigatesFactoryPressure();
+    testRelicSocketsModifyAndPersistMachines();
     testPowerNetworkRecomputesAfterSaveLoad();
     testWorkbenchRequiredForMachineCrafting();
     testTechChainUnlocksCircuitsAndLogistics();

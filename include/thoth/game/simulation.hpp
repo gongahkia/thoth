@@ -90,6 +90,7 @@ struct Machine {
     int requestThreshold = 0;
     MachineStatus status = MachineStatus::Idle;
     int durability = 0;
+    ItemId socketedRelic = ItemId::None;
 };
 
 // Prototype power rules:

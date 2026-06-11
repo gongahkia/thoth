@@ -180,7 +180,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 14\n";
+    output << "THOTH_SAVE 15\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -219,7 +219,8 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
                << machine.circuitThreshold << ' '
                << toString(machine.requestItem) << ' '
                << machine.requestThreshold << ' '
-               << machine.durability << "\n";
+               << machine.durability << ' '
+               << toString(machine.socketedRelic) << "\n";
         const auto inventory = machine.inventory.stacks();
         output << "machine_inventory " << inventory.size() << "\n";
         for (const auto& stack : inventory) {
@@ -290,7 +291,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 14)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 15)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -474,12 +475,17 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         if (version >= 13 && !readValue(input, machine.durability, "machine durability", error)) {
             return std::nullopt;
         }
+        std::string socketedRelicKey = "none";
+        if (version >= 15 && !readValue(input, socketedRelicKey, "machine socketed relic", error)) {
+            return std::nullopt;
+        }
 
         const auto parsedKind = machineKindFromKey(kindKey);
         const auto parsedDirection = directionFromKey(directionKey);
         const auto parsedCarried = itemIdFromKey(carriedKey);
         const auto parsedOutput = itemIdFromKey(outputKey);
-        if (!parsedKind || !parsedDirection || !parsedCarried || !parsedOutput) {
+        const auto parsedSocketedRelic = itemIdFromKey(socketedRelicKey);
+        if (!parsedKind || !parsedDirection || !parsedCarried || !parsedOutput || !parsedSocketedRelic) {
             setError(error, "invalid machine field");
             return std::nullopt;
         }
@@ -487,6 +493,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         machine.direction = *parsedDirection;
         machine.carriedItem = *parsedCarried;
         machine.outputItem = *parsedOutput;
+        machine.socketedRelic = *parsedSocketedRelic;
         const auto parsedFilter = itemIdFromKey(filterKey);
         const auto parsedRequest = itemIdFromKey(requestKey);
         if (!parsedFilter || !parsedRequest) {

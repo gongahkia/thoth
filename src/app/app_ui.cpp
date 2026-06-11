@@ -898,10 +898,68 @@ const std::vector<CraftMenuEntry>& craftMenuEntries()
     return entries;
 }
 
+bool isRelicItemForPanel(thoth::game::ItemId item)
+{
+    using thoth::game::ItemId;
+    return item == ItemId::MarshHeart ||
+        item == ItemId::GlassHeart ||
+        item == ItemId::WardenCore ||
+        item == ItemId::FrostCore ||
+        item == ItemId::RiftCrown;
+}
+
+bool canSocketRelicForPanel(const thoth::game::Machine& machine, thoth::game::ItemId item)
+{
+    if (machine.socketedRelic != thoth::game::ItemId::None || !isRelicItemForPanel(item)) {
+        return false;
+    }
+    using thoth::game::ItemId;
+    using thoth::game::MachineKind;
+    switch (machine.kind) {
+    case MachineKind::RepairPylon:
+        return item == ItemId::MarshHeart;
+    case MachineKind::PressureRelay:
+        return item == ItemId::GlassHeart;
+    case MachineKind::GuardTower:
+        return item == ItemId::WardenCore;
+    case MachineKind::ArcTower:
+        return item == ItemId::FrostCore || item == ItemId::WardenCore;
+    case MachineKind::RiftGate:
+    case MachineKind::OutpostBeacon:
+        return item == ItemId::RiftCrown;
+    case MachineKind::Belt:
+    case MachineKind::FastBelt:
+    case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
+    case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
+    case MachineKind::Splitter:
+    case MachineKind::BurnerMiner:
+    case MachineKind::Furnace:
+    case MachineKind::Workbench:
+    case MachineKind::Assembler:
+    case MachineKind::Lab:
+    case MachineKind::Generator:
+    case MachineKind::PowerPole:
+    case MachineKind::ElectricMiner:
+    case MachineKind::LogisticPort:
+    case MachineKind::TrainStop:
+    case MachineKind::Pipe:
+    case MachineKind::OffshorePump:
+    case MachineKind::ArchiveTerminal:
+        return false;
+    }
+    return false;
+}
+
 bool machineCanAcceptForPanel(const thoth::game::Machine& machine, thoth::game::ItemId item)
 {
     if (item == thoth::game::ItemId::None) {
         return false;
+    }
+    if (canSocketRelicForPanel(machine, item)) {
+        return true;
     }
 
     using thoth::game::ItemId;
@@ -986,6 +1044,7 @@ std::vector<thoth::game::ItemId> withdrawableItemsForPanel(const thoth::game::Ma
 
     addUnique(machine.carriedItem);
     addUnique(machine.outputItem);
+    addUnique(machine.socketedRelic);
     for (const auto& stack : machine.inventory.stacks()) {
         addUnique(stack.item);
     }
@@ -1543,13 +1602,15 @@ std::string machineHintText(const thoth::game::Simulation& sim, const thoth::gam
         if (machine.status == MachineStatus::MissingInput) {
             return depositActionText(sim, ItemId::BeaconCore);
         }
-        return "rift charge " + std::to_string(machine.progress) + "/180 " +
+        return "rift charge " + std::to_string(machine.progress) + "/" +
+            std::to_string(machine.socketedRelic == ItemId::RiftCrown ? 120 : 180) + " " +
             powerNetworkDetail(sim, machine);
     case MachineKind::GuardTower:
         if (machine.status == MachineStatus::MissingPower) {
             return powerNetworkDetail(sim, machine);
         }
-        return "defense charge " + std::to_string(machine.progress) + "/45 " +
+        return "defense charge " + std::to_string(machine.progress) + "/" +
+            std::to_string(machine.socketedRelic == ItemId::WardenCore ? 35 : 45) + " " +
             powerNetworkDetail(sim, machine);
     case MachineKind::OutpostBeacon:
         if (machine.status == MachineStatus::MissingPower) {
@@ -1559,7 +1620,8 @@ std::string machineHintText(const thoth::game::Simulation& sim, const thoth::gam
             return "deposit local biome activation item";
         }
         if (machine.progress >= 80) {
-            return "outpost delivery " + std::to_string(machine.progress - 80) + "/100 delivered " +
+            return "outpost delivery " + std::to_string(machine.progress - 80) + "/" +
+                std::to_string(machine.socketedRelic == ItemId::RiftCrown ? 70 : 100) + " delivered " +
                 std::to_string(sim.productionTotals().outpostDeliveries) + " " +
                 powerNetworkDetail(sim, machine);
         }
@@ -1573,7 +1635,8 @@ std::string machineHintText(const thoth::game::Simulation& sim, const thoth::gam
         if (machine.status == MachineStatus::MissingInput) {
             return "deposit walls for adjacent repairs";
         }
-        return "repair charge " + std::to_string(machine.progress) + "/60 " +
+        return "repair charge " + std::to_string(machine.progress) + "/" +
+            std::to_string(machine.socketedRelic == ItemId::MarshHeart ? 40 : 60) + " " +
             powerNetworkDetail(sim, machine);
     case MachineKind::PressureRelay:
         if (machine.status == MachineStatus::MissingPower) {
@@ -1582,14 +1645,16 @@ std::string machineHintText(const thoth::game::Simulation& sim, const thoth::gam
         if (machine.status == MachineStatus::MissingInput) {
             return depositActionText(sim, ItemId::AdvancedSciencePack);
         }
-        return "pressure relay " + std::to_string(machine.progress) + "/120 mitigated " +
+        return "pressure relay " + std::to_string(machine.progress) + "/" +
+            std::to_string(machine.socketedRelic == ItemId::GlassHeart ? 90 : 120) + " mitigated " +
             std::to_string(sim.productionTotals().pressureWavesRepelled) + " " +
             powerNetworkDetail(sim, machine);
     case MachineKind::ArcTower:
         if (machine.status == MachineStatus::MissingPower) {
             return powerNetworkDetail(sim, machine);
         }
-        return "arc defense " + std::to_string(machine.progress) + "/30 " +
+        return "arc defense " + std::to_string(machine.progress) + "/" +
+            std::to_string(machine.socketedRelic == ItemId::FrostCore ? 20 : 30) + " " +
             powerNetworkDetail(sim, machine);
     case MachineKind::Workbench:
         return "crafting station";
@@ -1774,6 +1839,9 @@ int machineAvailableCountForPanel(const thoth::game::Machine& machine, thoth::ga
         ++count;
     }
     if (machine.outputItem == item) {
+        ++count;
+    }
+    if (machine.socketedRelic == item) {
         ++count;
     }
     return count;
@@ -2895,17 +2963,21 @@ void drawMachineFlowStrip(const thoth::game::Simulation& sim, const thoth::game:
         break;
     case MachineKind::RiftGate:
         inputs.push_back(FlowStack{ItemId::BeaconCore, machine.inventory.count(ItemId::BeaconCore), 1});
-        detail = "jump " + std::to_string(machine.progress) + "/180";
+        detail = "jump " + std::to_string(machine.progress) + "/" +
+            std::to_string(machine.socketedRelic == ItemId::RiftCrown ? 120 : 180);
         break;
     case MachineKind::GuardTower:
-        detail = "defense " + std::to_string(machine.progress) + "/45 " + powerNetworkDetail(sim, machine);
+        detail = "defense " + std::to_string(machine.progress) + "/" +
+            std::to_string(machine.socketedRelic == ItemId::WardenCore ? 35 : 45) + " " +
+            powerNetworkDetail(sim, machine);
         break;
     case MachineKind::OutpostBeacon:
         for (const auto& stack : machine.inventory.stacks()) {
             inputs.push_back(FlowStack{stack.item, stack.count, 1});
         }
         if (machine.progress >= 80) {
-            detail = "outpost delivery " + std::to_string(machine.progress - 80) + "/100 " +
+            detail = "outpost delivery " + std::to_string(machine.progress - 80) + "/" +
+                std::to_string(machine.socketedRelic == ItemId::RiftCrown ? 70 : 100) + " " +
                 powerNetworkDetail(sim, machine);
         } else {
             detail = "outpost " + std::to_string(machine.progress) + "/80 " + powerNetworkDetail(sim, machine);
@@ -2914,14 +2986,20 @@ void drawMachineFlowStrip(const thoth::game::Simulation& sim, const thoth::game:
     case MachineKind::RepairPylon:
         inputs.push_back(FlowStack{ItemId::Wall, machine.inventory.count(ItemId::Wall), 1});
         inputs.push_back(FlowStack{ItemId::PlankWall, machine.inventory.count(ItemId::PlankWall), 1});
-        detail = "repair " + std::to_string(machine.progress) + "/60 " + powerNetworkDetail(sim, machine);
+        detail = "repair " + std::to_string(machine.progress) + "/" +
+            std::to_string(machine.socketedRelic == ItemId::MarshHeart ? 40 : 60) + " " +
+            powerNetworkDetail(sim, machine);
         break;
     case MachineKind::PressureRelay:
         inputs.push_back(FlowStack{ItemId::AdvancedSciencePack, machine.inventory.count(ItemId::AdvancedSciencePack), 1});
-        detail = "pressure " + std::to_string(machine.progress) + "/120 " + powerNetworkDetail(sim, machine);
+        detail = "pressure " + std::to_string(machine.progress) + "/" +
+            std::to_string(machine.socketedRelic == ItemId::GlassHeart ? 90 : 120) + " " +
+            powerNetworkDetail(sim, machine);
         break;
     case MachineKind::ArcTower:
-        detail = "arc defense " + std::to_string(machine.progress) + "/30 " + powerNetworkDetail(sim, machine);
+        detail = "arc defense " + std::to_string(machine.progress) + "/" +
+            std::to_string(machine.socketedRelic == ItemId::FrostCore ? 20 : 30) + " " +
+            powerNetworkDetail(sim, machine);
         break;
     case MachineKind::Workbench:
         detail = "hand crafting helper";
@@ -2929,6 +3007,10 @@ void drawMachineFlowStrip(const thoth::game::Simulation& sim, const thoth::game:
     case MachineKind::PowerPole:
         detail = powerNetworkDetail(sim, machine);
         break;
+    }
+    if (machine.socketedRelic != ItemId::None) {
+        detail += detail.empty() ? "socket " : " socket ";
+        detail += shortItemName(machine.socketedRelic);
     }
 
     const int inputX = x + 44;

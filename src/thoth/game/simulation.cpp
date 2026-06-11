@@ -357,6 +357,58 @@ bool isActiveIndustrialMachine(const Machine& machine)
     return false;
 }
 
+bool isRelicItem(ItemId item)
+{
+    return item == ItemId::MarshHeart ||
+        item == ItemId::GlassHeart ||
+        item == ItemId::WardenCore ||
+        item == ItemId::FrostCore ||
+        item == ItemId::RiftCrown;
+}
+
+bool canSocketRelic(MachineKind kind, ItemId relic)
+{
+    if (!isRelicItem(relic)) {
+        return false;
+    }
+    switch (kind) {
+    case MachineKind::RepairPylon:
+        return relic == ItemId::MarshHeart;
+    case MachineKind::PressureRelay:
+        return relic == ItemId::GlassHeart;
+    case MachineKind::GuardTower:
+        return relic == ItemId::WardenCore;
+    case MachineKind::ArcTower:
+        return relic == ItemId::FrostCore || relic == ItemId::WardenCore;
+    case MachineKind::RiftGate:
+    case MachineKind::OutpostBeacon:
+        return relic == ItemId::RiftCrown;
+    case MachineKind::Belt:
+    case MachineKind::FastBelt:
+    case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
+    case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
+    case MachineKind::Splitter:
+    case MachineKind::BurnerMiner:
+    case MachineKind::Furnace:
+    case MachineKind::Workbench:
+    case MachineKind::Assembler:
+    case MachineKind::Lab:
+    case MachineKind::Generator:
+    case MachineKind::PowerPole:
+    case MachineKind::ElectricMiner:
+    case MachineKind::LogisticPort:
+    case MachineKind::TrainStop:
+    case MachineKind::Pipe:
+    case MachineKind::OffshorePump:
+    case MachineKind::ArchiveTerminal:
+        return false;
+    }
+    return false;
+}
+
 BiomeHazardState biomeHazardFor(BiomeKind biome, int level)
 {
     switch (biome) {
@@ -1389,10 +1441,14 @@ std::string Simulation::playtestTelemetryText() const
     }
 
     int damagedMachines = 0;
+    int socketedRelics = 0;
     for (const auto& machine : machines_) {
         const int maxDurability = machineMaxDurability(machine.kind);
         if (machine.durability > 0 && machine.durability < maxDurability) {
             ++damagedMachines;
+        }
+        if (machine.socketedRelic != ItemId::None) {
+            ++socketedRelics;
         }
     }
 
@@ -1465,6 +1521,7 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"creatures_defeated\": " << productionTotals_.creaturesDefeated << "},\n";
     out << "  \"structures\": {\"machines\": " << machines_.size()
         << ", \"damaged_machines\": " << damagedMachines
+        << ", \"socketed_relics\": " << socketedRelics
         << ", \"damaged_tiles\": " << damagedStructureTiles
         << ", \"powered_networks\": " << poweredNetworks
         << ", \"power_supply\": " << totalPowerSupply
@@ -1867,6 +1924,9 @@ void Simulation::withdrawItem(Direction direction, ItemId item)
     } else if (machine->outputItem == item) {
         removed = machine->outputItem;
         machine->outputItem = ItemId::None;
+    } else if (machine->socketedRelic == item) {
+        removed = machine->socketedRelic;
+        machine->socketedRelic = ItemId::None;
     } else if (machine->inventory.consume(item, 1)) {
         removed = item;
     }
@@ -3066,9 +3126,10 @@ void Simulation::updateRiftGates()
             machine.status = MachineStatus::MissingInput;
             continue;
         }
-        machine.progress = std::min(machine.progress + 1, kRiftGateTicks);
+        const int goalTicks = machine.socketedRelic == ItemId::RiftCrown ? 120 : kRiftGateTicks;
+        machine.progress = std::min(machine.progress + 1, goalTicks);
         machine.status = MachineStatus::Working;
-        if (machine.progress < kRiftGateTicks) {
+        if (machine.progress < goalTicks) {
             continue;
         }
         player_.x += player_.x >= (kRiftOffset / 2) ? -kRiftOffset : kRiftOffset;
@@ -3095,9 +3156,10 @@ void Simulation::updateOutpostBeacons()
                 machine.status = MachineStatus::Idle;
                 continue;
             }
-            machine.progress = std::min(machine.progress + 1, kOutpostBeaconTicks + kOutpostDeliveryTicks);
+            const int deliveryTicks = machine.socketedRelic == ItemId::RiftCrown ? 70 : kOutpostDeliveryTicks;
+            machine.progress = std::min(machine.progress + 1, kOutpostBeaconTicks + deliveryTicks);
             machine.status = MachineStatus::Working;
-            if (machine.progress < kOutpostBeaconTicks + kOutpostDeliveryTicks) {
+            if (machine.progress < kOutpostBeaconTicks + deliveryTicks) {
                 continue;
             }
             const auto delivered = machine.inventory.consume(deliveryItem, 1);
@@ -3159,13 +3221,17 @@ void Simulation::updateGuardTowers()
             continue;
         }
 
-        machine.progress = std::min(machine.progress + 1, kGuardTowerTicks);
+        const int goalTicks = machine.socketedRelic == ItemId::WardenCore ? 35 : kGuardTowerTicks;
+        machine.progress = std::min(machine.progress + 1, goalTicks);
         machine.status = MachineStatus::Working;
-        if (machine.progress < kGuardTowerTicks) {
+        if (machine.progress < goalTicks) {
             continue;
         }
 
-        const int damage = entities_[targetIndex].kind == EntityKind::BadlandsWarden ? 1 : 2;
+        int damage = entities_[targetIndex].kind == EntityKind::BadlandsWarden ? 1 : 2;
+        if (machine.socketedRelic == ItemId::WardenCore) {
+            ++damage;
+        }
         entities_[targetIndex].hp -= damage;
         machine.progress = 0;
         if (entities_[targetIndex].hp <= 0) {
@@ -3206,13 +3272,14 @@ void Simulation::updateArcTowers()
             continue;
         }
 
-        machine.progress = std::min(machine.progress + 1, kArcTowerTicks);
+        const int goalTicks = machine.socketedRelic == ItemId::FrostCore ? 20 : kArcTowerTicks;
+        machine.progress = std::min(machine.progress + 1, goalTicks);
         machine.status = MachineStatus::Working;
-        if (machine.progress < kArcTowerTicks) {
+        if (machine.progress < goalTicks) {
             continue;
         }
 
-        entities_[targetIndex].hp -= 4;
+        entities_[targetIndex].hp -= machine.socketedRelic == ItemId::FrostCore ? 5 : 4;
         machine.progress = 0;
         if (entities_[targetIndex].hp <= 0) {
             defeatEntity(targetIndex);
@@ -3325,9 +3392,10 @@ void Simulation::updateRepairPylons()
                 continue;
             }
         }
-        machine.progress = std::min(machine.progress + 1, kRepairPylonTicks);
+        const int goalTicks = machine.socketedRelic == ItemId::MarshHeart ? 40 : kRepairPylonTicks;
+        machine.progress = std::min(machine.progress + 1, goalTicks);
         machine.status = MachineStatus::Working;
-        if (machine.progress < kRepairPylonTicks) {
+        if (machine.progress < goalTicks) {
             continue;
         }
         if (target->kind == RepairTargetKind::DamagedMachine) {
@@ -3360,12 +3428,13 @@ void Simulation::updatePressureRelays()
             machine.status = MachineStatus::MissingInput;
             continue;
         }
-        machine.progress = std::min(machine.progress + 1, kPressureRelayTicks);
+        const int goalTicks = machine.socketedRelic == ItemId::GlassHeart ? 90 : kPressureRelayTicks;
+        machine.progress = std::min(machine.progress + 1, goalTicks);
         machine.status = MachineStatus::Working;
-        if (machine.progress < kPressureRelayTicks) {
+        if (machine.progress < goalTicks) {
             continue;
         }
-        ++productionTotals_.pressureWavesRepelled;
+        productionTotals_.pressureWavesRepelled += machine.socketedRelic == ItemId::GlassHeart ? 2 : 1;
         machine.progress = 0;
         machine.status = MachineStatus::Idle;
     }
@@ -3523,6 +3592,10 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
 {
     if (item == ItemId::None) {
         return false;
+    }
+    if (machine.socketedRelic == ItemId::None && canSocketRelic(machine.kind, item)) {
+        machine.socketedRelic = item;
+        return true;
     }
 
     switch (machine.kind) {
@@ -3982,6 +4055,9 @@ int Simulation::countMachineItem(const Machine& machine, ItemId item) const
         if (machine.outputItem != ItemId::None) {
             ++total;
         }
+        if (machine.socketedRelic != ItemId::None) {
+            ++total;
+        }
         return total;
     }
 
@@ -3990,6 +4066,9 @@ int Simulation::countMachineItem(const Machine& machine, ItemId item) const
         ++total;
     }
     if (machine.outputItem == item) {
+        ++total;
+    }
+    if (machine.socketedRelic == item) {
         ++total;
     }
     return total;
