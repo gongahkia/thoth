@@ -251,6 +251,7 @@ Color activityPulseColor(thoth::game::MachineKind kind)
     case MachineKind::PowerPole:
     case MachineKind::LogisticPort:
     case MachineKind::OffshorePump:
+    case MachineKind::GuardTower:
         return Color{118, 210, 255, 255};
     case MachineKind::ArchiveTerminal:
     case MachineKind::RiftGate:

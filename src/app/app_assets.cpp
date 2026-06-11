@@ -1299,6 +1299,8 @@ SpriteId itemSprite(thoth::game::ItemId item)
         return SpriteId::MachineElectricMiner;
     case ItemId::RiftGate:
         return SpriteId::MachineLab;
+    case ItemId::GuardTower:
+        return SpriteId::MachinePowerPole;
     case ItemId::Wall:
     case ItemId::PlankWall:
     case ItemId::Door:
@@ -1370,6 +1372,8 @@ SpriteId machineSprite(thoth::game::MachineKind kind)
         return SpriteId::MachineElectricMiner;
     case MachineKind::RiftGate:
         return SpriteId::MachineLab;
+    case MachineKind::GuardTower:
+        return SpriteId::MachinePowerPole;
     }
     return SpriteId::MachineChest;
 }
@@ -1574,6 +1578,8 @@ Color machineColor(thoth::game::MachineKind kind)
         return Color{64, 132, 188, 255};
     case MachineKind::RiftGate:
         return Color{146, 76, 210, 255};
+    case MachineKind::GuardTower:
+        return Color{106, 170, 118, 255};
     }
     return Color{220, 220, 220, 255};
 }
@@ -1674,6 +1680,8 @@ Color itemColor(thoth::game::ItemId item)
         return Color{64, 132, 188, 255};
     case ItemId::RiftGate:
         return Color{146, 76, 210, 255};
+    case ItemId::GuardTower:
+        return Color{106, 170, 118, 255};
     case ItemId::Wall:
     case ItemId::PlankWall:
     case ItemId::Door:

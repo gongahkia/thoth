@@ -125,6 +125,8 @@ std::string shortItemName(thoth::game::ItemId item)
         return "pump";
     case ItemId::RiftGate:
         return "rift";
+    case ItemId::GuardTower:
+        return "tower";
     case ItemId::Wall:
         return "wall";
     case ItemId::PlankWall:
@@ -191,6 +193,8 @@ std::string machineGlyph(thoth::game::MachineKind kind)
         return "H";
     case MachineKind::RiftGate:
         return "R";
+    case MachineKind::GuardTower:
+        return "D";
     }
     return "?";
 }
@@ -235,6 +239,9 @@ float machineProgressRatio(const thoth::game::Machine& machine)
         break;
     case MachineKind::RiftGate:
         denominator = 180;
+        break;
+    case MachineKind::GuardTower:
+        denominator = 45;
         break;
     case MachineKind::Belt:
     case MachineKind::FastBelt:
@@ -848,6 +855,7 @@ const std::vector<CraftMenuEntry>& craftMenuEntries()
         {"archive_terminal", ""},
         {"train_stop", ""},
         {"rift_gate", ""},
+        {"guard_tower", ""},
     };
     return entries;
 }
@@ -908,6 +916,7 @@ bool machineCanAcceptForPanel(const thoth::game::Machine& machine, thoth::game::
     case MachineKind::PowerPole:
     case MachineKind::ElectricMiner:
     case MachineKind::OffshorePump:
+    case MachineKind::GuardTower:
         return false;
     }
     return false;
@@ -1485,6 +1494,12 @@ std::string machineHintText(const thoth::game::Simulation& sim, const thoth::gam
         }
         return "rift charge " + std::to_string(machine.progress) + "/180 " +
             powerNetworkDetail(sim, machine);
+    case MachineKind::GuardTower:
+        if (machine.status == MachineStatus::MissingPower) {
+            return powerNetworkDetail(sim, machine);
+        }
+        return "defense charge " + std::to_string(machine.progress) + "/45 " +
+            powerNetworkDetail(sim, machine);
     case MachineKind::Workbench:
         return "crafting station";
     }
@@ -1598,6 +1613,8 @@ std::string machineProcessChipText(const thoth::game::Simulation& sim, const tho
         return "water " + std::to_string(machine.progress) + "/30";
     case MachineKind::RiftGate:
         return "rift " + std::to_string(machine.progress) + "/180";
+    case MachineKind::GuardTower:
+        return "guard " + std::to_string(machine.progress) + "/45";
     case MachineKind::Workbench:
         return "hand recipes";
     case MachineKind::Furnace:
@@ -1644,7 +1661,8 @@ std::string machineActionChipText(const thoth::game::Simulation& sim, const thot
     }
     if (machine.kind == MachineKind::LogisticPort ||
         machine.kind == MachineKind::ArchiveTerminal ||
-        machine.kind == MachineKind::RiftGate) {
+        machine.kind == MachineKind::RiftGate ||
+        machine.kind == MachineKind::GuardTower) {
         return powerNetworkDetail(sim, machine);
     }
     return "inspect";
@@ -2022,6 +2040,7 @@ bool machineShowsDirection(thoth::game::MachineKind kind)
     case MachineKind::ArchiveTerminal:
     case MachineKind::TrainStop:
     case MachineKind::RiftGate:
+    case MachineKind::GuardTower:
         return false;
     }
     return false;
@@ -2754,6 +2773,9 @@ void drawMachineFlowStrip(const thoth::game::Simulation& sim, const thoth::game:
     case MachineKind::RiftGate:
         inputs.push_back(FlowStack{ItemId::BeaconCore, machine.inventory.count(ItemId::BeaconCore), 1});
         detail = "jump " + std::to_string(machine.progress) + "/180";
+        break;
+    case MachineKind::GuardTower:
+        detail = "defense " + std::to_string(machine.progress) + "/45 " + powerNetworkDetail(sim, machine);
         break;
     case MachineKind::Workbench:
         detail = "hand crafting helper";

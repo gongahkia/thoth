@@ -82,6 +82,7 @@ std::string factoryStatsText(const thoth::game::Simulation& sim)
         " splitters=" + std::to_string(machineCount(sim, MachineKind::Splitter)) +
         " trains=" + std::to_string(machineCount(sim, MachineKind::TrainStop)) +
         " pumps=" + std::to_string(machineCount(sim, MachineKind::OffshorePump)) +
+        " towers=" + std::to_string(machineCount(sim, MachineKind::GuardTower)) +
         " archive=" + std::to_string(sim.productionTotals().archiveSignals) +
         " rift=" + std::to_string(sim.productionTotals().riftJumps) +
         " deliveries=" + std::to_string(sim.productionTotals().logisticDeliveries) +

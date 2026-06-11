@@ -303,6 +303,7 @@ private:
     void updatePipes();
     void updateArchiveTerminals();
     void updateRiftGates();
+    void updateGuardTowers();
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y) const;
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y, int z) const;
     [[nodiscard]] bool acceptItemAt(int x, int y, ItemId item);
@@ -337,6 +338,7 @@ private:
     [[nodiscard]] ItemId entityDrop(EntityKind kind) const;
     [[nodiscard]] int entityDropCount(EntityKind kind) const;
     [[nodiscard]] int entityMaxHp(EntityKind kind) const;
+    void defeatEntity(std::size_t entityIndex);
     [[nodiscard]] std::optional<EntityKind> localEntityKindForTile(int x, int y, int z) const;
     [[nodiscard]] int activeTechGoal() const;
     [[nodiscard]] std::string nextIncompleteTech() const;

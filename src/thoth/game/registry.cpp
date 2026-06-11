@@ -91,6 +91,7 @@ const std::vector<ItemDef> kItems = {
     {ItemId::Pipe, "pipe", "Pipe", 100, TileId::Floor, false, MachineKind::Pipe, true},
     {ItemId::OffshorePump, "offshore_pump", "Offshore Pump", 20, TileId::Floor, false, MachineKind::OffshorePump, true},
     {ItemId::RiftGate, "rift_gate", "Rift Gate", 5, TileId::Floor, false, MachineKind::RiftGate, true},
+    {ItemId::GuardTower, "guard_tower", "Guard Tower", 20, TileId::Floor, false, MachineKind::GuardTower, true},
     {ItemId::Wall, "wall", "Wall", 100, TileId::Wall, true, MachineKind::Chest, false},
     {ItemId::PlankWall, "plank_wall", "Plank Wall", 100, TileId::PlankWall, true, MachineKind::Chest, false},
     {ItemId::Door, "door", "Door", 20, TileId::Door, true, MachineKind::Chest, false},
@@ -123,6 +124,7 @@ const std::vector<MachineDef> kMachines = {
     {MachineKind::Pipe, "pipe", "Pipe", 1, 1, false, true, false, 1, MachineBehaviorKind::Pipe},
     {MachineKind::OffshorePump, "offshore_pump", "Offshore Pump", 1, 1, false, true, false, 0, MachineBehaviorKind::OffshorePump},
     {MachineKind::RiftGate, "rift_gate", "Rift Gate", 1, 1, false, true, false, 2, MachineBehaviorKind::RiftGate},
+    {MachineKind::GuardTower, "guard_tower", "Guard Tower", 1, 1, false, true, false, 0, MachineBehaviorKind::GuardTower},
 };
 
 const std::vector<RecipeDef> kRecipes = {
@@ -165,11 +167,12 @@ const std::vector<RecipeDef> kRecipes = {
     {"archive_terminal", {ItemStack{ItemId::IronPlate, 10}, ItemStack{ItemId::CopperPlate, 10}, ItemStack{ItemId::CircuitBoard, 4}}, ItemStack{ItemId::ArchiveTerminal, 1}, 120, "workbench", false},
     {"train_stop", {ItemStack{ItemId::IronPlate, 6}, ItemStack{ItemId::CopperPlate, 3}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::TrainStop, 1}, 80, "workbench", false},
     {"rift_gate", {ItemStack{ItemId::BeaconCore, 1}, ItemStack{ItemId::AdvancedSciencePack, 3}, ItemStack{ItemId::CopperPlate, 8}}, ItemStack{ItemId::RiftGate, 1}, 160, "workbench", false},
+    {"guard_tower", {ItemStack{ItemId::IronPlate, 4}, ItemStack{ItemId::CopperPlate, 2}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::GuardTower, 1}, 70, "workbench", false},
 };
 
 const std::vector<TechDef> kTechs = {
     {"logistics_1", "Logistics 1", {ItemStack{ItemId::SciencePack, 3}}, 20, {"fast_belt", "generator", "power_pole", "electric_miner", "splitter", "pipe"}},
-    {"automation_control", "Automation Control", {ItemStack{ItemId::SciencePack, 4}}, 24, {"circuit_board", "advanced_science_pack", "crystal_lens", "circuit_inserter", "offshore_pump"}},
+    {"automation_control", "Automation Control", {ItemStack{ItemId::SciencePack, 4}}, 24, {"circuit_board", "advanced_science_pack", "crystal_lens", "circuit_inserter", "offshore_pump", "guard_tower"}},
     {"logistic_network", "Logistic Network", {ItemStack{ItemId::AdvancedSciencePack, 5}}, 30, {"provider_chest", "requester_chest", "logistic_port", "logistic_drone", "beacon_core", "archive_terminal", "train_stop", "rift_gate"}},
 };
 
@@ -350,6 +353,8 @@ std::string_view toString(MachineBehaviorKind behavior)
         return "offshore_pump";
     case MachineBehaviorKind::RiftGate:
         return "rift_gate";
+    case MachineBehaviorKind::GuardTower:
+        return "guard_tower";
     }
     return "unknown";
 }

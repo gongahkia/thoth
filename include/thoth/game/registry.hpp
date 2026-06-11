@@ -90,6 +90,7 @@ enum class ItemId : std::uint8_t {
     Pipe,
     OffshorePump,
     RiftGate,
+    GuardTower,
     Wall,
     PlankWall,
     Door,
@@ -122,6 +123,7 @@ enum class MachineKind : std::uint8_t {
     Pipe,
     OffshorePump,
     RiftGate,
+    GuardTower,
 };
 
 enum class MachineBehaviorKind : std::uint8_t {
@@ -145,6 +147,7 @@ enum class MachineBehaviorKind : std::uint8_t {
     Pipe,
     OffshorePump,
     RiftGate,
+    GuardTower,
 };
 
 struct Rgb {

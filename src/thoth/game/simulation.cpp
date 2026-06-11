@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <stdexcept>
 #include <utility>
 
@@ -23,6 +24,8 @@ constexpr int kTrainStopTicks = 90;
 constexpr int kPumpTicks = 30;
 constexpr int kPipeTicks = 3;
 constexpr int kRiftGateTicks = 180;
+constexpr int kGuardTowerTicks = 45;
+constexpr int kGuardTowerRange = 5;
 constexpr int kRiftOffset = 4096;
 
 int absInt(int value)
@@ -1351,20 +1354,16 @@ void Simulation::attack(Direction direction)
 {
     const int tx = player_.x + dx(direction);
     const int ty = player_.y + dy(direction);
-    for (auto it = entities_.begin(); it != entities_.end(); ++it) {
-        if (it->x != tx || it->y != ty || it->z != player_.z || it->hp <= 0) {
+    for (std::size_t index = 0; index < entities_.size(); ++index) {
+        auto& entity = entities_[index];
+        if (entity.x != tx || entity.y != ty || entity.z != player_.z || entity.hp <= 0) {
             continue;
         }
-        it->hp -= 2;
-        if (it->hp > 0) {
+        entity.hp -= 2;
+        if (entity.hp > 0) {
             return;
         }
-        addItem(entityDrop(it->kind), entityDropCount(it->kind));
-        if (it->kind == EntityKind::MarshBroodheart) {
-            ++productionTotals_.bossesDefeated;
-        }
-        ++productionTotals_.creaturesDefeated;
-        entities_.erase(it);
+        defeatEntity(index);
         return;
     }
 }
@@ -1386,6 +1385,7 @@ void Simulation::updateMachines()
     updatePipes();
     updateArchiveTerminals();
     updateRiftGates();
+    updateGuardTowers();
 }
 
 void Simulation::updatePowerNetworks()
@@ -2079,6 +2079,52 @@ void Simulation::updateRiftGates()
     }
 }
 
+void Simulation::updateGuardTowers()
+{
+    for (auto& machine : machines_) {
+        if (machine.kind != MachineKind::GuardTower) {
+            continue;
+        }
+        if (!isMachinePowered(machine.id)) {
+            machine.progress = 0;
+            machine.status = MachineStatus::MissingPower;
+            continue;
+        }
+
+        std::size_t targetIndex = entities_.size();
+        int bestDistance = kGuardTowerRange + 1;
+        for (std::size_t index = 0; index < entities_.size(); ++index) {
+            const auto& entity = entities_[index];
+            if (entity.z != machine.z || !isHostile(entity.kind) || entity.hp <= 0) {
+                continue;
+            }
+            const int distance = manhattanDistance(machine.x, machine.y, machine.z, entity.x, entity.y, entity.z);
+            if (distance <= kGuardTowerRange && distance < bestDistance) {
+                targetIndex = index;
+                bestDistance = distance;
+            }
+        }
+
+        if (targetIndex == entities_.size()) {
+            machine.progress = 0;
+            machine.status = MachineStatus::MissingInput;
+            continue;
+        }
+
+        machine.progress = std::min(machine.progress + 1, kGuardTowerTicks);
+        machine.status = MachineStatus::Working;
+        if (machine.progress < kGuardTowerTicks) {
+            continue;
+        }
+
+        entities_[targetIndex].hp -= 2;
+        machine.progress = 0;
+        if (entities_[targetIndex].hp <= 0) {
+            defeatEntity(targetIndex);
+        }
+    }
+}
+
 bool Simulation::canPlaceMachine(MachineKind kind, int x, int y) const
 {
     return canPlaceMachine(kind, x, y, 0);
@@ -2205,6 +2251,7 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
     case MachineKind::PowerPole:
     case MachineKind::ElectricMiner:
     case MachineKind::OffshorePump:
+    case MachineKind::GuardTower:
         return false;
     }
     return false;
@@ -2311,7 +2358,8 @@ bool Simulation::isPowerConsumer(MachineKind kind) const
     return kind == MachineKind::ElectricMiner ||
         kind == MachineKind::LogisticPort ||
         kind == MachineKind::ArchiveTerminal ||
-        kind == MachineKind::RiftGate;
+        kind == MachineKind::RiftGate ||
+        kind == MachineKind::GuardTower;
 }
 
 bool Simulation::isLogisticStorage(MachineKind kind) const
@@ -2325,6 +2373,9 @@ int Simulation::powerDemand(MachineKind kind) const
         return 1;
     }
     if (kind == MachineKind::LogisticPort) {
+        return 1;
+    }
+    if (kind == MachineKind::GuardTower) {
         return 1;
     }
     if (kind == MachineKind::ArchiveTerminal || kind == MachineKind::RiftGate) {
@@ -2548,6 +2599,20 @@ int Simulation::entityMaxHp(EntityKind kind) const
         return 14;
     }
     return 1;
+}
+
+void Simulation::defeatEntity(std::size_t entityIndex)
+{
+    if (entityIndex >= entities_.size()) {
+        return;
+    }
+    const auto kind = entities_[entityIndex].kind;
+    addItem(entityDrop(kind), entityDropCount(kind));
+    if (kind == EntityKind::MarshBroodheart) {
+        ++productionTotals_.bossesDefeated;
+    }
+    ++productionTotals_.creaturesDefeated;
+    entities_.erase(entities_.begin() + static_cast<std::ptrdiff_t>(entityIndex));
 }
 
 std::optional<EntityKind> Simulation::localEntityKindForTile(int x, int y, int z) const

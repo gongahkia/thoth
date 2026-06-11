@@ -2172,6 +2172,40 @@ void testUnderpoweredNetworkStopsElectricMachinesDeterministically()
     require(third->status == MachineStatus::MissingPower, "third underpowered miner should report missing power");
 }
 
+void testGuardTowerRequiresPowerAndDefeatsHostile()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    auto* generator = placeMachineAt(sim, ItemId::Generator, 0, 0, Direction::East);
+    placeMachineAt(sim, ItemId::PowerPole, 1, 0, Direction::East);
+    auto* tower = placeMachineAt(sim, ItemId::GuardTower, 2, 0, Direction::East);
+    require(generator != nullptr && tower != nullptr, "guard tower test machines should place");
+
+    auto snapshot = sim.snapshot();
+    snapshot.player.x = 20;
+    snapshot.player.y = 20;
+    snapshot.nextEntityId = 2;
+    snapshot.entities = {Entity{1, EntityKind::Slime, 5, 0, 0, 2, Direction::West, 0}};
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::Generator) {
+            machine.fuelTicks = 200;
+        }
+    }
+    sim.restore(snapshot);
+
+    for (int i = 0; i < 45; ++i) {
+        sim.step();
+    }
+
+    require(sim.entities().empty(), "powered guard tower should defeat hostile in range");
+    require(sim.productionTotals().creaturesDefeated == 1, "tower defeat should increment creature total");
+    const auto* restoredTower = sim.machineAt(2, 0);
+    require(restoredTower != nullptr && restoredTower->kind == MachineKind::GuardTower, "guard tower should persist");
+    require(restoredTower->status == MachineStatus::Working || restoredTower->status == MachineStatus::MissingInput,
+        "guard tower should report a defense status after firing");
+}
+
 void testPowerNetworkRecomputesAfterSaveLoad()
 {
     using thoth::game::Direction;
@@ -2771,6 +2805,7 @@ int main()
     testPowerPoleNetworkGroupingAndSupplyDemand();
     testElectricMinerRequiresPowerAndProducesOre();
     testUnderpoweredNetworkStopsElectricMachinesDeterministically();
+    testGuardTowerRequiresPowerAndDefeatsHostile();
     testPowerNetworkRecomputesAfterSaveLoad();
     testWorkbenchRequiredForMachineCrafting();
     testTechChainUnlocksCircuitsAndLogistics();
