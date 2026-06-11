@@ -33,6 +33,14 @@ constexpr int kRepairPylonTicks = 60;
 constexpr int kPressureRelayTicks = 120;
 constexpr int kRiftOffset = 4096;
 
+constexpr std::array<BiomeKind, 5> kRequiredOutpostBiomes{{
+    BiomeKind::Marsh,
+    BiomeKind::Desert,
+    BiomeKind::Badlands,
+    BiomeKind::Snowfield,
+    BiomeKind::CrystalField,
+}};
+
 int absInt(int value)
 {
     return value < 0 ? -value : value;
@@ -239,6 +247,27 @@ std::optional<std::pair<int, int>> repairTargetNear(const World& world, const Si
         }
     }
     return std::nullopt;
+}
+
+int biomeMask(BiomeKind biome)
+{
+    return 1 << static_cast<int>(biome);
+}
+
+bool hasBiomeMask(int mask, BiomeKind biome)
+{
+    return (mask & biomeMask(biome)) != 0;
+}
+
+int countOutpostBiomeCoverage(int mask)
+{
+    int count = 0;
+    for (const auto biome : kRequiredOutpostBiomes) {
+        if (hasBiomeMask(mask, biome)) {
+            ++count;
+        }
+    }
+    return count;
 }
 
 void depleteResourceTile(World& world, int x, int y, int z)
@@ -808,6 +837,27 @@ bool Simulation::mainObjectiveComplete() const
         completedSupplyContracts() >= totalSupplyContracts();
 }
 
+bool Simulation::hasActivatedOutpostBiome(BiomeKind biome) const
+{
+    return hasBiomeMask(productionTotals_.outpostBiomeMask, biome);
+}
+
+int Simulation::activatedOutpostBiomeCount() const
+{
+    return countOutpostBiomeCoverage(productionTotals_.outpostBiomeMask);
+}
+
+std::vector<BiomeKind> Simulation::activatedOutpostBiomes() const
+{
+    std::vector<BiomeKind> biomes;
+    for (const auto biome : kRequiredOutpostBiomes) {
+        if (hasActivatedOutpostBiome(biome)) {
+            biomes.push_back(biome);
+        }
+    }
+    return biomes;
+}
+
 int Simulation::completedBiomeContracts() const
 {
     int completed = 0;
@@ -834,9 +884,14 @@ std::vector<BiomeContractProgress> Simulation::biomeContractProgress() const
     addContract(BiomeKind::Marsh, "Marsh: pump 3 water barrels", productionTotals_.waterBarrels, 3);
     addContract(BiomeKind::Desert, "Desert: stockpile 2 sand glass", totalItemCount(ItemId::SandGlass), 2);
     addContract(BiomeKind::Badlands, "Badlands: stockpile 6 basalt", totalItemCount(ItemId::Basalt), 6);
+    addContract(BiomeKind::Snowfield, "Snowfield: stockpile 4 ice shards", totalItemCount(ItemId::IceShard), 4);
     addContract(BiomeKind::CrystalField, "Crystal Field: stockpile 3 crystal", totalItemCount(ItemId::Crystal), 3);
     addContract(BiomeKind::Rift, "Rift: complete 2 rift jumps", productionTotals_.riftJumps, 2);
-    addContract(BiomeKind::Rift, "Outposts: activate 2 powered biome beacons", productionTotals_.outpostsActivated, 2);
+    addContract(BiomeKind::Marsh, "Marsh Outpost: activate powered beacon", hasActivatedOutpostBiome(BiomeKind::Marsh) ? 1 : 0, 1);
+    addContract(BiomeKind::Desert, "Desert Outpost: activate powered beacon", hasActivatedOutpostBiome(BiomeKind::Desert) ? 1 : 0, 1);
+    addContract(BiomeKind::Badlands, "Badlands Outpost: activate powered beacon", hasActivatedOutpostBiome(BiomeKind::Badlands) ? 1 : 0, 1);
+    addContract(BiomeKind::Snowfield, "Snowfield Outpost: activate powered beacon", hasActivatedOutpostBiome(BiomeKind::Snowfield) ? 1 : 0, 1);
+    addContract(BiomeKind::CrystalField, "Crystal Outpost: activate powered beacon", hasActivatedOutpostBiome(BiomeKind::CrystalField) ? 1 : 0, 1);
     return contracts;
 }
 
@@ -852,7 +907,7 @@ std::string Simulation::currentBiomeContractText() const
                 std::to_string(contract.required) + ")";
         }
     }
-    return "biome contracts complete: outposts proved across marsh, desert, badlands, crystal, and rift";
+    return "biome contracts complete: outposts proved across marsh, desert, badlands, snowfield, crystal, and rift";
 }
 
 std::string Simulation::currentDemoGoalText() const
@@ -895,8 +950,8 @@ std::string Simulation::objectiveMarkerText() const
     if (productionTotals_.bossRelicsClaimed == 4) {
         return "marker: crystal vault at x-36 y20";
     }
-    if (productionTotals_.outpostsActivated < 2) {
-        return "marker: power outpost beacons in cleared biome lairs";
+    if (activatedOutpostBiomeCount() < static_cast<int>(kRequiredOutpostBiomes.size())) {
+        return "marker: power unique outpost beacons in marsh, desert, badlands, snowfield, and crystal";
     }
     if (productionTotals_.riftJumps < 1) {
         return "marker: charge archive terminal, craft rift gate, then feed beacon core";
@@ -2461,6 +2516,7 @@ void Simulation::updateOutpostBeacons()
         machine.status = MachineStatus::Working;
         if (machine.progress >= kOutpostBeaconTicks) {
             ++productionTotals_.outpostsActivated;
+            productionTotals_.outpostBiomeMask |= biomeMask(world_.biomeAt(machine.x, machine.y, machine.z));
             machine.status = MachineStatus::Idle;
         }
     }

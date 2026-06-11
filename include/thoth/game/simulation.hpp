@@ -131,6 +131,7 @@ struct ProductionTotals {
     int outpostsActivated = 0;
     int pressureWavesRepelled = 0;
     int bossRelicsClaimed = 0;
+    int outpostBiomeMask = 0;
 };
 
 struct BiomeContractProgress {
@@ -268,6 +269,9 @@ public:
     [[nodiscard]] int factoryPressureLevel() const;
     [[nodiscard]] std::string factoryPressureText() const;
     [[nodiscard]] bool mainObjectiveComplete() const;
+    [[nodiscard]] bool hasActivatedOutpostBiome(BiomeKind biome) const;
+    [[nodiscard]] int activatedOutpostBiomeCount() const;
+    [[nodiscard]] std::vector<BiomeKind> activatedOutpostBiomes() const;
     [[nodiscard]] int completedBiomeContracts() const;
     [[nodiscard]] std::vector<BiomeContractProgress> biomeContractProgress() const;
     [[nodiscard]] std::string currentBiomeContractText() const;

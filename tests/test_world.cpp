@@ -36,6 +36,11 @@ bool isStarterProtectedCell(int x, int y)
         (x >= -2 && x <= 9 && y >= -3 && y <= 3));
 }
 
+int biomeMaskForTest(thoth::game::BiomeKind biome)
+{
+    return 1 << static_cast<int>(biome);
+}
+
 std::string canonicalSignature(const thoth::game::Simulation& sim)
 {
     const auto snapshot = sim.snapshot();
@@ -890,6 +895,9 @@ void testRichPersistedStateRoundTrip()
     snapshot.productionTotals.outpostsActivated = 1;
     snapshot.productionTotals.pressureWavesRepelled = 3;
     snapshot.productionTotals.bossRelicsClaimed = 2;
+    snapshot.productionTotals.outpostBiomeMask =
+        biomeMaskForTest(thoth::game::BiomeKind::Marsh) |
+        biomeMaskForTest(thoth::game::BiomeKind::Desert);
 
     Machine belt;
     belt.id = 1;
@@ -951,6 +959,10 @@ void testRichPersistedStateRoundTrip()
     require(loaded->productionTotals().outpostsActivated == 1, "outpost total should persist");
     require(loaded->productionTotals().pressureWavesRepelled == 3, "pressure wave total should persist");
     require(loaded->productionTotals().bossRelicsClaimed == 2, "boss relic total should persist");
+    require(loaded->productionTotals().outpostBiomeMask == snapshot.productionTotals.outpostBiomeMask,
+        "outpost biome mask should persist");
+    require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Marsh), "marsh outpost coverage should persist");
+    require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Desert), "desert outpost coverage should persist");
 }
 
 void prepareReplayWorld(thoth::game::Simulation& sim)
@@ -2548,6 +2560,9 @@ void testOutpostBeaconRequiresPowerAndBiomeInput()
     require(restoredOutpost->progress == 80, "powered outpost should finish activation");
     require(restoredOutpost->inventory.count(ItemId::SandGlass) == 0, "outpost should consume biome input");
     require(sim.productionTotals().outpostsActivated == 1, "outpost activation should increment production total");
+    require(sim.hasActivatedOutpostBiome(BiomeKind::Desert), "outpost activation should track desert coverage");
+    require(sim.activatedOutpostBiomeCount() == 1, "one unique outpost biome should be covered");
+    require(sim.activatedOutpostBiomes().size() == 1, "activated outpost list should expose unique biomes");
 
     const auto path = std::filesystem::temp_directory_path() / "thoth_outpost_roundtrip.txt";
     std::string error;
@@ -2556,6 +2571,7 @@ void testOutpostBeaconRequiresPowerAndBiomeInput()
     std::filesystem::remove(path);
     require(loaded.has_value(), "outpost load should succeed: " + error);
     require(loaded->productionTotals().outpostsActivated == 1, "outpost activation should survive save/load");
+    require(loaded->hasActivatedOutpostBiome(BiomeKind::Desert), "outpost biome coverage should survive save/load");
     const auto* loadedOutpost = loaded->machineAt(18, -2);
     require(loadedOutpost != nullptr && loadedOutpost->progress == 80, "activated outpost should survive save/load");
 }
@@ -3157,7 +3173,7 @@ void testBiomeContractProgression()
 
     Simulation sim(20260611);
     auto progress = sim.biomeContractProgress();
-    require(progress.size() == 6, "biome contracts should expose six progression goals");
+    require(progress.size() == 11, "biome contracts should expose material, rift, and outpost coverage goals");
     require(sim.completedBiomeContracts() == 0, "fresh simulation should have no completed biome contracts");
     require(progress.front().biome == BiomeKind::Marsh, "first biome contract should begin in the marsh");
     require(sim.currentBiomeContractText().find("water barrels") != std::string::npos,
@@ -3166,10 +3182,17 @@ void testBiomeContractProgression()
     auto snapshot = sim.snapshot();
     snapshot.productionTotals.waterBarrels = 3;
     snapshot.productionTotals.riftJumps = 2;
-    snapshot.productionTotals.outpostsActivated = 2;
+    snapshot.productionTotals.outpostsActivated = 5;
+    snapshot.productionTotals.outpostBiomeMask =
+        biomeMaskForTest(BiomeKind::Marsh) |
+        biomeMaskForTest(BiomeKind::Desert) |
+        biomeMaskForTest(BiomeKind::Badlands) |
+        biomeMaskForTest(BiomeKind::Snowfield) |
+        biomeMaskForTest(BiomeKind::CrystalField);
     snapshot.player.inventory = {
         ItemStack{ItemId::SandGlass, 2},
         ItemStack{ItemId::Basalt, 6},
+        ItemStack{ItemId::IceShard, 4},
         ItemStack{ItemId::Crystal, 3},
     };
     sim.restore(snapshot);
@@ -3179,6 +3202,15 @@ void testBiomeContractProgression()
         "stockpiled biome materials and rift jumps should complete all biome contracts");
     require(sim.currentBiomeContractText().find("biome contracts complete") != std::string::npos,
         "completed biome contract text should show completion");
+
+    snapshot.productionTotals.outpostsActivated = 5;
+    snapshot.productionTotals.outpostBiomeMask = biomeMaskForTest(BiomeKind::Desert);
+    sim.restore(snapshot);
+    require(sim.activatedOutpostBiomeCount() == 1, "duplicate same-biome outposts should count as one covered biome");
+    require(sim.completedBiomeContracts() == static_cast<int>(progress.size()) - 4,
+        "missing unique outpost biome coverage should block remaining contracts");
+    require(sim.currentBiomeContractText().find("Marsh Outpost") != std::string::npos,
+        "contract text should name the missing unique outpost biome");
 }
 
 } // namespace
