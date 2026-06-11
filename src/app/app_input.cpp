@@ -117,6 +117,9 @@ std::string objectiveText(const thoth::game::Simulation& sim)
     using thoth::game::ItemId;
     using thoth::game::MachineKind;
 
+    if (sim.completedSupplyContracts() < sim.totalSupplyContracts()) {
+        return "objective: fulfill the next supply contract";
+    }
     if (sim.productionTotals().riftJumps > 0) {
         return "objective: exploit the rift dimension's richer resources";
     }

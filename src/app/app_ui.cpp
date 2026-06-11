@@ -676,6 +676,23 @@ std::vector<std::string> powerChecklist(const thoth::game::Simulation& sim)
     };
 }
 
+std::vector<std::string> supplyContractChecklist(const thoth::game::Simulation& sim)
+{
+    const auto& totals = sim.productionTotals();
+    return {
+        "contracts: " + std::to_string(sim.completedSupplyContracts()) + "/" +
+            std::to_string(sim.totalSupplyContracts()),
+        checklistMark(totals.ironPlates >= 3) + "3 iron plates",
+        checklistMark(totals.copperPlates >= 3) + "3 copper plates",
+        checklistMark(totals.sciencePacks >= 2) + "2 science packs",
+        checklistMark(totals.poweredOre >= 5) + "5 powered ore",
+        checklistMark(totals.logisticDeliveries >= 3) + "3 logistic deliveries",
+        checklistMark(totals.advancedSciencePacks >= 1) + "advanced science",
+        checklistMark(totals.archiveSignals >= 1) + "archive signal",
+        checklistMark(totals.riftJumps >= 1) + "rift jump",
+    };
+}
+
 std::string statusStatsText(const thoth::game::Simulation& sim)
 {
     using thoth::game::MachineStatus;
@@ -2986,12 +3003,15 @@ void drawHud(const thoth::game::Simulation& sim, const AppState& state)
         const auto& player = sim.player();
         std::vector<std::string> objective;
         appendWrapped(objective, objectiveText(sim), 48);
+        appendWrapped(objective, sim.currentSupplyContractText(), 48);
         appendWrapped(objective, sim.milestoneText(), 48);
         appendWrapped(objective, tutorialNextStepText(sim), 48);
         objective.push_back("status: " + state.status);
         if (!state.feedbackText.empty() && state.feedbackTicks > 0) {
             objective.push_back("feedback: " + state.feedbackText);
         }
+        const auto contracts = supplyContractChecklist(sim);
+        objective.insert(objective.end(), contracts.begin(), contracts.end());
         const auto checklist = firstLineChecklist(sim);
         objective.insert(objective.end(), checklist.begin(), checklist.end());
         const auto science = scienceChecklist(sim);

@@ -649,6 +649,76 @@ bool Simulation::canCraft(std::string_view recipeKey) const
         player_.inventory.canConsumeAll(recipe->inputs);
 }
 
+int Simulation::completedSupplyContracts() const
+{
+    int completed = 0;
+    if (productionTotals_.ironPlates >= 3) {
+        ++completed;
+    }
+    if (productionTotals_.copperPlates >= 3) {
+        ++completed;
+    }
+    if (productionTotals_.sciencePacks >= 2) {
+        ++completed;
+    }
+    if (productionTotals_.poweredOre >= 5) {
+        ++completed;
+    }
+    if (productionTotals_.logisticDeliveries >= 3) {
+        ++completed;
+    }
+    if (productionTotals_.advancedSciencePacks >= 1) {
+        ++completed;
+    }
+    if (productionTotals_.archiveSignals >= 1) {
+        ++completed;
+    }
+    if (productionTotals_.riftJumps >= 1) {
+        ++completed;
+    }
+    return completed;
+}
+
+int Simulation::totalSupplyContracts() const
+{
+    return 8;
+}
+
+std::string Simulation::currentSupplyContractText() const
+{
+    const auto progressText = [this](std::string_view label, int current, int required) {
+        return "contract " + std::to_string(completedSupplyContracts() + 1) + "/" +
+            std::to_string(totalSupplyContracts()) + ": " + std::string(label) + " (" +
+            std::to_string(std::min(current, required)) + "/" + std::to_string(required) + ")";
+    };
+
+    if (productionTotals_.ironPlates < 3) {
+        return progressText("store 3 iron plates", productionTotals_.ironPlates, 3);
+    }
+    if (productionTotals_.copperPlates < 3) {
+        return progressText("store 3 copper plates", productionTotals_.copperPlates, 3);
+    }
+    if (productionTotals_.sciencePacks < 2) {
+        return progressText("produce 2 science packs", productionTotals_.sciencePacks, 2);
+    }
+    if (productionTotals_.poweredOre < 5) {
+        return progressText("mine 5 powered ore", productionTotals_.poweredOre, 5);
+    }
+    if (productionTotals_.logisticDeliveries < 3) {
+        return progressText("complete 3 logistic deliveries", productionTotals_.logisticDeliveries, 3);
+    }
+    if (productionTotals_.advancedSciencePacks < 1) {
+        return progressText("produce advanced science", productionTotals_.advancedSciencePacks, 1);
+    }
+    if (productionTotals_.archiveSignals < 1) {
+        return progressText("charge an archive signal", productionTotals_.archiveSignals, 1);
+    }
+    if (productionTotals_.riftJumps < 1) {
+        return progressText("open a rift jump", productionTotals_.riftJumps, 1);
+    }
+    return "contract complete: supply chain proved across plates, science, logistics, archive, and rift";
+}
+
 std::string Simulation::milestoneText() const
 {
     if (productionTotals_.riftJumps > 0) {

@@ -240,6 +240,9 @@ public:
     [[nodiscard]] const std::vector<LogisticJob>& logisticJobs() const;
     [[nodiscard]] const ProductionTotals& productionTotals() const;
     [[nodiscard]] bool canCraft(std::string_view recipeKey) const;
+    [[nodiscard]] int completedSupplyContracts() const;
+    [[nodiscard]] int totalSupplyContracts() const;
+    [[nodiscard]] std::string currentSupplyContractText() const;
     [[nodiscard]] std::string milestoneText() const;
     [[nodiscard]] bool isMachinePowered(std::uint32_t machineId) const;
     [[nodiscard]] SimulationSnapshot snapshot() const;

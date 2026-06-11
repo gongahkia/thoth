@@ -2484,6 +2484,38 @@ void testDungeonGenerationAndEntityCombatSaveLoad()
     require(loaded->productionTotals().creaturesDefeated == 1, "combat should increment creature total");
 }
 
+void testSupplyContractProgression()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    require(sim.totalSupplyContracts() == 8, "supply contract count should remain explicit");
+    require(sim.completedSupplyContracts() == 0, "fresh simulation should have no completed contracts");
+    require(sim.currentSupplyContractText().find("3 iron plates") != std::string::npos,
+        "first contract should ask for iron plates");
+
+    auto snapshot = sim.snapshot();
+    snapshot.productionTotals.ironPlates = 3;
+    snapshot.productionTotals.copperPlates = 3;
+    snapshot.productionTotals.sciencePacks = 2;
+    snapshot.productionTotals.poweredOre = 5;
+    snapshot.productionTotals.logisticDeliveries = 3;
+    snapshot.productionTotals.advancedSciencePacks = 1;
+    snapshot.productionTotals.archiveSignals = 1;
+    sim.restore(snapshot);
+
+    require(sim.completedSupplyContracts() == 7, "seven completed counters should satisfy seven contracts");
+    require(sim.currentSupplyContractText().find("rift jump") != std::string::npos,
+        "last contract should ask for the rift jump");
+
+    snapshot = sim.snapshot();
+    snapshot.productionTotals.riftJumps = 1;
+    sim.restore(snapshot);
+    require(sim.completedSupplyContracts() == sim.totalSupplyContracts(), "all counters should complete all contracts");
+    require(sim.currentSupplyContractText().find("contract complete") != std::string::npos,
+        "completed contract text should show completion");
+}
+
 } // namespace
 
 int main()
@@ -2547,6 +2579,7 @@ int main()
     testBoatTraversalAndExit();
     testHouseDoorAndLayerStairs();
     testDungeonGenerationAndEntityCombatSaveLoad();
+    testSupplyContractProgression();
 
     std::cout << "thoth_tests passed\n";
     return 0;
