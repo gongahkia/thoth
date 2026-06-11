@@ -2824,6 +2824,88 @@ void testRepairPylonRebuildsAdjacentWallGap()
     require(restoredPylon->inventory.count(ItemId::Wall) == 0, "repair pylon should consume wall item");
 }
 
+void testRepairPylonRestoresDamagedStructures()
+{
+    using namespace thoth::game;
+
+    const auto poweredRepairSnapshot = [] {
+        Simulation sim(20260611);
+        auto snapshot = sim.snapshot();
+        snapshot.player.x = 20;
+        snapshot.player.y = 20;
+        snapshot.nextMachineId = 5;
+
+        Machine generator;
+        generator.id = 1;
+        generator.kind = MachineKind::Generator;
+        generator.x = 0;
+        generator.y = 0;
+        generator.fuelTicks = 200;
+
+        Machine pole;
+        pole.id = 2;
+        pole.kind = MachineKind::PowerPole;
+        pole.x = 1;
+        pole.y = 0;
+
+        Machine pylon;
+        pylon.id = 3;
+        pylon.kind = MachineKind::RepairPylon;
+        pylon.x = 2;
+        pylon.y = 0;
+
+        snapshot.machines = {generator, pole, pylon};
+        return snapshot;
+    };
+
+    Simulation wallSim(20260611);
+    auto snapshot = poweredRepairSnapshot();
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::RepairPylon) {
+            require(machine.inventory.add(ItemId::Wall, 1), "test should seed wall repair material");
+        }
+    }
+    snapshot.tiles.push_back(TileSnapshot{2, -1, Tile{TileId::Wall, 1}});
+    snapshot.tiles.push_back(TileSnapshot{3, 0, Tile{TileId::Floor, 0}});
+    wallSim.restore(snapshot);
+    for (int i = 0; i < 60; ++i) {
+        wallSim.step();
+    }
+    const auto repairedWall = wallSim.world().getTile(2, -1);
+    require(repairedWall.id == TileId::Wall && repairedWall.data > 1,
+        "repair pylon should restore damaged wall durability before rebuilding gaps");
+    const auto* wallPylon = wallSim.machineAt(2, 0);
+    require(wallPylon != nullptr && wallPylon->inventory.count(ItemId::Wall) == 0,
+        "wall repair should consume wall material");
+    require(wallSim.world().getTile(3, 0).id == TileId::Floor,
+        "repair pylon should prioritize damaged wall over adjacent gap");
+
+    Simulation machineSim(20260611);
+    snapshot = poweredRepairSnapshot();
+    Machine chest;
+    chest.id = 4;
+    chest.kind = MachineKind::Chest;
+    chest.x = 3;
+    chest.y = 0;
+    chest.durability = 1;
+    snapshot.machines.push_back(chest);
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::RepairPylon) {
+            require(machine.inventory.add(ItemId::IronPlate, 1), "test should seed machine repair material");
+        }
+    }
+    machineSim.restore(snapshot);
+    for (int i = 0; i < 60; ++i) {
+        machineSim.step();
+    }
+    const auto* repairedChest = machineSim.machineAt(3, 0);
+    require(repairedChest != nullptr && repairedChest->durability > 1,
+        "repair pylon should restore damaged machine durability");
+    const auto* machinePylon = machineSim.machineAt(2, 0);
+    require(machinePylon != nullptr && machinePylon->inventory.count(ItemId::IronPlate) == 0,
+        "machine repair should consume iron plate material");
+}
+
 void testPressureRelayMitigatesFactoryPressure()
 {
     using namespace thoth::game;
@@ -3490,6 +3572,7 @@ int main()
     testHostilesDamageStructuresDeterministically();
     testOutpostBeaconRequiresPowerAndBiomeInput();
     testRepairPylonRebuildsAdjacentWallGap();
+    testRepairPylonRestoresDamagedStructures();
     testPressureRelayMitigatesFactoryPressure();
     testPowerNetworkRecomputesAfterSaveLoad();
     testWorkbenchRequiredForMachineCrafting();

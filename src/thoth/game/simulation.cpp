@@ -228,27 +228,6 @@ bool isRepairableWallGap(TileId tile)
     return tile == TileId::Floor || tile == TileId::DungeonFloor || tile == TileId::Grass || tile == TileId::Dirt;
 }
 
-std::optional<std::pair<int, int>> repairTargetNear(const World& world, const Simulation& sim, const Machine& machine)
-{
-    constexpr std::array<Direction, 4> kDirections{{
-        Direction::North,
-        Direction::East,
-        Direction::South,
-        Direction::West,
-    }};
-    for (const auto direction : kDirections) {
-        const int x = machine.x + dx(direction);
-        const int y = machine.y + dy(direction);
-        if (sim.machineAt(x, y, machine.z) != nullptr || sim.entityAt(x, y, machine.z) != nullptr) {
-            continue;
-        }
-        if (isRepairableWallGap(world.getTile(x, y, machine.z).id)) {
-            return std::pair<int, int>{x, y};
-        }
-    }
-    return std::nullopt;
-}
-
 int biomeMask(BiomeKind biome)
 {
     return 1 << static_cast<int>(biome);
@@ -2625,6 +2604,87 @@ void Simulation::updateArcTowers()
 
 void Simulation::updateRepairPylons()
 {
+    enum class RepairTargetKind {
+        DamagedMachine,
+        DamagedTile,
+        WallGap,
+    };
+
+    struct RepairTarget {
+        RepairTargetKind kind = RepairTargetKind::WallGap;
+        int x = 0;
+        int y = 0;
+        int z = 0;
+        std::uint32_t machineId = 0;
+        TileId tile = TileId::Wall;
+    };
+
+    constexpr std::array<Direction, 4> kDirections{{
+        Direction::North,
+        Direction::East,
+        Direction::South,
+        Direction::West,
+    }};
+
+    const auto findTarget = [this, &kDirections](const Machine& pylon) -> std::optional<RepairTarget> {
+        for (const auto direction : kDirections) {
+            const int x = pylon.x + dx(direction);
+            const int y = pylon.y + dy(direction);
+            auto* machine = machineAt(x, y, pylon.z);
+            if (machine == nullptr || machine->id == pylon.id) {
+                continue;
+            }
+            const int maxDurability = machineMaxDurability(machine->kind);
+            if (machine->durability > 0 && machine->durability < maxDurability) {
+                return RepairTarget{RepairTargetKind::DamagedMachine, x, y, pylon.z, machine->id, TileId::Wall};
+            }
+        }
+
+        for (const auto direction : kDirections) {
+            const int x = pylon.x + dx(direction);
+            const int y = pylon.y + dy(direction);
+            if (machineAt(x, y, pylon.z) != nullptr || entityAt(x, y, pylon.z) != nullptr) {
+                continue;
+            }
+            const auto tile = world_.getTile(x, y, pylon.z);
+            const int maxDurability = tileMaxDurability(tile.id);
+            if (isDamageableStructureTile(tile.id) && tile.data > 0 && tile.data < maxDurability) {
+                return RepairTarget{RepairTargetKind::DamagedTile, x, y, pylon.z, 0, tile.id};
+            }
+        }
+
+        for (const auto direction : kDirections) {
+            const int x = pylon.x + dx(direction);
+            const int y = pylon.y + dy(direction);
+            if (machineAt(x, y, pylon.z) != nullptr || entityAt(x, y, pylon.z) != nullptr) {
+                continue;
+            }
+            if (isRepairableWallGap(world_.getTile(x, y, pylon.z).id)) {
+                return RepairTarget{RepairTargetKind::WallGap, x, y, pylon.z, 0, TileId::Wall};
+            }
+        }
+        return std::nullopt;
+    };
+
+    const auto consumeMaterial = [](Machine& pylon, const RepairTarget& target) {
+        if (target.kind == RepairTargetKind::WallGap) {
+            if (pylon.inventory.consume(ItemId::Wall, 1)) {
+                return ItemId::Wall;
+            }
+            if (pylon.inventory.consume(ItemId::PlankWall, 1)) {
+                return ItemId::PlankWall;
+            }
+            return ItemId::None;
+        }
+        if (target.kind == RepairTargetKind::DamagedMachine || target.tile == TileId::Door) {
+            return pylon.inventory.consume(ItemId::IronPlate, 1) ? ItemId::IronPlate : ItemId::None;
+        }
+        if (target.tile == TileId::PlankWall) {
+            return pylon.inventory.consume(ItemId::PlankWall, 1) ? ItemId::PlankWall : ItemId::None;
+        }
+        return pylon.inventory.consume(ItemId::Wall, 1) ? ItemId::Wall : ItemId::None;
+    };
+
     for (auto& machine : machines_) {
         if (machine.kind != MachineKind::RepairPylon) {
             continue;
@@ -2633,25 +2693,37 @@ void Simulation::updateRepairPylons()
             machine.status = MachineStatus::MissingPower;
             continue;
         }
-        const auto target = repairTargetNear(world_, *this, machine);
+        const auto target = findTarget(machine);
         if (!target) {
             machine.progress = 0;
+            machine.carriedItem = ItemId::None;
             machine.status = MachineStatus::Idle;
             continue;
         }
-        if (machine.progress == 0 &&
-            !machine.inventory.consume(ItemId::Wall, 1) &&
-            !machine.inventory.consume(ItemId::PlankWall, 1)) {
-            machine.status = MachineStatus::MissingInput;
-            continue;
+        if (machine.progress == 0) {
+            machine.carriedItem = consumeMaterial(machine, *target);
+            if (machine.carriedItem == ItemId::None) {
+                machine.status = MachineStatus::MissingInput;
+                continue;
+            }
         }
         machine.progress = std::min(machine.progress + 1, kRepairPylonTicks);
         machine.status = MachineStatus::Working;
         if (machine.progress < kRepairPylonTicks) {
             continue;
         }
-        world_.setTile(target->first, target->second, machine.z, Tile{TileId::Wall, 0});
+        if (target->kind == RepairTargetKind::DamagedMachine) {
+            if (auto* repaired = machineById(target->machineId); repaired != nullptr) {
+                repaired->durability = machineMaxDurability(repaired->kind);
+            }
+        } else if (target->kind == RepairTargetKind::DamagedTile) {
+            world_.setTile(target->x, target->y, target->z, Tile{target->tile, tileMaxDurability(target->tile)});
+        } else {
+            const auto wall = machine.carriedItem == ItemId::PlankWall ? TileId::PlankWall : TileId::Wall;
+            world_.setTile(target->x, target->y, target->z, Tile{wall, 0});
+        }
         machine.progress = 0;
+        machine.carriedItem = ItemId::None;
         machine.status = MachineStatus::Idle;
     }
 }
@@ -2808,7 +2880,8 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
         return item == outpostActivationItem(world_.biomeAt(machine.x, machine.y, machine.z)) &&
             machine.inventory.add(item, 1);
     case MachineKind::RepairPylon:
-        return (item == ItemId::Wall || item == ItemId::PlankWall) && machine.inventory.add(item, 1);
+        return (item == ItemId::Wall || item == ItemId::PlankWall || item == ItemId::IronPlate) &&
+            machine.inventory.add(item, 1);
     case MachineKind::PressureRelay:
         return item == ItemId::AdvancedSciencePack && machine.inventory.add(item, 1);
     case MachineKind::PowerPole:
