@@ -141,6 +141,14 @@ Export the deterministic full-flow preview image without opening a window:
 make cpp-export-media-preview
 ```
 
+Export deterministic full-flow playtest telemetry JSON without opening a window:
+
+```console
+make cpp-export-playtest-telemetry
+```
+
+The telemetry export writes `assets/previews/thoth_playtest_telemetry.json` with replay-backed contract progress, pressure-wave timing, production totals, entity pressure, machine counts, structure damage, and current guidance text.
+
 Run a bounded raylib window smoke and save a screenshot:
 
 ```console

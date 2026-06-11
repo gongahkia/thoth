@@ -198,13 +198,54 @@ bool validatePackagedReplays(std::string* error)
         validateReplay(kFullFlowReplayPath, "full-flow", validateFullFlowReplay, error);
 }
 
+bool savePlaytestTelemetry(const std::filesystem::path& path, std::string* error)
+{
+    std::string localError;
+    auto document = thoth::game::loadReplayDocument(kFullFlowReplayPath, &localError);
+    if (!document) {
+        if (error != nullptr) {
+            *error = "failed to load full-flow replay: " + localError;
+        }
+        return false;
+    }
+
+    auto simulation = thoth::game::runReplayDocument(*document);
+    const auto parent = path.parent_path();
+    if (!parent.empty()) {
+        std::error_code createError;
+        std::filesystem::create_directories(parent, createError);
+        if (createError) {
+            if (error != nullptr) {
+                *error = "failed to create telemetry directory: " + createError.message();
+            }
+            return false;
+        }
+    }
+
+    std::ofstream output(path);
+    if (!output) {
+        if (error != nullptr) {
+            *error = "failed to open telemetry file for writing";
+        }
+        return false;
+    }
+    output << simulation.playtestTelemetryText();
+    if (!output) {
+        if (error != nullptr) {
+            *error = "failed to write telemetry file";
+        }
+        return false;
+    }
+    return true;
+}
+
 bool saveMediaPreview(const std::filesystem::path& path, std::string* error);
 bool saveWindowSmokeScreenshot(const std::filesystem::path& path, std::string* error);
 
 void printCommandLineUsage(const char* executable)
 {
     std::cout
-        << "Usage: " << executable << " [--export-atlas [path]] [--export-authored-atlas [path]] [--export-audio [dir]] [--export-authored-audio [dir]] [--export-media-preview [path]] [--window-smoke [path]] [--validate-assets] [--validate-replays]\n"
+        << "Usage: " << executable << " [--export-atlas [path]] [--export-authored-atlas [path]] [--export-audio [dir]] [--export-authored-audio [dir]] [--export-media-preview [path]] [--export-playtest-telemetry [path]] [--window-smoke [path]] [--validate-assets] [--validate-replays]\n"
         << "\n"
         << "Options:\n"
         << "  --export-atlas [path]  Export the generated sprite atlas without opening a window.\n"
@@ -220,6 +261,9 @@ void printCommandLineUsage(const char* executable)
         << "  --export-media-preview [path]\n"
         << "                         Export a deterministic full-flow visual preview PNG without opening a window.\n"
         << "                         Defaults to " << kMediaPreviewPath.generic_string() << ".\n"
+        << "  --export-playtest-telemetry [path]\n"
+        << "                         Export deterministic full-flow playtest telemetry JSON without opening a window.\n"
+        << "                         Defaults to " << kPlaytestTelemetryPath.generic_string() << ".\n"
         << "  --window-smoke [path]  Open the raylib window, load visuals/audio, render the full-flow replay, save a screenshot, and exit.\n"
         << "                         Defaults to " << kWindowSmokePath.generic_string() << ".\n"
         << "  --validate-assets     Validate authored sprite/audio sources and exported runtime assets.\n"
@@ -303,6 +347,20 @@ int runCommandLineMode(int argc, char** argv)
                 return 1;
             }
             std::cout << "exported media preview: " << output.generic_string() << '\n';
+            return 0;
+        }
+        if (arg == "--export-playtest-telemetry") {
+            std::filesystem::path output = kPlaytestTelemetryPath;
+            if (i + 1 < argc && std::string_view(argv[i + 1]).rfind("-", 0) != 0) {
+                output = argv[i + 1];
+            }
+
+            std::string error;
+            if (!savePlaytestTelemetry(output, &error)) {
+                std::cerr << "playtest telemetry export failed: " << error << '\n';
+                return 1;
+            }
+            std::cout << "exported playtest telemetry: " << output.generic_string() << '\n';
             return 0;
         }
         if (arg == "--window-smoke") {

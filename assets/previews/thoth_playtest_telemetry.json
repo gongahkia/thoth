@@ -1,0 +1,26 @@
+{
+  "schema": "thoth.playtest.telemetry.v1",
+  "seed": 20260611,
+  "tick": 3600,
+  "player": {"x": 0, "y": 3, "z": 0, "hp": 20},
+  "main_objective_complete": false,
+  "contracts": {"supply_completed": 2, "supply_total": 8, "biome_completed": 0, "biome_total": 11},
+  "pressure": {"level": 40, "ticks_until_wave": -1, "waves_repelled": 0, "alert": "wave alert: none; pressure below raid threshold"},
+  "production": {"iron_plates": 1, "copper_plates": 0, "science_packs": 3, "advanced_science_packs": 0, "powered_ore": 6, "logistic_deliveries": 0, "archive_signals": 0, "rift_jumps": 0, "bosses_defeated": 0, "boss_relics_claimed": 0, "outposts_activated": 0},
+  "entities": {"total": 10, "hostile": 0, "active_bosses": 0, "creatures_defeated": 0},
+  "structures": {"machines": 11, "damaged_machines": 0, "damaged_tiles": 0, "powered_networks": 1, "power_supply": 2, "power_demand": 1},
+  "machine_counts": {
+    "belt": 1,
+    "inserter": 1,
+    "burner_miner": 1,
+    "furnace": 1,
+    "chest": 2,
+    "assembler": 1,
+    "lab": 1,
+    "generator": 1,
+    "power_pole": 1,
+    "electric_miner": 1
+  },
+  "activated_outpost_biomes": [],
+  "guidance": {"goal": "demo goal: build plates, automate science, conquer lairs, and stabilize the rift", "supply_contract": "contract 3/8: store 3 iron plates (1/3)", "biome_contract": "biome contract 1/11: Marsh: pump 3 water barrels (0/3)", "marker": "marker: starter ore lanes east of spawn", "milestone": "milestone: automate circuit boards and controlled inserters"}
+}

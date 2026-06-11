@@ -281,6 +281,7 @@ public:
     [[nodiscard]] std::string currentDemoGoalText() const;
     [[nodiscard]] std::string objectiveMarkerText() const;
     [[nodiscard]] std::string milestoneText() const;
+    [[nodiscard]] std::string playtestTelemetryText() const;
     [[nodiscard]] bool isMachinePowered(std::uint32_t machineId) const;
     [[nodiscard]] SimulationSnapshot snapshot() const;
     void restore(const SimulationSnapshot& snapshot);

@@ -1,4 +1,4 @@
-.PHONY: test cpp-configure cpp-build cpp-test cpp-benchmark cpp-benchmark-large cpp-benchmark-stress cpp-export-atlas cpp-export-authored-atlas cpp-export-audio cpp-export-authored-audio cpp-export-media-preview cpp-smoke-window cpp-validate-assets cpp-validate-replays cpp-run clean
+.PHONY: test cpp-configure cpp-build cpp-test cpp-benchmark cpp-benchmark-large cpp-benchmark-stress cpp-export-atlas cpp-export-authored-atlas cpp-export-audio cpp-export-authored-audio cpp-export-media-preview cpp-export-playtest-telemetry cpp-smoke-window cpp-validate-assets cpp-validate-replays cpp-run clean
 
 cpp-configure:
 	cmake -S . -B build/app -DTHOTH_BUILD_APP=ON -DTHOTH_BUILD_TESTS=ON -DTHOTH_BUILD_BENCHMARKS=ON
@@ -35,6 +35,9 @@ cpp-export-authored-audio: cpp-build
 
 cpp-export-media-preview: cpp-build
 	./build/app/thoth_raylib --export-media-preview
+
+cpp-export-playtest-telemetry: cpp-build
+	./build/app/thoth_raylib --export-playtest-telemetry
 
 cpp-smoke-window: cpp-build
 	./build/app/thoth_raylib --window-smoke

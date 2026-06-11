@@ -4,4 +4,6 @@ Run `make cpp-export-media-preview`, or `./build/app/thoth_raylib --export-media
 
 The preview is deterministic and uses the authored atlas source plus replay validation, so it can be checked in CI and reviewed without launching the interactive raylib app.
 
+Run `make cpp-export-playtest-telemetry`, or `./build/app/thoth_raylib --export-playtest-telemetry`, to export `thoth_playtest_telemetry.json` from the same full-flow replay. The JSON captures contract progress, pressure-wave timing, production totals, entity pressure, machine counts, structure damage, and current guidance copy for playtest comparisons.
+
 Run `make cpp-smoke-window`, or `./build/app/thoth_raylib --window-smoke`, to open the actual raylib window, load the authored visual/audio assets, render the full-flow replay state, save `thoth_window_smoke.png`, and exit. On headless Linux, use `xvfb-run -a -s "-screen 0 1280x720x24" make cpp-smoke-window`.

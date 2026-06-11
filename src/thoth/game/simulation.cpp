@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <sstream>
 #include <stdexcept>
 #include <utility>
 
@@ -247,6 +248,37 @@ int countOutpostBiomeCoverage(int mask)
         }
     }
     return count;
+}
+
+std::string jsonString(std::string_view text)
+{
+    std::string escaped;
+    escaped.reserve(text.size() + 2);
+    escaped.push_back('"');
+    for (const char c : text) {
+        switch (c) {
+        case '\\':
+            escaped += "\\\\";
+            break;
+        case '"':
+            escaped += "\\\"";
+            break;
+        case '\n':
+            escaped += "\\n";
+            break;
+        case '\r':
+            escaped += "\\r";
+            break;
+        case '\t':
+            escaped += "\\t";
+            break;
+        default:
+            escaped.push_back(c);
+            break;
+        }
+    }
+    escaped.push_back('"');
+    return escaped;
 }
 
 void depleteResourceTile(World& world, int x, int y, int z)
@@ -995,6 +1027,129 @@ std::string Simulation::milestoneText() const
         return "milestone: automate circuit boards and controlled inserters";
     }
     return "milestone: automate science and finish Logistics 1";
+}
+
+std::string Simulation::playtestTelemetryText() const
+{
+    int hostileEntities = 0;
+    int activeBosses = 0;
+    for (const auto& entity : entities_) {
+        if (!isHostile(entity.kind)) {
+            continue;
+        }
+        ++hostileEntities;
+        if (entity.kind == EntityKind::MarshBroodheart ||
+            entity.kind == EntityKind::GlassMaw ||
+            entity.kind == EntityKind::BadlandsWarden ||
+            entity.kind == EntityKind::FrostNullifier ||
+            entity.kind == EntityKind::RiftSignalTyrant) {
+            ++activeBosses;
+        }
+    }
+
+    int damagedMachines = 0;
+    for (const auto& machine : machines_) {
+        const int maxDurability = machineMaxDurability(machine.kind);
+        if (machine.durability > 0 && machine.durability < maxDurability) {
+            ++damagedMachines;
+        }
+    }
+
+    int damagedStructureTiles = 0;
+    for (const auto& tile : world_.loadedTiles()) {
+        if (isDamageableStructureTile(tile.tile.id) && tile.tile.data > 0) {
+            ++damagedStructureTiles;
+        }
+    }
+
+    int poweredNetworks = 0;
+    int totalPowerSupply = 0;
+    int totalPowerDemand = 0;
+    for (const auto& network : powerNetworks_) {
+        if (network.powered) {
+            ++poweredNetworks;
+        }
+        totalPowerSupply += network.supply;
+        totalPowerDemand += network.demand;
+    }
+
+    std::ostringstream out;
+    out << "{\n";
+    out << "  \"schema\": \"thoth.playtest.telemetry.v1\",\n";
+    out << "  \"seed\": " << world_.seed() << ",\n";
+    out << "  \"tick\": " << tick_ << ",\n";
+    out << "  \"player\": {\"x\": " << player_.x << ", \"y\": " << player_.y
+        << ", \"z\": " << player_.z << ", \"hp\": " << player_.hp << "},\n";
+    out << "  \"main_objective_complete\": " << (mainObjectiveComplete() ? "true" : "false") << ",\n";
+    out << "  \"contracts\": {\"supply_completed\": " << completedSupplyContracts()
+        << ", \"supply_total\": " << totalSupplyContracts()
+        << ", \"biome_completed\": " << completedBiomeContracts()
+        << ", \"biome_total\": " << biomeContractProgress().size() << "},\n";
+    out << "  \"pressure\": {\"level\": " << factoryPressureLevel()
+        << ", \"ticks_until_wave\": " << ticksUntilNextPressureWave()
+        << ", \"waves_repelled\": " << productionTotals_.pressureWavesRepelled
+        << ", \"alert\": " << jsonString(pressureWaveAlertText()) << "},\n";
+    out << "  \"production\": {\"iron_plates\": " << productionTotals_.ironPlates
+        << ", \"copper_plates\": " << productionTotals_.copperPlates
+        << ", \"science_packs\": " << productionTotals_.sciencePacks
+        << ", \"advanced_science_packs\": " << productionTotals_.advancedSciencePacks
+        << ", \"powered_ore\": " << productionTotals_.poweredOre
+        << ", \"logistic_deliveries\": " << productionTotals_.logisticDeliveries
+        << ", \"archive_signals\": " << productionTotals_.archiveSignals
+        << ", \"rift_jumps\": " << productionTotals_.riftJumps
+        << ", \"bosses_defeated\": " << productionTotals_.bossesDefeated
+        << ", \"boss_relics_claimed\": " << productionTotals_.bossRelicsClaimed
+        << ", \"outposts_activated\": " << productionTotals_.outpostsActivated << "},\n";
+    out << "  \"entities\": {\"total\": " << entities_.size()
+        << ", \"hostile\": " << hostileEntities
+        << ", \"active_bosses\": " << activeBosses
+        << ", \"creatures_defeated\": " << productionTotals_.creaturesDefeated << "},\n";
+    out << "  \"structures\": {\"machines\": " << machines_.size()
+        << ", \"damaged_machines\": " << damagedMachines
+        << ", \"damaged_tiles\": " << damagedStructureTiles
+        << ", \"powered_networks\": " << poweredNetworks
+        << ", \"power_supply\": " << totalPowerSupply
+        << ", \"power_demand\": " << totalPowerDemand << "},\n";
+
+    out << "  \"machine_counts\": {";
+    bool wroteMachine = false;
+    for (const auto& def : machineDefs()) {
+        int count = 0;
+        for (const auto& machine : machines_) {
+            if (machine.kind == def.id) {
+                ++count;
+            }
+        }
+        if (count == 0) {
+            continue;
+        }
+        if (wroteMachine) {
+            out << ",";
+        }
+        out << "\n    " << jsonString(def.key) << ": " << count;
+        wroteMachine = true;
+    }
+    if (wroteMachine) {
+        out << "\n  ";
+    }
+    out << "},\n";
+
+    out << "  \"activated_outpost_biomes\": [";
+    const auto biomes = activatedOutpostBiomes();
+    for (std::size_t i = 0; i < biomes.size(); ++i) {
+        if (i > 0) {
+            out << ", ";
+        }
+        out << jsonString(toString(biomes[i]));
+    }
+    out << "],\n";
+    out << "  \"guidance\": {\"goal\": " << jsonString(currentDemoGoalText())
+        << ", \"supply_contract\": " << jsonString(currentSupplyContractText())
+        << ", \"biome_contract\": " << jsonString(currentBiomeContractText())
+        << ", \"marker\": " << jsonString(objectiveMarkerText())
+        << ", \"milestone\": " << jsonString(milestoneText()) << "}\n";
+    out << "}\n";
+    return out.str();
 }
 
 bool Simulation::isMachinePowered(std::uint32_t machineId) const

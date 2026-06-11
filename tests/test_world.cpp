@@ -3476,6 +3476,43 @@ void testFactoryPressureSpawnsHostileProbe()
         "pressure wave alert should include ticks remaining");
 }
 
+void testPlaytestTelemetryText()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    auto snapshot = sim.snapshot();
+    snapshot.tick = 299;
+    snapshot.productionTotals.ironPlates = 3;
+    snapshot.productionTotals.copperPlates = 3;
+    snapshot.productionTotals.sciencePacks = 10;
+    snapshot.productionTotals.outpostBiomeMask =
+        biomeMaskForTest(BiomeKind::Marsh) |
+        biomeMaskForTest(BiomeKind::Desert);
+    snapshot.nextMachineId = 2;
+    Machine chest;
+    chest.id = 1;
+    chest.kind = MachineKind::Chest;
+    chest.x = 1;
+    chest.y = 0;
+    snapshot.machines = {chest};
+    sim.restore(snapshot);
+
+    const auto telemetry = sim.playtestTelemetryText();
+    require(telemetry.find("\"schema\": \"thoth.playtest.telemetry.v1\"") != std::string::npos,
+        "telemetry should include schema");
+    require(telemetry.find("\"ticks_until_wave\": 1") != std::string::npos,
+        "telemetry should include pressure countdown");
+    require(telemetry.find("\"supply_completed\"") != std::string::npos,
+        "telemetry should include contract progress");
+    require(telemetry.find("\"chest\": 1") != std::string::npos,
+        "telemetry should include machine counts");
+    require(telemetry.find("\"marsh\"") != std::string::npos && telemetry.find("\"desert\"") != std::string::npos,
+        "telemetry should include activated outpost biomes");
+    require(telemetry.find("\"guidance\"") != std::string::npos,
+        "telemetry should include current guidance strings");
+}
+
 void testBiomeContractProgression()
 {
     using namespace thoth::game;
@@ -3602,6 +3639,7 @@ int main()
     testDungeonGenerationAndEntityCombatSaveLoad();
     testSupplyContractProgression();
     testFactoryPressureSpawnsHostileProbe();
+    testPlaytestTelemetryText();
     testBiomeContractProgression();
 
     std::cout << "thoth_tests passed\n";

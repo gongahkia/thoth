@@ -54,6 +54,7 @@ inline const std::filesystem::path kAudioAssetDir = "assets/audio";
 inline const std::filesystem::path kGeneratedAudioAssetDir = "assets/audio/generated";
 inline const std::filesystem::path kMediaPreviewPath = "assets/previews/thoth_full_flow_preview.png";
 inline const std::filesystem::path kWindowSmokePath = "assets/previews/thoth_window_smoke.png";
+inline const std::filesystem::path kPlaytestTelemetryPath = "assets/previews/thoth_playtest_telemetry.json";
 
 struct AppState {
     std::string status = "ready";
