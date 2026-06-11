@@ -26,6 +26,8 @@ constexpr int kPipeTicks = 3;
 constexpr int kRiftGateTicks = 180;
 constexpr int kGuardTowerTicks = 45;
 constexpr int kGuardTowerRange = 5;
+constexpr int kArcTowerTicks = 30;
+constexpr int kArcTowerRange = 7;
 constexpr int kOutpostBeaconTicks = 80;
 constexpr int kRepairPylonTicks = 60;
 constexpr int kPressureRelayTicks = 120;
@@ -1693,6 +1695,7 @@ void Simulation::updateMachines()
     updateGuardTowers();
     updateRepairPylons();
     updatePressureRelays();
+    updateArcTowers();
 }
 
 void Simulation::updatePowerNetworks()
@@ -2460,6 +2463,52 @@ void Simulation::updateGuardTowers()
     }
 }
 
+void Simulation::updateArcTowers()
+{
+    for (auto& machine : machines_) {
+        if (machine.kind != MachineKind::ArcTower) {
+            continue;
+        }
+        if (!isMachinePowered(machine.id)) {
+            machine.progress = 0;
+            machine.status = MachineStatus::MissingPower;
+            continue;
+        }
+
+        std::size_t targetIndex = entities_.size();
+        int bestDistance = kArcTowerRange + 1;
+        for (std::size_t index = 0; index < entities_.size(); ++index) {
+            const auto& entity = entities_[index];
+            if (entity.z != machine.z || !isHostile(entity.kind) || entity.hp <= 0) {
+                continue;
+            }
+            const int distance = manhattanDistance(machine.x, machine.y, machine.z, entity.x, entity.y, entity.z);
+            if (distance <= kArcTowerRange && distance < bestDistance) {
+                targetIndex = index;
+                bestDistance = distance;
+            }
+        }
+
+        if (targetIndex == entities_.size()) {
+            machine.progress = 0;
+            machine.status = MachineStatus::MissingInput;
+            continue;
+        }
+
+        machine.progress = std::min(machine.progress + 1, kArcTowerTicks);
+        machine.status = MachineStatus::Working;
+        if (machine.progress < kArcTowerTicks) {
+            continue;
+        }
+
+        entities_[targetIndex].hp -= 4;
+        machine.progress = 0;
+        if (entities_[targetIndex].hp <= 0) {
+            defeatEntity(targetIndex);
+        }
+    }
+}
+
 void Simulation::updateRepairPylons()
 {
     for (auto& machine : machines_) {
@@ -2652,6 +2701,7 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
     case MachineKind::ElectricMiner:
     case MachineKind::OffshorePump:
     case MachineKind::GuardTower:
+    case MachineKind::ArcTower:
         return false;
     }
     return false;
@@ -2762,7 +2812,8 @@ bool Simulation::isPowerConsumer(MachineKind kind) const
         kind == MachineKind::GuardTower ||
         kind == MachineKind::OutpostBeacon ||
         kind == MachineKind::RepairPylon ||
-        kind == MachineKind::PressureRelay;
+        kind == MachineKind::PressureRelay ||
+        kind == MachineKind::ArcTower;
 }
 
 bool Simulation::isLogisticStorage(MachineKind kind) const
@@ -2792,6 +2843,9 @@ int Simulation::powerDemand(MachineKind kind) const
     }
     if (kind == MachineKind::PressureRelay) {
         return 1;
+    }
+    if (kind == MachineKind::ArcTower) {
+        return 2;
     }
     return 0;
 }

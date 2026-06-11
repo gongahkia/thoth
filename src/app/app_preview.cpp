@@ -255,6 +255,7 @@ Color activityPulseColor(thoth::game::MachineKind kind)
     case MachineKind::OutpostBeacon:
     case MachineKind::RepairPylon:
     case MachineKind::PressureRelay:
+    case MachineKind::ArcTower:
         return Color{118, 210, 255, 255};
     case MachineKind::ArchiveTerminal:
     case MachineKind::RiftGate:

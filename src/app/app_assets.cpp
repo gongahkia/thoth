@@ -1308,6 +1308,7 @@ SpriteId itemSprite(thoth::game::ItemId item)
     case ItemId::OutpostBeacon:
     case ItemId::RepairPylon:
     case ItemId::PressureRelay:
+    case ItemId::ArcTower:
         return SpriteId::MachinePowerPole;
     case ItemId::Wall:
     case ItemId::PlankWall:
@@ -1384,6 +1385,7 @@ SpriteId machineSprite(thoth::game::MachineKind kind)
     case MachineKind::OutpostBeacon:
     case MachineKind::RepairPylon:
     case MachineKind::PressureRelay:
+    case MachineKind::ArcTower:
         return SpriteId::MachinePowerPole;
     }
     return SpriteId::MachineChest;
@@ -1597,6 +1599,8 @@ Color machineColor(thoth::game::MachineKind kind)
         return Color{132, 204, 142, 255};
     case MachineKind::PressureRelay:
         return Color{168, 126, 220, 255};
+    case MachineKind::ArcTower:
+        return Color{132, 226, 255, 255};
     }
     return Color{220, 220, 220, 255};
 }
@@ -1714,6 +1718,8 @@ Color itemColor(thoth::game::ItemId item)
         return Color{132, 204, 142, 255};
     case ItemId::PressureRelay:
         return Color{168, 126, 220, 255};
+    case ItemId::ArcTower:
+        return Color{132, 226, 255, 255};
     case ItemId::Wall:
     case ItemId::PlankWall:
     case ItemId::Door:

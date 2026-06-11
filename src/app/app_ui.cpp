@@ -143,6 +143,8 @@ std::string shortItemName(thoth::game::ItemId item)
         return "repair";
     case ItemId::PressureRelay:
         return "relay";
+    case ItemId::ArcTower:
+        return "arc";
     case ItemId::Wall:
         return "wall";
     case ItemId::PlankWall:
@@ -217,6 +219,8 @@ std::string machineGlyph(thoth::game::MachineKind kind)
         return "J";
     case MachineKind::PressureRelay:
         return "V";
+    case MachineKind::ArcTower:
+        return "X";
     }
     return "?";
 }
@@ -273,6 +277,9 @@ float machineProgressRatio(const thoth::game::Machine& machine)
         break;
     case MachineKind::PressureRelay:
         denominator = 120;
+        break;
+    case MachineKind::ArcTower:
+        denominator = 30;
         break;
     case MachineKind::Belt:
     case MachineKind::FastBelt:
@@ -960,6 +967,7 @@ bool machineCanAcceptForPanel(const thoth::game::Machine& machine, thoth::game::
     case MachineKind::ElectricMiner:
     case MachineKind::OffshorePump:
     case MachineKind::GuardTower:
+    case MachineKind::ArcTower:
         return false;
     }
     return false;
@@ -1572,6 +1580,12 @@ std::string machineHintText(const thoth::game::Simulation& sim, const thoth::gam
         return "pressure relay " + std::to_string(machine.progress) + "/120 mitigated " +
             std::to_string(sim.productionTotals().pressureWavesRepelled) + " " +
             powerNetworkDetail(sim, machine);
+    case MachineKind::ArcTower:
+        if (machine.status == MachineStatus::MissingPower) {
+            return powerNetworkDetail(sim, machine);
+        }
+        return "arc defense " + std::to_string(machine.progress) + "/30 " +
+            powerNetworkDetail(sim, machine);
     case MachineKind::Workbench:
         return "crafting station";
     }
@@ -1693,6 +1707,8 @@ std::string machineProcessChipText(const thoth::game::Simulation& sim, const tho
         return "repair " + std::to_string(machine.progress) + "/60";
     case MachineKind::PressureRelay:
         return "relay " + std::to_string(machine.progress) + "/120";
+    case MachineKind::ArcTower:
+        return "arc " + std::to_string(machine.progress) + "/30";
     case MachineKind::Workbench:
         return "hand recipes";
     case MachineKind::Furnace:
@@ -2124,6 +2140,7 @@ bool machineShowsDirection(thoth::game::MachineKind kind)
     case MachineKind::RepairPylon:
         return false;
     case MachineKind::PressureRelay:
+    case MachineKind::ArcTower:
         return false;
     }
     return false;
@@ -2892,6 +2909,9 @@ void drawMachineFlowStrip(const thoth::game::Simulation& sim, const thoth::game:
     case MachineKind::PressureRelay:
         inputs.push_back(FlowStack{ItemId::AdvancedSciencePack, machine.inventory.count(ItemId::AdvancedSciencePack), 1});
         detail = "pressure " + std::to_string(machine.progress) + "/120 " + powerNetworkDetail(sim, machine);
+        break;
+    case MachineKind::ArcTower:
+        detail = "arc defense " + std::to_string(machine.progress) + "/30 " + powerNetworkDetail(sim, machine);
         break;
     case MachineKind::Workbench:
         detail = "hand crafting helper";
