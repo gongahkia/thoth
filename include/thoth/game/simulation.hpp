@@ -129,6 +129,14 @@ struct ProductionTotals {
     int dungeonChestsOpened = 0;
 };
 
+struct BiomeContractProgress {
+    BiomeKind biome = BiomeKind::Grassland;
+    std::string label;
+    int current = 0;
+    int required = 0;
+    bool complete = false;
+};
+
 enum class EntityKind : std::uint8_t {
     Deer,
     Chicken,
@@ -246,6 +254,9 @@ public:
     [[nodiscard]] int factoryPressureLevel() const;
     [[nodiscard]] std::string factoryPressureText() const;
     [[nodiscard]] bool mainObjectiveComplete() const;
+    [[nodiscard]] int completedBiomeContracts() const;
+    [[nodiscard]] std::vector<BiomeContractProgress> biomeContractProgress() const;
+    [[nodiscard]] std::string currentBiomeContractText() const;
     [[nodiscard]] std::string milestoneText() const;
     [[nodiscard]] bool isMachinePowered(std::uint32_t machineId) const;
     [[nodiscard]] SimulationSnapshot snapshot() const;
@@ -315,6 +326,7 @@ private:
     [[nodiscard]] bool canCraftAtCurrentStation(const RecipeDef& recipe) const;
     [[nodiscard]] bool circuitConditionAllows(const Machine& inserter, const Machine* target) const;
     [[nodiscard]] int countMachineItem(const Machine& machine, ItemId item) const;
+    [[nodiscard]] int totalItemCount(ItemId item) const;
     [[nodiscard]] std::vector<std::uint32_t> poweredLogisticPortIds() const;
     [[nodiscard]] bool isWaterTile(TileId id) const;
     [[nodiscard]] bool isHostile(EntityKind kind) const;

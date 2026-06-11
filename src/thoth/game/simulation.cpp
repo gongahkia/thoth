@@ -752,6 +752,52 @@ bool Simulation::mainObjectiveComplete() const
         completedSupplyContracts() >= totalSupplyContracts();
 }
 
+int Simulation::completedBiomeContracts() const
+{
+    int completed = 0;
+    for (const auto& contract : biomeContractProgress()) {
+        if (contract.complete) {
+            ++completed;
+        }
+    }
+    return completed;
+}
+
+std::vector<BiomeContractProgress> Simulation::biomeContractProgress() const
+{
+    std::vector<BiomeContractProgress> contracts;
+    const auto addContract = [&contracts](BiomeKind biome, std::string label, int current, int required) {
+        contracts.push_back(BiomeContractProgress{
+            biome,
+            std::move(label),
+            current,
+            required,
+            current >= required});
+    };
+
+    addContract(BiomeKind::Marsh, "Marsh: pump 3 water barrels", productionTotals_.waterBarrels, 3);
+    addContract(BiomeKind::Desert, "Desert: stockpile 2 sand glass", totalItemCount(ItemId::SandGlass), 2);
+    addContract(BiomeKind::Badlands, "Badlands: stockpile 6 basalt", totalItemCount(ItemId::Basalt), 6);
+    addContract(BiomeKind::CrystalField, "Crystal Field: stockpile 3 crystal", totalItemCount(ItemId::Crystal), 3);
+    addContract(BiomeKind::Rift, "Rift: complete 2 rift jumps", productionTotals_.riftJumps, 2);
+    return contracts;
+}
+
+std::string Simulation::currentBiomeContractText() const
+{
+    const auto contracts = biomeContractProgress();
+    for (std::size_t index = 0; index < contracts.size(); ++index) {
+        const auto& contract = contracts[index];
+        if (!contract.complete) {
+            return "biome contract " + std::to_string(index + 1) + "/" +
+                std::to_string(contracts.size()) + ": " + contract.label + " (" +
+                std::to_string(std::min(contract.current, contract.required)) + "/" +
+                std::to_string(contract.required) + ")";
+        }
+    }
+    return "biome contracts complete: outposts proved across marsh, desert, badlands, crystal, and rift";
+}
+
 std::string Simulation::milestoneText() const
 {
     if (mainObjectiveComplete()) {
@@ -2310,6 +2356,19 @@ int Simulation::countMachineItem(const Machine& machine, ItemId item) const
     }
     if (machine.outputItem == item) {
         ++total;
+    }
+    return total;
+}
+
+int Simulation::totalItemCount(ItemId item) const
+{
+    if (item == ItemId::None) {
+        return 0;
+    }
+
+    int total = player_.inventory.count(item);
+    for (const auto& machine : machines_) {
+        total += countMachineItem(machine, item);
     }
     return total;
 }

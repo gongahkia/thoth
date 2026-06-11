@@ -693,6 +693,19 @@ std::vector<std::string> supplyContractChecklist(const thoth::game::Simulation& 
     };
 }
 
+std::vector<std::string> biomeContractChecklist(const thoth::game::Simulation& sim)
+{
+    const auto progress = sim.biomeContractProgress();
+    std::vector<std::string> lines;
+    lines.reserve(progress.size() + 1);
+    lines.push_back("biomes: " + std::to_string(sim.completedBiomeContracts()) + "/" +
+        std::to_string(progress.size()));
+    for (const auto& contract : progress) {
+        lines.push_back(checklistMark(contract.complete) + contract.label);
+    }
+    return lines;
+}
+
 std::string statusStatsText(const thoth::game::Simulation& sim)
 {
     using thoth::game::MachineStatus;
@@ -3004,6 +3017,7 @@ void drawHud(const thoth::game::Simulation& sim, const AppState& state)
         std::vector<std::string> objective;
         appendWrapped(objective, objectiveText(sim), 48);
         appendWrapped(objective, sim.currentSupplyContractText(), 48);
+        appendWrapped(objective, sim.currentBiomeContractText(), 48);
         appendWrapped(objective, sim.factoryPressureText(), 48);
         appendWrapped(objective, sim.milestoneText(), 48);
         appendWrapped(objective, tutorialNextStepText(sim), 48);
@@ -3013,6 +3027,8 @@ void drawHud(const thoth::game::Simulation& sim, const AppState& state)
         }
         const auto contracts = supplyContractChecklist(sim);
         objective.insert(objective.end(), contracts.begin(), contracts.end());
+        const auto biomeContracts = biomeContractChecklist(sim);
+        objective.insert(objective.end(), biomeContracts.begin(), biomeContracts.end());
         const auto checklist = firstLineChecklist(sim);
         objective.insert(objective.end(), checklist.begin(), checklist.end());
         const auto science = scienceChecklist(sim);

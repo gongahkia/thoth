@@ -314,6 +314,7 @@ bool hasItemOrMachine(const thoth::game::Simulation& sim, thoth::game::ItemId it
 std::vector<std::string> scienceChecklist(const thoth::game::Simulation& sim);
 std::vector<std::string> powerChecklist(const thoth::game::Simulation& sim);
 std::vector<std::string> supplyContractChecklist(const thoth::game::Simulation& sim);
+std::vector<std::string> biomeContractChecklist(const thoth::game::Simulation& sim);
 std::string statusStatsText(const thoth::game::Simulation& sim);
 bool isMachineIssue(thoth::game::MachineStatus status);
 std::string machineIssueBadgeText(thoth::game::MachineStatus status);

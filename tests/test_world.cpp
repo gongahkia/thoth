@@ -2565,6 +2565,35 @@ void testFactoryPressureSpawnsHostileProbe()
     require(sim.player().hp == 20, "pressure probe should not deal immediate spawn damage");
 }
 
+void testBiomeContractProgression()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    auto progress = sim.biomeContractProgress();
+    require(progress.size() == 5, "biome contracts should expose five progression goals");
+    require(sim.completedBiomeContracts() == 0, "fresh simulation should have no completed biome contracts");
+    require(progress.front().biome == BiomeKind::Marsh, "first biome contract should begin in the marsh");
+    require(sim.currentBiomeContractText().find("water barrels") != std::string::npos,
+        "first biome contract should ask for water barrels");
+
+    auto snapshot = sim.snapshot();
+    snapshot.productionTotals.waterBarrels = 3;
+    snapshot.productionTotals.riftJumps = 2;
+    snapshot.player.inventory = {
+        ItemStack{ItemId::SandGlass, 2},
+        ItemStack{ItemId::Basalt, 6},
+        ItemStack{ItemId::Crystal, 3},
+    };
+    sim.restore(snapshot);
+
+    progress = sim.biomeContractProgress();
+    require(sim.completedBiomeContracts() == static_cast<int>(progress.size()),
+        "stockpiled biome materials and rift jumps should complete all biome contracts");
+    require(sim.currentBiomeContractText().find("biome contracts complete") != std::string::npos,
+        "completed biome contract text should show completion");
+}
+
 } // namespace
 
 int main()
@@ -2630,6 +2659,7 @@ int main()
     testDungeonGenerationAndEntityCombatSaveLoad();
     testSupplyContractProgression();
     testFactoryPressureSpawnsHostileProbe();
+    testBiomeContractProgression();
 
     std::cout << "thoth_tests passed\n";
     return 0;
