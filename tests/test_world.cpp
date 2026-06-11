@@ -365,6 +365,63 @@ void testLairEnemyPressureSpawnsBiomeHostiles()
     require(crystal.player().hp == 20, "crystal lair spawn should not deal immediate damage");
 }
 
+void testMarshBossSummonPersistenceAndReward()
+{
+    using namespace thoth::game;
+
+    const auto containsBoss = [](const Simulation& sim) {
+        for (const auto& entity : sim.entities()) {
+            if (entity.kind == EntityKind::MarshBroodheart) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    Simulation sim(20260611);
+    auto snapshot = sim.snapshot();
+    snapshot.player.x = -1;
+    snapshot.player.y = 18;
+    snapshot.player.inventory = {
+        ItemStack{ItemId::WaterBarrel, 1},
+        ItemStack{ItemId::ReedFiber, 3},
+        ItemStack{ItemId::SciencePack, 1},
+    };
+    sim.restore(snapshot);
+
+    sim.queue(Command::interact(Direction::East));
+    sim.step();
+    require(containsBoss(sim), "prepared marsh hive interaction should summon Broodheart");
+    require(sim.itemCount(ItemId::WaterBarrel) == 0, "boss summon should consume water barrel");
+    require(sim.itemCount(ItemId::ReedFiber) == 0, "boss summon should consume reed fiber");
+    require(sim.itemCount(ItemId::SciencePack) == 0, "boss summon should consume science pack");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_marsh_boss_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "boss save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    std::filesystem::remove(path);
+    require(loaded.has_value(), "boss load should succeed: " + error);
+    require(containsBoss(*loaded), "boss save/load should preserve active boss");
+
+    for (int i = 0; i < 8 && containsBoss(*loaded); ++i) {
+        for (const auto& entity : loaded->entities()) {
+            if (entity.kind == EntityKind::MarshBroodheart) {
+                loaded->player().x = entity.x + 1;
+                loaded->player().y = entity.y;
+                loaded->player().z = entity.z;
+                break;
+            }
+        }
+        loaded->queue(Command::attack(Direction::West));
+        loaded->step();
+    }
+    require(!containsBoss(*loaded), "seven attacks should defeat Broodheart");
+    require(loaded->itemCount(ItemId::Venom) == 4, "Broodheart should drop venom reward bundle");
+    require(loaded->productionTotals().bossesDefeated == 1, "boss defeat should increment boss total");
+    require(loaded->productionTotals().creaturesDefeated >= 1, "boss defeat should also count as creature defeat");
+}
+
 void testSimulationMovementAndMining()
 {
     thoth::game::Simulation sim(1);
@@ -2676,6 +2733,7 @@ int main()
     testEarlyBiomeTiles();
     testBiomeLairGeneration();
     testLairEnemyPressureSpawnsBiomeHostiles();
+    testMarshBossSummonPersistenceAndReward();
     testSimulationMovementAndMining();
     testCraftingHotbarAndPlacement();
     testAssignHotbarCommand();

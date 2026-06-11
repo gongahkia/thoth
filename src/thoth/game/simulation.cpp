@@ -1271,6 +1271,10 @@ void Simulation::interact(Direction direction)
         return;
     }
 
+    if (tile.id == TileId::StairsDown && trySummonMarshBoss(tx, ty, player_.z)) {
+        return;
+    }
+
     if (tile.id == TileId::StairsUp || tile.id == TileId::StairsDown) {
         const int dz = tile.id == TileId::StairsUp ? 1 : -1;
         const int targetZ = player_.z + dz;
@@ -1280,6 +1284,67 @@ void Simulation::interact(Direction direction)
             player_.z = targetZ;
         }
     }
+}
+
+bool Simulation::trySummonMarshBoss(int x, int y, int z)
+{
+    const auto lair = world_.lairAt(x, y, z);
+    if (!lair || *lair != LairKind::MarshHive) {
+        return false;
+    }
+    for (const auto& entity : entities_) {
+        if (entity.kind == EntityKind::MarshBroodheart && entity.hp > 0) {
+            return true;
+        }
+    }
+    if (!player_.inventory.canConsume(ItemId::WaterBarrel, 1) ||
+        !player_.inventory.canConsume(ItemId::ReedFiber, 3) ||
+        !player_.inventory.canConsume(ItemId::SciencePack, 1)) {
+        return false;
+    }
+
+    const auto consumedWater = consumeItem(ItemId::WaterBarrel, 1);
+    const auto consumedReeds = consumeItem(ItemId::ReedFiber, 3);
+    const auto consumedScience = consumeItem(ItemId::SciencePack, 1);
+    (void)consumedWater;
+    (void)consumedReeds;
+    (void)consumedScience;
+
+    constexpr std::array<std::pair<int, int>, 8> kOffsets{{
+        {-2, 0},
+        {2, 0},
+        {0, -2},
+        {0, 2},
+        {-2, -1},
+        {2, 1},
+        {-1, 2},
+        {1, -2},
+    }};
+    for (const auto& [offsetX, offsetY] : kOffsets) {
+        const int sx = x + offsetX;
+        const int sy = y + offsetY;
+        if (world_.lairAt(sx, sy, z) != lair ||
+            !world_.isWalkable(sx, sy, z) ||
+            entityAt(sx, sy, z) != nullptr ||
+            machineAt(sx, sy, z) != nullptr) {
+            continue;
+        }
+        Entity boss;
+        boss.id = nextEntityId_++;
+        boss.kind = EntityKind::MarshBroodheart;
+        boss.x = sx;
+        boss.y = sy;
+        boss.z = z;
+        boss.hp = entityMaxHp(boss.kind);
+        boss.facing = Direction::South;
+        boss.cooldown = 40;
+        entities_.push_back(boss);
+        return true;
+    }
+    addItem(ItemId::WaterBarrel, 1);
+    addItem(ItemId::ReedFiber, 3);
+    addItem(ItemId::SciencePack, 1);
+    return true;
 }
 
 void Simulation::attack(Direction direction)
@@ -1294,7 +1359,10 @@ void Simulation::attack(Direction direction)
         if (it->hp > 0) {
             return;
         }
-        addItem(entityDrop(it->kind), 1);
+        addItem(entityDrop(it->kind), entityDropCount(it->kind));
+        if (it->kind == EntityKind::MarshBroodheart) {
+            ++productionTotals_.bossesDefeated;
+        }
         ++productionTotals_.creaturesDefeated;
         entities_.erase(it);
         return;
@@ -2414,7 +2482,8 @@ bool Simulation::isHostile(EntityKind kind) const
     return kind == EntityKind::Slime ||
         kind == EntityKind::Skeleton ||
         kind == EntityKind::CaveCrawler ||
-        kind == EntityKind::DungeonSentinel;
+        kind == EntityKind::DungeonSentinel ||
+        kind == EntityKind::MarshBroodheart;
 }
 
 ItemId Simulation::entityDrop(EntityKind kind) const
@@ -2436,8 +2505,28 @@ ItemId Simulation::entityDrop(EntityKind kind) const
         return ItemId::Venom;
     case EntityKind::DungeonSentinel:
         return ItemId::Crystal;
+    case EntityKind::MarshBroodheart:
+        return ItemId::Venom;
     }
     return ItemId::None;
+}
+
+int Simulation::entityDropCount(EntityKind kind) const
+{
+    switch (kind) {
+    case EntityKind::MarshBroodheart:
+        return 4;
+    case EntityKind::Deer:
+    case EntityKind::Chicken:
+    case EntityKind::Crab:
+    case EntityKind::Fish:
+    case EntityKind::Slime:
+    case EntityKind::Skeleton:
+    case EntityKind::CaveCrawler:
+    case EntityKind::DungeonSentinel:
+        return 1;
+    }
+    return 1;
 }
 
 int Simulation::entityMaxHp(EntityKind kind) const
@@ -2455,6 +2544,8 @@ int Simulation::entityMaxHp(EntityKind kind) const
         return 4;
     case EntityKind::DungeonSentinel:
         return 6;
+    case EntityKind::MarshBroodheart:
+        return 14;
     }
     return 1;
 }

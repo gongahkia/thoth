@@ -127,6 +127,7 @@ struct ProductionTotals {
     int riftJumps = 0;
     int creaturesDefeated = 0;
     int dungeonChestsOpened = 0;
+    int bossesDefeated = 0;
 };
 
 struct BiomeContractProgress {
@@ -146,6 +147,7 @@ enum class EntityKind : std::uint8_t {
     Skeleton,
     CaveCrawler,
     DungeonSentinel,
+    MarshBroodheart,
 };
 
 struct Entity {
@@ -280,6 +282,7 @@ private:
     void configureRequest(Direction direction, ItemId requestItem, int threshold);
     void interact(Direction direction);
     void attack(Direction direction);
+    [[nodiscard]] bool trySummonMarshBoss(int x, int y, int z);
     void updateMachines();
     void updateEntities();
     void ensureLocalEntities();
@@ -332,6 +335,7 @@ private:
     [[nodiscard]] bool isWaterTile(TileId id) const;
     [[nodiscard]] bool isHostile(EntityKind kind) const;
     [[nodiscard]] ItemId entityDrop(EntityKind kind) const;
+    [[nodiscard]] int entityDropCount(EntityKind kind) const;
     [[nodiscard]] int entityMaxHp(EntityKind kind) const;
     [[nodiscard]] std::optional<EntityKind> localEntityKindForTile(int x, int y, int z) const;
     [[nodiscard]] int activeTechGoal() const;

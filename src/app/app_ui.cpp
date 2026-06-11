@@ -2203,6 +2203,8 @@ Color entityColor(thoth::game::EntityKind kind)
         return Color{138, 74, 168, 255};
     case EntityKind::DungeonSentinel:
         return Color{112, 210, 218, 255};
+    case EntityKind::MarshBroodheart:
+        return Color{132, 226, 122, 255};
     }
     return Color{220, 220, 220, 255};
 }

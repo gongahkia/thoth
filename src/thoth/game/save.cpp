@@ -59,6 +59,8 @@ std::string_view entityKindToString(EntityKind kind)
         return "cave_crawler";
     case EntityKind::DungeonSentinel:
         return "dungeon_sentinel";
+    case EntityKind::MarshBroodheart:
+        return "marsh_broodheart";
     }
     return "deer";
 }
@@ -88,6 +90,9 @@ std::optional<EntityKind> entityKindFromKey(std::string_view key)
     }
     if (key == "dungeon_sentinel") {
         return EntityKind::DungeonSentinel;
+    }
+    if (key == "marsh_broodheart") {
+        return EntityKind::MarshBroodheart;
     }
     return std::nullopt;
 }
@@ -130,7 +135,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 9\n";
+    output << "THOTH_SAVE 10\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -214,7 +219,8 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
            << snapshot.productionTotals.waterBarrels << ' '
            << snapshot.productionTotals.riftJumps << ' '
            << snapshot.productionTotals.creaturesDefeated << ' '
-           << snapshot.productionTotals.dungeonChestsOpened << "\n";
+           << snapshot.productionTotals.dungeonChestsOpened << ' '
+           << snapshot.productionTotals.bossesDefeated << "\n";
 
     return true;
 }
@@ -232,7 +238,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 9)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 10)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -620,6 +626,10 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         if (version >= 9 &&
             (!readValue(input, snapshot.productionTotals.creaturesDefeated, "creature defeated total", error) ||
                 !readValue(input, snapshot.productionTotals.dungeonChestsOpened, "dungeon chest total", error))) {
+            return std::nullopt;
+        }
+        if (version >= 10 &&
+            !readValue(input, snapshot.productionTotals.bossesDefeated, "boss defeated total", error)) {
             return std::nullopt;
         }
     }
