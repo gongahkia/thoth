@@ -163,6 +163,15 @@ struct FactoryDashboardPanel {
     bool urgent = false;
 };
 
+struct ExpeditionBoardEntry {
+    std::string key;
+    std::string label;
+    int current = 0;
+    int required = 0;
+    bool unlocked = false;
+    bool complete = false;
+};
+
 struct BiomeContractProgress {
     BiomeKind biome = BiomeKind::Grassland;
     std::string label;
@@ -341,6 +350,9 @@ public:
     [[nodiscard]] std::string riftStormText() const;
     [[nodiscard]] std::vector<FactoryDashboardPanel> factoryDashboard() const;
     [[nodiscard]] std::string factoryDashboardText() const;
+    [[nodiscard]] std::vector<ExpeditionBoardEntry> postVictoryExpeditionBoard() const;
+    [[nodiscard]] int completedPostVictoryExpeditions() const;
+    [[nodiscard]] std::string postVictoryExpeditionText() const;
     [[nodiscard]] bool mainObjectiveComplete() const;
     [[nodiscard]] bool hasActivatedOutpostBiome(BiomeKind biome) const;
     [[nodiscard]] int activatedOutpostBiomeCount() const;

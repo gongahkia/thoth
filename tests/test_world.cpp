@@ -3886,6 +3886,68 @@ void testSupplyContractProgression()
         "milestone text should surface the completed main objective");
 }
 
+void testPostVictoryExpeditionBoard()
+{
+    using namespace thoth::game;
+
+    Simulation locked(20260611);
+    require(!locked.mainObjectiveComplete(), "fresh simulation should not unlock expedition board");
+    const auto lockedBoard = locked.postVictoryExpeditionBoard();
+    require(!lockedBoard.empty() && !lockedBoard.front().unlocked,
+        "expedition board entries should exist but remain locked before victory");
+    require(locked.postVictoryExpeditionText().find("locked") != std::string::npos,
+        "expedition board text should explain the lock");
+
+    Simulation active(20260611);
+    auto snapshot = active.snapshot();
+    snapshot.productionTotals.ironPlates = 3;
+    snapshot.productionTotals.copperPlates = 3;
+    snapshot.productionTotals.sciencePacks = 2;
+    snapshot.productionTotals.poweredOre = 5;
+    snapshot.productionTotals.logisticDeliveries = 3;
+    snapshot.productionTotals.advancedSciencePacks = 1;
+    snapshot.productionTotals.archiveSignals = 1;
+    snapshot.productionTotals.riftJumps = 1;
+    active.restore(snapshot);
+
+    require(active.mainObjectiveComplete(), "seeded supply chain should unlock post-victory board");
+    const auto activeBoard = active.postVictoryExpeditionBoard();
+    require(activeBoard.size() == 6, "expedition board should expose six long-tail goals");
+    require(activeBoard.front().unlocked && !activeBoard.front().complete,
+        "unlocked expedition board should show incomplete entries");
+    require(active.postVictoryExpeditionText().find("expedition 1/6") != std::string::npos,
+        "expedition board text should point at the next incomplete expedition");
+
+    snapshot = active.snapshot();
+    snapshot.productionTotals.scoutedBiomeMask =
+        biomeMaskForTest(BiomeKind::Marsh) |
+        biomeMaskForTest(BiomeKind::Desert) |
+        biomeMaskForTest(BiomeKind::Badlands) |
+        biomeMaskForTest(BiomeKind::Snowfield) |
+        biomeMaskForTest(BiomeKind::CrystalField) |
+        biomeMaskForTest(BiomeKind::Rift);
+    snapshot.productionTotals.bossRelicsClaimed = 5;
+    snapshot.productionTotals.riftStormsSurvived = 3;
+    snapshot.productionTotals.outpostDeliveryBiomeMask =
+        biomeMaskForTest(BiomeKind::Marsh) |
+        biomeMaskForTest(BiomeKind::Desert) |
+        biomeMaskForTest(BiomeKind::Badlands) |
+        biomeMaskForTest(BiomeKind::Snowfield) |
+        biomeMaskForTest(BiomeKind::CrystalField);
+    snapshot.productionTotals.pressureWaveRewardsClaimed = 5;
+    snapshot.productionTotals.dungeonChestsOpened = 5;
+    active.restore(snapshot);
+
+    require(active.completedPostVictoryExpeditions() == static_cast<int>(active.postVictoryExpeditionBoard().size()),
+        "all seeded expedition counters should complete the board");
+    require(active.postVictoryExpeditionText().find("complete") != std::string::npos,
+        "completed expedition board should report completion");
+    require(active.currentDemoGoalText().find("expedition board mastered") != std::string::npos,
+        "demo goal should recognize completed expedition board");
+    require(active.milestoneText().find("expedition board complete") != std::string::npos,
+        "milestone should recognize completed expedition board");
+}
+
 void testFactoryPressureSpawnsHostileProbe()
 {
     using namespace thoth::game;
@@ -4116,6 +4178,9 @@ void testPlaytestTelemetryText()
     require(telemetry.find("\"factory_dashboard\"") != std::string::npos &&
             telemetry.find("\"Power\"") != std::string::npos,
         "telemetry should include factory dashboard panels");
+    require(telemetry.find("\"post_victory_expeditions\"") != std::string::npos &&
+            telemetry.find("\"post_victory_expedition\"") != std::string::npos,
+        "telemetry should include post-victory expedition board state");
     require(telemetry.find("\"scout_dispatches\"") != std::string::npos &&
             telemetry.find("\"scouted_biomes\"") != std::string::npos &&
             telemetry.find("\"scouts\"") != std::string::npos,
@@ -4369,6 +4434,7 @@ int main()
     testHouseDoorAndLayerStairs();
     testDungeonGenerationAndEntityCombatSaveLoad();
     testSupplyContractProgression();
+    testPostVictoryExpeditionBoard();
     testFactoryPressureSpawnsHostileProbe();
     testPressureWaveRewardsAndPersistence();
     testPlaytestTelemetryText();

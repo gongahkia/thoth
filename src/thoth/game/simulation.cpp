@@ -1392,6 +1392,87 @@ std::string Simulation::factoryDashboardText() const
     return "dashboard: all tracked systems stable";
 }
 
+std::vector<ExpeditionBoardEntry> Simulation::postVictoryExpeditionBoard() const
+{
+    std::vector<ExpeditionBoardEntry> entries;
+    entries.reserve(6);
+    const bool unlocked = mainObjectiveComplete();
+    const auto addEntry = [&entries, unlocked](
+                              std::string key,
+                              std::string label,
+                              int current,
+                              int required) {
+        entries.push_back(ExpeditionBoardEntry{
+            std::move(key),
+            std::move(label),
+            current,
+            required,
+            unlocked,
+            unlocked && current >= required});
+    };
+
+    addEntry(
+        "cartography",
+        "Map every biome with automated scout dispatches",
+        scoutedBiomeCount(),
+        static_cast<int>(kScoutBiomes.size()));
+    addEntry(
+        "relic_set",
+        "Claim the full five-relic boss set",
+        productionTotals_.bossRelicsClaimed,
+        5);
+    addEntry(
+        "storm_veteran",
+        "Survive three rift storms after opening the gate",
+        productionTotals_.riftStormsSurvived,
+        3);
+    addEntry(
+        "outpost_network",
+        "Complete all outpost delivery routes",
+        completedOutpostDeliveryContracts(),
+        static_cast<int>(outpostDeliveryProgress().size()));
+    addEntry(
+        "pressure_harvest",
+        "Claim five pressure wave rewards",
+        productionTotals_.pressureWaveRewardsClaimed,
+        5);
+    addEntry(
+        "lair_caches",
+        "Open five dungeon or lair caches",
+        productionTotals_.dungeonChestsOpened,
+        5);
+    return entries;
+}
+
+int Simulation::completedPostVictoryExpeditions() const
+{
+    int completed = 0;
+    for (const auto& entry : postVictoryExpeditionBoard()) {
+        if (entry.complete) {
+            ++completed;
+        }
+    }
+    return completed;
+}
+
+std::string Simulation::postVictoryExpeditionText() const
+{
+    const auto board = postVictoryExpeditionBoard();
+    if (!mainObjectiveComplete()) {
+        return "expedition board: locked until the main rift objective is complete";
+    }
+    for (std::size_t index = 0; index < board.size(); ++index) {
+        const auto& entry = board[index];
+        if (!entry.complete) {
+            return "expedition " + std::to_string(index + 1) + "/" +
+                std::to_string(board.size()) + ": " + entry.label + " (" +
+                std::to_string(std::min(entry.current, entry.required)) + "/" +
+                std::to_string(entry.required) + ")";
+        }
+    }
+    return "expedition board complete: rift-era mastery proven across scouting, bosses, storms, outposts, pressure, and lairs";
+}
+
 bool Simulation::mainObjectiveComplete() const
 {
     return productionTotals_.riftJumps > 0 &&
@@ -1688,6 +1769,14 @@ std::string Simulation::currentBossExamText() const
 
 std::string Simulation::currentDemoGoalText() const
 {
+    const auto expeditionBoard = postVictoryExpeditionBoard();
+    if (mainObjectiveComplete() &&
+        completedPostVictoryExpeditions() >= static_cast<int>(expeditionBoard.size())) {
+        return "demo goal complete: expedition board mastered across rift-era systems";
+    }
+    if (mainObjectiveComplete()) {
+        return "demo goal: complete the post-victory expedition board";
+    }
     if (mainObjectiveComplete() && productionTotals_.bossRelicsClaimed >= 5) {
         return "demo goal complete: factory, lairs, relics, outposts, defenses, and rift are online";
     }
@@ -1737,8 +1826,13 @@ std::string Simulation::objectiveMarkerText() const
 
 std::string Simulation::milestoneText() const
 {
+    const auto expeditionBoard = postVictoryExpeditionBoard();
+    if (mainObjectiveComplete() &&
+        completedPostVictoryExpeditions() >= static_cast<int>(expeditionBoard.size())) {
+        return "milestone: expedition board complete; rift-era mastery achieved";
+    }
     if (mainObjectiveComplete()) {
-        return "milestone: main objective complete; optimize the factory or push deeper into the rift";
+        return "milestone: main objective complete; use the expedition board for post-victory goals";
     }
     if (productionTotals_.riftJumps > 0) {
         return "milestone: rift reached; mine the rich outer world and route it back";
@@ -1840,7 +1934,9 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"outpost_delivery_completed\": " << completedOutpostDeliveryContracts()
         << ", \"outpost_delivery_total\": " << outpostDeliveryProgress().size()
         << ", \"boss_exam_completed\": " << completedBossExams
-        << ", \"boss_exam_total\": " << bossExams.size() << "},\n";
+        << ", \"boss_exam_total\": " << bossExams.size()
+        << ", \"post_victory_expedition_completed\": " << completedPostVictoryExpeditions()
+        << ", \"post_victory_expedition_total\": " << postVictoryExpeditionBoard().size() << "},\n";
     out << "  \"pressure\": {\"level\": " << factoryPressureLevel()
         << ", \"ticks_until_wave\": " << ticksUntilNextPressureWave()
         << ", \"waves_repelled\": " << productionTotals_.pressureWavesRepelled
@@ -1949,6 +2045,25 @@ std::string Simulation::playtestTelemetryText() const
     }
     out << "],\n";
 
+    out << "  \"post_victory_expeditions\": [";
+    const auto expeditionBoard = postVictoryExpeditionBoard();
+    for (std::size_t i = 0; i < expeditionBoard.size(); ++i) {
+        const auto& entry = expeditionBoard[i];
+        if (i > 0) {
+            out << ",";
+        }
+        out << "\n    {\"key\": " << jsonString(entry.key)
+            << ", \"label\": " << jsonString(entry.label)
+            << ", \"unlocked\": " << (entry.unlocked ? "true" : "false")
+            << ", \"complete\": " << (entry.complete ? "true" : "false")
+            << ", \"current\": " << entry.current
+            << ", \"required\": " << entry.required << "}";
+    }
+    if (!expeditionBoard.empty()) {
+        out << "\n  ";
+    }
+    out << "],\n";
+
     out << "  \"activated_outpost_biomes\": [";
     const auto biomes = activatedOutpostBiomes();
     for (std::size_t i = 0; i < biomes.size(); ++i) {
@@ -1985,6 +2100,7 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"biome_contract\": " << jsonString(currentBiomeContractText())
         << ", \"outpost_delivery\": " << jsonString(currentOutpostDeliveryText())
         << ", \"scouts\": " << jsonString(scoutAutomationText())
+        << ", \"post_victory_expedition\": " << jsonString(postVictoryExpeditionText())
         << ", \"biome_hazard\": " << jsonString(currentBiomeHazardText())
         << ", \"boss_exam\": " << jsonString(currentBossExamText())
         << ", \"pressure_deck\": " << jsonString(pressureEventDeckText())

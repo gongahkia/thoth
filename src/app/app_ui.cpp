@@ -3279,6 +3279,7 @@ void drawHud(const thoth::game::Simulation& sim, const AppState& state)
         appendWrapped(objective, objectiveText(sim), 48);
         appendWrapped(objective, sim.factoryDashboardText(), 48);
         appendWrapped(objective, sim.scoutAutomationText(), 48);
+        appendWrapped(objective, sim.postVictoryExpeditionText(), 48);
         appendWrapped(objective, sim.currentSupplyContractText(), 48);
         appendWrapped(objective, sim.currentBiomeContractText(), 48);
         appendWrapped(objective, sim.currentOutpostDeliveryText(), 48);
