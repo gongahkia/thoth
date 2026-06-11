@@ -180,7 +180,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 10\n";
+    output << "THOTH_SAVE 11\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -265,7 +265,10 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
            << snapshot.productionTotals.riftJumps << ' '
            << snapshot.productionTotals.creaturesDefeated << ' '
            << snapshot.productionTotals.dungeonChestsOpened << ' '
-           << snapshot.productionTotals.bossesDefeated << "\n";
+           << snapshot.productionTotals.bossesDefeated << ' '
+           << snapshot.productionTotals.outpostsActivated << ' '
+           << snapshot.productionTotals.pressureWavesRepelled << ' '
+           << snapshot.productionTotals.bossRelicsClaimed << "\n";
 
     return true;
 }
@@ -283,7 +286,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 10)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 11)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -675,6 +678,12 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         }
         if (version >= 10 &&
             !readValue(input, snapshot.productionTotals.bossesDefeated, "boss defeated total", error)) {
+            return std::nullopt;
+        }
+        if (version >= 11 &&
+            (!readValue(input, snapshot.productionTotals.outpostsActivated, "outpost activation total", error) ||
+                !readValue(input, snapshot.productionTotals.pressureWavesRepelled, "pressure wave total", error) ||
+                !readValue(input, snapshot.productionTotals.bossRelicsClaimed, "boss relic total", error))) {
             return std::nullopt;
         }
     }

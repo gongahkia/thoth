@@ -1231,6 +1231,11 @@ SpriteId itemSprite(thoth::game::ItemId item)
     case ItemId::SandGlass:
     case ItemId::Crystal:
     case ItemId::Venom:
+    case ItemId::MarshHeart:
+    case ItemId::GlassHeart:
+    case ItemId::WardenCore:
+    case ItemId::FrostCore:
+    case ItemId::RiftCrown:
         return SpriteId::ItemSciencePack;
     case ItemId::ReedFiber:
     case ItemId::CactusFiber:
@@ -1612,7 +1617,16 @@ Color itemColor(thoth::game::ItemId item)
         return Color{82, 156, 82, 255};
     case ItemId::CoralShard:
     case ItemId::Venom:
+    case ItemId::MarshHeart:
         return Color{214, 100, 144, 255};
+    case ItemId::GlassHeart:
+        return Color{238, 190, 86, 255};
+    case ItemId::WardenCore:
+        return Color{188, 126, 84, 255};
+    case ItemId::FrostCore:
+        return Color{132, 226, 255, 255};
+    case ItemId::RiftCrown:
+        return Color{204, 126, 255, 255};
     case ItemId::IceShard:
         return Color{154, 218, 230, 255};
     case ItemId::Basalt:

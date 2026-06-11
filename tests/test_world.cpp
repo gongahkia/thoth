@@ -445,8 +445,9 @@ void testMarshBossSummonPersistenceAndReward()
         loaded->step();
     }
     require(!containsBoss(*loaded), "seven attacks should defeat Broodheart");
-    require(loaded->itemCount(ItemId::Venom) == 4, "Broodheart should drop venom reward bundle");
+    require(loaded->itemCount(ItemId::MarshHeart) == 1, "Broodheart should drop a marsh relic");
     require(loaded->productionTotals().bossesDefeated == 1, "boss defeat should increment boss total");
+    require(loaded->productionTotals().bossRelicsClaimed == 1, "boss defeat should increment relic total");
     require(loaded->productionTotals().creaturesDefeated >= 1, "boss defeat should also count as creature defeat");
 }
 
@@ -502,8 +503,9 @@ void testBadlandsBossSummonPersistenceAndReward()
         loaded->step();
     }
     require(!containsBoss(*loaded), "repeated attacks should defeat Badlands Warden");
-    require(loaded->itemCount(ItemId::Bone) == 6, "Badlands Warden should drop bone reward bundle");
+    require(loaded->itemCount(ItemId::WardenCore) == 1, "Badlands Warden should drop a warden relic");
     require(loaded->productionTotals().bossesDefeated == 1, "Badlands Warden should increment boss total");
+    require(loaded->productionTotals().bossRelicsClaimed == 1, "Badlands Warden should increment relic total");
 }
 
 void testGlassBossSummonPersistenceAndReward()
@@ -558,8 +560,9 @@ void testGlassBossSummonPersistenceAndReward()
         loaded->step();
     }
     require(!containsBoss(*loaded), "repeated attacks should defeat Glass Maw");
-    require(loaded->itemCount(ItemId::SandGlass) == 5, "Glass Maw should drop sand glass reward bundle");
+    require(loaded->itemCount(ItemId::GlassHeart) == 1, "Glass Maw should drop a glass relic");
     require(loaded->productionTotals().bossesDefeated == 1, "Glass Maw should increment boss total");
+    require(loaded->productionTotals().bossRelicsClaimed == 1, "Glass Maw should increment relic total");
 }
 
 void testFrostBossSummonPersistenceAndReward()
@@ -614,8 +617,9 @@ void testFrostBossSummonPersistenceAndReward()
         loaded->step();
     }
     require(!containsBoss(*loaded), "repeated attacks should defeat Frost Nullifier");
-    require(loaded->itemCount(ItemId::IceShard) == 7, "Frost Nullifier should drop ice shard reward bundle");
+    require(loaded->itemCount(ItemId::FrostCore) == 1, "Frost Nullifier should drop a frost relic");
     require(loaded->productionTotals().bossesDefeated == 1, "Frost Nullifier should increment boss total");
+    require(loaded->productionTotals().bossRelicsClaimed == 1, "Frost Nullifier should increment relic total");
 }
 
 void testRiftBossRequiresArchiveAndRiftProgress()
@@ -686,8 +690,9 @@ void testRiftBossRequiresArchiveAndRiftProgress()
         loaded->step();
     }
     require(!containsBoss(*loaded), "repeated attacks should defeat Rift Signal Tyrant");
-    require(loaded->itemCount(ItemId::Crystal) == 8, "Rift Signal Tyrant should drop crystal reward bundle");
+    require(loaded->itemCount(ItemId::RiftCrown) == 1, "Rift Signal Tyrant should drop a rift relic");
     require(loaded->productionTotals().bossesDefeated == 1, "Rift Signal Tyrant should increment boss total");
+    require(loaded->productionTotals().bossRelicsClaimed == 1, "Rift Signal Tyrant should increment relic total");
 }
 
 void testSimulationMovementAndMining()
@@ -881,6 +886,10 @@ void testRichPersistedStateRoundTrip()
     snapshot.researchProgress = 2;
     snapshot.completedTechs = {"logistics_1"};
     snapshot.unlockedRecipes = {"fast_belt", "generator"};
+    snapshot.productionTotals.bossesDefeated = 2;
+    snapshot.productionTotals.outpostsActivated = 1;
+    snapshot.productionTotals.pressureWavesRepelled = 3;
+    snapshot.productionTotals.bossRelicsClaimed = 2;
 
     Machine belt;
     belt.id = 1;
@@ -938,6 +947,10 @@ void testRichPersistedStateRoundTrip()
     require(
         persistedSignature(*loaded) == persistedSignature(sim),
         "rich persisted save/load signature should match");
+    require(loaded->productionTotals().bossesDefeated == 2, "boss total should persist");
+    require(loaded->productionTotals().outpostsActivated == 1, "outpost total should persist");
+    require(loaded->productionTotals().pressureWavesRepelled == 3, "pressure wave total should persist");
+    require(loaded->productionTotals().bossRelicsClaimed == 2, "boss relic total should persist");
 }
 
 void prepareReplayWorld(thoth::game::Simulation& sim)

@@ -69,6 +69,16 @@ std::string shortItemName(thoth::game::ItemId item)
         return "slime";
     case ItemId::Venom:
         return "venom";
+    case ItemId::MarshHeart:
+        return "m-heart";
+    case ItemId::GlassHeart:
+        return "g-heart";
+    case ItemId::WardenCore:
+        return "w-core";
+    case ItemId::FrostCore:
+        return "f-core";
+    case ItemId::RiftCrown:
+        return "crown";
     case ItemId::Belt:
         return "belt";
     case ItemId::Inserter:

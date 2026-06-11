@@ -128,6 +128,9 @@ struct ProductionTotals {
     int creaturesDefeated = 0;
     int dungeonChestsOpened = 0;
     int bossesDefeated = 0;
+    int outpostsActivated = 0;
+    int pressureWavesRepelled = 0;
+    int bossRelicsClaimed = 0;
 };
 
 struct BiomeContractProgress {

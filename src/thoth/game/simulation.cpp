@@ -2828,15 +2828,15 @@ ItemId Simulation::entityDrop(EntityKind kind) const
     case EntityKind::RiftStalker:
         return ItemId::Crystal;
     case EntityKind::MarshBroodheart:
-        return ItemId::Venom;
+        return ItemId::MarshHeart;
     case EntityKind::GlassMaw:
-        return ItemId::SandGlass;
+        return ItemId::GlassHeart;
     case EntityKind::BadlandsWarden:
-        return ItemId::Bone;
+        return ItemId::WardenCore;
     case EntityKind::FrostNullifier:
-        return ItemId::IceShard;
+        return ItemId::FrostCore;
     case EntityKind::RiftSignalTyrant:
-        return ItemId::Crystal;
+        return ItemId::RiftCrown;
     }
     return ItemId::None;
 }
@@ -2845,15 +2845,11 @@ int Simulation::entityDropCount(EntityKind kind) const
 {
     switch (kind) {
     case EntityKind::MarshBroodheart:
-        return 4;
     case EntityKind::GlassMaw:
-        return 5;
     case EntityKind::BadlandsWarden:
-        return 6;
     case EntityKind::FrostNullifier:
-        return 7;
     case EntityKind::RiftSignalTyrant:
-        return 8;
+        return 1;
     case EntityKind::Deer:
     case EntityKind::Chicken:
     case EntityKind::Crab:
@@ -2922,6 +2918,7 @@ void Simulation::defeatEntity(std::size_t entityIndex)
         kind == EntityKind::FrostNullifier ||
         kind == EntityKind::RiftSignalTyrant) {
         ++productionTotals_.bossesDefeated;
+        ++productionTotals_.bossRelicsClaimed;
     }
     ++productionTotals_.creaturesDefeated;
     entities_.erase(entities_.begin() + static_cast<std::ptrdiff_t>(entityIndex));
