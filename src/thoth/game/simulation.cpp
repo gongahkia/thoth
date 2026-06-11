@@ -855,6 +855,55 @@ std::string Simulation::currentBiomeContractText() const
     return "biome contracts complete: outposts proved across marsh, desert, badlands, crystal, and rift";
 }
 
+std::string Simulation::currentDemoGoalText() const
+{
+    if (mainObjectiveComplete() && productionTotals_.bossRelicsClaimed >= 5) {
+        return "demo goal complete: factory, lairs, relics, outposts, defenses, and rift are online";
+    }
+    if (productionTotals_.bossRelicsClaimed >= 5) {
+        return "demo goal: use the full relic set to finish rift stabilization";
+    }
+    if (productionTotals_.bossRelicsClaimed > 0) {
+        return "demo goal: claim five boss relics, then stabilize the rift";
+    }
+    if (completedSupplyContracts() >= 3) {
+        return "demo goal: prepare a biome boss summon with factory output";
+    }
+    return "demo goal: build plates, automate science, conquer lairs, and stabilize the rift";
+}
+
+std::string Simulation::objectiveMarkerText() const
+{
+    if (productionTotals_.ironPlates < 3 || productionTotals_.copperPlates < 3) {
+        return "marker: starter ore lanes east of spawn";
+    }
+    if (productionTotals_.sciencePacks < 2) {
+        return "marker: craft assembler + lab beside the starter factory";
+    }
+    if (productionTotals_.bossRelicsClaimed == 0) {
+        return "marker: marsh hive at x0 y18";
+    }
+    if (productionTotals_.bossRelicsClaimed == 1) {
+        return "marker: glass spire at x18 y-2";
+    }
+    if (productionTotals_.bossRelicsClaimed == 2) {
+        return "marker: badlands foundry at x36 y20";
+    }
+    if (productionTotals_.bossRelicsClaimed == 3) {
+        return "marker: frost vault at x-18 y0";
+    }
+    if (productionTotals_.bossRelicsClaimed == 4) {
+        return "marker: crystal vault at x-36 y20";
+    }
+    if (productionTotals_.outpostsActivated < 2) {
+        return "marker: power outpost beacons in cleared biome lairs";
+    }
+    if (productionTotals_.riftJumps < 1) {
+        return "marker: charge archive terminal, craft rift gate, then feed beacon core";
+    }
+    return "marker: rift band begins near x4096 and x-4096";
+}
+
 std::string Simulation::milestoneText() const
 {
     if (mainObjectiveComplete()) {

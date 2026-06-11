@@ -3081,6 +3081,10 @@ void testSupplyContractProgression()
     require(sim.completedSupplyContracts() == 0, "fresh simulation should have no completed contracts");
     require(sim.currentSupplyContractText().find("3 iron plates") != std::string::npos,
         "first contract should ask for iron plates");
+    require(sim.currentDemoGoalText().find("build plates") != std::string::npos,
+        "fresh demo goal should describe the full vertical slice");
+    require(sim.objectiveMarkerText().find("starter ore") != std::string::npos,
+        "fresh marker should point at the starter factory area");
 
     auto snapshot = sim.snapshot();
     snapshot.productionTotals.ironPlates = 3;
@@ -3096,6 +3100,8 @@ void testSupplyContractProgression()
     require(!sim.mainObjectiveComplete(), "main objective should wait for the final rift contract");
     require(sim.currentSupplyContractText().find("rift jump") != std::string::npos,
         "last contract should ask for the rift jump");
+    require(sim.currentDemoGoalText().find("biome boss") != std::string::npos,
+        "midgame demo goal should push toward boss preparation");
 
     snapshot = sim.snapshot();
     snapshot.productionTotals.riftJumps = 1;

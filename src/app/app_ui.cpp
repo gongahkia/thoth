@@ -3175,6 +3175,8 @@ void drawHud(const thoth::game::Simulation& sim, const AppState& state)
     if (state.debug) {
         const auto& player = sim.player();
         std::vector<std::string> objective;
+        appendWrapped(objective, sim.currentDemoGoalText(), 48);
+        appendWrapped(objective, sim.objectiveMarkerText(), 48);
         appendWrapped(objective, objectiveText(sim), 48);
         appendWrapped(objective, sim.currentSupplyContractText(), 48);
         appendWrapped(objective, sim.currentBiomeContractText(), 48);

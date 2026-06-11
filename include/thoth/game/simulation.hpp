@@ -271,6 +271,8 @@ public:
     [[nodiscard]] int completedBiomeContracts() const;
     [[nodiscard]] std::vector<BiomeContractProgress> biomeContractProgress() const;
     [[nodiscard]] std::string currentBiomeContractText() const;
+    [[nodiscard]] std::string currentDemoGoalText() const;
+    [[nodiscard]] std::string objectiveMarkerText() const;
     [[nodiscard]] std::string milestoneText() const;
     [[nodiscard]] bool isMachinePowered(std::uint32_t machineId) const;
     [[nodiscard]] SimulationSnapshot snapshot() const;
