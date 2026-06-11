@@ -6,7 +6,7 @@ The deterministic simulation lives in `include/thoth` and `src/thoth`. The rayli
 
 ## Game Direction
 
-Thoth is a small-scope "Factorio meets Minecraft" prototype:
+Thoth is a compact deterministic automation-survival game:
 
 - Explore a deterministic block world.
 - Mine trees, stone, coal, iron ore, and copper ore by hand.
@@ -16,9 +16,10 @@ Thoth is a small-scope "Factorio meets Minecraft" prototype:
 - Charge powered archive terminals with beacon cores, then open rift gates to a resource-rich outer dimension band.
 - Fulfill visible supply contracts that turn the sandbox into a clear plate-to-rift objective chain.
 - Push into biome lairs, prepare boss summons with factory output, and defend against pressure with powered guard towers.
+- Use biome and boss rewards to widen the factory plan instead of only stockpiling items.
 - Save, load, and replay deterministic simulation state.
 
-The renderer is intentionally simple. The engineering focus is a headless deterministic simulation with a practical raylib front end.
+The renderer is intentionally simple. The product focus is a Steam-demo vertical slice where a player can build a starter factory, follow visible contracts, conquer biome lairs, and stabilize a rift. The engineering focus is a headless deterministic simulation with a practical raylib front end.
 
 ## Current MVP Status
 
@@ -216,13 +217,13 @@ assets/audio/          authored audio cue source, WAV cue exports, and generated
 
 ## Roadmap
 
-The current plan lives in `WORKON-PIVOT-ASAP.md`. The old Lua/Love2D pivot questions in GitHub issues `#35` and `#36` are obsolete now that this repo is settled as the C++/raylib game codebase.
+The current plan lives in `WORKON-PIVOT-ASAP.md`, with competitive positioning in `docs/market-audit.md`. The old Lua/Love2D pivot questions in GitHub issues `#35` and `#36` are obsolete now that this repo is settled as the C++/raylib game codebase.
 
 Near-term work:
 
-- Polish final visual design and expand recipe configuration only when more machine recipes exist.
-- Polish final atlas styling and the authored WAV cue pack in live play.
-- Deepen post-victory play with optional timed contracts and stronger outpost logistics.
-- Add bespoke sprite/audio/UI polish for lairs, guard towers, and bosses after live playtesting validates the pacing.
-- Add more meaningful exploration payoffs in the rift band beyond the current late boss gate and richer resource density.
-- Strengthen performance guardrails for larger factories.
+- Expand biome content with desert and snowfield lairs, enemies, bosses, and factory-relevant relic rewards.
+- Add remote outpost contracts so exploration requires logistics instead of only inventory stockpiles.
+- Deepen defense with repair, pressure-control, and upgraded tower tools that preserve deterministic pressure.
+- Surface a clearer demo goal and objective marker so the first session is immediately legible.
+- Polish final atlas styling and authored WAV cues after the expanded content loop is playable.
+- Strengthen performance guardrails as larger factories and pressure waves land.

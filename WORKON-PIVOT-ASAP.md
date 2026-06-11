@@ -377,12 +377,13 @@ Current vertical-slice blockers:
 - Finish `#48`: do a live-play visual pass, final UI pass, authored audio mix pass, and any readability fixes that only show up in motion.
 - Keep `#49` open: add focused tests/benchmarks as new systems land, and extend stress coverage past the current 4,096-machine sample when needed.
 
-Beyond-MVP completeness candidates:
+Steam-demo expansion candidates:
 
-- Turn supply and biome contracts into a richer campaign spine: optional timed quotas, remote outpost tiers, and repeatable post-victory optimization targets.
-- Extend progression past the current short ladder with more tech tiers, more intermediate parts, and stronger late-game reasons to keep expanding after electric mining/logistics.
-- Expand fair defense tools to match factory pressure: wall repair loops, pressure reducers, alert UI, and tests proving raids stay deterministic.
-- Add deeper factory tools only after the current loop is polished: underground belts, richer filters, richer circuit network behavior, larger fluid constraints, carts/trains, or larger logistic-network constraints.
+- Use `docs/market-audit.md` as the content filter: add only features that change player behavior in factory planning, exploration, defense, or rift preparation.
+- Turn biome contracts into a richer campaign spine with remote outpost tiers and repeatable post-victory optimization targets.
+- Extend progression with desert and snowfield lairs, boss relics, and factory tools that make boss victories change the factory plan.
+- Expand fair defense tools to match factory pressure: repair pylons, pressure reducers, stronger tower tiers, alert UI, and tests proving raids stay deterministic.
+- Add deeper factory tools only after the expanded demo loop is playable: underground belts, richer filters, richer circuit network behavior, larger fluid constraints, carts/trains, or larger logistic-network constraints.
 - Make exploration pay off mechanically: rift-only resources, boss-specific factory parts, contracts that require remote outposts, and archive secrets that alter factory planning instead of only increasing ore density.
 
 ## Testing Strategy
@@ -432,11 +433,12 @@ Mitigation: do not pitch this as a general voxel engine. Pitch it as a complete 
 
 ## Immediate Next Actions
 
-1. Use manual live play after the Xvfb-backed window smoke to validate authored sprite/audio readability in motion and adjust mix issues that only show up interactively.
-2. Playtest supply contracts, biome contracts, lair pressure, guard tower cadence, boss HP, boss summon costs, and reward usefulness in one continuous run.
-3. Add bespoke live-readable sprites/audio cues for lairs, guard towers, and bosses once pacing is accepted.
-4. Keep scaling past the current 4,096-machine stress benchmark and optimize the first bottleneck that appears in larger factories.
-5. Add focused tests and benchmarks as new late-game systems land.
+1. Add desert and snowfield lairs, enemies, bosses, and relic rewards so every early special biome has a concrete expedition target.
+2. Add remote outpost contracts and objective text so exploration becomes a visible logistics problem instead of inventory stockpiling.
+3. Add repair, pressure-control, and upgraded tower tools so factory pressure is solved by building better defenses.
+4. Playtest supply contracts, biome contracts, lair pressure, tower cadence, boss HP, boss summon costs, and reward usefulness in one continuous run.
+5. Add bespoke live-readable sprites/audio cues for lairs, defense tools, and bosses once pacing is accepted.
+6. Keep scaling past the current 4,096-machine stress benchmark and optimize the first bottleneck that appears in larger factories.
 
 ## Confidence
 
