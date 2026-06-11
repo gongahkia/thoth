@@ -361,7 +361,7 @@ Current C++ prototype polish:
 
 - Raylib world view uses a reviewable authored pixel sprite source at `assets/sprites/thoth_atlas.art`, now with second-pass readability polish for terrain, item, machine, and player silhouettes plus deterministic per-coordinate tile tint/flip variants to reduce repeated terrain patterns. It can export to `assets/sprites/thoth_atlas.png` with `make cpp-export-authored-atlas`, still supports `assets/sprites/thoth_atlas.png` as an external override, can export the generated fallback atlas with `F6` or `make cpp-export-atlas`, validates source/exported dimensions with `make cpp-validate-assets`, and layers tick-based belt travel dashes, working-machine pulses, finite-resource richness pips, status dots, on-world issue badges, direction arrows, and progress bars over sprites.
 - HUD shows objective text, guided first-line, science/research, and power-progression checklists with reactive next-step hints, compact inventory status, an expandable inventory grid with hotbar assignment and role badges, an interactive build-menu card grid with ready/need states, faced-machine deposit/take controls with item labels/counts plus 1x/5x/all batch transfer amounts, explicit furnace and assembler recipe selection, compact state/process/action chips, compact recipe/input/resource/power diagnostics and actionable troubleshooting text, machine process-flow strips, ghost placement previews with invalid-reason labels, production milestone feedback, authored audio cue source at `assets/audio/thoth_cues.sfx` with tuned low/mid/bright cue roles, `make cpp-export-authored-audio` WAV export, `make cpp-validate-assets` source/WAV validation, F11 in-app cue audition, generated fallback tones, machine/debug, power, status counts, per-machine issue summaries, simulation tick cost, and hotbar item counts.
-- Gameplay now has supply contracts from first plates through rift travel, biome contracts, deterministic Marsh/Badlands/Crystal lairs, lair-specific hostile pressure, prepared boss summons, powered guard towers, a deterministic factory-pressure score with hostile probes after meaningful science production, and an explicit main-objective completion state.
+- Gameplay now has supply contracts from first plates through rift travel, biome contracts, deterministic Marsh/Desert/Badlands/Snowfield/Crystal lairs, lair-specific hostile pressure, prepared boss summons, boss relic rewards, powered outpost beacons, powered guard/arc towers, repair pylons, pressure relays, a deterministic factory-pressure score with hostile probes after meaningful science production, and an explicit main-objective completion state.
 - The raylib app shell is split into focused app modules for assets/audio, CLI validation/export, input, deterministic preview/window smoke, runtime loop, and UI/rendering, with `src/app/main.cpp` kept as a small dispatch entry point.
 - `assets/replays/ore_to_plate.thothreplay` is a packaged deterministic demo replay for the first automation line, `assets/replays/science_research.thothreplay` proves assembler-to-lab science/research progression, and `assets/replays/full_flow.thothreplay` runs a 60-second mining-to-research-to-electric-mining flow; `make cpp-validate-replays` validates all packaged replays without opening a raylib window.
 - `make cpp-export-media-preview` writes `assets/previews/thoth_full_flow_preview.png` from the full-flow replay without opening a raylib window, giving the project a deterministic screenshot-style artifact for review. `make cpp-smoke-window` opens the actual raylib app, loads the authored visual/audio assets, renders the full-flow replay state, captures `assets/previews/thoth_window_smoke.png`, verifies the capture dimensions, and runs in CI through Xvfb.
@@ -380,9 +380,9 @@ Current vertical-slice blockers:
 Steam-demo expansion candidates:
 
 - Use `docs/market-audit.md` as the content filter: add only features that change player behavior in factory planning, exploration, defense, or rift preparation.
-- Turn biome contracts into a richer campaign spine with remote outpost tiers and repeatable post-victory optimization targets.
-- Extend progression with desert and snowfield lairs, boss relics, and factory tools that make boss victories change the factory plan.
-- Expand fair defense tools to match factory pressure: repair pylons, pressure reducers, stronger tower tiers, alert UI, and tests proving raids stay deterministic.
+- Turn biome contracts into a richer campaign spine with repeatable post-victory optimization targets.
+- Extend progression beyond the current relic ladder with rift-band resources and factory tools that make late boss victories change the factory plan.
+- Expand fair defense tools to match factory pressure: alert UI, better wave cadence, structure-damage tuning, and tests proving raids stay deterministic.
 - Add deeper factory tools only after the expanded demo loop is playable: underground belts, richer filters, richer circuit network behavior, larger fluid constraints, carts/trains, or larger logistic-network constraints.
 - Make exploration pay off mechanically: rift-only resources, boss-specific factory parts, contracts that require remote outposts, and archive secrets that alter factory planning instead of only increasing ore density.
 
@@ -433,12 +433,11 @@ Mitigation: do not pitch this as a general voxel engine. Pitch it as a complete 
 
 ## Immediate Next Actions
 
-1. Add desert and snowfield lairs, enemies, bosses, and relic rewards so every early special biome has a concrete expedition target.
-2. Add remote outpost contracts and objective text so exploration becomes a visible logistics problem instead of inventory stockpiling.
-3. Add repair, pressure-control, and upgraded tower tools so factory pressure is solved by building better defenses.
-4. Playtest supply contracts, biome contracts, lair pressure, tower cadence, boss HP, boss summon costs, and reward usefulness in one continuous run.
-5. Add bespoke live-readable sprites/audio cues for lairs, defense tools, and bosses once pacing is accepted.
-6. Keep scaling past the current 4,096-machine stress benchmark and optimize the first bottleneck that appears in larger factories.
+1. Playtest supply contracts, biome contracts, lair pressure, tower cadence, support-machine power demand, boss HP, boss summon costs, and reward usefulness in one continuous run.
+2. Add repeatable post-victory contracts that reuse outposts, relics, and rift-band expansion.
+3. Add bespoke live-readable sprites/audio cues for lairs, defense tools, and bosses once pacing is accepted.
+4. Add clearer pressure-wave alert UI and decide whether structure damage belongs in the demo or should stay deferred.
+5. Keep scaling past the current 4,096-machine stress benchmark and optimize the first bottleneck that appears in larger factories.
 
 ## Confidence
 
