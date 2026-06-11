@@ -138,6 +138,8 @@ struct ProductionTotals {
     int outpostDeliveryBiomeMask = 0;
     int scrapRecovered = 0;
     int scrapRecycled = 0;
+    int pressureEnemiesDefeated = 0;
+    int pressureWaveRewardsClaimed = 0;
 };
 
 struct BiomeContractProgress {
@@ -212,6 +214,7 @@ struct Entity {
     int hp = 1;
     Direction facing = Direction::South;
     int cooldown = 0;
+    bool pressureSpawn = false;
 };
 
 struct Command {
