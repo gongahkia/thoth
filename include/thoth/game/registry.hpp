@@ -98,6 +98,7 @@ enum class ItemId : std::uint8_t {
     GuardTower,
     OutpostBeacon,
     RepairPylon,
+    PressureRelay,
     Wall,
     PlankWall,
     Door,
@@ -133,6 +134,7 @@ enum class MachineKind : std::uint8_t {
     GuardTower,
     OutpostBeacon,
     RepairPylon,
+    PressureRelay,
 };
 
 enum class MachineBehaviorKind : std::uint8_t {
@@ -159,6 +161,7 @@ enum class MachineBehaviorKind : std::uint8_t {
     GuardTower,
     OutpostBeacon,
     RepairPylon,
+    PressureRelay,
 };
 
 struct Rgb {

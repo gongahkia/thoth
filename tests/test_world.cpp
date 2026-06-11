@@ -2561,6 +2561,40 @@ void testRepairPylonRebuildsAdjacentWallGap()
     require(restoredPylon->inventory.count(ItemId::Wall) == 0, "repair pylon should consume wall item");
 }
 
+void testPressureRelayMitigatesFactoryPressure()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    auto* generator = placeMachineAt(sim, ItemId::Generator, 0, 0, Direction::East);
+    placeMachineAt(sim, ItemId::PowerPole, 1, 0, Direction::East);
+    auto* relay = placeMachineAt(sim, ItemId::PressureRelay, 2, 0, Direction::East);
+    require(generator != nullptr && relay != nullptr, "pressure relay test machines should place");
+    require(relay->inventory.add(ItemId::AdvancedSciencePack, 1), "test should seed relay input");
+
+    auto snapshot = sim.snapshot();
+    snapshot.productionTotals.sciencePacks = 10;
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::Generator) {
+            machine.fuelTicks = 200;
+        }
+    }
+    sim.restore(snapshot);
+    require(sim.factoryPressureLevel() >= 120, "test should start above raid pressure");
+
+    for (int i = 0; i < 120; ++i) {
+        sim.step();
+    }
+
+    const auto* restoredRelay = sim.machineAt(2, 0);
+    require(restoredRelay != nullptr && restoredRelay->kind == MachineKind::PressureRelay,
+        "pressure relay should persist");
+    require(sim.productionTotals().pressureWavesRepelled == 1, "relay cycle should increment pressure mitigation");
+    require(sim.factoryPressureLevel() < 120, "relay mitigation should lower pressure below raid threshold");
+    require(sim.factoryPressureText().find("raids possible") == std::string::npos,
+        "pressure text should reflect mitigation");
+}
+
 void testPowerNetworkRecomputesAfterSaveLoad()
 {
     using thoth::game::Direction;
@@ -3168,6 +3202,7 @@ int main()
     testGuardTowerRequiresPowerAndDefeatsHostile();
     testOutpostBeaconRequiresPowerAndBiomeInput();
     testRepairPylonRebuildsAdjacentWallGap();
+    testPressureRelayMitigatesFactoryPressure();
     testPowerNetworkRecomputesAfterSaveLoad();
     testWorkbenchRequiredForMachineCrafting();
     testTechChainUnlocksCircuitsAndLogistics();

@@ -28,6 +28,7 @@ constexpr int kGuardTowerTicks = 45;
 constexpr int kGuardTowerRange = 5;
 constexpr int kOutpostBeaconTicks = 80;
 constexpr int kRepairPylonTicks = 60;
+constexpr int kPressureRelayTicks = 120;
 constexpr int kRiftOffset = 4096;
 
 int absInt(int value)
@@ -773,7 +774,7 @@ std::string Simulation::currentSupplyContractText() const
 
 int Simulation::factoryPressureLevel() const
 {
-    return productionTotals_.ironPlates +
+    const int rawPressure = productionTotals_.ironPlates +
         productionTotals_.copperPlates +
         productionTotals_.sciencePacks * 12 +
         productionTotals_.advancedSciencePacks * 24 +
@@ -781,6 +782,7 @@ int Simulation::factoryPressureLevel() const
         productionTotals_.logisticDeliveries * 8 +
         productionTotals_.archiveSignals * 50 +
         productionTotals_.riftJumps * 80;
+    return std::max(0, rawPressure - (productionTotals_.pressureWavesRepelled * 35));
 }
 
 std::string Simulation::factoryPressureText() const
@@ -1690,6 +1692,7 @@ void Simulation::updateMachines()
     updateOutpostBeacons();
     updateGuardTowers();
     updateRepairPylons();
+    updatePressureRelays();
 }
 
 void Simulation::updatePowerNetworks()
@@ -2490,6 +2493,31 @@ void Simulation::updateRepairPylons()
     }
 }
 
+void Simulation::updatePressureRelays()
+{
+    for (auto& machine : machines_) {
+        if (machine.kind != MachineKind::PressureRelay) {
+            continue;
+        }
+        if (!isMachinePowered(machine.id)) {
+            machine.status = MachineStatus::MissingPower;
+            continue;
+        }
+        if (machine.progress == 0 && !machine.inventory.consume(ItemId::AdvancedSciencePack, 1)) {
+            machine.status = MachineStatus::MissingInput;
+            continue;
+        }
+        machine.progress = std::min(machine.progress + 1, kPressureRelayTicks);
+        machine.status = MachineStatus::Working;
+        if (machine.progress < kPressureRelayTicks) {
+            continue;
+        }
+        ++productionTotals_.pressureWavesRepelled;
+        machine.progress = 0;
+        machine.status = MachineStatus::Idle;
+    }
+}
+
 bool Simulation::canPlaceMachine(MachineKind kind, int x, int y) const
 {
     return canPlaceMachine(kind, x, y, 0);
@@ -2618,6 +2646,8 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
             machine.inventory.add(item, 1);
     case MachineKind::RepairPylon:
         return (item == ItemId::Wall || item == ItemId::PlankWall) && machine.inventory.add(item, 1);
+    case MachineKind::PressureRelay:
+        return item == ItemId::AdvancedSciencePack && machine.inventory.add(item, 1);
     case MachineKind::PowerPole:
     case MachineKind::ElectricMiner:
     case MachineKind::OffshorePump:
@@ -2731,7 +2761,8 @@ bool Simulation::isPowerConsumer(MachineKind kind) const
         kind == MachineKind::RiftGate ||
         kind == MachineKind::GuardTower ||
         kind == MachineKind::OutpostBeacon ||
-        kind == MachineKind::RepairPylon;
+        kind == MachineKind::RepairPylon ||
+        kind == MachineKind::PressureRelay;
 }
 
 bool Simulation::isLogisticStorage(MachineKind kind) const
@@ -2757,6 +2788,9 @@ int Simulation::powerDemand(MachineKind kind) const
         return 1;
     }
     if (kind == MachineKind::RepairPylon) {
+        return 1;
+    }
+    if (kind == MachineKind::PressureRelay) {
         return 1;
     }
     return 0;
