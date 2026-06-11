@@ -268,7 +268,9 @@ public:
     [[nodiscard]] int totalSupplyContracts() const;
     [[nodiscard]] std::string currentSupplyContractText() const;
     [[nodiscard]] int factoryPressureLevel() const;
+    [[nodiscard]] int ticksUntilNextPressureWave() const;
     [[nodiscard]] std::string factoryPressureText() const;
+    [[nodiscard]] std::string pressureWaveAlertText() const;
     [[nodiscard]] bool mainObjectiveComplete() const;
     [[nodiscard]] bool hasActivatedOutpostBiome(BiomeKind biome) const;
     [[nodiscard]] int activatedOutpostBiomeCount() const;

@@ -795,6 +795,17 @@ int Simulation::factoryPressureLevel() const
     return std::max(0, rawPressure - (productionTotals_.pressureWavesRepelled * 35));
 }
 
+int Simulation::ticksUntilNextPressureWave() const
+{
+    if (productionTotals_.sciencePacks == 0 || factoryPressureLevel() < 120) {
+        return -1;
+    }
+    if (tick_ > 0 && (tick_ % 300U) == 0U) {
+        return 0;
+    }
+    return static_cast<int>(300U - (tick_ % 300U));
+}
+
 std::string Simulation::factoryPressureText() const
 {
     const int pressure = factoryPressureLevel();
@@ -808,6 +819,21 @@ std::string Simulation::factoryPressureText() const
         return "pressure: raids possible (" + std::to_string(pressure) + "); clear hostiles before expanding";
     }
     return "pressure: hostile surge (" + std::to_string(pressure) + "); secure the factory perimeter";
+}
+
+std::string Simulation::pressureWaveAlertText() const
+{
+    const int ticks = ticksUntilNextPressureWave();
+    if (ticks < 0) {
+        return "wave alert: none; pressure below raid threshold";
+    }
+    if (ticks == 0) {
+        return "wave alert: hostile probe incoming now";
+    }
+    const auto severity = factoryPressureLevel() >= 220 ? "surge" : "probe";
+    const auto unit = ticks == 1 ? " tick" : " ticks";
+    return "wave alert: next " + std::string(severity) + " in " + std::to_string(ticks) +
+        unit + "; relays repelled " + std::to_string(productionTotals_.pressureWavesRepelled);
 }
 
 bool Simulation::mainObjectiveComplete() const

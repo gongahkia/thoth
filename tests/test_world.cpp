@@ -3452,6 +3452,9 @@ void testFactoryPressureSpawnsHostileProbe()
     require(sim.factoryPressureLevel() >= 120, "science production should create pressure");
     require(sim.factoryPressureText().find("raids possible") != std::string::npos,
         "pressure text should warn when raids can spawn");
+    require(sim.ticksUntilNextPressureWave() == 0, "pressure wave should be immediate on cadence tick");
+    require(sim.pressureWaveAlertText().find("incoming now") != std::string::npos,
+        "pressure wave alert should report immediate incoming probe");
     sim.step();
 
     bool foundHostile = false;
@@ -3462,6 +3465,15 @@ void testFactoryPressureSpawnsHostileProbe()
     }
     require(foundHostile, "factory pressure should spawn a hostile probe on cadence");
     require(sim.player().hp == 20, "pressure probe should not deal immediate spawn damage");
+
+    Simulation pending(20260611);
+    snapshot = pending.snapshot();
+    snapshot.tick = 299;
+    snapshot.productionTotals.sciencePacks = 10;
+    pending.restore(snapshot);
+    require(pending.ticksUntilNextPressureWave() == 1, "pressure wave alert should count down to next cadence");
+    require(pending.pressureWaveAlertText().find("1 tick") != std::string::npos,
+        "pressure wave alert should include ticks remaining");
 }
 
 void testBiomeContractProgression()

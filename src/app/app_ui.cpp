@@ -3181,6 +3181,7 @@ void drawHud(const thoth::game::Simulation& sim, const AppState& state)
         appendWrapped(objective, sim.currentSupplyContractText(), 48);
         appendWrapped(objective, sim.currentBiomeContractText(), 48);
         appendWrapped(objective, sim.factoryPressureText(), 48);
+        appendWrapped(objective, sim.pressureWaveAlertText(), 48);
         appendWrapped(objective, sim.milestoneText(), 48);
         appendWrapped(objective, tutorialNextStepText(sim), 48);
         objective.push_back("status: " + state.status);
