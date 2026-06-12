@@ -45,6 +45,18 @@ constexpr int kRiftStormBaseTicks = 120;
 constexpr int kRiftStormCooldownTicks = 300;
 constexpr int kRiftStormSpawnCadence = 45;
 constexpr int kRiftStormJoltCadence = 60;
+constexpr int kTutorialSpawnX = 0;
+constexpr int kTutorialSpawnY = 0;
+constexpr int kTutorialExitX = 5;
+constexpr int kTutorialExitY = 0;
+constexpr int kTutorialChestX = 3;
+constexpr int kTutorialChestY = 0;
+constexpr int kTutorialRequiredMask =
+    (1 << static_cast<int>(TutorialAction::Move)) |
+    (1 << static_cast<int>(TutorialAction::Mine)) |
+    (1 << static_cast<int>(TutorialAction::Craft)) |
+    (1 << static_cast<int>(TutorialAction::Place)) |
+    (1 << static_cast<int>(TutorialAction::Deposit));
 
 constexpr std::array<BiomeKind, 5> kRequiredOutpostBiomes{{
     BiomeKind::Marsh,
@@ -119,6 +131,11 @@ int manhattanDistance(int ax, int ay, int az, int bx, int by, int bz)
 bool containsId(const std::vector<std::uint32_t>& ids, std::uint32_t id)
 {
     return std::find(ids.begin(), ids.end(), id) != ids.end();
+}
+
+bool isWaterTileId(TileId id)
+{
+    return id == TileId::Water || id == TileId::DeepWater || id == TileId::Coral;
 }
 
 bool isScienceItem(ItemId item)
@@ -943,6 +960,24 @@ Simulation::Simulation(std::uint64_t seed)
     assignHotbar(ItemId::Stone);
 }
 
+Simulation Simulation::newGame(std::uint64_t seed, bool startInTutorial)
+{
+    Simulation simulation(seed);
+    simulation.tutorialState_ = simulation.findRealWorldSpawn();
+    if (startInTutorial) {
+        simulation.beginTutorial();
+    } else {
+        simulation.player_.x = simulation.tutorialState_.realSpawnX;
+        simulation.player_.y = simulation.tutorialState_.realSpawnY;
+        simulation.player_.z = simulation.tutorialState_.realSpawnZ;
+        simulation.player_.facing = Direction::South;
+        simulation.tutorialState_.active = false;
+        simulation.tutorialState_.completed = true;
+        simulation.tutorialState_.actionMask = kTutorialRequiredMask;
+    }
+    return simulation;
+}
+
 void Simulation::queue(Command command)
 {
     commandQueue_.push_back(command);
@@ -1134,6 +1169,32 @@ const std::vector<AchievementId>& Simulation::unlockedAchievements() const
 int Simulation::unlockedAchievementCount() const
 {
     return static_cast<int>(unlockedAchievements_.size());
+}
+
+const TutorialState& Simulation::tutorialState() const
+{
+    return tutorialState_;
+}
+
+std::vector<TutorialStepProgress> Simulation::tutorialProgress() const
+{
+    return {
+        TutorialStepProgress{TutorialAction::Move, "Move with WASD", (tutorialState_.actionMask & (1 << static_cast<int>(TutorialAction::Move))) != 0},
+        TutorialStepProgress{TutorialAction::Mine, "Mine a resource with Space", (tutorialState_.actionMask & (1 << static_cast<int>(TutorialAction::Mine))) != 0},
+        TutorialStepProgress{TutorialAction::Craft, "Craft a workbench with K or the build card", (tutorialState_.actionMask & (1 << static_cast<int>(TutorialAction::Craft))) != 0},
+        TutorialStepProgress{TutorialAction::Place, "Place a machine or tile with P", (tutorialState_.actionMask & (1 << static_cast<int>(TutorialAction::Place))) != 0},
+        TutorialStepProgress{TutorialAction::Deposit, "Deposit an item into the chest with E", (tutorialState_.actionMask & (1 << static_cast<int>(TutorialAction::Deposit))) != 0},
+    };
+}
+
+bool Simulation::tutorialExitReady() const
+{
+    return (tutorialState_.actionMask & kTutorialRequiredMask) == kTutorialRequiredMask;
+}
+
+std::array<int, 3> Simulation::realWorldSpawn() const
+{
+    return {tutorialState_.realSpawnX, tutorialState_.realSpawnY, tutorialState_.realSpawnZ};
 }
 
 bool Simulation::canCraft(std::string_view recipeKey) const
@@ -2268,6 +2329,7 @@ SimulationSnapshot Simulation::snapshot() const
     result.completedTechs = completedTechs_;
     result.unlockedRecipes = unlockedRecipes_;
     result.unlockedAchievements = unlockedAchievements_;
+    result.tutorial = tutorialState_;
     return result;
 }
 
@@ -2325,6 +2387,22 @@ void Simulation::restore(const SimulationSnapshot& snapshot)
         if (achievementDef(achievement) != nullptr && !isAchievementUnlocked(achievement)) {
             unlockedAchievements_.push_back(achievement);
         }
+    }
+    tutorialState_ = snapshot.tutorial;
+    if (tutorialState_.realSpawnZ != 0 ||
+        (tutorialState_.realSpawnX == 0 && tutorialState_.realSpawnY == 0 && !tutorialState_.active)) {
+        const auto computedSpawn = findRealWorldSpawn();
+        tutorialState_.realSpawnX = computedSpawn.realSpawnX;
+        tutorialState_.realSpawnY = computedSpawn.realSpawnY;
+        tutorialState_.realSpawnZ = computedSpawn.realSpawnZ;
+    }
+    if (tutorialState_.completed) {
+        tutorialState_.active = false;
+        tutorialState_.actionMask = kTutorialRequiredMask;
+    }
+    tutorialState_.actionMask &= kTutorialRequiredMask;
+    if (tutorialState_.active) {
+        tutorialState_.completed = false;
     }
     activeTech_ = snapshot.activeTech.empty() ? nextIncompleteTech() : snapshot.activeTech;
     if (techDef(activeTech_) == nullptr || isTechCompleted(activeTech_)) {
@@ -2430,11 +2508,13 @@ void Simulation::move(Direction direction)
         }
         player_.x = nx;
         player_.y = ny;
+        recordTutorialAction(TutorialAction::Move);
         return;
     }
     if (world_.isWalkable(nx, ny, player_.z) && !isWaterTile(target.id)) {
         player_.x = nx;
         player_.y = ny;
+        recordTutorialAction(TutorialAction::Move);
     }
 }
 
@@ -2451,6 +2531,7 @@ void Simulation::mine(Direction direction)
     const int dropCount = isDamageableStructureTile(tile.id) ? 1 : std::max(1, tile.data);
     addItem(def.drop, dropCount);
     world_.setTile(tx, ty, player_.z, Tile{minedReplacement(tile.id), 0});
+    recordTutorialAction(TutorialAction::Mine);
 }
 
 void Simulation::place(Direction direction, TileId tile, ItemId item, Direction orientation)
@@ -2488,6 +2569,7 @@ void Simulation::place(Direction direction, TileId tile, ItemId item, Direction 
         return;
     }
     world_.setTile(tx, ty, player_.z, Tile{tileToPlace, 0});
+    recordTutorialAction(TutorialAction::Place);
 }
 
 void Simulation::placeMachine(Direction direction, ItemId item, Direction orientation)
@@ -2523,6 +2605,7 @@ void Simulation::placeMachine(Direction direction, ItemId item, Direction orient
         return left.id < right.id;
     });
     rebuildMachineCellIndex();
+    recordTutorialAction(TutorialAction::Place);
 }
 
 void Simulation::depositSelected(Direction direction)
@@ -2544,6 +2627,7 @@ void Simulation::depositItem(Direction direction, ItemId item)
 
     const auto consumed = consumeItem(item, 1);
     (void)consumed;
+    recordTutorialAction(TutorialAction::Deposit);
 }
 
 void Simulation::withdrawItem(Direction direction, ItemId item)
@@ -2600,6 +2684,7 @@ void Simulation::craft(std::string_view recipeKey)
     if (recipeKey == "salvage_iron_plate" || recipeKey == "salvage_copper_plate") {
         productionTotals_.scrapRecycled += recipe->output.count;
     }
+    recordTutorialAction(TutorialAction::Craft);
 }
 
 void Simulation::selectHotbar(int index)
@@ -2712,6 +2797,17 @@ void Simulation::interact(Direction direction)
             ++productionTotals_.dungeonChestsOpened;
             return;
         }
+    }
+
+    if (tile.id == TileId::StairsDown &&
+        tutorialState_.active &&
+        player_.z == kTutorialLayer &&
+        tx == kTutorialExitX &&
+        ty == kTutorialExitY) {
+        if (tutorialExitReady()) {
+            completeTutorial();
+        }
+        return;
     }
 
     if (tile.id == TileId::StairsDown &&
@@ -5054,6 +5150,161 @@ void Simulation::updateAchievements()
     }
 }
 
+void Simulation::beginTutorial()
+{
+    tutorialState_.active = true;
+    tutorialState_.completed = false;
+    tutorialState_.actionMask = 0;
+    player_.x = kTutorialSpawnX;
+    player_.y = kTutorialSpawnY;
+    player_.z = kTutorialLayer;
+    player_.facing = Direction::East;
+    player_.inBoat = false;
+
+    if (machineAt(kTutorialChestX, kTutorialChestY, kTutorialLayer) == nullptr) {
+        Machine chest;
+        chest.id = nextMachineId_++;
+        chest.kind = MachineKind::Chest;
+        chest.x = kTutorialChestX;
+        chest.y = kTutorialChestY;
+        chest.z = kTutorialLayer;
+        chest.direction = Direction::South;
+        chest.durability = machineMaxDurability(chest.kind);
+        machines_.push_back(chest);
+        std::sort(machines_.begin(), machines_.end(), [](const Machine& left, const Machine& right) {
+            return left.id < right.id;
+        });
+        rebuildMachineCellIndex();
+    }
+}
+
+void Simulation::completeTutorial()
+{
+    tutorialState_.active = false;
+    tutorialState_.completed = true;
+    tutorialState_.actionMask = kTutorialRequiredMask;
+    player_.x = tutorialState_.realSpawnX;
+    player_.y = tutorialState_.realSpawnY;
+    player_.z = tutorialState_.realSpawnZ;
+    player_.facing = Direction::South;
+    player_.inBoat = false;
+    removeTutorialLayerState();
+}
+
+void Simulation::recordTutorialAction(TutorialAction action)
+{
+    if (!tutorialState_.active || tutorialState_.completed || player_.z != kTutorialLayer) {
+        return;
+    }
+    tutorialState_.actionMask |= 1 << static_cast<int>(action);
+}
+
+TutorialState Simulation::findRealWorldSpawn() const
+{
+    TutorialState state;
+    state.active = false;
+    state.completed = true;
+    state.actionMask = kTutorialRequiredMask;
+    state.realSpawnZ = 0;
+
+    World candidateWorld(world_.seed());
+    std::optional<std::array<int, 3>> fallback;
+    for (int attempt = 0; attempt < 3072; ++attempt) {
+        const auto roll = thoth::core::hashCoordinates(
+            world_.seed() ^ 0x7475746f7269616cULL,
+            attempt,
+            attempt * 17);
+        const int x = static_cast<int>(roll % 769U) - 384;
+        const int y = static_cast<int>((roll >> 20U) % 769U) - 384;
+        if (std::abs(x) + std::abs(y) < 96) {
+            continue;
+        }
+
+        const auto tile = candidateWorld.getTile(x, y, 0);
+        if (isWaterTileId(tile.id) || !candidateWorld.isWalkable(x, y, 0) || !tileDef(tile.id).buildable) {
+            continue;
+        }
+        if (!fallback) {
+            fallback = std::array<int, 3>{x, y, 0};
+        }
+        if (!hasNearbyStarterResources(candidateWorld, x, y)) {
+            continue;
+        }
+
+        state.realSpawnX = x;
+        state.realSpawnY = y;
+        return state;
+    }
+
+    if (fallback) {
+        state.realSpawnX = (*fallback)[0];
+        state.realSpawnY = (*fallback)[1];
+    }
+    return state;
+}
+
+bool Simulation::hasNearbyStarterResources(const World& world, int x, int y) const
+{
+    bool hasTree = false;
+    bool hasStone = false;
+    bool hasIron = false;
+    bool hasCoal = false;
+    bool hasCopper = false;
+    constexpr int kSearchRadius = 34;
+
+    for (int oy = -kSearchRadius; oy <= kSearchRadius; ++oy) {
+        for (int ox = -kSearchRadius; ox <= kSearchRadius; ++ox) {
+            if ((ox * ox) + (oy * oy) > kSearchRadius * kSearchRadius) {
+                continue;
+            }
+            switch (world.getTile(x + ox, y + oy, 0).id) {
+            case TileId::Tree:
+                hasTree = true;
+                break;
+            case TileId::Stone:
+                hasStone = true;
+                break;
+            case TileId::IronOre:
+                hasIron = true;
+                break;
+            case TileId::CoalOre:
+                hasCoal = true;
+                break;
+            case TileId::CopperOre:
+                hasCopper = true;
+                break;
+            default:
+                break;
+            }
+            if (hasTree && hasStone && hasIron && hasCoal && hasCopper) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void Simulation::removeTutorialLayerState()
+{
+    machines_.erase(
+        std::remove_if(
+            machines_.begin(),
+            machines_.end(),
+            [](const Machine& machine) {
+                return machine.z == kTutorialLayer;
+            }),
+        machines_.end());
+    entities_.erase(
+        std::remove_if(
+            entities_.begin(),
+            entities_.end(),
+            [](const Entity& entity) {
+                return entity.z == kTutorialLayer;
+            }),
+        entities_.end());
+    rebuildMachineCellIndex();
+}
+
 ItemId Simulation::entityDrop(EntityKind kind) const
 {
     switch (kind) {
@@ -5199,6 +5450,9 @@ void Simulation::defeatEntity(std::size_t entityIndex)
 
 std::optional<EntityKind> Simulation::localEntityKindForTile(int x, int y, int z) const
 {
+    if (z == kTutorialLayer) {
+        return std::nullopt;
+    }
     const auto tile = world_.getTile(x, y, z);
     const auto roll = thoth::core::hashCoordinates(world_.seed() ^ 0x656e74697479ULL, x + (z * 8192), y);
     if (z < 0) {

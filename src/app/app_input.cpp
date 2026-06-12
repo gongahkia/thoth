@@ -551,12 +551,10 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
     handleCraftMenuInput(sim, state, audio);
     handleMachinePanelInput(sim, state, audio);
 
-    bool tutorialAction = false;
     if (IsKeyPressed(KEY_F1)) {
-        if (state.tutorialVisible) {
-            state.tutorialVisible = false;
+        if (state.tutorialManualOpen) {
             state.tutorialManualOpen = false;
-            markTutorialSeen(state);
+            state.tutorialVisible = sim.tutorialState().active;
             state.status = "tutorial hidden";
             setFeedback(state, "tutorial hidden", Color{122, 184, 244, 220});
         } else {
@@ -576,10 +574,8 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
     if (moving && state.movementCooldownFrames <= 0) {
         sim.queue(Command::move(direction));
         state.movementCooldownFrames = kMoveRepeatFrames;
-        tutorialAction = true;
     } else if (moving && direction != sim.player().facing) {
         sim.queue(Command::face(direction));
-        tutorialAction = true;
     } else if (!moving) {
         state.movementCooldownFrames = 0;
     }
@@ -593,7 +589,6 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
             playCue(audio, audio.invalid);
         }
         sim.queue(Command::mine(sim.player().facing));
-        tutorialAction = true;
     }
 
     const std::array<int, thoth::game::kHotbarSlots> numberKeys = {
@@ -623,7 +618,6 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
             setFeedback(state, "place blocked: " + placementBlockReason(sim, sim.selectedItem()), Color{236, 84, 84, 220});
             playCue(audio, audio.invalid);
         }
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_R)) {
         state.buildDirection = rotateClockwise(state.buildDirection);
@@ -645,68 +639,53 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
             playCue(audio, audio.invalid);
         }
         sim.queue(Command::depositSelected(sim.player().facing));
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_J)) {
         sim.queue(Command::interact(sim.player().facing));
         setFeedback(state, "interact", Color{122, 184, 244, 220});
         playCue(audio, audio.tick);
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_H)) {
         sim.queue(Command::attack(sim.player().facing));
         setFeedback(state, "attack", Color{240, 218, 123, 220});
         playCue(audio, audio.mine);
-        tutorialAction = true;
     }
 
     if (IsKeyPressed(KEY_K)) {
         queueCraft(sim, state, audio, "workbench");
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_C)) {
         queueCraft(sim, state, audio, "chest");
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_F)) {
         queueCraft(sim, state, audio, "furnace");
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_B)) {
         queueCraft(sim, state, audio, "belt");
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_I)) {
         queueCraft(sim, state, audio, "inserter");
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_M)) {
         queueCraft(sim, state, audio, "burner_miner");
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_X)) {
         queueCraft(sim, state, audio, "assembler");
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_L)) {
         queueCraft(sim, state, audio, "lab");
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_T)) {
         queueCraft(sim, state, audio, "fast_belt");
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_G)) {
         queueCraft(sim, state, audio, "generator");
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_O)) {
         queueCraft(sim, state, audio, "power_pole");
-        tutorialAction = true;
     }
     if (IsKeyPressed(KEY_N)) {
         queueCraft(sim, state, audio, "electric_miner");
-        tutorialAction = true;
     }
 
     if (IsKeyPressed(KEY_TAB)) {
@@ -724,6 +703,7 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
         updateProductionFeedback(sim, state, audio);
         updateMachineIssueFeedback(sim, state, audio);
         updateAchievementFeedback(sim, state, audio);
+        syncTutorialCompletion(sim, state);
         state.status = "stepped one tick";
         playCue(audio, audio.tick);
     }
@@ -760,6 +740,7 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
         syncProductionCounters(sim, state);
         syncMachineIssueCounters(sim, state);
         syncAchievementCounters(sim, state);
+        state.tutorialWasActive = sim.tutorialState().active;
         state.paused = false;
         setFeedback(state, "science demo loaded", Color{103, 214, 132, 220});
         playCue(audio, audio.load);
@@ -777,6 +758,7 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
         syncProductionCounters(sim, state);
         syncMachineIssueCounters(sim, state);
         syncAchievementCounters(sim, state);
+        state.tutorialWasActive = sim.tutorialState().active;
         state.paused = false;
         setFeedback(state, "demo line loaded", Color{103, 214, 132, 220});
         playCue(audio, audio.load);
@@ -794,6 +776,7 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
         syncProductionCounters(sim, state);
         syncMachineIssueCounters(sim, state);
         syncAchievementCounters(sim, state);
+        state.tutorialWasActive = sim.tutorialState().active;
         state.paused = false;
         setFeedback(state, "full flow loaded", Color{103, 214, 132, 220});
         playCue(audio, audio.load);
@@ -814,6 +797,7 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
             syncProductionCounters(sim, state);
             syncMachineIssueCounters(sim, state);
             syncAchievementCounters(sim, state);
+            state.tutorialWasActive = sim.tutorialState().active;
             playCue(audio, audio.load);
         } else {
             state.status = "load failed: " + error;
@@ -821,9 +805,6 @@ void queueInput(thoth::game::Simulation& sim, AppState& state, const AudioBank& 
         }
     }
 
-    if (tutorialAction) {
-        recordTutorialAction(state);
-    }
 }
 
 

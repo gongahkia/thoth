@@ -417,6 +417,24 @@ Chunk World::generateChunk(int cx, int cy, int z) const
 
 Tile World::generateTile(int x, int y, int z) const
 {
+    if (z == kTutorialLayer) {
+        if (!inside(x, -6, 6) || !inside(y, -5, 5)) {
+            return Tile{TileId::DungeonWall, 0};
+        }
+        if (x == -6 || x == 6 || y == -5 || y == 5) {
+            return Tile{TileId::DungeonWall, 0};
+        }
+        if (x == 5 && y == 0) {
+            return Tile{TileId::StairsDown, 0};
+        }
+        if (x == -3 && y == 0) {
+            return Tile{TileId::Tree, 8};
+        }
+        if (x == -2 && y == 2) {
+            return Tile{TileId::Stone, 3};
+        }
+        return Tile{TileId::Floor, 0};
+    }
     if (z > 0) {
         return Tile{TileId::Floor, 0};
     }

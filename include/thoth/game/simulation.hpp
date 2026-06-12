@@ -220,6 +220,29 @@ struct AchievementProgress {
     bool unlocked = false;
 };
 
+enum class TutorialAction : std::uint8_t {
+    Move,
+    Mine,
+    Craft,
+    Place,
+    Deposit,
+};
+
+struct TutorialStepProgress {
+    TutorialAction action = TutorialAction::Move;
+    std::string label;
+    bool complete = false;
+};
+
+struct TutorialState {
+    bool active = false;
+    bool completed = true;
+    int actionMask = 0;
+    int realSpawnX = 0;
+    int realSpawnY = 0;
+    int realSpawnZ = 0;
+};
+
 enum class EntityKind : std::uint8_t {
     Deer,
     Chicken,
@@ -329,11 +352,13 @@ struct SimulationSnapshot {
     std::vector<std::string> completedTechs;
     std::vector<std::string> unlockedRecipes;
     std::vector<AchievementId> unlockedAchievements;
+    TutorialState tutorial;
 };
 
 class Simulation {
 public:
     explicit Simulation(std::uint64_t seed);
+    [[nodiscard]] static Simulation newGame(std::uint64_t seed, bool startInTutorial);
 
     void queue(Command command);
     void step();
@@ -404,6 +429,10 @@ public:
     [[nodiscard]] std::vector<AchievementProgress> achievementProgress() const;
     [[nodiscard]] const std::vector<AchievementId>& unlockedAchievements() const;
     [[nodiscard]] int unlockedAchievementCount() const;
+    [[nodiscard]] const TutorialState& tutorialState() const;
+    [[nodiscard]] std::vector<TutorialStepProgress> tutorialProgress() const;
+    [[nodiscard]] bool tutorialExitReady() const;
+    [[nodiscard]] std::array<int, 3> realWorldSpawn() const;
     [[nodiscard]] bool isMachinePowered(std::uint32_t machineId) const;
     [[nodiscard]] SimulationSnapshot snapshot() const;
     void restore(const SimulationSnapshot& snapshot);
@@ -461,6 +490,12 @@ private:
     void updateBiomeHazards();
     void updateBossPhases();
     void updateAchievements();
+    void beginTutorial();
+    void completeTutorial();
+    void recordTutorialAction(TutorialAction action);
+    [[nodiscard]] TutorialState findRealWorldSpawn() const;
+    [[nodiscard]] bool hasNearbyStarterResources(const World& world, int x, int y) const;
+    void removeTutorialLayerState();
     void startRiftStorm(int severity);
     [[nodiscard]] int currentRiftStormSeverity() const;
     [[nodiscard]] int riftStormChargeBonus(const Machine& machine) const;
@@ -542,6 +577,7 @@ private:
     ProductionTotals productionTotals_;
     RiftStormState riftStorm_;
     std::vector<AchievementId> unlockedAchievements_;
+    TutorialState tutorialState_;
 };
 
 [[nodiscard]] int dx(Direction direction);

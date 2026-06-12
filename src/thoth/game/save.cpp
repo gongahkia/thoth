@@ -180,7 +180,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 20\n";
+    output << "THOTH_SAVE 21\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -294,6 +294,14 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
         output << "achievement " << toString(achievement) << "\n";
     }
 
+    output << "tutorial "
+           << (snapshot.tutorial.active ? 1 : 0) << ' '
+           << (snapshot.tutorial.completed ? 1 : 0) << ' '
+           << snapshot.tutorial.actionMask << ' '
+           << snapshot.tutorial.realSpawnX << ' '
+           << snapshot.tutorial.realSpawnY << ' '
+           << snapshot.tutorial.realSpawnZ << "\n";
+
     return true;
 }
 
@@ -310,7 +318,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 20)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 21)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -792,6 +800,29 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
                 snapshot.unlockedAchievements.push_back(*parsedAchievement);
             }
         }
+    }
+
+    if (version >= 21) {
+        int tutorialActive = 0;
+        int tutorialCompleted = 1;
+        if (!expectToken(input, "tutorial", error) ||
+            !readValue(input, tutorialActive, "tutorial active", error) ||
+            !readValue(input, tutorialCompleted, "tutorial completed", error) ||
+            !readValue(input, snapshot.tutorial.actionMask, "tutorial action mask", error) ||
+            !readValue(input, snapshot.tutorial.realSpawnX, "tutorial real spawn x", error) ||
+            !readValue(input, snapshot.tutorial.realSpawnY, "tutorial real spawn y", error) ||
+            !readValue(input, snapshot.tutorial.realSpawnZ, "tutorial real spawn z", error)) {
+            return std::nullopt;
+        }
+        snapshot.tutorial.active = tutorialActive != 0;
+        snapshot.tutorial.completed = tutorialCompleted != 0;
+    } else {
+        snapshot.tutorial.active = false;
+        snapshot.tutorial.completed = true;
+        snapshot.tutorial.actionMask = 0;
+        snapshot.tutorial.realSpawnX = 0;
+        snapshot.tutorial.realSpawnY = 0;
+        snapshot.tutorial.realSpawnZ = 0;
     }
 
     return snapshot;

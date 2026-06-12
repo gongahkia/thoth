@@ -50,14 +50,14 @@ void loadAppProfile(AppState& state)
         int tutorialSeen = 0;
         if (input >> header >> version >> key >> tutorialSeen &&
             header == "THOTH_PROFILE" &&
-            version >= 1 &&
+            version >= 2 &&
             key == "tutorial_seen") {
             state.tutorialSeenProfile = tutorialSeen != 0;
         }
     }
     state.tutorialVisible = !state.tutorialSeenProfile;
     state.tutorialManualOpen = false;
-    state.tutorialActionCount = 0;
+    state.tutorialWasActive = false;
 }
 
 void markTutorialSeen(AppState& state)
@@ -65,22 +65,24 @@ void markTutorialSeen(AppState& state)
     if (!state.tutorialSeenProfile) {
         std::ofstream output(kProfilePath);
         if (output) {
-            output << "THOTH_PROFILE 1\n";
+            output << "THOTH_PROFILE 2\n";
             output << "tutorial_seen 1\n";
         }
     }
     state.tutorialSeenProfile = true;
 }
 
-void recordTutorialAction(AppState& state)
+void syncTutorialCompletion(const thoth::game::Simulation& sim, AppState& state)
 {
-    if (state.tutorialSeenProfile) {
-        return;
-    }
-    ++state.tutorialActionCount;
-    if (state.tutorialActionCount >= 3) {
+    const bool active = sim.tutorialState().active;
+    if (state.tutorialWasActive && !active && sim.tutorialState().completed && !state.tutorialSeenProfile) {
         markTutorialSeen(state);
+        state.tutorialVisible = false;
+        state.tutorialManualOpen = false;
+        state.status = "tutorial complete";
+        setFeedback(state, "tutorial complete", Color{103, 214, 132, 220});
     }
+    state.tutorialWasActive = active;
 }
 
 int runInteractiveApp()
@@ -88,9 +90,10 @@ int runInteractiveApp()
     InitWindow(kScreenWidth, kScreenHeight, "Thoth - C++ raylib automation sandbox");
     SetTargetFPS(60);
 
-    thoth::game::Simulation sim(1337);
     AppState state;
     loadAppProfile(state);
+    auto sim = thoth::game::Simulation::newGame(1337, !state.tutorialSeenProfile);
+    state.tutorialWasActive = sim.tutorialState().active;
     auto visuals = loadVisualAtlas();
     gVisualAtlas = &visuals;
     auto audio = loadAudioBank();
@@ -119,6 +122,7 @@ int runInteractiveApp()
             updateProductionFeedback(sim, state, audio);
             updateMachineIssueFeedback(sim, state, audio);
             updateAchievementFeedback(sim, state, audio);
+            syncTutorialCompletion(sim, state);
         }
         if (state.paused) {
             accumulator = 0.0;

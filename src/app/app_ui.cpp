@@ -2635,37 +2635,27 @@ void drawTutorialWorldArea(Rectangle area, Color color)
 
 bool shouldDrawTutorial(const thoth::game::Simulation& sim, const AppState& state)
 {
-    if (!state.tutorialVisible) {
-        return false;
-    }
-    if (state.tutorialManualOpen) {
-        return true;
-    }
-    using thoth::game::ItemId;
-    using thoth::game::MachineKind;
-    return itemCountInMachines(sim, MachineKind::Chest, ItemId::IronPlate) <= 0 &&
-        !sim.isRecipeUnlocked("fast_belt");
+    return sim.tutorialState().active || state.tutorialManualOpen;
 }
 
 void drawTutorialStartArea(const thoth::game::Simulation& sim, const AppState& state)
 {
-    if (!shouldDrawTutorial(sim, state) || sim.player().z != 0) {
+    if (!shouldDrawTutorial(sim, state) ||
+        !sim.tutorialState().active ||
+        sim.player().z != thoth::game::kTutorialLayer) {
         return;
     }
 
-    drawTutorialWorldArea(Rectangle{-5.0f * kTilePixels, -3.0f * kTilePixels, 3.0f * kTilePixels, 7.0f * kTilePixels}, Color{96, 214, 126, 255});
-    drawTutorialWorldArea(Rectangle{-2.0f * kTilePixels, 4.0f * kTilePixels, 6.0f * kTilePixels, 1.0f * kTilePixels}, Color{166, 174, 170, 255});
-    drawTutorialWorldArea(Rectangle{4.0f * kTilePixels, -2.0f * kTilePixels, 1.0f * kTilePixels, 5.0f * kTilePixels}, Color{220, 156, 104, 255});
-    drawTutorialWorldArea(Rectangle{6.0f * kTilePixels, -2.0f * kTilePixels, 1.0f * kTilePixels, 5.0f * kTilePixels}, Color{86, 90, 94, 255});
-    drawTutorialWorldArea(Rectangle{8.0f * kTilePixels, -2.0f * kTilePixels, 1.0f * kTilePixels, 5.0f * kTilePixels}, Color{224, 130, 78, 255});
-    drawTutorialWorldArea(Rectangle{-0.5f * kTilePixels, -0.5f * kTilePixels, 2.0f * kTilePixels, 2.0f * kTilePixels}, Color{246, 220, 118, 255});
+    drawTutorialWorldArea(Rectangle{-5.0f * kTilePixels, -4.0f * kTilePixels, 10.0f * kTilePixels, 8.0f * kTilePixels}, Color{78, 92, 98, 255});
+    drawTutorialWorldArea(Rectangle{-3.0f * kTilePixels, 0.0f * kTilePixels, 1.0f * kTilePixels, 1.0f * kTilePixels}, Color{96, 214, 126, 255});
+    drawTutorialWorldArea(Rectangle{-2.0f * kTilePixels, 2.0f * kTilePixels, 1.0f * kTilePixels, 1.0f * kTilePixels}, Color{166, 174, 170, 255});
+    drawTutorialWorldArea(Rectangle{3.0f * kTilePixels, 0.0f * kTilePixels, 1.0f * kTilePixels, 1.0f * kTilePixels}, Color{246, 220, 118, 255});
+    drawTutorialWorldArea(Rectangle{5.0f * kTilePixels, 0.0f * kTilePixels, 1.0f * kTilePixels, 1.0f * kTilePixels}, Color{122, 184, 244, 255});
 
-    drawTutorialWorldLabel(-5, -4, "trees: Space", Color{96, 214, 126, 255});
-    drawTutorialWorldLabel(-2, 5, "stone", Color{166, 174, 170, 255});
-    drawTutorialWorldLabel(4, -3, "iron line", Color{220, 156, 104, 255});
-    drawTutorialWorldLabel(6, 3, "coal fuel", Color{86, 90, 94, 255});
-    drawTutorialWorldLabel(8, -3, "copper later", Color{224, 130, 78, 255});
-    drawTutorialWorldLabel(0, -1, "spawn", Color{246, 220, 118, 255});
+    drawTutorialWorldLabel(-3, -1, "mine tree: Space", Color{96, 214, 126, 255});
+    drawTutorialWorldLabel(-2, 3, "stone", Color{166, 174, 170, 255});
+    drawTutorialWorldLabel(3, -1, "deposit chest: E", Color{246, 220, 118, 255});
+    drawTutorialWorldLabel(5, -1, sim.tutorialExitReady() ? "exit: J" : "exit locked", Color{122, 184, 244, 255});
 }
 
 void drawWorld(thoth::game::Simulation& sim, const AppState& state)
@@ -3504,11 +3494,19 @@ void drawHotbar(const thoth::game::Simulation& sim)
 void drawTutorialPanel(const thoth::game::Simulation& sim)
 {
     std::vector<std::string> lines;
-    appendWrapped(lines, "Starter area: trees west, stone south, coal and ore east.", 46);
-    appendWrapped(lines, tutorialNextStepText(sim), 46);
-    appendWrapped(lines, "Move WASD. Space mines. Q opens build. P places. E deposits. F1 hides this.", 46);
-    const auto checklist = firstLineChecklist(sim);
-    lines.insert(lines.end(), checklist.begin(), checklist.end());
+    if (sim.tutorialState().active) {
+        appendWrapped(lines, "Training room: complete each basic action, then face the blue exit and press J.", 46);
+        for (const auto& step : sim.tutorialProgress()) {
+            lines.push_back(checklistMark(step.complete) + step.label);
+        }
+        lines.push_back(sim.tutorialExitReady() ? "exit ready: press J at the blue stairs" : "exit locked until checklist is complete");
+        appendWrapped(lines, "Move WASD. Space mines. K crafts workbench. P places selected item. E deposits.", 46);
+    } else {
+        appendWrapped(lines, tutorialNextStepText(sim), 46);
+        appendWrapped(lines, "Move WASD. Space mines. Q opens build. P places. E deposits. F1 hides this.", 46);
+        const auto checklist = firstLineChecklist(sim);
+        lines.insert(lines.end(), checklist.begin(), checklist.end());
+    }
     drawPanel(12, 12, 430, "Tutorial", lines);
 }
 

@@ -13,6 +13,7 @@
 namespace thoth::game {
 
 inline constexpr int kChunkSize = 32;
+inline constexpr int kTutorialLayer = 2;
 
 enum class BiomeKind : std::uint8_t {
     Grassland,

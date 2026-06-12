@@ -77,7 +77,6 @@ struct AppState {
     int lastPowerIssues = -1;
     int lastBlockedIssues = -1;
     int lastAchievementUnlockCount = -1;
-    int tutorialActionCount = 0;
     int simStepsLastFrame = 0;
     int movementCooldownFrames = 0;
     float renderPlayerX = 0.0f;
@@ -91,6 +90,7 @@ struct AppState {
     bool tutorialVisible = true;
     bool tutorialSeenProfile = false;
     bool tutorialManualOpen = false;
+    bool tutorialWasActive = false;
 };
 
 struct CraftMenuEntry {
@@ -294,7 +294,7 @@ void stepSimulationTimed(thoth::game::Simulation& sim, AppState& state);
 void setFeedback(AppState& state, std::string text, Color color);
 void loadAppProfile(AppState& state);
 void markTutorialSeen(AppState& state);
-void recordTutorialAction(AppState& state);
+void syncTutorialCompletion(const thoth::game::Simulation& sim, AppState& state);
 int runInteractiveApp();
 
 std::string shortItemName(thoth::game::ItemId item);

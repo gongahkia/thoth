@@ -58,6 +58,18 @@ bool containsAchievement(const thoth::game::Simulation& sim, thoth::game::Achiev
     return std::find(achievements.begin(), achievements.end(), id) != achievements.end();
 }
 
+bool tutorialStepComplete(const thoth::game::Simulation& sim, thoth::game::TutorialAction action)
+{
+    const auto progress = sim.tutorialProgress();
+    const auto found = std::find_if(
+        progress.begin(),
+        progress.end(),
+        [action](const thoth::game::TutorialStepProgress& step) {
+            return step.action == action;
+        });
+    return found != progress.end() && found->complete;
+}
+
 std::string canonicalSignature(const thoth::game::Simulation& sim)
 {
     const auto snapshot = sim.snapshot();
@@ -1208,16 +1220,16 @@ void testOlderSaveDefaultsAchievementsLocked()
 
     const auto path = std::filesystem::temp_directory_path() / "thoth_achievement_v19_compat.txt";
     std::string error;
-    require(thoth::game::saveSimulation(sim, path, &error), "v20 source save should succeed: " + error);
+    require(thoth::game::saveSimulation(sim, path, &error), "v21 source save should succeed: " + error);
 
     std::ifstream input(path);
     std::stringstream buffer;
     buffer << input.rdbuf();
     input.close();
     std::string contents = buffer.str();
-    const auto header = contents.find("THOTH_SAVE 20");
-    require(header != std::string::npos, "test should find v20 save header");
-    contents.replace(header, std::string("THOTH_SAVE 20").size(), "THOTH_SAVE 19");
+    const auto header = contents.find("THOTH_SAVE 21");
+    require(header != std::string::npos, "test should find v21 save header");
+    contents.replace(header, std::string("THOTH_SAVE 21").size(), "THOTH_SAVE 19");
 
     std::ofstream output(path);
     output << contents;
@@ -1231,6 +1243,180 @@ void testOlderSaveDefaultsAchievementsLocked()
     const auto progress = loaded->achievementProgress();
     require(!progress.empty() && progress.front().current >= progress.front().required,
         "v19 save should still derive achievement progress from totals");
+}
+
+void testTutorialLayerGeneration()
+{
+    using thoth::game::TileId;
+    thoth::game::World world(1337);
+
+    require(world.getTile(0, 0, thoth::game::kTutorialLayer).id == TileId::Floor,
+        "tutorial spawn should be floor");
+    require(world.getTile(-3, 0, thoth::game::kTutorialLayer).id == TileId::Tree,
+        "tutorial room should contain a tree");
+    require(world.getTile(-2, 2, thoth::game::kTutorialLayer).id == TileId::Stone,
+        "tutorial room should contain stone");
+    require(world.getTile(5, 0, thoth::game::kTutorialLayer).id == TileId::StairsDown,
+        "tutorial room should contain an exit");
+    require(world.getTile(6, 0, thoth::game::kTutorialLayer).id == TileId::DungeonWall,
+        "tutorial room should be isolated by walls");
+}
+
+void testTutorialNewGameStartsInSeparateRoom()
+{
+    auto sim = thoth::game::Simulation::newGame(1337, true);
+
+    require(sim.tutorialState().active, "tutorial new game should be active");
+    require(!sim.tutorialState().completed, "tutorial new game should not start completed");
+    require(sim.player().x == 0 && sim.player().y == 0 && sim.player().z == thoth::game::kTutorialLayer,
+        "tutorial new game should spawn in tutorial layer");
+    require(sim.machineAt(3, 0, thoth::game::kTutorialLayer) != nullptr,
+        "tutorial room should have a deposit chest");
+    require(sim.realWorldSpawn()[2] == 0, "tutorial should precompute a real world spawn");
+    require(std::abs(sim.realWorldSpawn()[0]) + std::abs(sim.realWorldSpawn()[1]) >= 96,
+        "real world spawn should be away from the origin starter patch");
+}
+
+void testTutorialChecklistTracksSuccessfulActions()
+{
+    using thoth::game::Command;
+    using thoth::game::Direction;
+    using thoth::game::ItemId;
+    using thoth::game::TutorialAction;
+
+    auto sim = thoth::game::Simulation::newGame(1337, true);
+    require(!tutorialStepComplete(sim, TutorialAction::Move), "move should start incomplete");
+
+    sim.world().setTile(0, -1, thoth::game::kTutorialLayer, thoth::game::Tile{thoth::game::TileId::Grass, 0});
+    sim.queue(Command::mine(Direction::North));
+    sim.step();
+    require(!tutorialStepComplete(sim, TutorialAction::Mine), "failed mine should not complete tutorial mine step");
+
+    sim.queue(Command::move(Direction::East));
+    sim.step();
+    require(tutorialStepComplete(sim, TutorialAction::Move), "successful move should complete tutorial move step");
+
+    sim.player().x = -2;
+    sim.player().y = 0;
+    sim.player().facing = Direction::West;
+    sim.queue(Command::mine(Direction::West));
+    sim.step();
+    require(tutorialStepComplete(sim, TutorialAction::Mine), "successful mine should complete tutorial mine step");
+
+    sim.queue(Command::craft("workbench"));
+    sim.step();
+    require(tutorialStepComplete(sim, TutorialAction::Craft), "successful craft should complete tutorial craft step");
+
+    sim.player().x = 0;
+    sim.player().y = 0;
+    sim.player().facing = Direction::South;
+    sim.queue(Command::placeItem(Direction::South, ItemId::Workbench));
+    sim.step();
+    require(tutorialStepComplete(sim, TutorialAction::Place), "successful place should complete tutorial place step");
+
+    sim.player().x = 2;
+    sim.player().y = 0;
+    sim.player().facing = Direction::East;
+    sim.queue(Command::depositItem(Direction::East, ItemId::Wood));
+    sim.step();
+    require(tutorialStepComplete(sim, TutorialAction::Deposit), "successful deposit should complete tutorial deposit step");
+    require(sim.tutorialExitReady(), "tutorial exit should unlock after all tutorial steps");
+}
+
+void testTutorialExitBlocksThenTransitions()
+{
+    using thoth::game::Command;
+    using thoth::game::Direction;
+    using thoth::game::ItemId;
+
+    auto blocked = thoth::game::Simulation::newGame(1337, true);
+    blocked.player().x = 4;
+    blocked.player().y = 0;
+    blocked.player().facing = Direction::East;
+    blocked.queue(Command::interact(Direction::East));
+    blocked.step();
+    require(blocked.tutorialState().active, "tutorial exit should stay locked before checklist completion");
+    require(blocked.player().z == thoth::game::kTutorialLayer, "locked tutorial exit should not change layers");
+
+    auto ready = thoth::game::Simulation::newGame(1337, true);
+    ready.queue(Command::move(Direction::East));
+    ready.step();
+    ready.player().x = -2;
+    ready.player().y = 0;
+    ready.queue(Command::mine(Direction::West));
+    ready.step();
+    ready.queue(Command::craft("workbench"));
+    ready.step();
+    ready.player().x = 0;
+    ready.player().y = 0;
+    ready.queue(Command::placeItem(Direction::South, ItemId::Workbench));
+    ready.step();
+    ready.player().x = 2;
+    ready.player().y = 0;
+    ready.queue(Command::depositItem(Direction::East, ItemId::Wood));
+    ready.step();
+
+    const auto realSpawn = ready.realWorldSpawn();
+    ready.player().x = 4;
+    ready.player().y = 0;
+    ready.queue(Command::interact(Direction::East));
+    ready.step();
+
+    require(!ready.tutorialState().active, "completed tutorial should deactivate tutorial state");
+    require(ready.tutorialState().completed, "completed tutorial should mark tutorial complete");
+    require(ready.player().x == realSpawn[0] && ready.player().y == realSpawn[1] && ready.player().z == realSpawn[2],
+        "completed tutorial should move player to precomputed real world spawn");
+    require(ready.player().z == 0, "completed tutorial should spawn in real generated world");
+    require(std::abs(ready.player().x) + std::abs(ready.player().y) >= 96,
+        "completed tutorial should not return to origin starter patch");
+    require(ready.machineAt(3, 0, thoth::game::kTutorialLayer) == nullptr,
+        "completed tutorial should remove tutorial-only chest");
+    require(ready.world().isWalkable(ready.player().x, ready.player().y, ready.player().z),
+        "real world spawn should be walkable");
+}
+
+void testTutorialSaveLoadAndOldSaveDefault()
+{
+    using thoth::game::Command;
+    using thoth::game::Direction;
+    using thoth::game::TutorialAction;
+
+    auto sim = thoth::game::Simulation::newGame(20260614, true);
+    sim.queue(Command::move(Direction::East));
+    sim.step();
+    const auto realSpawn = sim.realWorldSpawn();
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_tutorial_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "tutorial save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    require(loaded.has_value(), "tutorial load should succeed: " + error);
+
+    require(loaded->tutorialState().active, "loaded active tutorial should remain active");
+    require(!loaded->tutorialState().completed, "loaded active tutorial should remain incomplete");
+    require(tutorialStepComplete(*loaded, TutorialAction::Move), "loaded tutorial should preserve action progress");
+    require(loaded->realWorldSpawn() == realSpawn, "loaded tutorial should preserve real world spawn");
+
+    std::ifstream input(path);
+    std::stringstream buffer;
+    buffer << input.rdbuf();
+    input.close();
+    std::string contents = buffer.str();
+    const auto header = contents.find("THOTH_SAVE 21");
+    require(header != std::string::npos, "test should find v21 save header");
+    contents.replace(header, std::string("THOTH_SAVE 21").size(), "THOTH_SAVE 20");
+
+    std::ofstream output(path);
+    output << contents;
+    output.close();
+
+    auto oldLoaded = thoth::game::loadSimulation(path, &error);
+    require(oldLoaded.has_value(), "v20 compatibility save should load: " + error);
+    std::filesystem::remove(path);
+
+    require(!oldLoaded->tutorialState().active, "v20 save should default tutorial inactive");
+    require(oldLoaded->tutorialState().completed, "v20 save should default tutorial complete");
+    require(oldLoaded->realWorldSpawn()[2] == 0, "v20 save should compute a real world spawn");
 }
 
 void prepareReplayWorld(thoth::game::Simulation& sim)
@@ -4467,6 +4653,11 @@ int main()
     testRichPersistedStateRoundTrip();
     testAchievementsDeriveUnlockAndPersist();
     testOlderSaveDefaultsAchievementsLocked();
+    testTutorialLayerGeneration();
+    testTutorialNewGameStartsInSeparateRoom();
+    testTutorialChecklistTracksSuccessfulActions();
+    testTutorialExitBlocksThenTransitions();
+    testTutorialSaveLoadAndOldSaveDefault();
     testReplayDeterminismAcrossSaveLoad();
     testReplayDocumentRoundTrip();
     testPackagedOreToPlateReplay();
