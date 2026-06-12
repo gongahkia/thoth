@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <map>
 #include <queue>
@@ -49,6 +50,12 @@ bool containsEntityKind(const thoth::game::Simulation& sim, thoth::game::EntityK
         }
     }
     return false;
+}
+
+bool containsAchievement(const thoth::game::Simulation& sim, thoth::game::AchievementId id)
+{
+    const auto& achievements = sim.unlockedAchievements();
+    return std::find(achievements.begin(), achievements.end(), id) != achievements.end();
 }
 
 std::string canonicalSignature(const thoth::game::Simulation& sim)
@@ -1142,6 +1149,88 @@ void testRichPersistedStateRoundTrip()
     const auto* loadedRelay = loaded->machineAt(4, 1);
     require(loadedRelay != nullptr && loadedRelay->socketedRelic == ItemId::GlassHeart,
         "socketed relic should persist");
+}
+
+void testAchievementsDeriveUnlockAndPersist()
+{
+    using thoth::game::AchievementId;
+    using thoth::game::Simulation;
+    using thoth::game::SimulationSnapshot;
+
+    SimulationSnapshot snapshot;
+    snapshot.seed = 20260612;
+    snapshot.productionTotals.ironPlates = 1;
+    snapshot.productionTotals.sciencePacks = 1;
+    snapshot.completedTechs = {"logistics_1"};
+    snapshot.productionTotals.creaturesDefeated = 1;
+    snapshot.productionTotals.bossesDefeated = 1;
+    snapshot.productionTotals.pressureWaveRewardsClaimed = 1;
+    snapshot.productionTotals.riftJumps = 1;
+    snapshot.productionTotals.outpostsActivated = 1;
+    snapshot.productionTotals.scoutDispatches = 1;
+    snapshot.productionTotals.scoutMaterialsRecovered = 1;
+
+    auto sim = Simulation::fromSnapshot(snapshot);
+    require(sim.unlockedAchievementCount() == 0, "snapshot should not auto-unlock achievements before a step");
+    const auto progress = sim.achievementProgress();
+    require(progress.size() == 10, "achievement progress should expose all definitions");
+    require(progress.front().current >= progress.front().required, "achievement progress should derive from totals");
+
+    sim.step();
+    require(sim.unlockedAchievementCount() == 10, "all seeded achievements should unlock after a step");
+    require(containsAchievement(sim, AchievementId::FirstIronPlate), "first plate achievement should unlock");
+    require(containsAchievement(sim, AchievementId::ScoutRecovery), "scout recovery achievement should unlock");
+
+    sim.step();
+    require(sim.unlockedAchievementCount() == 10, "achievement updates should not duplicate unlocks");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_achievements_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "achievement save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    require(loaded.has_value(), "achievement load should succeed: " + error);
+    std::filesystem::remove(path);
+
+    require(loaded->unlockedAchievementCount() == 10, "unlocked achievements should persist");
+    require(containsAchievement(*loaded, AchievementId::FirstBossDefeated), "boss achievement should persist");
+    require(containsAchievement(*loaded, AchievementId::FirstPressureReward), "pressure reward achievement should persist");
+}
+
+void testOlderSaveDefaultsAchievementsLocked()
+{
+    thoth::game::SimulationSnapshot snapshot;
+    snapshot.seed = 20260613;
+    snapshot.productionTotals.ironPlates = 1;
+    snapshot.productionTotals.sciencePacks = 1;
+    auto sim = thoth::game::Simulation::fromSnapshot(snapshot);
+    sim.step();
+    require(sim.unlockedAchievementCount() == 2, "test save should have two achievements before downgrade");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_achievement_v19_compat.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "v20 source save should succeed: " + error);
+
+    std::ifstream input(path);
+    std::stringstream buffer;
+    buffer << input.rdbuf();
+    input.close();
+    std::string contents = buffer.str();
+    const auto header = contents.find("THOTH_SAVE 20");
+    require(header != std::string::npos, "test should find v20 save header");
+    contents.replace(header, std::string("THOTH_SAVE 20").size(), "THOTH_SAVE 19");
+
+    std::ofstream output(path);
+    output << contents;
+    output.close();
+
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    require(loaded.has_value(), "v19 compatibility save should load: " + error);
+    std::filesystem::remove(path);
+
+    require(loaded->unlockedAchievementCount() == 0, "v19 save should default achievements to locked");
+    const auto progress = loaded->achievementProgress();
+    require(!progress.empty() && progress.front().current >= progress.front().required,
+        "v19 save should still derive achievement progress from totals");
 }
 
 void prepareReplayWorld(thoth::game::Simulation& sim)
@@ -4376,6 +4465,8 @@ int main()
     testFacingCommandAndMachineTileProtection();
     testSaveLoadRoundTrip();
     testRichPersistedStateRoundTrip();
+    testAchievementsDeriveUnlockAndPersist();
+    testOlderSaveDefaultsAchievementsLocked();
     testReplayDeterminismAcrossSaveLoad();
     testReplayDocumentRoundTrip();
     testPackagedOreToPlateReplay();

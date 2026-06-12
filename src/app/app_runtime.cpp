@@ -39,6 +39,50 @@ void setFeedback(AppState& state, std::string text, Color color)
     state.feedbackTicks = 20;
 }
 
+void loadAppProfile(AppState& state)
+{
+    state.tutorialSeenProfile = false;
+    std::ifstream input(kProfilePath);
+    if (input) {
+        std::string header;
+        int version = 0;
+        std::string key;
+        int tutorialSeen = 0;
+        if (input >> header >> version >> key >> tutorialSeen &&
+            header == "THOTH_PROFILE" &&
+            version >= 1 &&
+            key == "tutorial_seen") {
+            state.tutorialSeenProfile = tutorialSeen != 0;
+        }
+    }
+    state.tutorialVisible = !state.tutorialSeenProfile;
+    state.tutorialManualOpen = false;
+    state.tutorialActionCount = 0;
+}
+
+void markTutorialSeen(AppState& state)
+{
+    if (!state.tutorialSeenProfile) {
+        std::ofstream output(kProfilePath);
+        if (output) {
+            output << "THOTH_PROFILE 1\n";
+            output << "tutorial_seen 1\n";
+        }
+    }
+    state.tutorialSeenProfile = true;
+}
+
+void recordTutorialAction(AppState& state)
+{
+    if (state.tutorialSeenProfile) {
+        return;
+    }
+    ++state.tutorialActionCount;
+    if (state.tutorialActionCount >= 3) {
+        markTutorialSeen(state);
+    }
+}
+
 int runInteractiveApp()
 {
     InitWindow(kScreenWidth, kScreenHeight, "Thoth - C++ raylib automation sandbox");
@@ -46,12 +90,14 @@ int runInteractiveApp()
 
     thoth::game::Simulation sim(1337);
     AppState state;
+    loadAppProfile(state);
     auto visuals = loadVisualAtlas();
     gVisualAtlas = &visuals;
     auto audio = loadAudioBank();
     state.audioSource = audio.source;
     syncProductionCounters(sim, state);
     syncMachineIssueCounters(sim, state);
+    syncAchievementCounters(sim, state);
     Camera2D camera{};
     camera.offset = Vector2{kScreenWidth * 0.5f, kScreenHeight * 0.5f};
     camera.zoom = 1.0f;
@@ -72,6 +118,7 @@ int runInteractiveApp()
         if (steps > 0) {
             updateProductionFeedback(sim, state, audio);
             updateMachineIssueFeedback(sim, state, audio);
+            updateAchievementFeedback(sim, state, audio);
         }
         if (state.paused) {
             accumulator = 0.0;

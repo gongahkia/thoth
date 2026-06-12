@@ -55,6 +55,7 @@ inline const std::filesystem::path kGeneratedAudioAssetDir = "assets/audio/gener
 inline const std::filesystem::path kMediaPreviewPath = "assets/previews/thoth_full_flow_preview.png";
 inline const std::filesystem::path kWindowSmokePath = "assets/previews/thoth_window_smoke.png";
 inline const std::filesystem::path kPlaytestTelemetryPath = "assets/previews/thoth_playtest_telemetry.json";
+inline const std::filesystem::path kProfilePath = "thoth_profile.txt";
 
 struct AppState {
     std::string status = "ready";
@@ -75,6 +76,8 @@ struct AppState {
     int lastFuelIssues = -1;
     int lastPowerIssues = -1;
     int lastBlockedIssues = -1;
+    int lastAchievementUnlockCount = -1;
+    int tutorialActionCount = 0;
     int simStepsLastFrame = 0;
     int movementCooldownFrames = 0;
     float renderPlayerX = 0.0f;
@@ -85,6 +88,9 @@ struct AppState {
     Color feedbackColor = Color{255, 255, 255, 0};
     std::string feedbackText;
     std::string audioSource = "none";
+    bool tutorialVisible = true;
+    bool tutorialSeenProfile = false;
+    bool tutorialManualOpen = false;
 };
 
 struct CraftMenuEntry {
@@ -286,6 +292,9 @@ bool saveWindowSmokeScreenshot(const std::filesystem::path& path, std::string* e
 
 void stepSimulationTimed(thoth::game::Simulation& sim, AppState& state);
 void setFeedback(AppState& state, std::string text, Color color);
+void loadAppProfile(AppState& state);
+void markTutorialSeen(AppState& state);
+void recordTutorialAction(AppState& state);
 int runInteractiveApp();
 
 std::string shortItemName(thoth::game::ItemId item);
@@ -307,6 +316,8 @@ void syncProductionCounters(const thoth::game::Simulation& sim, AppState& state)
 void updateProductionFeedback(const thoth::game::Simulation& sim, AppState& state, const AudioBank& audio);
 void syncMachineIssueCounters(const thoth::game::Simulation& sim, AppState& state);
 void updateMachineIssueFeedback(const thoth::game::Simulation& sim, AppState& state, const AudioBank& audio);
+void syncAchievementCounters(const thoth::game::Simulation& sim, AppState& state);
+void updateAchievementFeedback(const thoth::game::Simulation& sim, AppState& state, const AudioBank& audio);
 std::string checklistMark(bool complete);
 bool hasPlacedFirstLine(const thoth::game::Simulation& sim);
 bool hasFirstLineParts(const thoth::game::Simulation& sim);

@@ -563,6 +563,43 @@ void updateProductionFeedback(const thoth::game::Simulation& sim, AppState& stat
     state.lastFactorySciencePacks = sciencePacks;
 }
 
+std::string achievementTitle(const thoth::game::Simulation& sim, thoth::game::AchievementId id)
+{
+    for (const auto& progress : sim.achievementProgress()) {
+        if (progress.id == id) {
+            return progress.title;
+        }
+    }
+    return "Achievement";
+}
+
+void syncAchievementCounters(const thoth::game::Simulation& sim, AppState& state)
+{
+    state.lastAchievementUnlockCount = sim.unlockedAchievementCount();
+}
+
+void updateAchievementFeedback(const thoth::game::Simulation& sim, AppState& state, const AudioBank& audio)
+{
+    const int unlocked = sim.unlockedAchievementCount();
+    if (state.lastAchievementUnlockCount < 0) {
+        syncAchievementCounters(sim, state);
+        return;
+    }
+    if (unlocked <= state.lastAchievementUnlockCount) {
+        state.lastAchievementUnlockCount = unlocked;
+        return;
+    }
+
+    std::string title = "Achievement";
+    const auto& achievements = sim.unlockedAchievements();
+    if (!achievements.empty()) {
+        title = achievementTitle(sim, achievements.back());
+    }
+    setFeedback(state, "achievement: " + title, Color{255, 218, 92, 220});
+    playCue(audio, audio.produce);
+    state.lastAchievementUnlockCount = unlocked;
+}
+
 std::string checklistMark(bool complete)
 {
     return complete ? "[x] " : "[ ] ";
@@ -2424,14 +2461,211 @@ Color entityColor(thoth::game::EntityKind kind)
     return Color{220, 220, 220, 255};
 }
 
+void drawEntityHpBar(const thoth::game::Entity& entity, int px, int py)
+{
+    const int width = std::clamp(entity.hp * 2, 2, 24);
+    DrawRectangle(px + 4, py + 25, 24, 3, Color{8, 10, 10, 190});
+    DrawRectangle(px + 4, py + 25, width, 3, Color{236, 84, 84, 235});
+}
+
+void drawSegmentedCrawler(int px, int py, Color color, Color accent)
+{
+    DrawCircle(px + 9, py + 17, 5.5f, color);
+    DrawCircle(px + 15, py + 14, 6.5f, color);
+    DrawCircle(px + 22, py + 17, 5.5f, color);
+    DrawLine(px + 7, py + 23, px + 4, py + 27, accent);
+    DrawLine(px + 13, py + 22, px + 11, py + 28, accent);
+    DrawLine(px + 20, py + 22, px + 22, py + 28, accent);
+    DrawLine(px + 25, py + 23, px + 28, py + 27, accent);
+}
+
 void drawEntity(const thoth::game::Entity& entity)
 {
+    using thoth::game::EntityKind;
+
     const int px = entity.x * kTilePixels;
     const int py = entity.y * kTilePixels;
     const auto color = entityColor(entity.kind);
-    DrawCircle(px + 16, py + 16, 9.0f, Color{0, 0, 0, 120});
-    DrawCircle(px + 15, py + 14, 8.0f, color);
-    DrawRectangle(px + 11, py + 22, std::max(2, entity.hp * 3), 3, Color{236, 84, 84, 230});
+    const Color dark{22, 24, 26, 235};
+    const Color shadow{0, 0, 0, 110};
+    const Color light{242, 248, 238, 235};
+    DrawEllipse(px + 16, py + 22, 11.0f, 5.0f, shadow);
+
+    switch (entity.kind) {
+    case EntityKind::Deer:
+        DrawRectangle(px + 9, py + 13, 13, 8, color);
+        DrawCircle(px + 22, py + 12, 4.0f, Color{190, 132, 78, 255});
+        DrawLine(px + 11, py + 21, px + 10, py + 26, dark);
+        DrawLine(px + 20, py + 21, px + 21, py + 26, dark);
+        DrawLine(px + 23, py + 8, px + 20, py + 4, Color{102, 68, 42, 255});
+        DrawLine(px + 25, py + 8, px + 28, py + 4, Color{102, 68, 42, 255});
+        break;
+    case EntityKind::Chicken:
+        DrawCircle(px + 15, py + 16, 6.0f, color);
+        DrawCircle(px + 20, py + 12, 3.5f, Color{248, 238, 204, 255});
+        DrawTriangle(Vector2{static_cast<float>(px + 23), static_cast<float>(py + 12)}, Vector2{static_cast<float>(px + 28), static_cast<float>(py + 10)}, Vector2{static_cast<float>(px + 23), static_cast<float>(py + 15)}, Color{234, 154, 58, 255});
+        DrawLine(px + 13, py + 21, px + 11, py + 25, Color{234, 154, 58, 255});
+        DrawLine(px + 17, py + 21, px + 19, py + 25, Color{234, 154, 58, 255});
+        break;
+    case EntityKind::Crab:
+        DrawEllipse(px + 16, py + 17, 8.0f, 5.0f, color);
+        DrawCircle(px + 6, py + 14, 3.0f, Color{240, 122, 92, 255});
+        DrawCircle(px + 26, py + 14, 3.0f, Color{240, 122, 92, 255});
+        DrawLine(px + 9, py + 20, px + 4, py + 24, dark);
+        DrawLine(px + 23, py + 20, px + 28, py + 24, dark);
+        break;
+    case EntityKind::Fish:
+        DrawEllipse(px + 15, py + 16, 8.0f, 5.0f, color);
+        DrawTriangle(Vector2{static_cast<float>(px + 6), static_cast<float>(py + 16)}, Vector2{static_cast<float>(px + 2), static_cast<float>(py + 11)}, Vector2{static_cast<float>(px + 2), static_cast<float>(py + 21)}, Color{54, 126, 190, 255});
+        DrawCircle(px + 21, py + 14, 1.5f, dark);
+        break;
+    case EntityKind::Slime:
+        DrawCircle(px + 16, py + 17, 9.0f, color);
+        DrawEllipse(px + 16, py + 20, 11.0f, 5.0f, Color{72, 162, 88, 255});
+        DrawCircle(px + 12, py + 14, 2.0f, Color{196, 255, 204, 210});
+        break;
+    case EntityKind::GlassSkitter:
+        DrawTriangle(Vector2{static_cast<float>(px + 16), static_cast<float>(py + 5)}, Vector2{static_cast<float>(px + 26), static_cast<float>(py + 18)}, Vector2{static_cast<float>(px + 16), static_cast<float>(py + 27)}, color);
+        DrawTriangle(Vector2{static_cast<float>(px + 16), static_cast<float>(py + 5)}, Vector2{static_cast<float>(px + 6), static_cast<float>(py + 18)}, Vector2{static_cast<float>(px + 16), static_cast<float>(py + 27)}, Color{255, 226, 138, 255});
+        DrawLine(px + 9, py + 17, px + 3, py + 13, dark);
+        DrawLine(px + 23, py + 17, px + 29, py + 13, dark);
+        DrawLine(px + 9, py + 20, px + 3, py + 25, dark);
+        DrawLine(px + 23, py + 20, px + 29, py + 25, dark);
+        break;
+    case EntityKind::SunScarab:
+        DrawEllipse(px + 16, py + 16, 8.0f, 9.0f, color);
+        DrawEllipse(px + 10, py + 16, 5.0f, 7.0f, Color{246, 188, 80, 210});
+        DrawEllipse(px + 22, py + 16, 5.0f, 7.0f, Color{246, 188, 80, 210});
+        DrawLine(px + 16, py + 7, px + 16, py + 24, dark);
+        DrawCircle(px + 16, py + 12, 2.0f, Color{255, 236, 128, 255});
+        break;
+    case EntityKind::Skeleton:
+        DrawCircle(px + 16, py + 10, 5.0f, color);
+        DrawLineEx(Vector2{static_cast<float>(px + 16), static_cast<float>(py + 15)}, Vector2{static_cast<float>(px + 16), static_cast<float>(py + 24)}, 2.0f, color);
+        DrawLine(px + 10, py + 17, px + 22, py + 17, color);
+        DrawLine(px + 12, py + 21, px + 20, py + 21, color);
+        DrawCircle(px + 14, py + 9, 1.5f, dark);
+        DrawCircle(px + 18, py + 9, 1.5f, dark);
+        break;
+    case EntityKind::CaveCrawler:
+        drawSegmentedCrawler(px, py, color, Color{72, 38, 96, 255});
+        DrawCircle(px + 15, py + 12, 2.0f, Color{234, 178, 255, 255});
+        break;
+    case EntityKind::FrostCrawler:
+        drawSegmentedCrawler(px, py, color, Color{214, 248, 255, 255});
+        DrawLine(px + 16, py + 7, px + 16, py + 22, Color{236, 252, 255, 255});
+        DrawLine(px + 10, py + 14, px + 22, py + 18, Color{236, 252, 255, 255});
+        break;
+    case EntityKind::NullWisp:
+        DrawCircle(px + 16, py + 16, 9.0f, Color{176, 232, 255, 130});
+        DrawCircle(px + 17, py + 14, 5.0f, color);
+        DrawLine(px + 10, py + 9, px + 23, py + 22, Color{236, 252, 255, 230});
+        DrawLine(px + 23, py + 9, px + 10, py + 22, Color{236, 252, 255, 230});
+        break;
+    case EntityKind::DungeonSentinel:
+        DrawRectangle(px + 8, py + 8, 16, 16, Color{48, 86, 96, 255});
+        DrawRectangleLines(px + 8, py + 8, 16, 16, color);
+        DrawCircle(px + 16, py + 16, 4.0f, Color{142, 238, 246, 255});
+        DrawCircle(px + 16, py + 16, 1.8f, dark);
+        break;
+    case EntityKind::RiftStalker:
+        DrawTriangle(Vector2{static_cast<float>(px + 16), static_cast<float>(py + 4)}, Vector2{static_cast<float>(px + 27), static_cast<float>(py + 25)}, Vector2{static_cast<float>(px + 5), static_cast<float>(py + 25)}, color);
+        DrawTriangle(Vector2{static_cast<float>(px + 16), static_cast<float>(py + 10)}, Vector2{static_cast<float>(px + 22), static_cast<float>(py + 23)}, Vector2{static_cast<float>(px + 10), static_cast<float>(py + 23)}, Color{38, 22, 52, 245});
+        DrawCircle(px + 16, py + 17, 2.0f, Color{236, 190, 255, 255});
+        break;
+    case EntityKind::MarshBroodheart:
+        DrawCircle(px + 12, py + 13, 7.0f, color);
+        DrawCircle(px + 20, py + 13, 7.0f, color);
+        DrawTriangle(Vector2{static_cast<float>(px + 6), static_cast<float>(py + 16)}, Vector2{static_cast<float>(px + 26), static_cast<float>(py + 16)}, Vector2{static_cast<float>(px + 16), static_cast<float>(py + 28)}, Color{84, 174, 84, 255});
+        DrawCircle(px + 16, py + 17, 3.0f, Color{226, 255, 180, 255});
+        break;
+    case EntityKind::GlassMaw:
+        DrawTriangle(Vector2{static_cast<float>(px + 16), static_cast<float>(py + 3)}, Vector2{static_cast<float>(px + 29), static_cast<float>(py + 17)}, Vector2{static_cast<float>(px + 16), static_cast<float>(py + 29)}, color);
+        DrawTriangle(Vector2{static_cast<float>(px + 16), static_cast<float>(py + 3)}, Vector2{static_cast<float>(px + 3), static_cast<float>(py + 17)}, Vector2{static_cast<float>(px + 16), static_cast<float>(py + 29)}, Color{255, 226, 138, 255});
+        DrawRectangle(px + 10, py + 15, 12, 4, dark);
+        DrawLine(px + 11, py + 15, px + 13, py + 19, light);
+        DrawLine(px + 20, py + 15, px + 18, py + 19, light);
+        break;
+    case EntityKind::BadlandsWarden:
+        DrawRectangle(px + 7, py + 7, 18, 19, Color{118, 78, 56, 255});
+        DrawRectangle(px + 10, py + 5, 12, 5, color);
+        DrawRectangleLines(px + 7, py + 7, 18, 19, Color{226, 174, 116, 255});
+        DrawRectangle(px + 13, py + 13, 6, 8, dark);
+        break;
+    case EntityKind::FrostNullifier:
+        DrawCircle(px + 16, py + 16, 10.0f, Color{96, 174, 210, 235});
+        DrawLine(px + 16, py + 4, px + 16, py + 28, light);
+        DrawLine(px + 4, py + 16, px + 28, py + 16, light);
+        DrawLine(px + 8, py + 8, px + 24, py + 24, light);
+        DrawLine(px + 24, py + 8, px + 8, py + 24, light);
+        DrawCircle(px + 16, py + 16, 4.0f, color);
+        break;
+    case EntityKind::RiftSignalTyrant:
+        DrawCircle(px + 16, py + 17, 10.0f, Color{82, 38, 120, 245});
+        DrawTriangle(Vector2{static_cast<float>(px + 7), static_cast<float>(py + 11)}, Vector2{static_cast<float>(px + 11), static_cast<float>(py + 4)}, Vector2{static_cast<float>(px + 15), static_cast<float>(py + 12)}, color);
+        DrawTriangle(Vector2{static_cast<float>(px + 13), static_cast<float>(py + 10)}, Vector2{static_cast<float>(px + 16), static_cast<float>(py + 2)}, Vector2{static_cast<float>(px + 20), static_cast<float>(py + 10)}, color);
+        DrawTriangle(Vector2{static_cast<float>(px + 18), static_cast<float>(py + 12)}, Vector2{static_cast<float>(px + 23), static_cast<float>(py + 4)}, Vector2{static_cast<float>(px + 26), static_cast<float>(py + 13)}, color);
+        DrawCircle(px + 16, py + 17, 3.0f, Color{246, 210, 255, 255});
+        DrawLine(px + 16, py + 20, px + 16, py + 28, color);
+        break;
+    }
+
+    if (entity.pressureSpawn) {
+        DrawRectangleLines(px + 2, py + 2, kTilePixels - 4, kTilePixels - 4, Color{255, 114, 74, 220});
+        DrawCircle(px + 25, py + 7, 2.5f, Color{255, 188, 92, 235});
+    }
+    drawEntityHpBar(entity, px, py);
+}
+
+void drawTutorialWorldLabel(int tileX, int tileY, const std::string& text, Color color)
+{
+    const int x = tileX * kTilePixels;
+    const int y = tileY * kTilePixels;
+    const int width = MeasureText(text.c_str(), 10) + 8;
+    DrawRectangle(x, y, width, 15, Color{12, 15, 16, 210});
+    DrawRectangleLines(x, y, width, 15, color);
+    DrawText(text.c_str(), x + 4, y + 3, 10, Color{236, 242, 236, 255});
+}
+
+void drawTutorialWorldArea(Rectangle area, Color color)
+{
+    DrawRectangleRec(area, Color{color.r, color.g, color.b, 34});
+    DrawRectangleLinesEx(area, 2.0f, Color{color.r, color.g, color.b, 210});
+}
+
+bool shouldDrawTutorial(const thoth::game::Simulation& sim, const AppState& state)
+{
+    if (!state.tutorialVisible) {
+        return false;
+    }
+    if (state.tutorialManualOpen) {
+        return true;
+    }
+    using thoth::game::ItemId;
+    using thoth::game::MachineKind;
+    return itemCountInMachines(sim, MachineKind::Chest, ItemId::IronPlate) <= 0 &&
+        !sim.isRecipeUnlocked("fast_belt");
+}
+
+void drawTutorialStartArea(const thoth::game::Simulation& sim, const AppState& state)
+{
+    if (!shouldDrawTutorial(sim, state) || sim.player().z != 0) {
+        return;
+    }
+
+    drawTutorialWorldArea(Rectangle{-5.0f * kTilePixels, -3.0f * kTilePixels, 3.0f * kTilePixels, 7.0f * kTilePixels}, Color{96, 214, 126, 255});
+    drawTutorialWorldArea(Rectangle{-2.0f * kTilePixels, 4.0f * kTilePixels, 6.0f * kTilePixels, 1.0f * kTilePixels}, Color{166, 174, 170, 255});
+    drawTutorialWorldArea(Rectangle{4.0f * kTilePixels, -2.0f * kTilePixels, 1.0f * kTilePixels, 5.0f * kTilePixels}, Color{220, 156, 104, 255});
+    drawTutorialWorldArea(Rectangle{6.0f * kTilePixels, -2.0f * kTilePixels, 1.0f * kTilePixels, 5.0f * kTilePixels}, Color{86, 90, 94, 255});
+    drawTutorialWorldArea(Rectangle{8.0f * kTilePixels, -2.0f * kTilePixels, 1.0f * kTilePixels, 5.0f * kTilePixels}, Color{224, 130, 78, 255});
+    drawTutorialWorldArea(Rectangle{-0.5f * kTilePixels, -0.5f * kTilePixels, 2.0f * kTilePixels, 2.0f * kTilePixels}, Color{246, 220, 118, 255});
+
+    drawTutorialWorldLabel(-5, -4, "trees: Space", Color{96, 214, 126, 255});
+    drawTutorialWorldLabel(-2, 5, "stone", Color{166, 174, 170, 255});
+    drawTutorialWorldLabel(4, -3, "iron line", Color{220, 156, 104, 255});
+    drawTutorialWorldLabel(6, 3, "coal fuel", Color{86, 90, 94, 255});
+    drawTutorialWorldLabel(8, -3, "copper later", Color{224, 130, 78, 255});
+    drawTutorialWorldLabel(0, -1, "spawn", Color{246, 220, 118, 255});
 }
 
 void drawWorld(thoth::game::Simulation& sim, const AppState& state)
@@ -2462,6 +2696,8 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
             drawResourceRichnessPips(tile, x, y);
         }
     }
+
+    drawTutorialStartArea(sim, state);
 
     const float playerDrawX = state.renderPlayerReady ? state.renderPlayerX : static_cast<float>(player.x);
     const float playerDrawY = state.renderPlayerReady ? state.renderPlayerY : static_cast<float>(player.y);
@@ -3265,11 +3501,56 @@ void drawHotbar(const thoth::game::Simulation& sim)
     }
 }
 
+void drawTutorialPanel(const thoth::game::Simulation& sim)
+{
+    std::vector<std::string> lines;
+    appendWrapped(lines, "Starter area: trees west, stone south, coal and ore east.", 46);
+    appendWrapped(lines, tutorialNextStepText(sim), 46);
+    appendWrapped(lines, "Move WASD. Space mines. Q opens build. P places. E deposits. F1 hides this.", 46);
+    const auto checklist = firstLineChecklist(sim);
+    lines.insert(lines.end(), checklist.begin(), checklist.end());
+    drawPanel(12, 12, 430, "Tutorial", lines);
+}
+
+void drawAchievementPanel(const thoth::game::Simulation& sim)
+{
+    const auto progress = sim.achievementProgress();
+    std::vector<std::string> lines;
+    lines.push_back("unlocked " + std::to_string(sim.unlockedAchievementCount()) + "/" +
+        std::to_string(progress.size()));
+
+    int shown = 0;
+    for (const auto& achievement : progress) {
+        if (achievement.unlocked) {
+            continue;
+        }
+        lines.push_back(achievement.title + " " +
+            std::to_string(std::min(achievement.current, achievement.required)) + "/" +
+            std::to_string(achievement.required));
+        ++shown;
+        if (shown >= 3) {
+            break;
+        }
+    }
+    if (shown == 0 && !progress.empty()) {
+        lines.push_back("all tracked achievements complete");
+    }
+
+    drawPanel(846, 12, 422, "Achievements", lines);
+}
+
 void drawHud(const thoth::game::Simulation& sim, const AppState& state)
 {
     drawInventoryPanel(sim, state);
 
     drawCraftMenu(sim, state);
+
+    if (!state.debug) {
+        if (shouldDrawTutorial(sim, state)) {
+            drawTutorialPanel(sim);
+        }
+        drawAchievementPanel(sim);
+    }
 
     if (state.debug) {
         const auto& player = sim.player();

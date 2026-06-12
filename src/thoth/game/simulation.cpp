@@ -63,6 +63,38 @@ constexpr std::array<BiomeKind, 6> kScoutBiomes{{
     BiomeKind::Rift,
 }};
 
+struct AchievementDef {
+    AchievementId id = AchievementId::FirstIronPlate;
+    std::string_view key;
+    std::string_view title;
+    std::string_view description;
+    int required = 1;
+};
+
+constexpr std::array<AchievementDef, 10> kAchievementDefs{{
+    {AchievementId::FirstIronPlate, "first_iron_plate", "First Plate", "Produce an iron plate", 1},
+    {AchievementId::FirstSciencePack, "first_science_pack", "Lab Sample", "Produce a science pack", 1},
+    {AchievementId::LogisticsOne, "logistics_one", "Logistics Online", "Complete Logistics 1 research", 1},
+    {AchievementId::FirstCreatureDefeated, "first_creature_defeated", "Perimeter Secured", "Defeat a creature", 1},
+    {AchievementId::FirstBossDefeated, "first_boss_defeated", "Lair Breaker", "Defeat a lair boss", 1},
+    {AchievementId::FirstPressureReward, "first_pressure_reward", "Pressure Harvest", "Claim a pressure wave reward", 1},
+    {AchievementId::FirstRiftJump, "first_rift_jump", "Through the Rift", "Open a rift jump", 1},
+    {AchievementId::FirstOutpost, "first_outpost", "Signal Outpost", "Activate an outpost beacon", 1},
+    {AchievementId::FirstScoutDispatch, "first_scout_dispatch", "Scout Launched", "Dispatch a logistic scout", 1},
+    {AchievementId::ScoutRecovery, "scout_recovery", "Field Sample", "Recover material through scouting", 1},
+}};
+
+const AchievementDef* achievementDef(AchievementId id)
+{
+    const auto found = std::find_if(
+        kAchievementDefs.begin(),
+        kAchievementDefs.end(),
+        [id](const AchievementDef& def) {
+            return def.id == id;
+        });
+    return found == kAchievementDefs.end() ? nullptr : &*found;
+}
+
 int absInt(int value)
 {
     return value < 0 ? -value : value;
@@ -829,6 +861,33 @@ std::string_view toString(CircuitComparator comparator)
     return "always";
 }
 
+std::string_view toString(AchievementId id)
+{
+    switch (id) {
+    case AchievementId::FirstIronPlate:
+        return "first_iron_plate";
+    case AchievementId::FirstSciencePack:
+        return "first_science_pack";
+    case AchievementId::LogisticsOne:
+        return "logistics_one";
+    case AchievementId::FirstCreatureDefeated:
+        return "first_creature_defeated";
+    case AchievementId::FirstBossDefeated:
+        return "first_boss_defeated";
+    case AchievementId::FirstPressureReward:
+        return "first_pressure_reward";
+    case AchievementId::FirstRiftJump:
+        return "first_rift_jump";
+    case AchievementId::FirstOutpost:
+        return "first_outpost";
+    case AchievementId::FirstScoutDispatch:
+        return "first_scout_dispatch";
+    case AchievementId::ScoutRecovery:
+        return "scout_recovery";
+    }
+    return "first_iron_plate";
+}
+
 CircuitComparator circuitComparatorFromKey(std::string_view key)
 {
     if (key == "less_than") {
@@ -838,6 +897,41 @@ CircuitComparator circuitComparatorFromKey(std::string_view key)
         return CircuitComparator::GreaterOrEqual;
     }
     return CircuitComparator::Always;
+}
+
+std::optional<AchievementId> achievementIdFromKey(std::string_view key)
+{
+    if (key == "first_iron_plate") {
+        return AchievementId::FirstIronPlate;
+    }
+    if (key == "first_science_pack") {
+        return AchievementId::FirstSciencePack;
+    }
+    if (key == "logistics_one") {
+        return AchievementId::LogisticsOne;
+    }
+    if (key == "first_creature_defeated") {
+        return AchievementId::FirstCreatureDefeated;
+    }
+    if (key == "first_boss_defeated") {
+        return AchievementId::FirstBossDefeated;
+    }
+    if (key == "first_pressure_reward") {
+        return AchievementId::FirstPressureReward;
+    }
+    if (key == "first_rift_jump") {
+        return AchievementId::FirstRiftJump;
+    }
+    if (key == "first_outpost") {
+        return AchievementId::FirstOutpost;
+    }
+    if (key == "first_scout_dispatch") {
+        return AchievementId::FirstScoutDispatch;
+    }
+    if (key == "scout_recovery") {
+        return AchievementId::ScoutRecovery;
+    }
+    return std::nullopt;
 }
 
 Simulation::Simulation(std::uint64_t seed)
@@ -864,6 +958,7 @@ void Simulation::step()
     }
     updateMachines();
     updateEntities();
+    updateAchievements();
     ++tick_;
 }
 
@@ -1012,6 +1107,33 @@ const std::vector<LogisticJob>& Simulation::logisticJobs() const
 const ProductionTotals& Simulation::productionTotals() const
 {
     return productionTotals_;
+}
+
+std::vector<AchievementProgress> Simulation::achievementProgress() const
+{
+    std::vector<AchievementProgress> progress;
+    progress.reserve(kAchievementDefs.size());
+    for (const auto& def : kAchievementDefs) {
+        progress.push_back(AchievementProgress{
+            def.id,
+            std::string(def.key),
+            std::string(def.title),
+            std::string(def.description),
+            achievementCurrent(def.id),
+            def.required,
+            isAchievementUnlocked(def.id)});
+    }
+    return progress;
+}
+
+const std::vector<AchievementId>& Simulation::unlockedAchievements() const
+{
+    return unlockedAchievements_;
+}
+
+int Simulation::unlockedAchievementCount() const
+{
+    return static_cast<int>(unlockedAchievements_.size());
 }
 
 bool Simulation::canCraft(std::string_view recipeKey) const
@@ -2145,6 +2267,7 @@ SimulationSnapshot Simulation::snapshot() const
     result.researchProgress = researchProgress_;
     result.completedTechs = completedTechs_;
     result.unlockedRecipes = unlockedRecipes_;
+    result.unlockedAchievements = unlockedAchievements_;
     return result;
 }
 
@@ -2197,6 +2320,12 @@ void Simulation::restore(const SimulationSnapshot& snapshot)
     riftStorm_.cooldownTicks = std::max(0, riftStorm_.cooldownTicks);
     completedTechs_ = snapshot.completedTechs;
     unlockedRecipes_ = snapshot.unlockedRecipes;
+    unlockedAchievements_.clear();
+    for (const auto achievement : snapshot.unlockedAchievements) {
+        if (achievementDef(achievement) != nullptr && !isAchievementUnlocked(achievement)) {
+            unlockedAchievements_.push_back(achievement);
+        }
+    }
     activeTech_ = snapshot.activeTech.empty() ? nextIncompleteTech() : snapshot.activeTech;
     if (techDef(activeTech_) == nullptr || isTechCompleted(activeTech_)) {
         activeTech_ = nextIncompleteTech();
@@ -4881,6 +5010,48 @@ int Simulation::playerAttackDamage(const Entity& entity) const
         return 1;
     }
     return 2;
+}
+
+int Simulation::achievementCurrent(AchievementId id) const
+{
+    switch (id) {
+    case AchievementId::FirstIronPlate:
+        return productionTotals_.ironPlates;
+    case AchievementId::FirstSciencePack:
+        return productionTotals_.sciencePacks;
+    case AchievementId::LogisticsOne:
+        return isTechCompleted("logistics_1") ? 1 : 0;
+    case AchievementId::FirstCreatureDefeated:
+        return productionTotals_.creaturesDefeated;
+    case AchievementId::FirstBossDefeated:
+        return productionTotals_.bossesDefeated;
+    case AchievementId::FirstPressureReward:
+        return productionTotals_.pressureWaveRewardsClaimed;
+    case AchievementId::FirstRiftJump:
+        return productionTotals_.riftJumps;
+    case AchievementId::FirstOutpost:
+        return productionTotals_.outpostsActivated;
+    case AchievementId::FirstScoutDispatch:
+        return productionTotals_.scoutDispatches;
+    case AchievementId::ScoutRecovery:
+        return productionTotals_.scoutMaterialsRecovered;
+    }
+    return 0;
+}
+
+bool Simulation::isAchievementUnlocked(AchievementId id) const
+{
+    return std::find(unlockedAchievements_.begin(), unlockedAchievements_.end(), id) != unlockedAchievements_.end();
+}
+
+void Simulation::updateAchievements()
+{
+    for (const auto& def : kAchievementDefs) {
+        if (isAchievementUnlocked(def.id) || achievementCurrent(def.id) < def.required) {
+            continue;
+        }
+        unlockedAchievements_.push_back(def.id);
+    }
 }
 
 ItemId Simulation::entityDrop(EntityKind kind) const

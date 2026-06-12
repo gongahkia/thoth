@@ -180,7 +180,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 19\n";
+    output << "THOTH_SAVE 20\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -289,6 +289,11 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
            << snapshot.riftStorm.ticksRemaining << ' '
            << snapshot.riftStorm.cooldownTicks << "\n";
 
+    output << "achievements " << snapshot.unlockedAchievements.size() << "\n";
+    for (const auto achievement : snapshot.unlockedAchievements) {
+        output << "achievement " << toString(achievement) << "\n";
+    }
+
     return true;
 }
 
@@ -305,7 +310,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 19)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 20)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -759,6 +764,33 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
             !readValue(input, snapshot.riftStorm.ticksRemaining, "rift storm ticks remaining", error) ||
             !readValue(input, snapshot.riftStorm.cooldownTicks, "rift storm cooldown", error)) {
             return std::nullopt;
+        }
+    }
+
+    if (version >= 20) {
+        std::size_t achievementCount = 0;
+        if (!expectToken(input, "achievements", error) ||
+            !readValue(input, achievementCount, "achievement count", error)) {
+            return std::nullopt;
+        }
+        snapshot.unlockedAchievements.clear();
+        for (std::size_t i = 0; i < achievementCount; ++i) {
+            std::string key;
+            if (!expectToken(input, "achievement", error) ||
+                !readValue(input, key, "achievement key", error)) {
+                return std::nullopt;
+            }
+            const auto parsedAchievement = achievementIdFromKey(key);
+            if (!parsedAchievement) {
+                setError(error, "invalid achievement");
+                return std::nullopt;
+            }
+            if (std::find(
+                    snapshot.unlockedAchievements.begin(),
+                    snapshot.unlockedAchievements.end(),
+                    *parsedAchievement) == snapshot.unlockedAchievements.end()) {
+                snapshot.unlockedAchievements.push_back(*parsedAchievement);
+            }
         }
     }
 

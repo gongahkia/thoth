@@ -197,6 +197,29 @@ struct PressureEventCard {
     std::string counterplay;
 };
 
+enum class AchievementId : std::uint8_t {
+    FirstIronPlate,
+    FirstSciencePack,
+    LogisticsOne,
+    FirstCreatureDefeated,
+    FirstBossDefeated,
+    FirstPressureReward,
+    FirstRiftJump,
+    FirstOutpost,
+    FirstScoutDispatch,
+    ScoutRecovery,
+};
+
+struct AchievementProgress {
+    AchievementId id = AchievementId::FirstIronPlate;
+    std::string key;
+    std::string title;
+    std::string description;
+    int current = 0;
+    int required = 1;
+    bool unlocked = false;
+};
+
 enum class EntityKind : std::uint8_t {
     Deer,
     Chicken,
@@ -305,6 +328,7 @@ struct SimulationSnapshot {
     int researchProgress = 0;
     std::vector<std::string> completedTechs;
     std::vector<std::string> unlockedRecipes;
+    std::vector<AchievementId> unlockedAchievements;
 };
 
 class Simulation {
@@ -377,6 +401,9 @@ public:
     [[nodiscard]] std::string objectiveMarkerText() const;
     [[nodiscard]] std::string milestoneText() const;
     [[nodiscard]] std::string playtestTelemetryText() const;
+    [[nodiscard]] std::vector<AchievementProgress> achievementProgress() const;
+    [[nodiscard]] const std::vector<AchievementId>& unlockedAchievements() const;
+    [[nodiscard]] int unlockedAchievementCount() const;
     [[nodiscard]] bool isMachinePowered(std::uint32_t machineId) const;
     [[nodiscard]] SimulationSnapshot snapshot() const;
     void restore(const SimulationSnapshot& snapshot);
@@ -433,6 +460,7 @@ private:
     void updateRiftStorms();
     void updateBiomeHazards();
     void updateBossPhases();
+    void updateAchievements();
     void startRiftStorm(int severity);
     [[nodiscard]] int currentRiftStormSeverity() const;
     [[nodiscard]] int riftStormChargeBonus(const Machine& machine) const;
@@ -479,6 +507,8 @@ private:
     [[nodiscard]] bool isWaterTile(TileId id) const;
     [[nodiscard]] bool isHostile(EntityKind kind) const;
     [[nodiscard]] int playerAttackDamage(const Entity& entity) const;
+    [[nodiscard]] int achievementCurrent(AchievementId id) const;
+    [[nodiscard]] bool isAchievementUnlocked(AchievementId id) const;
     [[nodiscard]] ItemId entityDrop(EntityKind kind) const;
     [[nodiscard]] int entityDropCount(EntityKind kind) const;
     [[nodiscard]] int entityMaxHp(EntityKind kind) const;
@@ -511,12 +541,15 @@ private:
     std::vector<LogisticJob> logisticJobs_;
     ProductionTotals productionTotals_;
     RiftStormState riftStorm_;
+    std::vector<AchievementId> unlockedAchievements_;
 };
 
 [[nodiscard]] int dx(Direction direction);
 [[nodiscard]] int dy(Direction direction);
 [[nodiscard]] std::string_view toString(MachineStatus status);
 [[nodiscard]] std::string_view toString(CircuitComparator comparator);
+[[nodiscard]] std::string_view toString(AchievementId id);
 [[nodiscard]] CircuitComparator circuitComparatorFromKey(std::string_view key);
+[[nodiscard]] std::optional<AchievementId> achievementIdFromKey(std::string_view key);
 
 } // namespace thoth::game
