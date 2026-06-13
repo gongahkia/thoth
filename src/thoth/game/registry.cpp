@@ -195,7 +195,7 @@ const std::vector<RecipeDef> kRecipes = {
     {"circuit_board", {ItemStack{ItemId::IronPlate, 1}, ItemStack{ItemId::CopperPlate, 2}}, ItemStack{ItemId::CircuitBoard, 1}, 50, "assembler", false},
     {"advanced_science_pack", {ItemStack{ItemId::SciencePack, 1}, ItemStack{ItemId::CircuitBoard, 1}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::AdvancedSciencePack, 1}, 60, "assembler", false},
     {"crystal_lens", {ItemStack{ItemId::Crystal, 1}, ItemStack{ItemId::SandGlass, 1}, ItemStack{ItemId::CoralShard, 1}}, ItemStack{ItemId::AdvancedSciencePack, 1}, 80, "assembler", false},
-    {"basalt_circuit_board", {ItemStack{ItemId::CopperPlate, 1}, ItemStack{ItemId::Basalt, 1}, ItemStack{ItemId::Crystal, 1}}, ItemStack{ItemId::CircuitBoard, 2}, 70, "assembler", true},
+    {"basalt_circuit_board", {ItemStack{ItemId::CopperPlate, 1}, ItemStack{ItemId::Basalt, 1}, ItemStack{ItemId::Crystal, 1}}, ItemStack{ItemId::CircuitBoard, 1}, 70, "assembler", true},
     {"circuit_inserter", {ItemStack{ItemId::Inserter, 1}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::CircuitInserter, 1}, 35, "workbench", false},
     {"provider_chest", {ItemStack{ItemId::Chest, 1}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::ProviderChest, 1}, 35, "workbench", false},
     {"requester_chest", {ItemStack{ItemId::Chest, 1}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::RequesterChest, 1}, 35, "workbench", false},
@@ -215,7 +215,7 @@ const std::vector<RecipeDef> kRecipes = {
     {"pressure_relay", {ItemStack{ItemId::CircuitBoard, 3}, ItemStack{ItemId::AdvancedSciencePack, 2}, ItemStack{ItemId::GlassHeart, 1}}, ItemStack{ItemId::PressureRelay, 1}, 100, "workbench", false},
     {"arc_tower", {ItemStack{ItemId::GuardTower, 1}, ItemStack{ItemId::CircuitBoard, 3}, ItemStack{ItemId::FrostCore, 1}}, ItemStack{ItemId::ArcTower, 1}, 100, "workbench", false},
     {"dry_copper_plate", {ItemStack{ItemId::CopperOre, 1}, ItemStack{ItemId::CactusFiber, 1}}, ItemStack{ItemId::CopperPlate, 1}, 80, "furnace", true},
-    {"washed_iron_plate", {ItemStack{ItemId::IronOre, 1}, ItemStack{ItemId::WaterBarrel, 1}}, ItemStack{ItemId::IronPlate, 2}, 55, "furnace", true},
+    {"washed_iron_plate", {ItemStack{ItemId::IronOre, 1}, ItemStack{ItemId::WaterBarrel, 1}}, ItemStack{ItemId::IronPlate, 1}, 55, "furnace", true},
 };
 
 const std::vector<TechDef> kTechs = {

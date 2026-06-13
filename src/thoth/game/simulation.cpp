@@ -653,11 +653,42 @@ void depleteResourceTile(World& world, int x, int y, int z)
 ItemId furnaceInputItem(const RecipeDef& recipe)
 {
     for (const auto& input : recipe.inputs) {
-        if (input.item != ItemId::Coal) {
+        if (input.item != ItemId::Coal && input.item != ItemId::WaterBarrel && input.item != ItemId::CactusFiber) {
             return input.item;
         }
     }
     return ItemId::None;
+}
+
+bool furnaceRecipeNeedsFuel(const RecipeDef& recipe)
+{
+    return std::any_of(recipe.inputs.begin(), recipe.inputs.end(), [](const ItemStack& input) {
+        return input.item == ItemId::Coal;
+    });
+}
+
+bool furnaceHasNonFuelInputs(const Machine& machine, const RecipeDef& recipe)
+{
+    for (const auto& input : recipe.inputs) {
+        if (input.item == ItemId::Coal) {
+            continue;
+        }
+        if (!machine.inventory.canConsume(input.item, input.count)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void consumeFurnaceNonFuelInputs(Machine& machine, const RecipeDef& recipe)
+{
+    for (const auto& input : recipe.inputs) {
+        if (input.item == ItemId::Coal) {
+            continue;
+        }
+        const auto consumed = machine.inventory.consume(input.item, input.count);
+        (void)consumed;
+    }
 }
 
 const RecipeDef* furnaceRecipeForInput(ItemId item)
@@ -1657,6 +1688,106 @@ std::string Simulation::pressureEventDeckText() const
         rewards;
 }
 
+int Simulation::pressureMitigationAt(int x, int y, int z) const
+{
+    int mitigation = 0;
+    for (const auto& machine : machines_) {
+        if (machine.z != z || machine.kind != MachineKind::PressureRelay) {
+            continue;
+        }
+        const int distance = manhattanDistance(x, y, z, machine.x, machine.y, machine.z);
+        if (distance > 8) {
+            continue;
+        }
+        mitigation += machine.socketedRelic == ItemId::GlassHeart ? 32 : 20;
+    }
+    return mitigation;
+}
+
+int Simulation::localPressureAt(int x, int y, int z) const
+{
+    int pressure = 0;
+    for (const auto& machine : machines_) {
+        if (machine.z != z) {
+            continue;
+        }
+        const int weight = machinePressureWeight(machine);
+        if (weight <= 0) {
+            continue;
+        }
+        const int distance = manhattanDistance(x, y, z, machine.x, machine.y, machine.z);
+        if (distance > 18) {
+            continue;
+        }
+        pressure += std::max(0, weight - distance);
+    }
+    pressure += std::max(0, factoryPressureLevel() / 8);
+    pressure -= pressureMitigationAt(x, y, z);
+    if (stableOutpostRouteCount() >= 3) {
+        pressure -= 12;
+    }
+    return std::max(0, pressure);
+}
+
+std::vector<PressureHotspot> Simulation::pressureHotspots() const
+{
+    std::vector<PressureHotspot> hotspots;
+    hotspots.reserve(5);
+    for (const auto& machine : machines_) {
+        if (machine.z != player_.z || machinePressureWeight(machine) <= 0) {
+            continue;
+        }
+        const int pressure = localPressureAt(machine.x, machine.y, machine.z);
+        if (pressure <= 0) {
+            continue;
+        }
+        hotspots.push_back(PressureHotspot{
+            machine.x,
+            machine.y,
+            machine.z,
+            pressure,
+            pressureMitigationAt(machine.x, machine.y, machine.z),
+            false});
+    }
+    std::sort(hotspots.begin(), hotspots.end(), [](const PressureHotspot& left, const PressureHotspot& right) {
+        if (left.pressure == right.pressure) {
+            if (left.y == right.y) {
+                return left.x < right.x;
+            }
+            return left.y < right.y;
+        }
+        return left.pressure > right.pressure;
+    });
+    if (hotspots.size() > 5) {
+        hotspots.resize(5);
+    }
+    if (!hotspots.empty()) {
+        hotspots.front().nextWaveAnchor = true;
+    }
+    return hotspots;
+}
+
+PressureHotspot Simulation::nextPressureAnchor() const
+{
+    const auto hotspots = pressureHotspots();
+    if (!hotspots.empty()) {
+        return hotspots.front();
+    }
+    return PressureHotspot{player_.x, player_.y, player_.z, localPressureAt(player_.x, player_.y, player_.z), 0, true};
+}
+
+std::string Simulation::pressureMapText() const
+{
+    const auto anchor = nextPressureAnchor();
+    if (anchor.pressure <= 0 || ticksUntilNextPressureWave() < 0) {
+        return "pressure map: no active hotspot; pressure below wave threshold";
+    }
+    return "pressure map: hotspot x" + std::to_string(anchor.x) +
+        " y" + std::to_string(anchor.y) +
+        " local " + std::to_string(anchor.pressure) +
+        " mitigated " + std::to_string(anchor.mitigation);
+}
+
 const RiftStormState& Simulation::riftStorm() const
 {
     return riftStorm_;
@@ -1906,8 +2037,8 @@ std::vector<ExpeditionBoardEntry> Simulation::postVictoryExpeditionBoard() const
         3);
     addEntry(
         "outpost_network",
-        "Complete all outpost delivery routes",
-        completedOutpostDeliveryContracts(),
+        "Stabilize all sustained outpost delivery routes",
+        stableOutpostRouteCount(),
         static_cast<int>(outpostDeliveryProgress().size()));
     addEntry(
         "pressure_harvest",
@@ -1996,6 +2127,17 @@ std::vector<BiomeKind> Simulation::activatedOutpostBiomes() const
 bool Simulation::hasCompletedOutpostDeliveryBiome(BiomeKind biome) const
 {
     return hasBiomeMask(productionTotals_.outpostDeliveryBiomeMask, biome);
+}
+
+int Simulation::outpostRouteStability(BiomeKind biome) const
+{
+    const auto found = std::find_if(
+        outpostRoutes_.begin(),
+        outpostRoutes_.end(),
+        [biome](const OutpostRouteState& route) {
+            return route.biome == biome;
+        });
+    return found == outpostRoutes_.end() ? 0 : found->stability;
 }
 
 int Simulation::outpostDeliveryBiomeCount() const
@@ -2244,7 +2386,9 @@ std::vector<BiomeHazardState> Simulation::biomeHazards() const
              BiomeKind::Snowfield, BiomeKind::CrystalField, BiomeKind::Rift}) {
         hazards.push_back(biomeHazardFor(
             biome,
-            biomeHazardLevel(factoryPressureLevel(), hasActivatedOutpostBiome(biome))));
+            biomeHazardLevel(
+                factoryPressureLevel(),
+                hasActivatedOutpostBiome(biome) || outpostRouteStability(biome) >= kOutpostRouteStableThreshold)));
     }
     return hazards;
 }
@@ -2254,7 +2398,9 @@ std::string Simulation::currentBiomeHazardText() const
     const auto biome = world_.biomeAt(player_.x, player_.y, player_.z);
     const auto hazard = biomeHazardFor(
         biome,
-        biomeHazardLevel(factoryPressureLevel(), hasActivatedOutpostBiome(biome)));
+        biomeHazardLevel(
+            factoryPressureLevel(),
+            hasActivatedOutpostBiome(biome) || outpostRouteStability(biome) >= kOutpostRouteStableThreshold));
     if (hazard.level <= 0) {
         return "hazard: " + std::string(toString(biome)) + " stable; no active biome hazard";
     }
@@ -2325,6 +2471,143 @@ std::string Simulation::currentBossExamText() const
         }
     }
     return "boss exams complete: factory has proven fluid, glass, power, logistics, and rift readiness";
+}
+
+RegionInfo Simulation::regionInfoAt(int x, int y, int z) const
+{
+    constexpr int kRegionCellSize = 96;
+    const int originX = floorDiv(x, kRegionCellSize) * kRegionCellSize;
+    const int originY = floorDiv(y, kRegionCellSize) * kRegionCellSize;
+    const auto biome = world_.biomeAt(x, y, z);
+    const auto roll = thoth::core::hashCoordinates(world_.seed() ^ 0x726567696f6eULL, originX, originY);
+
+    const std::array<std::string_view, 6> grass{"Green", "Low", "Old", "Moss", "Quiet", "Stone"};
+    const std::array<std::string_view, 6> desert{"Glass", "Sun", "Dry", "Copper", "Cinder", "Dune"};
+    const std::array<std::string_view, 6> snow{"Cold", "White", "Frost", "Still", "Blue", "North"};
+    const std::array<std::string_view, 6> marsh{"Reed", "Mire", "Black", "Wet", "Root", "Fen"};
+    const std::array<std::string_view, 6> badlands{"Ash", "Basalt", "Rust", "Warden", "Iron", "Red"};
+    const std::array<std::string_view, 6> crystal{"Glass", "Bright", "Prism", "Null", "Shard", "Echo"};
+    const std::array<std::string_view, 6> rift{"Rift", "Outer", "Signal", "Void", "Crown", "Shear"};
+    const std::array<std::string_view, 8> nouns{"Basin", "Shelf", "Fen", "Reach", "Hollow", "Run", "Gate", "Field"};
+
+    const auto& adjectives = [&]() -> const std::array<std::string_view, 6>& {
+        switch (biome) {
+        case BiomeKind::Desert:
+            return desert;
+        case BiomeKind::Snowfield:
+            return snow;
+        case BiomeKind::Marsh:
+            return marsh;
+        case BiomeKind::Badlands:
+            return badlands;
+        case BiomeKind::CrystalField:
+            return crystal;
+        case BiomeKind::Rift:
+            return rift;
+        case BiomeKind::Grassland:
+            return grass;
+        }
+        return grass;
+    }();
+
+    const auto hazard = biomeHazardFor(
+        biome,
+        biomeHazardLevel(
+            factoryPressureLevel(),
+            hasActivatedOutpostBiome(biome) || outpostRouteStability(biome) >= kOutpostRouteStableThreshold));
+    std::string reward = std::string(toString(scoutRewardForBiome(biome))) + " and " +
+        std::string(toString(fragmentForBiome(biome)));
+    return RegionInfo{
+        originX,
+        originY,
+        z,
+        biome,
+        std::string(adjectives[static_cast<std::size_t>(roll % adjectives.size())]) + " " +
+            std::string(nouns[static_cast<std::size_t>((roll >> 12U) % nouns.size())]),
+        hazard.label,
+        reward,
+        world_.lairAt(x, y, z)};
+}
+
+std::vector<RegionInfo> Simulation::latestScoutReports() const
+{
+    std::vector<RegionInfo> reports;
+    for (const auto biome : kScoutBiomes) {
+        if (!hasScoutedBiome(biome)) {
+            continue;
+        }
+        switch (biome) {
+        case BiomeKind::Marsh:
+            reports.push_back(regionInfoAt(0, 18, 0));
+            break;
+        case BiomeKind::Desert:
+            reports.push_back(regionInfoAt(18, -2, 0));
+            break;
+        case BiomeKind::Badlands:
+            reports.push_back(regionInfoAt(36, 20, 0));
+            break;
+        case BiomeKind::Snowfield:
+            reports.push_back(regionInfoAt(-18, 0, 0));
+            break;
+        case BiomeKind::CrystalField:
+            reports.push_back(regionInfoAt(-36, 20, 0));
+            break;
+        case BiomeKind::Rift:
+            reports.push_back(regionInfoAt(kRiftOffset, 0, 0));
+            break;
+        case BiomeKind::Grassland:
+            break;
+        }
+    }
+    return reports;
+}
+
+std::string Simulation::regionText() const
+{
+    const auto region = regionInfoAt(player_.x, player_.y, player_.z);
+    std::string text = "region: " + region.name + " (" + std::string(toString(region.biome)) +
+        "); hazard " + region.hazard + "; likely " + region.reward;
+    if (region.lair) {
+        text += "; lair " + std::string(toString(*region.lair));
+    }
+    return text;
+}
+
+std::vector<ProductionRatePanel> Simulation::productionRatePanels() const
+{
+    const int minutes = std::max(1, static_cast<int>((tick_ + 3599U) / 3600U));
+    const auto rate = [minutes](int total) {
+        return total / minutes;
+    };
+    std::vector<ProductionRatePanel> panels;
+    const auto add = [&panels](std::string key, std::string label, int current, int target, std::string detail) {
+        panels.push_back(ProductionRatePanel{
+            std::move(key),
+            std::move(label),
+            current,
+            target,
+            current < target,
+            std::move(detail)});
+    };
+    add("iron_plate", "Iron/min", rate(productionTotals_.ironPlates), 3, currentSupplyContractText());
+    add("copper_plate", "Copper/min", rate(productionTotals_.copperPlates), 3, currentSupplyContractText());
+    add("science_pack", "Science/min", rate(productionTotals_.sciencePacks), 2, activeTech_.empty() ? "research complete" : "active tech " + activeTech_);
+    add("advanced_science", "Advanced science/min", rate(productionTotals_.advancedSciencePacks), isRecipeUnlocked("logistic_port") ? 1 : 0, milestoneText());
+    add("ammo", "Tower ammo/min", rate(totalItemCount(ItemId::StoneShot) + totalItemCount(ItemId::CopperCoil) + totalItemCount(ItemId::CrystalCharge)), 4, "feed guard and arc towers");
+    add("outpost_routes", "Stable routes", stableOutpostRouteCount(), static_cast<int>(kRequiredOutpostBiomes.size()), outpostRouteText());
+    return panels;
+}
+
+std::string Simulation::productionRateText() const
+{
+    const auto panels = productionRatePanels();
+    for (const auto& panel : panels) {
+        if (panel.blocked && panel.targetPerMinute > 0) {
+            return "rates: " + panel.label + " " + std::to_string(panel.currentPerMinute) +
+                "/" + std::to_string(panel.targetPerMinute) + "; " + panel.detail;
+        }
+    }
+    return "rates: tracked production meets current targets";
 }
 
 std::string Simulation::currentDemoGoalText() const
@@ -3257,10 +3540,31 @@ void Simulation::interact(Direction direction)
         return;
     }
 
+    if (tile.id == TileId::LairHearth) {
+        if (tile.data <= 0) {
+            const auto activationItem = outpostActivationItem(world_.biomeAt(tx, ty, player_.z));
+            if (!consumeItem(activationItem, 1)) {
+                return;
+            }
+            tile.data = 1;
+            world_.setTile(tx, ty, player_.z, tile);
+        }
+        player_.hp = 20;
+        return;
+    }
+
+    if (tile.id == TileId::RecoveryCrate) {
+        addItem(ItemId::Scrap, 2);
+        addItem(fragmentForBiome(world_.biomeAt(tx, ty, player_.z)), 1);
+        world_.setTile(tx, ty, player_.z, Tile{TileId::DungeonFloor, 0});
+        return;
+    }
+
     if (player_.z < 0 && world_.lairAt(tx, ty, player_.z).has_value()) {
         const auto reward = resourceTileOutput(tile.id);
         if (reward != ItemId::None) {
             addItem(reward, std::max(2, tile.data + 1));
+            addItem(fragmentForBiome(world_.biomeAt(tx, ty, player_.z)), 1);
             world_.setTile(tx, ty, player_.z, Tile{TileId::DungeonFloor, 0});
             ++productionTotals_.dungeonChestsOpened;
             return;
@@ -4022,19 +4326,19 @@ void Simulation::updateFurnaces()
                 machine.status = MachineStatus::MissingInput;
                 continue;
             }
-            const auto input = furnaceInputItem(*recipe);
-            if (input == ItemId::None || !machine.inventory.canConsume(input, 1)) {
+            if (!furnaceHasNonFuelInputs(machine, *recipe)) {
                 machine.status = MachineStatus::MissingInput;
                 continue;
             }
-            if (!refuel(machine)) {
+            if (furnaceRecipeNeedsFuel(*recipe) && !refuel(machine)) {
                 machine.status = MachineStatus::MissingFuel;
                 continue;
             }
-            const auto consumedOre = machine.inventory.consume(input, 1);
-            (void)consumedOre;
+            consumeFurnaceNonFuelInputs(machine, *recipe);
             machine.recipeKey = std::string(recipe->key);
-        } else if (!refuel(machine)) {
+        } else if (selectedFurnaceRecipe(machine) != nullptr &&
+            furnaceRecipeNeedsFuel(*selectedFurnaceRecipe(machine)) &&
+            !refuel(machine)) {
             machine.status = MachineStatus::MissingFuel;
             continue;
         }
@@ -4045,7 +4349,9 @@ void Simulation::updateFurnaces()
             machine.status = MachineStatus::MissingInput;
             continue;
         }
-        --machine.fuelTicks;
+        if (furnaceRecipeNeedsFuel(*activeRecipe)) {
+            --machine.fuelTicks;
+        }
         machine.progress = std::min(machine.progress + 1, kFurnaceTicks);
         machine.status = MachineStatus::Working;
         if (machine.progress >= kFurnaceTicks) {
@@ -4469,10 +4775,15 @@ void Simulation::updateScoutAutomation(const std::vector<std::uint32_t>& powered
         if (hasActivatedOutpostBiome(biome)) {
             ++recovered;
         }
+        if (outpostRouteStability(biome) >= kOutpostRouteStableThreshold) {
+            ++recovered;
+        }
         if (!port->inventory.add(port->carriedItem, recovered)) {
             port->status = MachineStatus::OutputBlocked;
             continue;
         }
+        const auto addedFragment = port->inventory.add(fragmentForBiome(biome), 1);
+        (void)addedFragment;
         productionTotals_.scoutedBiomeMask |= biomeMask(biome);
         ++productionTotals_.scoutDispatches;
         productionTotals_.scoutMaterialsRecovered += recovered;
@@ -4642,6 +4953,21 @@ void Simulation::updateRiftGates()
 
 void Simulation::updateOutpostBeacons()
 {
+    for (auto& route : outpostRoutes_) {
+        if (route.windowStartTick == 0) {
+            route.windowStartTick = tick_;
+        }
+        if (tick_ >= route.windowStartTick + kOutpostRouteWindowTicks) {
+            if (route.deliveredInWindow >= route.requiredPerWindow) {
+                route.stability = std::min(kOutpostRouteStableThreshold, route.stability + 1);
+            } else if (route.stability > 0) {
+                --route.stability;
+            }
+            route.deliveredInWindow = 0;
+            route.windowStartTick = tick_;
+        }
+    }
+
     for (auto& machine : machines_) {
         if (machine.kind != MachineKind::OutpostBeacon) {
             continue;
@@ -4665,8 +4991,32 @@ void Simulation::updateOutpostBeacons()
             }
             const auto delivered = machine.inventory.consume(deliveryItem, 1);
             (void)delivered;
+            const auto biome = world_.biomeAt(machine.x, machine.y, machine.z);
             ++productionTotals_.outpostDeliveries;
-            productionTotals_.outpostDeliveryBiomeMask |= biomeMask(world_.biomeAt(machine.x, machine.y, machine.z));
+            productionTotals_.outpostDeliveryBiomeMask |= biomeMask(biome);
+            auto route = std::find_if(
+                outpostRoutes_.begin(),
+                outpostRoutes_.end(),
+                [biome](const OutpostRouteState& candidate) {
+                    return candidate.biome == biome;
+                });
+            if (route == outpostRoutes_.end()) {
+                outpostRoutes_.push_back(OutpostRouteState{
+                    biome,
+                    0,
+                    2,
+                    0,
+                    tick_,
+                    0});
+                route = outpostRoutes_.end() - 1;
+            }
+            ++route->deliveredInWindow;
+            route->lastDeliveryTick = tick_;
+            if (route->deliveredInWindow >= route->requiredPerWindow) {
+                route->stability = std::min(kOutpostRouteStableThreshold, route->stability + 1);
+                route->deliveredInWindow = 0;
+                route->windowStartTick = tick_;
+            }
             machine.progress = kOutpostBeaconTicks;
             machine.status = MachineStatus::Idle;
             continue;
@@ -4722,19 +5072,24 @@ void Simulation::updateGuardTowers()
             continue;
         }
 
-        const int goalTicks = machine.socketedRelic == ItemId::WardenCore ? 35 : kGuardTowerTicks;
+        if (machine.progress == 0 && machine.carriedItem == ItemId::None) {
+            machine.carriedItem = towerAmmo(machine);
+        }
+        const auto loadedAmmo = machine.carriedItem;
+        const int goalTicks = towerGoalTicksForAmmo(machine.kind, loadedAmmo, machine.socketedRelic);
         machine.progress = std::min(machine.progress + 1, goalTicks);
         machine.status = MachineStatus::Working;
         if (machine.progress < goalTicks) {
             continue;
         }
 
-        int damage = entities_[targetIndex].kind == EntityKind::BadlandsWarden ? 1 : 2;
-        if (machine.socketedRelic == ItemId::WardenCore) {
-            ++damage;
-        }
+        int damage = towerDamageForAmmo(machine.kind, loadedAmmo, entities_[targetIndex].kind);
         entities_[targetIndex].hp -= damage;
+        if (ammoSlowsTarget(loadedAmmo)) {
+            entities_[targetIndex].cooldown += 30;
+        }
         machine.progress = 0;
+        machine.carriedItem = ItemId::None;
         if (entities_[targetIndex].hp <= 0) {
             defeatEntity(targetIndex);
         }
@@ -4773,15 +5128,23 @@ void Simulation::updateArcTowers()
             continue;
         }
 
-        const int goalTicks = machine.socketedRelic == ItemId::FrostCore ? 20 : kArcTowerTicks;
+        if (machine.progress == 0 && machine.carriedItem == ItemId::None) {
+            machine.carriedItem = towerAmmo(machine);
+        }
+        const auto loadedAmmo = machine.carriedItem;
+        const int goalTicks = towerGoalTicksForAmmo(machine.kind, loadedAmmo, machine.socketedRelic);
         machine.progress = std::min(machine.progress + 1, goalTicks);
         machine.status = MachineStatus::Working;
         if (machine.progress < goalTicks) {
             continue;
         }
 
-        entities_[targetIndex].hp -= machine.socketedRelic == ItemId::FrostCore ? 5 : 4;
+        entities_[targetIndex].hp -= towerDamageForAmmo(machine.kind, loadedAmmo, entities_[targetIndex].kind);
+        if (ammoSlowsTarget(loadedAmmo)) {
+            entities_[targetIndex].cooldown += 30;
+        }
         machine.progress = 0;
+        machine.carriedItem = ItemId::None;
         if (entities_[targetIndex].hp <= 0) {
             defeatEntity(targetIndex);
         }
@@ -5069,7 +5432,9 @@ void Simulation::updateBiomeHazards()
     std::vector<std::uint32_t> destroyedMachineIds;
     for (auto& machine : machines_) {
         const auto biome = world_.biomeAt(machine.x, machine.y, machine.z);
-        const int level = biomeHazardLevel(pressure, hasActivatedOutpostBiome(biome));
+        const int level = biomeHazardLevel(
+            pressure,
+            hasActivatedOutpostBiome(biome) || outpostRouteStability(biome) >= kOutpostRouteStableThreshold);
 
         if (biome == BiomeKind::Marsh) {
             const int cadence = hazardCadence(kMarshRotBaseTicks, level);
@@ -5328,7 +5693,7 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
         }
         if (machine.recipeLocked && !machine.recipeKey.empty()) {
             const auto* recipe = recipeDef(machine.recipeKey);
-            if (recipe == nullptr || recipe->station != "furnace" || furnaceInputItem(*recipe) != item) {
+            if (recipe == nullptr || recipe->station != "furnace" || !isRecipeInput(machine.recipeKey, item)) {
                 return false;
             }
             return machine.inventory.add(item, 1);
@@ -5380,11 +5745,89 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
     case MachineKind::PowerPole:
     case MachineKind::ElectricMiner:
     case MachineKind::OffshorePump:
-    case MachineKind::GuardTower:
-    case MachineKind::ArcTower:
         return false;
+    case MachineKind::GuardTower:
+        return (item == ItemId::StoneShot || item == ItemId::CopperCoil || item == ItemId::FrostCell) &&
+            machine.inventory.add(item, 1);
+    case MachineKind::ArcTower:
+        return (item == ItemId::CrystalCharge || item == ItemId::RiftShell || item == ItemId::CopperCoil) &&
+            machine.inventory.add(item, 1);
     }
     return false;
+}
+
+ItemId towerAmmo(Machine& machine)
+{
+    if (machine.kind == MachineKind::GuardTower) {
+        for (const auto ammo : {ItemId::CopperCoil, ItemId::FrostCell, ItemId::StoneShot}) {
+            if (machine.inventory.consume(ammo, 1)) {
+                return ammo;
+            }
+        }
+        return ItemId::None;
+    }
+    if (machine.kind == MachineKind::ArcTower) {
+        for (const auto ammo : {ItemId::RiftShell, ItemId::CrystalCharge, ItemId::CopperCoil}) {
+            if (machine.inventory.consume(ammo, 1)) {
+                return ammo;
+            }
+        }
+        return ItemId::None;
+    }
+    return ItemId::None;
+}
+
+int towerDamageForAmmo(MachineKind kind, ItemId ammo, EntityKind target)
+{
+    if (kind == MachineKind::GuardTower) {
+        if (ammo == ItemId::CopperCoil) {
+            return target == EntityKind::GlassMaw ? 5 : 4;
+        }
+        if (ammo == ItemId::FrostCell) {
+            return 3;
+        }
+        if (ammo == ItemId::StoneShot) {
+            return 2;
+        }
+        return 1;
+    }
+    if (ammo == ItemId::RiftShell) {
+        return target == EntityKind::RiftStalker || target == EntityKind::RiftSignalTyrant ? 8 : 6;
+    }
+    if (ammo == ItemId::CrystalCharge) {
+        return 5;
+    }
+    if (ammo == ItemId::CopperCoil) {
+        return 3;
+    }
+    return 2;
+}
+
+int towerGoalTicksForAmmo(MachineKind kind, ItemId ammo, ItemId relic)
+{
+    if (kind == MachineKind::GuardTower) {
+        int ticks = ammo == ItemId::None ? 70 : kGuardTowerTicks;
+        if (ammo == ItemId::CopperCoil) {
+            ticks = 36;
+        }
+        if (relic == ItemId::WardenCore) {
+            ticks = std::max(24, ticks - 10);
+        }
+        return ticks;
+    }
+    int ticks = ammo == ItemId::None ? 45 : kArcTowerTicks;
+    if (ammo == ItemId::RiftShell) {
+        ticks = 22;
+    }
+    if (relic == ItemId::FrostCore) {
+        ticks = std::max(16, ticks - 8);
+    }
+    return ticks;
+}
+
+bool ammoSlowsTarget(ItemId ammo)
+{
+    return ammo == ItemId::FrostCell || ammo == ItemId::CrystalCharge;
 }
 
 ItemId Simulation::extractItemAt(int x, int y, ItemId filterItem)
@@ -6195,6 +6638,7 @@ void Simulation::defeatEntity(std::size_t entityIndex)
         kind == EntityKind::RiftSignalTyrant) {
         ++productionTotals_.bossesDefeated;
         ++productionTotals_.bossRelicsClaimed;
+        addItem(fragmentForBiome(world_.biomeAt(entities_[entityIndex].x, entities_[entityIndex].y, entities_[entityIndex].z)), 2);
     }
     ++productionTotals_.creaturesDefeated;
     entities_.erase(entities_.begin() + static_cast<std::ptrdiff_t>(entityIndex));
@@ -6550,35 +6994,9 @@ void Simulation::ensureFactoryPressureEntity()
         {-9, -4},
     }};
 
-    int anchorX = player_.x;
-    int anchorY = player_.y;
-    int anchorWeight = 0;
-    int weightedX = 0;
-    int weightedY = 0;
-    for (const auto& machine : machines_) {
-        if (machine.z != player_.z) {
-            continue;
-        }
-        int weight = 1;
-        if (machine.kind == MachineKind::Generator ||
-            machine.kind == MachineKind::PowerPole ||
-            machine.kind == MachineKind::Lab ||
-            machine.kind == MachineKind::Assembler ||
-            machine.kind == MachineKind::LogisticPort ||
-            machine.kind == MachineKind::ArchiveTerminal ||
-            machine.kind == MachineKind::RiftGate) {
-            weight = 3;
-        } else if (isPowerConsumer(machine.kind) || isActiveIndustrialMachine(machine)) {
-            weight = 2;
-        }
-        weightedX += machine.x * weight;
-        weightedY += machine.y * weight;
-        anchorWeight += weight;
-    }
-    if (anchorWeight > 0) {
-        anchorX = weightedX / anchorWeight;
-        anchorY = weightedY / anchorWeight;
-    }
+    const auto anchor = nextPressureAnchor();
+    const int anchorX = anchor.x;
+    const int anchorY = anchor.y;
 
     const auto event = pressureEventForTick(tick_);
     const auto spawns = pressureEventSpawns(event);
@@ -6795,6 +7213,43 @@ void Simulation::updateEntities()
             }
         }
     }
+
+    if (player_.hp > 0) {
+        return;
+    }
+
+    if (player_.z < 0) {
+        world_.setTile(player_.x, player_.y, player_.z, Tile{TileId::RecoveryCrate, 0});
+        bool foundHearth = false;
+        for (int radius = 0; radius <= 8 && !foundHearth; ++radius) {
+            for (int oy = -radius; oy <= radius && !foundHearth; ++oy) {
+                for (int ox = -radius; ox <= radius; ++ox) {
+                    if (absInt(ox) + absInt(oy) != radius) {
+                        continue;
+                    }
+                    const int hx = player_.x + ox;
+                    const int hy = player_.y + oy;
+                    const auto tile = world_.getTile(hx, hy, player_.z);
+                    if (tile.id == TileId::LairHearth && tile.data > 0) {
+                        player_.x = hx;
+                        player_.y = hy;
+                        foundHearth = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!foundHearth) {
+            player_.x = tutorialState_.realSpawnX;
+            player_.y = tutorialState_.realSpawnY;
+            player_.z = tutorialState_.realSpawnZ;
+        }
+    } else {
+        player_.x = tutorialState_.realSpawnX;
+        player_.y = tutorialState_.realSpawnY;
+        player_.z = tutorialState_.realSpawnZ;
+    }
+    player_.hp = 20;
 }
 
 int Simulation::activeTechGoal() const
