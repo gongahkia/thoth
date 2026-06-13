@@ -5829,6 +5829,36 @@ void Simulation::ensureFactoryPressureEntity()
         {-9, -4},
     }};
 
+    int anchorX = player_.x;
+    int anchorY = player_.y;
+    int anchorWeight = 0;
+    int weightedX = 0;
+    int weightedY = 0;
+    for (const auto& machine : machines_) {
+        if (machine.z != player_.z) {
+            continue;
+        }
+        int weight = 1;
+        if (machine.kind == MachineKind::Generator ||
+            machine.kind == MachineKind::PowerPole ||
+            machine.kind == MachineKind::Lab ||
+            machine.kind == MachineKind::Assembler ||
+            machine.kind == MachineKind::LogisticPort ||
+            machine.kind == MachineKind::ArchiveTerminal ||
+            machine.kind == MachineKind::RiftGate) {
+            weight = 3;
+        } else if (isPowerConsumer(machine.kind) || isActiveIndustrialMachine(machine)) {
+            weight = 2;
+        }
+        weightedX += machine.x * weight;
+        weightedY += machine.y * weight;
+        anchorWeight += weight;
+    }
+    if (anchorWeight > 0) {
+        anchorX = weightedX / anchorWeight;
+        anchorY = weightedY / anchorWeight;
+    }
+
     const auto event = pressureEventForTick(tick_);
     const auto spawns = pressureEventSpawns(event);
     for (std::size_t spawnIndex = 0; spawnIndex < spawns.size() && entities_.size() < 80; ++spawnIndex) {
@@ -5837,8 +5867,8 @@ void Simulation::ensureFactoryPressureEntity()
             ((tick_ / 300U) + spawnIndex * 3U + static_cast<std::uint64_t>(event.severity)) % kOffsets.size());
         for (std::size_t attempt = 0; attempt < kOffsets.size(); ++attempt) {
             const auto& [offsetX, offsetY] = kOffsets[(startOffset + attempt) % kOffsets.size()];
-            const int x = player_.x + offsetX;
-            const int y = player_.y + offsetY;
+            const int x = anchorX + offsetX;
+            const int y = anchorY + offsetY;
             if ((x == player_.x && y == player_.y) ||
                 machineAt(x, y, player_.z) != nullptr ||
                 entityAt(x, y, player_.z) != nullptr) {
