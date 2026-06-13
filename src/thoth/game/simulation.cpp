@@ -1578,7 +1578,7 @@ std::string Simulation::factoryDashboardText() const
 std::vector<ExpeditionBoardEntry> Simulation::postVictoryExpeditionBoard() const
 {
     std::vector<ExpeditionBoardEntry> entries;
-    entries.reserve(6);
+    entries.reserve(9);
     const bool unlocked = mainObjectiveComplete();
     const auto addEntry = [&entries, unlocked](
                               std::string key,
@@ -1624,6 +1624,21 @@ std::vector<ExpeditionBoardEntry> Simulation::postVictoryExpeditionBoard() const
         "Open five dungeon or lair caches",
         productionTotals_.dungeonChestsOpened,
         5);
+    addEntry(
+        "rift_freight",
+        "Complete twenty train-stop cargo hops for remote freight",
+        productionTotals_.trainDeliveries,
+        20);
+    addEntry(
+        "scrap_economy",
+        "Recycle ten scrap into useful factory plates",
+        productionTotals_.scrapRecycled,
+        10);
+    addEntry(
+        "powered_industry",
+        "Extract fifty resources with electric miners",
+        productionTotals_.poweredOre,
+        50);
     return entries;
 }
 
@@ -1653,7 +1668,7 @@ std::string Simulation::postVictoryExpeditionText() const
                 std::to_string(entry.required) + ")";
         }
     }
-    return "expedition board complete: rift-era mastery proven across scouting, bosses, storms, outposts, pressure, and lairs";
+    return "expedition board complete: rift-era mastery proven across scouting, bosses, storms, outposts, pressure, lairs, freight, scrap, and powered mining";
 }
 
 bool Simulation::mainObjectiveComplete() const
@@ -1800,9 +1815,12 @@ std::string Simulation::scoutAutomationText() const
         return "scouts: offline; power a logistic port with drones and science packs";
     }
     if (readyPort != nullptr) {
+        const auto targetBiome = scoutTargetBiome(*readyPort);
+        const auto localBiome = world_.biomeAt(readyPort->x, readyPort->y, readyPort->z);
+        const auto routeBonus = localBiome == targetBiome ? "; local route bonus" : "";
         return "scouts: ready from " + std::to_string(poweredPorts) +
-            " powered port(s); next target " + std::string(toString(scoutTargetBiome(*readyPort))) +
-            "; scouted " + countText;
+            " powered port(s); next target " + std::string(toString(targetBiome)) +
+            routeBonus + "; scouted " + countText;
     }
     return "scouts: scouted " + countText;
 }

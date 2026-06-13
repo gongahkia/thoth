@@ -30,6 +30,10 @@ struct LairStamp {
 };
 
 constexpr int kLairRadius = 5;
+constexpr int kGeneratedLairCellSize = 96;
+constexpr int kGeneratedLairChance = 260;
+constexpr int kGeneratedLairSpawnExclusion = 160;
+constexpr int kGeneratedLairFixedExclusion = 36;
 
 constexpr std::array<LairStamp, 5> kLairStamps{{
     {LairKind::MarshHive, 0, 18},
@@ -38,6 +42,8 @@ constexpr std::array<LairStamp, 5> kLairStamps{{
     {LairKind::FrostVault, -18, 0},
     {LairKind::CrystalVault, -36, 20},
 }};
+
+BiomeKind generatedBiomeAt(std::uint64_t seed, int x, int y);
 
 int resourceRichness(std::uint64_t seed, int x, int y)
 {
@@ -87,7 +93,7 @@ bool sparsePatchDetail(std::uint64_t seed, int x, int y, int threshold)
     return static_cast<int>(thoth::core::hashCoordinates(seed, x, y) % 1000U) < threshold;
 }
 
-std::optional<LairStamp> lairStampAt(int x, int y)
+std::optional<LairStamp> fixedLairStampAt(int x, int y)
 {
     for (const auto& lair : kLairStamps) {
         if (std::abs(x - lair.centerX) <= kLairRadius &&
@@ -96,6 +102,105 @@ std::optional<LairStamp> lairStampAt(int x, int y)
         }
     }
     return std::nullopt;
+}
+
+bool tooCloseToFixedLair(int x, int y)
+{
+    for (const auto& lair : kLairStamps) {
+        if (std::abs(x - lair.centerX) <= kGeneratedLairFixedExclusion &&
+            std::abs(y - lair.centerY) <= kGeneratedLairFixedExclusion) {
+            return true;
+        }
+    }
+    return false;
+}
+
+LairKind lairKindForBiome(BiomeKind biome, std::uint64_t fallback)
+{
+    switch (biome) {
+    case BiomeKind::Marsh:
+        return LairKind::MarshHive;
+    case BiomeKind::Desert:
+        return LairKind::GlassSpire;
+    case BiomeKind::Badlands:
+        return LairKind::BadlandsFoundry;
+    case BiomeKind::Snowfield:
+        return LairKind::FrostVault;
+    case BiomeKind::CrystalField:
+    case BiomeKind::Rift:
+        return LairKind::CrystalVault;
+    case BiomeKind::Grassland:
+        break;
+    }
+
+    switch (fallback % 5U) {
+    case 0:
+        return LairKind::MarshHive;
+    case 1:
+        return LairKind::GlassSpire;
+    case 2:
+        return LairKind::BadlandsFoundry;
+    case 3:
+        return LairKind::FrostVault;
+    default:
+        return LairKind::CrystalVault;
+    }
+}
+
+std::optional<LairStamp> generatedLairStampAt(std::uint64_t seed, int x, int y)
+{
+    if (std::abs(x) + std::abs(y) < kGeneratedLairSpawnExclusion) {
+        return std::nullopt;
+    }
+
+    const int cellX = floorDiv(x, kGeneratedLairCellSize);
+    const int cellY = floorDiv(y, kGeneratedLairCellSize);
+    std::optional<LairStamp> best;
+    int bestDistanceSquared = 1'000'000'000;
+    constexpr int jitter = kGeneratedLairCellSize / 4;
+
+    for (int cy = cellY - 1; cy <= cellY + 1; ++cy) {
+        for (int cx = cellX - 1; cx <= cellX + 1; ++cx) {
+            const auto hash = thoth::core::hashCoordinates(seed ^ 0x6c6169725f6e6574ULL, cx, cy);
+            if (static_cast<int>(hash % 1000U) >= kGeneratedLairChance) {
+                continue;
+            }
+
+            const int centerX = (cx * kGeneratedLairCellSize) + (kGeneratedLairCellSize / 2) +
+                static_cast<int>((hash >> 12U) % static_cast<std::uint64_t>((jitter * 2) + 1)) - jitter;
+            const int centerY = (cy * kGeneratedLairCellSize) + (kGeneratedLairCellSize / 2) +
+                static_cast<int>((hash >> 28U) % static_cast<std::uint64_t>((jitter * 2) + 1)) - jitter;
+            if (std::abs(centerX) + std::abs(centerY) < kGeneratedLairSpawnExclusion ||
+                tooCloseToFixedLair(centerX, centerY)) {
+                continue;
+            }
+
+            const int dx = x - centerX;
+            const int dy = y - centerY;
+            const int distanceSquared = (dx * dx) + (dy * dy);
+            if (distanceSquared > kLairRadius * kLairRadius ||
+                distanceSquared >= bestDistanceSquared) {
+                continue;
+            }
+
+            const auto biome = generatedBiomeAt(seed, centerX, centerY);
+            best = LairStamp{
+                lairKindForBiome(biome, hash >> 40U),
+                centerX,
+                centerY};
+            bestDistanceSquared = distanceSquared;
+        }
+    }
+
+    return best;
+}
+
+std::optional<LairStamp> lairStampAt(std::uint64_t seed, int x, int y)
+{
+    if (const auto fixed = fixedLairStampAt(x, y)) {
+        return fixed;
+    }
+    return generatedLairStampAt(seed, x, y);
 }
 
 void selectBiome(PatchHit hit, BiomeKind candidate, PatchHit& bestHit, BiomeKind& biome)
@@ -327,7 +432,7 @@ std::optional<LairKind> World::lairAt(int x, int y, int z) const
     if (z != 0 && z != -1) {
         return std::nullopt;
     }
-    const auto lair = lairStampAt(x, y);
+    const auto lair = lairStampAt(seed_, x, y);
     if (!lair) {
         return std::nullopt;
     }
@@ -440,7 +545,7 @@ Tile World::generateTile(int x, int y, int z) const
     }
     if (z < 0) {
         if (z == -1) {
-            if (const auto lair = lairStampAt(x, y)) {
+            if (const auto lair = lairStampAt(seed_, x, y)) {
                 const int localX = std::abs(x - lair->centerX);
                 const int localY = std::abs(y - lair->centerY);
                 if (localX == kLairRadius || localY == kLairRadius) {
@@ -464,6 +569,27 @@ Tile World::generateTile(int x, int y, int z) const
                     }
                 }
                 if ((localX == 4 && localY == 2) || (localX == 2 && localY == 4)) {
+                    return Tile{TileId::DungeonWall, 0};
+                }
+                const auto chamber = thoth::core::hashCoordinates(
+                    seed_ ^ 0x6c6169725f63616368ULL,
+                    x + (lair->centerX * 17),
+                    y + (lair->centerY * 31));
+                if (localX + localY > 4 && static_cast<int>(chamber % 1000U) < 58) {
+                    switch (lair->kind) {
+                    case LairKind::MarshHive:
+                        return Tile{TileId::Reeds, 1};
+                    case LairKind::GlassSpire:
+                        return Tile{TileId::Cactus, 1};
+                    case LairKind::BadlandsFoundry:
+                        return Tile{TileId::Basalt, 2};
+                    case LairKind::FrostVault:
+                        return Tile{TileId::Ice, 1};
+                    case LairKind::CrystalVault:
+                        return Tile{TileId::Crystal, 1};
+                    }
+                }
+                if (localX + localY > 5 && static_cast<int>((chamber >> 12U) % 1000U) < 46) {
                     return Tile{TileId::DungeonWall, 0};
                 }
                 return Tile{TileId::DungeonFloor, 0};
@@ -506,7 +632,7 @@ Tile World::generateTile(int x, int y, int z) const
         return Tile{TileId::Grass, 0};
     }
 
-    if (const auto lair = lairStampAt(x, y)) {
+    if (const auto lair = lairStampAt(seed_, x, y)) {
         const int localX = std::abs(x - lair->centerX);
         const int localY = std::abs(y - lair->centerY);
         if (localX == kLairRadius || localY == kLairRadius) {
