@@ -30,20 +30,20 @@ Thoth's defensible lane is smaller and sharper:
 ## Product Gaps
 
 - The first 10 minutes still rely on the player accepting the premise before the game proves its hook.
-- Existing lairs are deterministic and useful, but the game needs more biome-specific verbs before it feels like a world.
-- Boss rewards currently read more like loot bundles than strategic factory unlocks.
-- Defense is readable but too one-dimensional: a powered guard tower shoots hostiles, with little support planning.
-- Rift travel is a strong endpoint, but it needs more pre-rift and post-rift content to feel earned.
+- The lair ladder now has authored anchors plus seeded procedural repeats, but generated lair density and cache readability need playtest tuning.
+- Boss rewards now socket into factory-relevant support machines, but reward costs and pacing still need a continuous-run balance pass.
+- Defense now has factory-anchored waves, infrastructure-targeting pressure enemies, repair pylons, pressure relays, and arc towers, but wave cadence and structure-damage tuning still need live playtesting.
+- Rift travel now feeds repeatable post-victory expeditions, but rift-band resources and late factory tools need more distinct verbs.
 - Documentation explains the codebase well, but the product promise needs sharper wording for real-player evaluation.
 
 ## Expansion Thesis
 
 For the next Steam-demo pass, prioritize content that changes player behavior:
 
-- Add desert and snowfield lairs so every early special biome has a bespoke expedition target.
-- Add boss relics so every boss win unlocks a new factory or defense capability.
-- Add remote outpost contracts so exploration requires logistics, not only inventory stockpiles.
-- Add repair and pressure-control machines so combat pressure is solved by building a better factory.
+- Tune authored plus generated lairs so every biome has a repeatable expedition target without overwhelming the starter ring.
+- Keep boss relics tied to factory and defense capability, and tune summon costs so bosses happen throughout the run instead of all at the end.
+- Lean on remote outposts and local-biome scouting so exploration requires logistics, not only inventory stockpiles.
+- Keep combat pressure solved by building a better factory: walls, powered towers, repair, pressure control, and route planning.
 - Add UI goal text that keeps the demo legible from minute one.
 
 ## Sources

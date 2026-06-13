@@ -4,11 +4,12 @@
   "tick": 3600,
   "player": {"x": 0, "y": 3, "z": 0, "hp": 20},
   "main_objective_complete": false,
-  "contracts": {"supply_completed": 2, "supply_total": 8, "biome_completed": 0, "biome_total": 11},
-  "pressure": {"level": 40, "ticks_until_wave": -1, "waves_repelled": 0, "alert": "wave alert: none; pressure below raid threshold"},
-  "production": {"iron_plates": 1, "copper_plates": 0, "science_packs": 3, "advanced_science_packs": 0, "powered_ore": 6, "logistic_deliveries": 0, "archive_signals": 0, "rift_jumps": 0, "bosses_defeated": 0, "boss_relics_claimed": 0, "outposts_activated": 0},
+  "contracts": {"supply_completed": 2, "supply_total": 8, "biome_completed": 0, "biome_total": 11, "outpost_delivery_completed": 0, "outpost_delivery_total": 5, "boss_exam_completed": 0, "boss_exam_total": 5, "post_victory_expedition_completed": 0, "post_victory_expedition_total": 9},
+  "pressure": {"level": 40, "ticks_until_wave": -1, "waves_repelled": 0, "event_key": "none", "event_label": "Dormant", "event_severity": 0, "event_spawns": 0, "alert": "wave alert: none; pressure below raid threshold"},
+  "rift_storm": {"active": false, "severity": 0, "ticks_remaining": 0, "cooldown_ticks": 0, "triggered": 0, "survived": 0, "summary": "rift storm: dormant; first rift jump can tear open a storm"},
+  "production": {"iron_plates": 1, "copper_plates": 0, "science_packs": 3, "advanced_science_packs": 0, "powered_ore": 6, "logistic_deliveries": 0, "archive_signals": 0, "rift_jumps": 0, "bosses_defeated": 0, "boss_relics_claimed": 0, "outposts_activated": 0, "outpost_deliveries": 0, "scrap_recovered": 0, "scrap_recycled": 0, "pressure_enemies_defeated": 0, "pressure_wave_rewards_claimed": 0, "rift_storms_triggered": 0, "rift_storms_survived": 0, "scout_dispatches": 0, "scout_materials_recovered": 0},
   "entities": {"total": 10, "hostile": 0, "active_bosses": 0, "creatures_defeated": 0},
-  "structures": {"machines": 11, "damaged_machines": 0, "damaged_tiles": 0, "powered_networks": 1, "power_supply": 2, "power_demand": 1},
+  "structures": {"machines": 11, "damaged_machines": 0, "socketed_relics": 0, "damaged_tiles": 0, "powered_networks": 1, "power_supply": 2, "power_demand": 1},
   "machine_counts": {
     "belt": 1,
     "inserter": 1,
@@ -21,6 +22,37 @@
     "power_pole": 1,
     "electric_miner": 1
   },
+  "biome_hazards": [
+    {"biome": "marsh", "label": "Marsh rot", "level": 1, "effect": "unsealed organic inputs decay inside machines and stockpiles", "mitigation": "activate a marsh outpost or move organics through sealed routes quickly"},
+    {"biome": "desert", "label": "Desert heat", "level": 1, "effect": "machines consume water barrels as coolant or lose durability", "mitigation": "pipe or deliver water barrels before running desert industry"},
+    {"biome": "badlands", "label": "Badlands slag", "level": 1, "effect": "active industrial machines shed basalt byproduct while working", "mitigation": "route basalt into walls, contracts, or later salvage chains"},
+    {"biome": "snowfield", "label": "Snowfield freeze", "level": 1, "effect": "unheated machines lose progress during cold pulses", "mitigation": "keep coal or active fuel in machines before long snow runs"},
+    {"biome": "crystal_field", "label": "Crystal resonance", "level": 1, "effect": "working machines surge forward but can attract null wisps", "mitigation": "stabilize the biome with an outpost and defend resonant builds"},
+    {"biome": "rift", "label": "Rift shear", "level": 1, "effect": "rift machinery operates under volatile pressure bands", "mitigation": "complete outpost coverage before committing deep rift infrastructure"}
+  ],
+  "factory_dashboard": [
+    {"key": "power", "label": "Power", "status": "stable", "urgent": false, "current": 2, "target": 1, "detail": "networks 1/1; supply 2/1"},
+    {"key": "pressure", "label": "Factory Pressure", "status": "watched", "urgent": false, "current": 40, "target": 120, "detail": "below wave threshold; pressure deck: dormant; pressure is below the raid threshold; pressure kills 0; rewards claimed 0"},
+    {"key": "defense", "label": "Defense", "status": "clear", "urgent": false, "current": 0, "target": 0, "detail": "hostiles 0; bosses 0; pressure kills 0"},
+    {"key": "repairs", "label": "Repairs", "status": "stable", "urgent": false, "current": 0, "target": 0, "detail": "machines 0; structures 0"},
+    {"key": "progression", "label": "Progression", "status": "in-progress", "urgent": false, "current": 2, "target": 29, "detail": "contract 3/8: store 3 iron plates (1/3); boss exam 1/5: Broodheart exam: pump 3 water barrels before opening the hive (0/3)"},
+    {"key": "logistics", "label": "Logistics", "status": "idle", "urgent": false, "current": 0, "target": 8, "detail": "jobs 0; deliveries 0; outposts 0"},
+    {"key": "exploration", "label": "Exploration", "status": "scouting", "urgent": false, "current": 0, "target": 6, "detail": "scouts: offline; power a logistic port with drones and science packs"},
+    {"key": "rift", "label": "Rift", "status": "locked", "urgent": false, "current": 0, "target": 2, "detail": "rift storm: dormant; first rift jump can tear open a storm"}
+  ],
+  "post_victory_expeditions": [
+    {"key": "cartography", "label": "Map every biome with automated scout dispatches", "unlocked": false, "complete": false, "current": 0, "required": 6},
+    {"key": "relic_set", "label": "Claim the full five-relic boss set", "unlocked": false, "complete": false, "current": 0, "required": 5},
+    {"key": "storm_veteran", "label": "Survive three rift storms after opening the gate", "unlocked": false, "complete": false, "current": 0, "required": 3},
+    {"key": "outpost_network", "label": "Complete all outpost delivery routes", "unlocked": false, "complete": false, "current": 0, "required": 5},
+    {"key": "pressure_harvest", "label": "Claim five pressure wave rewards", "unlocked": false, "complete": false, "current": 0, "required": 5},
+    {"key": "lair_caches", "label": "Open five dungeon or lair caches", "unlocked": false, "complete": false, "current": 0, "required": 5},
+    {"key": "rift_freight", "label": "Complete twenty train-stop cargo hops for remote freight", "unlocked": false, "complete": false, "current": 0, "required": 20},
+    {"key": "scrap_economy", "label": "Recycle ten scrap into useful factory plates", "unlocked": false, "complete": false, "current": 0, "required": 10},
+    {"key": "powered_industry", "label": "Extract fifty resources with electric miners", "unlocked": false, "complete": false, "current": 6, "required": 50}
+  ],
   "activated_outpost_biomes": [],
-  "guidance": {"goal": "demo goal: build plates, automate science, conquer lairs, and stabilize the rift", "supply_contract": "contract 3/8: store 3 iron plates (1/3)", "biome_contract": "biome contract 1/11: Marsh: pump 3 water barrels (0/3)", "marker": "marker: starter ore lanes east of spawn", "milestone": "milestone: automate circuit boards and controlled inserters"}
+  "completed_outpost_delivery_biomes": [],
+  "scouted_biomes": [],
+  "guidance": {"goal": "demo goal: build plates, automate science, conquer lairs, and stabilize the rift", "supply_contract": "contract 3/8: store 3 iron plates (1/3)", "biome_contract": "biome contract 1/11: Marsh: pump 3 water barrels (0/3)", "outpost_delivery": "outpost delivery 1/5: marsh delivery: feed an activated outpost water_barrel (0/1)", "scouts": "scouts: offline; power a logistic port with drones and science packs", "post_victory_expedition": "expedition board: locked until the main rift objective is complete", "biome_hazard": "hazard: grassland stable; no active biome hazard", "boss_exam": "boss exam 1/5: Broodheart exam: pump 3 water barrels before opening the hive (0/3)", "pressure_deck": "pressure deck: dormant; pressure is below the raid threshold; pressure kills 0; rewards claimed 0", "rift_storm": "rift storm: dormant; first rift jump can tear open a storm", "marker": "marker: starter ore lanes east of spawn", "milestone": "milestone: automate circuit boards and controlled inserters"}
 }

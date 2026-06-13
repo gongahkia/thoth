@@ -38,11 +38,14 @@ Implemented in C++:
 - Powered archive charging, train-stop cargo hops, pump-to-pipe water movement, and rift-gate travel to a deterministic high-resource outer band.
 - Supply contracts for iron, copper, science, powered mining, logistics, advanced science, archive charging, and rift travel, with an explicit main-objective completion state.
 - Biome contracts, deterministic Marsh/Desert/Badlands/Snowfield/Crystal lairs, lair-specific hostile pressure, and five prepared boss summons: Marsh Broodheart, Glass Maw, Badlands Warden, Frost Nullifier, and Rift Signal Tyrant.
+- Seeded procedural lairs beyond the authored starter ladder, with deterministic surface entrances, interior chambers, biome caches, and repeat boss/relic opportunities outside the protected early ring.
 - Boss relic rewards that unlock or craft factory-relevant defense and support tools.
 - Powered outpost beacons that consume biome-specific inputs and extend biome contracts beyond inventory stockpiles.
-- Factory pressure readouts plus deterministic hostile probe spawns once science production makes the factory visible enough to defend.
+- Factory pressure readouts plus deterministic hostile probe spawns once science production makes the factory visible enough to defend, with waves anchoring around the factory footprint and pressure enemies pathing toward infrastructure.
 - Powered guard towers and arc towers that target hostile entities deterministically.
 - Powered repair pylons that rebuild adjacent wall gaps and pressure relays that mitigate future factory pressure.
+- Remote logistic-port scouting that prioritizes the port's local biome, returns route-bonus materials, and feeds post-victory cartography goals.
+- A repeatable post-victory expedition board covering scouting, boss relics, rift storms, outpost deliveries, pressure rewards, lair caches, train freight, scrap recycling, and powered mining.
 - Deterministic power network recomputation.
 - Plain-text save/load and replay foundation.
 - Headless tests for world generation, registries, automation, chunk-boundary factory lines, rich save/load state, replay, research, power, workbench gating, circuit inserter config, and logistic delivery persistence.
@@ -56,7 +59,7 @@ Still rough:
 - Generated sprite atlas fallback remains available for reference and recovery.
 - Inventory, machine, and build menus have scan-first state labels now, but still need a final visual design pass.
 - Authored audio cue source is present as `assets/audio/thoth_cues.sfx`, with tuned deterministic WAV exports for core work, UI, error, save/load, and production feedback; final live-listening mix polish is still pending.
-- The game now has an explicit completion state, a five-boss ladder, relic-gated support machines, and outpost contracts, but post-victory play still needs richer repeatable contracts and better live tuning.
+- The game now has an explicit completion state, a five-boss ladder, relic-gated support machines, outpost contracts, generated lairs, route-aware scouting, factory-anchored pressure, and a repeatable post-victory expedition board, but the expanded loop still needs live tuning.
 
 ## Build And Run
 
@@ -233,7 +236,7 @@ The current plan lives in `WORKON-PIVOT-ASAP.md`, with competitive positioning i
 Near-term work:
 
 - Playtest the expanded biome ladder, relic costs, outpost activation cadence, and defense-machine power demands in one continuous run.
-- Add repeatable post-victory contracts that reuse boss relics, outposts, and rift-band logistics.
+- Playtest the repeatable post-victory expedition board across boss relics, outposts, pressure rewards, rift freight, scrap recycling, and powered mining.
 - Add bespoke sprite/audio/UI polish for the new lairs, enemies, bosses, outpost beacons, repair pylons, pressure relays, and arc towers.
 - Polish final atlas styling and authored WAV cues after the expanded content loop is playable.
 - Strengthen performance guardrails as larger factories and pressure waves land.
