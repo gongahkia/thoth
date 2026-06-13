@@ -210,6 +210,8 @@ TileId minedReplacement(TileId id)
     case TileId::StairsUp:
     case TileId::StairsDown:
     case TileId::Bed:
+    case TileId::LairHearth:
+    case TileId::RecoveryCrate:
         return TileId::Floor;
     case TileId::Dirt:
     case TileId::Floor:
@@ -268,6 +270,8 @@ ItemId resourceTileOutput(TileId id)
     case TileId::Bed:
     case TileId::DungeonFloor:
     case TileId::DungeonWall:
+    case TileId::LairHearth:
+    case TileId::RecoveryCrate:
         return ItemId::None;
     }
     return ItemId::None;
@@ -4855,6 +4859,8 @@ int Simulation::tileMaxDurability(TileId id) const
     case TileId::StairsUp:
     case TileId::StairsDown:
     case TileId::Bed:
+    case TileId::LairHearth:
+    case TileId::RecoveryCrate:
     case TileId::DungeonFloor:
     case TileId::DungeonWall:
         return 0;

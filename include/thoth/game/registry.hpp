@@ -37,6 +37,8 @@ enum class TileId : std::uint8_t {
     Bed,
     DungeonFloor,
     DungeonWall,
+    LairHearth,
+    RecoveryCrate,
 };
 
 enum class ItemId : std::uint8_t {
@@ -68,6 +70,19 @@ enum class ItemId : std::uint8_t {
     WardenCore,
     FrostCore,
     RiftCrown,
+    ArchiveFragment,
+    MarshFragment,
+    DesertFragment,
+    BadlandsFragment,
+    FrostFragment,
+    CrystalFragment,
+    RiftFragment,
+    PowerShard,
+    StoneShot,
+    CopperCoil,
+    CrystalCharge,
+    FrostCell,
+    RiftShell,
     Belt,
     Inserter,
     BurnerMiner,
@@ -108,6 +123,8 @@ enum class ItemId : std::uint8_t {
     StairsDown,
     Boat,
     Bed,
+    LairHearth,
+    RecoveryCrate,
 };
 
 enum class MachineKind : std::uint8_t {

@@ -27,6 +27,8 @@ enum class CommandType : std::uint8_t {
     Move,
     Mine,
     Place,
+    PlaceGhost,
+    CancelGhost,
     Craft,
     SelectHotbar,
     AssignHotbar,
@@ -38,6 +40,8 @@ enum class CommandType : std::uint8_t {
     ConfigureRequest,
     Interact,
     Attack,
+    SelectArchiveChoice,
+    TogglePlanningMode,
 };
 
 enum class MachineStatus : std::uint8_t {
@@ -53,6 +57,11 @@ enum class CircuitComparator : std::uint8_t {
     Always,
     LessThan,
     GreaterOrEqual,
+};
+
+enum class GameMode : std::uint8_t {
+    Survival,
+    Planning,
 };
 
 inline constexpr int kHotbarSlots = 10;
@@ -116,6 +125,29 @@ struct LogisticJob {
     int totalTicks = 0;
 };
 
+struct GhostBuild {
+    std::uint32_t id = 0;
+    ItemId item = ItemId::None;
+    TileId tile = TileId::Floor;
+    bool machine = false;
+    int x = 0;
+    int y = 0;
+    int z = 0;
+    Direction direction = Direction::South;
+    int progress = 0;
+    bool fulfilled = false;
+    std::string blockedReason;
+};
+
+struct ConstructionJob {
+    std::uint32_t ghostId = 0;
+    std::uint32_t portId = 0;
+    std::uint32_t sourceId = 0;
+    ItemId item = ItemId::None;
+    int ticksRemaining = 0;
+    int totalTicks = 0;
+};
+
 struct ProductionTotals {
     int ironPlates = 0;
     int copperPlates = 0;
@@ -147,10 +179,30 @@ struct ProductionTotals {
     int scoutedBiomeMask = 0;
 };
 
+struct OutpostRouteState {
+    BiomeKind biome = BiomeKind::Grassland;
+    int deliveredInWindow = 0;
+    int requiredPerWindow = 2;
+    int stability = 0;
+    std::uint64_t windowStartTick = 0;
+    std::uint64_t lastDeliveryTick = 0;
+};
+
 struct RiftStormState {
     int severity = 0;
     int ticksRemaining = 0;
     int cooldownTicks = 0;
+};
+
+struct ArchiveChoice {
+    std::string key;
+    std::string label;
+    std::string recipeKey;
+    ItemId fragment = ItemId::ArchiveFragment;
+    int fragmentCost = 0;
+    int scienceCost = 0;
+    bool unlocked = false;
+    bool affordable = false;
 };
 
 struct FactoryDashboardPanel {
@@ -163,6 +215,15 @@ struct FactoryDashboardPanel {
     bool urgent = false;
 };
 
+struct PressureHotspot {
+    int x = 0;
+    int y = 0;
+    int z = 0;
+    int pressure = 0;
+    int mitigation = 0;
+    bool nextWaveAnchor = false;
+};
+
 struct ExpeditionBoardEntry {
     std::string key;
     std::string label;
@@ -170,6 +231,26 @@ struct ExpeditionBoardEntry {
     int required = 0;
     bool unlocked = false;
     bool complete = false;
+};
+
+struct RegionInfo {
+    int originX = 0;
+    int originY = 0;
+    int z = 0;
+    BiomeKind biome = BiomeKind::Grassland;
+    std::string name;
+    std::string hazard;
+    std::string reward;
+    std::optional<LairKind> lair;
+};
+
+struct ProductionRatePanel {
+    std::string key;
+    std::string label;
+    int currentPerMinute = 0;
+    int targetPerMinute = 0;
+    bool blocked = false;
+    std::string detail;
 };
 
 struct BiomeContractProgress {
@@ -281,6 +362,16 @@ struct OutpostDeliveryProgress {
     bool complete = false;
 };
 
+struct OutpostRouteProgress {
+    BiomeKind biome = BiomeKind::Grassland;
+    std::string label;
+    int current = 0;
+    int required = 0;
+    int stability = 0;
+    bool active = false;
+    bool stable = false;
+};
+
 struct Entity {
     std::uint32_t id = 0;
     EntityKind kind = EntityKind::Deer;
@@ -310,6 +401,9 @@ struct Command {
     [[nodiscard]] static Command placeItem(Direction direction, ItemId item);
     [[nodiscard]] static Command placeItem(Direction direction, ItemId item, Direction orientation);
     [[nodiscard]] static Command placeTile(Direction direction, TileId tile);
+    [[nodiscard]] static Command placeGhost(Direction direction, ItemId item);
+    [[nodiscard]] static Command placeGhost(Direction direction, ItemId item, Direction orientation);
+    [[nodiscard]] static Command cancelGhost(Direction direction);
     [[nodiscard]] static Command craft(std::string recipeKey);
     [[nodiscard]] static Command selectHotbar(int index);
     [[nodiscard]] static Command assignHotbar(int index, ItemId item);
@@ -321,6 +415,8 @@ struct Command {
     [[nodiscard]] static Command configureRequest(Direction direction, ItemId requestItem, int threshold);
     [[nodiscard]] static Command interact(Direction direction);
     [[nodiscard]] static Command attack(Direction direction);
+    [[nodiscard]] static Command selectArchiveChoice(Direction direction, int choiceIndex);
+    [[nodiscard]] static Command togglePlanningMode();
 };
 
 struct PlayerSnapshot {
@@ -342,23 +438,30 @@ struct SimulationSnapshot {
     std::vector<TileSnapshot> tiles;
     std::uint32_t nextMachineId = 1;
     std::uint32_t nextEntityId = 1;
+    std::uint32_t nextGhostId = 1;
     std::vector<Machine> machines;
     std::vector<Entity> entities;
     std::vector<LogisticJob> logisticJobs;
+    std::vector<GhostBuild> ghostBuilds;
+    std::vector<ConstructionJob> constructionJobs;
     ProductionTotals productionTotals;
+    std::vector<OutpostRouteState> outpostRoutes;
     RiftStormState riftStorm;
     std::string activeTech = "logistics_1";
     int researchProgress = 0;
     std::vector<std::string> completedTechs;
     std::vector<std::string> unlockedRecipes;
+    std::vector<std::string> archiveUnlocks;
     std::vector<AchievementId> unlockedAchievements;
     TutorialState tutorial;
+    GameMode gameMode = GameMode::Survival;
 };
 
 class Simulation {
 public:
     explicit Simulation(std::uint64_t seed);
     [[nodiscard]] static Simulation newGame(std::uint64_t seed, bool startInTutorial);
+    [[nodiscard]] static Simulation newPlanningGame(std::uint64_t seed);
 
     void queue(Command command);
     void step();
@@ -384,8 +487,14 @@ public:
     [[nodiscard]] int researchGoal() const;
     [[nodiscard]] const std::vector<PowerNetwork>& powerNetworks() const;
     [[nodiscard]] const std::vector<LogisticJob>& logisticJobs() const;
+    [[nodiscard]] const std::vector<GhostBuild>& ghostBuilds() const;
+    [[nodiscard]] const std::vector<ConstructionJob>& constructionJobs() const;
     [[nodiscard]] const ProductionTotals& productionTotals() const;
+    [[nodiscard]] GameMode gameMode() const;
     [[nodiscard]] bool canCraft(std::string_view recipeKey) const;
+    [[nodiscard]] std::vector<ArchiveChoice> archiveChoices() const;
+    [[nodiscard]] std::string archiveResearchText() const;
+    [[nodiscard]] std::string constructionText() const;
     [[nodiscard]] int completedSupplyContracts() const;
     [[nodiscard]] int totalSupplyContracts() const;
     [[nodiscard]] std::string currentSupplyContractText() const;
@@ -395,6 +504,8 @@ public:
     [[nodiscard]] std::string pressureWaveAlertText() const;
     [[nodiscard]] PressureEventCard nextPressureEvent() const;
     [[nodiscard]] std::string pressureEventDeckText() const;
+    [[nodiscard]] std::vector<PressureHotspot> pressureHotspots() const;
+    [[nodiscard]] std::string pressureMapText() const;
     [[nodiscard]] const RiftStormState& riftStorm() const;
     [[nodiscard]] std::string riftStormText() const;
     [[nodiscard]] std::vector<FactoryDashboardPanel> factoryDashboard() const;
@@ -411,6 +522,9 @@ public:
     [[nodiscard]] std::vector<OutpostDeliveryProgress> outpostDeliveryProgress() const;
     [[nodiscard]] int completedOutpostDeliveryContracts() const;
     [[nodiscard]] std::string currentOutpostDeliveryText() const;
+    [[nodiscard]] std::vector<OutpostRouteProgress> outpostRoutes() const;
+    [[nodiscard]] int stableOutpostRouteCount() const;
+    [[nodiscard]] std::string outpostRouteText() const;
     [[nodiscard]] bool hasScoutedBiome(BiomeKind biome) const;
     [[nodiscard]] int scoutedBiomeCount() const;
     [[nodiscard]] std::vector<BiomeKind> scoutedBiomes() const;
@@ -422,6 +536,11 @@ public:
     [[nodiscard]] std::string currentBiomeHazardText() const;
     [[nodiscard]] std::vector<BossExamProgress> bossExamProgress() const;
     [[nodiscard]] std::string currentBossExamText() const;
+    [[nodiscard]] RegionInfo regionInfoAt(int x, int y, int z) const;
+    [[nodiscard]] std::vector<RegionInfo> latestScoutReports() const;
+    [[nodiscard]] std::string regionText() const;
+    [[nodiscard]] std::vector<ProductionRatePanel> productionRatePanels() const;
+    [[nodiscard]] std::string productionRateText() const;
     [[nodiscard]] std::string currentDemoGoalText() const;
     [[nodiscard]] std::string objectiveMarkerText() const;
     [[nodiscard]] std::string milestoneText() const;
@@ -444,6 +563,8 @@ private:
     void mine(Direction direction);
     void place(Direction direction, TileId tile, ItemId item, Direction orientation);
     void placeMachine(Direction direction, ItemId item, Direction orientation);
+    void placeGhost(Direction direction, ItemId item, Direction orientation);
+    void cancelGhost(Direction direction);
     void depositSelected(Direction direction);
     void depositItem(Direction direction, ItemId item);
     void withdrawItem(Direction direction, ItemId item);
@@ -453,6 +574,8 @@ private:
     void configureMachineRecipe(Direction direction, std::string_view recipeKey);
     void configureCircuit(Direction direction, ItemId filterItem, CircuitComparator comparator, int threshold);
     void configureRequest(Direction direction, ItemId requestItem, int threshold);
+    void selectArchiveChoice(Direction direction, int choiceIndex);
+    void togglePlanningMode();
     void interact(Direction direction);
     void attack(Direction direction);
     [[nodiscard]] bool trySummonMarshBoss(int x, int y, int z);
@@ -475,6 +598,7 @@ private:
     void updateAssemblers();
     void updateLabs();
     void updateLogistics();
+    void updateConstructionJobs(const std::vector<std::uint32_t>& poweredPorts);
     void updateScoutAutomation(const std::vector<std::uint32_t>& poweredPorts);
     void updateTrainStops();
     void updateFluidPumps();
@@ -502,6 +626,15 @@ private:
     [[nodiscard]] bool riftStormActive() const;
     [[nodiscard]] PressureEventCard pressureEventForTick(std::uint64_t waveTick) const;
     [[nodiscard]] std::vector<EntityKind> pressureEventSpawns(const PressureEventCard& card) const;
+    [[nodiscard]] PressureHotspot nextPressureAnchor() const;
+    [[nodiscard]] int localPressureAt(int x, int y, int z) const;
+    [[nodiscard]] int pressureMitigationAt(int x, int y, int z) const;
+    [[nodiscard]] int outpostRouteStability(BiomeKind biome) const;
+    [[nodiscard]] bool archiveRecipeUnlocked(std::string_view recipeKey) const;
+    [[nodiscard]] bool unlockArchiveRecipe(std::string_view recipeKey);
+    [[nodiscard]] bool tryArchiveUnlock(Machine& machine);
+    [[nodiscard]] bool canPlaceGhostBuild(const GhostBuild& ghost, std::string* blockedReason = nullptr) const;
+    [[nodiscard]] bool completeGhostBuild(GhostBuild& ghost);
     [[nodiscard]] bool bossExamComplete(EntityKind boss) const;
     [[nodiscard]] bool spawnEntityNear(int x, int y, int z, EntityKind kind, int range);
     [[nodiscard]] bool canPlaceMachine(MachineKind kind, int x, int y) const;
@@ -563,6 +696,7 @@ private:
     std::uint64_t tick_ = 0;
     std::uint32_t nextMachineId_ = 1;
     std::uint32_t nextEntityId_ = 1;
+    std::uint32_t nextGhostId_ = 1;
     std::vector<Machine> machines_;
     std::vector<Entity> entities_;
     std::unordered_map<std::uint64_t, std::size_t> machineCellIndex_;
@@ -574,18 +708,25 @@ private:
     std::vector<PowerNetwork> powerNetworks_;
     std::vector<std::uint32_t> poweredMachineIds_;
     std::vector<LogisticJob> logisticJobs_;
+    std::vector<GhostBuild> ghostBuilds_;
+    std::vector<ConstructionJob> constructionJobs_;
     ProductionTotals productionTotals_;
+    std::vector<OutpostRouteState> outpostRoutes_;
     RiftStormState riftStorm_;
+    std::vector<std::string> archiveUnlocks_;
     std::vector<AchievementId> unlockedAchievements_;
     TutorialState tutorialState_;
+    GameMode gameMode_ = GameMode::Survival;
 };
 
 [[nodiscard]] int dx(Direction direction);
 [[nodiscard]] int dy(Direction direction);
 [[nodiscard]] std::string_view toString(MachineStatus status);
 [[nodiscard]] std::string_view toString(CircuitComparator comparator);
+[[nodiscard]] std::string_view toString(GameMode mode);
 [[nodiscard]] std::string_view toString(AchievementId id);
 [[nodiscard]] CircuitComparator circuitComparatorFromKey(std::string_view key);
+[[nodiscard]] GameMode gameModeFromKey(std::string_view key);
 [[nodiscard]] std::optional<AchievementId> achievementIdFromKey(std::string_view key);
 
 } // namespace thoth::game

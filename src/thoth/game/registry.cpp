@@ -38,6 +38,8 @@ const std::vector<TileDef> kTiles = {
     {TileId::Bed, "bed", "Bed", 2, true, false, ItemId::Bed, Rgb{172, 68, 82}},
     {TileId::DungeonFloor, "dungeon_floor", "Dungeon Floor", 2, true, true, ItemId::Stone, Rgb{76, 72, 80}},
     {TileId::DungeonWall, "dungeon_wall", "Dungeon Wall", 4, false, false, ItemId::Basalt, Rgb{52, 50, 58}},
+    {TileId::LairHearth, "lair_hearth", "Lair Hearth", 3, true, false, ItemId::LairHearth, Rgb{124, 90, 174}},
+    {TileId::RecoveryCrate, "recovery_crate", "Recovery Crate", 2, true, false, ItemId::RecoveryCrate, Rgb{176, 126, 64}},
 };
 
 const std::vector<ItemDef> kItems = {
@@ -69,6 +71,19 @@ const std::vector<ItemDef> kItems = {
     {ItemId::WardenCore, "warden_core", "Warden Core", 20, TileId::Grass, false, MachineKind::Chest, false},
     {ItemId::FrostCore, "frost_core", "Frost Core", 20, TileId::Grass, false, MachineKind::Chest, false},
     {ItemId::RiftCrown, "rift_crown", "Rift Crown", 20, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::ArchiveFragment, "archive_fragment", "Archive Fragment", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::MarshFragment, "marsh_fragment", "Marsh Fragment", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::DesertFragment, "desert_fragment", "Desert Fragment", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::BadlandsFragment, "badlands_fragment", "Badlands Fragment", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::FrostFragment, "frost_fragment", "Frost Fragment", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::CrystalFragment, "crystal_fragment", "Crystal Fragment", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::RiftFragment, "rift_fragment", "Rift Fragment", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::PowerShard, "power_shard", "Power Shard", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::StoneShot, "stone_shot", "Stone Shot", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::CopperCoil, "copper_coil", "Copper Coil", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::CrystalCharge, "crystal_charge", "Crystal Charge", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::FrostCell, "frost_cell", "Frost Cell", 100, TileId::Grass, false, MachineKind::Chest, false},
+    {ItemId::RiftShell, "rift_shell", "Rift Shell", 100, TileId::Grass, false, MachineKind::Chest, false},
     {ItemId::Belt, "belt", "Belt", 100, TileId::Floor, false, MachineKind::Belt, true},
     {ItemId::Inserter, "inserter", "Inserter", 100, TileId::Floor, false, MachineKind::Inserter, true},
     {ItemId::BurnerMiner, "burner_miner", "Burner Miner", 50, TileId::Floor, false, MachineKind::BurnerMiner, true},
@@ -109,6 +124,8 @@ const std::vector<ItemDef> kItems = {
     {ItemId::StairsDown, "stairs_down", "Stairs Down", 20, TileId::StairsDown, true, MachineKind::Chest, false},
     {ItemId::Boat, "boat", "Boat", 5, TileId::Grass, false, MachineKind::Chest, false},
     {ItemId::Bed, "bed", "Bed", 5, TileId::Bed, true, MachineKind::Chest, false},
+    {ItemId::LairHearth, "lair_hearth", "Lair Hearth", 20, TileId::LairHearth, true, MachineKind::Chest, false},
+    {ItemId::RecoveryCrate, "recovery_crate", "Recovery Crate", 20, TileId::RecoveryCrate, true, MachineKind::Chest, false},
 };
 
 const std::vector<MachineDef> kMachines = {
@@ -163,7 +180,14 @@ const std::vector<RecipeDef> kRecipes = {
     {"bed", {ItemStack{ItemId::Hide, 1}, ItemStack{ItemId::ReedFiber, 2}, ItemStack{ItemId::Wood, 2}}, ItemStack{ItemId::Bed, 1}, 35, "workbench", true},
     {"salvage_iron_plate", {ItemStack{ItemId::Scrap, 3}}, ItemStack{ItemId::IronPlate, 1}, 25, "workbench", true},
     {"salvage_copper_plate", {ItemStack{ItemId::Scrap, 2}}, ItemStack{ItemId::CopperPlate, 1}, 25, "workbench", true},
+    {"stone_shot", {ItemStack{ItemId::Stone, 1}}, ItemStack{ItemId::StoneShot, 4}, 15, "workbench", true},
+    {"copper_coil", {ItemStack{ItemId::CopperPlate, 1}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::CopperCoil, 2}, 30, "workbench", true},
+    {"crystal_charge", {ItemStack{ItemId::Crystal, 1}, ItemStack{ItemId::AdvancedSciencePack, 1}}, ItemStack{ItemId::CrystalCharge, 2}, 45, "workbench", true},
+    {"frost_cell", {ItemStack{ItemId::IceShard, 1}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::FrostCell, 2}, 35, "workbench", true},
+    {"rift_shell", {ItemStack{ItemId::RiftFragment, 1}, ItemStack{ItemId::AdvancedSciencePack, 1}}, ItemStack{ItemId::RiftShell, 2}, 55, "workbench", true},
+    {"lair_hearth", {ItemStack{ItemId::Stone, 4}, ItemStack{ItemId::ArchiveFragment, 1}}, ItemStack{ItemId::LairHearth, 1}, 45, "workbench", true},
     {"science_pack", {ItemStack{ItemId::IronPlate, 1}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::SciencePack, 1}, 45, "assembler", true},
+    {"reed_science_pack", {ItemStack{ItemId::IronPlate, 1}, ItemStack{ItemId::ReedFiber, 1}}, ItemStack{ItemId::SciencePack, 1}, 55, "assembler", true},
     {"fast_belt", {ItemStack{ItemId::Belt, 1}, ItemStack{ItemId::IronPlate, 1}}, ItemStack{ItemId::FastBelt, 1}, 30, "workbench", false},
     {"generator", {ItemStack{ItemId::Stone, 4}, ItemStack{ItemId::IronPlate, 2}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::Generator, 1}, 45, "workbench", false},
     {"power_pole", {ItemStack{ItemId::Wood, 2}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::PowerPole, 2}, 25, "workbench", false},
@@ -171,6 +195,7 @@ const std::vector<RecipeDef> kRecipes = {
     {"circuit_board", {ItemStack{ItemId::IronPlate, 1}, ItemStack{ItemId::CopperPlate, 2}}, ItemStack{ItemId::CircuitBoard, 1}, 50, "assembler", false},
     {"advanced_science_pack", {ItemStack{ItemId::SciencePack, 1}, ItemStack{ItemId::CircuitBoard, 1}, ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::AdvancedSciencePack, 1}, 60, "assembler", false},
     {"crystal_lens", {ItemStack{ItemId::Crystal, 1}, ItemStack{ItemId::SandGlass, 1}, ItemStack{ItemId::CoralShard, 1}}, ItemStack{ItemId::AdvancedSciencePack, 1}, 80, "assembler", false},
+    {"basalt_circuit_board", {ItemStack{ItemId::CopperPlate, 1}, ItemStack{ItemId::Basalt, 1}, ItemStack{ItemId::Crystal, 1}}, ItemStack{ItemId::CircuitBoard, 2}, 70, "assembler", true},
     {"circuit_inserter", {ItemStack{ItemId::Inserter, 1}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::CircuitInserter, 1}, 35, "workbench", false},
     {"provider_chest", {ItemStack{ItemId::Chest, 1}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::ProviderChest, 1}, 35, "workbench", false},
     {"requester_chest", {ItemStack{ItemId::Chest, 1}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::RequesterChest, 1}, 35, "workbench", false},
@@ -180,6 +205,7 @@ const std::vector<RecipeDef> kRecipes = {
     {"pipe", {ItemStack{ItemId::CopperPlate, 1}}, ItemStack{ItemId::Pipe, 2}, 25, "workbench", false},
     {"offshore_pump", {ItemStack{ItemId::IronPlate, 2}, ItemStack{ItemId::CopperPlate, 2}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::OffshorePump, 1}, 50, "workbench", false},
     {"beacon_core", {ItemStack{ItemId::AdvancedSciencePack, 2}, ItemStack{ItemId::CircuitBoard, 4}, ItemStack{ItemId::LogisticDrone, 2}}, ItemStack{ItemId::BeaconCore, 1}, 120, "assembler", false},
+    {"rift_beacon_core", {ItemStack{ItemId::RiftFragment, 2}, ItemStack{ItemId::AdvancedSciencePack, 2}, ItemStack{ItemId::CircuitBoard, 2}}, ItemStack{ItemId::BeaconCore, 1}, 90, "assembler", true},
     {"archive_terminal", {ItemStack{ItemId::IronPlate, 10}, ItemStack{ItemId::CopperPlate, 10}, ItemStack{ItemId::CircuitBoard, 4}}, ItemStack{ItemId::ArchiveTerminal, 1}, 120, "workbench", false},
     {"train_stop", {ItemStack{ItemId::IronPlate, 6}, ItemStack{ItemId::CopperPlate, 3}, ItemStack{ItemId::CircuitBoard, 1}}, ItemStack{ItemId::TrainStop, 1}, 80, "workbench", false},
     {"rift_gate", {ItemStack{ItemId::BeaconCore, 1}, ItemStack{ItemId::AdvancedSciencePack, 3}, ItemStack{ItemId::CopperPlate, 8}}, ItemStack{ItemId::RiftGate, 1}, 160, "workbench", false},
@@ -188,6 +214,8 @@ const std::vector<RecipeDef> kRecipes = {
     {"repair_pylon", {ItemStack{ItemId::IronPlate, 4}, ItemStack{ItemId::CopperPlate, 2}, ItemStack{ItemId::MarshHeart, 1}}, ItemStack{ItemId::RepairPylon, 1}, 90, "workbench", false},
     {"pressure_relay", {ItemStack{ItemId::CircuitBoard, 3}, ItemStack{ItemId::AdvancedSciencePack, 2}, ItemStack{ItemId::GlassHeart, 1}}, ItemStack{ItemId::PressureRelay, 1}, 100, "workbench", false},
     {"arc_tower", {ItemStack{ItemId::GuardTower, 1}, ItemStack{ItemId::CircuitBoard, 3}, ItemStack{ItemId::FrostCore, 1}}, ItemStack{ItemId::ArcTower, 1}, 100, "workbench", false},
+    {"dry_copper_plate", {ItemStack{ItemId::CopperOre, 1}, ItemStack{ItemId::CactusFiber, 1}}, ItemStack{ItemId::CopperPlate, 1}, 80, "furnace", true},
+    {"washed_iron_plate", {ItemStack{ItemId::IronOre, 1}, ItemStack{ItemId::WaterBarrel, 1}}, ItemStack{ItemId::IronPlate, 2}, 55, "furnace", true},
 };
 
 const std::vector<TechDef> kTechs = {

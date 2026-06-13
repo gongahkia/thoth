@@ -554,6 +554,12 @@ Tile World::generateTile(int x, int y, int z) const
                 if (localX == 0 && localY == 0) {
                     return Tile{TileId::StairsUp, 0};
                 }
+                if (localX == 2 && localY == 0) {
+                    return Tile{TileId::LairHearth, 0};
+                }
+                if (localX == 4 && localY == 0) {
+                    return Tile{TileId::Door, 0};
+                }
                 if ((localX == 3 && localY == 1) || (localX == 1 && localY == 3)) {
                     switch (lair->kind) {
                     case LairKind::MarshHive:
@@ -640,6 +646,12 @@ Tile World::generateTile(int x, int y, int z) const
         }
         if (localX == 0 && localY == 0) {
             return Tile{TileId::StairsDown, 0};
+        }
+        if (localX == 2 && localY == 0) {
+            return Tile{TileId::LairHearth, 0};
+        }
+        if (localX == 4 && localY == 0) {
+            return Tile{TileId::Door, 0};
         }
         if (lair->kind == LairKind::MarshHive &&
             ((localX == 3 && localY <= 2) || (localY == 3 && localX <= 2))) {
