@@ -3767,6 +3767,13 @@ void Simulation::updateLogistics()
 
 BiomeKind Simulation::scoutTargetBiome(const Machine& port) const
 {
+    const auto localBiome = world_.biomeAt(port.x, port.y, port.z);
+    if (localBiome != BiomeKind::Grassland &&
+        (localBiome != BiomeKind::Rift || productionTotals_.riftJumps > 0) &&
+        !hasScoutedBiome(localBiome)) {
+        return localBiome;
+    }
+
     for (const auto biome : kScoutBiomes) {
         if (biome == BiomeKind::Rift && productionTotals_.riftJumps <= 0) {
             continue;
@@ -3822,7 +3829,13 @@ void Simulation::updateScoutAutomation(const std::vector<std::uint32_t>& powered
         }
 
         const auto biome = scoutBiomeForReward(port->carriedItem).value_or(scoutTargetBiome(*port));
-        const int recovered = scoutRewardCountForBiome(biome);
+        int recovered = scoutRewardCountForBiome(biome);
+        if (world_.biomeAt(port->x, port->y, port->z) == biome) {
+            ++recovered;
+        }
+        if (hasActivatedOutpostBiome(biome)) {
+            ++recovered;
+        }
         if (!port->inventory.add(port->carriedItem, recovered)) {
             port->status = MachineStatus::OutputBlocked;
             continue;
