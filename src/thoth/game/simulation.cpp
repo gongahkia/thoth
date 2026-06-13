@@ -5973,15 +5973,15 @@ int towerDamageForAmmo(MachineKind kind, ItemId ammo, EntityKind target)
         return 5;
     }
     if (ammo == ItemId::CopperCoil) {
-        return 3;
+        return 4;
     }
-    return 2;
+    return 4;
 }
 
 int towerGoalTicksForAmmo(MachineKind kind, ItemId ammo, ItemId relic)
 {
     if (kind == MachineKind::GuardTower) {
-        int ticks = ammo == ItemId::None ? 70 : kGuardTowerTicks;
+        int ticks = kGuardTowerTicks;
         if (ammo == ItemId::CopperCoil) {
             ticks = 36;
         }
@@ -5990,7 +5990,7 @@ int towerGoalTicksForAmmo(MachineKind kind, ItemId ammo, ItemId relic)
         }
         return ticks;
     }
-    int ticks = ammo == ItemId::None ? 45 : kArcTowerTicks;
+    int ticks = kArcTowerTicks;
     if (ammo == ItemId::RiftShell) {
         ticks = 22;
     }

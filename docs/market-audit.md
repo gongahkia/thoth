@@ -32,8 +32,9 @@ Thoth's defensible lane is smaller and sharper:
 - The first 10 minutes still rely on the player accepting the premise before the game proves its hook.
 - The lair ladder now has authored anchors plus seeded procedural repeats, but generated lair density and cache readability need playtest tuning.
 - Boss rewards now socket into factory-relevant support machines, but reward costs and pacing still need a continuous-run balance pass.
-- Defense now has factory-anchored waves, infrastructure-targeting pressure enemies, repair pylons, pressure relays, and arc towers, but wave cadence and structure-damage tuning still need live playtesting.
-- Rift travel now feeds repeatable post-victory expeditions, but rift-band resources and late factory tools need more distinct verbs.
+- Defense now has factory-anchored waves, pressure hotspot maps, infrastructure-targeting pressure enemies, ammo-fed towers, repair pylons, pressure relays, and arc towers, but wave cadence and structure-damage tuning still need live playtesting.
+- Rift travel now feeds repeatable post-victory expeditions, scout reports, archive-fragment alternates, and route-stability goals, but rift-band resources and late factory tools need more distinct verbs.
+- Construction ghosts, planning mode, and drone build jobs give the factory loop a blueprint layer, but the UI still needs live usability tuning.
 - Documentation explains the codebase well, but the product promise needs sharper wording for real-player evaluation.
 
 ## Expansion Thesis
@@ -42,9 +43,9 @@ For the next Steam-demo pass, prioritize content that changes player behavior:
 
 - Tune authored plus generated lairs so every biome has a repeatable expedition target without overwhelming the starter ring.
 - Keep boss relics tied to factory and defense capability, and tune summon costs so bosses happen throughout the run instead of all at the end.
-- Lean on remote outposts and local-biome scouting so exploration requires logistics, not only inventory stockpiles.
-- Keep combat pressure solved by building a better factory: walls, powered towers, repair, pressure control, and route planning.
-- Add UI goal text that keeps the demo legible from minute one.
+- Lean on stable remote outpost routes, named scout regions, and local-biome scouting so exploration requires logistics, not only inventory stockpiles.
+- Keep combat pressure solved by building a better factory: walls, ammo logistics, powered towers, repair, pressure control, and route planning.
+- Keep production-rate, construction, archive, pressure, and region panels readable enough that the demo is legible from minute one.
 
 ## Sources
 

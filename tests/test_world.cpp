@@ -1104,10 +1104,13 @@ void testSaveLoadRoundTrip()
 void testRichPersistedStateRoundTrip()
 {
     using thoth::game::Direction;
+    using thoth::game::ConstructionJob;
+    using thoth::game::GhostBuild;
     using thoth::game::ItemId;
     using thoth::game::ItemStack;
     using thoth::game::Machine;
     using thoth::game::MachineKind;
+    using thoth::game::OutpostRouteState;
     using thoth::game::Simulation;
     using thoth::game::SimulationSnapshot;
     using thoth::game::Tile;
@@ -1273,7 +1276,14 @@ void testRichPersistedStateRoundTrip()
         "ghost build state should persist");
     require(loaded->constructionJobs().size() == 1 && loaded->constructionJobs().front().ticksRemaining == 12,
         "construction job state should persist");
-    require(loaded->outpostRoutes().front().stability == 2,
+    const auto loadedRoutes = loaded->outpostRoutes();
+    const auto loadedDesertRoute = std::find_if(
+        loadedRoutes.begin(),
+        loadedRoutes.end(),
+        [](const thoth::game::OutpostRouteProgress& route) {
+            return route.biome == thoth::game::BiomeKind::Desert;
+        });
+    require(loadedDesertRoute != loadedRoutes.end() && loadedDesertRoute->stability == 2,
         "outpost route stability should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Marsh), "marsh outpost coverage should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Desert), "desert outpost coverage should persist");
@@ -3404,23 +3414,35 @@ void testOutpostBeaconRequiresPowerAndBiomeInput()
     snapshot = sim.snapshot();
     for (auto& machine : snapshot.machines) {
         if (machine.kind == MachineKind::Generator) {
-            machine.fuelTicks = 900;
+            machine.fuelTicks = 1300;
+            require(machine.inventory.add(ItemId::WaterBarrel, 20), "test should cool the desert generator");
         }
         if (machine.kind == MachineKind::OutpostBeacon) {
-            require(machine.inventory.add(ItemId::SandGlass, 5), "test should seed repeated desert deliveries");
+            require(machine.inventory.add(ItemId::SandGlass, 6), "test should seed repeated desert deliveries");
+            require(machine.inventory.add(ItemId::WaterBarrel, 20), "test should seed desert route coolant");
         }
     }
+    snapshot.player.x = 0;
+    snapshot.player.y = 0;
+    snapshot.entities.clear();
     sim.restore(snapshot);
 
-    for (int i = 0; i < 510; ++i) {
+    for (int i = 0; i < 700; ++i) {
         sim.step();
     }
 
     require(sim.productionTotals().outpostDeliveries >= 6,
         "repeated outpost deliveries should increment delivery total");
     require(sim.stableOutpostRouteCount() == 1, "six deliveries should stabilize one outpost route");
-    require(sim.outpostRouteText().find("stable") != std::string::npos,
-        "outpost route text should report stable routes");
+    routes = sim.outpostRoutes();
+    desertRoute = std::find_if(
+        routes.begin(),
+        routes.end(),
+        [](const OutpostRouteProgress& route) {
+            return route.biome == BiomeKind::Desert;
+        });
+    require(desertRoute != routes.end() && desertRoute->stable,
+        "desert outpost route should report stable route state");
 
     const auto path = std::filesystem::temp_directory_path() / "thoth_outpost_roundtrip.txt";
     std::string error;
@@ -3962,6 +3984,172 @@ void testArchiveTerminalChargesWhenPowered()
     require(terminal->inventory.count(ItemId::BeaconCore) == 0, "archive terminal should consume beacon core");
 }
 
+void testArchiveFragmentsUnlockAlternateRecipes()
+{
+    using namespace thoth::game;
+
+    Simulation sim(38);
+    placeMachineAt(sim, ItemId::Generator, 0, 1, Direction::South);
+    placeMachineAt(sim, ItemId::PowerPole, 1, 1, Direction::East);
+    auto* terminal = placeMachineAt(sim, ItemId::ArchiveTerminal, 1, 0, Direction::East);
+    require(terminal != nullptr && terminal->kind == MachineKind::ArchiveTerminal,
+        "archive unlock terminal should exist");
+    require(!sim.isRecipeUnlocked("dry_copper_plate"), "archive alternate should begin locked");
+
+    auto snapshot = sim.snapshot();
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::Generator) {
+            machine.fuelTicks = 40;
+        }
+        if (machine.kind == MachineKind::ArchiveTerminal) {
+            require(machine.inventory.add(ItemId::DesertFragment, 1), "test should seed desert fragment");
+            require(machine.inventory.add(ItemId::SciencePack, 1), "test should seed archive science");
+        }
+    }
+    snapshot.player.x = 0;
+    snapshot.player.y = 0;
+    sim.restore(snapshot);
+
+    sim.queue(Command::selectArchiveChoice(Direction::East, 1));
+    sim.step();
+
+    terminal = sim.machineAt(1, 0);
+    require(sim.isRecipeUnlocked("dry_copper_plate"), "archive fragments should unlock selected alternate recipe");
+    require(terminal != nullptr && terminal->inventory.count(ItemId::DesertFragment) == 0,
+        "archive unlock should consume the selected fragment");
+    require(terminal->inventory.count(ItemId::SciencePack) == 0,
+        "archive unlock should consume science");
+    const auto choices = sim.archiveChoices();
+    const auto unlocked = std::find_if(
+        choices.begin(),
+        choices.end(),
+        [](const ArchiveChoice& choice) {
+            return choice.recipeKey == "dry_copper_plate" && choice.unlocked;
+        });
+    require(unlocked != choices.end(), "archive choices should expose unlocked alternates");
+
+    const auto path = std::filesystem::temp_directory_path() / "thoth_archive_unlock_roundtrip.txt";
+    std::string error;
+    require(thoth::game::saveSimulation(sim, path, &error), "archive unlock save should succeed: " + error);
+    auto loaded = thoth::game::loadSimulation(path, &error);
+    std::filesystem::remove(path);
+    require(loaded.has_value(), "archive unlock load should succeed: " + error);
+    require(loaded->isRecipeUnlocked("dry_copper_plate"), "archive unlock should survive save/load");
+}
+
+void testConstructionGhostsBuildFromProviderAndPlanningMode()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    placeMachineAt(sim, ItemId::Generator, 0, 1, Direction::South);
+    placeMachineAt(sim, ItemId::PowerPole, 1, 1, Direction::East);
+    placeMachineAt(sim, ItemId::LogisticPort, 2, 1, Direction::East);
+    placeMachineAt(sim, ItemId::ProviderChest, 2, 0, Direction::East);
+    auto* generator = sim.machineAt(0, 1);
+    auto* port = sim.machineAt(2, 1);
+    auto* provider = sim.machineAt(2, 0);
+    require(generator != nullptr && port != nullptr && provider != nullptr,
+        "construction network machines should place");
+    require(port->inventory.add(ItemId::LogisticDrone, 1), "test should seed construction drone");
+    require(provider->inventory.add(ItemId::Belt, 1), "test should seed provider stock");
+    generator->fuelTicks = 200;
+    sim.player().x = 3;
+    sim.player().y = 0;
+
+    sim.queue(Command::placeGhost(Direction::South, ItemId::Belt, Direction::East));
+    sim.step();
+    require(!sim.ghostBuilds().empty(), "placing a ghost should queue construction");
+    require(!sim.constructionJobs().empty(), "powered port should dispatch a construction job");
+    require(provider->inventory.count(ItemId::Belt) == 0, "construction job should reserve provider material");
+
+    for (int i = 0; i < 70; ++i) {
+        sim.step();
+    }
+
+    const auto* builtBelt = sim.machineAt(3, 1);
+    require(builtBelt != nullptr && builtBelt->kind == MachineKind::Belt,
+        "construction drone should complete the ghost build");
+    require(sim.constructionText().find("no ghost") != std::string::npos,
+        "construction text should clear completed ghosts");
+
+    auto planning = Simulation::newPlanningGame(20260611);
+    placeMachineAt(planning, ItemId::Generator, 0, 1, Direction::South);
+    placeMachineAt(planning, ItemId::PowerPole, 1, 1, Direction::East);
+    placeMachineAt(planning, ItemId::LogisticPort, 2, 1, Direction::East);
+    auto* planGenerator = planning.machineAt(0, 1);
+    auto* planPort = planning.machineAt(2, 1);
+    require(planGenerator != nullptr && planPort != nullptr, "planning construction network should place");
+    planGenerator->fuelTicks = 20;
+    require(planPort->inventory.add(ItemId::LogisticDrone, 1), "planning port should have a drone");
+    planning.player().x = 3;
+    planning.player().y = 0;
+
+    planning.queue(Command::placeGhost(Direction::South, ItemId::Chest, Direction::East));
+    for (int i = 0; i < 3; ++i) {
+        planning.step();
+    }
+
+    const auto* builtChest = planning.machineAt(3, 1);
+    require(planning.gameMode() == GameMode::Planning, "planning game should remain in planning mode");
+    require(builtChest != nullptr && builtChest->kind == MachineKind::Chest,
+        "planning construction should complete without provider stock");
+}
+
+void testRegionPressureAndProductionReports()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    auto snapshot = sim.snapshot();
+    snapshot.tick = 300;
+    snapshot.player.x = 18;
+    snapshot.player.y = -2;
+    snapshot.player.inventory = {
+        ItemStack{ItemId::StoneShot, 10},
+    };
+    snapshot.productionTotals.ironPlates = 4;
+    snapshot.productionTotals.copperPlates = 4;
+    snapshot.productionTotals.sciencePacks = 10;
+    snapshot.productionTotals.scoutedBiomeMask =
+        biomeMaskForTest(BiomeKind::Marsh) |
+        biomeMaskForTest(BiomeKind::Desert);
+    snapshot.nextMachineId = 2;
+    Machine assembler;
+    assembler.id = 1;
+    assembler.kind = MachineKind::Assembler;
+    assembler.x = 18;
+    assembler.y = -2;
+    assembler.direction = Direction::East;
+    assembler.recipeKey = "science_pack";
+    snapshot.machines = {assembler};
+    sim.restore(snapshot);
+
+    const auto region = sim.regionInfoAt(18, -2, 0);
+    require(region.biome == BiomeKind::Desert && !region.name.empty(),
+        "region info should name the local procedural desert");
+    require(region.reward.find("desert_fragment") != std::string::npos,
+        "region reward text should include biome fragments");
+    require(sim.latestScoutReports().size() == 2, "scouted biomes should produce scout reports");
+
+    const auto hotspots = sim.pressureHotspots();
+    require(!hotspots.empty() && hotspots.front().nextWaveAnchor,
+        "pressure hotspots should identify a next wave anchor");
+    require(sim.pressureMapText().find("hotspot") != std::string::npos,
+        "pressure map text should describe active hotspots");
+
+    const auto rates = sim.productionRatePanels();
+    const auto ammoPanel = std::find_if(
+        rates.begin(),
+        rates.end(),
+        [](const ProductionRatePanel& panel) {
+            return panel.key == "ammo" && panel.currentPerMinute >= 10;
+        });
+    require(ammoPanel != rates.end(), "production rates should include carried tower ammo");
+    require(sim.productionRateText().find("rates:") != std::string::npos,
+        "production rate text should summarize targets");
+}
+
 void testSplitterAlternatesSideOutputs()
 {
     using thoth::game::Direction;
@@ -4400,6 +4588,13 @@ void testPostVictoryExpeditionBoard()
         biomeMaskForTest(BiomeKind::Badlands) |
         biomeMaskForTest(BiomeKind::Snowfield) |
         biomeMaskForTest(BiomeKind::CrystalField);
+    snapshot.outpostRoutes = {
+        OutpostRouteState{BiomeKind::Marsh, 0, 2, 3, 100, 100},
+        OutpostRouteState{BiomeKind::Desert, 0, 2, 3, 100, 100},
+        OutpostRouteState{BiomeKind::Badlands, 0, 2, 3, 100, 100},
+        OutpostRouteState{BiomeKind::Snowfield, 0, 2, 3, 100, 100},
+        OutpostRouteState{BiomeKind::CrystalField, 0, 2, 3, 100, 100},
+    };
     snapshot.productionTotals.pressureWaveRewardsClaimed = 5;
     snapshot.productionTotals.dungeonChestsOpened = 5;
     snapshot.productionTotals.trainDeliveries = 20;
@@ -4943,6 +5138,9 @@ int main()
     testLogisticPortAutomatesScoutDispatches();
     testRemoteLogisticPortScoutsLocalBiomeFirst();
     testArchiveTerminalChargesWhenPowered();
+    testArchiveFragmentsUnlockAlternateRecipes();
+    testConstructionGhostsBuildFromProviderAndPlanningMode();
+    testRegionPressureAndProductionReports();
     testSplitterAlternatesSideOutputs();
     testTrainStopsTransferItems();
     testPumpPipeMovesWaterBarrels();

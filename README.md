@@ -17,6 +17,7 @@ Thoth is a compact deterministic automation-survival game:
 - Fulfill visible supply contracts that turn the sandbox into a clear plate-to-rift objective chain.
 - Push into biome lairs, prepare boss summons with factory output, and defend against pressure with powered guard towers, repair pylons, pressure relays, and arc towers.
 - Use biome and boss rewards to widen the factory plan instead of only stockpiling items.
+- Stabilize remote outposts with sustained deliveries, recover archive fragments, and unlock alternate recipes that change factory layouts.
 - Save, load, and replay deterministic simulation state.
 
 The renderer is intentionally simple. The product focus is a Steam-demo vertical slice where a player can build a starter factory, follow visible contracts, conquer biome lairs, and stabilize a rift. The engineering focus is a headless deterministic simulation with a practical raylib front end.
@@ -35,17 +36,19 @@ Implemented in C++:
 - Iron and copper ore-to-plate resource chains through miners, furnaces, inserters, belts, and chests.
 - Small tech tree with iron-plus-copper science, advanced science, circuit inserters, logistic networks, and copper-dependent power machines.
 - Circuit inserter filters/thresholds and powered provider/requester drone deliveries.
-- Powered archive charging, train-stop cargo hops, pump-to-pipe water movement, and rift-gate travel to a deterministic high-resource outer band.
+- Powered archive charging, archive-fragment alternate recipe unlocks, train-stop cargo hops, pump-to-pipe water movement, and rift-gate travel to a deterministic high-resource outer band.
 - Supply contracts for iron, copper, science, powered mining, logistics, advanced science, archive charging, and rift travel, with an explicit main-objective completion state.
 - Biome contracts, deterministic Marsh/Desert/Badlands/Snowfield/Crystal lairs, lair-specific hostile pressure, and five prepared boss summons: Marsh Broodheart, Glass Maw, Badlands Warden, Frost Nullifier, and Rift Signal Tyrant.
-- Seeded procedural lairs beyond the authored starter ladder, with deterministic surface entrances, interior chambers, biome caches, and repeat boss/relic opportunities outside the protected early ring.
+- Seeded procedural lairs beyond the authored starter ladder, with deterministic surface entrances, interior chambers, biome caches, lair hearth recovery points, recovery crates, and repeat boss/relic opportunities outside the protected early ring.
 - Boss relic rewards that unlock or craft factory-relevant defense and support tools.
-- Powered outpost beacons that consume biome-specific inputs and extend biome contracts beyond inventory stockpiles.
-- Factory pressure readouts plus deterministic hostile probe spawns once science production makes the factory visible enough to defend, with waves anchoring around the factory footprint and pressure enemies pathing toward infrastructure.
-- Powered guard towers and arc towers that target hostile entities deterministically.
+- Powered outpost beacons that consume biome-specific inputs, require sustained delivery routes for full stability, and extend biome contracts beyond inventory stockpiles.
+- Factory pressure readouts, pressure hotspot maps, and deterministic hostile probe spawns once science production makes the factory visible enough to defend, with waves anchoring around the factory footprint and pressure enemies pathing toward infrastructure.
+- Powered guard towers and arc towers that target hostile entities deterministically, consume optional ammo for stronger/specialized shots, and remain weak fallback defenses when unfed.
 - Powered repair pylons that rebuild adjacent wall gaps and pressure relays that mitigate future factory pressure.
-- Remote logistic-port scouting that prioritizes the port's local biome, returns route-bonus materials, and feeds post-victory cartography goals.
-- A repeatable post-victory expedition board covering scouting, boss relics, rift storms, outpost deliveries, pressure rewards, lair caches, train freight, scrap recycling, and powered mining.
+- Drone construction jobs from ghost builds, plus planning mode for rapid blueprint-style placement without material consumption.
+- Remote logistic-port scouting that prioritizes the port's local biome, returns route-bonus materials and biome fragments, names discovered regions, and feeds post-victory cartography goals.
+- Production-rate panels for plates, science, ammo, and sustained route progress.
+- A repeatable post-victory expedition board covering scouting, boss relics, rift storms, stable outpost routes, pressure rewards, lair caches, train freight, scrap recycling, and powered mining.
 - Deterministic power network recomputation.
 - Plain-text save/load and replay foundation.
 - Headless tests for world generation, registries, automation, chunk-boundary factory lines, rich save/load state, replay, research, power, workbench gating, circuit inserter config, and logistic delivery persistence.
@@ -59,7 +62,7 @@ Still rough:
 - Generated sprite atlas fallback remains available for reference and recovery.
 - Inventory, machine, and build menus have scan-first state labels now, but still need a final visual design pass.
 - Authored audio cue source is present as `assets/audio/thoth_cues.sfx`, with tuned deterministic WAV exports for core work, UI, error, save/load, and production feedback; final live-listening mix polish is still pending.
-- The game now has an explicit completion state, a five-boss ladder, relic-gated support machines, outpost contracts, generated lairs, route-aware scouting, factory-anchored pressure, and a repeatable post-victory expedition board, but the expanded loop still needs live tuning.
+- The game now has an explicit completion state, a five-boss ladder, relic-gated support machines, outpost contracts, stable routes, generated lairs, route-aware scouting, archive alternates, construction ghosts, factory-anchored pressure, and a repeatable post-victory expedition board, but the expanded loop still needs live tuning.
 
 ## Build And Run
 
@@ -150,7 +153,7 @@ Export deterministic full-flow playtest telemetry JSON without opening a window:
 make cpp-export-playtest-telemetry
 ```
 
-The telemetry export writes `assets/previews/thoth_playtest_telemetry.json` with replay-backed contract progress, pressure-wave timing, production totals, entity pressure, machine counts, structure damage, and current guidance text.
+The telemetry export writes `assets/previews/thoth_playtest_telemetry.json` with replay-backed contract progress, pressure-wave timing, pressure hotspots, archive choices, construction state, sustained outpost routes, production-rate panels, region/scout reports, machine counts, structure damage, and current guidance text.
 
 Run a bounded raylib window smoke and save a screenshot:
 
@@ -231,12 +234,12 @@ assets/audio/          authored audio cue source, WAV cue exports, and generated
 
 ## Roadmap
 
-The current plan lives in `WORKON-PIVOT-ASAP.md`, with competitive positioning in `docs/market-audit.md`. The old Lua/Love2D pivot questions in GitHub issues `#35` and `#36` are obsolete now that this repo is settled as the C++/raylib game codebase.
+Competitive positioning lives in `docs/market-audit.md`. The old Lua/Love2D pivot questions in GitHub issues `#35` and `#36` are obsolete now that this repo is settled as the C++/raylib game codebase.
 
 Near-term work:
 
 - Playtest the expanded biome ladder, relic costs, outpost activation cadence, and defense-machine power demands in one continuous run.
-- Playtest the repeatable post-victory expedition board across boss relics, outposts, pressure rewards, rift freight, scrap recycling, and powered mining.
-- Add bespoke sprite/audio/UI polish for the new lairs, enemies, bosses, outpost beacons, repair pylons, pressure relays, and arc towers.
+- Playtest the repeatable post-victory expedition board across boss relics, stable outpost routes, pressure rewards, rift freight, scrap recycling, and powered mining.
+- Add bespoke sprite/audio/UI polish for the new lairs, enemies, bosses, fragments, outpost beacons, construction ghosts, repair pylons, pressure relays, and arc towers.
 - Polish final atlas styling and authored WAV cues after the expanded content loop is playable.
 - Strengthen performance guardrails as larger factories and pressure waves land.
