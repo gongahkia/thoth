@@ -572,7 +572,7 @@ Tile World::generateTile(int x, int y, int z) const
                     return Tile{TileId::DungeonWall, 0};
                 }
                 const auto chamber = thoth::core::hashCoordinates(
-                    seed_ ^ 0x6c6169725f63616368ULL,
+                    seed_ ^ 0x6c61697263616368ULL,
                     x + (lair->centerX * 17),
                     y + (lair->centerY * 31));
                 if (localX + localY > 4 && static_cast<int>(chamber % 1000U) < 58) {

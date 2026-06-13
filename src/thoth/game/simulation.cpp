@@ -1807,7 +1807,9 @@ std::string Simulation::scoutAutomationText() const
     const auto countText = std::to_string(scoutedBiomeCount()) + "/" +
         std::to_string(kScoutBiomes.size());
     if (activePort != nullptr) {
-        return "scouts: dispatching " + std::string(toString(activePort->carriedItem)) +
+        const auto activeBiome = scoutBiomeForReward(activePort->carriedItem).value_or(scoutTargetBiome(*activePort));
+        return "scouts: dispatching " + std::string(toString(activeBiome)) + " " +
+            std::string(toString(activePort->carriedItem)) +
             " sample " + std::to_string(activePort->progress) + "/" +
             std::to_string(kScoutDispatchTicks) + "; scouted " + countText;
     }

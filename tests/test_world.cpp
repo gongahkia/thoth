@@ -5,12 +5,14 @@
 #include "thoth/game/world.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <queue>
 #include <sstream>
 #include <string>
@@ -3787,6 +3789,41 @@ void testLogisticPortAutomatesScoutDispatches()
         "scout text should summarize mapped biome coverage");
 }
 
+void testRemoteLogisticPortScoutsLocalBiomeFirst()
+{
+    using namespace thoth::game;
+
+    Simulation sim(20260611);
+    placeMachineAt(sim, ItemId::Generator, 12, 1, Direction::South);
+    placeMachineAt(sim, ItemId::PowerPole, 13, 1, Direction::East);
+    placeMachineAt(sim, ItemId::LogisticPort, 14, 1, Direction::East);
+
+    auto* generator = sim.machineAt(12, 1);
+    auto* port = sim.machineAt(14, 1);
+    require(sim.world().biomeAt(14, 1) == BiomeKind::Desert, "test port should sit in the starter desert");
+    require(generator != nullptr && generator->inventory.add(ItemId::Coal, 3), "test should fuel remote scout generator");
+    require(port != nullptr && port->inventory.add(ItemId::LogisticDrone, 1), "test should add remote scout drone");
+    require(port->inventory.add(ItemId::SciencePack, 1), "test should add remote scout science");
+
+    sim.step();
+    port = sim.machineAt(14, 1);
+    require(port != nullptr && port->carriedItem == ItemId::CactusFiber,
+        "desert logistic port should scout its local biome before global unscouted biomes");
+    require(sim.scoutAutomationText().find("desert") != std::string::npos,
+        "scout guidance should name the local target biome");
+
+    for (int i = 0; i < 130; ++i) {
+        sim.step();
+    }
+
+    port = sim.machineAt(14, 1);
+    require(port != nullptr && port->inventory.count(ItemId::CactusFiber) >= 3,
+        "local-biome scout completion should return the route bonus material count");
+    require(sim.productionTotals().scoutMaterialsRecovered == 3,
+        "local route bonus should count toward scout material telemetry");
+    require(sim.hasScoutedBiome(BiomeKind::Desert), "completed local scout should mark desert as scouted");
+}
+
 void testArchiveTerminalChargesWhenPowered()
 {
     using thoth::game::Direction;
@@ -4364,6 +4401,48 @@ void testFactoryPressureSpawnsHostileProbe()
     }
     require(hostileCount >= 2, "high-pressure event cards should spawn multiple hostiles");
     require(pressureHostileCount >= 2, "high-pressure event hostiles should be tagged for wave rewards");
+
+    Simulation anchored(20260611);
+    snapshot = anchored.snapshot();
+    snapshot.tick = 300;
+    snapshot.player.x = -80;
+    snapshot.player.y = -80;
+    snapshot.productionTotals.sciencePacks = 10;
+    snapshot.nextMachineId = 2;
+    Machine lab;
+    lab.id = 1;
+    lab.kind = MachineKind::Lab;
+    lab.x = 30;
+    lab.y = 0;
+    lab.durability = 5;
+    snapshot.machines = {lab};
+    snapshot.tiles = {
+        TileSnapshot{30, -10, Tile{TileId::Floor, 0}},
+        TileSnapshot{38, -6, Tile{TileId::Floor, 0}},
+        TileSnapshot{40, 0, Tile{TileId::Floor, 0}},
+        TileSnapshot{38, 6, Tile{TileId::Floor, 0}},
+        TileSnapshot{30, 10, Tile{TileId::Floor, 0}},
+        TileSnapshot{22, 6, Tile{TileId::Floor, 0}},
+        TileSnapshot{20, 0, Tile{TileId::Floor, 0}},
+        TileSnapshot{22, -6, Tile{TileId::Floor, 0}},
+        TileSnapshot{34, -9, Tile{TileId::Floor, 0}},
+        TileSnapshot{39, 4, Tile{TileId::Floor, 0}},
+        TileSnapshot{26, 9, Tile{TileId::Floor, 0}},
+        TileSnapshot{21, -4, Tile{TileId::Floor, 0}},
+    };
+    anchored.restore(snapshot);
+    anchored.step();
+    int nearestFactoryDistance = 1'000'000;
+    int nearestPlayerDistance = 1'000'000;
+    for (const auto& entity : anchored.entities()) {
+        if (!entity.pressureSpawn) {
+            continue;
+        }
+        nearestFactoryDistance = std::min(nearestFactoryDistance, std::abs(entity.x - lab.x) + std::abs(entity.y - lab.y));
+        nearestPlayerDistance = std::min(nearestPlayerDistance, std::abs(entity.x - snapshot.player.x) + std::abs(entity.y - snapshot.player.y));
+    }
+    require(nearestFactoryDistance <= 12, "pressure waves should anchor around the factory footprint");
+    require(nearestPlayerDistance > 40, "factory-anchored pressure waves should not spawn on a distant player");
 }
 
 void testPressureWaveRewardsAndPersistence()
@@ -4681,6 +4760,7 @@ int main()
     testStarterResources();
     testEarlyBiomeTiles();
     testBiomeLairGeneration();
+    testProceduralLairGenerationBeyondStarterRing();
     testLairEnemyPressureSpawnsBiomeHostiles();
     testLairInteriorEntryCacheAndPersistence();
     testMarshBossSummonPersistenceAndReward();
@@ -4748,6 +4828,7 @@ int main()
     testCircuitInserterFilterThresholdAndSaveLoad();
     testLogisticDeliveryPersistsInFlight();
     testLogisticPortAutomatesScoutDispatches();
+    testRemoteLogisticPortScoutsLocalBiomeFirst();
     testArchiveTerminalChargesWhenPowered();
     testSplitterAlternatesSideOutputs();
     testTrainStopsTransferItems();
