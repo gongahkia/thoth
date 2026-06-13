@@ -142,6 +142,32 @@ std::optional<EntityKind> entityKindFromKey(std::string_view key)
     return std::nullopt;
 }
 
+std::optional<BiomeKind> biomeKindFromKey(std::string_view key)
+{
+    if (key == "grassland") {
+        return BiomeKind::Grassland;
+    }
+    if (key == "desert") {
+        return BiomeKind::Desert;
+    }
+    if (key == "snowfield") {
+        return BiomeKind::Snowfield;
+    }
+    if (key == "marsh") {
+        return BiomeKind::Marsh;
+    }
+    if (key == "badlands") {
+        return BiomeKind::Badlands;
+    }
+    if (key == "crystal_field") {
+        return BiomeKind::CrystalField;
+    }
+    if (key == "rift") {
+        return BiomeKind::Rift;
+    }
+    return std::nullopt;
+}
+
 void setError(std::string* error, const std::string& message)
 {
     if (error != nullptr) {
@@ -180,7 +206,7 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
     }
 
     const auto snapshot = simulation.snapshot();
-    output << "THOTH_SAVE 21\n";
+    output << "THOTH_SAVE 22\n";
     output << "seed " << snapshot.seed << "\n";
     output << "tick " << snapshot.tick << "\n";
     output << "player " << snapshot.player.x << ' ' << snapshot.player.y << ' '
@@ -302,6 +328,47 @@ bool saveSimulation(const Simulation& simulation, const std::filesystem::path& p
            << snapshot.tutorial.realSpawnY << ' '
            << snapshot.tutorial.realSpawnZ << "\n";
 
+    output << "game_mode " << toString(snapshot.gameMode) << "\n";
+
+    output << "archive_unlocks " << snapshot.archiveUnlocks.size() << "\n";
+    for (const auto& unlock : snapshot.archiveUnlocks) {
+        output << "archive_unlock " << unlock << "\n";
+    }
+
+    output << "next_ghost " << snapshot.nextGhostId << "\n";
+    output << "ghosts " << snapshot.ghostBuilds.size() << "\n";
+    for (const auto& ghost : snapshot.ghostBuilds) {
+        output << "ghost " << ghost.id << ' '
+               << toString(ghost.item) << ' '
+               << toString(ghost.tile) << ' '
+               << (ghost.machine ? 1 : 0) << ' '
+               << ghost.x << ' ' << ghost.y << ' ' << ghost.z << ' '
+               << directionToString(ghost.direction) << ' '
+               << ghost.progress << ' '
+               << (ghost.fulfilled ? 1 : 0) << ' '
+               << (ghost.blockedReason.empty() ? "none" : ghost.blockedReason) << "\n";
+    }
+
+    output << "construction_jobs " << snapshot.constructionJobs.size() << "\n";
+    for (const auto& job : snapshot.constructionJobs) {
+        output << "construction_job " << job.ghostId << ' '
+               << job.portId << ' '
+               << job.sourceId << ' '
+               << toString(job.item) << ' '
+               << job.ticksRemaining << ' '
+               << job.totalTicks << "\n";
+    }
+
+    output << "outpost_routes " << snapshot.outpostRoutes.size() << "\n";
+    for (const auto& route : snapshot.outpostRoutes) {
+        output << "outpost_route " << toString(route.biome) << ' '
+               << route.deliveredInWindow << ' '
+               << route.requiredPerWindow << ' '
+               << route.stability << ' '
+               << route.windowStartTick << ' '
+               << route.lastDeliveryTick << "\n";
+    }
+
     return true;
 }
 
@@ -318,7 +385,7 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
     }
 
     int version = 0;
-    if (!readValue(input, version, "save version", error) || (version < 1 || version > 21)) {
+    if (!readValue(input, version, "save version", error) || (version < 1 || version > 22)) {
         setError(error, "unsupported save version");
         return std::nullopt;
     }
@@ -823,6 +890,142 @@ std::optional<SimulationSnapshot> loadSimulationSnapshot(const std::filesystem::
         snapshot.tutorial.realSpawnX = 0;
         snapshot.tutorial.realSpawnY = 0;
         snapshot.tutorial.realSpawnZ = 0;
+    }
+
+    if (version >= 22) {
+        std::string gameModeKey;
+        if (!expectToken(input, "game_mode", error) ||
+            !readValue(input, gameModeKey, "game mode", error)) {
+            return std::nullopt;
+        }
+        snapshot.gameMode = gameModeFromKey(gameModeKey);
+
+        std::size_t archiveUnlockCount = 0;
+        if (!expectToken(input, "archive_unlocks", error) ||
+            !readValue(input, archiveUnlockCount, "archive unlock count", error)) {
+            return std::nullopt;
+        }
+        snapshot.archiveUnlocks.clear();
+        for (std::size_t i = 0; i < archiveUnlockCount; ++i) {
+            std::string key;
+            if (!expectToken(input, "archive_unlock", error) ||
+                !readValue(input, key, "archive unlock", error)) {
+                return std::nullopt;
+            }
+            if (recipeDef(key) == nullptr) {
+                setError(error, "invalid archive unlock recipe");
+                return std::nullopt;
+            }
+            snapshot.archiveUnlocks.push_back(std::move(key));
+        }
+
+        if (!expectToken(input, "next_ghost", error) ||
+            !readValue(input, snapshot.nextGhostId, "next ghost id", error)) {
+            return std::nullopt;
+        }
+
+        std::size_t ghostCount = 0;
+        if (!expectToken(input, "ghosts", error) ||
+            !readValue(input, ghostCount, "ghost count", error)) {
+            return std::nullopt;
+        }
+        snapshot.ghostBuilds.clear();
+        for (std::size_t i = 0; i < ghostCount; ++i) {
+            GhostBuild ghost;
+            std::string itemKey;
+            std::string tileKey;
+            std::string directionKey;
+            int isMachine = 0;
+            int fulfilled = 0;
+            if (!expectToken(input, "ghost", error) ||
+                !readValue(input, ghost.id, "ghost id", error) ||
+                !readValue(input, itemKey, "ghost item", error) ||
+                !readValue(input, tileKey, "ghost tile", error) ||
+                !readValue(input, isMachine, "ghost machine flag", error) ||
+                !readValue(input, ghost.x, "ghost x", error) ||
+                !readValue(input, ghost.y, "ghost y", error) ||
+                !readValue(input, ghost.z, "ghost z", error) ||
+                !readValue(input, directionKey, "ghost direction", error) ||
+                !readValue(input, ghost.progress, "ghost progress", error) ||
+                !readValue(input, fulfilled, "ghost fulfilled", error) ||
+                !readValue(input, ghost.blockedReason, "ghost blocked reason", error)) {
+                return std::nullopt;
+            }
+            const auto item = itemIdFromKey(itemKey);
+            const auto tile = tileIdFromKey(tileKey);
+            const auto direction = directionFromKey(directionKey);
+            if (!item || !tile || !direction || ghost.id == 0) {
+                setError(error, "invalid ghost");
+                return std::nullopt;
+            }
+            ghost.item = *item;
+            ghost.tile = *tile;
+            ghost.direction = *direction;
+            ghost.machine = isMachine != 0;
+            ghost.fulfilled = fulfilled != 0;
+            ghost.progress = std::clamp(ghost.progress, 0, 100);
+            if (ghost.blockedReason == "none") {
+                ghost.blockedReason.clear();
+            }
+            snapshot.ghostBuilds.push_back(std::move(ghost));
+        }
+
+        std::size_t constructionCount = 0;
+        if (!expectToken(input, "construction_jobs", error) ||
+            !readValue(input, constructionCount, "construction job count", error)) {
+            return std::nullopt;
+        }
+        snapshot.constructionJobs.clear();
+        for (std::size_t i = 0; i < constructionCount; ++i) {
+            ConstructionJob job;
+            std::string itemKey;
+            if (!expectToken(input, "construction_job", error) ||
+                !readValue(input, job.ghostId, "construction ghost id", error) ||
+                !readValue(input, job.portId, "construction port id", error) ||
+                !readValue(input, job.sourceId, "construction source id", error) ||
+                !readValue(input, itemKey, "construction item", error) ||
+                !readValue(input, job.ticksRemaining, "construction ticks remaining", error) ||
+                !readValue(input, job.totalTicks, "construction total ticks", error)) {
+                return std::nullopt;
+            }
+            const auto item = itemIdFromKey(itemKey);
+            if (!item || *item == ItemId::None || job.ghostId == 0 || job.portId == 0 ||
+                job.ticksRemaining < 0 || job.totalTicks <= 0) {
+                setError(error, "invalid construction job");
+                return std::nullopt;
+            }
+            job.item = *item;
+            snapshot.constructionJobs.push_back(job);
+        }
+
+        std::size_t routeCount = 0;
+        if (!expectToken(input, "outpost_routes", error) ||
+            !readValue(input, routeCount, "outpost route count", error)) {
+            return std::nullopt;
+        }
+        snapshot.outpostRoutes.clear();
+        for (std::size_t i = 0; i < routeCount; ++i) {
+            OutpostRouteState route;
+            std::string biomeKey;
+            if (!expectToken(input, "outpost_route", error) ||
+                !readValue(input, biomeKey, "outpost route biome", error) ||
+                !readValue(input, route.deliveredInWindow, "outpost route delivered", error) ||
+                !readValue(input, route.requiredPerWindow, "outpost route required", error) ||
+                !readValue(input, route.stability, "outpost route stability", error) ||
+                !readValue(input, route.windowStartTick, "outpost route window start", error) ||
+                !readValue(input, route.lastDeliveryTick, "outpost route last delivery", error)) {
+                return std::nullopt;
+            }
+            const auto biome = biomeKindFromKey(biomeKey);
+            if (!biome || route.requiredPerWindow <= 0) {
+                setError(error, "invalid outpost route");
+                return std::nullopt;
+            }
+            route.biome = *biome;
+            route.deliveredInWindow = std::max(0, route.deliveredInWindow);
+            route.stability = std::clamp(route.stability, 0, 3);
+            snapshot.outpostRoutes.push_back(route);
+        }
     }
 
     return snapshot;

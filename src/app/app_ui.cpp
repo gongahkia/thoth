@@ -81,6 +81,32 @@ std::string shortItemName(thoth::game::ItemId item)
         return "f-core";
     case ItemId::RiftCrown:
         return "crown";
+    case ItemId::ArchiveFragment:
+        return "frag";
+    case ItemId::MarshFragment:
+        return "m-frag";
+    case ItemId::DesertFragment:
+        return "d-frag";
+    case ItemId::BadlandsFragment:
+        return "b-frag";
+    case ItemId::FrostFragment:
+        return "f-frag";
+    case ItemId::CrystalFragment:
+        return "c-frag";
+    case ItemId::RiftFragment:
+        return "r-frag";
+    case ItemId::PowerShard:
+        return "power";
+    case ItemId::StoneShot:
+        return "shot";
+    case ItemId::CopperCoil:
+        return "coil";
+    case ItemId::CrystalCharge:
+        return "charge";
+    case ItemId::FrostCell:
+        return "cell";
+    case ItemId::RiftShell:
+        return "shell";
     case ItemId::Belt:
         return "belt";
     case ItemId::Inserter:
@@ -161,6 +187,10 @@ std::string shortItemName(thoth::game::ItemId item)
         return "boat";
     case ItemId::Bed:
         return "bed";
+    case ItemId::LairHearth:
+        return "hearth";
+    case ItemId::RecoveryCrate:
+        return "crate";
     }
     return "?";
 }

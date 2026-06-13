@@ -80,6 +80,10 @@ std::string commandTypeKey(CommandType type)
         return "mine";
     case CommandType::Place:
         return "place";
+    case CommandType::PlaceGhost:
+        return "place_ghost";
+    case CommandType::CancelGhost:
+        return "cancel_ghost";
     case CommandType::Craft:
         return "craft";
     case CommandType::SelectHotbar:
@@ -102,6 +106,10 @@ std::string commandTypeKey(CommandType type)
         return "interact";
     case CommandType::Attack:
         return "attack";
+    case CommandType::SelectArchiveChoice:
+        return "select_archive_choice";
+    case CommandType::TogglePlanningMode:
+        return "toggle_planning";
     }
     return "move";
 }
@@ -116,9 +124,11 @@ bool writeCommand(std::ostream& output, const ReplayFrame& frame, std::string* e
     case CommandType::DepositSelected:
     case CommandType::Interact:
     case CommandType::Attack:
+    case CommandType::CancelGhost:
         output << ' ' << directionToString(frame.command.direction);
         break;
     case CommandType::Place:
+    case CommandType::PlaceGhost:
         output << ' ' << directionToString(frame.command.direction)
                << ' ' << directionToString(frame.command.orientation)
                << ' ' << toString(frame.command.item)
@@ -161,6 +171,12 @@ bool writeCommand(std::ostream& output, const ReplayFrame& frame, std::string* e
         output << ' ' << directionToString(frame.command.direction)
                << ' ' << toString(frame.command.item)
                << ' ' << frame.command.amount;
+        break;
+    case CommandType::SelectArchiveChoice:
+        output << ' ' << directionToString(frame.command.direction)
+               << ' ' << frame.command.amount;
+        break;
+    case CommandType::TogglePlanningMode:
         break;
     }
     output << '\n';
@@ -245,6 +261,19 @@ bool readCommand(std::istream& input, ReplayFrame& frame, std::string* error)
             !readTile(input, command.tile, "place tile", error)) {
             return false;
         }
+    } else if (type == "place_ghost") {
+        command.type = CommandType::PlaceGhost;
+        if (!readDirection(input, command.direction, "place ghost direction", error) ||
+            !readDirection(input, command.orientation, "place ghost orientation", error) ||
+            !readItem(input, command.item, "place ghost item", error) ||
+            !readTile(input, command.tile, "place ghost tile", error)) {
+            return false;
+        }
+    } else if (type == "cancel_ghost") {
+        command.type = CommandType::CancelGhost;
+        if (!readDirection(input, command.direction, "cancel ghost direction", error)) {
+            return false;
+        }
     } else if (type == "craft") {
         command.type = CommandType::Craft;
         if (!readValue(input, command.recipeKey, "craft recipe", error) ||
@@ -315,6 +344,14 @@ bool readCommand(std::istream& input, ReplayFrame& frame, std::string* error)
         if (!readDirection(input, command.direction, "attack direction", error)) {
             return false;
         }
+    } else if (type == "select_archive_choice") {
+        command.type = CommandType::SelectArchiveChoice;
+        if (!readDirection(input, command.direction, "select archive direction", error) ||
+            !readValue(input, command.amount, "select archive choice", error)) {
+            return false;
+        }
+    } else if (type == "toggle_planning") {
+        command.type = CommandType::TogglePlanningMode;
     } else {
         setError(error, "unknown replay command type");
         return false;

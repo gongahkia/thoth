@@ -78,6 +78,8 @@ std::string canonicalSignature(const thoth::game::Simulation& sim)
     std::ostringstream out;
     out << "seed=" << snapshot.seed << " tick=" << snapshot.tick
         << " next_machine=" << snapshot.nextMachineId
+        << " next_ghost=" << snapshot.nextGhostId
+        << " mode=" << thoth::game::toString(snapshot.gameMode)
         << " player=" << snapshot.player.x << "," << snapshot.player.y << ","
         << static_cast<int>(snapshot.player.facing) << "," << snapshot.player.selectedHotbar;
 
@@ -98,6 +100,10 @@ std::string canonicalSignature(const thoth::game::Simulation& sim)
     }
     out << " unlocked";
     for (const auto& key : snapshot.unlockedRecipes) {
+        out << "," << key;
+    }
+    out << " archive";
+    for (const auto& key : snapshot.archiveUnlocks) {
         out << "," << key;
     }
 
@@ -122,6 +128,29 @@ std::string canonicalSignature(const thoth::game::Simulation& sim)
             out << ":" << thoth::game::toString(stack.item) << "=" << stack.count;
         }
     }
+    out << " ghosts";
+    for (const auto& ghost : snapshot.ghostBuilds) {
+        out << "," << ghost.id << ":" << thoth::game::toString(ghost.item)
+            << ":" << thoth::game::toString(ghost.tile)
+            << ":" << ghost.machine << ":" << ghost.x << ":" << ghost.y << ":" << ghost.z
+            << ":" << static_cast<int>(ghost.direction)
+            << ":" << ghost.progress << ":" << ghost.fulfilled << ":" << ghost.blockedReason;
+    }
+    out << " construction";
+    for (const auto& job : snapshot.constructionJobs) {
+        out << "," << job.ghostId << ":" << job.portId << ":" << job.sourceId
+            << ":" << thoth::game::toString(job.item)
+            << ":" << job.ticksRemaining << ":" << job.totalTicks;
+    }
+    out << " routes";
+    for (const auto& route : snapshot.outpostRoutes) {
+        out << "," << thoth::game::toString(route.biome)
+            << ":" << route.deliveredInWindow << ":" << route.requiredPerWindow
+            << ":" << route.stability << ":" << route.windowStartTick
+            << ":" << route.lastDeliveryTick;
+    }
+    out << " storm=" << snapshot.riftStorm.severity << ":" << snapshot.riftStorm.ticksRemaining
+        << ":" << snapshot.riftStorm.cooldownTicks;
 
     return out.str();
 }
@@ -132,6 +161,8 @@ std::string persistedSignature(const thoth::game::Simulation& sim)
     std::ostringstream out;
     out << "seed=" << snapshot.seed << " tick=" << snapshot.tick
         << " next_machine=" << snapshot.nextMachineId
+        << " next_ghost=" << snapshot.nextGhostId
+        << " mode=" << thoth::game::toString(snapshot.gameMode)
         << " player=" << snapshot.player.x << "," << snapshot.player.y << ","
         << static_cast<int>(snapshot.player.facing) << "," << snapshot.player.selectedHotbar;
 
@@ -152,6 +183,10 @@ std::string persistedSignature(const thoth::game::Simulation& sim)
     }
     out << " unlocked";
     for (const auto& key : snapshot.unlockedRecipes) {
+        out << "," << key;
+    }
+    out << " archive";
+    for (const auto& key : snapshot.archiveUnlocks) {
         out << "," << key;
     }
 
@@ -175,6 +210,29 @@ std::string persistedSignature(const thoth::game::Simulation& sim)
             out << ":" << thoth::game::toString(stack.item) << "=" << stack.count;
         }
     }
+    out << " ghosts";
+    for (const auto& ghost : snapshot.ghostBuilds) {
+        out << "," << ghost.id << ":" << thoth::game::toString(ghost.item)
+            << ":" << thoth::game::toString(ghost.tile)
+            << ":" << ghost.machine << ":" << ghost.x << ":" << ghost.y << ":" << ghost.z
+            << ":" << static_cast<int>(ghost.direction)
+            << ":" << ghost.progress << ":" << ghost.fulfilled << ":" << ghost.blockedReason;
+    }
+    out << " construction";
+    for (const auto& job : snapshot.constructionJobs) {
+        out << "," << job.ghostId << ":" << job.portId << ":" << job.sourceId
+            << ":" << thoth::game::toString(job.item)
+            << ":" << job.ticksRemaining << ":" << job.totalTicks;
+    }
+    out << " routes";
+    for (const auto& route : snapshot.outpostRoutes) {
+        out << "," << thoth::game::toString(route.biome)
+            << ":" << route.deliveredInWindow << ":" << route.requiredPerWindow
+            << ":" << route.stability << ":" << route.windowStartTick
+            << ":" << route.lastDeliveryTick;
+    }
+    out << " storm=" << snapshot.riftStorm.severity << ":" << snapshot.riftStorm.ticksRemaining
+        << ":" << snapshot.riftStorm.cooldownTicks;
 
     return out.str();
 }
@@ -1106,6 +1164,18 @@ void testRichPersistedStateRoundTrip()
         biomeMaskForTest(thoth::game::BiomeKind::Marsh) |
         biomeMaskForTest(thoth::game::BiomeKind::Desert);
     snapshot.riftStorm = thoth::game::RiftStormState{3, 45, 120};
+    snapshot.nextGhostId = 12;
+    snapshot.gameMode = thoth::game::GameMode::Planning;
+    snapshot.archiveUnlocks = {"reed_science_pack"};
+    snapshot.ghostBuilds = {
+        GhostBuild{7, ItemId::Chest, TileId::Floor, true, 5, 1, 0, Direction::East, 4, false, "materials"},
+    };
+    snapshot.constructionJobs = {
+        ConstructionJob{7, 6, 0, ItemId::Chest, 12, 20},
+    };
+    snapshot.outpostRoutes = {
+        OutpostRouteState{thoth::game::BiomeKind::Desert, 1, 2, 2, 90, 110},
+    };
 
     Machine belt;
     belt.id = 1;
@@ -1197,6 +1267,14 @@ void testRichPersistedStateRoundTrip()
             loaded->riftStorm().ticksRemaining == 45 &&
             loaded->riftStorm().cooldownTicks == 120,
         "active rift storm state should persist");
+    require(loaded->gameMode() == thoth::game::GameMode::Planning, "planning mode should persist");
+    require(loaded->isRecipeUnlocked("reed_science_pack"), "archive unlock should persist");
+    require(loaded->ghostBuilds().size() == 1 && loaded->ghostBuilds().front().blockedReason == "materials",
+        "ghost build state should persist");
+    require(loaded->constructionJobs().size() == 1 && loaded->constructionJobs().front().ticksRemaining == 12,
+        "construction job state should persist");
+    require(loaded->outpostRoutes().front().stability == 2,
+        "outpost route stability should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Marsh), "marsh outpost coverage should persist");
     require(loaded->hasActivatedOutpostBiome(thoth::game::BiomeKind::Desert), "desert outpost coverage should persist");
     const auto* loadedFurnace = loaded->machineAt(1, 1);
@@ -1263,16 +1341,16 @@ void testOlderSaveDefaultsAchievementsLocked()
 
     const auto path = std::filesystem::temp_directory_path() / "thoth_achievement_v19_compat.txt";
     std::string error;
-    require(thoth::game::saveSimulation(sim, path, &error), "v21 source save should succeed: " + error);
+    require(thoth::game::saveSimulation(sim, path, &error), "v22 source save should succeed: " + error);
 
     std::ifstream input(path);
     std::stringstream buffer;
     buffer << input.rdbuf();
     input.close();
     std::string contents = buffer.str();
-    const auto header = contents.find("THOTH_SAVE 21");
-    require(header != std::string::npos, "test should find v21 save header");
-    contents.replace(header, std::string("THOTH_SAVE 21").size(), "THOTH_SAVE 19");
+    const auto header = contents.find("THOTH_SAVE 22");
+    require(header != std::string::npos, "test should find v22 save header");
+    contents.replace(header, std::string("THOTH_SAVE 22").size(), "THOTH_SAVE 19");
 
     std::ofstream output(path);
     output << contents;
@@ -1445,9 +1523,9 @@ void testTutorialSaveLoadAndOldSaveDefault()
     buffer << input.rdbuf();
     input.close();
     std::string contents = buffer.str();
-    const auto header = contents.find("THOTH_SAVE 21");
-    require(header != std::string::npos, "test should find v21 save header");
-    contents.replace(header, std::string("THOTH_SAVE 21").size(), "THOTH_SAVE 20");
+    const auto header = contents.find("THOTH_SAVE 22");
+    require(header != std::string::npos, "test should find v22 save header");
+    contents.replace(header, std::string("THOTH_SAVE 22").size(), "THOTH_SAVE 20");
 
     std::ofstream output(path);
     output << contents;
@@ -3193,6 +3271,7 @@ void testGuardTowerRequiresPowerAndDefeatsHostile()
     placeMachineAt(sim, ItemId::PowerPole, 1, 0, Direction::East);
     auto* tower = placeMachineAt(sim, ItemId::GuardTower, 2, 0, Direction::East);
     require(generator != nullptr && tower != nullptr, "guard tower test machines should place");
+    require(tower->inventory.add(ItemId::StoneShot, 1), "test should feed guard tower ammo");
 
     auto snapshot = sim.snapshot();
     snapshot.player.x = 20;
@@ -3214,6 +3293,7 @@ void testGuardTowerRequiresPowerAndDefeatsHostile()
     require(sim.productionTotals().creaturesDefeated == 1, "tower defeat should increment creature total");
     const auto* restoredTower = sim.machineAt(2, 0);
     require(restoredTower != nullptr && restoredTower->kind == MachineKind::GuardTower, "guard tower should persist");
+    require(restoredTower->inventory.count(ItemId::StoneShot) == 0, "guard tower should consume loaded ammo");
     require(restoredTower->status == MachineStatus::Working || restoredTower->status == MachineStatus::MissingInput,
         "guard tower should report a defense status after firing");
 }
@@ -3227,6 +3307,7 @@ void testArcTowerHasLongerPoweredRange()
     placeMachineAt(sim, ItemId::PowerPole, 1, 0, Direction::East);
     auto* tower = placeMachineAt(sim, ItemId::ArcTower, 2, 0, Direction::East);
     require(generator != nullptr && tower != nullptr, "arc tower test machines should place");
+    require(tower->inventory.add(ItemId::CrystalCharge, 1), "test should feed arc tower ammo");
 
     auto snapshot = sim.snapshot();
     snapshot.player.x = 20;
@@ -3248,6 +3329,7 @@ void testArcTowerHasLongerPoweredRange()
     require(sim.productionTotals().creaturesDefeated == 1, "arc tower defeat should increment creature total");
     const auto* restoredTower = sim.machineAt(2, 0);
     require(restoredTower != nullptr && restoredTower->kind == MachineKind::ArcTower, "arc tower should persist");
+    require(restoredTower->inventory.count(ItemId::CrystalCharge) == 0, "arc tower should consume loaded ammo");
 }
 
 void testOutpostBeaconRequiresPowerAndBiomeInput()
@@ -3309,6 +3391,36 @@ void testOutpostBeaconRequiresPowerAndBiomeInput()
     require(sim.hasCompletedOutpostDeliveryBiome(BiomeKind::Desert),
         "outpost delivery should track the delivered biome");
     require(sim.outpostDeliveryBiomeCount() == 1, "one unique outpost delivery biome should be covered");
+    auto routes = sim.outpostRoutes();
+    auto desertRoute = std::find_if(
+        routes.begin(),
+        routes.end(),
+        [](const OutpostRouteProgress& route) {
+            return route.biome == BiomeKind::Desert;
+        });
+    require(desertRoute != routes.end() && desertRoute->current == 1 && desertRoute->stability == 0,
+        "first outpost delivery should start an unstable route window");
+
+    snapshot = sim.snapshot();
+    for (auto& machine : snapshot.machines) {
+        if (machine.kind == MachineKind::Generator) {
+            machine.fuelTicks = 900;
+        }
+        if (machine.kind == MachineKind::OutpostBeacon) {
+            require(machine.inventory.add(ItemId::SandGlass, 5), "test should seed repeated desert deliveries");
+        }
+    }
+    sim.restore(snapshot);
+
+    for (int i = 0; i < 510; ++i) {
+        sim.step();
+    }
+
+    require(sim.productionTotals().outpostDeliveries >= 6,
+        "repeated outpost deliveries should increment delivery total");
+    require(sim.stableOutpostRouteCount() == 1, "six deliveries should stabilize one outpost route");
+    require(sim.outpostRouteText().find("stable") != std::string::npos,
+        "outpost route text should report stable routes");
 
     const auto path = std::filesystem::temp_directory_path() / "thoth_outpost_roundtrip.txt";
     std::string error;
@@ -3317,7 +3429,8 @@ void testOutpostBeaconRequiresPowerAndBiomeInput()
     std::filesystem::remove(path);
     require(loaded.has_value(), "outpost load should succeed: " + error);
     require(loaded->productionTotals().outpostsActivated == 1, "outpost activation should survive save/load");
-    require(loaded->productionTotals().outpostDeliveries == 1, "outpost delivery should survive save/load");
+    require(loaded->productionTotals().outpostDeliveries >= 6, "outpost deliveries should survive save/load");
+    require(loaded->stableOutpostRouteCount() == 1, "stable outpost route should survive save/load");
     require(loaded->hasActivatedOutpostBiome(BiomeKind::Desert), "outpost biome coverage should survive save/load");
     require(loaded->hasCompletedOutpostDeliveryBiome(BiomeKind::Desert),
         "outpost delivery biome coverage should survive save/load");

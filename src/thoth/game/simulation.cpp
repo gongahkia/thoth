@@ -727,6 +727,11 @@ const RecipeDef* selectedFurnaceRecipe(const Machine& machine)
 
 } // namespace
 
+ItemId towerAmmo(Machine& machine);
+int towerDamageForAmmo(MachineKind kind, ItemId ammo, EntityKind target);
+int towerGoalTicksForAmmo(MachineKind kind, ItemId ammo, ItemId relic);
+bool ammoSlowsTarget(ItemId ammo);
+
 Command Command::face(Direction direction)
 {
     Command command;
@@ -1202,7 +1207,8 @@ Simulation Simulation::newPlanningGame(std::uint64_t seed)
              ItemId::FrostCell,
              ItemId::RiftShell,
          }) {
-        simulation.player_.inventory.add(item, 50);
+        const auto added = simulation.player_.inventory.add(item, 50);
+        (void)added;
     }
     return simulation;
 }
@@ -1813,7 +1819,7 @@ std::string Simulation::riftStormText() const
 std::vector<FactoryDashboardPanel> Simulation::factoryDashboard() const
 {
     std::vector<FactoryDashboardPanel> panels;
-    panels.reserve(7);
+    panels.reserve(11);
     const auto addPanel = [&panels](
                               std::string key,
                               std::string label,
@@ -1861,7 +1867,7 @@ std::vector<FactoryDashboardPanel> Simulation::factoryDashboard() const
         pressure >= 220 ? "surge" : (pressure >= 120 ? "raid-ready" : "watched"),
         ticksUntilWave < 0
             ? "below wave threshold; " + pressureEventDeckText()
-            : "next wave in " + std::to_string(ticksUntilWave) + " ticks; " + pressureEventDeckText(),
+            : "next wave in " + std::to_string(ticksUntilWave) + " ticks; " + pressureEventDeckText() + "; " + pressureMapText(),
         pressure,
         pressure >= 220 ? 320 : 120,
         pressure >= 220 || waveSoon);
@@ -1949,18 +1955,57 @@ std::vector<FactoryDashboardPanel> Simulation::factoryDashboard() const
         logisticJobs_.empty() ? "idle" : "moving",
         "jobs " + std::to_string(logisticJobs_.size()) +
             "; deliveries " + std::to_string(productionTotals_.logisticDeliveries) +
-            "; outposts " + std::to_string(productionTotals_.outpostDeliveries),
+            "; outposts " + std::to_string(productionTotals_.outpostDeliveries) +
+            "; " + constructionText(),
         logisticsCurrent,
         logisticsTarget,
+        false);
+
+    addPanel(
+        "construction",
+        "Construction",
+        constructionJobs_.empty() ? (ghostBuilds_.empty() ? "idle" : "ghosts") : "building",
+        constructionText(),
+        static_cast<int>(std::count_if(ghostBuilds_.begin(), ghostBuilds_.end(), [](const GhostBuild& ghost) {
+            return ghost.fulfilled;
+        })),
+        static_cast<int>(ghostBuilds_.size()),
+        false);
+
+    addPanel(
+        "archive",
+        "Archive",
+        static_cast<int>(archiveUnlocks_.size()) >= static_cast<int>(kArchiveChoiceDefs.size()) ? "complete" : "research",
+        archiveResearchText(),
+        static_cast<int>(archiveUnlocks_.size()),
+        static_cast<int>(kArchiveChoiceDefs.size()),
         false);
 
     addPanel(
         "exploration",
         "Exploration",
         scoutedBiomeCount() >= static_cast<int>(kScoutBiomes.size()) ? "mapped" : "scouting",
-        scoutAutomationText(),
+        scoutAutomationText() + "; " + regionText(),
         scoutedBiomeCount(),
         static_cast<int>(kScoutBiomes.size()),
+        false);
+
+    addPanel(
+        "routes",
+        "Outpost Routes",
+        stableOutpostRouteCount() >= static_cast<int>(kRequiredOutpostBiomes.size()) ? "stable" : "building",
+        outpostRouteText(),
+        stableOutpostRouteCount(),
+        static_cast<int>(kRequiredOutpostBiomes.size()),
+        false);
+
+    addPanel(
+        "rates",
+        "Rates",
+        "tracking",
+        productionRateText(),
+        0,
+        0,
         false);
 
     addPanel(
@@ -2591,7 +2636,7 @@ std::vector<ProductionRatePanel> Simulation::productionRatePanels() const
     };
     add("iron_plate", "Iron/min", rate(productionTotals_.ironPlates), 3, currentSupplyContractText());
     add("copper_plate", "Copper/min", rate(productionTotals_.copperPlates), 3, currentSupplyContractText());
-    add("science_pack", "Science/min", rate(productionTotals_.sciencePacks), 2, activeTech_.empty() ? "research complete" : "active tech " + activeTech_);
+    add("science_pack", "Science/min", rate(productionTotals_.sciencePacks), 2, activeTech_.empty() ? "research complete" : std::string("active tech ") + activeTech_);
     add("advanced_science", "Advanced science/min", rate(productionTotals_.advancedSciencePacks), isRecipeUnlocked("logistic_port") ? 1 : 0, milestoneText());
     add("ammo", "Tower ammo/min", rate(totalItemCount(ItemId::StoneShot) + totalItemCount(ItemId::CopperCoil) + totalItemCount(ItemId::CrystalCharge)), 4, "feed guard and arc towers");
     add("outpost_routes", "Stable routes", stableOutpostRouteCount(), static_cast<int>(kRequiredOutpostBiomes.size()), outpostRouteText());
@@ -2769,6 +2814,7 @@ std::string Simulation::playtestTelemetryText() const
     out << "  \"tick\": " << tick_ << ",\n";
     out << "  \"player\": {\"x\": " << player_.x << ", \"y\": " << player_.y
         << ", \"z\": " << player_.z << ", \"hp\": " << player_.hp << "},\n";
+    out << "  \"game_mode\": " << jsonString(toString(gameMode_)) << ",\n";
     out << "  \"main_objective_complete\": " << (mainObjectiveComplete() ? "true" : "false") << ",\n";
     out << "  \"contracts\": {\"supply_completed\": " << completedSupplyContracts()
         << ", \"supply_total\": " << totalSupplyContracts()
@@ -2787,7 +2833,26 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"event_label\": " << jsonString(pressureEvent.label)
         << ", \"event_severity\": " << pressureEvent.severity
         << ", \"event_spawns\": " << pressureEvent.spawnCount
-        << ", \"alert\": " << jsonString(pressureWaveAlertText()) << "},\n";
+        << ", \"alert\": " << jsonString(pressureWaveAlertText())
+        << ", \"map\": " << jsonString(pressureMapText()) << "},\n";
+    out << "  \"pressure_hotspots\": [";
+    const auto hotspots = pressureHotspots();
+    for (std::size_t i = 0; i < hotspots.size(); ++i) {
+        const auto& hotspot = hotspots[i];
+        if (i > 0) {
+            out << ",";
+        }
+        out << "\n    {\"x\": " << hotspot.x
+            << ", \"y\": " << hotspot.y
+            << ", \"z\": " << hotspot.z
+            << ", \"pressure\": " << hotspot.pressure
+            << ", \"mitigation\": " << hotspot.mitigation
+            << ", \"next_wave_anchor\": " << (hotspot.nextWaveAnchor ? "true" : "false") << "}";
+    }
+    if (!hotspots.empty()) {
+        out << "\n  ";
+    }
+    out << "],\n";
     out << "  \"rift_storm\": {\"active\": " << (riftStormActive() ? "true" : "false")
         << ", \"severity\": " << riftStorm_.severity
         << ", \"ticks_remaining\": " << riftStorm_.ticksRemaining
@@ -2888,6 +2953,88 @@ std::string Simulation::playtestTelemetryText() const
     }
     out << "],\n";
 
+    out << "  \"archive_choices\": [";
+    const auto archive = archiveChoices();
+    for (std::size_t i = 0; i < archive.size(); ++i) {
+        const auto& choice = archive[i];
+        if (i > 0) {
+            out << ",";
+        }
+        out << "\n    {\"key\": " << jsonString(choice.key)
+            << ", \"recipe\": " << jsonString(choice.recipeKey)
+            << ", \"fragment\": " << jsonString(toString(choice.fragment))
+            << ", \"unlocked\": " << (choice.unlocked ? "true" : "false")
+            << ", \"affordable\": " << (choice.affordable ? "true" : "false") << "}";
+    }
+    if (!archive.empty()) {
+        out << "\n  ";
+    }
+    out << "],\n";
+
+    out << "  \"construction\": {\"ghosts\": " << ghostBuilds_.size()
+        << ", \"jobs\": " << constructionJobs_.size()
+        << ", \"summary\": " << jsonString(constructionText()) << "},\n";
+
+    out << "  \"outpost_routes\": [";
+    const auto routes = outpostRoutes();
+    for (std::size_t i = 0; i < routes.size(); ++i) {
+        const auto& route = routes[i];
+        if (i > 0) {
+            out << ",";
+        }
+        out << "\n    {\"biome\": " << jsonString(toString(route.biome))
+            << ", \"active\": " << (route.active ? "true" : "false")
+            << ", \"stable\": " << (route.stable ? "true" : "false")
+            << ", \"current\": " << route.current
+            << ", \"required\": " << route.required
+            << ", \"stability\": " << route.stability << "}";
+    }
+    if (!routes.empty()) {
+        out << "\n  ";
+    }
+    out << "],\n";
+
+    out << "  \"production_rates\": [";
+    const auto rates = productionRatePanels();
+    for (std::size_t i = 0; i < rates.size(); ++i) {
+        const auto& panel = rates[i];
+        if (i > 0) {
+            out << ",";
+        }
+        out << "\n    {\"key\": " << jsonString(panel.key)
+            << ", \"label\": " << jsonString(panel.label)
+            << ", \"current_per_minute\": " << panel.currentPerMinute
+            << ", \"target_per_minute\": " << panel.targetPerMinute
+            << ", \"blocked\": " << (panel.blocked ? "true" : "false")
+            << ", \"detail\": " << jsonString(panel.detail) << "}";
+    }
+    if (!rates.empty()) {
+        out << "\n  ";
+    }
+    out << "],\n";
+
+    const auto currentRegion = regionInfoAt(player_.x, player_.y, player_.z);
+    out << "  \"current_region\": {\"name\": " << jsonString(currentRegion.name)
+        << ", \"biome\": " << jsonString(toString(currentRegion.biome))
+        << ", \"hazard\": " << jsonString(currentRegion.hazard)
+        << ", \"reward\": " << jsonString(currentRegion.reward)
+        << ", \"summary\": " << jsonString(regionText()) << "},\n";
+    out << "  \"scout_reports\": [";
+    const auto reports = latestScoutReports();
+    for (std::size_t i = 0; i < reports.size(); ++i) {
+        const auto& report = reports[i];
+        if (i > 0) {
+            out << ",";
+        }
+        out << "\n    {\"name\": " << jsonString(report.name)
+            << ", \"biome\": " << jsonString(toString(report.biome))
+            << ", \"reward\": " << jsonString(report.reward) << "}";
+    }
+    if (!reports.empty()) {
+        out << "\n  ";
+    }
+    out << "],\n";
+
     out << "  \"post_victory_expeditions\": [";
     const auto expeditionBoard = postVictoryExpeditionBoard();
     for (std::size_t i = 0; i < expeditionBoard.size(); ++i) {
@@ -2944,6 +3091,12 @@ std::string Simulation::playtestTelemetryText() const
         << ", \"outpost_delivery\": " << jsonString(currentOutpostDeliveryText())
         << ", \"scouts\": " << jsonString(scoutAutomationText())
         << ", \"post_victory_expedition\": " << jsonString(postVictoryExpeditionText())
+        << ", \"archive\": " << jsonString(archiveResearchText())
+        << ", \"construction\": " << jsonString(constructionText())
+        << ", \"pressure_map\": " << jsonString(pressureMapText())
+        << ", \"outpost_routes\": " << jsonString(outpostRouteText())
+        << ", \"rates\": " << jsonString(productionRateText())
+        << ", \"region\": " << jsonString(regionText())
         << ", \"biome_hazard\": " << jsonString(currentBiomeHazardText())
         << ", \"boss_exam\": " << jsonString(currentBossExamText())
         << ", \"pressure_deck\": " << jsonString(pressureEventDeckText())
@@ -2979,17 +3132,23 @@ SimulationSnapshot Simulation::snapshot() const
     result.tiles = world_.loadedTiles();
     result.nextMachineId = nextMachineId_;
     result.nextEntityId = nextEntityId_;
+    result.nextGhostId = nextGhostId_;
     result.machines = machines_;
     result.entities = entities_;
     result.logisticJobs = logisticJobs_;
+    result.ghostBuilds = ghostBuilds_;
+    result.constructionJobs = constructionJobs_;
     result.productionTotals = productionTotals_;
+    result.outpostRoutes = outpostRoutes_;
     result.riftStorm = riftStorm_;
     result.activeTech = activeTech_;
     result.researchProgress = researchProgress_;
     result.completedTechs = completedTechs_;
     result.unlockedRecipes = unlockedRecipes_;
+    result.archiveUnlocks = archiveUnlocks_;
     result.unlockedAchievements = unlockedAchievements_;
     result.tutorial = tutorialState_;
+    result.gameMode = gameMode_;
     return result;
 }
 
@@ -3018,6 +3177,7 @@ void Simulation::restore(const SimulationSnapshot& snapshot)
     tick_ = snapshot.tick;
     nextMachineId_ = snapshot.nextMachineId == 0 ? 1 : snapshot.nextMachineId;
     nextEntityId_ = snapshot.nextEntityId == 0 ? 1 : snapshot.nextEntityId;
+    nextGhostId_ = snapshot.nextGhostId == 0 ? 1 : snapshot.nextGhostId;
     machines_ = snapshot.machines;
     entities_ = snapshot.entities;
     for (auto& machine : machines_) {
@@ -3035,13 +3195,22 @@ void Simulation::restore(const SimulationSnapshot& snapshot)
     }
     rebuildMachineCellIndex();
     logisticJobs_ = snapshot.logisticJobs;
+    ghostBuilds_ = snapshot.ghostBuilds;
+    constructionJobs_ = snapshot.constructionJobs;
     productionTotals_ = snapshot.productionTotals;
+    outpostRoutes_ = snapshot.outpostRoutes;
     riftStorm_ = snapshot.riftStorm;
     riftStorm_.severity = std::clamp(riftStorm_.severity, 0, 4);
     riftStorm_.ticksRemaining = std::max(0, riftStorm_.ticksRemaining);
     riftStorm_.cooldownTicks = std::max(0, riftStorm_.cooldownTicks);
     completedTechs_ = snapshot.completedTechs;
     unlockedRecipes_ = snapshot.unlockedRecipes;
+    archiveUnlocks_.clear();
+    for (const auto& unlock : snapshot.archiveUnlocks) {
+        if (isArchiveRecipeKey(unlock) && !archiveRecipeUnlocked(unlock)) {
+            archiveUnlocks_.push_back(unlock);
+        }
+    }
     unlockedAchievements_.clear();
     for (const auto achievement : snapshot.unlockedAchievements) {
         if (achievementDef(achievement) != nullptr && !isAchievementUnlocked(achievement)) {
@@ -3072,6 +3241,7 @@ void Simulation::restore(const SimulationSnapshot& snapshot)
     powerNetworks_.clear();
     poweredMachineIds_.clear();
     commandQueue_.clear();
+    gameMode_ = snapshot.gameMode;
 }
 
 Simulation Simulation::fromSnapshot(const SimulationSnapshot& snapshot)
@@ -3403,7 +3573,8 @@ void Simulation::craft(std::string_view recipeKey)
     if (recipe == nullptr) {
         return;
     }
-    if (!isRecipeUnlocked(recipeKey) || !canCraftAtCurrentStation(*recipe)) {
+    if (!isRecipeUnlocked(recipeKey) ||
+        (gameMode_ != GameMode::Planning && !canCraftAtCurrentStation(*recipe))) {
         return;
     }
     if (gameMode_ != GameMode::Planning && !player_.inventory.consumeAll(recipe->inputs)) {
@@ -3652,21 +3823,25 @@ bool Simulation::tryArchiveUnlock(Machine& machine)
         int remainingFragments = choice.fragmentCost;
         const int consumedSpecific = std::min(remainingFragments, machine.inventory.count(choice.fragment));
         if (consumedSpecific > 0) {
-            machine.inventory.consume(choice.fragment, consumedSpecific);
+            const auto consumed = machine.inventory.consume(choice.fragment, consumedSpecific);
+            (void)consumed;
             remainingFragments -= consumedSpecific;
         }
         if (remainingFragments > 0) {
-            machine.inventory.consume(ItemId::ArchiveFragment, remainingFragments);
+            const auto consumed = machine.inventory.consume(ItemId::ArchiveFragment, remainingFragments);
+            (void)consumed;
         }
 
         int remainingScience = choice.scienceCost;
         const int consumedAdvanced = std::min(remainingScience, machine.inventory.count(ItemId::AdvancedSciencePack));
         if (consumedAdvanced > 0) {
-            machine.inventory.consume(ItemId::AdvancedSciencePack, consumedAdvanced);
+            const auto consumed = machine.inventory.consume(ItemId::AdvancedSciencePack, consumedAdvanced);
+            (void)consumed;
             remainingScience -= consumedAdvanced;
         }
         if (remainingScience > 0) {
-            machine.inventory.consume(ItemId::SciencePack, remainingScience);
+            const auto consumed = machine.inventory.consume(ItemId::SciencePack, remainingScience);
+            (void)consumed;
         }
 
         machine.requestThreshold = (preferred + offset + 1) % static_cast<int>(kArchiveChoiceDefs.size());

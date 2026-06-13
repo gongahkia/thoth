@@ -170,6 +170,8 @@ SpriteDrawOptions tileSpriteOptions(thoth::game::TileId id, int x, int y)
     case TileId::StairsUp:
     case TileId::StairsDown:
     case TileId::Bed:
+    case TileId::LairHearth:
+    case TileId::RecoveryCrate:
     case TileId::DungeonWall:
         return SpriteDrawOptions{};
     }
@@ -1198,6 +1200,8 @@ SpriteId tileSprite(thoth::game::TileId id)
     case TileId::StairsUp:
     case TileId::StairsDown:
     case TileId::Bed:
+    case TileId::LairHearth:
+    case TileId::RecoveryCrate:
     case TileId::DungeonFloor:
         return SpriteId::TileFloor;
     case TileId::Coral:
@@ -1236,6 +1240,17 @@ SpriteId itemSprite(thoth::game::ItemId item)
     case ItemId::WardenCore:
     case ItemId::FrostCore:
     case ItemId::RiftCrown:
+    case ItemId::ArchiveFragment:
+    case ItemId::MarshFragment:
+    case ItemId::DesertFragment:
+    case ItemId::BadlandsFragment:
+    case ItemId::FrostFragment:
+    case ItemId::CrystalFragment:
+    case ItemId::RiftFragment:
+    case ItemId::PowerShard:
+    case ItemId::CrystalCharge:
+    case ItemId::FrostCell:
+    case ItemId::RiftShell:
         return SpriteId::ItemSciencePack;
     case ItemId::ReedFiber:
     case ItemId::CactusFiber:
@@ -1246,6 +1261,7 @@ SpriteId itemSprite(thoth::game::ItemId item)
     case ItemId::Basalt:
     case ItemId::Scrap:
     case ItemId::Bone:
+    case ItemId::StoneShot:
         return SpriteId::ItemStone;
     case ItemId::Hide:
     case ItemId::Slime:
@@ -1255,6 +1271,7 @@ SpriteId itemSprite(thoth::game::ItemId item)
     case ItemId::AdvancedSciencePack:
         return SpriteId::ItemSciencePack;
     case ItemId::CircuitBoard:
+    case ItemId::CopperCoil:
         return SpriteId::ItemCopperPlate;
     case ItemId::Belt:
         return SpriteId::MachineBelt;
@@ -1317,6 +1334,8 @@ SpriteId itemSprite(thoth::game::ItemId item)
     case ItemId::StairsUp:
     case ItemId::StairsDown:
     case ItemId::Bed:
+    case ItemId::LairHearth:
+    case ItemId::RecoveryCrate:
         return SpriteId::TileFloor;
     case ItemId::Boat:
         return SpriteId::TileWater;
@@ -1644,6 +1663,22 @@ Color itemColor(thoth::game::ItemId item)
         return Color{132, 226, 255, 255};
     case ItemId::RiftCrown:
         return Color{204, 126, 255, 255};
+    case ItemId::ArchiveFragment:
+        return Color{168, 126, 220, 255};
+    case ItemId::MarshFragment:
+        return Color{82, 176, 104, 255};
+    case ItemId::DesertFragment:
+        return Color{226, 180, 76, 255};
+    case ItemId::BadlandsFragment:
+        return Color{156, 118, 92, 255};
+    case ItemId::FrostFragment:
+        return Color{132, 226, 255, 255};
+    case ItemId::CrystalFragment:
+        return Color{112, 210, 218, 255};
+    case ItemId::RiftFragment:
+        return Color{204, 126, 255, 255};
+    case ItemId::PowerShard:
+        return Color{246, 214, 96, 255};
     case ItemId::IceShard:
         return Color{154, 218, 230, 255};
     case ItemId::Basalt:
@@ -1656,6 +1691,16 @@ Color itemColor(thoth::game::ItemId item)
         return Color{136, 84, 52, 255};
     case ItemId::Slime:
         return Color{96, 204, 112, 255};
+    case ItemId::StoneShot:
+        return Color{154, 158, 151, 255};
+    case ItemId::CopperCoil:
+        return Color{238, 144, 82, 255};
+    case ItemId::CrystalCharge:
+        return Color{112, 210, 218, 255};
+    case ItemId::FrostCell:
+        return Color{154, 226, 255, 255};
+    case ItemId::RiftShell:
+        return Color{190, 116, 255, 255};
     case ItemId::Belt:
         return Color{204, 166, 63, 255};
     case ItemId::Inserter:
@@ -1729,6 +1774,8 @@ Color itemColor(thoth::game::ItemId item)
     case ItemId::StairsDown:
     case ItemId::Boat:
     case ItemId::Bed:
+    case ItemId::LairHearth:
+    case ItemId::RecoveryCrate:
         return Color{144, 112, 76, 255};
     case ItemId::None:
         return Color{70, 76, 78, 255};
