@@ -20,6 +20,7 @@ constexpr int kPowerMachineReach = 2;
 constexpr int kLogisticPortRange = 4;
 constexpr int kMinLogisticJobTicks = 20;
 constexpr int kMaxLogisticJobTicks = 240;
+constexpr int kConstructionJobBaseTicks = 45;
 constexpr int kScoutDispatchTicks = 120;
 constexpr int kArchiveTerminalTicks = 360;
 constexpr int kTrainStopTicks = 90;
@@ -57,6 +58,8 @@ constexpr int kTutorialRequiredMask =
     (1 << static_cast<int>(TutorialAction::Craft)) |
     (1 << static_cast<int>(TutorialAction::Place)) |
     (1 << static_cast<int>(TutorialAction::Deposit));
+constexpr int kOutpostRouteWindowTicks = 600;
+constexpr int kOutpostRouteStableThreshold = 3;
 
 constexpr std::array<BiomeKind, 5> kRequiredOutpostBiomes{{
     BiomeKind::Marsh,
@@ -82,6 +85,23 @@ struct AchievementDef {
     std::string_view description;
     int required = 1;
 };
+
+struct ArchiveChoiceDef {
+    std::string_view key;
+    std::string_view label;
+    std::string_view recipeKey;
+    ItemId fragment = ItemId::ArchiveFragment;
+    int fragmentCost = 1;
+    int scienceCost = 1;
+};
+
+constexpr std::array<ArchiveChoiceDef, 5> kArchiveChoiceDefs{{
+    {"reed_science", "Reed science packs substitute marsh fiber for copper", "reed_science_pack", ItemId::MarshFragment, 1, 1},
+    {"dry_copper", "Dry copper smelting uses cactus fiber instead of coal pressure", "dry_copper_plate", ItemId::DesertFragment, 1, 1},
+    {"washed_iron", "Washed iron doubles plate output with water logistics", "washed_iron_plate", ItemId::ArchiveFragment, 2, 2},
+    {"basalt_circuit", "Basalt circuit boards trade stone logistics for copper efficiency", "basalt_circuit_board", ItemId::BadlandsFragment, 1, 2},
+    {"rift_beacon", "Rift beacon cores craft faster from rift fragments", "rift_beacon_core", ItemId::RiftFragment, 1, 3},
+}};
 
 constexpr std::array<AchievementDef, 10> kAchievementDefs{{
     {AchievementId::FirstIronPlate, "first_iron_plate", "First Plate", "Produce an iron plate", 1},
@@ -725,6 +745,29 @@ Command Command::placeTile(Direction direction, TileId tile)
     return command;
 }
 
+Command Command::placeGhost(Direction direction, ItemId item)
+{
+    return placeGhost(direction, item, direction);
+}
+
+Command Command::placeGhost(Direction direction, ItemId item, Direction orientation)
+{
+    Command command;
+    command.type = CommandType::PlaceGhost;
+    command.direction = direction;
+    command.orientation = orientation;
+    command.item = item;
+    return command;
+}
+
+Command Command::cancelGhost(Direction direction)
+{
+    Command command;
+    command.type = CommandType::CancelGhost;
+    command.direction = direction;
+    return command;
+}
+
 Command Command::craft(std::string recipeKey)
 {
     Command command;
@@ -822,6 +865,22 @@ Command Command::attack(Direction direction)
     return command;
 }
 
+Command Command::selectArchiveChoice(Direction direction, int choiceIndex)
+{
+    Command command;
+    command.type = CommandType::SelectArchiveChoice;
+    command.direction = direction;
+    command.amount = choiceIndex;
+    return command;
+}
+
+Command Command::togglePlanningMode()
+{
+    Command command;
+    command.type = CommandType::TogglePlanningMode;
+    return command;
+}
+
 int dx(Direction direction)
 {
     switch (direction) {
@@ -882,6 +941,17 @@ std::string_view toString(CircuitComparator comparator)
     return "always";
 }
 
+std::string_view toString(GameMode mode)
+{
+    switch (mode) {
+    case GameMode::Survival:
+        return "survival";
+    case GameMode::Planning:
+        return "planning";
+    }
+    return "survival";
+}
+
 std::string_view toString(AchievementId id)
 {
     switch (id) {
@@ -920,6 +990,14 @@ CircuitComparator circuitComparatorFromKey(std::string_view key)
     return CircuitComparator::Always;
 }
 
+GameMode gameModeFromKey(std::string_view key)
+{
+    if (key == "planning") {
+        return GameMode::Planning;
+    }
+    return GameMode::Survival;
+}
+
 std::optional<AchievementId> achievementIdFromKey(std::string_view key)
 {
     if (key == "first_iron_plate") {
@@ -955,6 +1033,87 @@ std::optional<AchievementId> achievementIdFromKey(std::string_view key)
     return std::nullopt;
 }
 
+bool isArchiveRecipeKey(std::string_view recipeKey)
+{
+    return std::any_of(
+        kArchiveChoiceDefs.begin(),
+        kArchiveChoiceDefs.end(),
+        [recipeKey](const ArchiveChoiceDef& choice) {
+            return choice.recipeKey == recipeKey;
+        });
+}
+
+bool isFragmentItem(ItemId item)
+{
+    return item == ItemId::ArchiveFragment ||
+        item == ItemId::MarshFragment ||
+        item == ItemId::DesertFragment ||
+        item == ItemId::BadlandsFragment ||
+        item == ItemId::FrostFragment ||
+        item == ItemId::CrystalFragment ||
+        item == ItemId::RiftFragment;
+}
+
+ItemId fragmentForBiome(BiomeKind biome)
+{
+    switch (biome) {
+    case BiomeKind::Marsh:
+        return ItemId::MarshFragment;
+    case BiomeKind::Desert:
+        return ItemId::DesertFragment;
+    case BiomeKind::Badlands:
+        return ItemId::BadlandsFragment;
+    case BiomeKind::Snowfield:
+        return ItemId::FrostFragment;
+    case BiomeKind::CrystalField:
+        return ItemId::CrystalFragment;
+    case BiomeKind::Rift:
+        return ItemId::RiftFragment;
+    case BiomeKind::Grassland:
+        return ItemId::ArchiveFragment;
+    }
+    return ItemId::ArchiveFragment;
+}
+
+int machinePressureWeight(const Machine& machine)
+{
+    switch (machine.kind) {
+    case MachineKind::Lab:
+    case MachineKind::Assembler:
+    case MachineKind::ArchiveTerminal:
+    case MachineKind::RiftGate:
+        return 28;
+    case MachineKind::Generator:
+    case MachineKind::ElectricMiner:
+    case MachineKind::LogisticPort:
+    case MachineKind::OutpostBeacon:
+        return 16;
+    case MachineKind::GuardTower:
+    case MachineKind::ArcTower:
+    case MachineKind::PressureRelay:
+    case MachineKind::RepairPylon:
+        return 8;
+    case MachineKind::Belt:
+    case MachineKind::FastBelt:
+    case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
+    case MachineKind::Splitter:
+    case MachineKind::TrainStop:
+    case MachineKind::Pipe:
+    case MachineKind::OffshorePump:
+    case MachineKind::BurnerMiner:
+    case MachineKind::Furnace:
+        return 6;
+    case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
+    case MachineKind::Workbench:
+    case MachineKind::PowerPole:
+        return 2;
+    }
+    return 0;
+}
+
 Simulation::Simulation(std::uint64_t seed)
     : world_(seed)
 {
@@ -978,6 +1137,41 @@ Simulation Simulation::newGame(std::uint64_t seed, bool startInTutorial)
         simulation.tutorialState_.active = false;
         simulation.tutorialState_.completed = true;
         simulation.tutorialState_.actionMask = kTutorialRequiredMask;
+    }
+    return simulation;
+}
+
+Simulation Simulation::newPlanningGame(std::uint64_t seed)
+{
+    auto simulation = Simulation::newGame(seed, false);
+    simulation.gameMode_ = GameMode::Planning;
+    for (const auto item : {
+             ItemId::Wood,
+             ItemId::Stone,
+             ItemId::Coal,
+             ItemId::IronOre,
+             ItemId::IronPlate,
+             ItemId::CopperOre,
+             ItemId::CopperPlate,
+             ItemId::CircuitBoard,
+             ItemId::SciencePack,
+             ItemId::AdvancedSciencePack,
+             ItemId::LogisticDrone,
+             ItemId::BeaconCore,
+             ItemId::ArchiveFragment,
+             ItemId::MarshFragment,
+             ItemId::DesertFragment,
+             ItemId::BadlandsFragment,
+             ItemId::FrostFragment,
+             ItemId::CrystalFragment,
+             ItemId::RiftFragment,
+             ItemId::StoneShot,
+             ItemId::CopperCoil,
+             ItemId::CrystalCharge,
+             ItemId::FrostCell,
+             ItemId::RiftShell,
+         }) {
+        simulation.player_.inventory.add(item, 50);
     }
     return simulation;
 }
@@ -1103,6 +1297,9 @@ bool Simulation::isRecipeUnlocked(std::string_view recipeKey) const
     if (recipe == nullptr) {
         return false;
     }
+    if (isArchiveRecipeKey(recipeKey)) {
+        return archiveRecipeUnlocked(recipeKey);
+    }
     if (recipe->unlockedByDefault) {
         return true;
     }
@@ -1143,9 +1340,24 @@ const std::vector<LogisticJob>& Simulation::logisticJobs() const
     return logisticJobs_;
 }
 
+const std::vector<GhostBuild>& Simulation::ghostBuilds() const
+{
+    return ghostBuilds_;
+}
+
+const std::vector<ConstructionJob>& Simulation::constructionJobs() const
+{
+    return constructionJobs_;
+}
+
 const ProductionTotals& Simulation::productionTotals() const
 {
     return productionTotals_;
+}
+
+GameMode Simulation::gameMode() const
+{
+    return gameMode_;
 }
 
 std::vector<AchievementProgress> Simulation::achievementProgress() const
@@ -1204,10 +1416,89 @@ std::array<int, 3> Simulation::realWorldSpawn() const
 bool Simulation::canCraft(std::string_view recipeKey) const
 {
     const auto* recipe = recipeDef(recipeKey);
+    if (gameMode_ == GameMode::Planning) {
+        return recipe != nullptr && isRecipeUnlocked(recipeKey);
+    }
     return recipe != nullptr &&
         isRecipeUnlocked(recipeKey) &&
         canCraftAtCurrentStation(*recipe) &&
         player_.inventory.canConsumeAll(recipe->inputs);
+}
+
+std::vector<ArchiveChoice> Simulation::archiveChoices() const
+{
+    std::vector<ArchiveChoice> choices;
+    choices.reserve(kArchiveChoiceDefs.size());
+    for (const auto& def : kArchiveChoiceDefs) {
+        const bool unlocked = archiveRecipeUnlocked(def.recipeKey);
+        bool affordable = false;
+        for (const auto& machine : machines_) {
+            if (machine.kind != MachineKind::ArchiveTerminal) {
+                continue;
+            }
+            const int fragmentCount = machine.inventory.count(def.fragment) +
+                (def.fragment == ItemId::ArchiveFragment ? 0 : machine.inventory.count(ItemId::ArchiveFragment));
+            if (fragmentCount >= def.fragmentCost &&
+                machine.inventory.count(ItemId::SciencePack) + machine.inventory.count(ItemId::AdvancedSciencePack) >= def.scienceCost) {
+                affordable = true;
+                break;
+            }
+        }
+        choices.push_back(ArchiveChoice{
+            std::string(def.key),
+            std::string(def.label),
+            std::string(def.recipeKey),
+            def.fragment,
+            def.fragmentCost,
+            def.scienceCost,
+            unlocked,
+            !unlocked && affordable});
+    }
+    return choices;
+}
+
+std::string Simulation::archiveResearchText() const
+{
+    const auto choices = archiveChoices();
+    const auto unlockedCount = static_cast<int>(std::count_if(
+        choices.begin(),
+        choices.end(),
+        [](const ArchiveChoice& choice) {
+            return choice.unlocked;
+        }));
+    for (const auto& choice : choices) {
+        if (!choice.unlocked && choice.affordable) {
+            return "archive: ready " + choice.label + " using " +
+                std::to_string(choice.fragmentCost) + " " + std::string(toString(choice.fragment)) +
+                " and " + std::to_string(choice.scienceCost) + " science";
+        }
+    }
+    for (const auto& choice : choices) {
+        if (!choice.unlocked) {
+            return "archive: " + std::to_string(unlockedCount) + "/" +
+                std::to_string(choices.size()) + " alternates; next " + choice.label;
+        }
+    }
+    return "archive: all alternate recipes unlocked";
+}
+
+std::string Simulation::constructionText() const
+{
+    const auto pendingGhosts = static_cast<int>(std::count_if(
+        ghostBuilds_.begin(),
+        ghostBuilds_.end(),
+        [](const GhostBuild& ghost) {
+            return !ghost.fulfilled;
+        }));
+    if (!constructionJobs_.empty()) {
+        return "construction: " + std::to_string(constructionJobs_.size()) +
+            " drone job(s), " + std::to_string(pendingGhosts) + " ghost(s) pending";
+    }
+    if (pendingGhosts > 0) {
+        return "construction: " + std::to_string(pendingGhosts) +
+            " ghost(s) waiting for powered ports and provider stock";
+    }
+    return "construction: no ghost builds queued";
 }
 
 int Simulation::completedSupplyContracts() const
@@ -1760,6 +2051,68 @@ std::string Simulation::currentOutpostDeliveryText() const
         }
     }
     return "outpost deliveries complete: all stabilized biomes have accepted local supply";
+}
+
+std::vector<OutpostRouteProgress> Simulation::outpostRoutes() const
+{
+    std::vector<OutpostRouteProgress> routes;
+    routes.reserve(kRequiredOutpostBiomes.size());
+    for (const auto biome : kRequiredOutpostBiomes) {
+        const auto found = std::find_if(
+            outpostRoutes_.begin(),
+            outpostRoutes_.end(),
+            [biome](const OutpostRouteState& route) {
+                return route.biome == biome;
+            });
+        const int current = found == outpostRoutes_.end() ? 0 : found->deliveredInWindow;
+        const int required = found == outpostRoutes_.end() ? 2 : found->requiredPerWindow;
+        const int stability = found == outpostRoutes_.end() ? 0 : found->stability;
+        routes.push_back(OutpostRouteProgress{
+            biome,
+            std::string(toString(biome)) + " route: sustain " + std::to_string(required) +
+                " " + std::string(toString(outpostActivationItem(biome))) + " per window",
+            current,
+            required,
+            stability,
+            hasActivatedOutpostBiome(biome),
+            stability >= kOutpostRouteStableThreshold});
+    }
+    return routes;
+}
+
+int Simulation::stableOutpostRouteCount() const
+{
+    int count = 0;
+    for (const auto& route : outpostRoutes()) {
+        if (route.stable) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+std::string Simulation::outpostRouteText() const
+{
+    const auto routes = outpostRoutes();
+    for (std::size_t index = 0; index < routes.size(); ++index) {
+        const auto& route = routes[index];
+        if (route.active && !route.stable) {
+            return "outpost route " + std::to_string(index + 1) + "/" +
+                std::to_string(routes.size()) + ": " + route.label + " (" +
+                std::to_string(route.current) + "/" + std::to_string(route.required) +
+                ", stability " + std::to_string(route.stability) + "/" +
+                std::to_string(kOutpostRouteStableThreshold) + ")";
+        }
+    }
+    for (std::size_t index = 0; index < routes.size(); ++index) {
+        const auto& route = routes[index];
+        if (!route.stable) {
+            return "outpost route " + std::to_string(index + 1) + "/" +
+                std::to_string(routes.size()) + ": activate " + std::string(toString(route.biome)) +
+                " outpost to open sustained logistics";
+        }
+    }
+    return "outpost routes stable: all biome beacons are receiving sustained supply";
 }
 
 bool Simulation::hasScoutedBiome(BiomeKind biome) const
@@ -2477,6 +2830,14 @@ void Simulation::apply(const Command& command)
         player_.facing = command.direction;
         place(command.direction, command.tile, command.item, command.orientation);
         break;
+    case CommandType::PlaceGhost:
+        player_.facing = command.direction;
+        placeGhost(command.direction, command.item, command.orientation);
+        break;
+    case CommandType::CancelGhost:
+        player_.facing = command.direction;
+        cancelGhost(command.direction);
+        break;
     case CommandType::Craft:
         craft(command.recipeKey);
         break;
@@ -2509,6 +2870,13 @@ void Simulation::apply(const Command& command)
     case CommandType::ConfigureRequest:
         player_.facing = command.direction;
         configureRequest(command.direction, command.item, command.amount);
+        break;
+    case CommandType::SelectArchiveChoice:
+        player_.facing = command.direction;
+        selectArchiveChoice(command.direction, command.amount);
+        break;
+    case CommandType::TogglePlanningMode:
+        togglePlanningMode();
         break;
     case CommandType::Interact:
         player_.facing = command.direction;
@@ -2632,6 +3000,66 @@ void Simulation::placeMachine(Direction direction, ItemId item, Direction orient
     recordTutorialAction(TutorialAction::Place);
 }
 
+void Simulation::placeGhost(Direction direction, ItemId item, Direction orientation)
+{
+    if (item == ItemId::None) {
+        return;
+    }
+    const auto& def = itemDef(item);
+    if (!def.canPlaceMachine && !def.canPlaceTile) {
+        return;
+    }
+    const int tx = player_.x + dx(direction);
+    const int ty = player_.y + dy(direction);
+    for (const auto& ghost : ghostBuilds_) {
+        if (!ghost.fulfilled && ghost.x == tx && ghost.y == ty && ghost.z == player_.z) {
+            return;
+        }
+    }
+
+    GhostBuild ghost;
+    ghost.id = nextGhostId_++;
+    ghost.item = item;
+    ghost.tile = def.canPlaceTile ? def.placeTile : TileId::Floor;
+    ghost.machine = def.canPlaceMachine;
+    ghost.x = tx;
+    ghost.y = ty;
+    ghost.z = player_.z;
+    ghost.direction = orientation;
+    std::string blocked;
+    if (!canPlaceGhostBuild(ghost, &blocked)) {
+        ghost.blockedReason = blocked;
+    }
+    ghostBuilds_.push_back(std::move(ghost));
+}
+
+void Simulation::cancelGhost(Direction direction)
+{
+    const int tx = player_.x + dx(direction);
+    const int ty = player_.y + dy(direction);
+    ghostBuilds_.erase(
+        std::remove_if(
+            ghostBuilds_.begin(),
+            ghostBuilds_.end(),
+            [tx, ty, this](const GhostBuild& ghost) {
+                return !ghost.fulfilled && ghost.x == tx && ghost.y == ty && ghost.z == player_.z;
+            }),
+        ghostBuilds_.end());
+    constructionJobs_.erase(
+        std::remove_if(
+            constructionJobs_.begin(),
+            constructionJobs_.end(),
+            [this](const ConstructionJob& job) {
+                return std::none_of(
+                    ghostBuilds_.begin(),
+                    ghostBuilds_.end(),
+                    [&job](const GhostBuild& ghost) {
+                        return ghost.id == job.ghostId;
+                    });
+            }),
+        constructionJobs_.end());
+}
+
 void Simulation::depositSelected(Direction direction)
 {
     depositItem(direction, selectedItem());
@@ -2695,7 +3123,7 @@ void Simulation::craft(std::string_view recipeKey)
     if (!isRecipeUnlocked(recipeKey) || !canCraftAtCurrentStation(*recipe)) {
         return;
     }
-    if (!player_.inventory.consumeAll(recipe->inputs)) {
+    if (gameMode_ != GameMode::Planning && !player_.inventory.consumeAll(recipe->inputs)) {
         return;
     }
 
@@ -2784,6 +3212,22 @@ void Simulation::configureRequest(Direction direction, ItemId requestItem, int t
     machine->requestThreshold = requestItem == ItemId::None ? 0 : std::max(0, threshold);
 }
 
+void Simulation::selectArchiveChoice(Direction direction, int choiceIndex)
+{
+    const int tx = player_.x + dx(direction);
+    const int ty = player_.y + dy(direction);
+    auto* machine = machineAt(tx, ty, player_.z);
+    if (machine == nullptr || machine->kind != MachineKind::ArchiveTerminal || kArchiveChoiceDefs.empty()) {
+        return;
+    }
+    machine->requestThreshold = std::clamp(choiceIndex, 0, static_cast<int>(kArchiveChoiceDefs.size()) - 1);
+}
+
+void Simulation::togglePlanningMode()
+{
+    gameMode_ = gameMode_ == GameMode::Survival ? GameMode::Planning : GameMode::Survival;
+}
+
 void Simulation::interact(Direction direction)
 {
     const int tx = player_.x + dx(direction);
@@ -2860,6 +3304,69 @@ bool Simulation::bossExamComplete(EntityKind boss) const
         if (exam.boss == boss) {
             return exam.complete;
         }
+    }
+    return false;
+}
+
+bool Simulation::archiveRecipeUnlocked(std::string_view recipeKey) const
+{
+    return std::any_of(
+        archiveUnlocks_.begin(),
+        archiveUnlocks_.end(),
+        [recipeKey](const std::string& key) {
+            return std::string_view(key) == recipeKey;
+        });
+}
+
+bool Simulation::unlockArchiveRecipe(std::string_view recipeKey)
+{
+    if (!isArchiveRecipeKey(recipeKey) || archiveRecipeUnlocked(recipeKey)) {
+        return false;
+    }
+    archiveUnlocks_.push_back(std::string(recipeKey));
+    return true;
+}
+
+bool Simulation::tryArchiveUnlock(Machine& machine)
+{
+    if (machine.kind != MachineKind::ArchiveTerminal) {
+        return false;
+    }
+    const int preferred = std::clamp(machine.requestThreshold, 0, static_cast<int>(kArchiveChoiceDefs.size()) - 1);
+    for (int offset = 0; offset < static_cast<int>(kArchiveChoiceDefs.size()); ++offset) {
+        const auto& choice = kArchiveChoiceDefs[static_cast<std::size_t>((preferred + offset) % static_cast<int>(kArchiveChoiceDefs.size()))];
+        if (archiveRecipeUnlocked(choice.recipeKey)) {
+            continue;
+        }
+        const int fragmentCount = machine.inventory.count(choice.fragment) +
+            (choice.fragment == ItemId::ArchiveFragment ? 0 : machine.inventory.count(ItemId::ArchiveFragment));
+        if (fragmentCount < choice.fragmentCost ||
+            machine.inventory.count(ItemId::SciencePack) + machine.inventory.count(ItemId::AdvancedSciencePack) < choice.scienceCost) {
+            continue;
+        }
+
+        int remainingFragments = choice.fragmentCost;
+        const int consumedSpecific = std::min(remainingFragments, machine.inventory.count(choice.fragment));
+        if (consumedSpecific > 0) {
+            machine.inventory.consume(choice.fragment, consumedSpecific);
+            remainingFragments -= consumedSpecific;
+        }
+        if (remainingFragments > 0) {
+            machine.inventory.consume(ItemId::ArchiveFragment, remainingFragments);
+        }
+
+        int remainingScience = choice.scienceCost;
+        const int consumedAdvanced = std::min(remainingScience, machine.inventory.count(ItemId::AdvancedSciencePack));
+        if (consumedAdvanced > 0) {
+            machine.inventory.consume(ItemId::AdvancedSciencePack, consumedAdvanced);
+            remainingScience -= consumedAdvanced;
+        }
+        if (remainingScience > 0) {
+            machine.inventory.consume(ItemId::SciencePack, remainingScience);
+        }
+
+        machine.requestThreshold = (preferred + offset + 1) % static_cast<int>(kArchiveChoiceDefs.size());
+        return unlockArchiveRecipe(choice.recipeKey);
     }
     return false;
 }
@@ -3681,6 +4188,8 @@ void Simulation::updateLogistics()
 {
     const auto poweredPorts = poweredLogisticPortIds();
 
+    updateConstructionJobs(poweredPorts);
+
     for (auto it = logisticJobs_.begin(); it != logisticJobs_.end();) {
         if (!containsId(poweredPorts, it->portId)) {
             ++it;
@@ -3710,8 +4219,14 @@ void Simulation::updateLogistics()
             [portId](const LogisticJob& job) {
                 return job.portId == portId;
             }));
+        const int activeConstruction = static_cast<int>(std::count_if(
+            constructionJobs_.begin(),
+            constructionJobs_.end(),
+            [portId](const ConstructionJob& job) {
+                return job.portId == portId;
+            }));
         const int activeScout = port->progress > 0 && port->carriedItem != ItemId::None ? 1 : 0;
-        int availableDrones = port->inventory.count(ItemId::LogisticDrone) - activeJobs - activeScout;
+        int availableDrones = port->inventory.count(ItemId::LogisticDrone) - activeJobs - activeConstruction - activeScout;
         while (availableDrones > 0) {
             Machine* selectedRequester = nullptr;
             Machine* selectedProvider = nullptr;
@@ -3771,6 +4286,112 @@ void Simulation::updateLogistics()
     updateScoutAutomation(poweredPorts);
 }
 
+void Simulation::updateConstructionJobs(const std::vector<std::uint32_t>& poweredPorts)
+{
+    for (auto it = constructionJobs_.begin(); it != constructionJobs_.end();) {
+        if (!containsId(poweredPorts, it->portId)) {
+            ++it;
+            continue;
+        }
+        it->ticksRemaining = std::max(0, it->ticksRemaining - 1);
+        auto ghost = std::find_if(
+            ghostBuilds_.begin(),
+            ghostBuilds_.end(),
+            [id = it->ghostId](const GhostBuild& candidate) {
+                return candidate.id == id;
+            });
+        if (ghost != ghostBuilds_.end() && !ghost->fulfilled) {
+            ghost->progress = std::max(ghost->progress, 100 - ((it->ticksRemaining * 100) / std::max(1, it->totalTicks)));
+        }
+        if (it->ticksRemaining > 0) {
+            ++it;
+            continue;
+        }
+        if (ghost != ghostBuilds_.end()) {
+            (void)completeGhostBuild(*ghost);
+        }
+        it = constructionJobs_.erase(it);
+    }
+
+    for (const auto portId : poweredPorts) {
+        auto* port = machineById(portId);
+        if (port == nullptr) {
+            continue;
+        }
+        const int activeLogistics = static_cast<int>(std::count_if(
+            logisticJobs_.begin(),
+            logisticJobs_.end(),
+            [portId](const LogisticJob& job) {
+                return job.portId == portId;
+            }));
+        const int activeConstruction = static_cast<int>(std::count_if(
+            constructionJobs_.begin(),
+            constructionJobs_.end(),
+            [portId](const ConstructionJob& job) {
+                return job.portId == portId;
+            }));
+        const int activeScout = port->progress > 0 && port->carriedItem != ItemId::None ? 1 : 0;
+        int availableDrones = port->inventory.count(ItemId::LogisticDrone) - activeLogistics - activeConstruction - activeScout;
+        while (availableDrones > 0) {
+            auto ghost = std::find_if(
+                ghostBuilds_.begin(),
+                ghostBuilds_.end(),
+                [this, port](const GhostBuild& candidate) {
+                    if (candidate.fulfilled ||
+                        manhattanDistance(port->x, port->y, port->z, candidate.x, candidate.y, candidate.z) > kLogisticPortRange) {
+                        return false;
+                    }
+                    return std::none_of(
+                        constructionJobs_.begin(),
+                        constructionJobs_.end(),
+                        [&candidate](const ConstructionJob& job) {
+                            return job.ghostId == candidate.id;
+                        });
+                });
+            if (ghost == ghostBuilds_.end()) {
+                break;
+            }
+
+            std::string blocked;
+            if (!canPlaceGhostBuild(*ghost, &blocked)) {
+                ghost->blockedReason = blocked;
+                break;
+            }
+
+            std::uint32_t sourceId = 0;
+            if (gameMode_ != GameMode::Planning) {
+                auto provider = std::find_if(
+                    machines_.begin(),
+                    machines_.end(),
+                    [this, port, item = ghost->item](Machine& candidate) {
+                        return candidate.kind == MachineKind::ProviderChest &&
+                            candidate.inventory.count(item) > 0 &&
+                            manhattanDistance(port->x, port->y, port->z, candidate.x, candidate.y, candidate.z) <= kLogisticPortRange;
+                    });
+                if (provider == machines_.end() || !provider->inventory.consume(ghost->item, 1)) {
+                    ghost->blockedReason = "materials";
+                    break;
+                }
+                sourceId = provider->id;
+            }
+
+            const int distance = manhattanDistance(port->x, port->y, port->z, ghost->x, ghost->y, ghost->z);
+            const int totalTicks = gameMode_ == GameMode::Planning ? 1 :
+                std::clamp(kConstructionJobBaseTicks + (distance * 4), kMinLogisticJobTicks, kMaxLogisticJobTicks);
+            constructionJobs_.push_back(ConstructionJob{
+                ghost->id,
+                port->id,
+                sourceId,
+                ghost->item,
+                totalTicks,
+                totalTicks});
+            ghost->blockedReason.clear();
+            ghost->progress = std::max(ghost->progress, 1);
+            --availableDrones;
+        }
+    }
+}
+
 BiomeKind Simulation::scoutTargetBiome(const Machine& port) const
 {
     const auto localBiome = world_.biomeAt(port.x, port.y, port.z);
@@ -3808,8 +4429,14 @@ void Simulation::updateScoutAutomation(const std::vector<std::uint32_t>& powered
             [portId](const LogisticJob& job) {
                 return job.portId == portId;
             }));
+        const int activeConstruction = static_cast<int>(std::count_if(
+            constructionJobs_.begin(),
+            constructionJobs_.end(),
+            [portId](const ConstructionJob& job) {
+                return job.portId == portId;
+            }));
         const int activeScout = port->progress > 0 && port->carriedItem != ItemId::None ? 1 : 0;
-        const int availableDrones = port->inventory.count(ItemId::LogisticDrone) - activeJobs - activeScout;
+        const int availableDrones = port->inventory.count(ItemId::LogisticDrone) - activeJobs - activeConstruction - activeScout;
         if (port->progress == 0 && port->carriedItem == ItemId::None) {
             if (availableDrones <= 0) {
                 port->status = MachineStatus::MissingInput;
@@ -3964,6 +4591,11 @@ void Simulation::updateArchiveTerminals()
         }
         if (!isMachinePowered(machine.id)) {
             machine.status = MachineStatus::MissingPower;
+            continue;
+        }
+        if (tryArchiveUnlock(machine)) {
+            machine.progress = 0;
+            machine.status = MachineStatus::Idle;
             continue;
         }
         if (machine.progress == 0 && !machine.inventory.consume(ItemId::BeaconCore, 1)) {
@@ -4529,6 +5161,83 @@ void Simulation::updateBiomeHazards()
     rebuildMachineCellIndex();
 }
 
+bool Simulation::canPlaceGhostBuild(const GhostBuild& ghost, std::string* blockedReason) const
+{
+    const auto setBlocked = [blockedReason](std::string reason) {
+        if (blockedReason != nullptr) {
+            *blockedReason = std::move(reason);
+        }
+        return false;
+    };
+    if (ghost.fulfilled || ghost.item == ItemId::None) {
+        return setBlocked("fulfilled");
+    }
+    if (machineAt(ghost.x, ghost.y, ghost.z) != nullptr) {
+        return setBlocked("machine");
+    }
+    for (const auto& other : ghostBuilds_) {
+        if (other.id != ghost.id &&
+            !other.fulfilled &&
+            other.x == ghost.x &&
+            other.y == ghost.y &&
+            other.z == ghost.z) {
+            return setBlocked("ghost");
+        }
+    }
+    const auto& item = itemDef(ghost.item);
+    if (ghost.machine) {
+        if (!item.canPlaceMachine) {
+            return setBlocked("item");
+        }
+        if (!canPlaceMachine(item.placeMachine, ghost.x, ghost.y, ghost.z)) {
+            return setBlocked("terrain");
+        }
+        return true;
+    }
+    if (!item.canPlaceTile) {
+        return setBlocked("item");
+    }
+    const auto targetTile = world_.getTile(ghost.x, ghost.y, ghost.z);
+    if (!world_.isWalkable(ghost.x, ghost.y, ghost.z) || !tileDef(targetTile.id).buildable) {
+        return setBlocked("terrain");
+    }
+    return true;
+}
+
+bool Simulation::completeGhostBuild(GhostBuild& ghost)
+{
+    std::string blocked;
+    if (!canPlaceGhostBuild(ghost, &blocked)) {
+        ghost.blockedReason = blocked;
+        return false;
+    }
+    const auto& item = itemDef(ghost.item);
+    if (ghost.machine) {
+        Machine machine;
+        machine.id = nextMachineId_++;
+        machine.kind = item.placeMachine;
+        machine.x = ghost.x;
+        machine.y = ghost.y;
+        machine.z = ghost.z;
+        machine.direction = ghost.direction;
+        machine.durability = machineMaxDurability(machine.kind);
+        if (machine.kind == MachineKind::Assembler) {
+            machine.recipeKey = "science_pack";
+        }
+        machines_.push_back(std::move(machine));
+        std::sort(machines_.begin(), machines_.end(), [](const Machine& left, const Machine& right) {
+            return left.id < right.id;
+        });
+        rebuildMachineCellIndex();
+    } else {
+        world_.setTile(ghost.x, ghost.y, ghost.z, Tile{item.placeTile, 0});
+    }
+    ghost.fulfilled = true;
+    ghost.progress = 100;
+    ghost.blockedReason.clear();
+    return true;
+}
+
 bool Simulation::canPlaceMachine(MachineKind kind, int x, int y) const
 {
     return canPlaceMachine(kind, x, y, 0);
@@ -4651,6 +5360,10 @@ bool Simulation::acceptItem(Machine& machine, ItemId item)
         }
         return machine.inventory.add(item, 1);
     case MachineKind::ArchiveTerminal:
+        if (item == ItemId::BeaconCore || isScienceItem(item) || isFragmentItem(item)) {
+            return machine.inventory.add(item, 1);
+        }
+        return false;
     case MachineKind::RiftGate:
         if (item != ItemId::BeaconCore) {
             return false;
@@ -6164,6 +6877,11 @@ void Simulation::addItem(ItemId item, int count)
 
 bool Simulation::consumeItem(ItemId item, int count)
 {
+    if (gameMode_ == GameMode::Planning) {
+        (void)item;
+        (void)count;
+        return true;
+    }
     return player_.inventory.consume(item, count);
 }
 
