@@ -380,6 +380,47 @@ void testBiomeLairGeneration()
     require(world.getTile(39, 21, -1).id == TileId::Basalt, "badlands interior should expose cache basalt");
 }
 
+void testProceduralLairGenerationBeyondStarterRing()
+{
+    using thoth::game::LairKind;
+    using thoth::game::TileId;
+
+    thoth::game::World world(20260613);
+
+    std::optional<std::array<int, 2>> generatedCenter;
+    std::optional<LairKind> generatedKind;
+    for (int y = -420; y <= 420 && !generatedCenter; ++y) {
+        for (int x = -420; x <= 420 && !generatedCenter; ++x) {
+            if (std::abs(x) + std::abs(y) < 160) {
+                continue;
+            }
+            if ((x == 0 && y == 18) ||
+                (x == 18 && y == -2) ||
+                (x == 36 && y == 20) ||
+                (x == -18 && y == 0) ||
+                (x == -36 && y == 20)) {
+                continue;
+            }
+            const auto lair = world.lairAt(x, y);
+            if (!lair || world.getTile(x, y).id != TileId::StairsDown) {
+                continue;
+            }
+            generatedCenter = std::array<int, 2>{x, y};
+            generatedKind = *lair;
+        }
+    }
+
+    require(generatedCenter.has_value(), "procedural generation should add lairs beyond the authored starter ladder");
+    const int x = (*generatedCenter)[0];
+    const int y = (*generatedCenter)[1];
+    require(world.lairAt(x, y, -1).has_value() && *world.lairAt(x, y, -1) == *generatedKind,
+        "generated lair interior should report matching lair identity");
+    require(world.getTile(x, y, -1).id == TileId::StairsUp,
+        "generated lair interior should contain return stairs");
+    require(!world.lairAt(60, 60).has_value(),
+        "protected early ordinary terrain should remain free of generated lairs");
+}
+
 void testLairEnemyPressureSpawnsBiomeHostiles()
 {
     using namespace thoth::game;
@@ -4187,10 +4228,10 @@ void testPostVictoryExpeditionBoard()
 
     require(active.mainObjectiveComplete(), "seeded supply chain should unlock post-victory board");
     const auto activeBoard = active.postVictoryExpeditionBoard();
-    require(activeBoard.size() == 6, "expedition board should expose six long-tail goals");
+    require(activeBoard.size() == 9, "expedition board should expose nine long-tail goals");
     require(activeBoard.front().unlocked && !activeBoard.front().complete,
         "unlocked expedition board should show incomplete entries");
-    require(active.postVictoryExpeditionText().find("expedition 1/6") != std::string::npos,
+    require(active.postVictoryExpeditionText().find("expedition 1/9") != std::string::npos,
         "expedition board text should point at the next incomplete expedition");
 
     snapshot = active.snapshot();
@@ -4211,6 +4252,9 @@ void testPostVictoryExpeditionBoard()
         biomeMaskForTest(BiomeKind::CrystalField);
     snapshot.productionTotals.pressureWaveRewardsClaimed = 5;
     snapshot.productionTotals.dungeonChestsOpened = 5;
+    snapshot.productionTotals.trainDeliveries = 20;
+    snapshot.productionTotals.scrapRecycled = 10;
+    snapshot.productionTotals.poweredOre = 50;
     active.restore(snapshot);
 
     require(active.completedPostVictoryExpeditions() == static_cast<int>(active.postVictoryExpeditionBoard().size()),

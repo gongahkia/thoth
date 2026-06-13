@@ -5994,8 +5994,8 @@ void Simulation::updateEntities()
             continue;
         }
 
-        const int distance = manhattanDistance(entity.x, entity.y, entity.z, player_.x, player_.y, player_.z);
-        if (isHostile(entity.kind) && distance <= 1 && entity.cooldown == 0) {
+        const int playerDistance = manhattanDistance(entity.x, entity.y, entity.z, player_.x, player_.y, player_.z);
+        if (isHostile(entity.kind) && playerDistance <= 1 && entity.cooldown == 0) {
             player_.hp = std::max(0, player_.hp - 1);
             entity.cooldown = 30;
             continue;
@@ -6011,11 +6011,48 @@ void Simulation::updateEntities()
                 continue;
             }
         }
-        if (isHostile(entity.kind) && distance <= 6 && (tick_ % 12U) == 0U) {
-            const int stepX = player_.x == entity.x ? 0 : (player_.x > entity.x ? 1 : -1);
-            const int stepY = player_.y == entity.y ? 0 : (player_.y > entity.y ? 1 : -1);
-            const int nx = entity.x + (absInt(player_.x - entity.x) >= absInt(player_.y - entity.y) ? stepX : 0);
-            const int ny = entity.y + (absInt(player_.x - entity.x) < absInt(player_.y - entity.y) ? stepY : 0);
+        if (isHostile(entity.kind) && (tick_ % 12U) == 0U) {
+            int targetX = player_.x;
+            int targetY = player_.y;
+            int targetDistance = playerDistance;
+            if (entity.pressureSpawn) {
+                int bestScore = 1'000'000;
+                for (const auto& machine : machines_) {
+                    if (machine.z != entity.z) {
+                        continue;
+                    }
+                    int priority = 0;
+                    if (machine.kind == MachineKind::Generator ||
+                        machine.kind == MachineKind::PowerPole ||
+                        machine.kind == MachineKind::LogisticPort ||
+                        machine.kind == MachineKind::ArchiveTerminal ||
+                        machine.kind == MachineKind::RiftGate) {
+                        priority = 8;
+                    } else if (machine.kind == MachineKind::Lab ||
+                        machine.kind == MachineKind::Assembler ||
+                        isPowerConsumer(machine.kind) ||
+                        isActiveIndustrialMachine(machine)) {
+                        priority = 4;
+                    }
+                    const int distance = manhattanDistance(entity.x, entity.y, entity.z, machine.x, machine.y, machine.z);
+                    const int score = (distance * 2) - priority;
+                    if (score < bestScore) {
+                        bestScore = score;
+                        targetX = machine.x;
+                        targetY = machine.y;
+                        targetDistance = distance;
+                    }
+                }
+            }
+
+            const int chaseRange = entity.pressureSpawn ? 18 : 6;
+            if (targetDistance > chaseRange) {
+                continue;
+            }
+            const int stepX = targetX == entity.x ? 0 : (targetX > entity.x ? 1 : -1);
+            const int stepY = targetY == entity.y ? 0 : (targetY > entity.y ? 1 : -1);
+            const int nx = entity.x + (absInt(targetX - entity.x) >= absInt(targetY - entity.y) ? stepX : 0);
+            const int ny = entity.y + (absInt(targetX - entity.x) < absInt(targetY - entity.y) ? stepY : 0);
             if (world_.isWalkable(nx, ny, entity.z) && machineAt(nx, ny, entity.z) == nullptr && entityAt(nx, ny, entity.z) == nullptr) {
                 entity.x = nx;
                 entity.y = ny;
