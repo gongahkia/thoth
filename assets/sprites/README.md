@@ -16,6 +16,7 @@ Atlas contract:
 - Atlas size: 128x64 pixels
 - Layout: 8 columns, row-major order
 - Runtime terrain rendering applies deterministic coordinate-based tint/flip variation plus neighbor-aware edge/corner overlays to grass, dirt, water, stone, ore, and floor tiles so repeated atlas sprites read less tiled in the raylib view and media preview.
+- Runtime visual profiles add render-only lift, shadows, front faces, and y-sorted draw order for raised tiles, machines, carried items, entities, and the player. Gameplay movement still uses the logical `x/y/z` grid.
 - Runtime machine rendering adds tick-based belt travel dashes and working-machine pulse overlays on top of the atlas, keeping motion polish in code while preserving the compact authored sprite sheet.
 - Newer gameplay objects that do not have dedicated authored cells yet reuse existing atlas sprites with code-side colors/glyph fallbacks.
 

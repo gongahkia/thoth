@@ -272,25 +272,36 @@ void drawPreviewTileVariantEdges(
     }
 }
 
-int previewVisualHeight(thoth::game::TileId id, int tileSize)
+int previewLiftPixels(const RenderVisualProfile& profile, int tileSize)
 {
-    return (tileVisualHeightPixels(id) * tileSize) / kTilePixels;
+    return (profile.liftPixels * tileSize) / kTilePixels;
 }
 
-void drawPreviewTileDepthBase(Image& image, thoth::game::TileId id, int x, int y, int tileSize, int visualHeight)
+void drawPreviewProfileShadow(Image& image, const RenderVisualProfile& profile, int x, int y, int tileSize, Color color)
+{
+    if (profile.shadowWidthPixels <= 0 || profile.shadowHeightPixels <= 0) {
+        return;
+    }
+
+    const int width = std::max(2, (profile.shadowWidthPixels * tileSize) / kTilePixels);
+    const int height = std::max(1, (profile.shadowHeightPixels * tileSize) / kTilePixels);
+    ImageDrawRectangle(
+        &image,
+        x + (tileSize / 2) - (width / 2),
+        y + tileSize - std::max(1, height / 2),
+        width,
+        height,
+        color);
+}
+
+void drawPreviewTileDepthBase(Image& image, const RenderVisualProfile& profile, int x, int y, int tileSize, int visualHeight)
 {
     if (visualHeight <= 0) {
         return;
     }
 
-    ImageDrawRectangle(
-        &image,
-        x + std::max(1, tileSize / 8),
-        y + tileSize - std::max(1, tileSize / 8),
-        tileSize - std::max(2, tileSize / 4),
-        std::max(1, tileSize / 8),
-        Color{0, 0, 0, 78});
-    if (!tileVisualHasFrontFace(id)) {
+    drawPreviewProfileShadow(image, profile, x, y, tileSize, Color{0, 0, 0, 78});
+    if (!profile.frontFace) {
         return;
     }
 
@@ -301,17 +312,13 @@ void drawPreviewTileDepthBase(Image& image, thoth::game::TileId id, int x, int y
         faceTop,
         tileSize - std::max(2, tileSize / 6),
         visualHeight,
-        tileVisualFrontFaceColor(id));
-}
-
-int previewMachineVisualHeight(thoth::game::MachineKind kind, int tileSize)
-{
-    return (machineVisualHeightPixels(kind) * tileSize) / kTilePixels;
+        profile.frontFaceColor);
 }
 
 void drawPreviewMachineDepthBase(
     Image& image,
     thoth::game::MachineKind kind,
+    const RenderVisualProfile& profile,
     int x,
     int y,
     int tileSize,
@@ -321,13 +328,7 @@ void drawPreviewMachineDepthBase(
         return;
     }
 
-    ImageDrawRectangle(
-        &image,
-        x + std::max(1, tileSize / 7),
-        y + tileSize - std::max(1, tileSize / 8),
-        tileSize - std::max(2, tileSize / 4),
-        std::max(1, tileSize / 8),
-        Color{0, 0, 0, 86});
+    drawPreviewProfileShadow(image, profile, x, y, tileSize, Color{0, 0, 0, 86});
     if (visualHeight <= 1) {
         return;
     }
@@ -527,6 +528,60 @@ void drawPreviewMachineActivityOverlay(
         color);
 }
 
+void drawPreviewTileGroundBase(Image& image, thoth::game::Tile tile, int x, int y, int tileSize)
+{
+    ImageDrawRectangle(&image, x, y, tileSize, tileSize, toColor(thoth::game::tileDef(tile.id).color));
+}
+
+void drawPreviewTileVisual(
+    Image& image,
+    const Color* atlasPixels,
+    thoth::game::Tile tile,
+    const TileVariantEdges& edges,
+    int worldX,
+    int worldY,
+    int x,
+    int y,
+    int tileSize,
+    int scale,
+    const RenderVisualProfile& profile)
+{
+    const int visualHeight = previewLiftPixels(profile, tileSize);
+    drawPreviewTileDepthBase(image, profile, x, y, tileSize, visualHeight);
+    drawPreviewSprite(image, atlasPixels, tileSprite(tile.id), x, y - visualHeight, scale, tileSpriteOptions(tile.id, worldX, worldY));
+    drawPreviewTileVariantEdges(image, tile.id, edges, x, y, tileSize, visualHeight);
+    if (tile.data > 0) {
+        ImageDrawRectangle(&image, x + tileSize - 13, y + 3 - visualHeight, 10, 10, Color{10, 12, 12, 190});
+        drawPreviewText(image, std::to_string(tile.data), x + tileSize - 11, y + 5 - visualHeight, 1, RAYWHITE);
+    }
+}
+
+enum class PreviewRenderKind {
+    RaisedTile,
+    Machine,
+    Player,
+};
+
+struct PreviewRenderCommand {
+    PreviewRenderKind kind = PreviewRenderKind::RaisedTile;
+    int sortY = 0;
+    int sortX = 0;
+    int priority = 0;
+    int px = 0;
+    int py = 0;
+    int worldX = 0;
+    int worldY = 0;
+    thoth::game::Tile tile{};
+    TileVariantEdges edges{};
+    RenderVisualProfile profile{};
+    const thoth::game::Machine* machine = nullptr;
+};
+
+int previewSortY(int worldY, const RenderVisualProfile& profile, int tileSize)
+{
+    return ((worldY + 1) * tileSize) + ((profile.sortOffsetY * tileSize) / kTilePixels);
+}
+
 void drawPreviewGrid(
     Image& image,
     const Color* atlasPixels,
@@ -551,21 +606,35 @@ void drawPreviewGrid(
     ++maxY;
 
     const int scale = std::max(1, tileSize / kSpritePixels);
+    std::vector<PreviewRenderCommand> commands;
+    commands.reserve(static_cast<std::size_t>((maxX - minX + 1) * (maxY - minY + 1)) + sim.machines().size() + 1);
     for (int y = minY; y <= maxY; ++y) {
         for (int x = minX; x <= maxX; ++x) {
             const int px = originX + (x - minX) * tileSize;
             const int py = originY + (y - minY) * tileSize;
             const auto tile = sim.world().getTile(x, y);
             const auto edges = previewTileVariantEdgesAt(sim.world(), tile.id, x, y, minX, maxX, minY, maxY);
-            const int visualHeight = previewVisualHeight(tile.id, tileSize);
-            ImageDrawRectangle(&image, px, py, tileSize, tileSize, Color{18, 22, 22, 255});
-            drawPreviewTileDepthBase(image, tile.id, px, py, tileSize, visualHeight);
-            drawPreviewSprite(image, atlasPixels, tileSprite(tile.id), px, py - visualHeight, scale, tileSpriteOptions(tile.id, x, y));
-            drawPreviewTileVariantEdges(image, tile.id, edges, px, py, tileSize, visualHeight);
-            drawPreviewRectLines(image, px, py, tileSize, tileSize, Color{0, 0, 0, 72});
-            if (tile.data > 0) {
-                ImageDrawRectangle(&image, px + tileSize - 13, py + 3 - visualHeight, 10, 10, Color{10, 12, 12, 190});
-                drawPreviewText(image, std::to_string(tile.data), px + tileSize - 11, py + 5 - visualHeight, 1, RAYWHITE);
+            const auto profile = tileVisualProfile(tile.id);
+            if (profile.liftPixels <= 0) {
+                ImageDrawRectangle(&image, px, py, tileSize, tileSize, Color{18, 22, 22, 255});
+                drawPreviewTileVisual(image, atlasPixels, tile, edges, x, y, px, py, tileSize, scale, profile);
+                drawPreviewRectLines(image, px, py, tileSize, tileSize, Color{0, 0, 0, 72});
+            } else {
+                drawPreviewTileGroundBase(image, tile, px, py, tileSize);
+                drawPreviewRectLines(image, px, py, tileSize, tileSize, Color{0, 0, 0, 72});
+                PreviewRenderCommand command;
+                command.kind = PreviewRenderKind::RaisedTile;
+                command.sortY = previewSortY(y, profile, tileSize);
+                command.sortX = px;
+                command.priority = 0;
+                command.px = px;
+                command.py = py;
+                command.worldX = x;
+                command.worldY = y;
+                command.tile = tile;
+                command.edges = edges;
+                command.profile = profile;
+                commands.push_back(command);
             }
         }
     }
@@ -573,43 +642,93 @@ void drawPreviewGrid(
     for (const auto& machine : sim.machines()) {
         const int px = originX + (machine.x - minX) * tileSize;
         const int py = originY + (machine.y - minY) * tileSize;
-        const int visualHeight = previewMachineVisualHeight(machine.kind, tileSize);
-        const int visualY = py - visualHeight;
-        drawPreviewMachineDepthBase(image, machine.kind, px, py, tileSize, visualHeight);
-        drawPreviewSprite(image, atlasPixels, machineSprite(machine.kind), px, visualY, scale);
-        drawPreviewMachineActivityOverlay(image, machine, sim.tick(), px, visualY, tileSize);
-        drawPreviewBeltMotionOverlay(image, machine, sim.tick(), px, visualY, tileSize);
-        drawPreviewRectLines(image, px + 2, visualY + 2, tileSize - 4, tileSize - 4, statusColor(machine.status));
-
-        const int cx = px + tileSize / 2;
-        const int cy = visualY + tileSize / 2;
-        ImageDrawLine(
-            &image,
-            cx,
-            cy,
-            cx + thoth::game::dx(machine.direction) * (tileSize / 3),
-            cy + thoth::game::dy(machine.direction) * (tileSize / 3),
-            Color{248, 248, 232, 230});
-
-        if (previewMachineIssue(machine.status)) {
-            const auto badge = previewMachineIssueBadgeText(machine.status);
-            ImageDrawRectangle(&image, px + tileSize - 16, visualY + 2, 14, 12, Color{12, 14, 14, 210});
-            drawPreviewText(image, badge, px + tileSize - 12, visualY + 5, 1, statusColor(machine.status));
-        }
+        const auto profile = machineVisualProfile(machine.kind);
+        PreviewRenderCommand command;
+        command.kind = PreviewRenderKind::Machine;
+        command.sortY = previewSortY(machine.y, profile, tileSize);
+        command.sortX = px;
+        command.priority = 2;
+        command.px = px;
+        command.py = py;
+        command.profile = profile;
+        command.machine = &machine;
+        commands.push_back(command);
     }
 
     const int playerX = originX + (sim.player().x - minX) * tileSize;
     const int playerY = originY + (sim.player().y - minY) * tileSize;
-    const int playerHeight = std::max(1, (4 * tileSize) / kTilePixels);
-    ImageDrawRectangle(
-        &image,
-        playerX + std::max(1, tileSize / 5),
-        playerY + tileSize - std::max(1, tileSize / 8),
-        tileSize - std::max(2, (tileSize * 2) / 5),
-        std::max(1, tileSize / 8),
-        Color{0, 0, 0, 82});
-    drawPreviewSprite(image, atlasPixels, SpriteId::Player, playerX, playerY - playerHeight, scale);
-    drawPreviewRectLines(image, playerX + 5, playerY + 5 - playerHeight, tileSize - 10, tileSize - 10, Color{246, 248, 232, 255});
+    const auto playerProfile = playerVisualProfile();
+    PreviewRenderCommand playerCommand;
+    playerCommand.kind = PreviewRenderKind::Player;
+    playerCommand.sortY = previewSortY(sim.player().y, playerProfile, tileSize);
+    playerCommand.sortX = playerX;
+    playerCommand.priority = 3;
+    playerCommand.px = playerX;
+    playerCommand.py = playerY;
+    playerCommand.profile = playerProfile;
+    commands.push_back(playerCommand);
+
+    std::stable_sort(commands.begin(), commands.end(), [](const PreviewRenderCommand& left, const PreviewRenderCommand& right) {
+        if (left.sortY != right.sortY) {
+            return left.sortY < right.sortY;
+        }
+        if (left.priority != right.priority) {
+            return left.priority < right.priority;
+        }
+        return left.sortX < right.sortX;
+    });
+
+    for (const auto& command : commands) {
+        if (command.kind == PreviewRenderKind::RaisedTile) {
+            drawPreviewTileVisual(
+                image,
+                atlasPixels,
+                command.tile,
+                command.edges,
+                command.worldX,
+                command.worldY,
+                command.px,
+                command.py,
+                tileSize,
+                scale,
+                command.profile);
+            drawPreviewRectLines(image, command.px, command.py, tileSize, tileSize, Color{0, 0, 0, 72});
+            continue;
+        }
+        if (command.kind == PreviewRenderKind::Machine && command.machine != nullptr) {
+            const auto& machine = *command.machine;
+            const int visualHeight = previewLiftPixels(command.profile, tileSize);
+            const int visualY = command.py - visualHeight;
+            drawPreviewMachineDepthBase(image, machine.kind, command.profile, command.px, command.py, tileSize, visualHeight);
+            drawPreviewSprite(image, atlasPixels, machineSprite(machine.kind), command.px, visualY, scale);
+            drawPreviewMachineActivityOverlay(image, machine, sim.tick(), command.px, visualY, tileSize);
+            drawPreviewBeltMotionOverlay(image, machine, sim.tick(), command.px, visualY, tileSize);
+            drawPreviewRectLines(image, command.px + 2, visualY + 2, tileSize - 4, tileSize - 4, statusColor(machine.status));
+
+            const int cx = command.px + tileSize / 2;
+            const int cy = visualY + tileSize / 2;
+            ImageDrawLine(
+                &image,
+                cx,
+                cy,
+                cx + thoth::game::dx(machine.direction) * (tileSize / 3),
+                cy + thoth::game::dy(machine.direction) * (tileSize / 3),
+                Color{248, 248, 232, 230});
+
+            if (previewMachineIssue(machine.status)) {
+                const auto badge = previewMachineIssueBadgeText(machine.status);
+                ImageDrawRectangle(&image, command.px + tileSize - 16, visualY + 2, 14, 12, Color{12, 14, 14, 210});
+                drawPreviewText(image, badge, command.px + tileSize - 12, visualY + 5, 1, statusColor(machine.status));
+            }
+            continue;
+        }
+        if (command.kind == PreviewRenderKind::Player) {
+            const int playerHeight = previewLiftPixels(command.profile, tileSize);
+            drawPreviewProfileShadow(image, command.profile, command.px, command.py, tileSize, Color{0, 0, 0, 82});
+            drawPreviewSprite(image, atlasPixels, SpriteId::Player, command.px, command.py - playerHeight, scale);
+            drawPreviewRectLines(image, command.px + 5, command.py + 5 - playerHeight, tileSize - 10, tileSize - 10, Color{246, 248, 232, 255});
+        }
+    }
 }
 
 void drawPreviewSpriteStrip(Image& image, const Color* atlasPixels, int x, int y)
@@ -819,6 +938,7 @@ bool saveWindowSmokeScreenshot(const std::filesystem::path& path, std::string* e
     camera.zoom = 1.0f;
 
     bool saved = false;
+    Image screenshot{};
     for (int frame = 0; frame < 3; ++frame) {
         BeginDrawing();
         ClearBackground(Color{16, 18, 18, 255});
@@ -826,11 +946,13 @@ bool saveWindowSmokeScreenshot(const std::filesystem::path& path, std::string* e
         drawWorld(simulation, state);
         EndMode2D();
         drawHud(simulation, state);
+        if (frame == 2) {
+            screenshot = LoadImageFromScreen();
+        }
         EndDrawing();
     }
 
     std::string saveError;
-    Image screenshot = LoadImageFromScreen();
     if (screenshot.data == nullptr || screenshot.width <= 0 || screenshot.height <= 0) {
         saveError = "failed to capture window smoke screenshot";
     } else if (screenshot.width != kScreenWidth || screenshot.height != kScreenHeight) {

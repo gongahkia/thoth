@@ -251,6 +251,16 @@ struct TileVariantEdges {
     bool southWest = false;
 };
 
+struct RenderVisualProfile {
+    int liftPixels = 0;
+    int bodyHeightPixels = kTilePixels;
+    bool frontFace = false;
+    Color frontFaceColor = Color{0, 0, 0, 0};
+    int shadowWidthPixels = 0;
+    int shadowHeightPixels = 0;
+    int sortOffsetY = 0;
+};
+
 struct FlowStack {
     thoth::game::ItemId item = thoth::game::ItemId::None;
     int available = 0;
@@ -279,6 +289,11 @@ TileVariantEdges tileVariantEdges(
 bool hasTileVariantEdges(const TileVariantEdges& edges);
 Color tileVariantEdgeColor(thoth::game::TileId id);
 Color tileVariantCornerColor(thoth::game::TileId id);
+RenderVisualProfile tileVisualProfile(thoth::game::TileId id);
+RenderVisualProfile machineVisualProfile(thoth::game::MachineKind kind);
+RenderVisualProfile itemVisualProfile(thoth::game::ItemId item);
+RenderVisualProfile entityVisualProfile(thoth::game::EntityKind kind);
+RenderVisualProfile playerVisualProfile();
 int tileVisualHeightPixels(thoth::game::TileId id);
 bool tileVisualHasFrontFace(thoth::game::TileId id);
 Color tileVisualFrontFaceColor(thoth::game::TileId id);

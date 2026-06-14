@@ -368,10 +368,24 @@ void drawItemIcon(int centerX, int centerY, thoth::game::ItemId item, int radius
     }
 }
 
-void drawTileDetail(thoth::game::TileId id, int x, int y, int visualHeight)
+void drawWorldItemIcon(int centerX, int centerY, thoth::game::ItemId item, int radius)
+{
+    const auto profile = itemVisualProfile(item);
+    if (profile.shadowWidthPixels > 0 && profile.shadowHeightPixels > 0) {
+        DrawEllipse(
+            centerX,
+            centerY + std::max(2, radius / 2),
+            static_cast<float>(std::max(4, profile.shadowWidthPixels / 2)),
+            static_cast<float>(std::max(2, profile.shadowHeightPixels / 2)),
+            Color{0, 0, 0, 72});
+    }
+    drawItemIcon(centerX, centerY - profile.liftPixels, item, radius);
+}
+
+void drawTileDetail(thoth::game::TileId id, int x, int y, const RenderVisualProfile& profile)
 {
     const int px = x * kTilePixels;
-    const int py = (y * kTilePixels) - visualHeight;
+    const int py = (y * kTilePixels) - profile.liftPixels;
     using thoth::game::TileId;
     switch (id) {
     case TileId::Tree:
@@ -417,21 +431,34 @@ void drawTileDetail(thoth::game::TileId id, int x, int y, int visualHeight)
     }
 }
 
-void drawTileDepthBase(thoth::game::TileId id, int x, int y, int visualHeight)
+void drawProfileShadow(int px, int py, const RenderVisualProfile& profile, Color color)
 {
-    if (visualHeight <= 0) {
+    if (profile.shadowWidthPixels <= 0 || profile.shadowHeightPixels <= 0) {
+        return;
+    }
+    DrawEllipse(
+        px + (kTilePixels / 2),
+        py + kTilePixels - 4,
+        static_cast<float>(profile.shadowWidthPixels) * 0.5f,
+        static_cast<float>(profile.shadowHeightPixels) * 0.5f,
+        color);
+}
+
+void drawTileDepthBase(const RenderVisualProfile& profile, int x, int y)
+{
+    if (profile.liftPixels <= 0) {
         return;
     }
 
     const int px = x * kTilePixels;
     const int py = y * kTilePixels;
-    DrawEllipse(px + 17, py + kTilePixels - 4, 12.0f, 4.0f, Color{0, 0, 0, 78});
-    if (!tileVisualHasFrontFace(id)) {
+    drawProfileShadow(px, py, profile, Color{0, 0, 0, 78});
+    if (!profile.frontFace) {
         return;
     }
 
-    const int faceTop = py + kTilePixels - visualHeight;
-    DrawRectangle(px + 3, faceTop, kTilePixels - 6, visualHeight, tileVisualFrontFaceColor(id));
+    const int faceTop = py + kTilePixels - profile.liftPixels;
+    DrawRectangle(px + 3, faceTop, kTilePixels - 6, profile.liftPixels, profile.frontFaceColor);
     DrawLine(px + 4, faceTop, px + kTilePixels - 5, faceTop, Color{255, 255, 255, 34});
 }
 
@@ -475,14 +502,14 @@ TileVariantEdges tileVariantEdgesAt(
         tileIdInDrawBounds(world, center, x - 1, y + 1, z, minX, maxX, minY, maxY));
 }
 
-void drawTileVariantEdges(thoth::game::TileId id, const TileVariantEdges& edges, int x, int y, int visualHeight)
+void drawTileVariantEdges(thoth::game::TileId id, const TileVariantEdges& edges, int x, int y, const RenderVisualProfile& profile)
 {
     if (!hasTileVariantEdges(edges)) {
         return;
     }
 
     const int px = x * kTilePixels;
-    const int py = (y * kTilePixels) - visualHeight;
+    const int py = (y * kTilePixels) - profile.liftPixels;
     constexpr int edge = 3;
     constexpr int corner = 6;
     const Color edgeColor = tileVariantEdgeColor(id);
@@ -2431,7 +2458,7 @@ Color resourceRichnessColor(thoth::game::TileId id)
     return Color{220, 220, 210, 230};
 }
 
-void drawResourceRichnessPips(thoth::game::Tile tile, int tileX, int tileY, int visualHeight)
+void drawResourceRichnessPips(thoth::game::Tile tile, int tileX, int tileY, const RenderVisualProfile& profile)
 {
     if (!isResourceTile(tile.id) || tile.data <= 0) {
         return;
@@ -2440,7 +2467,7 @@ void drawResourceRichnessPips(thoth::game::Tile tile, int tileX, int tileY, int 
     constexpr int maxPips = 6;
     const int pips = std::clamp(tile.data, 0, maxPips);
     const int px = tileX * kTilePixels;
-    const int py = (tileY * kTilePixels) - visualHeight;
+    const int py = (tileY * kTilePixels) - profile.liftPixels;
     const Color fill = resourceRichnessColor(tile.id);
     const Color empty = Color{8, 10, 10, 138};
 
@@ -2490,14 +2517,14 @@ void drawMachineActivityOverlay(const thoth::game::Machine& machine, std::uint64
     DrawRectangle(px + 5, py + 5, 4, 4, color);
 }
 
-void drawMachineDepthBase(const thoth::game::Machine& machine, int px, int py, int visualHeight)
+void drawMachineDepthBase(const thoth::game::Machine& machine, int px, int py, const RenderVisualProfile& profile)
 {
-    if (visualHeight <= 0) {
+    if (profile.liftPixels <= 0) {
         return;
     }
 
-    DrawEllipse(px + 16, py + kTilePixels - 4, 11.0f, 4.0f, Color{0, 0, 0, 88});
-    if (visualHeight <= 2) {
+    drawProfileShadow(px, py, profile, Color{0, 0, 0, 88});
+    if (profile.liftPixels <= 2) {
         return;
     }
 
@@ -2507,8 +2534,8 @@ void drawMachineDepthBase(const thoth::game::Machine& machine, int px, int py, i
         static_cast<unsigned char>((static_cast<int>(base.g) * 94) / 255),
         static_cast<unsigned char>((static_cast<int>(base.b) * 94) / 255),
         214};
-    const int faceTop = py + kTilePixels - visualHeight;
-    DrawRectangle(px + 5, faceTop, kTilePixels - 10, visualHeight, face);
+    const int faceTop = py + kTilePixels - profile.liftPixels;
+    DrawRectangle(px + 5, faceTop, kTilePixels - 10, profile.liftPixels, face);
     DrawLine(px + 6, faceTop, px + kTilePixels - 7, faceTop, Color{255, 255, 255, 36});
 }
 
@@ -2518,8 +2545,8 @@ void drawMachine(const thoth::game::Machine& machine, std::uint64_t tick)
 
     const int px = machine.x * kTilePixels;
     const int basePy = machine.y * kTilePixels;
-    const int visualHeight = machineVisualHeightPixels(machine.kind);
-    const int py = basePy - visualHeight;
+    const auto profile = machineVisualProfile(machine.kind);
+    const int py = basePy - profile.liftPixels;
     const int cx = px + (kTilePixels / 2);
     const int cy = py + (kTilePixels / 2);
     const Rectangle body{
@@ -2530,7 +2557,7 @@ void drawMachine(const thoth::game::Machine& machine, std::uint64_t tick)
     const Color base = machineColor(machine.kind);
     const Color border = statusColor(machine.status);
 
-    drawMachineDepthBase(machine, px, basePy, visualHeight);
+    drawMachineDepthBase(machine, px, basePy, profile);
     if (!drawSprite(machineSprite(machine.kind), body)) {
         DrawRectangleRec(body, base);
         const auto glyph = machineGlyph(machine.kind);
@@ -2555,9 +2582,9 @@ void drawMachine(const thoth::game::Machine& machine, std::uint64_t tick)
     }
 
     if (machine.carriedItem != thoth::game::ItemId::None) {
-        drawItemIcon(cx, cy, machine.carriedItem, 5);
+        drawWorldItemIcon(cx, cy, machine.carriedItem, 5);
     } else if (machine.outputItem != thoth::game::ItemId::None) {
-        drawItemIcon(px + 18, py + 18, machine.outputItem, 5);
+        drawWorldItemIcon(px + 18, py + 18, machine.outputItem, 5);
     }
 
     const float progress = machineProgressRatio(machine);
@@ -2637,12 +2664,13 @@ void drawEntity(const thoth::game::Entity& entity)
     using thoth::game::EntityKind;
 
     const int px = entity.x * kTilePixels;
-    const int py = entity.y * kTilePixels;
+    const int basePy = entity.y * kTilePixels;
+    const auto profile = entityVisualProfile(entity.kind);
+    const int py = basePy - profile.liftPixels;
     const auto color = entityColor(entity.kind);
     const Color dark{22, 24, 26, 235};
-    const Color shadow{0, 0, 0, 110};
     const Color light{242, 248, 238, 235};
-    DrawEllipse(px + 16, py + 22, 11.0f, 5.0f, shadow);
+    drawProfileShadow(px, basePy, profile, Color{0, 0, 0, 110});
 
     switch (entity.kind) {
     case EntityKind::Deer:
@@ -2811,6 +2839,123 @@ void drawTutorialStartArea(const thoth::game::Simulation& sim, const AppState& s
     drawTutorialWorldLabel(5, -1, sim.tutorialExitReady() ? "exit: J" : "exit locked", Color{122, 184, 244, 255});
 }
 
+void drawTileGroundBase(thoth::game::Tile tile, int x, int y)
+{
+    const auto& def = thoth::game::tileDef(tile.id);
+    DrawRectangle(
+        x * kTilePixels,
+        y * kTilePixels,
+        kTilePixels,
+        kTilePixels,
+        toColor(def.color));
+}
+
+void drawTileVisual(
+    thoth::game::Tile tile,
+    const TileVariantEdges& edges,
+    int x,
+    int y,
+    const RenderVisualProfile& profile)
+{
+    const auto& def = thoth::game::tileDef(tile.id);
+    const Rectangle destination{
+        static_cast<float>(x * kTilePixels),
+        static_cast<float>((y * kTilePixels) - profile.liftPixels),
+        static_cast<float>(kTilePixels),
+        static_cast<float>(kTilePixels),
+    };
+    drawTileDepthBase(profile, x, y);
+    if (!drawSprite(tileSprite(tile.id), destination, tileSpriteOptions(tile.id, x, y))) {
+        DrawRectangleRec(destination, toColor(def.color));
+        drawTileDetail(tile.id, x, y, profile);
+    }
+    drawTileVariantEdges(tile.id, edges, x, y, profile);
+    drawResourceRichnessPips(tile, x, y, profile);
+}
+
+void drawPlayer(float playerDrawX, float playerDrawY, thoth::game::Direction facing)
+{
+    const auto profile = playerVisualProfile();
+    DrawEllipse(
+        static_cast<int>((playerDrawX * static_cast<float>(kTilePixels)) + (static_cast<float>(kTilePixels) * 0.5f)),
+        static_cast<int>((playerDrawY * static_cast<float>(kTilePixels)) + static_cast<float>(kTilePixels) - 4.0f),
+        static_cast<float>(std::max(4, profile.shadowWidthPixels / 2)),
+        static_cast<float>(std::max(2, profile.shadowHeightPixels / 2)),
+        Color{0, 0, 0, 86});
+    const Rectangle playerDestination{
+        (playerDrawX * static_cast<float>(kTilePixels)) + 3.0f,
+        (playerDrawY * static_cast<float>(kTilePixels)) + 3.0f - static_cast<float>(profile.liftPixels),
+        static_cast<float>(kTilePixels - 6),
+        static_cast<float>(kTilePixels - 6),
+    };
+    if (!drawSprite(SpriteId::Player, playerDestination)) {
+        DrawRectangle(
+            static_cast<int>((playerDrawX * static_cast<float>(kTilePixels)) + 4.0f),
+            static_cast<int>((playerDrawY * static_cast<float>(kTilePixels)) + 4.0f - static_cast<float>(profile.liftPixels)),
+            kTilePixels - 8,
+            kTilePixels - 8,
+            Color{235, 238, 230, 255});
+    }
+    drawDirectionArrow(
+        Vector2{
+            (playerDrawX * static_cast<float>(kTilePixels)) + (static_cast<float>(kTilePixels) * 0.5f),
+            (playerDrawY * static_cast<float>(kTilePixels)) + (static_cast<float>(kTilePixels) * 0.5f) - static_cast<float>(profile.liftPixels)},
+        facing,
+        13.0f,
+        Color{32, 42, 42, 255});
+}
+
+enum class WorldRenderKind {
+    RaisedTile,
+    Machine,
+    Entity,
+    Player,
+};
+
+struct WorldRenderCommand {
+    WorldRenderKind kind = WorldRenderKind::RaisedTile;
+    int sortY = 0;
+    int sortX = 0;
+    int priority = 0;
+    thoth::game::Tile tile{};
+    TileVariantEdges edges{};
+    RenderVisualProfile profile{};
+    int x = 0;
+    int y = 0;
+    const thoth::game::Machine* machine = nullptr;
+    const thoth::game::Entity* entity = nullptr;
+    float playerDrawX = 0.0f;
+    float playerDrawY = 0.0f;
+    thoth::game::Direction playerFacing = thoth::game::Direction::South;
+};
+
+int visualSortY(int y, const RenderVisualProfile& profile)
+{
+    return (y * kTilePixels) + kTilePixels + profile.sortOffsetY;
+}
+
+void drawWorldRenderCommand(const WorldRenderCommand& command, std::uint64_t tick)
+{
+    switch (command.kind) {
+    case WorldRenderKind::RaisedTile:
+        drawTileVisual(command.tile, command.edges, command.x, command.y, command.profile);
+        break;
+    case WorldRenderKind::Machine:
+        if (command.machine != nullptr) {
+            drawMachine(*command.machine, tick);
+        }
+        break;
+    case WorldRenderKind::Entity:
+        if (command.entity != nullptr) {
+            drawEntity(*command.entity);
+        }
+        break;
+    case WorldRenderKind::Player:
+        drawPlayer(command.playerDrawX, command.playerDrawY, command.playerFacing);
+        break;
+    }
+}
+
 void drawWorld(thoth::game::Simulation& sim, const AppState& state)
 {
     const auto& player = sim.player();
@@ -2820,26 +2965,30 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
     const int maxX = player.x + halfTilesX;
     const int minY = player.y - halfTilesY;
     const int maxY = player.y + halfTilesY;
+    std::vector<WorldRenderCommand> commands;
+    commands.reserve(static_cast<std::size_t>((maxX - minX + 1) * (maxY - minY + 1)) + sim.machines().size() + sim.entities().size() + 1);
 
     for (int y = minY; y <= maxY; ++y) {
         for (int x = minX; x <= maxX; ++x) {
             const auto tile = sim.world().getTile(x, y, player.z);
-            const auto& def = thoth::game::tileDef(tile.id);
             const auto edges = tileVariantEdgesAt(sim.world(), tile.id, x, y, player.z, minX, maxX, minY, maxY);
-            const int visualHeight = tileVisualHeightPixels(tile.id);
-            const Rectangle destination{
-                static_cast<float>(x * kTilePixels),
-                static_cast<float>((y * kTilePixels) - visualHeight),
-                static_cast<float>(kTilePixels),
-                static_cast<float>(kTilePixels),
-            };
-            drawTileDepthBase(tile.id, x, y, visualHeight);
-            if (!drawSprite(tileSprite(tile.id), destination, tileSpriteOptions(tile.id, x, y))) {
-                DrawRectangleRec(destination, toColor(def.color));
-                drawTileDetail(tile.id, x, y, visualHeight);
+            const auto profile = tileVisualProfile(tile.id);
+            if (profile.liftPixels <= 0) {
+                drawTileVisual(tile, edges, x, y, profile);
+            } else {
+                drawTileGroundBase(tile, x, y);
+                WorldRenderCommand command;
+                command.kind = WorldRenderKind::RaisedTile;
+                command.sortY = visualSortY(y, profile);
+                command.sortX = x * kTilePixels;
+                command.priority = 0;
+                command.tile = tile;
+                command.edges = edges;
+                command.profile = profile;
+                command.x = x;
+                command.y = y;
+                commands.push_back(command);
             }
-            drawTileVariantEdges(tile.id, edges, x, y, visualHeight);
-            drawResourceRichnessPips(tile, x, y, visualHeight);
         }
     }
 
@@ -2847,34 +2996,17 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
 
     const float playerDrawX = state.renderPlayerReady ? state.renderPlayerX : static_cast<float>(player.x);
     const float playerDrawY = state.renderPlayerReady ? state.renderPlayerY : static_cast<float>(player.y);
-    constexpr float playerVisualHeight = 4.0f;
-    DrawEllipse(
-        static_cast<int>((playerDrawX * static_cast<float>(kTilePixels)) + (static_cast<float>(kTilePixels) * 0.5f)),
-        static_cast<int>((playerDrawY * static_cast<float>(kTilePixels)) + static_cast<float>(kTilePixels) - 4.0f),
-        10.0f,
-        4.0f,
-        Color{0, 0, 0, 86});
-    const Rectangle playerDestination{
-        (playerDrawX * static_cast<float>(kTilePixels)) + 3.0f,
-        (playerDrawY * static_cast<float>(kTilePixels)) + 3.0f - playerVisualHeight,
-        static_cast<float>(kTilePixels - 6),
-        static_cast<float>(kTilePixels - 6),
-    };
-    if (!drawSprite(SpriteId::Player, playerDestination)) {
-        DrawRectangle(
-            static_cast<int>((playerDrawX * static_cast<float>(kTilePixels)) + 4.0f),
-            static_cast<int>((playerDrawY * static_cast<float>(kTilePixels)) + 4.0f - playerVisualHeight),
-            kTilePixels - 8,
-            kTilePixels - 8,
-            Color{235, 238, 230, 255});
-    }
-    drawDirectionArrow(
-        Vector2{
-            (playerDrawX * static_cast<float>(kTilePixels)) + (static_cast<float>(kTilePixels) * 0.5f),
-            (playerDrawY * static_cast<float>(kTilePixels)) + (static_cast<float>(kTilePixels) * 0.5f) - playerVisualHeight},
-        player.facing,
-        13.0f,
-        Color{32, 42, 42, 255});
+    const auto playerProfile = playerVisualProfile();
+    WorldRenderCommand playerCommand;
+    playerCommand.kind = WorldRenderKind::Player;
+    playerCommand.sortY = static_cast<int>((playerDrawY * static_cast<float>(kTilePixels)) + static_cast<float>(kTilePixels)) + playerProfile.sortOffsetY;
+    playerCommand.sortX = static_cast<int>(playerDrawX * static_cast<float>(kTilePixels));
+    playerCommand.priority = 3;
+    playerCommand.profile = playerProfile;
+    playerCommand.playerDrawX = playerDrawX;
+    playerCommand.playerDrawY = playerDrawY;
+    playerCommand.playerFacing = player.facing;
+    commands.push_back(playerCommand);
 
     for (const auto& network : sim.powerNetworks()) {
         const Color wire = network.powered ? Color{118, 210, 255, 126} : Color{245, 92, 92, 126};
@@ -2923,13 +3055,43 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
         if (machine.z != player.z) {
             continue;
         }
-        drawMachine(machine, sim.tick());
+        const auto profile = machineVisualProfile(machine.kind);
+        WorldRenderCommand command;
+        command.kind = WorldRenderKind::Machine;
+        command.sortY = visualSortY(machine.y, profile);
+        command.sortX = machine.x * kTilePixels;
+        command.priority = 2;
+        command.profile = profile;
+        command.machine = &machine;
+        commands.push_back(command);
     }
 
     for (const auto& entity : sim.entities()) {
-        if (entity.z == player.z) {
-            drawEntity(entity);
+        if (entity.z != player.z) {
+            continue;
         }
+        const auto profile = entityVisualProfile(entity.kind);
+        WorldRenderCommand command;
+        command.kind = WorldRenderKind::Entity;
+        command.sortY = visualSortY(entity.y, profile);
+        command.sortX = entity.x * kTilePixels;
+        command.priority = 3;
+        command.profile = profile;
+        command.entity = &entity;
+        commands.push_back(command);
+    }
+
+    std::stable_sort(commands.begin(), commands.end(), [](const WorldRenderCommand& left, const WorldRenderCommand& right) {
+        if (left.sortY != right.sortY) {
+            return left.sortY < right.sortY;
+        }
+        if (left.priority != right.priority) {
+            return left.priority < right.priority;
+        }
+        return left.sortX < right.sortX;
+    });
+    for (const auto& command : commands) {
+        drawWorldRenderCommand(command, sim.tick());
     }
 
     const int tx = player.x + thoth::game::dx(player.facing);

@@ -388,34 +388,63 @@ Color tileVariantCornerColor(thoth::game::TileId id)
     };
 }
 
-int tileVisualHeightPixels(thoth::game::TileId id)
+RenderVisualProfile renderProfile(
+    int liftPixels,
+    int bodyHeightPixels,
+    int shadowWidthPixels,
+    int shadowHeightPixels,
+    bool frontFace = false,
+    Color frontFaceColor = Color{0, 0, 0, 0},
+    int sortOffsetY = 0)
+{
+    return RenderVisualProfile{
+        liftPixels,
+        bodyHeightPixels,
+        frontFace,
+        frontFaceColor,
+        shadowWidthPixels,
+        shadowHeightPixels,
+        sortOffsetY};
+}
+
+RenderVisualProfile flatVisualProfile()
+{
+    return renderProfile(0, kTilePixels, 0, 0);
+}
+
+RenderVisualProfile tileVisualProfile(thoth::game::TileId id)
 {
     using thoth::game::TileId;
     switch (id) {
     case TileId::DungeonWall:
+        return renderProfile(9, kTilePixels + 9, 24, 8, true, Color{32, 31, 38, 232});
     case TileId::Wall:
+        return renderProfile(9, kTilePixels + 9, 24, 8, true, Color{62, 58, 54, 226});
     case TileId::PlankWall:
-        return 9;
+        return renderProfile(9, kTilePixels + 9, 24, 8, true, Color{86, 50, 28, 224});
     case TileId::Tree:
     case TileId::Cactus:
     case TileId::Crystal:
-        return 8;
+        return renderProfile(8, kTilePixels + 8, 24, 8);
     case TileId::Door:
-        return 7;
+        return renderProfile(7, kTilePixels + 7, 22, 7, true, Color{86, 50, 28, 224});
     case TileId::Stone:
     case TileId::Basalt:
-        return 5;
+        return renderProfile(5, kTilePixels + 5, 22, 7, true, Color{70, 74, 74, 218});
     case TileId::IronOre:
+        return renderProfile(4, kTilePixels + 4, 20, 6, true, Color{108, 74, 52, 214});
     case TileId::CopperOre:
+        return renderProfile(4, kTilePixels + 4, 20, 6, true, Color{112, 58, 40, 214});
     case TileId::CoalOre:
+        return renderProfile(4, kTilePixels + 4, 20, 6, true, Color{20, 22, 24, 224});
     case TileId::RecoveryCrate:
-        return 4;
+        return renderProfile(4, kTilePixels + 4, 20, 6, true, Color{112, 70, 36, 218});
     case TileId::Reeds:
     case TileId::Bed:
     case TileId::LairHearth:
     case TileId::StairsUp:
     case TileId::StairsDown:
-        return 3;
+        return renderProfile(3, kTilePixels + 3, 18, 5);
     case TileId::Grass:
     case TileId::Dirt:
     case TileId::Sand:
@@ -428,99 +457,12 @@ int tileVisualHeightPixels(thoth::game::TileId id)
     case TileId::Coral:
     case TileId::Floor:
     case TileId::DungeonFloor:
-        return 0;
+        return flatVisualProfile();
     }
-    return 0;
+    return flatVisualProfile();
 }
 
-bool tileVisualHasFrontFace(thoth::game::TileId id)
-{
-    using thoth::game::TileId;
-    switch (id) {
-    case TileId::DungeonWall:
-    case TileId::Wall:
-    case TileId::PlankWall:
-    case TileId::Door:
-    case TileId::Stone:
-    case TileId::Basalt:
-    case TileId::IronOre:
-    case TileId::CopperOre:
-    case TileId::CoalOre:
-    case TileId::RecoveryCrate:
-        return true;
-    case TileId::Grass:
-    case TileId::Dirt:
-    case TileId::Sand:
-    case TileId::Beach:
-    case TileId::Snow:
-    case TileId::Ice:
-    case TileId::Mud:
-    case TileId::Reeds:
-    case TileId::Cactus:
-    case TileId::Tree:
-    case TileId::Water:
-    case TileId::DeepWater:
-    case TileId::Coral:
-    case TileId::Crystal:
-    case TileId::Floor:
-    case TileId::StairsUp:
-    case TileId::StairsDown:
-    case TileId::Bed:
-    case TileId::DungeonFloor:
-    case TileId::LairHearth:
-        return false;
-    }
-    return false;
-}
-
-Color tileVisualFrontFaceColor(thoth::game::TileId id)
-{
-    using thoth::game::TileId;
-    switch (id) {
-    case TileId::DungeonWall:
-        return Color{32, 31, 38, 232};
-    case TileId::Wall:
-        return Color{62, 58, 54, 226};
-    case TileId::PlankWall:
-    case TileId::Door:
-        return Color{86, 50, 28, 224};
-    case TileId::Stone:
-    case TileId::Basalt:
-        return Color{70, 74, 74, 218};
-    case TileId::IronOre:
-        return Color{108, 74, 52, 214};
-    case TileId::CopperOre:
-        return Color{112, 58, 40, 214};
-    case TileId::CoalOre:
-        return Color{20, 22, 24, 224};
-    case TileId::RecoveryCrate:
-        return Color{112, 70, 36, 218};
-    case TileId::Grass:
-    case TileId::Dirt:
-    case TileId::Sand:
-    case TileId::Beach:
-    case TileId::Snow:
-    case TileId::Ice:
-    case TileId::Mud:
-    case TileId::Reeds:
-    case TileId::Cactus:
-    case TileId::Tree:
-    case TileId::Water:
-    case TileId::DeepWater:
-    case TileId::Coral:
-    case TileId::Crystal:
-    case TileId::Floor:
-    case TileId::StairsUp:
-    case TileId::StairsDown:
-    case TileId::Bed:
-    case TileId::DungeonFloor:
-    case TileId::LairHearth:
-        break;
-    }
-    return Color{38, 40, 42, 210};
-}
-
-int machineVisualHeightPixels(thoth::game::MachineKind kind)
+RenderVisualProfile machineVisualProfile(thoth::game::MachineKind kind)
 {
     using thoth::game::MachineKind;
     switch (kind) {
@@ -528,12 +470,12 @@ int machineVisualHeightPixels(thoth::game::MachineKind kind)
     case MachineKind::GuardTower:
     case MachineKind::OutpostBeacon:
     case MachineKind::ArcTower:
-        return 10;
+        return renderProfile(10, kTilePixels + 10, 22, 8);
     case MachineKind::Lab:
     case MachineKind::ArchiveTerminal:
     case MachineKind::LogisticPort:
     case MachineKind::RiftGate:
-        return 8;
+        return renderProfile(8, kTilePixels + 8, 24, 8);
     case MachineKind::BurnerMiner:
     case MachineKind::ElectricMiner:
     case MachineKind::Furnace:
@@ -542,7 +484,7 @@ int machineVisualHeightPixels(thoth::game::MachineKind kind)
     case MachineKind::OffshorePump:
     case MachineKind::RepairPylon:
     case MachineKind::PressureRelay:
-        return 6;
+        return renderProfile(6, kTilePixels + 6, 23, 7);
     case MachineKind::Chest:
     case MachineKind::ProviderChest:
     case MachineKind::RequesterChest:
@@ -550,14 +492,147 @@ int machineVisualHeightPixels(thoth::game::MachineKind kind)
     case MachineKind::Inserter:
     case MachineKind::CircuitInserter:
     case MachineKind::TrainStop:
-        return 5;
+        return renderProfile(5, kTilePixels + 5, 21, 6);
     case MachineKind::Belt:
     case MachineKind::FastBelt:
     case MachineKind::Splitter:
     case MachineKind::Pipe:
-        return 2;
+        return renderProfile(2, kTilePixels + 2, 18, 5);
     }
-    return 5;
+    return renderProfile(5, kTilePixels + 5, 21, 6);
+}
+
+RenderVisualProfile itemVisualProfile(thoth::game::ItemId item)
+{
+    using thoth::game::ItemId;
+    switch (item) {
+    case ItemId::None:
+        return renderProfile(0, 0, 0, 0);
+    case ItemId::SciencePack:
+    case ItemId::AdvancedSciencePack:
+    case ItemId::CircuitBoard:
+    case ItemId::PowerShard:
+    case ItemId::CrystalCharge:
+    case ItemId::FrostCell:
+    case ItemId::RiftShell:
+    case ItemId::BeaconCore:
+    case ItemId::ArchiveTerminal:
+    case ItemId::RiftGate:
+        return renderProfile(4, 10, 13, 4);
+    case ItemId::WaterBarrel:
+        return renderProfile(4, 12, 14, 4);
+    case ItemId::IronPlate:
+    case ItemId::CopperPlate:
+    case ItemId::SandGlass:
+    case ItemId::CopperCoil:
+        return renderProfile(3, 8, 12, 3);
+    case ItemId::Wood:
+    case ItemId::Stone:
+    case ItemId::Coal:
+    case ItemId::IronOre:
+    case ItemId::CopperOre:
+    case ItemId::Sand:
+    case ItemId::ReedFiber:
+    case ItemId::CactusFiber:
+    case ItemId::Kelp:
+    case ItemId::Shell:
+    case ItemId::CoralShard:
+    case ItemId::IceShard:
+    case ItemId::Basalt:
+    case ItemId::Crystal:
+    case ItemId::Hide:
+    case ItemId::Bone:
+    case ItemId::Slime:
+    case ItemId::Venom:
+    case ItemId::Scrap:
+    case ItemId::StoneShot:
+        return renderProfile(2, 7, 11, 3);
+    case ItemId::MarshHeart:
+    case ItemId::GlassHeart:
+    case ItemId::WardenCore:
+    case ItemId::FrostCore:
+    case ItemId::RiftCrown:
+    case ItemId::ArchiveFragment:
+    case ItemId::MarshFragment:
+    case ItemId::DesertFragment:
+    case ItemId::BadlandsFragment:
+    case ItemId::FrostFragment:
+    case ItemId::CrystalFragment:
+    case ItemId::RiftFragment:
+        return renderProfile(3, 9, 12, 4);
+    default:
+        break;
+    }
+
+    const auto& def = thoth::game::itemDef(item);
+    if (def.canPlaceMachine) {
+        const auto placed = machineVisualProfile(def.placeMachine);
+        return renderProfile(std::clamp(placed.liftPixels / 2, 2, 5), 9, 13, 4);
+    }
+    if (def.canPlaceTile) {
+        const auto placed = tileVisualProfile(def.placeTile);
+        return renderProfile(std::clamp(placed.liftPixels / 2, 1, 4), 8, 12, 3);
+    }
+    return renderProfile(2, 7, 11, 3);
+}
+
+RenderVisualProfile entityVisualProfile(thoth::game::EntityKind kind)
+{
+    using thoth::game::EntityKind;
+    switch (kind) {
+    case EntityKind::Fish:
+        return renderProfile(0, 12, 15, 4);
+    case EntityKind::Crab:
+        return renderProfile(1, 13, 18, 5);
+    case EntityKind::Chicken:
+        return renderProfile(2, 16, 17, 5);
+    case EntityKind::Deer:
+        return renderProfile(3, 20, 21, 6);
+    case EntityKind::Slime:
+    case EntityKind::GlassSkitter:
+    case EntityKind::SunScarab:
+    case EntityKind::Skeleton:
+    case EntityKind::CaveCrawler:
+    case EntityKind::FrostCrawler:
+        return renderProfile(3, 20, 22, 6);
+    case EntityKind::DungeonSentinel:
+    case EntityKind::RiftStalker:
+        return renderProfile(5, 24, 21, 6);
+    case EntityKind::NullWisp:
+        return renderProfile(9, 22, 17, 5);
+    case EntityKind::MarshBroodheart:
+    case EntityKind::GlassMaw:
+    case EntityKind::BadlandsWarden:
+    case EntityKind::FrostNullifier:
+    case EntityKind::RiftSignalTyrant:
+        return renderProfile(7, 28, 27, 8);
+    }
+    return renderProfile(3, 20, 21, 6);
+}
+
+RenderVisualProfile playerVisualProfile()
+{
+    return renderProfile(4, 24, 20, 8);
+}
+
+int tileVisualHeightPixels(thoth::game::TileId id)
+{
+    return tileVisualProfile(id).liftPixels;
+}
+
+bool tileVisualHasFrontFace(thoth::game::TileId id)
+{
+    return tileVisualProfile(id).frontFace;
+}
+
+Color tileVisualFrontFaceColor(thoth::game::TileId id)
+{
+    return tileVisualProfile(id).frontFaceColor;
+}
+
+int machineVisualHeightPixels(thoth::game::MachineKind kind)
+{
+    return machineVisualProfile(kind).liftPixels;
 }
 
 void atlasRect(Image& image, SpriteId id, int x, int y, int width, int height, Color color)
