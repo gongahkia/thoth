@@ -240,6 +240,17 @@ struct SpriteDrawOptions {
     Color tint = WHITE;
 };
 
+struct TileVariantEdges {
+    bool north = false;
+    bool east = false;
+    bool south = false;
+    bool west = false;
+    bool northWest = false;
+    bool northEast = false;
+    bool southEast = false;
+    bool southWest = false;
+};
+
 struct FlowStack {
     thoth::game::ItemId item = thoth::game::ItemId::None;
     int available = 0;
@@ -254,6 +265,20 @@ Color multiplyTint(Color color, Color tint);
 int spriteOriginX(SpriteId id);
 int spriteOriginY(SpriteId id);
 SpriteDrawOptions tileSpriteOptions(thoth::game::TileId id, int x, int y);
+bool hasTileEdgeVariants(thoth::game::TileId id);
+TileVariantEdges tileVariantEdges(
+    thoth::game::TileId center,
+    thoth::game::TileId north,
+    thoth::game::TileId east,
+    thoth::game::TileId south,
+    thoth::game::TileId west,
+    thoth::game::TileId northWest,
+    thoth::game::TileId northEast,
+    thoth::game::TileId southEast,
+    thoth::game::TileId southWest);
+bool hasTileVariantEdges(const TileVariantEdges& edges);
+Color tileVariantEdgeColor(thoth::game::TileId id);
+Color tileVariantCornerColor(thoth::game::TileId id);
 Image makeGeneratedAtlasImage();
 bool makeAuthoredAtlasImage(Image& image, std::string* error);
 bool saveGeneratedAtlas(const std::filesystem::path& path, std::string* error);

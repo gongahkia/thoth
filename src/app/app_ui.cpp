@@ -417,6 +417,86 @@ void drawTileDetail(thoth::game::TileId id, int x, int y)
     }
 }
 
+thoth::game::TileId tileIdInDrawBounds(
+    const thoth::game::World& world,
+    thoth::game::TileId fallback,
+    int x,
+    int y,
+    int z,
+    int minX,
+    int maxX,
+    int minY,
+    int maxY)
+{
+    if (x < minX || x > maxX || y < minY || y > maxY) {
+        return fallback;
+    }
+    return world.getTile(x, y, z).id;
+}
+
+TileVariantEdges tileVariantEdgesAt(
+    const thoth::game::World& world,
+    thoth::game::TileId center,
+    int x,
+    int y,
+    int z,
+    int minX,
+    int maxX,
+    int minY,
+    int maxY)
+{
+    return tileVariantEdges(
+        center,
+        tileIdInDrawBounds(world, center, x, y - 1, z, minX, maxX, minY, maxY),
+        tileIdInDrawBounds(world, center, x + 1, y, z, minX, maxX, minY, maxY),
+        tileIdInDrawBounds(world, center, x, y + 1, z, minX, maxX, minY, maxY),
+        tileIdInDrawBounds(world, center, x - 1, y, z, minX, maxX, minY, maxY),
+        tileIdInDrawBounds(world, center, x - 1, y - 1, z, minX, maxX, minY, maxY),
+        tileIdInDrawBounds(world, center, x + 1, y - 1, z, minX, maxX, minY, maxY),
+        tileIdInDrawBounds(world, center, x + 1, y + 1, z, minX, maxX, minY, maxY),
+        tileIdInDrawBounds(world, center, x - 1, y + 1, z, minX, maxX, minY, maxY));
+}
+
+void drawTileVariantEdges(thoth::game::TileId id, const TileVariantEdges& edges, int x, int y)
+{
+    if (!hasTileVariantEdges(edges)) {
+        return;
+    }
+
+    const int px = x * kTilePixels;
+    const int py = y * kTilePixels;
+    constexpr int edge = 3;
+    constexpr int corner = 6;
+    const Color edgeColor = tileVariantEdgeColor(id);
+    const Color cornerColor = tileVariantCornerColor(id);
+
+    if (edges.north) {
+        DrawRectangle(px, py, kTilePixels, edge, edgeColor);
+    }
+    if (edges.east) {
+        DrawRectangle(px + kTilePixels - edge, py, edge, kTilePixels, edgeColor);
+    }
+    if (edges.south) {
+        DrawRectangle(px, py + kTilePixels - edge, kTilePixels, edge, edgeColor);
+    }
+    if (edges.west) {
+        DrawRectangle(px, py, edge, kTilePixels, edgeColor);
+    }
+
+    if (edges.northWest) {
+        DrawRectangle(px, py, corner, corner, cornerColor);
+    }
+    if (edges.northEast) {
+        DrawRectangle(px + kTilePixels - corner, py, corner, corner, cornerColor);
+    }
+    if (edges.southEast) {
+        DrawRectangle(px + kTilePixels - corner, py + kTilePixels - corner, corner, corner, cornerColor);
+    }
+    if (edges.southWest) {
+        DrawRectangle(px, py + kTilePixels - corner, corner, corner, cornerColor);
+    }
+}
+
 thoth::game::Direction rotateClockwise(thoth::game::Direction direction)
 {
     using thoth::game::Direction;
@@ -2693,11 +2773,16 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
     const auto& player = sim.player();
     const int halfTilesX = (kScreenWidth / kTilePixels) / 2 + 3;
     const int halfTilesY = (kScreenHeight / kTilePixels) / 2 + 3;
+    const int minX = player.x - halfTilesX;
+    const int maxX = player.x + halfTilesX;
+    const int minY = player.y - halfTilesY;
+    const int maxY = player.y + halfTilesY;
 
-    for (int y = player.y - halfTilesY; y <= player.y + halfTilesY; ++y) {
-        for (int x = player.x - halfTilesX; x <= player.x + halfTilesX; ++x) {
+    for (int y = minY; y <= maxY; ++y) {
+        for (int x = minX; x <= maxX; ++x) {
             const auto tile = sim.world().getTile(x, y, player.z);
             const auto& def = thoth::game::tileDef(tile.id);
+            const auto edges = tileVariantEdgesAt(sim.world(), tile.id, x, y, player.z, minX, maxX, minY, maxY);
             const Rectangle destination{
                 static_cast<float>(x * kTilePixels),
                 static_cast<float>(y * kTilePixels),
@@ -2713,6 +2798,7 @@ void drawWorld(thoth::game::Simulation& sim, const AppState& state)
                     toColor(def.color));
                 drawTileDetail(tile.id, x, y);
             }
+            drawTileVariantEdges(tile.id, edges, x, y);
             drawResourceRichnessPips(tile, x, y);
         }
     }

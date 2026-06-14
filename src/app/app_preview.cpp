@@ -188,6 +188,88 @@ void drawPreviewSprite(
     }
 }
 
+thoth::game::TileId previewTileIdInBounds(
+    const thoth::game::World& world,
+    thoth::game::TileId fallback,
+    int x,
+    int y,
+    int minX,
+    int maxX,
+    int minY,
+    int maxY)
+{
+    if (x < minX || x > maxX || y < minY || y > maxY) {
+        return fallback;
+    }
+    return world.getTile(x, y).id;
+}
+
+TileVariantEdges previewTileVariantEdgesAt(
+    const thoth::game::World& world,
+    thoth::game::TileId center,
+    int x,
+    int y,
+    int minX,
+    int maxX,
+    int minY,
+    int maxY)
+{
+    return tileVariantEdges(
+        center,
+        previewTileIdInBounds(world, center, x, y - 1, minX, maxX, minY, maxY),
+        previewTileIdInBounds(world, center, x + 1, y, minX, maxX, minY, maxY),
+        previewTileIdInBounds(world, center, x, y + 1, minX, maxX, minY, maxY),
+        previewTileIdInBounds(world, center, x - 1, y, minX, maxX, minY, maxY),
+        previewTileIdInBounds(world, center, x - 1, y - 1, minX, maxX, minY, maxY),
+        previewTileIdInBounds(world, center, x + 1, y - 1, minX, maxX, minY, maxY),
+        previewTileIdInBounds(world, center, x + 1, y + 1, minX, maxX, minY, maxY),
+        previewTileIdInBounds(world, center, x - 1, y + 1, minX, maxX, minY, maxY));
+}
+
+void drawPreviewTileVariantEdges(
+    Image& image,
+    thoth::game::TileId id,
+    const TileVariantEdges& edges,
+    int x,
+    int y,
+    int tileSize)
+{
+    if (!hasTileVariantEdges(edges)) {
+        return;
+    }
+
+    const int edge = std::max(1, tileSize / 10);
+    const int corner = std::max(edge + 1, tileSize / 5);
+    const Color edgeColor = tileVariantEdgeColor(id);
+    const Color cornerColor = tileVariantCornerColor(id);
+
+    if (edges.north) {
+        ImageDrawRectangle(&image, x, y, tileSize, edge, edgeColor);
+    }
+    if (edges.east) {
+        ImageDrawRectangle(&image, x + tileSize - edge, y, edge, tileSize, edgeColor);
+    }
+    if (edges.south) {
+        ImageDrawRectangle(&image, x, y + tileSize - edge, tileSize, edge, edgeColor);
+    }
+    if (edges.west) {
+        ImageDrawRectangle(&image, x, y, edge, tileSize, edgeColor);
+    }
+
+    if (edges.northWest) {
+        ImageDrawRectangle(&image, x, y, corner, corner, cornerColor);
+    }
+    if (edges.northEast) {
+        ImageDrawRectangle(&image, x + tileSize - corner, y, corner, corner, cornerColor);
+    }
+    if (edges.southEast) {
+        ImageDrawRectangle(&image, x + tileSize - corner, y + tileSize - corner, corner, corner, cornerColor);
+    }
+    if (edges.southWest) {
+        ImageDrawRectangle(&image, x, y + tileSize - corner, corner, corner, cornerColor);
+    }
+}
+
 void drawPreviewLine(Image& image, int x, int& y, std::string_view text, int scale, Color color)
 {
     drawPreviewText(image, text, x, y, scale, color);
@@ -397,8 +479,10 @@ void drawPreviewGrid(
             const int px = originX + (x - minX) * tileSize;
             const int py = originY + (y - minY) * tileSize;
             const auto tile = sim.world().getTile(x, y);
+            const auto edges = previewTileVariantEdgesAt(sim.world(), tile.id, x, y, minX, maxX, minY, maxY);
             ImageDrawRectangle(&image, px, py, tileSize, tileSize, Color{18, 22, 22, 255});
             drawPreviewSprite(image, atlasPixels, tileSprite(tile.id), px, py, scale, tileSpriteOptions(tile.id, x, y));
+            drawPreviewTileVariantEdges(image, tile.id, edges, px, py, tileSize);
             drawPreviewRectLines(image, px, py, tileSize, tileSize, Color{0, 0, 0, 72});
             if (tile.data > 0) {
                 ImageDrawRectangle(&image, px + tileSize - 13, py + 3, 10, 10, Color{10, 12, 12, 190});

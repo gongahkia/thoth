@@ -178,6 +178,215 @@ SpriteDrawOptions tileSpriteOptions(thoth::game::TileId id, int x, int y)
     return SpriteDrawOptions{};
 }
 
+enum class TileVariantFamily {
+    None,
+    Grass,
+    Dirt,
+    Sand,
+    Snow,
+    Mud,
+    Water,
+    Stone,
+    IronOre,
+    CopperOre,
+    CoalOre,
+    Floor,
+};
+
+TileVariantFamily tileVariantFamily(thoth::game::TileId id)
+{
+    using thoth::game::TileId;
+    switch (id) {
+    case TileId::Grass:
+    case TileId::Tree:
+        return TileVariantFamily::Grass;
+    case TileId::Dirt:
+        return TileVariantFamily::Dirt;
+    case TileId::Sand:
+    case TileId::Beach:
+    case TileId::Cactus:
+        return TileVariantFamily::Sand;
+    case TileId::Snow:
+    case TileId::Ice:
+        return TileVariantFamily::Snow;
+    case TileId::Mud:
+    case TileId::Reeds:
+        return TileVariantFamily::Mud;
+    case TileId::Water:
+    case TileId::DeepWater:
+    case TileId::Coral:
+        return TileVariantFamily::Water;
+    case TileId::Stone:
+    case TileId::Basalt:
+    case TileId::Crystal:
+    case TileId::DungeonWall:
+        return TileVariantFamily::Stone;
+    case TileId::IronOre:
+        return TileVariantFamily::IronOre;
+    case TileId::CopperOre:
+        return TileVariantFamily::CopperOre;
+    case TileId::CoalOre:
+        return TileVariantFamily::CoalOre;
+    case TileId::Floor:
+    case TileId::Wall:
+    case TileId::PlankWall:
+    case TileId::Door:
+    case TileId::StairsUp:
+    case TileId::StairsDown:
+    case TileId::Bed:
+    case TileId::DungeonFloor:
+    case TileId::LairHearth:
+    case TileId::RecoveryCrate:
+        return TileVariantFamily::Floor;
+    }
+    return TileVariantFamily::None;
+}
+
+bool hasTileEdgeVariants(thoth::game::TileId id)
+{
+    using thoth::game::TileId;
+    switch (id) {
+    case TileId::Grass:
+    case TileId::Dirt:
+    case TileId::Sand:
+    case TileId::Beach:
+    case TileId::Snow:
+    case TileId::Ice:
+    case TileId::Mud:
+    case TileId::Water:
+    case TileId::DeepWater:
+    case TileId::Stone:
+    case TileId::Basalt:
+    case TileId::IronOre:
+    case TileId::CopperOre:
+    case TileId::CoalOre:
+    case TileId::Floor:
+    case TileId::DungeonFloor:
+        return true;
+    case TileId::Tree:
+    case TileId::Reeds:
+    case TileId::Cactus:
+    case TileId::Crystal:
+    case TileId::Coral:
+    case TileId::Wall:
+    case TileId::PlankWall:
+    case TileId::Door:
+    case TileId::StairsUp:
+    case TileId::StairsDown:
+    case TileId::Bed:
+    case TileId::LairHearth:
+    case TileId::RecoveryCrate:
+    case TileId::DungeonWall:
+        return false;
+    }
+    return false;
+}
+
+TileVariantEdges tileVariantEdges(
+    thoth::game::TileId center,
+    thoth::game::TileId north,
+    thoth::game::TileId east,
+    thoth::game::TileId south,
+    thoth::game::TileId west,
+    thoth::game::TileId northWest,
+    thoth::game::TileId northEast,
+    thoth::game::TileId southEast,
+    thoth::game::TileId southWest)
+{
+    if (!hasTileEdgeVariants(center)) {
+        return TileVariantEdges{};
+    }
+
+    const auto family = tileVariantFamily(center);
+    const auto matches = [family](thoth::game::TileId id) {
+        return family != TileVariantFamily::None && tileVariantFamily(id) == family;
+    };
+
+    TileVariantEdges edges;
+    edges.north = !matches(north);
+    edges.east = !matches(east);
+    edges.south = !matches(south);
+    edges.west = !matches(west);
+    edges.northWest = (edges.north && edges.west) || (!edges.north && !edges.west && !matches(northWest));
+    edges.northEast = (edges.north && edges.east) || (!edges.north && !edges.east && !matches(northEast));
+    edges.southEast = (edges.south && edges.east) || (!edges.south && !edges.east && !matches(southEast));
+    edges.southWest = (edges.south && edges.west) || (!edges.south && !edges.west && !matches(southWest));
+    return edges;
+}
+
+bool hasTileVariantEdges(const TileVariantEdges& edges)
+{
+    return edges.north ||
+        edges.east ||
+        edges.south ||
+        edges.west ||
+        edges.northWest ||
+        edges.northEast ||
+        edges.southEast ||
+        edges.southWest;
+}
+
+Color tileVariantEdgeColor(thoth::game::TileId id)
+{
+    using thoth::game::TileId;
+    switch (id) {
+    case TileId::Grass:
+        return Color{38, 103, 47, 118};
+    case TileId::Dirt:
+        return Color{92, 58, 36, 132};
+    case TileId::Sand:
+    case TileId::Beach:
+        return Color{154, 132, 72, 116};
+    case TileId::Snow:
+    case TileId::Ice:
+        return Color{122, 172, 190, 98};
+    case TileId::Mud:
+        return Color{52, 43, 30, 132};
+    case TileId::Water:
+    case TileId::DeepWater:
+        return Color{16, 66, 120, 118};
+    case TileId::Stone:
+    case TileId::Basalt:
+        return Color{54, 60, 62, 126};
+    case TileId::IronOre:
+        return Color{118, 80, 54, 126};
+    case TileId::CopperOre:
+        return Color{126, 66, 42, 126};
+    case TileId::CoalOre:
+        return Color{16, 18, 20, 138};
+    case TileId::Floor:
+    case TileId::DungeonFloor:
+        return Color{52, 44, 36, 126};
+    case TileId::Tree:
+    case TileId::Reeds:
+    case TileId::Cactus:
+    case TileId::Crystal:
+    case TileId::Coral:
+    case TileId::Wall:
+    case TileId::PlankWall:
+    case TileId::Door:
+    case TileId::StairsUp:
+    case TileId::StairsDown:
+    case TileId::Bed:
+    case TileId::LairHearth:
+    case TileId::RecoveryCrate:
+    case TileId::DungeonWall:
+        break;
+    }
+    return Color{18, 22, 22, 118};
+}
+
+Color tileVariantCornerColor(thoth::game::TileId id)
+{
+    const auto edge = tileVariantEdgeColor(id);
+    return Color{
+        edge.r,
+        edge.g,
+        edge.b,
+        static_cast<unsigned char>(std::min(210, static_cast<int>(edge.a) + 46)),
+    };
+}
+
 void atlasRect(Image& image, SpriteId id, int x, int y, int width, int height, Color color)
 {
     ImageDrawRectangle(&image, spriteOriginX(id) + x, spriteOriginY(id) + y, width, height, color);
