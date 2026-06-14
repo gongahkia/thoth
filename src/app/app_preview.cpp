@@ -557,13 +557,15 @@ void drawPreviewGrid(
             const int py = originY + (y - minY) * tileSize;
             const auto tile = sim.world().getTile(x, y);
             const auto edges = previewTileVariantEdgesAt(sim.world(), tile.id, x, y, minX, maxX, minY, maxY);
+            const int visualHeight = previewVisualHeight(tile.id, tileSize);
             ImageDrawRectangle(&image, px, py, tileSize, tileSize, Color{18, 22, 22, 255});
-            drawPreviewSprite(image, atlasPixels, tileSprite(tile.id), px, py, scale, tileSpriteOptions(tile.id, x, y));
-            drawPreviewTileVariantEdges(image, tile.id, edges, px, py, tileSize);
+            drawPreviewTileDepthBase(image, tile.id, px, py, tileSize, visualHeight);
+            drawPreviewSprite(image, atlasPixels, tileSprite(tile.id), px, py - visualHeight, scale, tileSpriteOptions(tile.id, x, y));
+            drawPreviewTileVariantEdges(image, tile.id, edges, px, py, tileSize, visualHeight);
             drawPreviewRectLines(image, px, py, tileSize, tileSize, Color{0, 0, 0, 72});
             if (tile.data > 0) {
-                ImageDrawRectangle(&image, px + tileSize - 13, py + 3, 10, 10, Color{10, 12, 12, 190});
-                drawPreviewText(image, std::to_string(tile.data), px + tileSize - 11, py + 5, 1, RAYWHITE);
+                ImageDrawRectangle(&image, px + tileSize - 13, py + 3 - visualHeight, 10, 10, Color{10, 12, 12, 190});
+                drawPreviewText(image, std::to_string(tile.data), px + tileSize - 11, py + 5 - visualHeight, 1, RAYWHITE);
             }
         }
     }
@@ -571,13 +573,16 @@ void drawPreviewGrid(
     for (const auto& machine : sim.machines()) {
         const int px = originX + (machine.x - minX) * tileSize;
         const int py = originY + (machine.y - minY) * tileSize;
-        drawPreviewSprite(image, atlasPixels, machineSprite(machine.kind), px, py, scale);
-        drawPreviewMachineActivityOverlay(image, machine, sim.tick(), px, py, tileSize);
-        drawPreviewBeltMotionOverlay(image, machine, sim.tick(), px, py, tileSize);
-        drawPreviewRectLines(image, px + 2, py + 2, tileSize - 4, tileSize - 4, statusColor(machine.status));
+        const int visualHeight = previewMachineVisualHeight(machine.kind, tileSize);
+        const int visualY = py - visualHeight;
+        drawPreviewMachineDepthBase(image, machine.kind, px, py, tileSize, visualHeight);
+        drawPreviewSprite(image, atlasPixels, machineSprite(machine.kind), px, visualY, scale);
+        drawPreviewMachineActivityOverlay(image, machine, sim.tick(), px, visualY, tileSize);
+        drawPreviewBeltMotionOverlay(image, machine, sim.tick(), px, visualY, tileSize);
+        drawPreviewRectLines(image, px + 2, visualY + 2, tileSize - 4, tileSize - 4, statusColor(machine.status));
 
         const int cx = px + tileSize / 2;
-        const int cy = py + tileSize / 2;
+        const int cy = visualY + tileSize / 2;
         ImageDrawLine(
             &image,
             cx,
@@ -588,15 +593,23 @@ void drawPreviewGrid(
 
         if (previewMachineIssue(machine.status)) {
             const auto badge = previewMachineIssueBadgeText(machine.status);
-            ImageDrawRectangle(&image, px + tileSize - 16, py + 2, 14, 12, Color{12, 14, 14, 210});
-            drawPreviewText(image, badge, px + tileSize - 12, py + 5, 1, statusColor(machine.status));
+            ImageDrawRectangle(&image, px + tileSize - 16, visualY + 2, 14, 12, Color{12, 14, 14, 210});
+            drawPreviewText(image, badge, px + tileSize - 12, visualY + 5, 1, statusColor(machine.status));
         }
     }
 
     const int playerX = originX + (sim.player().x - minX) * tileSize;
     const int playerY = originY + (sim.player().y - minY) * tileSize;
-    drawPreviewSprite(image, atlasPixels, SpriteId::Player, playerX, playerY, scale);
-    drawPreviewRectLines(image, playerX + 5, playerY + 5, tileSize - 10, tileSize - 10, Color{246, 248, 232, 255});
+    const int playerHeight = std::max(1, (4 * tileSize) / kTilePixels);
+    ImageDrawRectangle(
+        &image,
+        playerX + std::max(1, tileSize / 5),
+        playerY + tileSize - std::max(1, tileSize / 8),
+        tileSize - std::max(2, (tileSize * 2) / 5),
+        std::max(1, tileSize / 8),
+        Color{0, 0, 0, 82});
+    drawPreviewSprite(image, atlasPixels, SpriteId::Player, playerX, playerY - playerHeight, scale);
+    drawPreviewRectLines(image, playerX + 5, playerY + 5 - playerHeight, tileSize - 10, tileSize - 10, Color{246, 248, 232, 255});
 }
 
 void drawPreviewSpriteStrip(Image& image, const Color* atlasPixels, int x, int y)
