@@ -279,6 +279,10 @@ TileVariantEdges tileVariantEdges(
 bool hasTileVariantEdges(const TileVariantEdges& edges);
 Color tileVariantEdgeColor(thoth::game::TileId id);
 Color tileVariantCornerColor(thoth::game::TileId id);
+int tileVisualHeightPixels(thoth::game::TileId id);
+bool tileVisualHasFrontFace(thoth::game::TileId id);
+Color tileVisualFrontFaceColor(thoth::game::TileId id);
+int machineVisualHeightPixels(thoth::game::MachineKind kind);
 Image makeGeneratedAtlasImage();
 bool makeAuthoredAtlasImage(Image& image, std::string* error);
 bool saveGeneratedAtlas(const std::filesystem::path& path, std::string* error);

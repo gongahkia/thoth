@@ -257,6 +257,7 @@ bool hasTileEdgeVariants(thoth::game::TileId id)
     case TileId::DeepWater:
     case TileId::Stone:
     case TileId::Basalt:
+    case TileId::DungeonWall:
     case TileId::IronOre:
     case TileId::CopperOre:
     case TileId::CoalOre:
@@ -276,7 +277,6 @@ bool hasTileEdgeVariants(thoth::game::TileId id)
     case TileId::Bed:
     case TileId::LairHearth:
     case TileId::RecoveryCrate:
-    case TileId::DungeonWall:
         return false;
     }
     return false;
@@ -348,6 +348,8 @@ Color tileVariantEdgeColor(thoth::game::TileId id)
     case TileId::Stone:
     case TileId::Basalt:
         return Color{54, 60, 62, 126};
+    case TileId::DungeonWall:
+        return Color{20, 22, 28, 156};
     case TileId::IronOre:
         return Color{118, 80, 54, 126};
     case TileId::CopperOre:
@@ -370,7 +372,6 @@ Color tileVariantEdgeColor(thoth::game::TileId id)
     case TileId::Bed:
     case TileId::LairHearth:
     case TileId::RecoveryCrate:
-    case TileId::DungeonWall:
         break;
     }
     return Color{18, 22, 22, 118};
@@ -385,6 +386,178 @@ Color tileVariantCornerColor(thoth::game::TileId id)
         edge.b,
         static_cast<unsigned char>(std::min(210, static_cast<int>(edge.a) + 46)),
     };
+}
+
+int tileVisualHeightPixels(thoth::game::TileId id)
+{
+    using thoth::game::TileId;
+    switch (id) {
+    case TileId::DungeonWall:
+    case TileId::Wall:
+    case TileId::PlankWall:
+        return 9;
+    case TileId::Tree:
+    case TileId::Cactus:
+    case TileId::Crystal:
+        return 8;
+    case TileId::Door:
+        return 7;
+    case TileId::Stone:
+    case TileId::Basalt:
+        return 5;
+    case TileId::IronOre:
+    case TileId::CopperOre:
+    case TileId::CoalOre:
+    case TileId::RecoveryCrate:
+        return 4;
+    case TileId::Reeds:
+    case TileId::Bed:
+    case TileId::LairHearth:
+    case TileId::StairsUp:
+    case TileId::StairsDown:
+        return 3;
+    case TileId::Grass:
+    case TileId::Dirt:
+    case TileId::Sand:
+    case TileId::Beach:
+    case TileId::Snow:
+    case TileId::Ice:
+    case TileId::Mud:
+    case TileId::Water:
+    case TileId::DeepWater:
+    case TileId::Coral:
+    case TileId::Floor:
+    case TileId::DungeonFloor:
+        return 0;
+    }
+    return 0;
+}
+
+bool tileVisualHasFrontFace(thoth::game::TileId id)
+{
+    using thoth::game::TileId;
+    switch (id) {
+    case TileId::DungeonWall:
+    case TileId::Wall:
+    case TileId::PlankWall:
+    case TileId::Door:
+    case TileId::Stone:
+    case TileId::Basalt:
+    case TileId::IronOre:
+    case TileId::CopperOre:
+    case TileId::CoalOre:
+    case TileId::RecoveryCrate:
+        return true;
+    case TileId::Grass:
+    case TileId::Dirt:
+    case TileId::Sand:
+    case TileId::Beach:
+    case TileId::Snow:
+    case TileId::Ice:
+    case TileId::Mud:
+    case TileId::Reeds:
+    case TileId::Cactus:
+    case TileId::Tree:
+    case TileId::Water:
+    case TileId::DeepWater:
+    case TileId::Coral:
+    case TileId::Crystal:
+    case TileId::Floor:
+    case TileId::StairsUp:
+    case TileId::StairsDown:
+    case TileId::Bed:
+    case TileId::DungeonFloor:
+    case TileId::LairHearth:
+        return false;
+    }
+    return false;
+}
+
+Color tileVisualFrontFaceColor(thoth::game::TileId id)
+{
+    using thoth::game::TileId;
+    switch (id) {
+    case TileId::DungeonWall:
+        return Color{32, 31, 38, 232};
+    case TileId::Wall:
+        return Color{62, 58, 54, 226};
+    case TileId::PlankWall:
+    case TileId::Door:
+        return Color{86, 50, 28, 224};
+    case TileId::Stone:
+    case TileId::Basalt:
+        return Color{70, 74, 74, 218};
+    case TileId::IronOre:
+        return Color{108, 74, 52, 214};
+    case TileId::CopperOre:
+        return Color{112, 58, 40, 214};
+    case TileId::CoalOre:
+        return Color{20, 22, 24, 224};
+    case TileId::RecoveryCrate:
+        return Color{112, 70, 36, 218};
+    case TileId::Grass:
+    case TileId::Dirt:
+    case TileId::Sand:
+    case TileId::Beach:
+    case TileId::Snow:
+    case TileId::Ice:
+    case TileId::Mud:
+    case TileId::Reeds:
+    case TileId::Cactus:
+    case TileId::Tree:
+    case TileId::Water:
+    case TileId::DeepWater:
+    case TileId::Coral:
+    case TileId::Crystal:
+    case TileId::Floor:
+    case TileId::StairsUp:
+    case TileId::StairsDown:
+    case TileId::Bed:
+    case TileId::DungeonFloor:
+    case TileId::LairHearth:
+        break;
+    }
+    return Color{38, 40, 42, 210};
+}
+
+int machineVisualHeightPixels(thoth::game::MachineKind kind)
+{
+    using thoth::game::MachineKind;
+    switch (kind) {
+    case MachineKind::PowerPole:
+    case MachineKind::GuardTower:
+    case MachineKind::OutpostBeacon:
+    case MachineKind::ArcTower:
+        return 10;
+    case MachineKind::Lab:
+    case MachineKind::ArchiveTerminal:
+    case MachineKind::LogisticPort:
+    case MachineKind::RiftGate:
+        return 8;
+    case MachineKind::BurnerMiner:
+    case MachineKind::ElectricMiner:
+    case MachineKind::Furnace:
+    case MachineKind::Assembler:
+    case MachineKind::Generator:
+    case MachineKind::OffshorePump:
+    case MachineKind::RepairPylon:
+    case MachineKind::PressureRelay:
+        return 6;
+    case MachineKind::Chest:
+    case MachineKind::ProviderChest:
+    case MachineKind::RequesterChest:
+    case MachineKind::Workbench:
+    case MachineKind::Inserter:
+    case MachineKind::CircuitInserter:
+    case MachineKind::TrainStop:
+        return 5;
+    case MachineKind::Belt:
+    case MachineKind::FastBelt:
+    case MachineKind::Splitter:
+    case MachineKind::Pipe:
+        return 2;
+    }
+    return 5;
 }
 
 void atlasRect(Image& image, SpriteId id, int x, int y, int width, int height, Color color)

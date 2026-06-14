@@ -232,12 +232,14 @@ void drawPreviewTileVariantEdges(
     const TileVariantEdges& edges,
     int x,
     int y,
-    int tileSize)
+    int tileSize,
+    int visualHeight)
 {
     if (!hasTileVariantEdges(edges)) {
         return;
     }
 
+    y -= visualHeight;
     const int edge = std::max(1, tileSize / 10);
     const int corner = std::max(edge + 1, tileSize / 5);
     const Color edgeColor = tileVariantEdgeColor(id);
@@ -268,6 +270,81 @@ void drawPreviewTileVariantEdges(
     if (edges.southWest) {
         ImageDrawRectangle(&image, x, y + tileSize - corner, corner, corner, cornerColor);
     }
+}
+
+int previewVisualHeight(thoth::game::TileId id, int tileSize)
+{
+    return (tileVisualHeightPixels(id) * tileSize) / kTilePixels;
+}
+
+void drawPreviewTileDepthBase(Image& image, thoth::game::TileId id, int x, int y, int tileSize, int visualHeight)
+{
+    if (visualHeight <= 0) {
+        return;
+    }
+
+    ImageDrawRectangle(
+        &image,
+        x + std::max(1, tileSize / 8),
+        y + tileSize - std::max(1, tileSize / 8),
+        tileSize - std::max(2, tileSize / 4),
+        std::max(1, tileSize / 8),
+        Color{0, 0, 0, 78});
+    if (!tileVisualHasFrontFace(id)) {
+        return;
+    }
+
+    const int faceTop = y + tileSize - visualHeight;
+    ImageDrawRectangle(
+        &image,
+        x + std::max(1, tileSize / 12),
+        faceTop,
+        tileSize - std::max(2, tileSize / 6),
+        visualHeight,
+        tileVisualFrontFaceColor(id));
+}
+
+int previewMachineVisualHeight(thoth::game::MachineKind kind, int tileSize)
+{
+    return (machineVisualHeightPixels(kind) * tileSize) / kTilePixels;
+}
+
+void drawPreviewMachineDepthBase(
+    Image& image,
+    thoth::game::MachineKind kind,
+    int x,
+    int y,
+    int tileSize,
+    int visualHeight)
+{
+    if (visualHeight <= 0) {
+        return;
+    }
+
+    ImageDrawRectangle(
+        &image,
+        x + std::max(1, tileSize / 7),
+        y + tileSize - std::max(1, tileSize / 8),
+        tileSize - std::max(2, tileSize / 4),
+        std::max(1, tileSize / 8),
+        Color{0, 0, 0, 86});
+    if (visualHeight <= 1) {
+        return;
+    }
+
+    const auto base = machineColor(kind);
+    const Color face{
+        static_cast<unsigned char>((static_cast<int>(base.r) * 94) / 255),
+        static_cast<unsigned char>((static_cast<int>(base.g) * 94) / 255),
+        static_cast<unsigned char>((static_cast<int>(base.b) * 94) / 255),
+        214};
+    ImageDrawRectangle(
+        &image,
+        x + std::max(1, tileSize / 6),
+        y + tileSize - visualHeight,
+        tileSize - std::max(2, tileSize / 3),
+        visualHeight,
+        face);
 }
 
 void drawPreviewLine(Image& image, int x, int& y, std::string_view text, int scale, Color color)
