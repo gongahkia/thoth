@@ -15,6 +15,7 @@ test:
 
 check: test
 	$(LUAJIT) tests/assets.lua
+	$(LUAJIT) tests/registry.lua
 
 package: check
 	mkdir -p dist

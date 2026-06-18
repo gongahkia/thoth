@@ -112,18 +112,6 @@
   - `make check` still passes.
   - `make smoke` still exits cleanly.
 
-## Phase 9: Data Registry Parity
-
-- Add registry validation tests for:
-  - Missing item/tile/machine ids.
-  - Bad recipe inputs or outputs.
-  - Invalid machine placement references.
-  - Missing recipe unlocks.
-  - Stack sizes and placeable item metadata.
-- Acceptance:
-  - Lua registry covers old C++ registry keys or documents each omitted key.
-  - Registry validation is part of `make check`.
-
 ## Phase 10: Core Automation Parity
 
 - Restore machines:
