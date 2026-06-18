@@ -1054,6 +1054,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(104)
+    local chest = sim:addMachine("chest", 0, 0, "south")
+    chest.inventory:add("iron_plate", 50)
+    sim.tick = 3600
+    expect(sim:productionRatePanels()[1].currentPerMinute == 0, "production rates should not derive from inventory scans")
+    sim.productionTotals.iron_plate = 4
+    expect(sim:productionRatePanels()[1].currentPerMinute == 4, "production rates should use event counters")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(65)
     expect(sim:factoryPressureLevel() == 0, "empty factory pressure should be zero")
     sim.productionTotals.science_pack = 10

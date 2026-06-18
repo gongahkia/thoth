@@ -114,8 +114,6 @@
 
 ## Phase 16: Planning, Construction, Performance
 
-- Add Lua-native performance guardrails:
-  - Track production counters by event increments, not derived full scans.
 - Add render/CI checks:
   - Package contents test.
   - Optional screenshot/render smoke once CI display support is stable.
