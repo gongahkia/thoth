@@ -116,7 +116,6 @@
 
 - Restore machines:
   - Generator, power pole, electric miner.
-  - Pipe and offshore pump.
 - Restore deterministic power network recomputation:
   - Poles connect within Manhattan distance `<= 4`.
   - Generators and consumers connect to poles within Manhattan distance `<= 2`.
@@ -132,7 +131,6 @@
   - Request thresholds.
   - Powered port requirement.
 - Restore fluids/trains:
-  - Pump-to-pipe water barrel movement.
   - Train-stop cargo hops.
 - Acceptance:
   - Tests cover splitter alternation, power grouping, power under-supply, electric mining, circuit thresholds, logistic delivery persistence, pump/pipe water, and train cargo hop.

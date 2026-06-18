@@ -211,6 +211,17 @@ tests[#tests + 1] = function()
     expect(sim:extractItem(stop) == "iron_plate", "train stop should expose freight")
 end
 
+tests[#tests + 1] = function()
+    local sim = Simulation.new(23)
+    sim.world:setTile(0, -1, 0, { id = "water", data = 0 })
+    sim:addMachine("offshore_pump", 0, 0, "east")
+    sim:addMachine("pipe", 1, 0, "east")
+    local chest = sim:addMachine("chest", 2, 0, "south")
+    runSteps(sim, 40)
+    expect(chest.inventory:count("water_barrel") == 1, "pump and pipe did not move water barrel")
+    expect(sim.productionTotals.water_barrel == 1, "water barrel production was not counted")
+end
+
 for index, test in ipairs(tests) do
     local ok, err = pcall(test)
     if not ok then

@@ -76,6 +76,7 @@ function Simulation.new(seed)
             iron_plate = 0,
             copper_plate = 0,
             science_pack = 0,
+            water_barrel = 0,
         },
     }, Simulation)
     return self
@@ -508,6 +509,10 @@ function Simulation:updateMachines()
             self:updateBelt(machine)
         elseif machine.kind == "splitter" then
             self:updateSplitter(machine)
+        elseif machine.kind == "pipe" then
+            self:updatePipe(machine)
+        elseif machine.kind == "offshore_pump" then
+            self:updateOffshorePump(machine)
         elseif machine.kind == "inserter" or machine.kind == "circuit_inserter" then
             self:updateInserter(machine)
         elseif machine.kind == "furnace" then
@@ -567,6 +572,63 @@ function Simulation:updateBelt(machine)
     local x, y = Grid.front(machine.x, machine.y, machine.direction)
     if self:acceptItemAt(x, y, machine.z or 0, machine.carriedItem) then
         machine.carriedItem = nil
+        machine.status = "working"
+    else
+        machine.status = "output_blocked"
+    end
+end
+
+function Simulation:isWaterTile(x, y, z)
+    local id = self.world:getTile(x, y, z or 0).id
+    return id == "water" or id == "deep_water" or id == "coral"
+end
+
+function Simulation:hasAdjacentWater(machine)
+    for _, direction in ipairs(Grid.order) do
+        local x, y = Grid.front(machine.x, machine.y, direction)
+        if self:isWaterTile(x, y, machine.z or 0) then
+            return true
+        end
+    end
+    return false
+end
+
+function Simulation:updateOffshorePump(machine)
+    if not self:hasAdjacentWater(machine) then
+        machine.progress = 0
+        machine.status = "missing_input"
+        return
+    end
+    machine.progress = machine.progress + 1
+    machine.status = "working"
+    if machine.progress < 30 then
+        return
+    end
+    local x, y = Grid.front(machine.x, machine.y, machine.direction)
+    if self:acceptItemAt(x, y, machine.z or 0, "water_barrel") then
+        machine.progress = 0
+        machine.status = "working"
+        self:recordProduced("water_barrel")
+    else
+        machine.status = "output_blocked"
+    end
+end
+
+function Simulation:updatePipe(machine)
+    if not machine.carriedItem then
+        machine.progress = 0
+        machine.status = "idle"
+        return
+    end
+    machine.progress = machine.progress + 1
+    machine.status = "working"
+    if machine.progress < 3 then
+        return
+    end
+    local x, y = Grid.front(machine.x, machine.y, machine.direction)
+    if self:acceptItemAt(x, y, machine.z or 0, machine.carriedItem) then
+        machine.carriedItem = nil
+        machine.progress = 0
         machine.status = "working"
     else
         machine.status = "output_blocked"
@@ -761,6 +823,13 @@ function Simulation:acceptItem(machine, item)
         machine.carriedItem = item
         return true
     end
+    if machine.kind == "pipe" then
+        if item ~= "water_barrel" or machine.carriedItem then
+            return false
+        end
+        machine.carriedItem = item
+        return true
+    end
     if machine.kind == "burner_miner" then
         return item == "coal" and machine.inventory:add(item, 1)
     end
@@ -785,7 +854,7 @@ function Simulation:acceptItem(machine, item)
 end
 
 function Simulation:extractItem(machine, filterItem)
-    if machine.kind == "belt" or machine.kind == "fast_belt" or machine.kind == "splitter" then
+    if machine.kind == "belt" or machine.kind == "fast_belt" or machine.kind == "splitter" or machine.kind == "pipe" then
         local item = machine.carriedItem
         if filterItem and item ~= filterItem then
             return nil

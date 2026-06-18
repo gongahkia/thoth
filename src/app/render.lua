@@ -30,6 +30,8 @@ local machineColors = {
     requester_chest = { 92, 132, 190 },
     logistic_port = { 106, 168, 190 },
     train_stop = { 154, 142, 116 },
+    pipe = { 78, 150, 176 },
+    offshore_pump = { 64, 124, 168 },
 }
 
 local stateColors = {
@@ -289,6 +291,12 @@ local function machineIoText(machine)
     end
     if machine.kind == "train_stop" then
         return "any item", "freight storage"
+    end
+    if machine.kind == "pipe" then
+        return "Water Barrel", machine.carriedItem or "front pipe"
+    end
+    if machine.kind == "offshore_pump" then
+        return "adjacent water", "Water Barrel"
     end
     return "-", "-"
 end
