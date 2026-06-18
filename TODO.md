@@ -112,11 +112,6 @@
   - `make check` still passes.
   - `make smoke` still exits cleanly.
 
-## Phase 12: World, Biomes, And Exploration
-
-- Acceptance:
-  - Tests cover deterministic chunks, chunk boundary mutation, starter resources, early biome tiles, biome/lair generation, generated lairs, lair cache persistence, boat traversal, stairs/layers, and dungeon save/load.
-
 ## Phase 13: Combat, Bosses, Relics
 
 - Restore entities:

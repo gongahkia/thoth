@@ -57,6 +57,15 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local world = World.new(808)
+    expect(world:getTile(-1, 0, 0).id == "tree", "starter tree missing")
+    expect(world:getTile(0, 3, 0).id == "stone", "starter stone missing")
+    expect(world:getTile(3, 0, 0).id == "coal_ore" and world:getTile(3, 0, 0).data == 18, "starter coal missing")
+    expect(world:getTile(0, -3, 0).id == "iron_ore" and world:getTile(0, -3, 0).data == 22, "starter iron missing")
+    expect(world:getTile(3, -3, 0).id == "copper_ore" and world:getTile(3, -3, 0).data == 22, "starter copper missing")
+end
+
+tests[#tests + 1] = function()
     local world = World.new(99)
     expect(world:biomeAt(0, 0, 0) == "grassland", "origin should remain grassland")
     expect(world:biomeAt(12, 0, 0) == "desert", "starter desert biome missing")
@@ -190,6 +199,21 @@ tests[#tests + 1] = function()
     sim:step()
     expect(sim:itemCount("recovery_crate") == 1, "recovery crate should be claimable")
     expect(sim.world:getTile(-8, -80, 0).id == "grass", "claimed recovery crate should clear")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(404)
+    sim.player.x = 417
+    sim.player.y = -453
+    sim.player.z = -1
+    expect(sim.world:lairAt(417, -453, -1) == "marsh_hive", "generated lair cache identity missing before save")
+    expect(sim.world:getTile(417, -453, -1).id == "stairs_up", "generated lair interior missing before save")
+    sim.world:setTile(8, 1, -1, { id = "recovery_crate", data = 0 })
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded.player.z == -1, "dungeon player layer should persist")
+    expect(loaded.world:lairAt(417, -453, -1) == "marsh_hive", "generated lair cache identity should persist")
+    expect(loaded.world:getTile(417, -453, -1).id == "stairs_up", "generated lair interior should persist")
+    expect(loaded.world:getTile(8, 1, -1).id == "recovery_crate", "dungeon tile override should persist")
 end
 
 tests[#tests + 1] = function()
