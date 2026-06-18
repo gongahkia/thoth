@@ -303,6 +303,24 @@ function World:generatedTile(x, y, z)
     if h % 97 == 0 then
         return tile("water")
     end
+    if biome == "desert" and h % 31 == 0 then
+        return tile("cactus", 2)
+    end
+    if biome == "marsh" and h % 23 == 0 then
+        return tile("reeds", 2)
+    end
+    if biome == "snowfield" and h % 29 == 0 then
+        return tile("ice", 2)
+    end
+    if biome == "badlands" and h % 19 == 0 then
+        return tile("basalt", 3)
+    end
+    if biome == "crystal_field" and h % 17 == 0 then
+        return tile("crystal", 2)
+    end
+    if biome == "rift" and h % 13 == 0 then
+        return tile("crystal", 3)
+    end
     if h % 43 == 0 then
         return tile("tree")
     end

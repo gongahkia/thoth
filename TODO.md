@@ -115,7 +115,6 @@
 ## Phase 12: World, Biomes, And Exploration
 
 - Restore exploration systems:
-  - Biome materials.
   - Biome caches.
   - Lair hearths.
   - Recovery crates.

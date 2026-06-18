@@ -54,10 +54,10 @@ tests[#tests + 1] = function()
     expect(world:biomeAt(36, 20, 0) == "badlands", "starter badlands biome missing")
     expect(world:biomeAt(-36, 20, 0) == "crystal_field", "starter crystal biome missing")
     expect(world:biomeAt(4096, 0, 0) == "rift", "rift band biome missing")
-    expect(world:getTile(10, -12, 0).id == "sand", "desert base terrain missing")
+    expect(world:getTile(11, -12, 0).id == "sand", "desert base terrain missing")
     expect(world:getTile(-24, -10, 0).id == "snow", "snowfield base terrain missing")
     expect(world:getTile(-8, 8, 0).id == "mud", "marsh base terrain missing")
-    expect(world:getTile(30, 12, 0).id == "basalt", "badlands base terrain missing")
+    expect(world:getTile(29, 12, 0).id == "basalt", "badlands base terrain missing")
     expect(world:getTile(-43, 12, 0).id == "stone", "crystal field base terrain missing")
 end
 
@@ -143,6 +143,16 @@ tests[#tests + 1] = function()
     expect(world:getTile(5, 18, -1).id == "dungeon_wall", "authored lair interior boundary missing")
     expect(world:getTile(3, 19, -1).id == "reeds", "authored lair interior material missing")
     expect(world:getTile(417, -453, -1).id == "stairs_up", "generated lair interior should expose return stairs")
+end
+
+tests[#tests + 1] = function()
+    local world = World.new(505)
+    expect(world:getTile(24, 2, 0).id == "cactus", "desert material missing")
+    expect(world:getTile(2, 9, 0).id == "reeds", "marsh material missing")
+    expect(world:getTile(-16, -10, 0).id == "ice", "snowfield material missing")
+    expect(world:getTile(28, 12, 0).id == "basalt", "badlands material missing")
+    expect(world:getTile(-31, 13, 0).id == "crystal", "crystal field material missing")
+    expect(world:getTile(3844, -29, 0).id == "crystal", "rift material missing")
 end
 
 tests[#tests + 1] = function()
