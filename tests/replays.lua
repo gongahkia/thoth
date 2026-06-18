@@ -10,6 +10,7 @@ end
 
 local fixtures = {
     require("tests.fixtures.replays.ore_to_plate"),
+    require("tests.fixtures.replays.science_research"),
 }
 
 for _, fixture in ipairs(fixtures) do

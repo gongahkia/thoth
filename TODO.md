@@ -115,7 +115,6 @@
 ## Phase 11: Progression And Contracts
 
 - Add Lua-native replay fixtures:
-  - Science/research.
   - Full-flow.
 - Acceptance:
   - Replay validation reaches old visible milestones: iron, copper, science, power, logistics, archive/rift prep.
