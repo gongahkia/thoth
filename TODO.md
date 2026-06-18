@@ -115,7 +115,6 @@
 ## Phase 14: Pressure, Defense, Outposts
 
 - Restore defense systems:
-  - Repair pylon wall/structure repair.
   - Pressure relay mitigation.
 - Restore outposts:
   - Outpost beacons.

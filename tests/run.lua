@@ -1036,6 +1036,44 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local function poweredPylonSim(seed)
+        local sim = Simulation.new(seed)
+        sim.player.x = 20
+        sim.player.y = 20
+        local generator = sim:addMachine("generator", 0, 0, "south")
+        generator.inventory:add("coal", 80)
+        sim:addMachine("power_pole", 1, 0, "south")
+        local pylon = sim:addMachine("repair_pylon", 2, 0, "south")
+        sim.world:setTile(2, -1, 0, { id = "wall", data = 0 })
+        sim.world:setTile(3, 0, 0, { id = "floor", data = 0 })
+        sim.world:setTile(2, 1, 0, { id = "wall", data = 0 })
+        return sim, pylon
+    end
+
+    local gapSim, gapPylon = poweredPylonSim(77)
+    gapPylon.inventory:add("wall", 1)
+    runSteps(gapSim, 60)
+    expect(gapSim.world:getTile(3, 0, 0).id == "wall", "repair pylon should rebuild adjacent wall gap")
+    expect(gapPylon.inventory:count("wall") == 0, "wall gap repair should consume wall item")
+
+    local wallSim, wallPylon = poweredPylonSim(78)
+    wallPylon.inventory:add("wall", 1)
+    wallSim.world:setTile(2, -1, 0, { id = "wall", data = 1 })
+    runSteps(wallSim, 60)
+    expect(wallSim.world:getTile(2, -1, 0).data > 1, "repair pylon should restore damaged wall durability")
+    expect(wallSim.world:getTile(3, 0, 0).id == "floor", "repair pylon should prioritize damaged wall over wall gap")
+    expect(wallPylon.inventory:count("wall") == 0, "wall repair should consume wall item")
+
+    local machineSim, machinePylon = poweredPylonSim(79)
+    local chest = machineSim:addMachine("chest", 3, 0, "south")
+    chest.durability = 1
+    machinePylon.inventory:add("iron_plate", 1)
+    runSteps(machineSim, 60)
+    expect(chest.durability > 1, "repair pylon should restore damaged machine durability")
+    expect(machinePylon.inventory:count("iron_plate") == 0, "machine repair should consume iron plate")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do

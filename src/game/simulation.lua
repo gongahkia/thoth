@@ -62,6 +62,32 @@ local tileDurability = {
     door = 6,
 }
 
+local function machineMaxDurability(kind)
+    return machineDurability[kind] or 10
+end
+
+local function tileMaxDurability(id)
+    return tileDurability[id] or 0
+end
+
+local function isDamageableStructureTile(id)
+    return tileMaxDurability(id) > 0
+end
+
+local function isRepairableWallGap(id)
+    return id == "floor" or id == "dungeon_floor" or id == "grass" or id == "dirt"
+end
+
+local function repairMaterialForTile(id)
+    if id == "plank_wall" then
+        return "plank_wall"
+    end
+    if id == "door" then
+        return "iron_plate"
+    end
+    return "wall"
+end
+
 local function copySet(values)
     local result = {}
     for key, value in pairs(values or {}) do
@@ -237,7 +263,7 @@ local function newMachine(id, kind, x, y, direction, z)
         requestItem = nil,
         requestThreshold = 0,
         socketedRelic = nil,
-        durability = machineDurability[kind] or 10,
+        durability = machineMaxDurability(kind),
         status = "idle",
     }
 end
@@ -873,7 +899,7 @@ function Simulation:moveEntityTowardTarget(entity)
 end
 
 function Simulation:damageMachine(machine, amount)
-    machine.durability = (machine.durability or machineDurability[machine.kind] or 10) - amount
+    machine.durability = (machine.durability or machineMaxDurability(machine.kind)) - amount
     if machine.durability <= 0 then
         return self:removeMachineById(machine.id)
     end
@@ -886,8 +912,8 @@ function Simulation:damageStructureAt(x, y, z, amount)
         return self:damageMachine(machine, amount)
     end
     local tile = self.world:getTile(x, y, z or 0)
-    local maxDurability = tileDurability[tile.id]
-    if not maxDurability then
+    local maxDurability = tileMaxDurability(tile.id)
+    if maxDurability <= 0 then
         return false
     end
     local durability = (tile.data and tile.data > 0 and tile.data or maxDurability) - amount
@@ -907,6 +933,55 @@ function Simulation:damageAdjacentStructure(entity, amount)
         end
     end
     return false
+end
+
+function Simulation:repairMachine(machine)
+    local maxDurability = machineMaxDurability(machine.kind)
+    if (machine.durability or maxDurability) >= maxDurability then
+        return false
+    end
+    machine.durability = maxDurability
+    return true
+end
+
+function Simulation:repairTileAt(x, y, z)
+    local tile = self.world:getTile(x, y, z or 0)
+    local maxDurability = tileMaxDurability(tile.id)
+    if maxDurability <= 0 or tile.data <= 0 or tile.data >= maxDurability then
+        return false
+    end
+    self.world:setTile(x, y, z or 0, { id = tile.id, data = maxDurability })
+    return true
+end
+
+function Simulation:repairPylonTarget(machine)
+    for _, direction in ipairs(Grid.order) do
+        local x, y = Grid.front(machine.x, machine.y, direction)
+        local target = self:machineAt(x, y, machine.z or 0)
+        if target and target.id ~= machine.id and (target.durability or machineMaxDurability(target.kind)) < machineMaxDurability(target.kind) then
+            return { kind = "machine", machineId = target.id, x = x, y = y, z = machine.z or 0, material = "iron_plate" }
+        end
+    end
+    for _, direction in ipairs(Grid.order) do
+        local x, y = Grid.front(machine.x, machine.y, direction)
+        if not self:machineAt(x, y, machine.z or 0) and not self:entityAt(x, y, machine.z or 0) then
+            local tile = self.world:getTile(x, y, machine.z or 0)
+            local maxDurability = tileMaxDurability(tile.id)
+            if isDamageableStructureTile(tile.id) and tile.data > 0 and tile.data < maxDurability then
+                return { kind = "tile", x = x, y = y, z = machine.z or 0, tile = tile.id, material = repairMaterialForTile(tile.id) }
+            end
+        end
+    end
+    for _, direction in ipairs(Grid.order) do
+        local x, y = Grid.front(machine.x, machine.y, direction)
+        if not self:machineAt(x, y, machine.z or 0) and not self:entityAt(x, y, machine.z or 0) then
+            local tile = self.world:getTile(x, y, machine.z or 0)
+            if isRepairableWallGap(tile.id) then
+                return { kind = "gap", x = x, y = y, z = machine.z or 0, material = machine.inventory:count("wall") > 0 and "wall" or "plank_wall" }
+            end
+        end
+    end
+    return nil
 end
 
 function Simulation:spawnEntityNear(x, y, z, kind, range)
@@ -1857,6 +1932,8 @@ function Simulation:updateMachines()
             self:updateGuardTower(machine)
         elseif machine.kind == "arc_tower" then
             self:updateArcTower(machine)
+        elseif machine.kind == "repair_pylon" then
+            self:updateRepairPylon(machine)
         end
     end
     self:updateLogistics()
@@ -2273,6 +2350,46 @@ function Simulation:towerDamage(kind, ammo, targetKind)
     return 2
 end
 
+function Simulation:updateRepairPylon(machine)
+    if not self:isMachinePowered(machine.id) then
+        machine.status = "missing_power"
+        return
+    end
+    local target = self:repairPylonTarget(machine)
+    if not target then
+        machine.progress = 0
+        machine.carriedItem = nil
+        machine.status = "idle"
+        return
+    end
+    if machine.progress == 0 then
+        if not machine.inventory:consume(target.material, 1) then
+            machine.status = "missing_input"
+            return
+        end
+        machine.carriedItem = target.material
+    end
+    local goal = machine.socketedRelic == "marsh_heart" and 40 or 60
+    machine.progress = math.min(machine.progress + 1, goal)
+    machine.status = "working"
+    if machine.progress < goal then
+        return
+    end
+    if target.kind == "machine" then
+        local repaired = self:machineById(target.machineId)
+        if repaired then
+            self:repairMachine(repaired)
+        end
+    elseif target.kind == "tile" then
+        self:repairTileAt(target.x, target.y, target.z)
+    else
+        self.world:setTile(target.x, target.y, target.z, { id = machine.carriedItem == "plank_wall" and "plank_wall" or "wall", data = 0 })
+    end
+    machine.progress = 0
+    machine.carriedItem = nil
+    machine.status = "idle"
+end
+
 function Simulation:isWaterTile(x, y, z)
     local id = self.world:getTile(x, y, z or 0).id
     return id == "water" or id == "deep_water" or id == "coral"
@@ -2608,6 +2725,9 @@ function Simulation:acceptItem(machine, item)
     end
     if machine.kind == "arc_tower" then
         return (item == "crystal_charge" or item == "rift_shell" or item == "copper_coil") and machine.inventory:add(item, 1)
+    end
+    if machine.kind == "repair_pylon" then
+        return (item == "wall" or item == "plank_wall" or item == "iron_plate") and machine.inventory:add(item, 1)
     end
     if machine.kind == "chest" or machine.kind == "provider_chest" or machine.kind == "requester_chest" or machine.kind == "train_stop" then
         return machine.inventory:add(item, 1)
