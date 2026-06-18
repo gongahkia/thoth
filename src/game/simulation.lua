@@ -2791,7 +2791,11 @@ function Simulation:updateLogistics()
         return
     end
 
-    for index = #self.logisticJobs, 1, -1 do
+    table.sort(self.logisticJobs, function(a, b)
+        return (a.id or 0) < (b.id or 0)
+    end)
+    local index = 1
+    while index <= #self.logisticJobs do
         local job = self.logisticJobs[index]
         job.remaining = job.remaining - 1
         if job.remaining <= 0 then
@@ -2801,6 +2805,8 @@ function Simulation:updateLogistics()
                 self.productionTotals.logistic_deliveries = (self.productionTotals.logistic_deliveries or 0) + 1
             end
             table.remove(self.logisticJobs, index)
+        else
+            index = index + 1
         end
     end
 
@@ -2834,7 +2840,11 @@ function Simulation:updateLogistics()
 end
 
 function Simulation:updateConstructionJobs()
-    for index = #self.constructionJobs, 1, -1 do
+    table.sort(self.constructionJobs, function(a, b)
+        return (a.ghostId or 0) < (b.ghostId or 0)
+    end)
+    local index = 1
+    while index <= #self.constructionJobs do
         local job = self.constructionJobs[index]
         job.remaining = math.max(0, (job.remaining or 0) - 1)
         local ghost = self:ghostById(job.ghostId)
@@ -2846,6 +2856,8 @@ function Simulation:updateConstructionJobs()
                 self:completeGhostBuild(ghost)
             end
             table.remove(self.constructionJobs, index)
+        else
+            index = index + 1
         end
     end
     for _, portId in ipairs(self.logisticIndex.portIds) do

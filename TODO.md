@@ -115,7 +115,6 @@
 ## Phase 16: Planning, Construction, Performance
 
 - Add Lua-native performance guardrails:
-  - Use deterministic id ordering for same-tick jobs.
   - Track production counters by event increments, not derived full scans.
 - Add render/CI checks:
   - Package contents test.

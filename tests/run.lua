@@ -922,6 +922,28 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(103)
+    addPoweredPortLine(sim)
+    local firstRequester = sim:addMachine("requester_chest", 0, 0, "south")
+    local secondRequester = sim:addMachine("requester_chest", 1, 0, "south")
+    sim.logisticJobs = {
+        { id = 2, toId = secondRequester.id, item = "stone", count = 1, remaining = 2 },
+        { id = 1, toId = firstRequester.id, item = "wood", count = 1, remaining = 2 },
+    }
+    sim.ghostBuilds = {
+        { id = 2, item = "chest", machine = true, x = 4, y = 0, z = 0, direction = "south", fulfilled = false, progress = 0 },
+        { id = 1, item = "chest", machine = true, x = 5, y = 0, z = 0, direction = "south", fulfilled = false, progress = 0 },
+    }
+    sim.constructionJobs = {
+        { ghostId = 2, portId = 0, sourceId = 0, item = "chest", remaining = 2, total = 2 },
+        { ghostId = 1, portId = 0, sourceId = 0, item = "chest", remaining = 2, total = 2 },
+    }
+    sim:step()
+    expect(sim.logisticJobs[1].id == 1 and sim.logisticJobs[2].id == 2, "logistic jobs should tick in id order")
+    expect(sim.constructionJobs[1].ghostId == 1 and sim.constructionJobs[2].ghostId == 2, "construction jobs should tick in ghost id order")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(27)
     addPoweredPortLine(sim)
     local provider = sim:addMachine("provider_chest", 3, 0, "south")
