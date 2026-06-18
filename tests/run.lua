@@ -269,6 +269,54 @@ tests[#tests + 1] = function()
     expect(loaded:machineById(chest.id) == nil, "machineById index did not clear removed machine")
 end
 
+local function addPoweredPortLine(sim)
+    local generator = sim:addMachine("generator", 0, 0, "east")
+    generator.inventory:add("coal", 5)
+    sim:addMachine("power_pole", 1, 0, "south")
+    local port = sim:addMachine("logistic_port", 2, 0, "south")
+    port.inventory:add("logistic_drone", 1)
+    return port
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(27)
+    addPoweredPortLine(sim)
+    local provider = sim:addMachine("provider_chest", 3, 0, "south")
+    local requester = sim:addMachine("requester_chest", 4, 0, "south")
+    provider.inventory:add("wood", 3)
+    sim:queue(Simulation.commands.configureRequest(requester.id, "wood", 2))
+    runSteps(sim, 30)
+    expect(requester.inventory:count("wood") == 2, "logistic delivery did not satisfy requester threshold")
+    expect(provider.inventory:count("wood") == 1, "logistic delivery consumed wrong provider count")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(28)
+    addPoweredPortLine(sim)
+    local provider = sim:addMachine("provider_chest", 3, 0, "south")
+    local requester = sim:addMachine("requester_chest", 4, 0, "south")
+    provider.inventory:add("stone", 1)
+    sim:queue(Simulation.commands.configureRequest(requester.id, "stone", 1))
+    runSteps(sim, 2)
+    expect(#sim.logisticJobs == 1, "logistic job was not in flight before save")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    runSteps(loaded, 15)
+    expect(loaded:machineById(requester.id).inventory:count("stone") == 1, "in-flight logistic job did not persist")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(29)
+    local port = sim:addMachine("logistic_port", 0, 0, "south")
+    port.inventory:add("logistic_drone", 1)
+    local provider = sim:addMachine("provider_chest", 1, 0, "south")
+    local requester = sim:addMachine("requester_chest", 2, 0, "south")
+    provider.inventory:add("wood", 1)
+    sim:queue(Simulation.commands.configureRequest(requester.id, "wood", 1))
+    runSteps(sim, 30)
+    expect(requester.inventory:count("wood") == 0, "unpowered logistic port delivered item")
+    expect(provider.inventory:count("wood") == 1, "unpowered logistic port consumed provider item")
+end
+
 for index, test in ipairs(tests) do
     local ok, err = pcall(test)
     if not ok then

@@ -46,6 +46,8 @@ local function newMachine(id, kind, x, y, direction)
         filterItem = nil,
         circuitComparator = "always",
         circuitThreshold = 0,
+        requestItem = nil,
+        requestThreshold = 0,
         status = "idle",
     }
 end
@@ -78,6 +80,9 @@ function Simulation.new(seed)
         poweredMachineIds = {},
         powerDirty = true,
         logisticDirty = true,
+        logisticIndex = { providerIds = {}, requesterIds = {}, portIds = {} },
+        logisticJobs = {},
+        nextLogisticJobId = 1,
         productionTotals = {
             iron_plate = 0,
             copper_plate = 0,
@@ -142,6 +147,10 @@ function Simulation.commands.configureCircuit(machineId, filterItem, comparator,
         comparator = comparator or "always",
         threshold = threshold or 0,
     }
+end
+
+function Simulation.commands.configureRequest(machineId, requestItem, threshold)
+    return { type = "configure_request", machineId = machineId, requestItem = requestItem, threshold = threshold or 0 }
 end
 
 function Simulation:queue(command)
@@ -335,6 +344,10 @@ function Simulation:apply(command)
     end
     if command.type == "configure_circuit" then
         self:configureCircuit(command.machineId, command.filterItem, command.comparator, command.threshold)
+        return
+    end
+    if command.type == "configure_request" then
+        self:configureRequest(command.machineId, command.requestItem, command.threshold)
     end
 end
 
@@ -521,6 +534,16 @@ function Simulation:configureCircuit(machineId, filterItem, comparator, threshol
     return true
 end
 
+function Simulation:configureRequest(machineId, requestItem, threshold)
+    local machine = self:machineById(machineId)
+    if not machine or machine.kind ~= "requester_chest" then
+        return false
+    end
+    machine.requestItem = Defs.item(requestItem) and requestItem or nil
+    machine.requestThreshold = machine.requestItem and math.max(0, tonumber(threshold) or 0) or 0
+    return true
+end
+
 function Simulation:updateMachines()
     self:updatePowerNetworks()
     for _, machine in ipairs(self.machines) do
@@ -546,6 +569,7 @@ function Simulation:updateMachines()
             self:updateLab(machine)
         end
     end
+    self:updateLogistics()
 end
 
 function Simulation:refuel(machine)
@@ -723,6 +747,101 @@ function Simulation:rebuildPowerNetworks()
             end
 
             self.powerNetworks[#self.powerNetworks + 1] = network
+        end
+    end
+end
+
+function Simulation:rebuildLogisticIndex()
+    self.logisticIndex = { providerIds = {}, requesterIds = {}, portIds = {} }
+    for _, machine in ipairs(self.machines) do
+        if machine.kind == "provider_chest" then
+            self.logisticIndex.providerIds[#self.logisticIndex.providerIds + 1] = machine.id
+        elseif machine.kind == "requester_chest" then
+            self.logisticIndex.requesterIds[#self.logisticIndex.requesterIds + 1] = machine.id
+        elseif machine.kind == "logistic_port" then
+            self.logisticIndex.portIds[#self.logisticIndex.portIds + 1] = machine.id
+        end
+    end
+    self.logisticDirty = false
+end
+
+function Simulation:poweredDroneCapacity()
+    local capacity = 0
+    for _, portId in ipairs(self.logisticIndex.portIds) do
+        local port = self:machineById(portId)
+        if port and self:isMachinePowered(port.id) then
+            capacity = capacity + port.inventory:count("logistic_drone")
+        end
+    end
+    return capacity
+end
+
+function Simulation:inboundLogisticCount(requesterId, item)
+    local total = 0
+    for _, job in ipairs(self.logisticJobs) do
+        if job.toId == requesterId and job.item == item then
+            total = total + job.count
+        end
+    end
+    return total
+end
+
+function Simulation:findProviderFor(item)
+    for _, providerId in ipairs(self.logisticIndex.providerIds) do
+        local provider = self:machineById(providerId)
+        if provider and provider.inventory:count(item) > 0 then
+            return provider
+        end
+    end
+    return nil
+end
+
+function Simulation:updateLogistics()
+    if self.logisticDirty then
+        self:rebuildLogisticIndex()
+    end
+    local capacity = self:poweredDroneCapacity()
+    if capacity <= 0 then
+        return
+    end
+
+    for index = #self.logisticJobs, 1, -1 do
+        local job = self.logisticJobs[index]
+        job.remaining = job.remaining - 1
+        if job.remaining <= 0 then
+            local requester = self:machineById(job.toId)
+            if requester then
+                requester.inventory:add(job.item, job.count)
+            end
+            table.remove(self.logisticJobs, index)
+        end
+    end
+
+    local activeJobs = #self.logisticJobs
+    for _, requesterId in ipairs(self.logisticIndex.requesterIds) do
+        if activeJobs >= capacity then
+            return
+        end
+        local requester = self:machineById(requesterId)
+        local item = requester and requester.requestItem
+        local threshold = requester and requester.requestThreshold or 0
+        if item and threshold > 0 then
+            local have = requester.inventory:count(item) + self:inboundLogisticCount(requester.id, item)
+            if have < threshold then
+                local provider = self:findProviderFor(item)
+                if provider and provider.inventory:consume(item, 1) then
+                    self.logisticJobs[#self.logisticJobs + 1] = {
+                        id = self.nextLogisticJobId,
+                        fromId = provider.id,
+                        toId = requester.id,
+                        item = item,
+                        count = 1,
+                        remaining = 12,
+                    }
+                    self.nextLogisticJobId = self.nextLogisticJobId + 1
+                    activeJobs = activeJobs + 1
+                end
+            end
         end
     end
 end
@@ -1147,6 +1266,8 @@ function Simulation:snapshot()
             filterItem = machine.filterItem,
             circuitComparator = machine.circuitComparator,
             circuitThreshold = machine.circuitThreshold,
+            requestItem = machine.requestItem,
+            requestThreshold = machine.requestThreshold,
             status = machine.status,
         }
     end
@@ -1166,6 +1287,8 @@ function Simulation:snapshot()
         },
         machines = machines,
         nextMachineId = self.nextMachineId,
+        logisticJobs = self.logisticJobs,
+        nextLogisticJobId = self.nextLogisticJobId,
         unlockedRecipes = copySet(self.unlockedRecipes),
         completedTechs = copySet(self.completedTechs),
         activeTech = self.activeTech,
@@ -1200,6 +1323,8 @@ function Simulation.fromSnapshot(snapshot)
         machine.filterItem = value.filterItem
         machine.circuitComparator = value.circuitComparator or "always"
         machine.circuitThreshold = value.circuitThreshold or 0
+        machine.requestItem = value.requestItem
+        machine.requestThreshold = value.requestThreshold or 0
         machine.status = value.status or "idle"
         self.machines[#self.machines + 1] = machine
     end
@@ -1212,6 +1337,9 @@ function Simulation.fromSnapshot(snapshot)
     self.productionTotals = copySet(snapshot.productionTotals or {})
     self.powerDirty = true
     self.logisticDirty = true
+    self.logisticIndex = { providerIds = {}, requesterIds = {}, portIds = {} }
+    self.logisticJobs = snapshot.logisticJobs or {}
+    self.nextLogisticJobId = snapshot.nextLogisticJobId or (#self.logisticJobs + 1)
     return self
 end
 

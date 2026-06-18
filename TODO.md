@@ -114,13 +114,6 @@
 
 ## Phase 10: Core Automation Parity
 
-- Add Lua-native machine indexes:
-  - Use dirty flags for power/logistic recalculation instead of full scans every tick.
-- Restore logistics:
-  - Provider/requester delivery jobs.
-  - In-flight persistence.
-  - Request thresholds.
-  - Powered port requirement.
 - Restore fluids/trains:
   - Train-stop cargo hops.
 - Acceptance:

@@ -346,6 +346,10 @@ local function drawMachinePanel(sim, app)
     end
     if machine.kind == "circuit_inserter" then
         love.graphics.print("circuit " .. (machine.filterItem or "-") .. " " .. machine.circuitComparator .. " " .. machine.circuitThreshold, x + 10, detailY)
+        detailY = detailY + 18
+    end
+    if machine.kind == "requester_chest" then
+        love.graphics.print("request " .. (machine.requestItem or "-") .. " < " .. machine.requestThreshold, x + 10, detailY)
     end
 
     local buttonY = math.max(y + 176, detailY + 22)
