@@ -277,6 +277,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(46)
+    sim.player.x = 4
+    local entity = sim:addEntity("slime", 0, 0, 0, 3)
+    sim:step()
+    expect(entity.x == 1 and entity.y == 0, "hostile should path toward player")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(47)
+    sim.player.x = 10
+    sim.world:setTile(-1, 0, 0, { id = "grass", data = 0 })
+    sim:addMachine("chest", -4, 0, "south")
+    local entity = sim:addEntity("slime", 0, 0, 0, 3)
+    sim:step()
+    expect(entity.x == -1 and entity.y == 0, "hostile should path toward nearest infrastructure")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))

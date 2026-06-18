@@ -575,8 +575,55 @@ function Simulation:updateEntities()
         if (entity.z or 0) == self.player.z and Grid.manhattan(entity.x, entity.y, self.player.x, self.player.y) <= 1 and entity.attackCooldown <= 0 then
             self:damagePlayer(self:entityAttackDamage(entity))
             entity.attackCooldown = 30
+        else
+            self:moveEntityTowardTarget(entity)
         end
     end
+end
+
+function Simulation:entityTarget(entity)
+    local target = { x = self.player.x, y = self.player.y, z = self.player.z }
+    local bestDistance = (entity.z or 0) == self.player.z and Grid.manhattan(entity.x, entity.y, self.player.x, self.player.y) or math.huge
+    for _, machine in ipairs(self.machines) do
+        if (machine.z or 0) == (entity.z or 0) then
+            local distance = Grid.manhattan(entity.x, entity.y, machine.x, machine.y)
+            if distance < bestDistance then
+                bestDistance = distance
+                target = { x = machine.x, y = machine.y, z = machine.z or 0 }
+            end
+        end
+    end
+    return target
+end
+
+function Simulation:entityCanMoveTo(entity, x, y)
+    if not self.world:isWalkable(x, y, entity.z or 0) or self:machineAt(x, y, entity.z or 0) then
+        return false
+    end
+    return self:entityAt(x, y, entity.z or 0) == nil
+end
+
+function Simulation:moveEntityTowardTarget(entity)
+    local target = self:entityTarget(entity)
+    if target.z ~= (entity.z or 0) or Grid.manhattan(entity.x, entity.y, target.x, target.y) <= 1 then
+        return false
+    end
+    local candidates = {}
+    if math.abs(target.x - entity.x) >= math.abs(target.y - entity.y) then
+        candidates[#candidates + 1] = { x = entity.x + (target.x > entity.x and 1 or -1), y = entity.y }
+        candidates[#candidates + 1] = { x = entity.x, y = entity.y + (target.y > entity.y and 1 or -1) }
+    else
+        candidates[#candidates + 1] = { x = entity.x, y = entity.y + (target.y > entity.y and 1 or -1) }
+        candidates[#candidates + 1] = { x = entity.x + (target.x > entity.x and 1 or -1), y = entity.y }
+    end
+    for _, candidate in ipairs(candidates) do
+        if self:entityCanMoveTo(entity, candidate.x, candidate.y) then
+            entity.x = candidate.x
+            entity.y = candidate.y
+            return true
+        end
+    end
+    return false
 end
 
 function Simulation:move(direction)
