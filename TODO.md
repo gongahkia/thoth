@@ -107,10 +107,6 @@
 
 ## Phase 8: Playable UI Foundation
 
-- Machine panel:
-  - Show faced or clicked machine name, inventory, progress, status, input, output, and facing direction.
-  - Add recipe selector for furnace and assembler.
-  - Add deposit and withdraw controls for `1`, `5`, and `all`.
 - Inventory panel:
   - Add inventory grid, hotbar assignment, hotbar clear, item role labels, and item counts.
   - Keep hotbar stable across save/load.

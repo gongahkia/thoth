@@ -115,6 +115,35 @@ tests[#tests + 1] = function()
     expect(doc.finalTick == 5 and #doc.frames == 3, "replay serialization failed")
 end
 
+tests[#tests + 1] = function()
+    local sim = Simulation.new(15)
+    local chest = sim:addMachine("chest", 0, 0, "south")
+    sim:addItem("wood", 8)
+    sim:queue(Simulation.commands.depositMachine(chest.id, "wood", 5))
+    sim:step()
+    expect(chest.inventory:count("wood") == 5, "panel deposit failed")
+    expect(sim:itemCount("wood") == 3, "panel deposit did not consume player items")
+    sim:queue(Simulation.commands.withdrawMachine(chest.id, "wood", "all"))
+    sim:step()
+    expect(chest.inventory:count("wood") == 0, "panel withdraw failed")
+    expect(sim:itemCount("wood") == 8, "panel withdraw did not return items")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(16)
+    local furnace = sim:addMachine("furnace", 0, 0, "south")
+    local blocked = sim:addMachine("furnace", 1, 0, "south")
+    blocked.inventory:add("coal", 1)
+    furnace.inventory:add("coal", 1)
+    furnace.inventory:add("copper_ore", 1)
+    sim:queue(Simulation.commands.setMachineRecipe(furnace.id, "copper_plate"))
+    sim:queue(Simulation.commands.setMachineRecipe(blocked.id, "copper_plate"))
+    sim:step()
+    runSteps(sim, 60)
+    expect(furnace.inventory:count("copper_plate") == 1, "furnace recipe selector did not smelt copper")
+    expect(blocked.inventory:count("coal") == 1, "furnace consumed fuel without selected ore")
+end
+
 for index, test in ipairs(tests) do
     local ok, err = pcall(test)
     if not ok then

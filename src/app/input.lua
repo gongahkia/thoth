@@ -103,6 +103,24 @@ function Input.mousepressed(sim, app, x, y, button)
     if button ~= 1 then
         return
     end
+    for _, action in ipairs((app.ui and app.ui.machineButtons) or {}) do
+        if x >= action.x and x <= action.x + action.w and y >= action.y and y <= action.y + action.h then
+            if action.action == "set_recipe" then
+                sim:queue(Simulation.commands.setMachineRecipe(action.machineId, action.recipeKey))
+                app.status = "recipe " .. action.recipeKey
+                Audio.play(app.audio, "tick")
+            elseif action.action == "deposit" then
+                sim:queue(Simulation.commands.depositMachine(action.machineId, action.item, action.count))
+                app.status = "deposit " .. tostring(action.count)
+                Audio.play(app.audio, "place")
+            elseif action.action == "withdraw" then
+                sim:queue(Simulation.commands.withdrawMachine(action.machineId, action.item, action.count))
+                app.status = "withdraw " .. tostring(action.count)
+                Audio.play(app.audio, "place")
+            end
+            return
+        end
+    end
     for _, card in ipairs((app.ui and app.ui.recipeCards) or {}) do
         if x >= card.x and x <= card.x + card.w and y >= card.y and y <= card.y + card.h then
             app.selectedRecipe = card.recipeKey
@@ -116,6 +134,13 @@ function Input.mousepressed(sim, app, x, y, button)
             end
             return
         end
+    end
+    if app.worldView then
+        local wx = math.floor((x - app.worldView.offsetX) / app.worldView.tileSize)
+        local wy = math.floor((y - app.worldView.offsetY) / app.worldView.tileSize)
+        local machine = sim:machineAt(wx, wy, sim.player.z)
+        app.selectedMachineId = machine and machine.id or nil
+        app.status = machine and ("selected " .. machine.kind) or "cleared selection"
     end
 end
 

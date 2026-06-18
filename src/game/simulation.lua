@@ -6,11 +6,6 @@ local World = require("src.game.world")
 local Simulation = {}
 Simulation.__index = Simulation
 
-local oreOutputs = {
-    iron_ore = "iron_plate",
-    copper_ore = "copper_plate",
-}
-
 local machineOutputs = {
     burner_miner = { "iron_ore", "copper_ore", "coal" },
     furnace = { "iron_plate", "copper_plate" },
@@ -47,7 +42,7 @@ local function newMachine(id, kind, x, y, direction)
         fuel = 0,
         carriedItem = nil,
         outputItem = nil,
-        recipeKey = kind == "assembler" and "science_pack" or nil,
+        recipeKey = kind == "assembler" and "science_pack" or kind == "furnace" and "iron_plate" or nil,
         status = "idle",
     }
 end
@@ -117,6 +112,18 @@ function Simulation.commands.assignHotbar(index, item)
     return { type = "assign_hotbar", index = index, item = item }
 end
 
+function Simulation.commands.setMachineRecipe(machineId, recipeKey)
+    return { type = "set_machine_recipe", machineId = machineId, recipeKey = recipeKey }
+end
+
+function Simulation.commands.depositMachine(machineId, item, count)
+    return { type = "deposit_machine", machineId = machineId, item = item, count = count or 1 }
+end
+
+function Simulation.commands.withdrawMachine(machineId, item, count)
+    return { type = "withdraw_machine", machineId = machineId, item = item, count = count or 1 }
+end
+
 function Simulation:queue(command)
     self.commandQueue[#self.commandQueue + 1] = command
 end
@@ -169,6 +176,15 @@ function Simulation:machineAt(x, y, z)
     z = z or 0
     for _, machine in ipairs(self.machines) do
         if machine.x == x and machine.y == y and (machine.z or 0) == z then
+            return machine
+        end
+    end
+    return nil
+end
+
+function Simulation:machineById(id)
+    for _, machine in ipairs(self.machines) do
+        if machine.id == id then
             return machine
         end
     end
@@ -236,6 +252,18 @@ function Simulation:apply(command)
     end
     if command.type == "assign_hotbar" then
         self.player.hotbar[math.max(1, math.min(10, command.index or 1))] = command.item
+        return
+    end
+    if command.type == "set_machine_recipe" then
+        self:setMachineRecipe(command.machineId, command.recipeKey)
+        return
+    end
+    if command.type == "deposit_machine" then
+        self:depositToMachine(command.machineId, command.item, command.count)
+        return
+    end
+    if command.type == "withdraw_machine" then
+        self:withdrawFromMachine(command.machineId, command.item, command.count)
     end
 end
 
@@ -347,6 +375,66 @@ function Simulation:deposit(direction, item)
     return true
 end
 
+local function normalizedCount(count, available)
+    if count == "all" then
+        return available
+    end
+    return math.max(1, math.min(available, tonumber(count) or 1))
+end
+
+function Simulation:depositToMachine(machineId, item, count)
+    local target = self:machineById(machineId)
+    local available = item and self:itemCount(item) or 0
+    if not target or available <= 0 then
+        return false
+    end
+    local moved = 0
+    local wanted = normalizedCount(count, available)
+    while moved < wanted and self:itemCount(item) > 0 do
+        if not self:acceptItem(target, item) then
+            break
+        end
+        self:consumeItem(item, 1)
+        moved = moved + 1
+    end
+    return moved > 0
+end
+
+function Simulation:withdrawFromMachine(machineId, item, count)
+    local target = self:machineById(machineId)
+    if not target or not item then
+        return false
+    end
+    if (target.kind == "belt" or target.kind == "fast_belt") and target.carriedItem == item then
+        target.carriedItem = nil
+        self:addItem(item, 1)
+        return true
+    end
+    local available = target.inventory:count(item)
+    if available <= 0 then
+        return false
+    end
+    local moved = 0
+    local wanted = normalizedCount(count, available)
+    while moved < wanted and target.inventory:consume(item, 1) do
+        self:addItem(item, 1)
+        moved = moved + 1
+    end
+    return moved > 0
+end
+
+function Simulation:setMachineRecipe(machineId, recipeKey)
+    local machine = self:machineById(machineId)
+    if not machine or not Defs.machineRecipe(machine.kind, recipeKey) then
+        return false
+    end
+    machine.recipeKey = recipeKey
+    machine.progress = 0
+    machine.outputItem = nil
+    machine.status = "idle"
+    return true
+end
+
 function Simulation:updateMachines()
     for _, machine in ipairs(self.machines) do
         if machine.kind == "burner_miner" then
@@ -445,6 +533,11 @@ function Simulation:updateInserter(machine)
 end
 
 function Simulation:updateFurnace(machine)
+    local recipe = Defs.machineRecipe("furnace", machine.recipeKey or "iron_plate")
+    if not recipe then
+        machine.status = "missing_input"
+        return
+    end
     if machine.progress > 0 then
         machine.progress = machine.progress - 1
         machine.status = "working"
@@ -455,8 +548,8 @@ function Simulation:updateFurnace(machine)
         end
         return
     end
-    local ore = machine.inventory:firstMatching({ "iron_ore", "copper_ore" })
-    if not ore then
+    local ore = recipe.output.item == "copper_plate" and "copper_ore" or "iron_ore"
+    if machine.inventory:count(ore) <= 0 then
         machine.status = "missing_input"
         return
     end
@@ -465,8 +558,8 @@ function Simulation:updateFurnace(machine)
         return
     end
     machine.inventory:consume(ore, 1)
-    machine.outputItem = oreOutputs[ore]
-    machine.progress = 60
+    machine.outputItem = recipe.output.item
+    machine.progress = recipe.ticks or 60
     machine.status = "working"
 end
 
@@ -550,7 +643,8 @@ function Simulation:acceptItem(machine, item)
         return item == "coal" and machine.inventory:add(item, 1)
     end
     if machine.kind == "furnace" then
-        return (item == "coal" or item == "iron_ore" or item == "copper_ore") and machine.inventory:add(item, 1)
+        local recipe = Defs.machineRecipe("furnace", machine.recipeKey or "iron_plate")
+        return recipe and recipe.inputs[item] ~= nil and machine.inventory:add(item, 1)
     end
     if machine.kind == "assembler" then
         local recipe = Defs.recipe(machine.recipeKey or "science_pack")
@@ -667,7 +761,7 @@ function Simulation.fromSnapshot(snapshot)
         machine.fuel = value.fuel or 0
         machine.carriedItem = value.carriedItem
         machine.outputItem = value.outputItem
-        machine.recipeKey = value.recipeKey
+        machine.recipeKey = value.recipeKey or (value.kind == "furnace" and "iron_plate" or value.kind == "assembler" and "science_pack" or nil)
         machine.status = value.status or "idle"
         self.machines[#self.machines + 1] = machine
     end

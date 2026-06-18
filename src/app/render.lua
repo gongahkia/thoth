@@ -87,6 +87,7 @@ function Render.drawWorld(sim, app)
     local py = sim.player.y * tileSize
     local offsetX = math.floor(width / 2 - px - tileSize / 2)
     local offsetY = math.floor(height / 2 - py - tileSize / 2)
+    app.worldView = { offsetX = offsetX, offsetY = offsetY, tileSize = tileSize }
     local radiusX = math.ceil(width / tileSize / 2) + 2
     local radiusY = math.ceil(height / tileSize / 2) + 2
     for y = sim.player.y - radiusY, sim.player.y + radiusY do
@@ -128,6 +129,10 @@ local function inputText(inputs)
     return table.concat(parts, ", ")
 end
 
+local function outputText(output)
+    return Defs.item(output.item).name .. " x" .. output.count
+end
+
 local function missingText(sim, inputs)
     local parts = {}
     for _, item in ipairs(Defs.itemOrder) do
@@ -161,8 +166,140 @@ local function recipeState(sim, recipeKey)
     return "ready", inputText(recipe.inputs)
 end
 
+local function targetMachine(sim, app)
+    if app.selectedMachineId then
+        local selected = sim:machineById(app.selectedMachineId)
+        if selected then
+            return selected, "clicked"
+        end
+        app.selectedMachineId = nil
+    end
+    local x, y = Grid.front(sim.player.x, sim.player.y, sim.player.facing)
+    return sim:machineAt(x, y, sim.player.z), "faced"
+end
+
+local function addButton(app, x, y, w, h, label, payload, enabled)
+    love.graphics.setColor(enabled and 0.22 or 0.12, enabled and 0.28 or 0.12, enabled and 0.24 or 0.12, 1)
+    love.graphics.rectangle("fill", x, y, w, h)
+    love.graphics.setColor(enabled and 0.78 or 0.32, enabled and 0.9 or 0.34, enabled and 0.78 or 0.34, 1)
+    love.graphics.rectangle("line", x, y, w, h)
+    love.graphics.setColor(enabled and 0.94 or 0.46, enabled and 0.96 or 0.46, enabled and 0.9 or 0.46, 1)
+    love.graphics.print(label, x + 6, y + 5)
+    if enabled then
+        payload.x = x
+        payload.y = y
+        payload.w = w
+        payload.h = h
+        app.ui.machineButtons[#app.ui.machineButtons + 1] = payload
+    end
+end
+
+local function machineRecipe(machine)
+    if machine.kind == "furnace" or machine.kind == "assembler" then
+        return Defs.machineRecipe(machine.kind, machine.recipeKey)
+    end
+    return nil
+end
+
+local function machineIoText(machine)
+    local recipe = machineRecipe(machine)
+    if recipe then
+        return inputText(recipe.inputs), outputText(recipe.output)
+    end
+    if machine.kind == "burner_miner" then
+        return "Coal", "ore from tile"
+    end
+    if machine.kind == "lab" then
+        return "Science Pack", "research"
+    end
+    if machine.kind == "belt" or machine.kind == "fast_belt" then
+        return "back side", machine.carriedItem or "front side"
+    end
+    if machine.kind == "inserter" then
+        return "back cell", "front cell"
+    end
+    if machine.kind == "chest" then
+        return "any item", "stored item"
+    end
+    return "-", "-"
+end
+
+local function drawMachinePanel(sim, app)
+    app.ui.machineButtons = {}
+    local machine, source = targetMachine(sim, app)
+    local x = 16
+    local y = 100
+    local w = 328
+    love.graphics.setColor(0.06, 0.07, 0.08, 0.86)
+    love.graphics.rectangle("fill", x, y, w, 356)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Machine", x + 10, y + 8)
+    if not machine then
+        love.graphics.setColor(0.66, 0.68, 0.62, 1)
+        love.graphics.print("Face or click a machine", x + 10, y + 32)
+        return
+    end
+
+    local machineDef = Defs.machine(machine.kind)
+    local input, output = machineIoText(machine)
+    love.graphics.setColor(0.96, 0.96, 0.9, 1)
+    love.graphics.print(machineDef.name .. " #" .. machine.id .. "  " .. source, x + 10, y + 32)
+    love.graphics.setColor(0.78, 0.82, 0.76, 1)
+    love.graphics.print("status " .. machine.status .. "  dir " .. machine.direction, x + 10, y + 52)
+    love.graphics.print("progress " .. machine.progress .. "  fuel " .. machine.fuel, x + 10, y + 72)
+    love.graphics.print("input " .. input, x + 10, y + 92)
+    love.graphics.print("output " .. output, x + 10, y + 112)
+    love.graphics.print("inv " .. (stacksText(machine.inventory) ~= "" and stacksText(machine.inventory) or "-"), x + 10, y + 132)
+    if machine.carriedItem then
+        love.graphics.print("carried " .. machine.carriedItem, x + 10, y + 152)
+    end
+
+    local buttonY = y + 176
+    local recipeOrder = Defs.machineRecipeOrder[machine.kind]
+    if recipeOrder then
+        love.graphics.setColor(0.9, 0.92, 0.86, 1)
+        love.graphics.print("Recipe", x + 10, buttonY)
+        local buttonX = x + 10
+        for _, recipeKey in ipairs(recipeOrder) do
+            local recipe = Defs.machineRecipe(machine.kind, recipeKey)
+            local label = recipe.name or recipeKey
+            local active = machine.recipeKey == recipeKey
+            addButton(app, buttonX, buttonY + 20, 118, 24, label, {
+                action = "set_recipe",
+                machineId = machine.id,
+                recipeKey = recipeKey,
+            }, not active)
+            buttonX = buttonX + 124
+        end
+        buttonY = buttonY + 54
+    end
+
+    local selected = sim:selectedItem()
+    local selectedCount = selected and sim:itemCount(selected) or 0
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Deposit " .. (selected or "-") .. " " .. selectedCount, x + 10, buttonY)
+    local canDeposit = selected ~= nil and selectedCount > 0
+    addButton(app, x + 10, buttonY + 20, 50, 24, "1", { action = "deposit", machineId = machine.id, item = selected, count = 1 }, canDeposit)
+    addButton(app, x + 66, buttonY + 20, 50, 24, "5", { action = "deposit", machineId = machine.id, item = selected, count = 5 }, canDeposit)
+    addButton(app, x + 122, buttonY + 20, 58, 24, "all", { action = "deposit", machineId = machine.id, item = selected, count = "all" }, canDeposit)
+
+    local withdrawY = buttonY + 56
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Withdraw", x + 10, withdrawY)
+    for index, stack in ipairs(machine.inventory:stacks()) do
+        if index > 3 then
+            love.graphics.print("+" .. (#machine.inventory:stacks() - 3) .. " more", x + 10, withdrawY + 22 + (index - 1) * 28)
+            break
+        end
+        local rowY = withdrawY + 22 + (index - 1) * 28
+        love.graphics.print(stack.item .. " " .. stack.count, x + 10, rowY + 4)
+        addButton(app, x + 128, rowY, 42, 24, "1", { action = "withdraw", machineId = machine.id, item = stack.item, count = 1 }, true)
+        addButton(app, x + 176, rowY, 42, 24, "5", { action = "withdraw", machineId = machine.id, item = stack.item, count = 5 }, true)
+        addButton(app, x + 224, rowY, 54, 24, "all", { action = "withdraw", machineId = machine.id, item = stack.item, count = "all" }, true)
+    end
+end
+
 local function drawRecipeCards(sim, app)
-    app.ui = app.ui or {}
     app.ui.recipeCards = {}
     local panelX = love.graphics.getWidth() - 284
     local panelY = 100
@@ -214,8 +351,10 @@ end
 
 function Render.draw(sim, app)
     love.graphics.clear(0.07, 0.08, 0.08, 1)
+    app.ui = {}
     Render.drawWorld(sim, app)
     Render.drawHud(sim, app)
+    drawMachinePanel(sim, app)
     drawRecipeCards(sim, app)
 end
 

@@ -65,6 +65,21 @@ Defs.recipeOrder = {
     "workbench", "furnace", "chest", "belt", "inserter", "burner_miner", "assembler", "lab", "science_pack", "fast_belt",
 }
 
+Defs.machineRecipes = {
+    furnace = {
+        iron_plate = { name = "Iron Plate", inputs = { iron_ore = 1, coal = 1 }, output = { item = "iron_plate", count = 1 }, ticks = 60 },
+        copper_plate = { name = "Copper Plate", inputs = { copper_ore = 1, coal = 1 }, output = { item = "copper_plate", count = 1 }, ticks = 60 },
+    },
+    assembler = {
+        science_pack = Defs.recipes.science_pack,
+    },
+}
+
+Defs.machineRecipeOrder = {
+    furnace = { "iron_plate", "copper_plate" },
+    assembler = { "science_pack" },
+}
+
 Defs.techs = {
     logistics_1 = { name = "Logistics 1", inputs = { science_pack = 3 }, unlocks = { "fast_belt" } },
 }
@@ -83,6 +98,11 @@ end
 
 function Defs.recipe(id)
     return Defs.recipes[id]
+end
+
+function Defs.machineRecipe(kind, id)
+    local recipes = Defs.machineRecipes[kind]
+    return recipes and recipes[id]
 end
 
 function Defs.tech(id)
