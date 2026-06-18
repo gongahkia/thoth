@@ -251,6 +251,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(44)
+    local entity = sim:addEntity("slime", 1, 0, 0, 2)
+    sim:queue(Simulation.commands.attack("east"))
+    sim:step()
+    expect(entity.hp == 1, "attack should damage entity hp")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(#loaded.entities == 1 and loaded.entities[1].hp == 1, "entity hp should persist")
+    loaded:queue(Simulation.commands.attack("east"))
+    loaded:step()
+    expect(#loaded.entities == 0, "entity should be removed at zero hp")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))

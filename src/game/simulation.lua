@@ -120,6 +120,18 @@ local function newMachine(id, kind, x, y, direction, z)
     }
 end
 
+local function newEntity(id, kind, x, y, z, hp)
+    return {
+        id = id,
+        kind = kind,
+        x = x,
+        y = y,
+        z = z or 0,
+        hp = hp or 3,
+        attackCooldown = 0,
+    }
+end
+
 function Simulation.new(seed, startInTutorial)
     local self = setmetatable({
         seed = seed or 1,
@@ -140,6 +152,8 @@ function Simulation.new(seed, startInTutorial)
         machineByCell = {},
         machineByIdIndex = {},
         nextMachineId = 1,
+        entities = {},
+        nextEntityId = 1,
         commandQueue = {},
         unlockedRecipes = recipeUnlockedDefaults(),
         completedTechs = {},
@@ -247,6 +261,10 @@ end
 
 function Simulation.commands.healPlayer(amount)
     return { type = "heal_player", amount = amount or 0 }
+end
+
+function Simulation.commands.attack(direction)
+    return { type = "attack", direction = direction }
 end
 
 function Simulation:queue(command)
@@ -476,6 +494,10 @@ function Simulation:apply(command)
     end
     if command.type == "heal_player" then
         self:healPlayer(command.amount)
+        return
+    end
+    if command.type == "attack" then
+        self:attack(command.direction)
     end
 end
 
@@ -487,6 +509,54 @@ end
 function Simulation:healPlayer(amount)
     self.player.hp = math.min(20, self.player.hp + math.max(0, amount or 0))
     return self.player.hp
+end
+
+function Simulation:addEntity(kind, x, y, z, hp)
+    local entity = newEntity(self.nextEntityId, kind, x, y, z or 0, hp)
+    self.nextEntityId = self.nextEntityId + 1
+    self.entities[#self.entities + 1] = entity
+    table.sort(self.entities, function(a, b)
+        return a.id < b.id
+    end)
+    return entity
+end
+
+function Simulation:entityAt(x, y, z)
+    for _, entity in ipairs(self.entities) do
+        if entity.x == x and entity.y == y and (entity.z or 0) == (z or 0) then
+            return entity
+        end
+    end
+    return nil
+end
+
+function Simulation:removeEntityById(id)
+    for index, entity in ipairs(self.entities) do
+        if entity.id == id then
+            table.remove(self.entities, index)
+            return true
+        end
+    end
+    return false
+end
+
+function Simulation:damageEntity(entity, amount)
+    if not entity then
+        return false
+    end
+    entity.hp = math.max(0, entity.hp - math.max(0, amount or 0))
+    if entity.hp <= 0 then
+        self:removeEntityById(entity.id)
+    end
+    return true
+end
+
+function Simulation:attack(direction)
+    direction = direction or self.player.facing
+    self.player.facing = direction
+    local x, y = Grid.front(self.player.x, self.player.y, direction)
+    local entity = self:entityAt(x, y, self.player.z)
+    return self:damageEntity(entity, 1)
 end
 
 function Simulation:move(direction)
@@ -1832,6 +1902,18 @@ function Simulation:snapshot()
             status = machine.status,
         }
     end
+    local entities = {}
+    for _, entity in ipairs(self.entities) do
+        entities[#entities + 1] = {
+            id = entity.id,
+            kind = entity.kind,
+            x = entity.x,
+            y = entity.y,
+            z = entity.z or 0,
+            hp = entity.hp,
+            attackCooldown = entity.attackCooldown or 0,
+        }
+    end
     return {
         seed = self.seed,
         tick = self.tick,
@@ -1849,6 +1931,8 @@ function Simulation:snapshot()
         },
         machines = machines,
         nextMachineId = self.nextMachineId,
+        entities = entities,
+        nextEntityId = self.nextEntityId,
         logisticJobs = self.logisticJobs,
         nextLogisticJobId = self.nextLogisticJobId,
         supplyContracts = copyContracts(self.supplyContracts),
@@ -1896,6 +1980,16 @@ function Simulation.fromSnapshot(snapshot)
     end
     self:rebuildMachineIndexes()
     self.nextMachineId = snapshot.nextMachineId or (#self.machines + 1)
+    self.entities = {}
+    for _, value in ipairs(snapshot.entities or {}) do
+        local entity = newEntity(value.id, value.kind, value.x, value.y, value.z or 0, value.hp or 1)
+        entity.attackCooldown = value.attackCooldown or 0
+        self.entities[#self.entities + 1] = entity
+    end
+    table.sort(self.entities, function(a, b)
+        return a.id < b.id
+    end)
+    self.nextEntityId = snapshot.nextEntityId or (#self.entities + 1)
     self.unlockedRecipes = copySet(snapshot.unlockedRecipes or recipeUnlockedDefaults())
     self.completedTechs = copySet(snapshot.completedTechs or {})
     self.activeTech = snapshot.activeTech or self:nextIncompleteTech()
