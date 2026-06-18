@@ -89,9 +89,13 @@ tests[#tests + 1] = function()
     local sim = Simulation.new(13)
     sim:addItem("wood", 3)
     sim:addMachine("chest", 2, 0, "south").inventory:add("stone", 5)
+    sim:queue(Simulation.commands.assignHotbar(3, "wood"))
+    sim:queue(Simulation.commands.assignHotbar(1, nil))
     runSteps(sim, 3)
     local loaded = assert(Save.fromText(Save.toText(sim)))
     expect(sameSnapshot(sim, loaded), "save/load snapshot mismatch")
+    expect(loaded.player.hotbar[3] == "wood", "assigned hotbar slot did not persist")
+    expect(loaded.player.hotbar[1] == nil, "cleared hotbar slot did not persist")
 end
 
 tests[#tests + 1] = function()

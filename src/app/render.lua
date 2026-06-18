@@ -33,8 +33,65 @@ local stateColors = {
     unaffordable = { 126, 66, 66 },
 }
 
+local itemNames = {
+    iron_ore = "Fe Ore",
+    iron_plate = "Fe Plate",
+    copper_ore = "Cu Ore",
+    copper_plate = "Cu Plate",
+    science_pack = "Science",
+    workbench = "Bench",
+    burner_miner = "Miner",
+    fast_belt = "Fast Belt",
+}
+
+local itemCodes = {
+    iron_ore = "FeO",
+    iron_plate = "FeP",
+    copper_ore = "CuO",
+    copper_plate = "CuP",
+    science_pack = "Sci",
+    workbench = "Bch",
+    burner_miner = "Min",
+    inserter = "Ins",
+    furnace = "Fur",
+    chest = "Box",
+    assembler = "Asm",
+    fast_belt = "Fst",
+}
+
 local function color(rgb, alpha)
     return (rgb[1] or 255) / 255, (rgb[2] or 255) / 255, (rgb[3] or 255) / 255, (alpha or 255) / 255
+end
+
+local function itemName(item)
+    return itemNames[item] or Defs.item(item).name
+end
+
+local function itemCode(item)
+    return itemCodes[item] or itemName(item):sub(1, 4)
+end
+
+local function itemRole(item)
+    local def = Defs.item(item)
+    if def.machine then
+        return "mach"
+    end
+    if def.tile then
+        return "tile"
+    end
+    if item == "coal" then
+        return "fuel"
+    end
+    if item:match("_ore$") then
+        return "ore"
+    end
+    if item:match("_plate$") then
+        return "part"
+    end
+    if item == "science_pack" then
+        return "sci"
+    end
+    return "mat"
 end
 
 local function drawSprite(name, x, y)
@@ -333,6 +390,62 @@ local function drawRecipeCards(sim, app)
     end
 end
 
+local function drawInventoryPanel(sim, app)
+    app.ui.inventoryCells = {}
+    app.ui.hotbarSlots = {}
+    app.ui.hotbarClears = {}
+    local panelW = 536
+    local panelH = 210
+    local panelX = math.floor((love.graphics.getWidth() - panelW) / 2)
+    local panelY = love.graphics.getHeight() - panelH - 12
+    local cellW = 84
+    local cellH = 38
+    love.graphics.setColor(0.06, 0.07, 0.08, 0.86)
+    love.graphics.rectangle("fill", panelX, panelY, panelW, panelH)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Inventory", panelX + 10, panelY + 8)
+    if app.selectedInventoryItem then
+        love.graphics.print("assign " .. itemName(app.selectedInventoryItem), panelX + 110, panelY + 8)
+    end
+    for index, item in ipairs(Defs.itemOrder) do
+        local col = (index - 1) % 6
+        local row = math.floor((index - 1) / 6)
+        local x = panelX + 10 + col * (cellW + 4)
+        local y = panelY + 30 + row * (cellH + 4)
+        local count = sim:itemCount(item)
+        local active = app.selectedInventoryItem == item
+        love.graphics.setColor(count > 0 and 0.16 or 0.09, active and 0.28 or 0.17, count > 0 and 0.18 or 0.09, 1)
+        love.graphics.rectangle("fill", x, y, cellW, cellH)
+        love.graphics.setColor(active and 0.92 or 0.32, active and 0.96 or 0.38, active and 0.82 or 0.34, 1)
+        love.graphics.rectangle("line", x, y, cellW, cellH)
+        love.graphics.setColor(count > 0 and 0.94 or 0.44, count > 0 and 0.96 or 0.44, count > 0 and 0.9 or 0.44, 1)
+        love.graphics.print(itemName(item), x + 4, y + 3)
+        love.graphics.print(itemRole(item) .. " " .. count, x + 4, y + 20)
+        app.ui.inventoryCells[#app.ui.inventoryCells + 1] = { x = x, y = y, w = cellW, h = cellH, item = item, count = count }
+    end
+
+    local hotbarY = panelY + 164
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Hotbar", panelX + 10, hotbarY - 18)
+    for i = 1, 10 do
+        local x = panelX + 10 + (i - 1) * 51
+        local item = sim.player.hotbar[i]
+        local active = i == sim.player.selectedHotbar
+        love.graphics.setColor(active and 0.24 or 0.12, active and 0.32 or 0.16, active and 0.22 or 0.14, 1)
+        love.graphics.rectangle("fill", x, hotbarY, 46, 34)
+        love.graphics.setColor(active and 0.95 or 0.35, active and 0.82 or 0.44, active and 0.32 or 0.28, 1)
+        love.graphics.rectangle("line", x, hotbarY, 46, 34)
+        love.graphics.setColor(0.94, 0.96, 0.9, 1)
+        love.graphics.print(item and itemCode(item) or "-", x + 5, hotbarY + 10)
+        love.graphics.setColor(0.42, 0.16, 0.16, item and 1 or 0.35)
+        love.graphics.rectangle("fill", x + 32, hotbarY + 2, 12, 12)
+        love.graphics.setColor(0.96, 0.84, 0.78, item and 1 or 0.35)
+        love.graphics.print("x", x + 35, hotbarY + 1)
+        app.ui.hotbarSlots[#app.ui.hotbarSlots + 1] = { x = x, y = hotbarY, w = 46, h = 34, index = i }
+        app.ui.hotbarClears[#app.ui.hotbarClears + 1] = { x = x + 32, y = hotbarY + 2, w = 12, h = 12, index = i, enabled = item ~= nil }
+    end
+end
+
 function Render.drawHud(sim, app)
     love.graphics.setColor(0.06, 0.07, 0.08, 0.86)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), 88)
@@ -340,13 +453,6 @@ function Render.drawHud(sim, app)
     love.graphics.print("Thoth  tick " .. sim.tick .. "  " .. sim:objectiveText(), 16, 12)
     love.graphics.print("status " .. tostring(app.status), 16, 34)
     love.graphics.print("inv " .. stacksText(sim.player.inventory), 16, 56)
-    for i = 1, 10 do
-        local x = 16 + (i - 1) * 46
-        love.graphics.setColor(i == sim.player.selectedHotbar and 0.95 or 0.25, 0.8, 0.35, 1)
-        love.graphics.rectangle("line", x, love.graphics.getHeight() - 44, 38, 32)
-        love.graphics.setColor(0.9, 0.92, 0.86, 1)
-        love.graphics.print(sim.player.hotbar[i] or "-", x + 4, love.graphics.getHeight() - 36)
-    end
 end
 
 function Render.draw(sim, app)
@@ -355,6 +461,7 @@ function Render.draw(sim, app)
     Render.drawWorld(sim, app)
     Render.drawHud(sim, app)
     drawMachinePanel(sim, app)
+    drawInventoryPanel(sim, app)
     drawRecipeCards(sim, app)
 end
 

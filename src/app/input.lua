@@ -135,6 +135,40 @@ function Input.mousepressed(sim, app, x, y, button)
             return
         end
     end
+    for _, clear in ipairs((app.ui and app.ui.hotbarClears) or {}) do
+        if clear.enabled and x >= clear.x and x <= clear.x + clear.w and y >= clear.y and y <= clear.y + clear.h then
+            sim:queue(Simulation.commands.assignHotbar(clear.index, nil))
+            app.status = "cleared hotbar " .. clear.index
+            Audio.play(app.audio, "tick")
+            return
+        end
+    end
+    for _, slot in ipairs((app.ui and app.ui.hotbarSlots) or {}) do
+        if x >= slot.x and x <= slot.x + slot.w and y >= slot.y and y <= slot.y + slot.h then
+            if app.selectedInventoryItem then
+                sim:queue(Simulation.commands.assignHotbar(slot.index, app.selectedInventoryItem))
+                app.status = "assigned hotbar " .. slot.index
+            else
+                sim:queue(Simulation.commands.selectHotbar(slot.index))
+                app.status = "selected hotbar " .. slot.index
+            end
+            Audio.play(app.audio, "tick")
+            return
+        end
+    end
+    for _, cell in ipairs((app.ui and app.ui.inventoryCells) or {}) do
+        if x >= cell.x and x <= cell.x + cell.w and y >= cell.y and y <= cell.y + cell.h then
+            if cell.count > 0 then
+                app.selectedInventoryItem = cell.item
+                app.status = "assign " .. cell.item
+                Audio.play(app.audio, "tick")
+            else
+                app.status = "empty " .. cell.item
+                Audio.play(app.audio, "invalid")
+            end
+            return
+        end
+    end
     if app.worldView then
         local wx = math.floor((x - app.worldView.offsetX) / app.worldView.tileSize)
         local wy = math.floor((y - app.worldView.offsetY) / app.worldView.tileSize)

@@ -107,9 +107,6 @@
 
 ## Phase 8: Playable UI Foundation
 
-- Inventory panel:
-  - Add inventory grid, hotbar assignment, hotbar clear, item role labels, and item counts.
-  - Keep hotbar stable across save/load.
 - Objective/checklist HUD:
   - Show first-line, science, power, supply, and biome checklists.
   - Show actionable next step text, not generic status.
