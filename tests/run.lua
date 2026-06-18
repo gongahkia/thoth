@@ -1214,14 +1214,15 @@ tests[#tests + 1] = function()
     end
     sim.completedTechs.logistic_network = true
     local board = sim:postVictoryExpeditionBoard()
-    expect(#board == 6 and board[1].key == "cartography", "post-victory board should expose scouting entry")
+    expect(#board == 7 and board[1].key == "cartography", "post-victory board should expose scouting entry")
     expect(board[2].key == "relic_set" and board[2].required == 5, "post-victory board should expose boss relic entry")
     expect(board[3].key == "storm_veteran" and board[3].required == 3, "post-victory board should expose rift storm entry")
     expect(board[4].key == "outpost_network" and board[4].required == 5, "post-victory board should expose outpost route entry")
     expect(board[5].key == "pressure_harvest" and board[5].required == 5, "post-victory board should expose pressure reward entry")
     expect(board[6].key == "lair_caches" and board[6].required == 5, "post-victory board should expose lair cache entry")
+    expect(board[7].key == "rift_freight" and board[7].required == 20, "post-victory board should expose train freight entry")
     expect(board[1].unlocked and not board[1].complete, "scouting entry should unlock incomplete after main objective")
-    expect(sim:postVictoryExpeditionText():find("expedition 1/6") ~= nil, "post-victory text should show scouting progress")
+    expect(sim:postVictoryExpeditionText():find("expedition 1/7") ~= nil, "post-victory text should show scouting progress")
     for _, biome in ipairs({ "marsh", "desert", "badlands", "snowfield", "crystal_field", "rift" }) do
         sim:markScoutedBiome(biome)
     end
@@ -1243,9 +1244,12 @@ tests[#tests + 1] = function()
     expect(sim:postVictoryExpeditionText():find("dungeon or lair caches") ~= nil, "post-victory text should advance to lair caches")
     sim.productionTotals.dungeon_chests_opened = 5
     expect(sim:completedPostVictoryExpeditions() == 6, "completed lair cache entry should count")
+    expect(sim:postVictoryExpeditionText():find("remote freight") ~= nil, "post-victory text should advance to train freight")
+    sim.productionTotals.train_deliveries = 20
+    expect(sim:completedPostVictoryExpeditions() == 7, "completed train freight entry should count")
     expect(sim:postVictoryExpeditionText():find("complete") ~= nil, "complete post-victory board should summarize completion")
     local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:completedPostVictoryExpeditions() == 6, "post-victory scouting, boss relic, storm, outpost, pressure, and cache board should persist")
+    expect(loaded:completedPostVictoryExpeditions() == 7, "post-victory scouting, boss relic, storm, outpost, pressure, cache, and freight board should persist")
 end
 
 tests[#tests + 1] = function()

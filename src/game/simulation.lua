@@ -1838,6 +1838,7 @@ function Simulation:postVictoryExpeditionBoard()
     add("outpost_network", "Stabilize all sustained outpost delivery routes", self:stableOutpostRouteCount(), #outpostDeliveries)
     add("pressure_harvest", "Claim five pressure wave rewards", self.productionTotals.pressure_wave_rewards_claimed or 0, 5)
     add("lair_caches", "Open five dungeon or lair caches", self.productionTotals.dungeon_chests_opened or 0, 5)
+    add("rift_freight", "Complete twenty train-stop cargo hops for remote freight", self.productionTotals.train_deliveries or 0, 20)
     return entries
 end
 
