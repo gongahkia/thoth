@@ -112,10 +112,6 @@
   - `make check` still passes.
   - `make smoke` still exits cleanly.
 
-## Phase 14: Pressure, Defense, Outposts
-- Acceptance:
-  - Tests cover pressure wave spawn/reward, pressure hotspot map, tower targeting, structure damage, repair pylon effects, pressure relay effects, outpost activation, outpost delivery contracts, stable outpost routes, local-biome scouting, and scout rewards.
-
 ## Phase 15: Archive, Rift, Post-Victory
 
 - Restore archive systems:
