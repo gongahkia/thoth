@@ -222,6 +222,40 @@ tests[#tests + 1] = function()
     expect(sim.productionTotals.water_barrel == 1, "water barrel production was not counted")
 end
 
+tests[#tests + 1] = function()
+    local sim = Simulation.new(24)
+    sim.world:setTile(6, 0, 0, { id = "iron_ore", data = 10 })
+    local generator = sim:addMachine("generator", 0, 0, "east")
+    generator.inventory:add("coal", 1)
+    sim:addMachine("power_pole", 1, 0, "south")
+    sim:addMachine("power_pole", 5, 0, "south")
+    local miner = sim:addMachine("electric_miner", 6, 0, "east")
+    local chest = sim:addMachine("chest", 7, 0, "south")
+    runSteps(sim, 10)
+    expect(sim:isMachinePowered(miner.id), "electric miner was not powered through pole chain")
+    expect(chest.inventory:count("iron_ore") == 1, "powered electric miner did not output ore")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(25)
+    local generator = sim:addMachine("generator", 0, 1, "east")
+    generator.inventory:add("coal", 1)
+    sim:addMachine("power_pole", 0, 0, "south")
+    local miners = {
+        sim:addMachine("electric_miner", 1, 0, "east"),
+        sim:addMachine("electric_miner", -1, 0, "east"),
+        sim:addMachine("electric_miner", 0, -1, "east"),
+    }
+    for index, miner in ipairs(miners) do
+        sim.world:setTile(miner.x, miner.y, 0, { id = "iron_ore", data = 10 + index })
+    end
+    runSteps(sim, 2)
+    for _, miner in ipairs(miners) do
+        expect(not sim:isMachinePowered(miner.id), "under-supplied network powered a consumer")
+        expect(miner.status == "missing_power", "under-supplied electric miner did not stop")
+    end
+end
+
 for index, test in ipairs(tests) do
     local ok, err = pcall(test)
     if not ok then

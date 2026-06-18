@@ -114,12 +114,6 @@
 
 ## Phase 10: Core Automation Parity
 
-- Restore machines:
-  - Generator, power pole, electric miner.
-- Restore deterministic power network recomputation:
-  - Poles connect within Manhattan distance `<= 4`.
-  - Generators and consumers connect to poles within Manhattan distance `<= 2`.
-  - Under-supplied networks stop electric consumers deterministically.
 - Add Lua-native machine indexes:
   - Maintain `machineByCell[z:x:y]`.
   - Maintain `machineById[id]`.

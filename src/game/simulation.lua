@@ -72,6 +72,8 @@ function Simulation.new(seed)
         completedTechs = {},
         activeTech = "logistics_1",
         researchProgress = 0,
+        powerNetworks = {},
+        poweredMachineIds = {},
         productionTotals = {
             iron_plate = 0,
             copper_plate = 0,
@@ -502,9 +504,12 @@ function Simulation:configureCircuit(machineId, filterItem, comparator, threshol
 end
 
 function Simulation:updateMachines()
+    self:updatePowerNetworks()
     for _, machine in ipairs(self.machines) do
         if machine.kind == "burner_miner" then
             self:updateMiner(machine)
+        elseif machine.kind == "electric_miner" then
+            self:updateElectricMiner(machine)
         elseif machine.kind == "belt" or machine.kind == "fast_belt" then
             self:updateBelt(machine)
         elseif machine.kind == "splitter" then
@@ -578,6 +583,120 @@ function Simulation:updateBelt(machine)
     end
 end
 
+function Simulation:isPowerPole(kind)
+    return kind == "power_pole"
+end
+
+function Simulation:isPowerConsumer(kind)
+    return kind == "electric_miner" or kind == "logistic_port" or kind == "archive_terminal" or kind == "rift_gate"
+        or kind == "guard_tower" or kind == "outpost_beacon" or kind == "repair_pylon" or kind == "pressure_relay"
+        or kind == "arc_tower"
+end
+
+function Simulation:powerDemand(kind)
+    if kind == "archive_terminal" or kind == "rift_gate" or kind == "arc_tower" then
+        return 2
+    end
+    if self:isPowerConsumer(kind) then
+        return 1
+    end
+    return 0
+end
+
+function Simulation:machineDistance(a, b)
+    if (a.z or 0) ~= (b.z or 0) then
+        return math.huge
+    end
+    return Grid.manhattan(a.x, a.y, b.x, b.y)
+end
+
+function Simulation:isMachinePowered(machineId)
+    return self.poweredMachineIds[machineId] == true
+end
+
+function Simulation:updatePowerNetworks()
+    self.powerNetworks = {}
+    self.poweredMachineIds = {}
+    for _, machine in ipairs(self.machines) do
+        if machine.kind == "generator" or machine.kind == "power_pole" then
+            machine.status = "idle"
+        end
+    end
+
+    local poleIndexes = {}
+    for index, machine in ipairs(self.machines) do
+        if self:isPowerPole(machine.kind) then
+            poleIndexes[#poleIndexes + 1] = index
+        end
+    end
+
+    local assigned = {}
+    for start = 1, #poleIndexes do
+        if not assigned[start] then
+            local group = { start }
+            assigned[start] = true
+            local network = { id = self.machines[poleIndexes[start]].id, poleIds = {}, generatorIds = {}, consumerIds = {}, supply = 0, demand = 0, powered = false }
+            local cursor = 1
+            while cursor <= #group do
+                local pole = self.machines[poleIndexes[group[cursor]]]
+                network.poleIds[#network.poleIds + 1] = pole.id
+                network.id = math.min(network.id, pole.id)
+                for candidate = 1, #poleIndexes do
+                    if not assigned[candidate] then
+                        local other = self.machines[poleIndexes[candidate]]
+                        if self:machineDistance(pole, other) <= 4 then
+                            assigned[candidate] = true
+                            group[#group + 1] = candidate
+                        end
+                    end
+                end
+                cursor = cursor + 1
+            end
+
+            for _, machine in ipairs(self.machines) do
+                if not self:isPowerPole(machine.kind) then
+                    local connected = false
+                    for _, groupIndex in ipairs(group) do
+                        if self:machineDistance(machine, self.machines[poleIndexes[groupIndex]]) <= 2 then
+                            connected = true
+                            break
+                        end
+                    end
+                    if connected then
+                        if machine.kind == "generator" then
+                            network.generatorIds[#network.generatorIds + 1] = machine.id
+                        elseif self:isPowerConsumer(machine.kind) then
+                            network.consumerIds[#network.consumerIds + 1] = machine.id
+                            network.demand = network.demand + self:powerDemand(machine.kind)
+                        end
+                    end
+                end
+            end
+
+            if network.demand > 0 then
+                for _, generatorId in ipairs(network.generatorIds) do
+                    local generator = self:machineById(generatorId)
+                    if generator and self:refuel(generator) then
+                        generator.fuel = generator.fuel - 1
+                        generator.status = "working"
+                        network.supply = network.supply + 2
+                    elseif generator then
+                        generator.status = "missing_fuel"
+                    end
+                end
+            end
+
+            network.powered = network.supply >= network.demand
+            if network.powered then
+                for _, consumerId in ipairs(network.consumerIds) do
+                    self.poweredMachineIds[consumerId] = true
+                end
+            end
+            self.powerNetworks[#self.powerNetworks + 1] = network
+        end
+    end
+end
+
 function Simulation:isWaterTile(x, y, z)
     local id = self.world:getTile(x, y, z or 0).id
     return id == "water" or id == "deep_water" or id == "coral"
@@ -591,6 +710,37 @@ function Simulation:hasAdjacentWater(machine)
         end
     end
     return false
+end
+
+function Simulation:updateElectricMiner(machine)
+    local tile = self.world:getTile(machine.x, machine.y, machine.z or 0)
+    local item = Defs.tile(tile.id).resource
+    if not item then
+        machine.progress = 0
+        machine.status = "missing_input"
+        return
+    end
+    if not self:isMachinePowered(machine.id) then
+        machine.status = "missing_power"
+        return
+    end
+    machine.progress = machine.progress + 1
+    machine.status = "working"
+    if machine.progress < 8 then
+        return
+    end
+    local x, y = Grid.front(machine.x, machine.y, machine.direction)
+    local mined = self.world:consumeResource(machine.x, machine.y, machine.z or 0)
+    if not mined then
+        machine.status = "missing_input"
+        machine.progress = 0
+        return
+    end
+    if not self:acceptItemAt(x, y, machine.z or 0, mined) then
+        machine.inventory:add(mined, 1)
+    end
+    self:recordProduced(mined)
+    machine.progress = 0
 end
 
 function Simulation:updateOffshorePump(machine)
@@ -831,6 +981,9 @@ function Simulation:acceptItem(machine, item)
         return true
     end
     if machine.kind == "burner_miner" then
+        return item == "coal" and machine.inventory:add(item, 1)
+    end
+    if machine.kind == "generator" then
         return item == "coal" and machine.inventory:add(item, 1)
     end
     if machine.kind == "furnace" then

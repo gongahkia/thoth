@@ -32,6 +32,9 @@ local machineColors = {
     train_stop = { 154, 142, 116 },
     pipe = { 78, 150, 176 },
     offshore_pump = { 64, 124, 168 },
+    generator = { 176, 126, 66 },
+    power_pole = { 160, 136, 92 },
+    electric_miner = { 92, 156, 156 },
 }
 
 local stateColors = {
@@ -297,6 +300,15 @@ local function machineIoText(machine)
     end
     if machine.kind == "offshore_pump" then
         return "adjacent water", "Water Barrel"
+    end
+    if machine.kind == "generator" then
+        return "Coal", "power"
+    end
+    if machine.kind == "power_pole" then
+        return "near power", "network link"
+    end
+    if machine.kind == "electric_miner" then
+        return "power + ore tile", "ore"
     end
     return "-", "-"
 end
