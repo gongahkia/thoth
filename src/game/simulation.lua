@@ -48,7 +48,9 @@ local outpostBeaconTicks = 80
 local outpostDeliveryTicks = 100
 local outpostRouteWindowTicks = 600
 local outpostRouteStableThreshold = 3
+local scoutDispatchTicks = 120
 local requiredOutpostBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field" }
+local scoutBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field", "rift" }
 local outpostActivationItems = {
     marsh = "water_barrel",
     desert = "sand_glass",
@@ -57,6 +59,15 @@ local outpostActivationItems = {
     crystal_field = "crystal",
     rift = "beacon_core",
     grassland = "stone",
+}
+local scoutRewards = {
+    marsh = "reed_fiber",
+    desert = "cactus_fiber",
+    badlands = "basalt",
+    snowfield = "ice_shard",
+    crystal_field = "crystal",
+    rift = "scrap",
+    grassland = "wood",
 }
 local machineDurability = {
     wall = 12,
@@ -108,6 +119,26 @@ end
 
 local function outpostActivationItem(biome)
     return outpostActivationItems[biome] or "stone"
+end
+
+local function scoutRewardForBiome(biome)
+    return scoutRewards[biome] or "wood"
+end
+
+local function scoutRewardCountForBiome(biome)
+    if biome == "rift" or biome == "crystal_field" then
+        return 1
+    end
+    return 2
+end
+
+local function scoutBiomeForReward(item)
+    for biome, reward in pairs(scoutRewards) do
+        if reward == item then
+            return biome
+        end
+    end
+    return nil
 end
 
 local function copySet(values)
@@ -377,6 +408,8 @@ function Simulation.new(seed, startInTutorial)
             rift_jumps = 0,
             outposts_activated = 0,
             outpost_deliveries = 0,
+            scout_dispatches = 0,
+            scout_materials_recovered = 0,
             pressure_waves_repelled = 0,
             pressure_enemies_defeated = 0,
             pressure_wave_rewards_claimed = 0,
@@ -1646,6 +1679,62 @@ function Simulation:currentOutpostDeliveryText()
     return "outpost deliveries complete: all activated biomes supplied"
 end
 
+function Simulation:markScoutedBiome(biome)
+    self.productionTotals[outpostBiomeKey("scouted", biome)] = 1
+end
+
+function Simulation:hasScoutedBiome(biome)
+    return (self.productionTotals[outpostBiomeKey("scouted", biome)] or 0) > 0
+end
+
+function Simulation:scoutedBiomeCount()
+    local count = 0
+    for _, biome in ipairs(scoutBiomes) do
+        if self:hasScoutedBiome(biome) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function Simulation:scoutedBiomes()
+    local biomes = {}
+    for _, biome in ipairs(scoutBiomes) do
+        if self:hasScoutedBiome(biome) then
+            biomes[#biomes + 1] = biome
+        end
+    end
+    return biomes
+end
+
+function Simulation:scoutTargetBiome(port)
+    local localBiome = self.world:biomeAt(port.x, port.y, port.z or 0)
+    if localBiome ~= "grassland" and (localBiome ~= "rift" or (self.productionTotals.rift_jumps or 0) > 0) and not self:hasScoutedBiome(localBiome) then
+        return localBiome
+    end
+    for _, biome in ipairs(scoutBiomes) do
+        if (biome ~= "rift" or (self.productionTotals.rift_jumps or 0) > 0) and not self:hasScoutedBiome(biome) then
+            return biome
+        end
+    end
+    local unlocked = (self.productionTotals.rift_jumps or 0) > 0 and #scoutBiomes or (#scoutBiomes - 1)
+    return scoutBiomes[((math.floor(self.tick / scoutDispatchTicks) + port.id - 1) % unlocked) + 1]
+end
+
+function Simulation:scoutAutomationText()
+    local count = self:scoutedBiomeCount() .. "/" .. #scoutBiomes
+    for _, machine in ipairs(self.machines) do
+        if machine.kind == "logistic_port" and self:isMachinePowered(machine.id) then
+            if machine.progress > 0 and machine.carriedItem then
+                local biome = scoutBiomeForReward(machine.carriedItem) or self:scoutTargetBiome(machine)
+                return "scouts: dispatching " .. biome .. " " .. machine.progress .. "/" .. scoutDispatchTicks .. "; scouted " .. count
+            end
+            return "scouts: ready; next target " .. self:scoutTargetBiome(machine) .. "; scouted " .. count
+        end
+    end
+    return "scouts: offline; scouted " .. count
+end
+
 function Simulation:totalSupplyContracts()
     return #self.supplyContracts
 end
@@ -2388,6 +2477,7 @@ function Simulation:updateLogistics()
     if self.logisticDirty then
         self:rebuildLogisticIndex()
     end
+    self:updateScoutAutomation()
     local capacity = self:poweredDroneCapacity()
     if capacity <= 0 then
         return
@@ -2429,6 +2519,40 @@ function Simulation:updateLogistics()
                     }
                     self.nextLogisticJobId = self.nextLogisticJobId + 1
                     activeJobs = activeJobs + 1
+                end
+            end
+        end
+    end
+end
+
+function Simulation:updateScoutAutomation()
+    for _, portId in ipairs(self.logisticIndex.portIds) do
+        local port = self:machineById(portId)
+        if port and self:isMachinePowered(port.id) then
+            local activeScout = port.progress > 0 and port.carriedItem and 1 or 0
+            local availableDrones = port.inventory:count("logistic_drone") - activeScout
+            if port.progress == 0 and not port.carriedItem then
+                if availableDrones <= 0 then
+                    port.status = "missing_input"
+                elseif port.inventory:consume("science_pack", 1) or port.inventory:consume("advanced_science_pack", 1) then
+                    port.carriedItem = scoutRewardForBiome(self:scoutTargetBiome(port))
+                else
+                    port.status = "missing_input"
+                end
+            end
+            if port.carriedItem then
+                port.progress = math.min(port.progress + 1, scoutDispatchTicks)
+                port.status = "working"
+                if port.progress >= scoutDispatchTicks then
+                    local biome = scoutBiomeForReward(port.carriedItem) or self:scoutTargetBiome(port)
+                    local recovered = scoutRewardCountForBiome(biome)
+                    port.inventory:add(port.carriedItem, recovered)
+                    self:markScoutedBiome(biome)
+                    self.productionTotals.scout_dispatches = (self.productionTotals.scout_dispatches or 0) + 1
+                    self.productionTotals.scout_materials_recovered = (self.productionTotals.scout_materials_recovered or 0) + recovered
+                    port.progress = 0
+                    port.carriedItem = nil
+                    port.status = "idle"
                 end
             end
         end
