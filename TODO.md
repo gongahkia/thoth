@@ -115,7 +115,6 @@
 ## Phase 16: Planning, Construction, Performance
 
 - Add Lua-native performance guardrails:
-  - Larger scaled benchmark target.
   - Avoid per-tick global scans.
   - Use deterministic id ordering for same-tick jobs.
   - Track production counters by event increments, not derived full scans.
