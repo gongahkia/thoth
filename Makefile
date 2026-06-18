@@ -1,4 +1,4 @@
-.PHONY: run smoke test check benchmark benchmark-scaled package-build package clean
+.PHONY: run smoke test check benchmark benchmark-smoke benchmark-scaled package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -20,9 +20,13 @@ check: test
 	$(LUAJIT) tests/registry.lua
 	$(MAKE) package-build
 	$(LUAJIT) tests/package.lua $(PACKAGE)
+	$(MAKE) benchmark-smoke
 
 benchmark:
 	$(LUAJIT) benchmarks/mixed_factory.lua
+
+benchmark-smoke:
+	THOTH_BENCH_TICKS=60 THOTH_BENCH_BURNER_LINES=2 THOTH_BENCH_POWERED_LINES=1 $(LUAJIT) benchmarks/mixed_factory.lua
 
 benchmark-scaled:
 	THOTH_BENCH_TICKS=900 THOTH_BENCH_BURNER_LINES=48 THOTH_BENCH_POWERED_LINES=16 $(LUAJIT) benchmarks/mixed_factory.lua

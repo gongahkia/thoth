@@ -116,11 +116,6 @@
 
 - Add render/CI checks:
   - Optional screenshot/render smoke once CI display support is stable.
-- Acceptance:
-  - `make check` includes simulation tests, replay tests, registry tests, asset checks, package checks, and benchmark smoke.
-  - Benchmark output reports ticks, machine count, elapsed time, average tick cost, and max tick cost.
-  - Construction ghosts persist across save/load.
-
 ## Lua-Native Implementation Notes
 
 - Use table-driven registries in `src/game/defs.lua`; split large content into `src/game/data/*.lua` once tables grow.
