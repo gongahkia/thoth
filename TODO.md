@@ -115,7 +115,6 @@
 ## Phase 16: Planning, Construction, Performance
 
 - Restore construction:
-  - Port-powered delivery requirement.
   - Ghost fulfillment state.
 - Add Lua-native performance guardrails:
   - Mixed-factory benchmark target.

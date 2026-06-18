@@ -891,6 +891,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(101)
+    sim.world:setTile(0, 1, 0, { id = "grass", data = 0 })
+    local port = sim:addMachine("logistic_port", 2, 0, "south")
+    port.inventory:add("logistic_drone", 1)
+    local provider = sim:addMachine("provider_chest", 3, 0, "south")
+    provider.inventory:add("chest", 1)
+    sim:queue(Simulation.commands.placeGhost("south", "chest", "south"))
+    sim:step()
+    expect(#sim.constructionJobs == 0, "unpowered port should not start construction job")
+    expect(provider.inventory:count("chest") == 1, "unpowered port should not consume construction material")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(27)
     addPoweredPortLine(sim)
     local provider = sim:addMachine("provider_chest", 3, 0, "south")
