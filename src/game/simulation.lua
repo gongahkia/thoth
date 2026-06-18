@@ -51,6 +51,7 @@ local outpostRouteStableThreshold = 3
 local scoutDispatchTicks = 120
 local archiveTerminalTicks = 360
 local riftGateTicks = 180
+local riftOffset = 4096
 local requiredOutpostBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field" }
 local scoutBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field", "rift" }
 local outpostActivationItems = {
@@ -2885,8 +2886,7 @@ end
 
 function Simulation:updateRiftGate(machine)
     if machine.progress >= riftGateTicks then
-        machine.progress = riftGateTicks
-        machine.status = "idle"
+        self:completeRiftJump(machine)
         return
     end
     if not self:isMachinePowered(machine.id) then
@@ -2898,7 +2898,17 @@ function Simulation:updateRiftGate(machine)
         return
     end
     machine.progress = math.min(machine.progress + 1, riftGateTicks)
-    machine.status = machine.progress >= riftGateTicks and "idle" or "working"
+    machine.status = "working"
+    if machine.progress >= riftGateTicks then
+        self:completeRiftJump(machine)
+    end
+end
+
+function Simulation:completeRiftJump(machine)
+    self.player.x = self.player.x + (self.player.x >= (riftOffset / 2) and -riftOffset or riftOffset)
+    self.productionTotals.rift_jumps = (self.productionTotals.rift_jumps or 0) + 1
+    machine.progress = 0
+    machine.status = "idle"
 end
 
 function Simulation:tryArchiveUnlock(machine)

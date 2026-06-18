@@ -115,7 +115,6 @@
 ## Phase 15: Archive, Rift, Post-Victory
 
 - Restore rift systems:
-  - Rift outer band travel.
   - Richer rift resources.
   - Rift storms and storm modifiers.
 - Restore post-victory expedition board:
