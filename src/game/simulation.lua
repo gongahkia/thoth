@@ -81,6 +81,12 @@ local bossSummonOffsets = {
     { -1, 2 },
     { 1, -2 },
 }
+local bossExamDefs = {
+    marsh_broodheart = { production = "water_barrel", required = 3 },
+    glass_maw = { item = "sand_glass", required = 3 },
+    badlands_warden = { production = "powered_ore", required = 8 },
+    frost_nullifier = { production = "logistic_deliveries", required = 3 },
+}
 
 local tutorialSteps = {
     { key = "move", label = "Move with WASD" },
@@ -226,6 +232,8 @@ function Simulation.new(seed, startInTutorial)
             science_pack = 0,
             water_barrel = 0,
             train_deliveries = 0,
+            powered_ore = 0,
+            logistic_deliveries = 0,
         },
     }, Simulation)
     if startInTutorial then
@@ -792,6 +800,9 @@ function Simulation:trySummonBossAt(x, y, z)
     if self:hasEntityKind(def.kind) then
         return true
     end
+    if not self:bossExamComplete(def.kind) then
+        return false
+    end
     for _, offset in ipairs(bossSummonOffsets) do
         local sx = x + offset[1]
         local sy = y + offset[2]
@@ -805,6 +816,36 @@ function Simulation:trySummonBossAt(x, y, z)
         end
     end
     return false
+end
+
+function Simulation:bossExamCurrent(kind)
+    local exam = bossExamDefs[kind]
+    if not exam then
+        return 0
+    end
+    if exam.item then
+        return self:anyItemCount(exam.item)
+    end
+    return self.productionTotals[exam.production] or 0
+end
+
+function Simulation:bossExamComplete(kind)
+    local exam = bossExamDefs[kind]
+    return not exam or self:bossExamCurrent(kind) >= exam.required
+end
+
+function Simulation:bossExamProgress()
+    local progress = {}
+    for _, kind in ipairs({ "marsh_broodheart", "glass_maw", "badlands_warden", "frost_nullifier" }) do
+        local exam = bossExamDefs[kind]
+        progress[#progress + 1] = {
+            kind = kind,
+            current = self:bossExamCurrent(kind),
+            required = exam.required,
+            complete = self:bossExamComplete(kind),
+        }
+    end
+    return progress
 end
 
 function Simulation:trySummonBoss(direction)
@@ -1687,6 +1728,7 @@ function Simulation:updateLogistics()
             local requester = self:machineById(job.toId)
             if requester then
                 requester.inventory:add(job.item, job.count)
+                self.productionTotals.logistic_deliveries = (self.productionTotals.logistic_deliveries or 0) + 1
             end
             table.remove(self.logisticJobs, index)
         end
@@ -1807,6 +1849,9 @@ function Simulation:updateElectricMiner(machine)
         machine.inventory:add(mined, 1)
     end
     self:recordProduced(mined)
+    if mined:match("_ore$") then
+        self.productionTotals.powered_ore = (self.productionTotals.powered_ore or 0) + 1
+    end
     machine.progress = 0
 end
 

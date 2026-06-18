@@ -387,6 +387,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local function satisfyBossExam(sim, kind)
+        if kind == "marsh_broodheart" then
+            sim.productionTotals.water_barrel = 3
+        elseif kind == "glass_maw" then
+            sim:addItem("sand_glass", 3)
+        elseif kind == "badlands_warden" then
+            sim.productionTotals.powered_ore = 8
+        elseif kind == "frost_nullifier" then
+            sim.productionTotals.logistic_deliveries = 3
+        end
+    end
     local cases = {
         { 0, 18, "marsh_hive", "marsh_broodheart" },
         { 18, -2, "glass_spire", "glass_maw" },
@@ -396,12 +407,33 @@ tests[#tests + 1] = function()
     }
     for _, case in ipairs(cases) do
         local sim = Simulation.new(55)
+        satisfyBossExam(sim, case[4])
         expect(sim:trySummonBossAt(case[1], case[2], 0), "boss summon should pass at lair " .. case[3])
         expect(#sim.entities == 1 and sim.entities[1].kind == case[4], "boss summon kind mismatch " .. case[4])
         expect(sim.world:lairAt(sim.entities[1].x, sim.entities[1].y, 0) == case[3], "boss should spawn inside matching lair")
     end
     local blocked = Simulation.new(55)
     expect(not blocked:trySummonBossAt(0, 0, 0), "boss summon should reject non-lair location")
+end
+
+tests[#tests + 1] = function()
+    local marsh = Simulation.new(56)
+    expect(not marsh:trySummonBossAt(0, 18, 0), "marsh boss should require water-barrel exam")
+    marsh.productionTotals.water_barrel = 3
+    expect(marsh:trySummonBossAt(0, 18, 0), "marsh boss exam should unlock summon")
+    local glass = Simulation.new(57)
+    expect(not glass:trySummonBossAt(18, -2, 0), "glass boss should require sand-glass exam")
+    glass:addItem("sand_glass", 3)
+    expect(glass:trySummonBossAt(18, -2, 0), "glass boss exam should unlock summon")
+    local badlands = Simulation.new(58)
+    expect(not badlands:trySummonBossAt(36, 20, 0), "badlands boss should require powered-ore exam")
+    badlands.productionTotals.powered_ore = 8
+    expect(badlands:trySummonBossAt(36, 20, 0), "badlands boss exam should unlock summon")
+    local frost = Simulation.new(59)
+    expect(not frost:trySummonBossAt(-18, 0, 0), "frost boss should require logistics exam")
+    frost.productionTotals.logistic_deliveries = 3
+    expect(frost:trySummonBossAt(-18, 0, 0), "frost boss exam should unlock summon")
+    expect(#frost:bossExamProgress() == 4, "boss exam progress should expose factory exams")
 end
 
 tests[#tests + 1] = function()
