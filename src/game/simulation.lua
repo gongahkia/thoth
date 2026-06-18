@@ -1,6 +1,7 @@
 local Defs = require("src.game.defs")
 local Grid = require("src.core.grid")
 local Inventory = require("src.game.inventory")
+local Rng = require("src.core.rng")
 local World = require("src.game.world")
 
 local Simulation = {}
@@ -39,6 +40,26 @@ local achievementDefs = {
 }
 
 local tutorialLayer = 2
+local entityDefs = {
+    slime = { hp = 2, hostile = true },
+    glass_skitter = { hp = 3, hostile = true },
+    sun_scarab = { hp = 4, hostile = true },
+    skeleton = { hp = 4, hostile = true },
+    cave_crawler = { hp = 4, hostile = true },
+    frost_crawler = { hp = 4, hostile = true },
+    null_wisp = { hp = 5, hostile = true },
+    dungeon_sentinel = { hp = 6, hostile = true },
+    rift_stalker = { hp = 8, hostile = true },
+}
+local biomeEnemyKinds = {
+    marsh = { "slime" },
+    desert = { "glass_skitter", "sun_scarab" },
+    badlands = { "skeleton", "cave_crawler" },
+    snowfield = { "frost_crawler" },
+    crystal_field = { "null_wisp" },
+    rift = { "rift_stalker" },
+}
+
 local tutorialSteps = {
     { key = "move", label = "Move with WASD" },
     { key = "mine", label = "Mine a resource" },
@@ -272,6 +293,7 @@ function Simulation:queue(command)
 end
 
 function Simulation:step()
+    self:ensureLocalEntities()
     local queue = self.commandQueue
     self.commandQueue = {}
     for _, command in ipairs(queue) do
@@ -513,7 +535,7 @@ function Simulation:healPlayer(amount)
 end
 
 function Simulation:addEntity(kind, x, y, z, hp)
-    local entity = newEntity(self.nextEntityId, kind, x, y, z or 0, hp)
+    local entity = newEntity(self.nextEntityId, kind, x, y, z or 0, hp or self:entityMaxHp(kind))
     self.nextEntityId = self.nextEntityId + 1
     self.entities[#self.entities + 1] = entity
     table.sort(self.entities, function(a, b)
@@ -560,6 +582,16 @@ function Simulation:attack(direction)
     return self:damageEntity(entity, 1)
 end
 
+function Simulation:isHostileEntity(entity)
+    local def = entityDefs[entity.kind]
+    return def == nil or def.hostile == true
+end
+
+function Simulation:entityMaxHp(kind)
+    local def = entityDefs[kind]
+    return def and def.hp or 3
+end
+
 function Simulation:entityAttackDamage(entity)
     if entity.kind == "slime" then
         return 1
@@ -572,11 +604,13 @@ function Simulation:updateEntities()
         if entity.attackCooldown > 0 then
             entity.attackCooldown = entity.attackCooldown - 1
         end
-        if (entity.z or 0) == self.player.z and Grid.manhattan(entity.x, entity.y, self.player.x, self.player.y) <= 1 and entity.attackCooldown <= 0 then
-            self:damagePlayer(self:entityAttackDamage(entity))
-            entity.attackCooldown = 30
-        else
-            self:moveEntityTowardTarget(entity)
+        if self:isHostileEntity(entity) then
+            if (entity.z or 0) == self.player.z and Grid.manhattan(entity.x, entity.y, self.player.x, self.player.y) <= 1 and entity.attackCooldown <= 0 then
+                self:damagePlayer(self:entityAttackDamage(entity))
+                entity.attackCooldown = 30
+            else
+                self:moveEntityTowardTarget(entity)
+            end
         end
     end
 end
@@ -624,6 +658,71 @@ function Simulation:moveEntityTowardTarget(entity)
         end
     end
     return false
+end
+
+function Simulation:localEntityKindForTile(x, y, z)
+    z = z or 0
+    if z == tutorialLayer or not self.world:isWalkable(x, y, z) then
+        return nil
+    end
+    local roll = Rng.hash(self.seed + 16001, x + z * 8192, y, z)
+    if z < 0 then
+        if roll % 1000 >= 70 then
+            return nil
+        end
+        local kindRoll = math.floor(roll / 65536) % 100
+        if kindRoll < 45 then
+            return "slime"
+        end
+        if kindRoll < 78 then
+            return "skeleton"
+        end
+        if kindRoll < 95 then
+            return "cave_crawler"
+        end
+        return "dungeon_sentinel"
+    end
+    local biome = self.world:biomeAt(x, y, z)
+    local kinds = biomeEnemyKinds[biome]
+    if not kinds or roll % 1000 >= 120 then
+        return nil
+    end
+    return kinds[(math.floor(roll / 4096) % #kinds) + 1]
+end
+
+function Simulation:ensureLocalEntities()
+    if #self.entities >= 80 or self.player.z == tutorialLayer then
+        return
+    end
+    if #self.entities > 0 and self.player.z >= 0 then
+        return
+    end
+    local playerBiome = self.world:biomeAt(self.player.x, self.player.y, self.player.z)
+    if self.player.z >= 0 and playerBiome == "grassland" then
+        return
+    end
+    local radius = 9
+    for y = self.player.y - radius, self.player.y + radius do
+        for x = self.player.x - radius, self.player.x + radius do
+            if #self.entities >= 80 then
+                return
+            end
+            local canTry = not (x == self.player.x and y == self.player.y)
+            if canTry and self.player.z >= 0 and self.world:biomeAt(x, y, self.player.z) ~= playerBiome then
+                canTry = false
+            end
+            if canTry and (self:machineAt(x, y, self.player.z) or self:entityAt(x, y, self.player.z)) then
+                canTry = false
+            end
+            if canTry then
+                local kind = self:localEntityKindForTile(x, y, self.player.z)
+                if kind then
+                    local entity = self:addEntity(kind, x, y, self.player.z)
+                    entity.attackCooldown = 20
+                end
+            end
+        end
+    end
 end
 
 function Simulation:move(direction)

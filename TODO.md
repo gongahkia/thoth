@@ -115,7 +115,6 @@
 ## Phase 13: Combat, Bosses, Relics
 
 - Restore entities:
-  - Local biome enemy spawns.
 - Restore boss ladder:
   - Marsh Broodheart.
   - Glass Maw.

@@ -295,6 +295,22 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local safe = Simulation.new(48)
+    safe:ensureLocalEntities()
+    expect(#safe.entities == 0, "starter grassland should not spawn local hostiles")
+    local sim = Simulation.new(49)
+    sim.player.x = 0
+    sim.player.y = 12
+    sim:step()
+    expect(#sim.entities > 0, "marsh should spawn local hostiles")
+    for _, entity in ipairs(sim.entities) do
+        expect(entity.kind == "slime", "marsh should spawn slime hostiles")
+        expect(entity.hp == sim:entityMaxHp(entity.kind), "local hostile should use kind hp")
+        expect(sim.world:biomeAt(entity.x, entity.y, entity.z) == "marsh", "local hostile should stay in player biome")
+    end
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))
