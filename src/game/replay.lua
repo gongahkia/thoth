@@ -3,8 +3,11 @@ local Simulation = require("src.game.simulation")
 
 local Replay = {}
 
-function Replay.run(seed, frames, finalTick)
+function Replay.run(seed, frames, finalTick, setup)
     local sim = Simulation.new(seed)
+    if setup then
+        setup(sim)
+    end
     local byTick = {}
     for _, frame in ipairs(frames or {}) do
         byTick[frame.tick] = byTick[frame.tick] or {}

@@ -14,6 +14,7 @@ test:
 	$(LUAJIT) tests/run.lua
 
 check: test
+	$(LUAJIT) tests/replays.lua
 	$(LUAJIT) tests/assets.lua
 	$(LUAJIT) tests/registry.lua
 

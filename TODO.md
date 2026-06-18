@@ -115,7 +115,6 @@
 ## Phase 11: Progression And Contracts
 
 - Add Lua-native replay fixtures:
-  - Ore-to-plate.
   - Science/research.
   - Full-flow.
 - Acceptance:
