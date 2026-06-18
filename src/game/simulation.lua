@@ -54,6 +54,7 @@ local entityDefs = {
     glass_maw = { hp = 16, hostile = true, boss = true },
     badlands_warden = { hp = 18, hostile = true, boss = true },
     frost_nullifier = { hp = 20, hostile = true, boss = true },
+    rift_signal_tyrant = { hp = 24, hostile = true, boss = true },
 }
 local biomeEnemyKinds = {
     marsh = { "slime" },
@@ -630,6 +631,8 @@ function Simulation:updateBossPhases()
                 spawns[#spawns + 1] = { x = entity.x, y = entity.y, z = entity.z or 0, kind = "slime", range = 3 }
             elseif entity.kind == "frost_nullifier" and self.tick % 120 == 0 then
                 frostPulses[#frostPulses + 1] = { x = entity.x, y = entity.y, z = entity.z or 0 }
+            elseif entity.kind == "rift_signal_tyrant" and (self.productionTotals.outposts_activated or 0) < 5 and self.tick % 90 == 0 then
+                spawns[#spawns + 1] = { x = entity.x, y = entity.y, z = entity.z or 0, kind = "rift_stalker", range = 3 }
             end
         end
     end

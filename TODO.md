@@ -114,8 +114,6 @@
 
 ## Phase 13: Combat, Bosses, Relics
 
-- Restore boss ladder:
-  - Rift Signal Tyrant.
 - Restore summon gates:
   - Biome/lair location requirements.
   - Factory-output exam requirements.

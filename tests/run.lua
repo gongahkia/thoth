@@ -361,6 +361,32 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(54)
+    sim.player.y = 5
+    local boss = sim:addEntity("rift_signal_tyrant", 0, 0, 0)
+    expect(boss.hp == 24 and sim:isBossKind(boss.kind), "rift boss stats missing")
+    sim.tick = 90
+    sim:updateEntities()
+    local stalkers = 0
+    for _, entity in ipairs(sim.entities) do
+        if entity.kind == "rift_stalker" then
+            stalkers = stalkers + 1
+        end
+    end
+    expect(stalkers == 1, "rift boss should spawn stalker before outpost coverage")
+    sim.productionTotals.outposts_activated = 5
+    sim.tick = 180
+    sim:updateEntities()
+    local afterCoverage = 0
+    for _, entity in ipairs(sim.entities) do
+        if entity.kind == "rift_stalker" then
+            afterCoverage = afterCoverage + 1
+        end
+    end
+    expect(afterCoverage == stalkers, "rift boss should stop stalker phase after outpost coverage")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))
