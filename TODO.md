@@ -115,7 +115,6 @@
 ## Phase 12: World, Biomes, And Exploration
 
 - Restore exploration systems:
-  - Boat traversal.
   - Stairs and layers.
   - Dungeon/lair interiors.
   - Biome materials.

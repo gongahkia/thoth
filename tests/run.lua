@@ -99,6 +99,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(37)
+    sim.world:setTile(1, 0, 0, { id = "water", data = 0 })
+    sim.world:setTile(2, 0, 0, { id = "grass", data = 0 })
+    sim:queue(Simulation.commands.move("east"))
+    sim:step()
+    expect(sim.player.x == 0, "player should not enter water without boat")
+    sim:addItem("boat", 1)
+    sim:queue(Simulation.commands.move("east"))
+    sim:step()
+    expect(sim.player.x == 1 and sim.player.inBoat, "boat should allow water traversal")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded.player.inBoat, "boat state should persist")
+    loaded:queue(Simulation.commands.move("east"))
+    loaded:step()
+    expect(loaded.player.x == 2 and not loaded.player.inBoat, "leaving water should exit boat traversal")
+end
+
+tests[#tests + 1] = function()
     local a = Simulation.new(42)
     local b = Simulation.new(42)
     local commands = {

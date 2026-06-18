@@ -134,6 +134,7 @@ function Simulation.new(seed, startInTutorial)
             hotbar = {},
             selectedHotbar = 1,
             hp = 20,
+            inBoat = false,
         },
         machines = {},
         machineByCell = {},
@@ -340,7 +341,14 @@ function Simulation:machineItemCount(kind, item)
 end
 
 function Simulation:isWalkable(x, y, z)
-    return self.world:isWalkable(x, y, z or 0) and self:machineAt(x, y, z or 0) == nil
+    if self:machineAt(x, y, z or 0) then
+        return false
+    end
+    local tile = self.world:getTile(x, y, z or 0)
+    if Defs.tile(tile.id).walkable == true then
+        return true
+    end
+    return (tile.id == "water" or tile.id == "deep_water") and self:itemCount("boat") > 0
 end
 
 function Simulation:addMachine(kind, x, y, direction, z)
@@ -466,6 +474,8 @@ function Simulation:move(direction)
     if self:isWalkable(x, y, self.player.z) then
         self.player.x = x
         self.player.y = y
+        local tile = self.world:getTile(x, y, self.player.z)
+        self.player.inBoat = tile.id == "water" or tile.id == "deep_water"
         return true
     end
     return false
@@ -1791,6 +1801,7 @@ function Simulation:snapshot()
             hotbar = self.player.hotbar,
             selectedHotbar = self.player.selectedHotbar,
             hp = self.player.hp,
+            inBoat = self.player.inBoat,
         },
         machines = machines,
         nextMachineId = self.nextMachineId,
@@ -1820,6 +1831,7 @@ function Simulation.fromSnapshot(snapshot)
     self.player.hotbar = snapshot.player.hotbar or {}
     self.player.selectedHotbar = snapshot.player.selectedHotbar or 1
     self.player.hp = snapshot.player.hp or 20
+    self.player.inBoat = snapshot.player.inBoat == true
     self.machines = {}
     for _, value in ipairs(snapshot.machines or {}) do
         local machine = newMachine(value.id, value.kind, value.x, value.y, value.direction)
