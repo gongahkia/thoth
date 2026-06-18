@@ -112,11 +112,6 @@
   - `make check` still passes.
   - `make smoke` still exits cleanly.
 
-## Phase 13: Combat, Bosses, Relics
-
-- Acceptance:
-  - Tests cover entity combat, entity save/load, boss summon requirements, boss phase behavior, reward persistence, boss relic claiming, and relic-socketed machines.
-
 ## Phase 14: Pressure, Defense, Outposts
 
 - Restore factory pressure:
