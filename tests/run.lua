@@ -482,6 +482,26 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(62)
+    local drops = {
+        { "marsh_broodheart", "marsh_heart" },
+        { "glass_maw", "glass_heart" },
+        { "badlands_warden", "warden_core" },
+        { "frost_nullifier", "frost_core" },
+        { "rift_signal_tyrant", "rift_crown" },
+    }
+    for index, drop in ipairs(drops) do
+        local boss = sim:addEntity(drop[1], index, 0, 0, 1)
+        sim:damageEntity(boss, 1)
+        expect(sim:itemCount(drop[2]) == 1, "boss should drop relic " .. drop[2])
+    end
+    expect(#sim.entities == 0, "defeated bosses should be removed")
+    expect(sim.productionTotals.boss_relics_claimed == 5, "boss relic counter should track drops")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:itemCount("rift_crown") == 1 and loaded.productionTotals.boss_relics_claimed == 5, "boss relic drops should persist")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))

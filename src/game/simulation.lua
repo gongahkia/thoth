@@ -50,11 +50,11 @@ local entityDefs = {
     null_wisp = { hp = 5, hostile = true },
     dungeon_sentinel = { hp = 6, hostile = true },
     rift_stalker = { hp = 8, hostile = true },
-    marsh_broodheart = { hp = 14, hostile = true, boss = true },
-    glass_maw = { hp = 16, hostile = true, boss = true },
-    badlands_warden = { hp = 18, hostile = true, boss = true },
-    frost_nullifier = { hp = 20, hostile = true, boss = true },
-    rift_signal_tyrant = { hp = 24, hostile = true, boss = true },
+    marsh_broodheart = { hp = 14, hostile = true, boss = true, drop = "marsh_heart" },
+    glass_maw = { hp = 16, hostile = true, boss = true, drop = "glass_heart" },
+    badlands_warden = { hp = 18, hostile = true, boss = true, drop = "warden_core" },
+    frost_nullifier = { hp = 20, hostile = true, boss = true, drop = "frost_core" },
+    rift_signal_tyrant = { hp = 24, hostile = true, boss = true, drop = "rift_crown" },
 }
 local biomeEnemyKinds = {
     marsh = { "slime" },
@@ -238,6 +238,9 @@ function Simulation.new(seed, startInTutorial)
             archive_signals = 0,
             rift_jumps = 0,
             outposts_activated = 0,
+            creatures_defeated = 0,
+            bosses_defeated = 0,
+            boss_relics_claimed = 0,
         },
     }, Simulation)
     if startInTutorial then
@@ -611,9 +614,27 @@ function Simulation:damageEntity(entity, amount)
     end
     entity.hp = math.max(0, entity.hp - math.max(0, amount or 0))
     if entity.hp <= 0 then
-        self:removeEntityById(entity.id)
+        self:defeatEntity(entity)
     end
     return true
+end
+
+function Simulation:entityDrop(kind)
+    local def = entityDefs[kind]
+    return def and def.drop or nil
+end
+
+function Simulation:defeatEntity(entity)
+    local drop = self:entityDrop(entity.kind)
+    if drop then
+        self:addItem(drop, 1)
+    end
+    self.productionTotals.creatures_defeated = (self.productionTotals.creatures_defeated or 0) + 1
+    if self:isBossKind(entity.kind) then
+        self.productionTotals.bosses_defeated = (self.productionTotals.bosses_defeated or 0) + 1
+        self.productionTotals.boss_relics_claimed = (self.productionTotals.boss_relics_claimed or 0) + 1
+    end
+    return self:removeEntityById(entity.id)
 end
 
 function Simulation:playerAttackDamage(entity)

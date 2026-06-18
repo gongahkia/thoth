@@ -115,7 +115,6 @@
 ## Phase 13: Combat, Bosses, Relics
 
 - Restore rewards:
-  - Boss relic drops.
   - Factory-relevant support-machine unlocks.
   - Relic socketing and persistence.
 - Acceptance:
