@@ -46,6 +46,22 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local world = World.new(99)
+    expect(world:biomeAt(0, 0, 0) == "grassland", "origin should remain grassland")
+    expect(world:biomeAt(12, 0, 0) == "desert", "starter desert biome missing")
+    expect(world:biomeAt(-12, 0, 0) == "snowfield", "starter snowfield biome missing")
+    expect(world:biomeAt(0, 12, 0) == "marsh", "starter marsh biome missing")
+    expect(world:biomeAt(36, 20, 0) == "badlands", "starter badlands biome missing")
+    expect(world:biomeAt(-36, 20, 0) == "crystal_field", "starter crystal biome missing")
+    expect(world:biomeAt(4096, 0, 0) == "rift", "rift band biome missing")
+    expect(world:getTile(10, -12, 0).id == "sand", "desert base terrain missing")
+    expect(world:getTile(-24, -10, 0).id == "snow", "snowfield base terrain missing")
+    expect(world:getTile(-8, 8, 0).id == "mud", "marsh base terrain missing")
+    expect(world:getTile(36, 20, 0).id == "basalt", "badlands base terrain missing")
+    expect(world:getTile(-43, 12, 0).id == "stone", "crystal field base terrain missing")
+end
+
+tests[#tests + 1] = function()
     local a = Simulation.new(42)
     local b = Simulation.new(42)
     local commands = {

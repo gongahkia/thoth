@@ -14,6 +14,32 @@ local function cloneTile(value)
     return { id = value.id, data = value.data or 0 }
 end
 
+local function inside(value, minValue, maxValue)
+    return value >= minValue and value <= maxValue
+end
+
+local function baseTerrain(biome, roll)
+    if biome == "desert" then
+        return roll < 880 and "sand" or "dirt"
+    end
+    if biome == "snowfield" then
+        return roll < 850 and "snow" or "grass"
+    end
+    if biome == "marsh" then
+        return roll < 720 and "mud" or (roll < 900 and "grass" or "dirt")
+    end
+    if biome == "badlands" then
+        return roll < 520 and "basalt" or (roll < 780 and "sand" or "stone")
+    end
+    if biome == "crystal_field" then
+        return roll < 560 and "stone" or (roll < 760 and "basalt" or "dirt")
+    end
+    if biome == "rift" then
+        return roll < 650 and "stone" or "dirt"
+    end
+    return roll < 230 and "dirt" or "grass"
+end
+
 function World.new(seed, overrides)
     return setmetatable({ seed = seed or 1, overrides = overrides or {}, chunks = {} }, World)
 end
@@ -64,6 +90,51 @@ function World:clearLoadedChunks()
     self.chunks = {}
 end
 
+function World:biomeAt(x, y, z)
+    z = z or 0
+    if math.abs(x) >= 3840 then
+        return "rift"
+    end
+    if inside(x, 10, 24) and inside(y, -12, 8) then
+        return "desert"
+    end
+    if inside(x, -24, -10) and inside(y, -10, 10) then
+        return "snowfield"
+    end
+    if inside(x, -8, 8) and inside(y, 8, 22) then
+        return "marsh"
+    end
+    if inside(x, 28, 44) and inside(y, 12, 28) then
+        return "badlands"
+    end
+    if inside(x, -44, -28) and inside(y, 12, 28) then
+        return "crystal_field"
+    end
+    if inside(x, -9, 9) and inside(y, -7, 7) then
+        return "grassland"
+    end
+
+    local cellX = World.floorDiv(x, 64)
+    local cellY = World.floorDiv(y, 64)
+    local roll = Rng.hash(self.seed + 7001, cellX, cellY, z) % 1000
+    if roll < 90 then
+        return "desert"
+    end
+    if roll < 170 then
+        return "snowfield"
+    end
+    if roll < 250 then
+        return "marsh"
+    end
+    if roll < 320 then
+        return "badlands"
+    end
+    if roll < 380 then
+        return "crystal_field"
+    end
+    return "grassland"
+end
+
 function World:generatedTile(x, y, z)
     z = z or 0
     if z == 2 then
@@ -104,6 +175,7 @@ function World:generatedTile(x, y, z)
     end
 
     local h = Rng.hash(self.seed, x, y, z)
+    local biome = self:biomeAt(x, y, z)
     if h % 97 == 0 then
         return tile("water")
     end
@@ -122,7 +194,7 @@ function World:generatedTile(x, y, z)
     if h % 113 == 0 then
         return tile("coal_ore", 12 + (h % 20))
     end
-    return tile("grass")
+    return tile(baseTerrain(biome, Rng.hash(self.seed + 9001, x, y, z) % 1000))
 end
 
 function World:getTile(x, y, z)

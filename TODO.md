@@ -114,14 +114,6 @@
 
 ## Phase 12: World, Biomes, And Exploration
 
-- Restore biome selection:
-  - Grassland.
-  - Desert.
-  - Snowfield.
-  - Marsh.
-  - Badlands.
-  - Crystal field.
-  - Rift.
 - Restore finite richer ore farther from spawn.
 - Restore authored lairs:
   - Marsh Hive.
