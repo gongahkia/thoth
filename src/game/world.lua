@@ -40,6 +40,11 @@ local function baseTerrain(biome, roll)
     return roll < 230 and "dirt" or "grass"
 end
 
+local function resourceRichness(seed, x, y)
+    local distanceBonus = math.min(8, math.floor((math.abs(x) + math.abs(y)) / 64))
+    return 8 + (Rng.hash(seed + 5003, x, y, 0) % 5) + distanceBonus
+end
+
 function World.new(seed, overrides)
     return setmetatable({ seed = seed or 1, overrides = overrides or {}, chunks = {} }, World)
 end
@@ -186,13 +191,13 @@ function World:generatedTile(x, y, z)
         return tile("stone")
     end
     if h % 89 == 0 then
-        return tile("iron_ore", 12 + (h % 20))
+        return tile("iron_ore", resourceRichness(self.seed, x, y))
     end
     if h % 101 == 0 then
-        return tile("copper_ore", 12 + (h % 20))
+        return tile("copper_ore", resourceRichness(self.seed, x, y))
     end
     if h % 113 == 0 then
-        return tile("coal_ore", 12 + (h % 20))
+        return tile("coal_ore", resourceRichness(self.seed, x, y))
     end
     return tile(baseTerrain(biome, Rng.hash(self.seed + 9001, x, y, z) % 1000))
 end

@@ -114,7 +114,6 @@
 
 ## Phase 12: World, Biomes, And Exploration
 
-- Restore finite richer ore farther from spawn.
 - Restore authored lairs:
   - Marsh Hive.
   - Glass Spire.

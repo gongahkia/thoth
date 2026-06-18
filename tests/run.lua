@@ -62,6 +62,15 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local world = World.new(202)
+    local near = world:getTile(-1, -176, 0)
+    local far = world:getTile(-2, -755, 0)
+    expect(near.id == "iron_ore", "near procedural ore sample changed")
+    expect(far.id == "coal_ore", "far procedural ore sample changed")
+    expect(far.data > near.data, "far ore should be richer than near ore")
+end
+
+tests[#tests + 1] = function()
     local a = Simulation.new(42)
     local b = Simulation.new(42)
     local commands = {
