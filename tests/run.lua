@@ -1119,7 +1119,7 @@ tests[#tests + 1] = function()
     sim.player.x = 20
     sim.player.y = 20
     local generator = sim:addMachine("generator", 10, 0, "south")
-    generator.inventory:add("coal", 220)
+    generator.inventory:add("coal", 800)
     sim:addMachine("power_pole", 11, 0, "south")
     local beacon = sim:addMachine("outpost_beacon", 12, 0, "south")
     expect(sim.world:biomeAt(12, 0, 0) == "desert", "outpost test should be in desert biome")
@@ -1140,10 +1140,17 @@ tests[#tests + 1] = function()
     expect(sim:hasCompletedOutpostDeliveryBiome("desert") and sim:outpostDeliveryBiomeCount() == 1, "outpost delivery should track biome")
     local route = sim:outpostRouteByBiome("desert")
     expect(route and route.deliveredInWindow == 1 and route.requiredPerWindow == 2, "outpost delivery should start sustained route window")
+    for _ = 1, 5 do
+        beacon.inventory:add("sand_glass", 1)
+        runSteps(sim, 100)
+    end
+    expect(sim:stableOutpostRouteCount() == 1, "repeated outpost deliveries should stabilize one route")
+    expect(sim:outpostRouteStability("desert") == 3, "desert route should reach max stability")
+    expect(sim:outpostRouteText():find("stable") ~= nil, "outpost route text should summarize stability")
     local loaded = assert(Save.fromText(Save.toText(sim)))
     expect(loaded:machineById(beacon.id).progress == 80, "activated outpost should persist")
     expect(loaded:hasActivatedOutpostBiome("desert"), "outpost biome coverage should persist")
-    expect(loaded.productionTotals.outpost_deliveries == 1 and loaded:outpostRouteByBiome("desert").deliveredInWindow == 1, "outpost delivery window should persist")
+    expect(loaded.productionTotals.outpost_deliveries == 6 and loaded:stableOutpostRouteCount() == 1, "stable outpost route should persist")
 end
 
 tests[#tests + 1] = function()

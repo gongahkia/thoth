@@ -46,6 +46,8 @@ local guardTowerAmmo = { "copper_coil", "frost_cell", "stone_shot" }
 local arcTowerAmmo = { "rift_shell", "crystal_charge", "copper_coil" }
 local outpostBeaconTicks = 80
 local outpostDeliveryTicks = 100
+local outpostRouteWindowTicks = 600
+local outpostRouteStableThreshold = 3
 local requiredOutpostBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field" }
 local outpostActivationItems = {
     marsh = "water_barrel",
@@ -1580,10 +1582,34 @@ function Simulation:outpostRoutesProgress()
             required = route.requiredPerWindow,
             stability = route.stability,
             active = self:hasActivatedOutpostBiome(biome),
-            stable = false,
+            stable = route.stability >= outpostRouteStableThreshold,
         }
     end
     return routes
+end
+
+function Simulation:outpostRouteStability(biome)
+    local route = self:outpostRouteByBiome(biome)
+    return route and route.stability or 0
+end
+
+function Simulation:stableOutpostRouteCount()
+    local count = 0
+    for _, route in ipairs(self:outpostRoutesProgress()) do
+        if route.stable then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function Simulation:outpostRouteText()
+    for _, route in ipairs(self:outpostRoutesProgress()) do
+        if route.active and not route.stable then
+            return "outpost route " .. route.biome .. ": " .. route.current .. "/" .. route.required .. " stability " .. route.stability
+        end
+    end
+    return "outpost routes stable: " .. self:stableOutpostRouteCount() .. "/" .. #requiredOutpostBiomes
 end
 
 function Simulation:outpostDeliveryProgress()
@@ -2079,6 +2105,7 @@ end
 
 function Simulation:updateMachines()
     self:updatePowerNetworks()
+    self:updateOutpostRouteWindows()
     for _, machine in ipairs(self.machines) do
         if machine.kind == "burner_miner" then
             self:updateMiner(machine)
@@ -2114,6 +2141,23 @@ function Simulation:updateMachines()
     end
     self:updateLogistics()
     self:updateTrainStops()
+end
+
+function Simulation:updateOutpostRouteWindows()
+    for _, route in ipairs(self.outpostRoutes) do
+        if route.windowStartTick == 0 then
+            route.windowStartTick = self.tick
+        end
+        if self.tick >= route.windowStartTick + outpostRouteWindowTicks then
+            if route.deliveredInWindow >= route.requiredPerWindow then
+                route.stability = math.min(outpostRouteStableThreshold, route.stability + 1)
+            elseif route.stability > 0 then
+                route.stability = route.stability - 1
+            end
+            route.deliveredInWindow = 0
+            route.windowStartTick = self.tick
+        end
+    end
 end
 
 function Simulation:refuel(machine)
@@ -2610,6 +2654,11 @@ function Simulation:updateOutpostBeacon(machine)
         local route = self:outpostRouteForBiome(biome)
         route.deliveredInWindow = route.deliveredInWindow + 1
         route.lastDeliveryTick = self.tick
+        if route.deliveredInWindow >= route.requiredPerWindow then
+            route.stability = math.min(outpostRouteStableThreshold, route.stability + 1)
+            route.deliveredInWindow = 0
+            route.windowStartTick = self.tick
+        end
         machine.progress = outpostBeaconTicks
         machine.status = "idle"
         return
