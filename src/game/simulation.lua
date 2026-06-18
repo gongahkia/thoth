@@ -1504,6 +1504,7 @@ function Simulation:placeGhost(direction, item, orientation)
             return false
         end
     end
+    local blockedReason = self:ghostBlockedReason(itemDef, x, y, z)
     self.ghostBuilds[#self.ghostBuilds + 1] = {
         id = self.nextGhostId,
         item = item,
@@ -1515,10 +1516,25 @@ function Simulation:placeGhost(direction, item, orientation)
         direction = orientation or direction,
         fulfilled = false,
         progress = 0,
-        blockedReason = nil,
+        blockedReason = blockedReason,
     }
     self.nextGhostId = self.nextGhostId + 1
     return true
+end
+
+function Simulation:ghostBlockedReason(itemDef, x, y, z)
+    if self:machineAt(x, y, z) then
+        return "machine"
+    end
+    if itemDef.machine then
+        return self:canPlaceMachine(itemDef.machine, x, y, z) and nil or "terrain"
+    end
+    if itemDef.tile then
+        local tile = self.world:getTile(x, y, z)
+        local tileDef = Defs.tile(tile.id)
+        return tileDef.buildable and nil or "terrain"
+    end
+    return "item"
 end
 
 function Simulation:cancelGhost(direction)

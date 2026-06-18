@@ -658,6 +658,18 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(97)
+    sim:addMachine("chest", 1, 0, "south")
+    expect(sim:placeGhost("east", "workbench", "south"), "ghost over machine should still be recorded")
+    expect(sim.ghostBuilds[1].blockedReason == "machine", "ghost over machine should label machine blockage")
+    sim.world:setTile(0, -1, 0, { id = "water", data = 0 })
+    expect(sim:placeGhost("north", "wall", "north"), "ghost over terrain should still be recorded")
+    expect(sim.ghostBuilds[2].blockedReason == "terrain", "ghost over bad terrain should label terrain blockage")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded.ghostBuilds[1].blockedReason == "machine" and loaded.ghostBuilds[2].blockedReason == "terrain", "ghost blocked reasons should persist")
+end
+
+tests[#tests + 1] = function()
     local frames = {
         { tick = 0, command = Simulation.commands.face("west") },
         { tick = 0, command = Simulation.commands.mine("west") },
