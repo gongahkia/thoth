@@ -518,6 +518,29 @@ local function drawProductionPanel(sim)
     end
 end
 
+local function dashboardPanelText(panel)
+    local target = panel.target > 0 and ("/" .. panel.target) or ""
+    local mark = panel.urgent and "[!]" or (panel.target > 0 and panel.current < panel.target and "[ ]" or "[x]")
+    return mark .. panel.label .. " " .. panel.status .. " " .. panel.current .. target
+end
+
+local function drawFactoryDashboard(sim)
+    local x = 356
+    local y = 266
+    local w = 274
+    love.graphics.setColor(0.06, 0.07, 0.08, 0.78)
+    love.graphics.rectangle("fill", x, y, w, 146)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Factory", x + 10, y + 8)
+    for index, panel in ipairs(sim:factoryDashboard()) do
+        if index > 6 then
+            break
+        end
+        love.graphics.setColor(panel.urgent and 1 or 0.78, panel.urgent and 0.46 or 0.86, panel.urgent and 0.34 or 0.72, 1)
+        love.graphics.print(dashboardPanelText(panel), x + 10, y + 8 + index * 20)
+    end
+end
+
 function Render.drawHud(sim, app)
     love.graphics.setColor(0.06, 0.07, 0.08, 0.86)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), 124)
@@ -539,6 +562,7 @@ function Render.draw(sim, app)
     Render.drawWorld(sim, app)
     Render.drawHud(sim, app)
     drawProductionPanel(sim)
+    drawFactoryDashboard(sim)
     drawMachinePanel(sim, app)
     drawInventoryPanel(sim, app)
     drawRecipeCards(sim, app)

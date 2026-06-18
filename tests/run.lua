@@ -389,6 +389,30 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(34)
+    local function findPanel(panels, key)
+        for _, panel in ipairs(panels) do
+            if panel.key == key then
+                return panel
+            end
+        end
+        return nil
+    end
+    local panels = sim:factoryDashboard()
+    expect(findPanel(panels, "power") ~= nil, "dashboard should include power panel")
+    expect(findPanel(panels, "progression") ~= nil, "dashboard should include progression panel")
+    expect(findPanel(panels, "rates") ~= nil, "dashboard should include rates panel")
+    expect(sim:factoryDashboardText():find("dashboard: next Progression") == 1, "dashboard should surface first incomplete panel")
+    sim.world:setTile(1, 0, 0, { id = "iron_ore", data = 10 })
+    sim:addMachine("power_pole", 0, 0, "south")
+    sim:addMachine("electric_miner", 1, 0, "east")
+    sim:step()
+    local power = findPanel(sim:factoryDashboard(), "power")
+    expect(power.urgent and power.status == "underpowered", "dashboard should flag underpowered networks")
+    expect(sim:factoryDashboardText():find("dashboard: urgent Power") == 1, "dashboard should prioritize urgent power panel")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(31)
     local lab = sim:addMachine("lab", 0, 0, "south")
     lab.inventory:add("science_pack", 7)

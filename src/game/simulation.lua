@@ -663,6 +663,122 @@ function Simulation:productionRateText()
     return "rates: tracked production meets current targets"
 end
 
+function Simulation:factoryDashboard()
+    local panels = {}
+    local function add(key, label, status, detail, current, target, urgent)
+        panels[#panels + 1] = {
+            key = key,
+            label = label,
+            status = status,
+            detail = detail,
+            current = current,
+            target = target,
+            urgent = urgent == true,
+        }
+    end
+
+    local poweredNetworks = 0
+    local demandNetworks = 0
+    local underpowered = false
+    for _, network in ipairs(self.powerNetworks) do
+        if network.demand > 0 then
+            demandNetworks = demandNetworks + 1
+            if network.powered then
+                poweredNetworks = poweredNetworks + 1
+            else
+                underpowered = true
+            end
+        end
+    end
+    add(
+        "power",
+        "Power",
+        underpowered and "underpowered" or (demandNetworks > 0 and "powered" or "idle"),
+        "networks " .. poweredNetworks .. "/" .. demandNetworks,
+        poweredNetworks,
+        demandNetworks,
+        underpowered)
+
+    add(
+        "progression",
+        "Progression",
+        self:mainObjectiveComplete() and "complete" or "in-progress",
+        self:currentSupplyContractText(),
+        self:completedSupplyContracts(),
+        self:totalSupplyContracts(),
+        false)
+
+    local completedTechs = 0
+    for _, techKey in ipairs(Defs.techOrder or {}) do
+        if self:isTechCompleted(techKey) then
+            completedTechs = completedTechs + 1
+        end
+    end
+    add(
+        "research",
+        "Research",
+        self.activeTech and "active" or "complete",
+        self.activeTech and ("active tech " .. self.activeTech .. " " .. self.researchProgress) or "research complete",
+        completedTechs,
+        #(Defs.techOrder or {}),
+        false)
+
+    local metRates = 0
+    local targetRates = 0
+    for _, panel in ipairs(self:productionRatePanels()) do
+        if panel.targetPerMinute > 0 then
+            targetRates = targetRates + 1
+            if not panel.blocked then
+                metRates = metRates + 1
+            end
+        end
+    end
+    add("rates", "Rates", metRates >= targetRates and "stable" or "blocked", self:productionRateText(), metRates, targetRates, false)
+
+    local droneCapacity = self:poweredDroneCapacity()
+    add(
+        "logistics",
+        "Logistics",
+        #self.logisticJobs > 0 and "moving" or (droneCapacity > 0 and "ready" or "idle"),
+        "jobs " .. #self.logisticJobs .. "; drones " .. droneCapacity,
+        #self.logisticJobs,
+        math.max(1, droneCapacity),
+        false)
+
+    local storageMachines = 0
+    local storedItems = 0
+    for _, machine in ipairs(self.machines) do
+        if machine.kind == "chest" or machine.kind == "provider_chest" or machine.kind == "requester_chest" or machine.kind == "train_stop" then
+            storageMachines = storageMachines + 1
+            storedItems = storedItems + self:countMachineItem(machine)
+        end
+    end
+    add(
+        "storage",
+        "Storage",
+        storageMachines > 0 and "ready" or "missing",
+        "stores " .. storedItems .. " item(s)",
+        storageMachines,
+        1,
+        false)
+
+    return panels
+end
+
+function Simulation:factoryDashboardText()
+    for _, panel in ipairs(self:factoryDashboard()) do
+        if panel.urgent then
+            return "dashboard: urgent " .. panel.label .. " (" .. panel.status .. "); " .. panel.detail
+        end
+    end
+    for _, panel in ipairs(self:factoryDashboard()) do
+        if panel.target > 0 and panel.current < panel.target then
+            return "dashboard: next " .. panel.label .. " (" .. panel.status .. "); " .. panel.detail
+        end
+    end
+    return "dashboard: all tracked systems stable"
+end
+
 function Simulation:updateMachines()
     self:updatePowerNetworks()
     for _, machine in ipairs(self.machines) do
