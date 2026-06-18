@@ -2861,15 +2861,25 @@ function Simulation:updateConstructionJobs()
                 if not selected then
                     break
                 end
+                local sourceId = 0
+                if not self:isPlanningMode() then
+                    local provider = self:findProviderFor(selected.item)
+                    if not provider or not provider.inventory:consume(selected.item, 1) then
+                        selected.blockedReason = "materials"
+                        break
+                    end
+                    sourceId = provider.id
+                end
                 local total = self:isPlanningMode() and 1 or constructionJobTicks
                 self.constructionJobs[#self.constructionJobs + 1] = {
                     ghostId = selected.id,
                     portId = port.id,
-                    sourceId = 0,
+                    sourceId = sourceId,
                     item = selected.item,
                     remaining = total,
                     total = total,
                 }
+                selected.blockedReason = nil
                 selected.progress = math.max(selected.progress or 0, 1)
                 availableDrones = availableDrones - 1
             end

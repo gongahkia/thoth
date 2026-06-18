@@ -878,6 +878,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(100)
+    addPoweredPortLine(sim)
+    sim.world:setTile(0, 1, 0, { id = "grass", data = 0 })
+    local provider = sim:addMachine("provider_chest", 3, 0, "south")
+    provider.inventory:add("chest", 1)
+    sim:queue(Simulation.commands.placeGhost("south", "chest", "south"))
+    sim:step()
+    expect(#sim.constructionJobs == 1, "provider stock should allow survival construction job")
+    expect(sim.constructionJobs[1].sourceId == provider.id, "construction job should record provider source")
+    expect(provider.inventory:count("chest") == 0, "construction job should consume provider material")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(27)
     addPoweredPortLine(sim)
     local provider = sim:addMachine("provider_chest", 3, 0, "south")
