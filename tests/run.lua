@@ -502,6 +502,25 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(63)
+    local unlocks = {
+        { "marsh_broodheart", "repair_pylon" },
+        { "glass_maw", "pressure_relay" },
+        { "badlands_warden", "guard_tower" },
+        { "frost_nullifier", "arc_tower" },
+        { "rift_signal_tyrant", "outpost_beacon" },
+    }
+    for _, unlock in ipairs(unlocks) do
+        sim.unlockedRecipes[unlock[2]] = false
+        local boss = sim:addEntity(unlock[1], 0, 0, 0, 1)
+        sim:damageEntity(boss, 1)
+        expect(sim:isRecipeUnlocked(unlock[2]), "boss should unlock support recipe " .. unlock[2])
+    end
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:isRecipeUnlocked("arc_tower") and loaded:isRecipeUnlocked("outpost_beacon"), "support unlocks should persist")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))

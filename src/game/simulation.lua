@@ -50,11 +50,11 @@ local entityDefs = {
     null_wisp = { hp = 5, hostile = true },
     dungeon_sentinel = { hp = 6, hostile = true },
     rift_stalker = { hp = 8, hostile = true },
-    marsh_broodheart = { hp = 14, hostile = true, boss = true, drop = "marsh_heart" },
-    glass_maw = { hp = 16, hostile = true, boss = true, drop = "glass_heart" },
-    badlands_warden = { hp = 18, hostile = true, boss = true, drop = "warden_core" },
-    frost_nullifier = { hp = 20, hostile = true, boss = true, drop = "frost_core" },
-    rift_signal_tyrant = { hp = 24, hostile = true, boss = true, drop = "rift_crown" },
+    marsh_broodheart = { hp = 14, hostile = true, boss = true, drop = "marsh_heart", unlocks = { "repair_pylon" } },
+    glass_maw = { hp = 16, hostile = true, boss = true, drop = "glass_heart", unlocks = { "pressure_relay" } },
+    badlands_warden = { hp = 18, hostile = true, boss = true, drop = "warden_core", unlocks = { "guard_tower" } },
+    frost_nullifier = { hp = 20, hostile = true, boss = true, drop = "frost_core", unlocks = { "arc_tower" } },
+    rift_signal_tyrant = { hp = 24, hostile = true, boss = true, drop = "rift_crown", unlocks = { "outpost_beacon" } },
 }
 local biomeEnemyKinds = {
     marsh = { "slime" },
@@ -628,6 +628,9 @@ function Simulation:defeatEntity(entity)
     local drop = self:entityDrop(entity.kind)
     if drop then
         self:addItem(drop, 1)
+    end
+    for _, recipeKey in ipairs((entityDefs[entity.kind] and entityDefs[entity.kind].unlocks) or {}) do
+        self.unlockedRecipes[recipeKey] = true
     end
     self.productionTotals.creatures_defeated = (self.productionTotals.creatures_defeated or 0) + 1
     if self:isBossKind(entity.kind) then

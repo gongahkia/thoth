@@ -115,7 +115,6 @@
 ## Phase 13: Combat, Bosses, Relics
 
 - Restore rewards:
-  - Factory-relevant support-machine unlocks.
   - Relic socketing and persistence.
 - Acceptance:
   - Tests cover entity combat, entity save/load, boss summon requirements, boss phase behavior, reward persistence, boss relic claiming, and relic-socketed machines.
