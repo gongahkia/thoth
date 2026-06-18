@@ -53,6 +53,7 @@ local entityDefs = {
     marsh_broodheart = { hp = 14, hostile = true, boss = true },
     glass_maw = { hp = 16, hostile = true, boss = true },
     badlands_warden = { hp = 18, hostile = true, boss = true },
+    frost_nullifier = { hp = 20, hostile = true, boss = true },
 }
 local biomeEnemyKinds = {
     marsh = { "slime" },
@@ -622,9 +623,22 @@ function Simulation:updateBossPhases()
         return
     end
     local spawns = {}
+    local frostPulses = {}
     for _, entity in ipairs(self.entities) do
-        if entity.kind == "marsh_broodheart" and entity.hp <= math.floor(self:entityMaxHp(entity.kind) / 2) and self.tick % 90 == 0 then
-            spawns[#spawns + 1] = { x = entity.x, y = entity.y, z = entity.z or 0, kind = "slime", range = 3 }
+        if (entity.z or 0) == self.player.z then
+            if entity.kind == "marsh_broodheart" and entity.hp <= math.floor(self:entityMaxHp(entity.kind) / 2) and self.tick % 90 == 0 then
+                spawns[#spawns + 1] = { x = entity.x, y = entity.y, z = entity.z or 0, kind = "slime", range = 3 }
+            elseif entity.kind == "frost_nullifier" and self.tick % 120 == 0 then
+                frostPulses[#frostPulses + 1] = { x = entity.x, y = entity.y, z = entity.z or 0 }
+            end
+        end
+    end
+    for _, pulse in ipairs(frostPulses) do
+        for _, machine in ipairs(self.machines) do
+            if (machine.z or 0) == pulse.z and Grid.manhattan(machine.x, machine.y, pulse.x, pulse.y) <= 3 then
+                machine.progress = 0
+                machine.status = "missing_power"
+            end
         end
     end
     for _, spawn in ipairs(spawns) do

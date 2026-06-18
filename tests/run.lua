@@ -348,6 +348,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(53)
+    sim.player.y = 5
+    local machine = sim:addMachine("assembler", 1, 0, "south")
+    machine.progress = 12
+    machine.status = "working"
+    local boss = sim:addEntity("frost_nullifier", 3, 0, 0)
+    expect(boss.hp == 20 and sim:isBossKind(boss.kind), "frost boss stats missing")
+    sim.tick = 120
+    sim:updateEntities()
+    expect(machine.progress == 0 and machine.status == "missing_power", "frost boss pulse should null nearby machines")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))
