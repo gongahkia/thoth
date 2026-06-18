@@ -460,6 +460,7 @@ function Simulation.new(seed, startInTutorial)
             pressure_enemies_defeated = 0,
             pressure_wave_rewards_claimed = 0,
             scrap_recovered = 0,
+            dungeon_chests_opened = 0,
             creatures_defeated = 0,
             bosses_defeated = 0,
             boss_relics_claimed = 0,
@@ -1374,9 +1375,17 @@ function Simulation:mine(direction)
     direction = direction or self.player.facing
     self.player.facing = direction
     local x, y = Grid.front(self.player.x, self.player.y, direction)
+    local z = self.player.z or 0
+    local tile = self.world:getTile(x, y, z)
     local drop = self.world:mineTile(x, y, self.player.z)
     if drop then
         self:addItem(drop, 1)
+        if tile.id == "recovery_crate" and (z < 0 or self.world:lairAt(x, y, z)) then
+            self.productionTotals.dungeon_chests_opened = (self.productionTotals.dungeon_chests_opened or 0) + 1
+            if z < 0 then
+                self.world:setTile(x, y, z, { id = "dungeon_floor", data = 0 })
+            end
+        end
         return true
     end
     return false
@@ -1828,6 +1837,7 @@ function Simulation:postVictoryExpeditionBoard()
     add("storm_veteran", "Survive three rift storms after opening the gate", self.productionTotals.rift_storms_survived or 0, 3)
     add("outpost_network", "Stabilize all sustained outpost delivery routes", self:stableOutpostRouteCount(), #outpostDeliveries)
     add("pressure_harvest", "Claim five pressure wave rewards", self.productionTotals.pressure_wave_rewards_claimed or 0, 5)
+    add("lair_caches", "Open five dungeon or lair caches", self.productionTotals.dungeon_chests_opened or 0, 5)
     return entries
 end
 
