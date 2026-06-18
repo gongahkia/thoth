@@ -350,6 +350,31 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(32)
+    expect(sim:totalSupplyContracts() == 3, "supply contract count should be explicit")
+    expect(sim:completedSupplyContracts() == 0, "fresh simulation should have no completed contracts")
+    expect(sim:currentSupplyContractText():find("Iron Plate") ~= nil, "first contract should ask for iron plates")
+    sim:addItem("iron_plate", 5)
+    sim:addItem("science_pack", 3)
+    sim:addItem("logistic_drone", 1)
+    for _, contractId in ipairs({ "iron_supply", "science_supply", "drone_supply" }) do
+        sim:queue(Simulation.commands.submitSupplyContract(contractId))
+        sim:step()
+    end
+    expect(sim:completedSupplyContracts() == sim:totalSupplyContracts(), "all submitted contracts should complete")
+    expect(sim:currentSupplyContractText():find("contract complete") ~= nil, "completed contract text should show completion")
+    expect(not sim:mainObjectiveComplete(), "main objective should wait for final tech")
+    sim.completedTechs.logistics_1 = true
+    sim.completedTechs.automation_control = true
+    sim.completedTechs.logistic_network = true
+    sim.activeTech = nil
+    expect(sim:mainObjectiveComplete(), "completed contracts and tech should complete the main objective")
+    expect(sim:nextStepText():find("Main objective complete") == 1, "next step should surface objective completion")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:mainObjectiveComplete(), "main objective completion did not survive save/load")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(31)
     local lab = sim:addMachine("lab", 0, 0, "south")
     lab.inventory:add("science_pack", 7)

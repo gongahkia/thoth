@@ -115,7 +115,6 @@
 ## Phase 11: Progression And Contracts
 
 - Restore progression surfaces:
-  - Main objective completion.
   - Production-rate panels.
   - Factory dashboard panels.
   - Achievements.

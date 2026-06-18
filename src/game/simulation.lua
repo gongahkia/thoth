@@ -601,6 +601,35 @@ function Simulation:submitSupplyContract(contractId)
     return true
 end
 
+function Simulation:completedSupplyContracts()
+    local completed = 0
+    for _, contract in ipairs(self.supplyContracts) do
+        if contract.complete then
+            completed = completed + 1
+        end
+    end
+    return completed
+end
+
+function Simulation:totalSupplyContracts()
+    return #self.supplyContracts
+end
+
+function Simulation:currentSupplyContractText()
+    for index, contract in ipairs(self.supplyContracts) do
+        if not contract.complete then
+            local item = Defs.item(contract.item)
+            local label = item and item.name or contract.item
+            return "contract " .. index .. "/" .. #self.supplyContracts .. ": " .. label .. " " .. math.min(contract.delivered, contract.target) .. "/" .. contract.target
+        end
+    end
+    return "contract complete: supply chain proved"
+end
+
+function Simulation:mainObjectiveComplete()
+    return self:completedSupplyContracts() >= self:totalSupplyContracts() and self:isTechCompleted("logistic_network")
+end
+
 function Simulation:updateMachines()
     self:updatePowerNetworks()
     for _, machine in ipairs(self.machines) do
@@ -1358,12 +1387,21 @@ function Simulation:objectiveChecklist()
 end
 
 function Simulation:nextStepText()
+    if self:mainObjectiveComplete() then
+        return "Main objective complete: archive/rift prep stabilized"
+    end
     for _, group in ipairs(self:objectiveChecklist()) do
         for _, item in ipairs(group.items) do
             if not item.done and not item.blocked then
                 return item.next
             end
         end
+    end
+    if self:completedSupplyContracts() < self:totalSupplyContracts() then
+        return self:currentSupplyContractText()
+    end
+    if not self:isTechCompleted("logistic_network") then
+        return "Research the logistics chain"
     end
     return "Scale science and continue the next roadmap phase"
 end
