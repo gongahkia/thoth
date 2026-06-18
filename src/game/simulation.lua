@@ -52,6 +52,7 @@ local entityDefs = {
     rift_stalker = { hp = 8, hostile = true },
     marsh_broodheart = { hp = 14, hostile = true, boss = true },
     glass_maw = { hp = 16, hostile = true, boss = true },
+    badlands_warden = { hp = 18, hostile = true, boss = true },
 }
 local biomeEnemyKinds = {
     marsh = { "slime" },

@@ -340,6 +340,14 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(52)
+    local boss = sim:addEntity("badlands_warden", 1, 0, 0)
+    expect(boss.hp == 18 and sim:isBossKind(boss.kind), "badlands boss stats missing")
+    sim:attack("east")
+    expect(boss.hp == 16, "badlands boss should take boss-scale player damage")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))

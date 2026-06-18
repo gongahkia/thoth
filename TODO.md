@@ -115,7 +115,6 @@
 ## Phase 13: Combat, Bosses, Relics
 
 - Restore boss ladder:
-  - Badlands Warden.
   - Frost Nullifier.
   - Rift Signal Tyrant.
 - Restore summon gates:
