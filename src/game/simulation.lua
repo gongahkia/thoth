@@ -471,6 +471,24 @@ function Simulation:move(direction)
         self:completeTutorial()
         return true
     end
+    local targetTile = self.world:getTile(x, y, self.player.z)
+    if self.player.z == tutorialLayer and targetTile.id == "stairs_down" then
+        return false
+    end
+    if not self:machineAt(x, y, self.player.z) and targetTile.id == "stairs_down" then
+        self.player.x = x
+        self.player.y = y
+        self.player.z = self.player.z - 1
+        self.player.inBoat = false
+        return true
+    end
+    if not self:machineAt(x, y, self.player.z) and targetTile.id == "stairs_up" then
+        self.player.x = x
+        self.player.y = y
+        self.player.z = self.player.z + 1
+        self.player.inBoat = false
+        return true
+    end
     if self:isWalkable(x, y, self.player.z) then
         self.player.x = x
         self.player.y = y

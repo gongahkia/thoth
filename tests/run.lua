@@ -117,6 +117,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(38)
+    sim.world:setTile(1, 0, 0, { id = "stairs_down", data = 0 })
+    sim.world:setTile(2, 0, -1, { id = "stairs_up", data = 0 })
+    sim:queue(Simulation.commands.move("east"))
+    sim:step()
+    expect(sim.player.x == 1 and sim.player.z == -1, "stairs down should move player to lower layer")
+    sim:queue(Simulation.commands.move("east"))
+    sim:step()
+    expect(sim.player.x == 2 and sim.player.z == 0, "stairs up should move player to upper layer")
+    local tutorial = Simulation.new(39, true)
+    tutorial.player.x = 4
+    tutorial.player.y = 0
+    tutorial:queue(Simulation.commands.move("east"))
+    tutorial:step()
+    expect(tutorial.player.z == 2 and tutorial:tutorialState().active, "tutorial stairs should stay locked before checklist completion")
+end
+
+tests[#tests + 1] = function()
     local a = Simulation.new(42)
     local b = Simulation.new(42)
     local commands = {
