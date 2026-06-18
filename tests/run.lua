@@ -236,6 +236,21 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(43)
+    sim:queue(Simulation.commands.damagePlayer(7))
+    sim:step()
+    expect(sim.player.hp == 13, "player damage should reduce hp")
+    sim:queue(Simulation.commands.healPlayer(100))
+    sim:step()
+    expect(sim.player.hp == 20, "player healing should clamp to max hp")
+    sim:queue(Simulation.commands.damagePlayer(25))
+    sim:step()
+    expect(sim.player.hp == 0, "player damage should clamp at zero")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded.player.hp == 0, "player hp should persist")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))

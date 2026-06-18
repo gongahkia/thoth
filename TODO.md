@@ -115,7 +115,6 @@
 ## Phase 13: Combat, Bosses, Relics
 
 - Restore entities:
-  - Player HP.
   - Entity HP.
   - Entity attack cooldowns.
   - Hostile pathing toward player or infrastructure.

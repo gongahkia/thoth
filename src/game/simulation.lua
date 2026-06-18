@@ -241,6 +241,14 @@ function Simulation.commands.submitSupplyContract(contractId)
     return { type = "submit_supply_contract", contractId = contractId }
 end
 
+function Simulation.commands.damagePlayer(amount)
+    return { type = "damage_player", amount = amount or 0 }
+end
+
+function Simulation.commands.healPlayer(amount)
+    return { type = "heal_player", amount = amount or 0 }
+end
+
 function Simulation:queue(command)
     self.commandQueue[#self.commandQueue + 1] = command
 end
@@ -460,7 +468,25 @@ function Simulation:apply(command)
     end
     if command.type == "submit_supply_contract" then
         self:submitSupplyContract(command.contractId)
+        return
     end
+    if command.type == "damage_player" then
+        self:damagePlayer(command.amount)
+        return
+    end
+    if command.type == "heal_player" then
+        self:healPlayer(command.amount)
+    end
+end
+
+function Simulation:damagePlayer(amount)
+    self.player.hp = math.max(0, self.player.hp - math.max(0, amount or 0))
+    return self.player.hp
+end
+
+function Simulation:healPlayer(amount)
+    self.player.hp = math.min(20, self.player.hp + math.max(0, amount or 0))
+    return self.player.hp
 end
 
 function Simulation:move(direction)
