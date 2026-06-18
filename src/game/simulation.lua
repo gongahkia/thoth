@@ -775,7 +775,7 @@ function Simulation:acceptItem(machine, item)
     if machine.kind == "lab" then
         return item == "science_pack" and machine.inventory:add(item, 1)
     end
-    if machine.kind == "chest" then
+    if machine.kind == "chest" or machine.kind == "provider_chest" or machine.kind == "requester_chest" then
         return machine.inventory:add(item, 1)
     end
     return false

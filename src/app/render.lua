@@ -26,6 +26,8 @@ local machineColors = {
     lab = { 144, 104, 188 },
     splitter = { 214, 178, 74 },
     circuit_inserter = { 94, 172, 136 },
+    provider_chest = { 86, 152, 106 },
+    requester_chest = { 92, 132, 190 },
 }
 
 local stateColors = {
@@ -277,7 +279,7 @@ local function machineIoText(machine)
     if machine.kind == "inserter" then
         return "back cell", "front cell"
     end
-    if machine.kind == "chest" then
+    if machine.kind == "chest" or machine.kind == "provider_chest" or machine.kind == "requester_chest" then
         return "any item", "stored item"
     end
     return "-", "-"

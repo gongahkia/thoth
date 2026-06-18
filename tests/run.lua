@@ -186,6 +186,16 @@ tests[#tests + 1] = function()
     expect(source.inventory:count("iron_ore") == 3, "circuit inserter moved too many filtered items")
 end
 
+tests[#tests + 1] = function()
+    local sim = Simulation.new(20)
+    local provider = sim:addMachine("provider_chest", 0, 0, "south")
+    local requester = sim:addMachine("requester_chest", 1, 0, "south")
+    expect(sim:acceptItem(provider, "wood"), "provider chest should accept items")
+    expect(sim:extractItem(provider) == "wood", "provider chest should expose stored items")
+    expect(sim:acceptItem(requester, "stone"), "requester chest should accept items")
+    expect(sim:extractItem(requester) == "stone", "requester chest should expose stored items")
+end
+
 for index, test in ipairs(tests) do
     local ok, err = pcall(test)
     if not ok then
