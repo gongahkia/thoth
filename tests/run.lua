@@ -979,6 +979,20 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(72)
+    sim.player.x = 10
+    sim.player.y = 10
+    local generator = sim:addMachine("generator", 1, 0, "south")
+    generator.inventory:add("coal", 10)
+    sim:addMachine("power_pole", 0, 0, "south")
+    local tower = sim:addMachine("arc_tower", 0, 1, "south")
+    sim:addEntity("rift_stalker", 0, 7, 0, 2)
+    runSteps(sim, 30)
+    expect(#sim.entities == 0, "arc tower should target and kill hostile in longer range")
+    expect(tower.status == "working" or tower.status == "idle", "arc tower should process targeting")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do

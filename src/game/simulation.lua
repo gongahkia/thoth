@@ -1796,6 +1796,8 @@ function Simulation:updateMachines()
             self:updateLab(machine)
         elseif machine.kind == "guard_tower" then
             self:updateGuardTower(machine)
+        elseif machine.kind == "arc_tower" then
+            self:updateArcTower(machine)
         end
     end
     self:updateLogistics()
@@ -2151,6 +2153,26 @@ function Simulation:updateGuardTower(machine)
     machine.status = "working"
     if machine.progress >= 45 then
         self:damageEntity(target, 1)
+        machine.progress = 0
+    end
+end
+
+function Simulation:updateArcTower(machine)
+    if not self:isMachinePowered(machine.id) then
+        machine.progress = 0
+        machine.status = "missing_power"
+        return
+    end
+    local target = self:nearestHostile(machine, 7)
+    if not target then
+        machine.progress = 0
+        machine.status = "idle"
+        return
+    end
+    machine.progress = machine.progress + 1
+    machine.status = "working"
+    if machine.progress >= 30 then
+        self:damageEntity(target, 2)
         machine.progress = 0
     end
 end
