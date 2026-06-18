@@ -1,4 +1,4 @@
-.PHONY: run smoke test check package clean
+.PHONY: run smoke test check benchmark package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -17,6 +17,9 @@ check: test
 	$(LUAJIT) tests/replays.lua
 	$(LUAJIT) tests/assets.lua
 	$(LUAJIT) tests/registry.lua
+
+benchmark:
+	$(LUAJIT) benchmarks/mixed_factory.lua
 
 package: check
 	mkdir -p dist
