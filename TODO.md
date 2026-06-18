@@ -115,7 +115,6 @@
 ## Phase 13: Combat, Bosses, Relics
 
 - Restore entities:
-  - Entity attack cooldowns.
   - Hostile pathing toward player or infrastructure.
   - Local biome enemy spawns.
 - Restore boss ladder:

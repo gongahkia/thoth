@@ -278,6 +278,7 @@ function Simulation:step()
         self:apply(command)
     end
     self:updateMachines()
+    self:updateEntities()
     self:updateAchievements()
     self.tick = self.tick + 1
 end
@@ -557,6 +558,25 @@ function Simulation:attack(direction)
     local x, y = Grid.front(self.player.x, self.player.y, direction)
     local entity = self:entityAt(x, y, self.player.z)
     return self:damageEntity(entity, 1)
+end
+
+function Simulation:entityAttackDamage(entity)
+    if entity.kind == "slime" then
+        return 1
+    end
+    return 1
+end
+
+function Simulation:updateEntities()
+    for _, entity in ipairs(self.entities) do
+        if entity.attackCooldown > 0 then
+            entity.attackCooldown = entity.attackCooldown - 1
+        end
+        if (entity.z or 0) == self.player.z and Grid.manhattan(entity.x, entity.y, self.player.x, self.player.y) <= 1 and entity.attackCooldown <= 0 then
+            self:damagePlayer(self:entityAttackDamage(entity))
+            entity.attackCooldown = 30
+        end
+    end
 end
 
 function Simulation:move(direction)

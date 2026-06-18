@@ -264,6 +264,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(45)
+    local entity = sim:addEntity("slime", 1, 0, 0, 3)
+    sim:step()
+    expect(sim.player.hp == 19 and entity.attackCooldown == 30, "adjacent entity should attack and enter cooldown")
+    sim:step()
+    expect(sim.player.hp == 19 and entity.attackCooldown == 29, "entity cooldown should delay repeat attacks")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded.entities[1].attackCooldown == 29, "entity attack cooldown should persist")
+    runSteps(loaded, 29)
+    expect(loaded.player.hp == 18, "entity should attack again after cooldown")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))
