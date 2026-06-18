@@ -899,6 +899,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(66)
+    sim.productionTotals.science_pack = 10
+    sim:addMachine("lab", 0, 0, "south")
+    sim:addMachine("assembler", 4, 0, "south")
+    sim:addMachine("chest", 8, 0, "south")
+    local hotspots = sim:pressureHotspots()
+    expect(#hotspots == 3, "pressure hotspots should include weighted machines")
+    expect(hotspots[1].x == 0 and hotspots[1].pressure >= hotspots[2].pressure, "pressure hotspots should sort strongest first")
+    expect(sim:localPressureAt(0, 0, 0) > sim:localPressureAt(20, 20, 0), "local pressure should decay with distance")
+    expect(sim:pressureMapText():find("pressure map: hotspot x0 y0") == 1, "pressure map text should surface top hotspot")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do

@@ -1354,6 +1354,54 @@ function Simulation:factoryPressureText()
     return "pressure: hostile surge (" .. pressure .. ")"
 end
 
+function Simulation:localPressureAt(x, y, z)
+    local pressure = math.floor(self:factoryPressureLevel() / 8)
+    for _, machine in ipairs(self.machines) do
+        if (machine.z or 0) == (z or 0) then
+            local weight = self:machinePressureWeight(machine)
+            local distance = Grid.manhattan(x, y, machine.x, machine.y)
+            if weight > 0 and distance <= 18 then
+                pressure = pressure + math.max(0, weight - distance)
+            end
+        end
+    end
+    return math.max(0, pressure)
+end
+
+function Simulation:pressureHotspots()
+    local hotspots = {}
+    for _, machine in ipairs(self.machines) do
+        if (machine.z or 0) == self.player.z and self:machinePressureWeight(machine) > 0 then
+            local pressure = self:localPressureAt(machine.x, machine.y, machine.z or 0)
+            if pressure > 0 then
+                hotspots[#hotspots + 1] = { x = machine.x, y = machine.y, z = machine.z or 0, pressure = pressure }
+            end
+        end
+    end
+    table.sort(hotspots, function(a, b)
+        if a.pressure ~= b.pressure then
+            return a.pressure > b.pressure
+        end
+        if a.y ~= b.y then
+            return a.y < b.y
+        end
+        return a.x < b.x
+    end)
+    while #hotspots > 5 do
+        table.remove(hotspots)
+    end
+    return hotspots
+end
+
+function Simulation:pressureMapText()
+    local hotspots = self:pressureHotspots()
+    if #hotspots == 0 then
+        return "pressure map: no active hotspot"
+    end
+    local hotspot = hotspots[1]
+    return "pressure map: hotspot x" .. hotspot.x .. " y" .. hotspot.y .. " p" .. hotspot.pressure
+end
+
 function Simulation:productionRatePanels()
     local minutes = math.max(1, math.floor((self.tick + 3599) / 3600))
     local panels = {}
