@@ -1201,6 +1201,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(89)
+    local generator = sim:addMachine("generator", 0, 1, "south")
+    generator.inventory:add("coal", 1)
+    sim:addMachine("power_pole", 1, 1, "south")
+    local terminal = sim:addMachine("archive_terminal", 1, 0, "south")
+    terminal.requestThreshold = 1
+    terminal.inventory:add("desert_fragment", 1)
+    terminal.inventory:add("science_pack", 1)
+    expect(not sim:isRecipeUnlocked("dry_copper_plate"), "archive alternate should start locked")
+    sim:step()
+    expect(sim:isRecipeUnlocked("dry_copper_plate"), "archive fragment should unlock alternate recipe")
+    expect(terminal.inventory:count("desert_fragment") == 0 and terminal.inventory:count("science_pack") == 0, "archive unlock should consume fragment and science")
+    expect(terminal.progress == 0 and terminal.status == "idle", "archive unlock should not start beacon charge")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:isRecipeUnlocked("dry_copper_plate"), "archive recipe unlock should persist")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do

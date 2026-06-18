@@ -65,6 +65,16 @@ local function checkOrder(name, order, defs)
 end
 
 local function recipeUnlocked(recipeKey)
+    local archiveUnlockedRecipes = {
+        reed_science_pack = true,
+        dry_copper_plate = true,
+        washed_iron_plate = true,
+        basalt_circuit_board = true,
+        rift_beacon_core = true,
+    }
+    if archiveUnlockedRecipes[recipeKey] then
+        return true
+    end
     for _, tech in pairs(Defs.techs) do
         for _, unlock in ipairs(tech.unlocks or {}) do
             if unlock == recipeKey then

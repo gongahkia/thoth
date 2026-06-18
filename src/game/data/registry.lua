@@ -198,7 +198,7 @@ Registry.recipes = {
     rift_shell = { station = "workbench", ticks = 55, inputs = { rift_fragment = 1, advanced_science_pack = 1 }, output = { item = "rift_shell", count = 2 }, default = true },
     lair_hearth = { station = "workbench", ticks = 45, inputs = { stone = 4, archive_fragment = 1 }, output = { item = "lair_hearth", count = 1 }, default = true },
     science_pack = { station = "assembler", ticks = 45, inputs = { iron_plate = 1, copper_plate = 1 }, output = { item = "science_pack", count = 1 }, default = true },
-    reed_science_pack = { station = "assembler", ticks = 55, inputs = { iron_plate = 1, reed_fiber = 1 }, output = { item = "science_pack", count = 1 }, default = true },
+    reed_science_pack = { station = "assembler", ticks = 55, inputs = { iron_plate = 1, reed_fiber = 1 }, output = { item = "science_pack", count = 1 }, default = false },
     fast_belt = { station = "workbench", ticks = 30, inputs = { belt = 1, iron_plate = 1 }, output = { item = "fast_belt", count = 1 }, default = false },
     generator = { station = "workbench", ticks = 45, inputs = { stone = 4, iron_plate = 2, copper_plate = 1 }, output = { item = "generator", count = 1 }, default = false },
     power_pole = { station = "workbench", ticks = 25, inputs = { wood = 2, copper_plate = 1 }, output = { item = "power_pole", count = 2 }, default = false },
@@ -206,7 +206,7 @@ Registry.recipes = {
     circuit_board = { station = "assembler", ticks = 50, inputs = { iron_plate = 1, copper_plate = 2 }, output = { item = "circuit_board", count = 1 }, default = false },
     advanced_science_pack = { station = "assembler", ticks = 60, inputs = { science_pack = 1, circuit_board = 1, copper_plate = 1 }, output = { item = "advanced_science_pack", count = 1 }, default = false },
     crystal_lens = { station = "assembler", ticks = 80, inputs = { crystal = 1, sand_glass = 1, coral_shard = 1 }, output = { item = "advanced_science_pack", count = 1 }, default = false },
-    basalt_circuit_board = { station = "assembler", ticks = 70, inputs = { copper_plate = 1, basalt = 1, crystal = 1 }, output = { item = "circuit_board", count = 1 }, default = true },
+    basalt_circuit_board = { station = "assembler", ticks = 70, inputs = { copper_plate = 1, basalt = 1, crystal = 1 }, output = { item = "circuit_board", count = 1 }, default = false },
     circuit_inserter = { station = "workbench", ticks = 35, inputs = { inserter = 1, circuit_board = 1 }, output = { item = "circuit_inserter", count = 1 }, default = false },
     provider_chest = { station = "workbench", ticks = 35, inputs = { chest = 1, circuit_board = 1 }, output = { item = "provider_chest", count = 1 }, default = false },
     requester_chest = { station = "workbench", ticks = 35, inputs = { chest = 1, circuit_board = 1 }, output = { item = "requester_chest", count = 1 }, default = false },
@@ -216,7 +216,7 @@ Registry.recipes = {
     pipe = { station = "workbench", ticks = 25, inputs = { copper_plate = 1 }, output = { item = "pipe", count = 2 }, default = false },
     offshore_pump = { station = "workbench", ticks = 50, inputs = { iron_plate = 2, copper_plate = 2, circuit_board = 1 }, output = { item = "offshore_pump", count = 1 }, default = false },
     beacon_core = { station = "assembler", ticks = 120, inputs = { advanced_science_pack = 2, circuit_board = 4, logistic_drone = 2 }, output = { item = "beacon_core", count = 1 }, default = false },
-    rift_beacon_core = { station = "assembler", ticks = 90, inputs = { rift_fragment = 2, advanced_science_pack = 2, circuit_board = 2 }, output = { item = "beacon_core", count = 1 }, default = true },
+    rift_beacon_core = { station = "assembler", ticks = 90, inputs = { rift_fragment = 2, advanced_science_pack = 2, circuit_board = 2 }, output = { item = "beacon_core", count = 1 }, default = false },
     archive_terminal = { station = "workbench", ticks = 120, inputs = { iron_plate = 10, copper_plate = 10, circuit_board = 4 }, output = { item = "archive_terminal", count = 1 }, default = false },
     train_stop = { station = "workbench", ticks = 80, inputs = { iron_plate = 6, copper_plate = 3, circuit_board = 1 }, output = { item = "train_stop", count = 1 }, default = false },
     rift_gate = { station = "workbench", ticks = 160, inputs = { beacon_core = 1, advanced_science_pack = 3, copper_plate = 8 }, output = { item = "rift_gate", count = 1 }, default = false },
@@ -225,8 +225,8 @@ Registry.recipes = {
     repair_pylon = { station = "workbench", ticks = 90, inputs = { iron_plate = 4, copper_plate = 2, marsh_heart = 1 }, output = { item = "repair_pylon", count = 1 }, default = false },
     pressure_relay = { station = "workbench", ticks = 100, inputs = { circuit_board = 3, advanced_science_pack = 2, glass_heart = 1 }, output = { item = "pressure_relay", count = 1 }, default = false },
     arc_tower = { station = "workbench", ticks = 100, inputs = { guard_tower = 1, circuit_board = 3, frost_core = 1 }, output = { item = "arc_tower", count = 1 }, default = false },
-    dry_copper_plate = { station = "furnace", ticks = 80, inputs = { copper_ore = 1, cactus_fiber = 1 }, output = { item = "copper_plate", count = 1 }, default = true },
-    washed_iron_plate = { station = "furnace", ticks = 55, inputs = { iron_ore = 1, water_barrel = 1 }, output = { item = "iron_plate", count = 1 }, default = true },
+    dry_copper_plate = { station = "furnace", ticks = 80, inputs = { copper_ore = 1, cactus_fiber = 1 }, output = { item = "copper_plate", count = 1 }, default = false },
+    washed_iron_plate = { station = "furnace", ticks = 55, inputs = { iron_ore = 1, water_barrel = 1 }, output = { item = "iron_plate", count = 1 }, default = false },
 }
 
 Registry.recipeOrder = {

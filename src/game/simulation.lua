@@ -79,6 +79,22 @@ local scoutFragments = {
     rift = "rift_fragment",
     grassland = "archive_fragment",
 }
+local archiveChoiceDefs = {
+    { key = "reed_science", recipeKey = "reed_science_pack", fragment = "marsh_fragment", fragmentCost = 1, scienceCost = 1 },
+    { key = "dry_copper", recipeKey = "dry_copper_plate", fragment = "desert_fragment", fragmentCost = 1, scienceCost = 1 },
+    { key = "washed_iron", recipeKey = "washed_iron_plate", fragment = "archive_fragment", fragmentCost = 2, scienceCost = 2 },
+    { key = "basalt_circuit", recipeKey = "basalt_circuit_board", fragment = "badlands_fragment", fragmentCost = 1, scienceCost = 2 },
+    { key = "rift_beacon", recipeKey = "rift_beacon_core", fragment = "rift_fragment", fragmentCost = 1, scienceCost = 3 },
+}
+local archiveFragmentItems = {
+    archive_fragment = true,
+    marsh_fragment = true,
+    desert_fragment = true,
+    badlands_fragment = true,
+    frost_fragment = true,
+    crystal_fragment = true,
+    rift_fragment = true,
+}
 local machineDurability = {
     wall = 12,
     plank_wall = 8,
@@ -1477,7 +1493,7 @@ end
 
 function Simulation:setMachineRecipe(machineId, recipeKey)
     local machine = self:machineById(machineId)
-    if not machine or not Defs.machineRecipe(machine.kind, recipeKey) then
+    if not machine or not Defs.machineRecipe(machine.kind, recipeKey) or not self:isRecipeUnlocked(recipeKey) then
         return false
     end
     machine.recipeKey = recipeKey
@@ -2837,6 +2853,11 @@ function Simulation:updateArchiveTerminal(machine)
         machine.status = "missing_power"
         return
     end
+    if self:tryArchiveUnlock(machine) then
+        machine.progress = 0
+        machine.status = "idle"
+        return
+    end
     if machine.progress == 0 and not machine.inventory:consume("beacon_core", 1) then
         machine.status = "missing_input"
         return
@@ -2849,6 +2870,44 @@ function Simulation:updateArchiveTerminal(machine)
     self.productionTotals.archive_signals = (self.productionTotals.archive_signals or 0) + 1
     machine.progress = 0
     machine.status = "idle"
+end
+
+function Simulation:tryArchiveUnlock(machine)
+    local preferred = math.max(0, math.min(#archiveChoiceDefs - 1, machine.requestThreshold or 0))
+    for offset = 0, #archiveChoiceDefs - 1 do
+        local choice = archiveChoiceDefs[((preferred + offset) % #archiveChoiceDefs) + 1]
+        if not self:isRecipeUnlocked(choice.recipeKey) then
+            local fragments = machine.inventory:count(choice.fragment)
+            if choice.fragment ~= "archive_fragment" then
+                fragments = fragments + machine.inventory:count("archive_fragment")
+            end
+            local science = machine.inventory:count("advanced_science_pack") + machine.inventory:count("science_pack")
+            if fragments >= choice.fragmentCost and science >= choice.scienceCost then
+                local remainingFragments = choice.fragmentCost
+                local specific = math.min(remainingFragments, machine.inventory:count(choice.fragment))
+                if specific > 0 then
+                    machine.inventory:consume(choice.fragment, specific)
+                    remainingFragments = remainingFragments - specific
+                end
+                if remainingFragments > 0 then
+                    machine.inventory:consume("archive_fragment", remainingFragments)
+                end
+                local remainingScience = choice.scienceCost
+                local advanced = math.min(remainingScience, machine.inventory:count("advanced_science_pack"))
+                if advanced > 0 then
+                    machine.inventory:consume("advanced_science_pack", advanced)
+                    remainingScience = remainingScience - advanced
+                end
+                if remainingScience > 0 then
+                    machine.inventory:consume("science_pack", remainingScience)
+                end
+                self.unlockedRecipes[choice.recipeKey] = true
+                machine.requestThreshold = (preferred + offset + 1) % #archiveChoiceDefs
+                return true
+            end
+        end
+    end
+    return false
 end
 
 function Simulation:isWaterTile(x, y, z)
@@ -3202,7 +3261,7 @@ function Simulation:acceptItem(machine, item)
         return false
     end
     if machine.kind == "archive_terminal" then
-        return item == "beacon_core" and machine.inventory:add(item, 1)
+        return (item == "beacon_core" or item == "science_pack" or item == "advanced_science_pack" or archiveFragmentItems[item] == true) and machine.inventory:add(item, 1)
     end
     if machine.kind == "chest" or machine.kind == "provider_chest" or machine.kind == "requester_chest" or machine.kind == "train_stop" then
         return machine.inventory:add(item, 1)
