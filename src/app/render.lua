@@ -28,6 +28,7 @@ local machineColors = {
     circuit_inserter = { 94, 172, 136 },
     provider_chest = { 86, 152, 106 },
     requester_chest = { 92, 132, 190 },
+    logistic_port = { 106, 168, 190 },
 }
 
 local stateColors = {
@@ -281,6 +282,9 @@ local function machineIoText(machine)
     end
     if machine.kind == "chest" or machine.kind == "provider_chest" or machine.kind == "requester_chest" then
         return "any item", "stored item"
+    end
+    if machine.kind == "logistic_port" then
+        return "Logistic Drone", "delivery capacity"
     end
     return "-", "-"
 end

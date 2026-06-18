@@ -115,7 +115,6 @@
 ## Phase 10: Core Automation Parity
 
 - Restore machines:
-  - Logistic port and logistic drone.
   - Generator, power pole, electric miner.
   - Pipe and offshore pump.
   - Train stop.

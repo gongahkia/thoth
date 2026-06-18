@@ -196,6 +196,14 @@ tests[#tests + 1] = function()
     expect(sim:extractItem(requester) == "stone", "requester chest should expose stored items")
 end
 
+tests[#tests + 1] = function()
+    local sim = Simulation.new(21)
+    local port = sim:addMachine("logistic_port", 0, 0, "south")
+    expect(sim:acceptItem(port, "logistic_drone"), "logistic port should accept drones")
+    expect(not sim:acceptItem(port, "wood"), "logistic port should reject non-drone items")
+    expect(port.inventory:count("logistic_drone") == 1, "logistic port did not retain drone")
+end
+
 for index, test in ipairs(tests) do
     local ok, err = pcall(test)
     if not ok then
