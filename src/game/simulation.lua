@@ -354,6 +354,26 @@ local function copyRiftStorm(storm)
     }
 end
 
+local function copyGhostBuilds(ghosts)
+    local result = {}
+    for _, ghost in ipairs(ghosts or {}) do
+        result[#result + 1] = {
+            id = ghost.id,
+            item = ghost.item,
+            machine = ghost.machine == true,
+            tile = ghost.tile,
+            x = ghost.x,
+            y = ghost.y,
+            z = ghost.z or 0,
+            direction = ghost.direction or "south",
+            fulfilled = ghost.fulfilled == true,
+            progress = ghost.progress or 0,
+            blockedReason = ghost.blockedReason,
+        }
+    end
+    return result
+end
+
 local function newMachine(id, kind, x, y, direction, z)
     return {
         id = id,
@@ -427,6 +447,8 @@ function Simulation.new(seed, startInTutorial)
         logisticIndex = { providerIds = {}, requesterIds = {}, portIds = {} },
         logisticJobs = {},
         nextLogisticJobId = 1,
+        ghostBuilds = {},
+        nextGhostId = 1,
         supplyContracts = defaultSupplyContracts(),
         outpostRoutes = {},
         riftStorm = { severity = 0, ticksRemaining = 0, cooldownTicks = 0 },
@@ -490,6 +512,10 @@ end
 
 function Simulation.commands.place(direction, item, orientation)
     return { type = "place", direction = direction, item = item, orientation = orientation or direction }
+end
+
+function Simulation.commands.placeGhost(direction, item, orientation)
+    return { type = "place_ghost", direction = direction, item = item, orientation = orientation or direction }
 end
 
 function Simulation.commands.craft(recipeKey)
@@ -743,6 +769,10 @@ function Simulation:apply(command)
         if self:place(command.direction, command.item, command.orientation) then
             self:recordTutorialAction("place")
         end
+        return
+    end
+    if command.type == "place_ghost" then
+        self:placeGhost(command.direction, command.item, command.orientation)
         return
     end
     if command.type == "craft" then
@@ -1447,6 +1477,40 @@ function Simulation:place(direction, item, orientation)
         return true
     end
     return false
+end
+
+function Simulation:placeGhost(direction, item, orientation)
+    if not item then
+        return false
+    end
+    direction = direction or self.player.facing
+    self.player.facing = direction
+    local itemDef = Defs.item(item)
+    if not itemDef or (not itemDef.machine and not itemDef.tile) then
+        return false
+    end
+    local x, y = Grid.front(self.player.x, self.player.y, direction)
+    local z = self.player.z or 0
+    for _, ghost in ipairs(self.ghostBuilds) do
+        if not ghost.fulfilled and ghost.x == x and ghost.y == y and (ghost.z or 0) == z then
+            return false
+        end
+    end
+    self.ghostBuilds[#self.ghostBuilds + 1] = {
+        id = self.nextGhostId,
+        item = item,
+        machine = itemDef.machine ~= nil,
+        tile = itemDef.tile,
+        x = x,
+        y = y,
+        z = z,
+        direction = orientation or direction,
+        fulfilled = false,
+        progress = 0,
+        blockedReason = nil,
+    }
+    self.nextGhostId = self.nextGhostId + 1
+    return true
 end
 
 function Simulation:hasAdjacentWorkbench()
@@ -3691,6 +3755,8 @@ function Simulation:snapshot()
         nextEntityId = self.nextEntityId,
         logisticJobs = self.logisticJobs,
         nextLogisticJobId = self.nextLogisticJobId,
+        ghostBuilds = copyGhostBuilds(self.ghostBuilds),
+        nextGhostId = self.nextGhostId,
         supplyContracts = copyContracts(self.supplyContracts),
         outpostRoutes = copyOutpostRoutes(self.outpostRoutes),
         riftStorm = copyRiftStorm(self.riftStorm),
@@ -3763,6 +3829,8 @@ function Simulation.fromSnapshot(snapshot)
     self.logisticIndex = { providerIds = {}, requesterIds = {}, portIds = {} }
     self.logisticJobs = snapshot.logisticJobs or {}
     self.nextLogisticJobId = snapshot.nextLogisticJobId or (#self.logisticJobs + 1)
+    self.ghostBuilds = copyGhostBuilds(snapshot.ghostBuilds or {})
+    self.nextGhostId = snapshot.nextGhostId or (#self.ghostBuilds + 1)
     self.supplyContracts = copyContracts(snapshot.supplyContracts or defaultSupplyContracts())
     self.outpostRoutes = copyOutpostRoutes(snapshot.outpostRoutes or {})
     self.riftStorm = copyRiftStorm(snapshot.riftStorm)

@@ -637,6 +637,23 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(96)
+    sim:queue(Simulation.commands.placeGhost("east", "workbench", "south"))
+    sim:step()
+    expect(#sim.ghostBuilds == 1, "place ghost command should create ghost build")
+    local ghost = sim.ghostBuilds[1]
+    expect(ghost.id == 1 and ghost.item == "workbench" and ghost.machine, "machine ghost should record item and type")
+    expect(ghost.x == 1 and ghost.y == 0 and ghost.z == 0 and ghost.direction == "south", "machine ghost should record target cell")
+    expect(not sim:machineAt(1, 0, 0), "ghost build should not place a machine immediately")
+    expect(not sim:placeGhost("east", "chest", "south"), "duplicate ghost target should be rejected")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(#loaded.ghostBuilds == 1 and loaded.nextGhostId == 2, "ghost builds should persist")
+    loaded:queue(Simulation.commands.placeGhost("south", "wall", "south"))
+    loaded:step()
+    expect(#loaded.ghostBuilds == 2 and loaded.ghostBuilds[2].tile == "wall", "tile ghost should record target tile")
+end
+
+tests[#tests + 1] = function()
     local frames = {
         { tick = 0, command = Simulation.commands.face("west") },
         { tick = 0, command = Simulation.commands.mine("west") },
