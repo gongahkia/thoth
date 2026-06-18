@@ -1827,6 +1827,7 @@ function Simulation:postVictoryExpeditionBoard()
     add("relic_set", "Claim the full five-relic boss set", self.productionTotals.boss_relics_claimed or 0, 5)
     add("storm_veteran", "Survive three rift storms after opening the gate", self.productionTotals.rift_storms_survived or 0, 3)
     add("outpost_network", "Stabilize all sustained outpost delivery routes", self:stableOutpostRouteCount(), #outpostDeliveries)
+    add("pressure_harvest", "Claim five pressure wave rewards", self.productionTotals.pressure_wave_rewards_claimed or 0, 5)
     return entries
 end
 
