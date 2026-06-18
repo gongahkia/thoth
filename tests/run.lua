@@ -1192,6 +1192,29 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local locked = Simulation.new(93)
+    expect(not locked:postVictoryExpeditionBoard()[1].unlocked, "post-victory board should start locked")
+    expect(locked:postVictoryExpeditionText():find("locked") ~= nil, "locked post-victory board should explain gate")
+    local sim = Simulation.new(94)
+    for _, contract in ipairs(sim.supplyContracts) do
+        contract.delivered = contract.target
+        contract.complete = true
+    end
+    sim.completedTechs.logistic_network = true
+    local board = sim:postVictoryExpeditionBoard()
+    expect(#board == 1 and board[1].key == "cartography", "post-victory board should expose scouting entry")
+    expect(board[1].unlocked and not board[1].complete, "scouting entry should unlock incomplete after main objective")
+    expect(sim:postVictoryExpeditionText():find("expedition 1/1") ~= nil, "post-victory text should show scouting progress")
+    for _, biome in ipairs({ "marsh", "desert", "badlands", "snowfield", "crystal_field", "rift" }) do
+        sim:markScoutedBiome(biome)
+    end
+    expect(sim:completedPostVictoryExpeditions() == 1, "completed scouting entry should count")
+    expect(sim:postVictoryExpeditionText():find("complete") ~= nil, "complete post-victory board should summarize completion")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:completedPostVictoryExpeditions() == 1, "post-victory scouting board should persist")
+end
+
+tests[#tests + 1] = function()
     local unpowered = Simulation.new(87)
     local unpoweredTerminal = unpowered:addMachine("archive_terminal", 1, 0, "south")
     runSteps(unpowered, 1)

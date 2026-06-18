@@ -115,7 +115,6 @@
 ## Phase 15: Archive, Rift, Post-Victory
 
 - Restore post-victory expedition board:
-  - Scouting.
   - Boss relics.
   - Rift storms.
   - Stable outpost routes.

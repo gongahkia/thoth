@@ -1808,6 +1808,56 @@ function Simulation:mainObjectiveComplete()
     return self:completedSupplyContracts() >= self:totalSupplyContracts() and self:isTechCompleted("logistic_network")
 end
 
+function Simulation:postVictoryExpeditionBoard()
+    local unlocked = self:mainObjectiveComplete()
+    local entries = {}
+    local function add(key, label, current, required)
+        entries[#entries + 1] = {
+            key = key,
+            label = label,
+            current = current,
+            required = required,
+            unlocked = unlocked,
+            complete = unlocked and current >= required,
+        }
+    end
+    add("cartography", "Map every biome with automated scout dispatches", self:scoutedBiomeCount(), #scoutBiomes)
+    return entries
+end
+
+function Simulation:completedPostVictoryExpeditions()
+    local completed = 0
+    for _, entry in ipairs(self:postVictoryExpeditionBoard()) do
+        if entry.complete then
+            completed = completed + 1
+        end
+    end
+    return completed
+end
+
+function Simulation:postVictoryExpeditionText()
+    local board = self:postVictoryExpeditionBoard()
+    if #board == 0 or not board[1].unlocked then
+        return "expedition board: locked until the main rift objective is complete"
+    end
+    for index, entry in ipairs(board) do
+        if not entry.complete then
+            return "expedition "
+                .. index
+                .. "/"
+                .. #board
+                .. ": "
+                .. entry.label
+                .. " ("
+                .. math.min(entry.current, entry.required)
+                .. "/"
+                .. entry.required
+                .. ")"
+        end
+    end
+    return "expedition board complete"
+end
+
 function Simulation:machinePressureWeight(machine)
     return pressureWeights[machine.kind] or 0
 end
