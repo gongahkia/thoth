@@ -993,6 +993,31 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local guardSim = Simulation.new(73)
+    guardSim.player.x = 10
+    guardSim.player.y = 10
+    local guardGenerator = guardSim:addMachine("generator", 1, 0, "south")
+    guardGenerator.inventory:add("coal", 10)
+    guardSim:addMachine("power_pole", 0, 0, "south")
+    local guard = guardSim:addMachine("guard_tower", 0, 1, "south")
+    expect(guardSim:acceptItem(guard, "copper_coil"), "guard tower should accept ammo")
+    guardSim:addEntity("skeleton", 0, 3, 0, 4)
+    runSteps(guardSim, 45)
+    expect(#guardSim.entities == 0 and guard.inventory:count("copper_coil") == 0, "guard ammo should fire stronger shot and consume ammo")
+    local arcSim = Simulation.new(74)
+    arcSim.player.x = 10
+    arcSim.player.y = 10
+    local arcGenerator = arcSim:addMachine("generator", 1, 0, "south")
+    arcGenerator.inventory:add("coal", 10)
+    arcSim:addMachine("power_pole", 0, 0, "south")
+    local arc = arcSim:addMachine("arc_tower", 0, 1, "south")
+    expect(arcSim:acceptItem(arc, "rift_shell"), "arc tower should accept ammo")
+    arcSim:addEntity("rift_stalker", 0, 7, 0, 5)
+    runSteps(arcSim, 30)
+    expect(#arcSim.entities == 0 and arc.inventory:count("rift_shell") == 0, "arc ammo should fire stronger shot and consume ammo")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do

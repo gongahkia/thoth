@@ -115,7 +115,6 @@
 ## Phase 14: Pressure, Defense, Outposts
 
 - Restore defense systems:
-  - Ammo-fed stronger shots.
   - Wall and structure damage.
   - Repair pylon wall/structure repair.
   - Pressure relay mitigation.

@@ -42,6 +42,8 @@ local pressureWeights = {
     workbench = 2,
     power_pole = 2,
 }
+local guardTowerAmmo = { "copper_coil", "frost_cell", "stone_shot" }
+local arcTowerAmmo = { "rift_shell", "crystal_charge", "copper_coil" }
 
 local function copySet(values)
     local result = {}
@@ -2152,7 +2154,8 @@ function Simulation:updateGuardTower(machine)
     machine.progress = machine.progress + 1
     machine.status = "working"
     if machine.progress >= 45 then
-        self:damageEntity(target, 1)
+        local ammo = self:towerAmmo(machine)
+        self:damageEntity(target, self:towerDamage(machine.kind, ammo, target.kind))
         machine.progress = 0
     end
 end
@@ -2172,9 +2175,45 @@ function Simulation:updateArcTower(machine)
     machine.progress = machine.progress + 1
     machine.status = "working"
     if machine.progress >= 30 then
-        self:damageEntity(target, 2)
+        local ammo = self:towerAmmo(machine)
+        self:damageEntity(target, self:towerDamage(machine.kind, ammo, target.kind))
         machine.progress = 0
     end
+end
+
+function Simulation:towerAmmo(machine)
+    local order = machine.kind == "guard_tower" and guardTowerAmmo or arcTowerAmmo
+    for _, item in ipairs(order) do
+        if machine.inventory:consume(item, 1) then
+            return item
+        end
+    end
+    return nil
+end
+
+function Simulation:towerDamage(kind, ammo, targetKind)
+    if kind == "guard_tower" then
+        if ammo == "copper_coil" then
+            return targetKind == "glass_maw" and 5 or 4
+        end
+        if ammo == "frost_cell" then
+            return 3
+        end
+        if ammo == "stone_shot" then
+            return 2
+        end
+        return 1
+    end
+    if ammo == "rift_shell" then
+        return 5
+    end
+    if ammo == "crystal_charge" then
+        return 4
+    end
+    if ammo == "copper_coil" then
+        return 3
+    end
+    return 2
 end
 
 function Simulation:isWaterTile(x, y, z)
@@ -2506,6 +2545,12 @@ function Simulation:acceptItem(machine, item)
     end
     if machine.kind == "logistic_port" then
         return item == "logistic_drone" and machine.inventory:add(item, 1)
+    end
+    if machine.kind == "guard_tower" then
+        return (item == "stone_shot" or item == "copper_coil" or item == "frost_cell") and machine.inventory:add(item, 1)
+    end
+    if machine.kind == "arc_tower" then
+        return (item == "crystal_charge" or item == "rift_shell" or item == "copper_coil") and machine.inventory:add(item, 1)
     end
     if machine.kind == "chest" or machine.kind == "provider_chest" or machine.kind == "requester_chest" or machine.kind == "train_stop" then
         return machine.inventory:add(item, 1)
