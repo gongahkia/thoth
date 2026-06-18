@@ -1,5 +1,6 @@
 .cache/
 build/
+dist/
 *.rock
 *.log
 luacov.report.out
@@ -12,8 +13,7 @@ luacov.stats.out
 
 # test artifacts
 test_tmp_*.lua
+save.thoth
 
 # generated local art exports
-assets/sprites/thoth_generated_atlas.png
-assets/audio/generated/
 thoth_profile.txt

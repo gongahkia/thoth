@@ -1,2 +1,0 @@
-THOTH_PROFILE 1
-tutorial_seen 1

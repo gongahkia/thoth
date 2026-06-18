@@ -1,55 +1,26 @@
-.PHONY: test cpp-configure cpp-build cpp-test cpp-benchmark cpp-benchmark-large cpp-benchmark-stress cpp-export-atlas cpp-export-authored-atlas cpp-export-audio cpp-export-authored-audio cpp-export-media-preview cpp-export-playtest-telemetry cpp-smoke-window cpp-validate-assets cpp-validate-replays cpp-run clean
+.PHONY: run smoke test check package clean
 
-cpp-configure:
-	cmake -S . -B build/app -DTHOTH_BUILD_APP=ON -DTHOTH_BUILD_TESTS=ON -DTHOTH_BUILD_BENCHMARKS=ON
+LOVE ?= love
+LUAJIT ?= luajit
+PACKAGE := dist/thoth.love
 
-cpp-build: cpp-configure
-	cmake --build build/app --target thoth_raylib thoth_tests
+run:
+	$(LOVE) .
 
-test cpp-test: cpp-build
-	ctest --test-dir build/app --output-on-failure
+smoke:
+	$(LOVE) . --smoke
 
-cpp-benchmark: cpp-configure
-	cmake --build build/app --target thoth_benchmark
-	./build/app/thoth_benchmark
+test:
+	$(LUAJIT) tests/run.lua
 
-cpp-benchmark-large: cpp-configure
-	cmake --build build/app --target thoth_benchmark
-	THOTH_BENCHMARK_BURNER_LINES=96 THOTH_BENCHMARK_POWERED_LINES=32 THOTH_BENCHMARK_MAX_US_PER_TICK=10000 THOTH_BENCHMARK_MAX_US_PER_MACHINE_TICK=4 ./build/app/thoth_benchmark
+check: test
+	$(LUAJIT) tests/assets.lua
 
-cpp-benchmark-stress: cpp-configure
-	cmake --build build/app --target thoth_benchmark
-	THOTH_BENCHMARK_TICKS=600 THOTH_BENCHMARK_BURNER_LINES=512 THOTH_BENCHMARK_POWERED_LINES=128 THOTH_BENCHMARK_MAX_US_PER_TICK=12000 THOTH_BENCHMARK_MAX_US_PER_MACHINE_TICK=4 ./build/app/thoth_benchmark
-
-cpp-export-atlas: cpp-build
-	./build/app/thoth_raylib --export-atlas
-
-cpp-export-authored-atlas: cpp-build
-	./build/app/thoth_raylib --export-authored-atlas
-
-cpp-export-audio: cpp-build
-	./build/app/thoth_raylib --export-audio
-
-cpp-export-authored-audio: cpp-build
-	./build/app/thoth_raylib --export-authored-audio
-
-cpp-export-media-preview: cpp-build
-	./build/app/thoth_raylib --export-media-preview
-
-cpp-export-playtest-telemetry: cpp-build
-	./build/app/thoth_raylib --export-playtest-telemetry
-
-cpp-smoke-window: cpp-build
-	./build/app/thoth_raylib --window-smoke
-
-cpp-validate-assets: cpp-build
-	./build/app/thoth_raylib --validate-assets
-
-cpp-validate-replays: cpp-build
-	./build/app/thoth_raylib --validate-replays
-
-cpp-run: cpp-build
-	./build/app/thoth_raylib
+package: check
+	mkdir -p dist
+	rm -f $(PACKAGE)
+	zip -9 -r $(PACKAGE) main.lua conf.lua src assets README.md docs "to do.md" -x "assets/previews/*" "assets/replays/*"
+	zip -T $(PACKAGE)
 
 clean:
-	rm -rf build
+	rm -rf dist

@@ -1,4 +1,4 @@
-name: Thoth C++ CI
+name: Thoth Lua CI
 
 on:
   push:
@@ -11,60 +11,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install native dependencies
+      - name: Install Lua runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            libasound2-dev \
-            libgl1-mesa-dev \
-            libglu1-mesa-dev \
-            libx11-dev \
-            libxcursor-dev \
-            libxext-dev \
-            libxi-dev \
-            libxinerama-dev \
-            libxrandr-dev \
-            xauth \
-            xvfb
+          sudo apt-get install -y luajit love zip
 
-      - name: Run tests
+      - name: Run headless tests
         run: make test
 
-      - name: Run packaged replay validation
-        run: make cpp-validate-replays
+      - name: Run asset checks
+        run: make check
 
-      - name: Run sprite atlas export smoke
-        run: make cpp-export-atlas
-
-      - name: Run authored sprite atlas export smoke
-        run: make cpp-export-authored-atlas
-
-      - name: Run audio cue export smoke
-        run: make cpp-export-audio
-
-      - name: Run authored audio cue export smoke
-        run: make cpp-export-authored-audio
-
-      - name: Run packaged asset validation
-        run: make cpp-validate-assets
-
-      - name: Run media preview export smoke
-        run: make cpp-export-media-preview
-
-      - name: Run raylib window smoke
-        run: xvfb-run -a -s "-screen 0 1280x720x24" make cpp-smoke-window
-
-      - name: Run benchmark smoke
-        env:
-          THOTH_BENCHMARK_MAX_US_PER_TICK: "5000"
-        run: make cpp-benchmark
-
-      - name: Run scaled benchmark smoke
-        env:
-          THOTH_BENCHMARK_TICKS: "900"
-          THOTH_BENCHMARK_BURNER_LINES: "96"
-          THOTH_BENCHMARK_POWERED_LINES: "32"
-          THOTH_BENCHMARK_MAX_US_PER_TICK: "10000"
-        run: make cpp-benchmark
+      - name: Build love package
+        run: make package
