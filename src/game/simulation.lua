@@ -50,6 +50,7 @@ local entityDefs = {
     null_wisp = { hp = 5, hostile = true },
     dungeon_sentinel = { hp = 6, hostile = true },
     rift_stalker = { hp = 8, hostile = true },
+    marsh_broodheart = { hp = 14, hostile = true, boss = true },
 }
 local biomeEnemyKinds = {
     marsh = { "slime" },
@@ -592,6 +593,11 @@ function Simulation:entityMaxHp(kind)
     return def and def.hp or 3
 end
 
+function Simulation:isBossKind(kind)
+    local def = entityDefs[kind]
+    return def and def.boss == true
+end
+
 function Simulation:entityAttackDamage(entity)
     if entity.kind == "slime" then
         return 1
@@ -599,7 +605,23 @@ function Simulation:entityAttackDamage(entity)
     return 1
 end
 
+function Simulation:updateBossPhases()
+    if self.tick == 0 then
+        return
+    end
+    local spawns = {}
+    for _, entity in ipairs(self.entities) do
+        if entity.kind == "marsh_broodheart" and entity.hp <= math.floor(self:entityMaxHp(entity.kind) / 2) and self.tick % 90 == 0 then
+            spawns[#spawns + 1] = { x = entity.x, y = entity.y, z = entity.z or 0, kind = "slime", range = 3 }
+        end
+    end
+    for _, spawn in ipairs(spawns) do
+        self:spawnEntityNear(spawn.x, spawn.y, spawn.z, spawn.kind, spawn.range)
+    end
+end
+
 function Simulation:updateEntities()
+    self:updateBossPhases()
     for _, entity in ipairs(self.entities) do
         if entity.attackCooldown > 0 then
             entity.attackCooldown = entity.attackCooldown - 1
@@ -655,6 +677,32 @@ function Simulation:moveEntityTowardTarget(entity)
             entity.x = candidate.x
             entity.y = candidate.y
             return true
+        end
+    end
+    return false
+end
+
+function Simulation:spawnEntityNear(x, y, z, kind, range)
+    if #self.entities >= 80 then
+        return false
+    end
+    range = range or 1
+    for radius = 1, range do
+        for oy = -radius, radius do
+            for ox = -radius, radius do
+                if math.abs(ox) + math.abs(oy) == radius then
+                    local sx = x + ox
+                    local sy = y + oy
+                    if not (sx == self.player.x and sy == self.player.y and (z or 0) == self.player.z)
+                        and not self:machineAt(sx, sy, z or 0)
+                        and not self:entityAt(sx, sy, z or 0)
+                        and self.world:isWalkable(sx, sy, z or 0) then
+                        local entity = self:addEntity(kind, sx, sy, z or 0)
+                        entity.attackCooldown = 20
+                        return true
+                    end
+                end
+            end
         end
     end
     return false

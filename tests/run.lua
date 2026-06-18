@@ -311,6 +311,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(50)
+    sim.player.x = 0
+    sim.player.y = 16
+    local boss = sim:addEntity("marsh_broodheart", 0, 12, 0)
+    expect(boss.hp == 14 and sim:isBossKind(boss.kind), "marsh boss stats missing")
+    boss.hp = 7
+    sim.tick = 90
+    sim:updateEntities()
+    local spawned = false
+    for _, entity in ipairs(sim.entities) do
+        if entity.kind == "slime" then
+            spawned = true
+        end
+    end
+    expect(spawned, "marsh boss half-health phase should spawn slime")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))

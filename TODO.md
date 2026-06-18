@@ -114,9 +114,7 @@
 
 ## Phase 13: Combat, Bosses, Relics
 
-- Restore entities:
 - Restore boss ladder:
-  - Marsh Broodheart.
   - Glass Maw.
   - Badlands Warden.
   - Frost Nullifier.
