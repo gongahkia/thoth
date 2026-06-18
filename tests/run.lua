@@ -927,6 +927,28 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local a = Simulation.new(68)
+    local b = Simulation.new(68)
+    for _, sim in ipairs({ a, b }) do
+        sim.productionTotals.science_pack = 10
+        sim.tick = 300
+        sim:addMachine("lab", 0, 0, "south")
+        expect(sim:ensureFactoryPressureEntity(), "pressure wave should spawn hostile probe")
+    end
+    expect(#a.entities == 1 and a.entities[1].pressureSpawn, "pressure probe should mark pressure spawn")
+    expect(a.entities[1].kind == "slime", "probe pressure should spawn slime")
+    expect(a.entities[1].x == b.entities[1].x and a.entities[1].y == b.entities[1].y, "pressure probe spawn should be deterministic")
+    local surge = Simulation.new(69)
+    surge.productionTotals.science_pack = 20
+    surge.tick = 300
+    surge:addMachine("lab", 0, 0, "south")
+    expect(surge:ensureFactoryPressureEntity(), "pressure surge should spawn hostiles")
+    expect(#surge.entities == 2, "surge pressure should spawn two hostiles")
+    local loaded = assert(Save.fromText(Save.toText(surge)))
+    expect(loaded.entities[1].pressureSpawn, "pressure spawn marker should persist")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do

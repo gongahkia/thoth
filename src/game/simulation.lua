@@ -110,6 +110,20 @@ local bossSummonOffsets = {
     { -1, 2 },
     { 1, -2 },
 }
+local pressureSpawnOffsets = {
+    { 9, 0 },
+    { -9, 0 },
+    { 0, 9 },
+    { 0, -9 },
+    { 7, 5 },
+    { -7, 5 },
+    { 7, -5 },
+    { -7, -5 },
+    { 4, 9 },
+    { -4, 9 },
+    { 9, -4 },
+    { -9, -4 },
+}
 local bossExamDefs = {
     marsh_broodheart = { production = "water_barrel", required = 3 },
     glass_maw = { item = "sand_glass", required = 3 },
@@ -217,6 +231,7 @@ local function newEntity(id, kind, x, y, z, hp)
         z = z or 0,
         hp = hp or 3,
         attackCooldown = 0,
+        pressureSpawn = false,
     }
 end
 
@@ -385,6 +400,7 @@ function Simulation:step()
         self:apply(command)
     end
     self:updateMachines()
+    self:ensureFactoryPressureEntity()
     self:updateEntities()
     self:updateAchievements()
     self.tick = self.tick + 1
@@ -1422,6 +1438,57 @@ function Simulation:pressureWaveAlertText()
         return "wave alert: " .. severity .. " incoming now"
     end
     return "wave alert: next " .. severity .. " in " .. ticks .. " ticks"
+end
+
+function Simulation:pressureWaveSpawnKinds()
+    if self:ticksUntilNextPressureWave() ~= 0 then
+        return {}
+    end
+    if self:factoryPressureLevel() >= 220 then
+        return { "skeleton", "slime" }
+    end
+    return { "slime" }
+end
+
+function Simulation:pressureAnchor()
+    local hotspots = self:pressureHotspots()
+    if #hotspots > 0 then
+        return hotspots[1]
+    end
+    return { x = self.player.x, y = self.player.y, z = self.player.z, pressure = self:localPressureAt(self.player.x, self.player.y, self.player.z) }
+end
+
+function Simulation:spawnPressureEntity(kind, anchor, spawnIndex)
+    for attempt = 1, #pressureSpawnOffsets do
+        local offset = pressureSpawnOffsets[((spawnIndex + attempt - 2) % #pressureSpawnOffsets) + 1]
+        local x = anchor.x + offset[1]
+        local y = anchor.y + offset[2]
+        local z = anchor.z or 0
+        if not (x == self.player.x and y == self.player.y and z == self.player.z)
+            and not self:machineAt(x, y, z)
+            and not self:entityAt(x, y, z)
+            and self.world:isWalkable(x, y, z) then
+            local entity = self:addEntity(kind, x, y, z)
+            entity.attackCooldown = 20
+            entity.pressureSpawn = true
+            return true
+        end
+    end
+    return false
+end
+
+function Simulation:ensureFactoryPressureEntity()
+    if #self.entities >= 80 or self:ticksUntilNextPressureWave() ~= 0 then
+        return false
+    end
+    local anchor = self:pressureAnchor()
+    local spawned = false
+    for index, kind in ipairs(self:pressureWaveSpawnKinds()) do
+        if self:spawnPressureEntity(kind, anchor, index + math.floor(self.tick / 300)) then
+            spawned = true
+        end
+    end
+    return spawned
 end
 
 function Simulation:productionRatePanels()
@@ -2509,6 +2576,7 @@ function Simulation:snapshot()
             z = entity.z or 0,
             hp = entity.hp,
             attackCooldown = entity.attackCooldown or 0,
+            pressureSpawn = entity.pressureSpawn == true,
         }
     end
     return {
@@ -2582,6 +2650,7 @@ function Simulation.fromSnapshot(snapshot)
     for _, value in ipairs(snapshot.entities or {}) do
         local entity = newEntity(value.id, value.kind, value.x, value.y, value.z or 0, value.hp or 1)
         entity.attackCooldown = value.attackCooldown or 0
+        entity.pressureSpawn = value.pressureSpawn == true
         self.entities[#self.entities + 1] = entity
     end
     table.sort(self.entities, function(a, b)
