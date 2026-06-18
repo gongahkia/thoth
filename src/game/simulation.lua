@@ -1844,6 +1844,7 @@ function Simulation:postVictoryExpeditionBoard()
     add("lair_caches", "Open five dungeon or lair caches", self.productionTotals.dungeon_chests_opened or 0, 5)
     add("rift_freight", "Complete twenty train-stop cargo hops for remote freight", self.productionTotals.train_deliveries or 0, 20)
     add("scrap_economy", "Recycle ten scrap into useful factory plates", self.productionTotals.scrap_recycled or 0, 10)
+    add("powered_industry", "Extract fifty resources with electric miners", self.productionTotals.powered_ore or 0, 50)
     return entries
 end
 

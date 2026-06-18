@@ -1220,7 +1220,7 @@ tests[#tests + 1] = function()
     end
     sim.completedTechs.logistic_network = true
     local board = sim:postVictoryExpeditionBoard()
-    expect(#board == 8 and board[1].key == "cartography", "post-victory board should expose scouting entry")
+    expect(#board == 9 and board[1].key == "cartography", "post-victory board should expose scouting entry")
     expect(board[2].key == "relic_set" and board[2].required == 5, "post-victory board should expose boss relic entry")
     expect(board[3].key == "storm_veteran" and board[3].required == 3, "post-victory board should expose rift storm entry")
     expect(board[4].key == "outpost_network" and board[4].required == 5, "post-victory board should expose outpost route entry")
@@ -1228,8 +1228,9 @@ tests[#tests + 1] = function()
     expect(board[6].key == "lair_caches" and board[6].required == 5, "post-victory board should expose lair cache entry")
     expect(board[7].key == "rift_freight" and board[7].required == 20, "post-victory board should expose train freight entry")
     expect(board[8].key == "scrap_economy" and board[8].required == 10, "post-victory board should expose scrap recycling entry")
+    expect(board[9].key == "powered_industry" and board[9].required == 50, "post-victory board should expose powered mining entry")
     expect(board[1].unlocked and not board[1].complete, "scouting entry should unlock incomplete after main objective")
-    expect(sim:postVictoryExpeditionText():find("expedition 1/8") ~= nil, "post-victory text should show scouting progress")
+    expect(sim:postVictoryExpeditionText():find("expedition 1/9") ~= nil, "post-victory text should show scouting progress")
     for _, biome in ipairs({ "marsh", "desert", "badlands", "snowfield", "crystal_field", "rift" }) do
         sim:markScoutedBiome(biome)
     end
@@ -1257,9 +1258,12 @@ tests[#tests + 1] = function()
     expect(sim:postVictoryExpeditionText():find("Recycle ten scrap") ~= nil, "post-victory text should advance to scrap recycling")
     sim.productionTotals.scrap_recycled = 10
     expect(sim:completedPostVictoryExpeditions() == 8, "completed scrap recycling entry should count")
+    expect(sim:postVictoryExpeditionText():find("electric miners") ~= nil, "post-victory text should advance to powered mining")
+    sim.productionTotals.powered_ore = 50
+    expect(sim:completedPostVictoryExpeditions() == 9, "completed powered mining entry should count")
     expect(sim:postVictoryExpeditionText():find("complete") ~= nil, "complete post-victory board should summarize completion")
     local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:completedPostVictoryExpeditions() == 8, "post-victory scouting, boss relic, storm, outpost, pressure, cache, freight, and scrap board should persist")
+    expect(loaded:completedPostVictoryExpeditions() == 9, "post-victory expedition board should persist")
 end
 
 tests[#tests + 1] = function()
