@@ -172,6 +172,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(606)
+    sim.player.x = -9
+    sim.player.y = -80
+    sim:queue(Simulation.commands.mine("east"))
+    sim:step()
+    expect(sim:itemCount("recovery_crate") == 1, "recovery crate should be claimable")
+    expect(sim.world:getTile(-8, -80, 0).id == "grass", "claimed recovery crate should clear")
+end
+
+tests[#tests + 1] = function()
     local a = Simulation.new(42)
     local b = Simulation.new(42)
     local commands = {
