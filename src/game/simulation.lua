@@ -1794,6 +1794,8 @@ function Simulation:updateMachines()
             self:updateAssembler(machine)
         elseif machine.kind == "lab" then
             self:updateLab(machine)
+        elseif machine.kind == "guard_tower" then
+            self:updateGuardTower(machine)
         end
     end
     self:updateLogistics()
@@ -2115,6 +2117,41 @@ function Simulation:updateTrainStops()
                 end
             end
         end
+    end
+end
+
+function Simulation:nearestHostile(machine, range)
+    local best
+    local bestDistance = range + 1
+    for _, entity in ipairs(self.entities) do
+        if (entity.z or 0) == (machine.z or 0) and self:isHostileEntity(entity) then
+            local distance = Grid.manhattan(machine.x, machine.y, entity.x, entity.y)
+            if distance <= range and distance < bestDistance then
+                best = entity
+                bestDistance = distance
+            end
+        end
+    end
+    return best
+end
+
+function Simulation:updateGuardTower(machine)
+    if not self:isMachinePowered(machine.id) then
+        machine.progress = 0
+        machine.status = "missing_power"
+        return
+    end
+    local target = self:nearestHostile(machine, 5)
+    if not target then
+        machine.progress = 0
+        machine.status = "idle"
+        return
+    end
+    machine.progress = machine.progress + 1
+    machine.status = "working"
+    if machine.progress >= 45 then
+        self:damageEntity(target, 1)
+        machine.progress = 0
     end
 end
 
