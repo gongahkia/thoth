@@ -115,7 +115,6 @@
 ## Phase 14: Pressure, Defense, Outposts
 
 - Restore factory pressure:
-  - Pressure score from production and factory footprint.
   - Pressure hotspots.
   - Wave alerts.
   - Deterministic hostile probe spawns.

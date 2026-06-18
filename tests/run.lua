@@ -884,6 +884,21 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(65)
+    expect(sim:factoryPressureLevel() == 0, "empty factory pressure should be zero")
+    sim.productionTotals.science_pack = 10
+    expect(sim:factoryPressureLevel() == 120, "production pressure should include science output")
+    sim:addMachine("lab", 0, 0, "south")
+    sim:addMachine("assembler", 1, 0, "south")
+    sim:addMachine("chest", 2, 0, "south")
+    expect(sim:factoryFootprintPressure() == 14, "factory footprint pressure should weight machines")
+    expect(sim:factoryPressureLevel() == 134, "factory pressure should combine production and footprint")
+    sim.productionTotals.pressure_waves_repelled = 1
+    expect(sim:factoryPressureLevel() == 99, "repelled waves should reduce pressure")
+    expect(sim:factoryPressureText():find("pressure: watched") == 1, "pressure text should summarize pressure tier")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do

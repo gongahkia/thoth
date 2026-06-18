@@ -13,6 +13,35 @@ local machineOutputs = {
     assembler = { "science_pack", "advanced_science_pack", "circuit_board", "beacon_core" },
     chest = Defs.itemOrder,
 }
+local pressureWeights = {
+    lab = 28,
+    assembler = 28,
+    archive_terminal = 28,
+    rift_gate = 28,
+    generator = 16,
+    electric_miner = 16,
+    logistic_port = 16,
+    outpost_beacon = 16,
+    guard_tower = 8,
+    arc_tower = 8,
+    pressure_relay = 8,
+    repair_pylon = 8,
+    belt = 6,
+    fast_belt = 6,
+    inserter = 6,
+    circuit_inserter = 6,
+    splitter = 6,
+    train_stop = 6,
+    pipe = 6,
+    offshore_pump = 6,
+    burner_miner = 6,
+    furnace = 6,
+    chest = 2,
+    provider_chest = 2,
+    requester_chest = 2,
+    workbench = 2,
+    power_pole = 2,
+}
 
 local function copySet(values)
     local result = {}
@@ -240,6 +269,7 @@ function Simulation.new(seed, startInTutorial)
             iron_plate = 0,
             copper_plate = 0,
             science_pack = 0,
+            advanced_science_pack = 0,
             water_barrel = 0,
             train_deliveries = 0,
             powered_ore = 0,
@@ -247,6 +277,7 @@ function Simulation.new(seed, startInTutorial)
             archive_signals = 0,
             rift_jumps = 0,
             outposts_activated = 0,
+            pressure_waves_repelled = 0,
             creatures_defeated = 0,
             bosses_defeated = 0,
             boss_relics_claimed = 0,
@@ -1283,6 +1314,44 @@ end
 
 function Simulation:mainObjectiveComplete()
     return self:completedSupplyContracts() >= self:totalSupplyContracts() and self:isTechCompleted("logistic_network")
+end
+
+function Simulation:machinePressureWeight(machine)
+    return pressureWeights[machine.kind] or 0
+end
+
+function Simulation:factoryFootprintPressure()
+    local total = 0
+    for _, machine in ipairs(self.machines) do
+        total = total + self:machinePressureWeight(machine)
+    end
+    return math.floor(total / 4)
+end
+
+function Simulation:factoryPressureLevel()
+    local productionPressure = (self.productionTotals.iron_plate or 0)
+        + (self.productionTotals.copper_plate or 0)
+        + (self.productionTotals.science_pack or 0) * 12
+        + (self.productionTotals.advanced_science_pack or 0) * 24
+        + math.floor((self.productionTotals.powered_ore or 0) / 2)
+        + (self.productionTotals.logistic_deliveries or 0) * 8
+        + (self.productionTotals.archive_signals or 0) * 50
+        + (self.productionTotals.rift_jumps or 0) * 80
+    return math.max(0, productionPressure + self:factoryFootprintPressure() - (self.productionTotals.pressure_waves_repelled or 0) * 35)
+end
+
+function Simulation:factoryPressureText()
+    local pressure = self:factoryPressureLevel()
+    if pressure < 60 or (self.productionTotals.science_pack or 0) == 0 then
+        return "pressure: quiet (" .. pressure .. ")"
+    end
+    if pressure < 120 then
+        return "pressure: watched (" .. pressure .. ")"
+    end
+    if pressure < 220 then
+        return "pressure: raids possible (" .. pressure .. ")"
+    end
+    return "pressure: hostile surge (" .. pressure .. ")"
 end
 
 function Simulation:productionRatePanels()
