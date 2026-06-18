@@ -912,6 +912,21 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local quiet = Simulation.new(67)
+    expect(quiet:ticksUntilNextPressureWave() == -1, "quiet pressure should not schedule waves")
+    expect(quiet:pressureWaveAlertText():find("wave alert: none") == 1, "quiet alert should report none")
+    local sim = Simulation.new(67)
+    sim.productionTotals.science_pack = 10
+    sim.tick = 1
+    expect(sim:ticksUntilNextPressureWave() == 299, "pressure wave timer should count down")
+    expect(sim:pressureWaveAlertText():find("wave alert: next probe in 299 ticks") == 1, "wave alert should report probe countdown")
+    sim.productionTotals.science_pack = 20
+    sim.tick = 300
+    expect(sim:ticksUntilNextPressureWave() == 0, "wave timer should hit zero on cadence")
+    expect(sim:pressureWaveAlertText():find("wave alert: surge incoming now") == 1, "wave alert should report incoming surge")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do

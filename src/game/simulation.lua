@@ -1402,6 +1402,28 @@ function Simulation:pressureMapText()
     return "pressure map: hotspot x" .. hotspot.x .. " y" .. hotspot.y .. " p" .. hotspot.pressure
 end
 
+function Simulation:ticksUntilNextPressureWave()
+    if (self.productionTotals.science_pack or 0) == 0 or self:factoryPressureLevel() < 120 then
+        return -1
+    end
+    if self.tick > 0 and self.tick % 300 == 0 then
+        return 0
+    end
+    return 300 - (self.tick % 300)
+end
+
+function Simulation:pressureWaveAlertText()
+    local ticks = self:ticksUntilNextPressureWave()
+    if ticks < 0 then
+        return "wave alert: none; pressure below raid threshold"
+    end
+    local severity = self:factoryPressureLevel() >= 220 and "surge" or "probe"
+    if ticks == 0 then
+        return "wave alert: " .. severity .. " incoming now"
+    end
+    return "wave alert: next " .. severity .. " in " .. ticks .. " ticks"
+end
+
 function Simulation:productionRatePanels()
     local minutes = math.max(1, math.floor((self.tick + 3599) / 3600))
     local panels = {}
