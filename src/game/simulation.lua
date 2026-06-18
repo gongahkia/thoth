@@ -2837,6 +2837,10 @@ function Simulation:updateArchiveTerminal(machine)
         machine.status = "missing_power"
         return
     end
+    if machine.progress == 0 and not machine.inventory:consume("beacon_core", 1) then
+        machine.status = "missing_input"
+        return
+    end
     machine.progress = math.min(machine.progress + 1, archiveTerminalTicks)
     machine.status = "working"
     if machine.progress < archiveTerminalTicks then
@@ -3196,6 +3200,9 @@ function Simulation:acceptItem(machine, item)
             end
         end
         return false
+    end
+    if machine.kind == "archive_terminal" then
+        return item == "beacon_core" and machine.inventory:add(item, 1)
     end
     if machine.kind == "chest" or machine.kind == "provider_chest" or machine.kind == "requester_chest" or machine.kind == "train_stop" then
         return machine.inventory:add(item, 1)

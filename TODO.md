@@ -115,7 +115,6 @@
 ## Phase 15: Archive, Rift, Post-Victory
 
 - Restore archive systems:
-  - Beacon core consumption.
   - Archive fragment alternate recipes.
   - Archive choice UI/data.
 - Restore rift systems:
