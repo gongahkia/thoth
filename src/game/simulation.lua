@@ -539,6 +539,10 @@ function Simulation.commands.socketRelic(machineId, item)
     return { type = "socket_relic", machineId = machineId, item = item }
 end
 
+function Simulation.commands.selectArchiveChoice(machineId, choiceIndex)
+    return { type = "select_archive_choice", machineId = machineId, choiceIndex = choiceIndex }
+end
+
 function Simulation:queue(command)
     self.commandQueue[#self.commandQueue + 1] = command
 end
@@ -781,6 +785,10 @@ function Simulation:apply(command)
     end
     if command.type == "socket_relic" then
         self:socketRelic(command.machineId, command.item)
+        return
+    end
+    if command.type == "select_archive_choice" then
+        self:selectArchiveChoice(command.machineId, command.choiceIndex)
     end
 end
 
@@ -2908,6 +2916,39 @@ function Simulation:tryArchiveUnlock(machine)
         end
     end
     return false
+end
+
+function Simulation:archiveChoices(machineId)
+    local machine = machineId and self:machineById(machineId) or nil
+    local choices = {}
+    for index, choice in ipairs(archiveChoiceDefs) do
+        local fragments = machine and machine.inventory:count(choice.fragment) or 0
+        if machine and choice.fragment ~= "archive_fragment" then
+            fragments = fragments + machine.inventory:count("archive_fragment")
+        end
+        local science = machine and (machine.inventory:count("advanced_science_pack") + machine.inventory:count("science_pack")) or 0
+        choices[#choices + 1] = {
+            index = index - 1,
+            key = choice.key,
+            recipeKey = choice.recipeKey,
+            fragment = choice.fragment,
+            fragmentCost = choice.fragmentCost,
+            scienceCost = choice.scienceCost,
+            selected = machine and (machine.requestThreshold or 0) == index - 1 or false,
+            available = fragments >= choice.fragmentCost and science >= choice.scienceCost,
+            unlocked = self:isRecipeUnlocked(choice.recipeKey),
+        }
+    end
+    return choices
+end
+
+function Simulation:selectArchiveChoice(machineId, choiceIndex)
+    local machine = self:machineById(machineId)
+    if not machine or machine.kind ~= "archive_terminal" then
+        return false
+    end
+    machine.requestThreshold = math.max(0, math.min(#archiveChoiceDefs - 1, math.floor(tonumber(choiceIndex) or 0)))
+    return true
 end
 
 function Simulation:isWaterTile(x, y, z)
