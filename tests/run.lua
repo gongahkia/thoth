@@ -735,13 +735,30 @@ end
 
 tests[#tests + 1] = function()
     local sim = Simulation.new(17)
-    expect(sim:nextStepText() == "Mine west trees for workbench wood", "initial next step should point at wood")
+    local function expectNext(text)
+        expect(sim:nextStepText() == text, "next step should show: " .. text)
+    end
+    expectNext("Mine west trees for workbench wood")
     sim:addItem("wood", 6)
+    expectNext("Mine southern stone for furnace and belts")
     sim:addItem("stone", 8)
     sim:addMachine("workbench", 0, 1, "south")
-    expect(sim:nextStepText() == "Craft and place a burner miner on ore", "next step should advance past starter materials")
+    expectNext("Craft and place a burner miner on ore")
+    sim:addMachine("burner_miner", 0, 0, "east")
+    expectNext("Fuel miner and furnace, then route ore into smelting")
+    sim.productionTotals.iron_plate = 1
+    expectNext("Craft and place an assembler near plate supply")
+    sim:addMachine("assembler", 1, 0, "east")
+    expectNext("Craft and place a lab")
+    sim:addMachine("lab", 2, 0, "south")
+    expectNext("Feed iron and copper plates into an assembler for science")
+    sim.productionTotals.science_pack = 1
+    expectNext("Move science packs into a lab for Logistics 1")
+    sim.completedTechs.logistics_1 = true
+    expectNext("Craft a chest for plate output")
     local checklist = sim:objectiveChecklist()
-    expect(checklist[1].title == "First" and checklist[2].title == "Science", "objective checklist groups missing")
+    expect(checklist[1].title == "First" and checklist[2].title == "Science" and checklist[4].title == "Supply", "objective checklist groups missing")
+    expect(#sim:tutorialProgress() == 5, "tutorial checklist should expose onboarding steps")
 end
 
 tests[#tests + 1] = function()

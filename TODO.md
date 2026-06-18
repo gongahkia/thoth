@@ -105,13 +105,6 @@
   - `make check` passes.
   - `make package` creates `dist/thoth.love` with `main.lua`, `conf.lua`, `src/`, and `assets/` at archive root.
 
-## Phase 8: Playable UI Foundation
-
-- Acceptance:
-  - Player can build ore-to-science without README or memorized hotkeys.
-  - `make check` still passes.
-  - `make smoke` still exits cleanly.
-
 ## Phase 16: Planning, Construction, Performance
 
 - Add render/CI checks:
