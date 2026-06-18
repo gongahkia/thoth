@@ -115,7 +115,6 @@
 ## Phase 16: Planning, Construction, Performance
 
 - Add render/CI checks:
-  - Package contents test.
   - Optional screenshot/render smoke once CI display support is stable.
 - Acceptance:
   - `make check` includes simulation tests, replay tests, registry tests, asset checks, package checks, and benchmark smoke.
