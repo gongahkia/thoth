@@ -88,6 +88,14 @@ local bossExamDefs = {
     frost_nullifier = { production = "logistic_deliveries", required = 3 },
     rift_signal_tyrant = { rift = true, required = 5 },
 }
+local relicSocketRules = {
+    repair_pylon = { marsh_heart = true },
+    pressure_relay = { glass_heart = true },
+    guard_tower = { warden_core = true },
+    arc_tower = { frost_core = true, warden_core = true },
+    rift_gate = { rift_crown = true },
+    outpost_beacon = { rift_crown = true },
+}
 
 local tutorialSteps = {
     { key = "move", label = "Move with WASD" },
@@ -166,6 +174,7 @@ local function newMachine(id, kind, x, y, direction, z)
         circuitThreshold = 0,
         requestItem = nil,
         requestThreshold = 0,
+        socketedRelic = nil,
         status = "idle",
     }
 end
@@ -327,6 +336,10 @@ end
 
 function Simulation.commands.summonBoss(direction)
     return { type = "summon_boss", direction = direction }
+end
+
+function Simulation.commands.socketRelic(machineId, item)
+    return { type = "socket_relic", machineId = machineId, item = item }
 end
 
 function Simulation:queue(command)
@@ -566,6 +579,10 @@ function Simulation:apply(command)
     end
     if command.type == "summon_boss" then
         self:trySummonBoss(command.direction)
+        return
+    end
+    if command.type == "socket_relic" then
+        self:socketRelic(command.machineId, command.item)
     end
 end
 
@@ -911,6 +928,23 @@ function Simulation:trySummonBoss(direction)
     self.player.facing = direction
     local x, y = Grid.front(self.player.x, self.player.y, direction)
     return self:trySummonBossAt(x, y, self.player.z)
+end
+
+function Simulation:canSocketRelic(kind, item)
+    local rules = relicSocketRules[kind]
+    return rules and rules[item] == true
+end
+
+function Simulation:socketRelic(machineId, item)
+    local machine = self:machineById(machineId)
+    if not machine or machine.socketedRelic or not self:canSocketRelic(machine.kind, item) then
+        return false
+    end
+    if not self:consumeItem(item, 1) then
+        return false
+    end
+    machine.socketedRelic = item
+    return true
 end
 
 function Simulation:localEntityKindForTile(x, y, z)
@@ -2322,6 +2356,7 @@ function Simulation:snapshot()
             circuitThreshold = machine.circuitThreshold,
             requestItem = machine.requestItem,
             requestThreshold = machine.requestThreshold,
+            socketedRelic = machine.socketedRelic,
             status = machine.status,
         }
     end
@@ -2398,6 +2433,7 @@ function Simulation.fromSnapshot(snapshot)
         machine.circuitThreshold = value.circuitThreshold or 0
         machine.requestItem = value.requestItem
         machine.requestThreshold = value.requestThreshold or 0
+        machine.socketedRelic = value.socketedRelic
         machine.status = value.status or "idle"
         self.machines[#self.machines + 1] = machine
     end

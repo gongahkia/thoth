@@ -521,6 +521,23 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(64)
+    local pylon = sim:addMachine("repair_pylon", 0, 0, "south")
+    local relay = sim:addMachine("pressure_relay", 1, 0, "south")
+    sim:addItem("marsh_heart", 1)
+    sim:addItem("glass_heart", 1)
+    expect(not sim:socketRelic(pylon.id, "glass_heart"), "socketing should reject wrong relic")
+    expect(sim:socketRelic(pylon.id, "marsh_heart"), "socketing should accept matching relic")
+    expect(sim:itemCount("marsh_heart") == 0 and pylon.socketedRelic == "marsh_heart", "socketing should consume and attach relic")
+    sim:queue(Simulation.commands.socketRelic(relay.id, "glass_heart"))
+    sim:step()
+    expect(relay.socketedRelic == "glass_heart", "socket relic command should attach relic")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:machineById(pylon.id).socketedRelic == "marsh_heart", "socketed relic should persist")
+    expect(loaded:machineById(relay.id).socketedRelic == "glass_heart", "second socketed relic should persist")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))
