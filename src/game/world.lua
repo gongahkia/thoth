@@ -400,7 +400,14 @@ function World:snapshot()
     table.sort(tiles, function(a, b)
         return a.key < b.key
     end)
-    return { seed = self.seed, tiles = tiles }
+    local chunks = {}
+    for key, chunk in pairs(self.chunks) do
+        chunks[#chunks + 1] = { key = key, cx = chunk.cx, cy = chunk.cy, z = chunk.z }
+    end
+    table.sort(chunks, function(a, b)
+        return a.key < b.key
+    end)
+    return { seed = self.seed, chunks = chunks, tiles = tiles }
 end
 
 function World.fromSnapshot(snapshot)
@@ -408,7 +415,12 @@ function World.fromSnapshot(snapshot)
     for _, value in ipairs(snapshot.tiles or {}) do
         overrides[value.key] = tile(value.id, value.data)
     end
-    return World.new(snapshot.seed, overrides)
+    local world = World.new(snapshot.seed, overrides)
+    for _, chunk in ipairs(snapshot.chunks or {}) do
+        local key = chunk.key or World.chunkKey(chunk.cx, chunk.cy, chunk.z or 0)
+        world.chunks[key] = world:generateChunk(chunk.cx, chunk.cy, chunk.z or 0)
+    end
+    return world
 end
 
 return World

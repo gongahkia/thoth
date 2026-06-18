@@ -114,10 +114,6 @@
 
 ## Phase 12: World, Biomes, And Exploration
 
-- Add Lua-native chunk cache:
-  - Cache chunks by `z:cx:cy`.
-  - Snapshot only loaded/modified tiles.
-  - Keep generation deterministic from seed and coordinates.
 - Acceptance:
   - Tests cover deterministic chunks, chunk boundary mutation, starter resources, early biome tiles, biome/lair generation, generated lairs, lair cache persistence, boat traversal, stairs/layers, and dungeon save/load.
 
