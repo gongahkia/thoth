@@ -630,6 +630,39 @@ function Simulation:mainObjectiveComplete()
     return self:completedSupplyContracts() >= self:totalSupplyContracts() and self:isTechCompleted("logistic_network")
 end
 
+function Simulation:productionRatePanels()
+    local minutes = math.max(1, math.floor((self.tick + 3599) / 3600))
+    local panels = {}
+    local function rate(key)
+        return math.floor((self.productionTotals[key] or 0) / minutes)
+    end
+    local function add(key, label, current, target, detail)
+        panels[#panels + 1] = {
+            key = key,
+            label = label,
+            currentPerMinute = current,
+            targetPerMinute = target,
+            blocked = target > 0 and current < target,
+            detail = detail,
+        }
+    end
+    add("iron_plate", "Iron/min", rate("iron_plate"), 3, self:currentSupplyContractText())
+    add("copper_plate", "Copper/min", rate("copper_plate"), 3, self:currentSupplyContractText())
+    add("science_pack", "Science/min", rate("science_pack"), 2, self.activeTech and ("active tech " .. self.activeTech) or "research complete")
+    add("water_barrel", "Water/min", rate("water_barrel"), self:isRecipeUnlocked("pipe") and 1 or 0, "pump water into pipe output")
+    add("train_deliveries", "Train/min", rate("train_deliveries"), self:isRecipeUnlocked("train_stop") and 1 or 0, "move freight between train stops")
+    return panels
+end
+
+function Simulation:productionRateText()
+    for _, panel in ipairs(self:productionRatePanels()) do
+        if panel.blocked then
+            return "rates: " .. panel.label .. " " .. panel.currentPerMinute .. "/" .. panel.targetPerMinute .. "; " .. panel.detail
+        end
+    end
+    return "rates: tracked production meets current targets"
+end
+
 function Simulation:updateMachines()
     self:updatePowerNetworks()
     for _, machine in ipairs(self.machines) do

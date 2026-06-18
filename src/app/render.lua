@@ -496,6 +496,28 @@ local function checklistText(group)
     return table.concat(parts, " ")
 end
 
+local function ratePanelText(panel)
+    local target = panel.targetPerMinute > 0 and ("/" .. panel.targetPerMinute) or ""
+    return (panel.blocked and "[ ]" or "[x]") .. panel.label .. " " .. panel.currentPerMinute .. target
+end
+
+local function drawProductionPanel(sim)
+    local x = 356
+    local y = 132
+    local w = 274
+    love.graphics.setColor(0.06, 0.07, 0.08, 0.78)
+    love.graphics.rectangle("fill", x, y, w, 126)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Production", x + 10, y + 8)
+    for index, panel in ipairs(sim:productionRatePanels()) do
+        if index > 5 then
+            break
+        end
+        love.graphics.setColor(panel.blocked and 0.94 or 0.72, panel.blocked and 0.72 or 0.92, panel.blocked and 0.36 or 0.62, 1)
+        love.graphics.print(ratePanelText(panel), x + 10, y + 8 + index * 20)
+    end
+end
+
 function Render.drawHud(sim, app)
     love.graphics.setColor(0.06, 0.07, 0.08, 0.86)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), 124)
@@ -516,6 +538,7 @@ function Render.draw(sim, app)
     app.ui = {}
     Render.drawWorld(sim, app)
     Render.drawHud(sim, app)
+    drawProductionPanel(sim)
     drawMachinePanel(sim, app)
     drawInventoryPanel(sim, app)
     drawRecipeCards(sim, app)

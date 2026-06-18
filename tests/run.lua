@@ -375,6 +375,20 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(33)
+    local rates = sim:productionRatePanels()
+    expect(#rates == 5, "production rate panels should expose tracked outputs")
+    expect(rates[1].key == "iron_plate" and rates[1].blocked, "iron rate target should start blocked")
+    expect(sim:productionRateText():find("rates: Iron/min 0/3") == 1, "production rate text should surface first blocked target")
+    sim.productionTotals.iron_plate = 4
+    sim.productionTotals.copper_plate = 4
+    sim.productionTotals.science_pack = 3
+    sim.tick = 3600
+    expect(not sim:productionRatePanels()[1].blocked, "met iron rate target should unblock")
+    expect(sim:productionRateText() == "rates: tracked production meets current targets", "met rate targets should summarize stable production")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(31)
     local lab = sim:addMachine("lab", 0, 0, "south")
     lab.inventory:add("science_pack", 7)
