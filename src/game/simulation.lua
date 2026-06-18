@@ -293,6 +293,9 @@ function Simulation.new(seed, startInTutorial)
             rift_jumps = 0,
             outposts_activated = 0,
             pressure_waves_repelled = 0,
+            pressure_enemies_defeated = 0,
+            pressure_wave_rewards_claimed = 0,
+            scrap_recovered = 0,
             creatures_defeated = 0,
             bosses_defeated = 0,
             boss_relics_claimed = 0,
@@ -692,6 +695,17 @@ function Simulation:defeatEntity(entity)
     local drop = self:entityDrop(entity.kind)
     if drop then
         self:addItem(drop, 1)
+    end
+    if entity.pressureSpawn then
+        self.productionTotals.pressure_enemies_defeated = (self.productionTotals.pressure_enemies_defeated or 0) + 1
+        self.productionTotals.scrap_recovered = (self.productionTotals.scrap_recovered or 0) + 1
+        self:addItem("scrap", 1)
+        if self.productionTotals.pressure_enemies_defeated % 3 == 0 then
+            local reward = self:factoryPressureLevel() >= 220 and "advanced_science_pack" or "science_pack"
+            self.productionTotals[reward] = (self.productionTotals[reward] or 0) + 1
+            self.productionTotals.pressure_wave_rewards_claimed = (self.productionTotals.pressure_wave_rewards_claimed or 0) + 1
+            self:addItem(reward, 1)
+        end
     end
     for _, recipeKey in ipairs((entityDefs[entity.kind] and entityDefs[entity.kind].unlocks) or {}) do
         self.unlockedRecipes[recipeKey] = true

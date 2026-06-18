@@ -114,8 +114,6 @@
 
 ## Phase 14: Pressure, Defense, Outposts
 
-- Restore factory pressure:
-  - Pressure rewards.
 - Restore defense systems:
   - Guard tower targeting.
   - Arc tower targeting.

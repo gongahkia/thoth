@@ -949,6 +949,22 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(70)
+    sim.productionTotals.science_pack = 10
+    for index = 1, 3 do
+        local entity = sim:addEntity("slime", index, 0, 0, 1)
+        entity.pressureSpawn = true
+        sim:damageEntity(entity, 1)
+    end
+    expect(sim.productionTotals.pressure_enemies_defeated == 3, "pressure kills should be counted")
+    expect(sim.productionTotals.scrap_recovered == 3 and sim:itemCount("scrap") == 3, "pressure kills should reward scrap")
+    expect(sim.productionTotals.pressure_wave_rewards_claimed == 1, "pressure reward counter should increment")
+    expect(sim:itemCount("science_pack") == 1, "pressure reward should grant science at probe pressure")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded.productionTotals.pressure_wave_rewards_claimed == 1 and loaded:itemCount("scrap") == 3, "pressure rewards should persist")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do
