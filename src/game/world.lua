@@ -226,6 +226,40 @@ function World:generatedTile(x, y, z)
         end
         return tile("floor")
     end
+    if z < 0 then
+        local lair = authoredLairAt(x, y) or generatedLairAt(self.seed, x, y)
+        if lair then
+            local localX = math.abs(x - lair.x)
+            local localY = math.abs(y - lair.y)
+            if localX == lairRadius or localY == lairRadius then
+                return tile("dungeon_wall")
+            end
+            if localX == 0 and localY == 0 then
+                return tile("stairs_up")
+            end
+            if localX == 2 and localY == 0 then
+                return tile("lair_hearth")
+            end
+            if localX == 3 and localY == 1 then
+                return tile(lair.material, 2)
+            end
+            return tile("dungeon_floor")
+        end
+        local localX = World.floorMod(x, 16)
+        local localY = World.floorMod(y, 16)
+        local room = inside(localX, 3, 12) and inside(localY, 3, 12)
+        local corridor = localX == 8 or localY == 8
+        if (World.floorMod(x, 32) == 0 and World.floorMod(y, 32) == 0) or (x == 0 and y == 0) then
+            return tile("stairs_up")
+        end
+        if not room and not corridor then
+            return tile("dungeon_wall")
+        end
+        if Rng.hash(self.seed + 14001, x, y, z) % 1000 < 24 then
+            return tile("crystal", 1)
+        end
+        return tile("dungeon_floor")
+    end
     if z ~= 0 then
         return tile("grass")
     end

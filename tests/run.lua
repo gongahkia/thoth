@@ -135,6 +135,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local world = World.new(404)
+    expect(world:getTile(0, 0, -1).id == "stairs_up", "generic dungeon should expose return stairs")
+    expect(world:getTile(1, 1, -1).id == "dungeon_wall", "generic dungeon should have walls")
+    expect(world:getTile(8, 1, -1).id == "dungeon_floor", "generic dungeon should have corridors")
+    expect(world:getTile(0, 18, -1).id == "stairs_up", "authored lair interior should expose return stairs")
+    expect(world:getTile(5, 18, -1).id == "dungeon_wall", "authored lair interior boundary missing")
+    expect(world:getTile(3, 19, -1).id == "reeds", "authored lair interior material missing")
+    expect(world:getTile(417, -453, -1).id == "stairs_up", "generated lair interior should expose return stairs")
+end
+
+tests[#tests + 1] = function()
     local a = Simulation.new(42)
     local b = Simulation.new(42)
     local commands = {
