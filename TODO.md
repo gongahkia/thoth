@@ -117,7 +117,6 @@
 - Restore machines:
   - Generator, power pole, electric miner.
   - Pipe and offshore pump.
-  - Train stop.
 - Restore deterministic power network recomputation:
   - Poles connect within Manhattan distance `<= 4`.
   - Generators and consumers connect to poles within Manhattan distance `<= 2`.

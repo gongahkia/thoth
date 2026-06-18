@@ -204,6 +204,13 @@ tests[#tests + 1] = function()
     expect(port.inventory:count("logistic_drone") == 1, "logistic port did not retain drone")
 end
 
+tests[#tests + 1] = function()
+    local sim = Simulation.new(22)
+    local stop = sim:addMachine("train_stop", 0, 0, "south")
+    expect(sim:acceptItem(stop, "iron_plate"), "train stop should accept freight")
+    expect(sim:extractItem(stop) == "iron_plate", "train stop should expose freight")
+end
+
 for index, test in ipairs(tests) do
     local ok, err = pcall(test)
     if not ok then
