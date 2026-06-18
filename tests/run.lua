@@ -1109,6 +1109,31 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local unpowered = Simulation.new(84)
+    local unpoweredBeacon = unpowered:addMachine("outpost_beacon", 12, 0, "south")
+    runSteps(unpowered, 1)
+    expect(unpoweredBeacon.status == "missing_power", "outpost beacon should require power")
+    expect((unpowered.productionTotals.outposts_activated or 0) == 0, "unpowered outpost should not activate")
+
+    local sim = Simulation.new(85)
+    sim.player.x = 20
+    sim.player.y = 20
+    local generator = sim:addMachine("generator", 10, 0, "south")
+    generator.inventory:add("coal", 100)
+    sim:addMachine("power_pole", 11, 0, "south")
+    local beacon = sim:addMachine("outpost_beacon", 12, 0, "south")
+    expect(sim.world:biomeAt(12, 0, 0) == "desert", "outpost test should be in desert biome")
+    runSteps(sim, 80)
+    expect(beacon.progress == 80 and beacon.status == "idle", "powered outpost beacon should finish activation")
+    expect(sim.productionTotals.outposts_activated == 1, "outpost activation should increment production total")
+    expect(sim:hasActivatedOutpostBiome("desert"), "outpost activation should track biome coverage")
+    expect(sim:activatedOutpostBiomeCount() == 1 and #sim:activatedOutpostBiomes() == 1, "unique outpost biome coverage should be exposed")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:machineById(beacon.id).progress == 80, "activated outpost should persist")
+    expect(loaded:hasActivatedOutpostBiome("desert"), "outpost biome coverage should persist")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do

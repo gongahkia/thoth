@@ -114,9 +114,7 @@
 
 ## Phase 14: Pressure, Defense, Outposts
 
-- Restore defense systems:
 - Restore outposts:
-  - Outpost beacons.
   - Biome-specific input consumption.
   - Sustained delivery windows.
   - Route stability.

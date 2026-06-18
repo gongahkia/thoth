@@ -44,6 +44,8 @@ local pressureWeights = {
 }
 local guardTowerAmmo = { "copper_coil", "frost_cell", "stone_shot" }
 local arcTowerAmmo = { "rift_shell", "crystal_charge", "copper_coil" }
+local outpostBeaconTicks = 80
+local requiredOutpostBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field" }
 local machineDurability = {
     wall = 12,
     plank_wall = 8,
@@ -86,6 +88,10 @@ local function repairMaterialForTile(id)
         return "iron_plate"
     end
     return "wall"
+end
+
+local function outpostBiomeKey(prefix, biome)
+    return prefix .. "_" .. tostring(biome or "grassland")
 end
 
 local function copySet(values)
@@ -1461,6 +1467,34 @@ function Simulation:completedSupplyContracts()
     return completed
 end
 
+function Simulation:markActivatedOutpostBiome(biome)
+    self.productionTotals[outpostBiomeKey("outpost_activated", biome)] = 1
+end
+
+function Simulation:hasActivatedOutpostBiome(biome)
+    return (self.productionTotals[outpostBiomeKey("outpost_activated", biome)] or 0) > 0
+end
+
+function Simulation:activatedOutpostBiomeCount()
+    local count = 0
+    for _, biome in ipairs(requiredOutpostBiomes) do
+        if self:hasActivatedOutpostBiome(biome) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function Simulation:activatedOutpostBiomes()
+    local biomes = {}
+    for _, biome in ipairs(requiredOutpostBiomes) do
+        if self:hasActivatedOutpostBiome(biome) then
+            biomes[#biomes + 1] = biome
+        end
+    end
+    return biomes
+end
+
 function Simulation:totalSupplyContracts()
     return #self.supplyContracts
 end
@@ -1949,6 +1983,8 @@ function Simulation:updateMachines()
             self:updateRepairPylon(machine)
         elseif machine.kind == "pressure_relay" then
             self:updatePressureRelay(machine)
+        elseif machine.kind == "outpost_beacon" then
+            self:updateOutpostBeacon(machine)
         end
     end
     self:updateLogistics()
@@ -2422,6 +2458,26 @@ function Simulation:updatePressureRelay(machine)
     end
     self.productionTotals.pressure_waves_repelled = (self.productionTotals.pressure_waves_repelled or 0) + (machine.socketedRelic == "glass_heart" and 2 or 1)
     machine.progress = 0
+    machine.status = "idle"
+end
+
+function Simulation:updateOutpostBeacon(machine)
+    if machine.progress >= outpostBeaconTicks then
+        machine.progress = outpostBeaconTicks
+        machine.status = "idle"
+        return
+    end
+    if not self:isMachinePowered(machine.id) then
+        machine.status = "missing_power"
+        return
+    end
+    machine.progress = math.min(machine.progress + 1, outpostBeaconTicks)
+    machine.status = "working"
+    if machine.progress < outpostBeaconTicks then
+        return
+    end
+    self.productionTotals.outposts_activated = (self.productionTotals.outposts_activated or 0) + 1
+    self:markActivatedOutpostBiome(self.world:biomeAt(machine.x, machine.y, machine.z or 0))
     machine.status = "idle"
 end
 
