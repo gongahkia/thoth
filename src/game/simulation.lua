@@ -51,6 +51,7 @@ local entityDefs = {
     dungeon_sentinel = { hp = 6, hostile = true },
     rift_stalker = { hp = 8, hostile = true },
     marsh_broodheart = { hp = 14, hostile = true, boss = true },
+    glass_maw = { hp = 16, hostile = true, boss = true },
 }
 local biomeEnemyKinds = {
     marsh = { "slime" },
@@ -575,12 +576,22 @@ function Simulation:damageEntity(entity, amount)
     return true
 end
 
+function Simulation:playerAttackDamage(entity)
+    if entity.kind == "glass_maw" and (self.productionTotals.pressure_waves_repelled or 0) == 0 and self.tick % 80 < 40 then
+        return 1
+    end
+    if self:isBossKind(entity.kind) then
+        return 2
+    end
+    return 1
+end
+
 function Simulation:attack(direction)
     direction = direction or self.player.facing
     self.player.facing = direction
     local x, y = Grid.front(self.player.x, self.player.y, direction)
     local entity = self:entityAt(x, y, self.player.z)
-    return self:damageEntity(entity, 1)
+    return self:damageEntity(entity, entity and self:playerAttackDamage(entity) or 0)
 end
 
 function Simulation:isHostileEntity(entity)

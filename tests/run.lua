@@ -329,6 +329,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(51)
+    local boss = sim:addEntity("glass_maw", 1, 0, 0)
+    expect(boss.hp == 16 and sim:isBossKind(boss.kind), "glass boss stats missing")
+    sim:attack("east")
+    expect(boss.hp == 15, "glass boss should resist attacks before pressure proof")
+    sim.productionTotals.pressure_waves_repelled = 1
+    sim:attack("east")
+    expect(boss.hp == 13, "glass boss resistance should drop after pressure proof")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))
