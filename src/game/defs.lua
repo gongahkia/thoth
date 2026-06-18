@@ -12,6 +12,7 @@ local Defs = {
     machineRecipes = Registry.machineRecipes,
     machineRecipeOrder = Registry.machineRecipeOrder,
     techs = Registry.techs,
+    techOrder = Registry.techOrder,
 }
 
 function Defs.tile(id)

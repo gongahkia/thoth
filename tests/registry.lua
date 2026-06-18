@@ -82,6 +82,7 @@ checkExpectedKeys("recipes", Defs.recipes)
 checkExpectedKeys("techs", Defs.techs)
 checkOrder("item", Defs.itemOrder, Defs.items)
 checkOrder("recipe", Defs.recipeOrder, Defs.recipes)
+checkOrder("tech", Defs.techOrder, Defs.techs)
 
 for key, tile in pairs(Defs.tiles) do
     expect(tile.name and tile.name ~= "", "tile " .. key .. " missing name")

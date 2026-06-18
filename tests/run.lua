@@ -328,6 +328,34 @@ tests[#tests + 1] = function()
     expect(sim.productionTotals.train_deliveries == 1, "train delivery counter did not increment")
 end
 
+tests[#tests + 1] = function()
+    local sim = Simulation.new(31)
+    local lab = sim:addMachine("lab", 0, 0, "south")
+    lab.inventory:add("science_pack", 7)
+    runSteps(sim, 180)
+    expect(sim:isTechCompleted("logistics_1"), "logistics_1 was not completed")
+    expect(sim:isTechCompleted("automation_control"), "automation_control was not completed")
+    expect(sim.activeTech == "logistic_network", "active tech did not advance to logistic_network")
+    for _, recipe in ipairs({ "fast_belt", "generator", "power_pole", "electric_miner", "splitter", "pipe" }) do
+        expect(sim:isRecipeUnlocked(recipe), "logistics_1 unlock path missing " .. recipe)
+    end
+    for _, recipe in ipairs({ "circuit_board", "advanced_science_pack", "crystal_lens", "circuit_inserter", "offshore_pump", "guard_tower", "repair_pylon" }) do
+        expect(sim:isRecipeUnlocked(recipe), "automation_control unlock path missing " .. recipe)
+    end
+    lab.inventory:add("advanced_science_pack", 5)
+    runSteps(sim, 120)
+    expect(sim:isTechCompleted("logistic_network"), "logistic_network was not completed")
+    for _, recipe in ipairs({
+        "provider_chest", "requester_chest", "logistic_port", "logistic_drone", "beacon_core", "archive_terminal",
+        "train_stop", "rift_gate", "outpost_beacon", "pressure_relay", "arc_tower",
+    }) do
+        expect(sim:isRecipeUnlocked(recipe), "logistic_network unlock path missing " .. recipe)
+    end
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded.activeTech == nil, "completed tech chain should stay complete after load")
+    expect(loaded:isRecipeUnlocked("rift_gate"), "final tech unlocks did not persist")
+end
+
 for index, test in ipairs(tests) do
     local ok, err = pcall(test)
     if not ok then

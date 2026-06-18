@@ -114,14 +114,6 @@
 
 ## Phase 11: Progression And Contracts
 
-- Restore 3-tech chain:
-  - Logistics 1.
-  - Automation Control.
-  - Logistic Network.
-- Restore recipe unlock path:
-  - Fast belts, generator, power pole, electric miner, splitter, pipe.
-  - Circuit boards, advanced science, crystal lens, circuit inserter, offshore pump, guard tower, repair pylon.
-  - Provider/requester chests, logistic port/drone, beacon core, archive terminal, train stop, rift gate, outpost beacon, pressure relay, arc tower.
 - Restore progression surfaces:
   - Supply contracts.
   - Main objective completion.

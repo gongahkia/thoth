@@ -277,4 +277,6 @@ Registry.techs = {
     },
 }
 
+Registry.techOrder = { "logistics_1", "automation_control", "logistic_network" }
+
 return Registry

@@ -1115,7 +1115,8 @@ function Simulation:updateAssembler(machine)
 end
 
 function Simulation:updateLab(machine)
-    if self:isTechCompleted(self.activeTech) then
+    local tech = Defs.tech(self.activeTech)
+    if not tech or self:isTechCompleted(self.activeTech) then
         machine.status = "idle"
         return
     end
@@ -1128,12 +1129,33 @@ function Simulation:updateLab(machine)
         end
         return
     end
-    if not machine.inventory:consume("science_pack", 1) then
+    local inputItem = self:activeTechInput()
+    if not inputItem or not machine.inventory:consume(inputItem, 1) then
         machine.status = "missing_input"
         return
     end
     machine.progress = 20
     machine.status = "working"
+end
+
+function Simulation:activeTechInput()
+    local tech = Defs.tech(self.activeTech)
+    if not tech then
+        return nil
+    end
+    for item in pairs(tech.inputs or {}) do
+        return item
+    end
+    return nil
+end
+
+function Simulation:nextIncompleteTech()
+    for _, techKey in ipairs(Defs.techOrder or {}) do
+        if not self:isTechCompleted(techKey) then
+            return techKey
+        end
+    end
+    return nil
 end
 
 function Simulation:completeResearchIfReady()
@@ -1149,6 +1171,8 @@ function Simulation:completeResearchIfReady()
     for _, recipeKey in ipairs(tech.unlocks) do
         self.unlockedRecipes[recipeKey] = true
     end
+    self.activeTech = self:nextIncompleteTech()
+    self.researchProgress = 0
 end
 
 function Simulation:acceptItemAt(x, y, z, item)
@@ -1189,7 +1213,7 @@ function Simulation:acceptItem(machine, item)
         return recipe and recipe.inputs[item] ~= nil and machine.inventory:add(item, 1)
     end
     if machine.kind == "lab" then
-        return item == "science_pack" and machine.inventory:add(item, 1)
+        return (item == "science_pack" or item == "advanced_science_pack") and machine.inventory:add(item, 1)
     end
     if machine.kind == "logistic_port" then
         return item == "logistic_drone" and machine.inventory:add(item, 1)
@@ -1377,7 +1401,7 @@ function Simulation.fromSnapshot(snapshot)
     self.nextMachineId = snapshot.nextMachineId or (#self.machines + 1)
     self.unlockedRecipes = copySet(snapshot.unlockedRecipes or recipeUnlockedDefaults())
     self.completedTechs = copySet(snapshot.completedTechs or {})
-    self.activeTech = snapshot.activeTech or "logistics_1"
+    self.activeTech = snapshot.activeTech or self:nextIncompleteTech()
     self.researchProgress = snapshot.researchProgress or 0
     self.productionTotals = copySet(snapshot.productionTotals or {})
     self.powerDirty = true
