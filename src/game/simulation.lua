@@ -632,6 +632,9 @@ function Simulation:addItem(item, count)
 end
 
 function Simulation:consumeItem(item, count)
+    if self:isPlanningMode() then
+        return true
+    end
     return self.player.inventory:consume(item, count)
 end
 
@@ -1574,17 +1577,18 @@ function Simulation:craft(recipeKey)
     if not recipe or not self:isRecipeUnlocked(recipeKey) then
         return false
     end
-    if recipe.station == "workbench" and not self:hasAdjacentWorkbench() then
+    local planning = self:isPlanningMode()
+    if recipe.station == "workbench" and not planning and not self:hasAdjacentWorkbench() then
         return false
     end
     if recipe.station ~= "hand" and recipe.station ~= "workbench" then
         return false
     end
-    if not self.player.inventory:consumeAll(recipe.inputs) then
+    if not planning and not self.player.inventory:consumeAll(recipe.inputs) then
         return false
     end
     self:addItem(recipe.output.item, recipe.output.count)
-    if (recipe.inputs.scrap or 0) > 0 then
+    if not planning and (recipe.inputs.scrap or 0) > 0 then
         self.productionTotals.scrap_recycled = (self.productionTotals.scrap_recycled or 0) + recipe.inputs.scrap
     end
     return true

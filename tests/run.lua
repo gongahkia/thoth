@@ -670,6 +670,20 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(98)
+    sim:addItem("workbench", 1)
+    sim:addItem("scrap", 3)
+    sim:togglePlanningMode()
+    sim:queue(Simulation.commands.place("east", "workbench", "south"))
+    sim:step()
+    expect(sim:machineAt(1, 0, 0).kind == "workbench", "planning placement should still place machine")
+    expect(sim:itemCount("workbench") == 1, "planning placement should not consume machine item")
+    expect(sim:craft("salvage_iron_plate"), "planning craft should allow unlocked recipe")
+    expect(sim:itemCount("scrap") == 3, "planning craft should not consume recipe inputs")
+    expect((sim.productionTotals.scrap_recycled or 0) == 0, "planning craft should not count recycled scrap")
+end
+
+tests[#tests + 1] = function()
     local frames = {
         { tick = 0, command = Simulation.commands.face("west") },
         { tick = 0, command = Simulation.commands.mine("west") },

@@ -114,8 +114,6 @@
 
 ## Phase 16: Planning, Construction, Performance
 
-- Restore planning mode:
-  - No material consumption while planning.
 - Restore construction:
   - Drone construction jobs.
   - Provider-source material pickup.
