@@ -541,6 +541,28 @@ local function drawFactoryDashboard(sim)
     end
 end
 
+local function achievementPanelText(progress)
+    return (progress.unlocked and "[x]" or "[ ]") .. progress.title .. " " .. math.min(progress.current, progress.required) .. "/" .. progress.required
+end
+
+local function drawAchievementsPanel(sim)
+    local x = 638
+    local y = 132
+    local w = 326
+    local progress = sim:achievementProgress()
+    love.graphics.setColor(0.06, 0.07, 0.08, 0.78)
+    love.graphics.rectangle("fill", x, y, w, 126)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Achievements " .. sim:unlockedAchievementCount() .. "/" .. #progress, x + 10, y + 8)
+    for index, achievement in ipairs(progress) do
+        if index > 5 then
+            break
+        end
+        love.graphics.setColor(achievement.unlocked and 0.72 or 0.86, achievement.unlocked and 0.92 or 0.72, achievement.unlocked and 0.62 or 0.42, 1)
+        love.graphics.print(achievementPanelText(achievement), x + 10, y + 8 + index * 20)
+    end
+end
+
 function Render.drawHud(sim, app)
     love.graphics.setColor(0.06, 0.07, 0.08, 0.86)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), 124)
@@ -563,6 +585,7 @@ function Render.draw(sim, app)
     Render.drawHud(sim, app)
     drawProductionPanel(sim)
     drawFactoryDashboard(sim)
+    drawAchievementsPanel(sim)
     drawMachinePanel(sim, app)
     drawInventoryPanel(sim, app)
     drawRecipeCards(sim, app)

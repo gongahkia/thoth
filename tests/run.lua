@@ -413,6 +413,27 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(35)
+    sim.productionTotals.iron_plate = 1
+    sim.productionTotals.copper_plate = 1
+    sim.productionTotals.science_pack = 1
+    sim.completedTechs.logistics_1 = true
+    sim.supplyContracts[1].complete = true
+    local progress = sim:achievementProgress()
+    expect(#progress == 6, "achievement progress should expose all definitions")
+    expect(progress[1].current >= progress[1].required, "achievement progress should derive from totals")
+    expect(sim:unlockedAchievementCount() == 0, "achievements should not unlock before a step")
+    sim:step()
+    expect(sim:unlockedAchievementCount() == 5, "seeded achievements should unlock after a step")
+    expect(sim:isAchievementUnlocked("first_iron_plate"), "first plate achievement should unlock")
+    sim:step()
+    expect(sim:unlockedAchievementCount() == 5, "achievement updates should not duplicate unlocks")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:unlockedAchievementCount() == 5, "unlocked achievements should persist")
+    expect(loaded:isAchievementUnlocked("first_supply_contract"), "supply achievement should persist")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(31)
     local lab = sim:addMachine("lab", 0, 0, "south")
     lab.inventory:add("science_pack", 7)

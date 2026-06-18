@@ -21,6 +21,23 @@ local function copySet(values)
     return result
 end
 
+local function copyList(values)
+    local result = {}
+    for _, value in ipairs(values or {}) do
+        result[#result + 1] = value
+    end
+    return result
+end
+
+local achievementDefs = {
+    { key = "first_iron_plate", title = "First Plate", description = "Produce an iron plate", required = 1 },
+    { key = "first_copper_plate", title = "Copper Flow", description = "Produce a copper plate", required = 1 },
+    { key = "first_science_pack", title = "Lab Sample", description = "Produce a science pack", required = 1 },
+    { key = "logistics_one", title = "Logistics Online", description = "Complete Logistics 1 research", required = 1 },
+    { key = "first_supply_contract", title = "Supply Proven", description = "Complete a supply contract", required = 1 },
+    { key = "main_objective", title = "Rift Prep", description = "Complete the main progression objective", required = 1 },
+}
+
 local function recipeUnlockedDefaults()
     local result = {}
     for key, recipe in pairs(Defs.recipes) do
@@ -106,6 +123,8 @@ function Simulation.new(seed)
         logisticJobs = {},
         nextLogisticJobId = 1,
         supplyContracts = defaultSupplyContracts(),
+        unlockedAchievements = {},
+        unlockedAchievementSet = {},
         productionTotals = {
             iron_plate = 0,
             copper_plate = 0,
@@ -192,6 +211,7 @@ function Simulation:step()
         self:apply(command)
     end
     self:updateMachines()
+    self:updateAchievements()
     self.tick = self.tick + 1
 end
 
@@ -777,6 +797,68 @@ function Simulation:factoryDashboardText()
         end
     end
     return "dashboard: all tracked systems stable"
+end
+
+function Simulation:achievementCurrent(key)
+    if key == "first_iron_plate" then
+        return self.productionTotals.iron_plate or 0
+    end
+    if key == "first_copper_plate" then
+        return self.productionTotals.copper_plate or 0
+    end
+    if key == "first_science_pack" then
+        return self.productionTotals.science_pack or 0
+    end
+    if key == "logistics_one" then
+        return self:isTechCompleted("logistics_1") and 1 or 0
+    end
+    if key == "first_supply_contract" then
+        return self:completedSupplyContracts()
+    end
+    if key == "main_objective" then
+        return self:mainObjectiveComplete() and 1 or 0
+    end
+    return 0
+end
+
+function Simulation:isAchievementUnlocked(key)
+    return self.unlockedAchievementSet[key] == true
+end
+
+function Simulation:unlockAchievement(key)
+    if self:isAchievementUnlocked(key) then
+        return false
+    end
+    self.unlockedAchievementSet[key] = true
+    self.unlockedAchievements[#self.unlockedAchievements + 1] = key
+    return true
+end
+
+function Simulation:updateAchievements()
+    for _, def in ipairs(achievementDefs) do
+        if not self:isAchievementUnlocked(def.key) and self:achievementCurrent(def.key) >= def.required then
+            self:unlockAchievement(def.key)
+        end
+    end
+end
+
+function Simulation:achievementProgress()
+    local progress = {}
+    for _, def in ipairs(achievementDefs) do
+        progress[#progress + 1] = {
+            key = def.key,
+            title = def.title,
+            description = def.description,
+            current = self:achievementCurrent(def.key),
+            required = def.required,
+            unlocked = self:isAchievementUnlocked(def.key),
+        }
+    end
+    return progress
+end
+
+function Simulation:unlockedAchievementCount()
+    return #self.unlockedAchievements
 end
 
 function Simulation:updateMachines()
@@ -1602,6 +1684,7 @@ function Simulation:snapshot()
         logisticJobs = self.logisticJobs,
         nextLogisticJobId = self.nextLogisticJobId,
         supplyContracts = copyContracts(self.supplyContracts),
+        unlockedAchievements = copyList(self.unlockedAchievements),
         unlockedRecipes = copySet(self.unlockedRecipes),
         completedTechs = copySet(self.completedTechs),
         activeTech = self.activeTech,
@@ -1654,6 +1737,14 @@ function Simulation.fromSnapshot(snapshot)
     self.logisticJobs = snapshot.logisticJobs or {}
     self.nextLogisticJobId = snapshot.nextLogisticJobId or (#self.logisticJobs + 1)
     self.supplyContracts = copyContracts(snapshot.supplyContracts or defaultSupplyContracts())
+    self.unlockedAchievements = {}
+    self.unlockedAchievementSet = {}
+    for _, key in ipairs(snapshot.unlockedAchievements or {}) do
+        if not self.unlockedAchievementSet[key] then
+            self.unlockedAchievementSet[key] = true
+            self.unlockedAchievements[#self.unlockedAchievements + 1] = key
+        end
+    end
     return self
 end
 
