@@ -1,4 +1,4 @@
-.PHONY: run smoke test check benchmark benchmark-smoke benchmark-scaled package-build package clean
+.PHONY: run smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -10,6 +10,13 @@ run:
 
 smoke:
 	$(LOVE) . --smoke
+
+render-smoke:
+	@if command -v xvfb-run >/dev/null 2>&1; then \
+		xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --smoke; \
+	else \
+		$(LOVE) . --smoke; \
+	fi
 
 test:
 	$(LUAJIT) tests/run.lua

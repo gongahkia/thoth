@@ -14,13 +14,16 @@ jobs:
       - name: Install Lua runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y luajit love zip
+          sudo apt-get install -y luajit love zip xvfb xauth
 
       - name: Run headless tests
         run: make test
 
       - name: Run asset checks
         run: make check
+
+      - name: Run render smoke
+        run: SDL_AUDIODRIVER=dummy make render-smoke
 
       - name: Build love package
         run: make package

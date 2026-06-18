@@ -105,10 +105,6 @@
   - `make check` passes.
   - `make package` creates `dist/thoth.love` with `main.lua`, `conf.lua`, `src/`, and `assets/` at archive root.
 
-## Phase 16: Planning, Construction, Performance
-
-- Add render/CI checks:
-  - Optional screenshot/render smoke once CI display support is stable.
 ## Lua-Native Implementation Notes
 
 - Use table-driven registries in `src/game/defs.lua`; split large content into `src/game/data/*.lua` once tables grow.
