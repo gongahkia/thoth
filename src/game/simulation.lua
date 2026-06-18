@@ -1822,6 +1822,7 @@ function Simulation:postVictoryExpeditionBoard()
         }
     end
     add("cartography", "Map every biome with automated scout dispatches", self:scoutedBiomeCount(), #scoutBiomes)
+    add("relic_set", "Claim the full five-relic boss set", self.productionTotals.boss_relics_claimed or 0, 5)
     return entries
 end
 

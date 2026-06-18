@@ -1202,16 +1202,20 @@ tests[#tests + 1] = function()
     end
     sim.completedTechs.logistic_network = true
     local board = sim:postVictoryExpeditionBoard()
-    expect(#board == 1 and board[1].key == "cartography", "post-victory board should expose scouting entry")
+    expect(#board == 2 and board[1].key == "cartography", "post-victory board should expose scouting entry")
+    expect(board[2].key == "relic_set" and board[2].required == 5, "post-victory board should expose boss relic entry")
     expect(board[1].unlocked and not board[1].complete, "scouting entry should unlock incomplete after main objective")
-    expect(sim:postVictoryExpeditionText():find("expedition 1/1") ~= nil, "post-victory text should show scouting progress")
+    expect(sim:postVictoryExpeditionText():find("expedition 1/2") ~= nil, "post-victory text should show scouting progress")
     for _, biome in ipairs({ "marsh", "desert", "badlands", "snowfield", "crystal_field", "rift" }) do
         sim:markScoutedBiome(biome)
     end
     expect(sim:completedPostVictoryExpeditions() == 1, "completed scouting entry should count")
+    expect(sim:postVictoryExpeditionText():find("five%-relic") ~= nil, "post-victory text should advance to boss relics")
+    sim.productionTotals.boss_relics_claimed = 5
+    expect(sim:completedPostVictoryExpeditions() == 2, "completed boss relic entry should count")
     expect(sim:postVictoryExpeditionText():find("complete") ~= nil, "complete post-victory board should summarize completion")
     local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:completedPostVictoryExpeditions() == 1, "post-victory scouting board should persist")
+    expect(loaded:completedPostVictoryExpeditions() == 2, "post-victory scouting and boss relic board should persist")
 end
 
 tests[#tests + 1] = function()
