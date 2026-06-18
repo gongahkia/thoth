@@ -1812,6 +1812,7 @@ end
 function Simulation:postVictoryExpeditionBoard()
     local unlocked = self:mainObjectiveComplete()
     local entries = {}
+    local outpostDeliveries = self:outpostDeliveryProgress()
     local function add(key, label, current, required)
         entries[#entries + 1] = {
             key = key,
@@ -1825,6 +1826,7 @@ function Simulation:postVictoryExpeditionBoard()
     add("cartography", "Map every biome with automated scout dispatches", self:scoutedBiomeCount(), #scoutBiomes)
     add("relic_set", "Claim the full five-relic boss set", self.productionTotals.boss_relics_claimed or 0, 5)
     add("storm_veteran", "Survive three rift storms after opening the gate", self.productionTotals.rift_storms_survived or 0, 3)
+    add("outpost_network", "Stabilize all sustained outpost delivery routes", self:stableOutpostRouteCount(), #outpostDeliveries)
     return entries
 end
 
