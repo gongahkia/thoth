@@ -2836,6 +2836,9 @@ function Simulation:updateConstructionJobs()
             ghost.progress = math.max(ghost.progress or 0, 100 - math.floor((job.remaining * 100) / math.max(1, job.total or 1)))
         end
         if job.remaining <= 0 then
+            if ghost then
+                self:completeGhostBuild(ghost)
+            end
             table.remove(self.constructionJobs, index)
         end
     end
@@ -2885,6 +2888,34 @@ function Simulation:updateConstructionJobs()
             end
         end
     end
+end
+
+function Simulation:completeGhostBuild(ghost)
+    if ghost.fulfilled then
+        return false
+    end
+    local itemDef = Defs.item(ghost.item)
+    if not itemDef then
+        ghost.blockedReason = "item"
+        return false
+    end
+    local blockedReason = self:ghostBlockedReason(itemDef, ghost.x, ghost.y, ghost.z or 0)
+    if blockedReason then
+        ghost.blockedReason = blockedReason
+        return false
+    end
+    if ghost.machine then
+        self:addMachine(itemDef.machine, ghost.x, ghost.y, ghost.direction, ghost.z or 0)
+    elseif itemDef.tile then
+        self.world:setTile(ghost.x, ghost.y, ghost.z or 0, { id = itemDef.tile, data = 0 })
+    else
+        ghost.blockedReason = "item"
+        return false
+    end
+    ghost.fulfilled = true
+    ghost.progress = 100
+    ghost.blockedReason = nil
+    return true
 end
 
 function Simulation:updateScoutAutomation()

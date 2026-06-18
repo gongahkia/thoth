@@ -114,8 +114,6 @@
 
 ## Phase 16: Planning, Construction, Performance
 
-- Restore construction:
-  - Ghost fulfillment state.
 - Add Lua-native performance guardrails:
   - Mixed-factory benchmark target.
   - Larger scaled benchmark target.
