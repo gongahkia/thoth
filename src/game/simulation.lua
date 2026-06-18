@@ -1518,6 +1518,19 @@ function Simulation:factoryPressureText()
     return "pressure: hostile surge (" .. pressure .. ")"
 end
 
+function Simulation:pressureMitigationAt(x, y, z)
+    local mitigation = 0
+    for _, machine in ipairs(self.machines) do
+        if machine.kind == "pressure_relay" and (machine.z or 0) == (z or 0) then
+            local distance = Grid.manhattan(x, y, machine.x, machine.y)
+            if distance <= 8 then
+                mitigation = mitigation + (machine.socketedRelic == "glass_heart" and 32 or 20)
+            end
+        end
+    end
+    return mitigation
+end
+
 function Simulation:localPressureAt(x, y, z)
     local pressure = math.floor(self:factoryPressureLevel() / 8)
     for _, machine in ipairs(self.machines) do
@@ -1529,7 +1542,7 @@ function Simulation:localPressureAt(x, y, z)
             end
         end
     end
-    return math.max(0, pressure)
+    return math.max(0, pressure - self:pressureMitigationAt(x, y, z))
 end
 
 function Simulation:pressureHotspots()
@@ -1934,6 +1947,8 @@ function Simulation:updateMachines()
             self:updateArcTower(machine)
         elseif machine.kind == "repair_pylon" then
             self:updateRepairPylon(machine)
+        elseif machine.kind == "pressure_relay" then
+            self:updatePressureRelay(machine)
         end
     end
     self:updateLogistics()
@@ -2390,6 +2405,26 @@ function Simulation:updateRepairPylon(machine)
     machine.status = "idle"
 end
 
+function Simulation:updatePressureRelay(machine)
+    if not self:isMachinePowered(machine.id) then
+        machine.status = "missing_power"
+        return
+    end
+    if machine.progress == 0 and not machine.inventory:consume("advanced_science_pack", 1) then
+        machine.status = "missing_input"
+        return
+    end
+    local goal = machine.socketedRelic == "glass_heart" and 90 or 120
+    machine.progress = math.min(machine.progress + 1, goal)
+    machine.status = "working"
+    if machine.progress < goal then
+        return
+    end
+    self.productionTotals.pressure_waves_repelled = (self.productionTotals.pressure_waves_repelled or 0) + (machine.socketedRelic == "glass_heart" and 2 or 1)
+    machine.progress = 0
+    machine.status = "idle"
+end
+
 function Simulation:isWaterTile(x, y, z)
     local id = self.world:getTile(x, y, z or 0).id
     return id == "water" or id == "deep_water" or id == "coral"
@@ -2728,6 +2763,9 @@ function Simulation:acceptItem(machine, item)
     end
     if machine.kind == "repair_pylon" then
         return (item == "wall" or item == "plank_wall" or item == "iron_plate") and machine.inventory:add(item, 1)
+    end
+    if machine.kind == "pressure_relay" then
+        return item == "advanced_science_pack" and machine.inventory:add(item, 1)
     end
     if machine.kind == "chest" or machine.kind == "provider_chest" or machine.kind == "requester_chest" or machine.kind == "train_stop" then
         return machine.inventory:add(item, 1)

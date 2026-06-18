@@ -1074,6 +1074,41 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local function poweredRelaySim(seed)
+        local sim = Simulation.new(seed)
+        sim.player.x = 20
+        sim.player.y = 20
+        local generator = sim:addMachine("generator", 0, 0, "south")
+        generator.inventory:add("coal", 140)
+        sim:addMachine("power_pole", 1, 0, "south")
+        local relay = sim:addMachine("pressure_relay", 2, 0, "south")
+        relay.inventory:add("advanced_science_pack", 1)
+        sim.productionTotals.science_pack = 10
+        return sim, relay
+    end
+
+    local sim, relay = poweredRelaySim(80)
+    expect(sim:factoryPressureLevel() >= 120, "pressure relay test should start above raid pressure")
+    runSteps(sim, 120)
+    expect(sim.productionTotals.pressure_waves_repelled == 1, "pressure relay cycle should increment pressure mitigation")
+    expect(relay.inventory:count("advanced_science_pack") == 0, "pressure relay should consume advanced science input")
+    expect(sim:factoryPressureLevel() < 120, "pressure relay mitigation should lower pressure below raid threshold")
+
+    local glassSim, glassRelay = poweredRelaySim(81)
+    glassRelay.socketedRelic = "glass_heart"
+    runSteps(glassSim, 90)
+    expect(glassSim.productionTotals.pressure_waves_repelled == 2, "Glass Heart should double pressure relay mitigation")
+
+    local baseline = Simulation.new(82)
+    local baselineGenerator = baseline:addMachine("generator", 0, 0, "south")
+    baselineGenerator.inventory:add("coal", 1)
+    baseline:addMachine("power_pole", 1, 0, "south")
+    baseline.productionTotals.science_pack = 10
+    local relaySim = poweredRelaySim(83)
+    expect(relaySim:localPressureAt(0, 0, 0) < baseline:localPressureAt(0, 0, 0), "nearby relay should mitigate local pressure")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do
