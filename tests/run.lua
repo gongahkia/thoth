@@ -410,6 +410,10 @@ tests[#tests + 1] = function()
     local power = findPanel(sim:factoryDashboard(), "power")
     expect(power.urgent and power.status == "underpowered", "dashboard should flag underpowered networks")
     expect(sim:factoryDashboardText():find("dashboard: urgent Power") == 1, "dashboard should prioritize urgent power panel")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    loaded:step()
+    local loadedPower = findPanel(loaded:factoryDashboard(), "power")
+    expect(loadedPower.urgent and loadedPower.status == "underpowered", "dashboard state should survive save/load")
 end
 
 tests[#tests + 1] = function()

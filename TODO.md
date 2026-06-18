@@ -112,12 +112,6 @@
   - `make check` still passes.
   - `make smoke` still exits cleanly.
 
-## Phase 11: Progression And Contracts
-
-- Acceptance:
-  - Replay validation reaches old visible milestones: iron, copper, science, power, logistics, archive/rift prep.
-  - Save/load preserves contract, tech, achievement, tutorial, and dashboard state.
-
 ## Phase 12: World, Biomes, And Exploration
 
 - Restore deterministic chunked terrain.
