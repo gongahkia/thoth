@@ -22,6 +22,20 @@ local function runSteps(sim, count)
     end
 end
 
+local bossCosts = {
+    marsh_broodheart = { water_barrel = 1, reed_fiber = 3, science_pack = 1 },
+    glass_maw = { sand_glass = 3, cactus_fiber = 3, science_pack = 1 },
+    badlands_warden = { basalt = 4, iron_plate = 4, advanced_science_pack = 1 },
+    frost_nullifier = { ice_shard = 4, circuit_board = 2, advanced_science_pack = 1 },
+    rift_signal_tyrant = { beacon_core = 1, crystal = 2, advanced_science_pack = 2 },
+}
+
+local function addItems(sim, items)
+    for item, count in pairs(items) do
+        sim:addItem(item, count)
+    end
+end
+
 local tests = {}
 
 tests[#tests + 1] = function()
@@ -408,6 +422,7 @@ tests[#tests + 1] = function()
     for _, case in ipairs(cases) do
         local sim = Simulation.new(55)
         satisfyBossExam(sim, case[4])
+        addItems(sim, bossCosts[case[4]])
         expect(sim:trySummonBossAt(case[1], case[2], 0), "boss summon should pass at lair " .. case[3])
         expect(#sim.entities == 1 and sim.entities[1].kind == case[4], "boss summon kind mismatch " .. case[4])
         expect(sim.world:lairAt(sim.entities[1].x, sim.entities[1].y, 0) == case[3], "boss should spawn inside matching lair")
@@ -420,20 +435,34 @@ tests[#tests + 1] = function()
     local marsh = Simulation.new(56)
     expect(not marsh:trySummonBossAt(0, 18, 0), "marsh boss should require water-barrel exam")
     marsh.productionTotals.water_barrel = 3
+    addItems(marsh, bossCosts.marsh_broodheart)
     expect(marsh:trySummonBossAt(0, 18, 0), "marsh boss exam should unlock summon")
     local glass = Simulation.new(57)
     expect(not glass:trySummonBossAt(18, -2, 0), "glass boss should require sand-glass exam")
-    glass:addItem("sand_glass", 3)
+    addItems(glass, bossCosts.glass_maw)
     expect(glass:trySummonBossAt(18, -2, 0), "glass boss exam should unlock summon")
     local badlands = Simulation.new(58)
     expect(not badlands:trySummonBossAt(36, 20, 0), "badlands boss should require powered-ore exam")
     badlands.productionTotals.powered_ore = 8
+    addItems(badlands, bossCosts.badlands_warden)
     expect(badlands:trySummonBossAt(36, 20, 0), "badlands boss exam should unlock summon")
     local frost = Simulation.new(59)
     expect(not frost:trySummonBossAt(-18, 0, 0), "frost boss should require logistics exam")
     frost.productionTotals.logistic_deliveries = 3
+    addItems(frost, bossCosts.frost_nullifier)
     expect(frost:trySummonBossAt(-18, 0, 0), "frost boss exam should unlock summon")
     expect(#frost:bossExamProgress() == 4, "boss exam progress should expose factory exams")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(60)
+    sim.productionTotals.water_barrel = 3
+    expect(not sim:trySummonBossAt(0, 18, 0), "boss summon should require item costs")
+    addItems(sim, bossCosts.marsh_broodheart)
+    expect(sim:trySummonBossAt(0, 18, 0), "boss summon should accept exact item costs")
+    expect(sim:itemCount("water_barrel") == 0, "boss summon should consume water cost")
+    expect(sim:itemCount("reed_fiber") == 0, "boss summon should consume biome material cost")
+    expect(sim:itemCount("science_pack") == 0, "boss summon should consume science cost")
 end
 
 tests[#tests + 1] = function()

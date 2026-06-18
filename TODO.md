@@ -115,7 +115,6 @@
 ## Phase 13: Combat, Bosses, Relics
 
 - Restore summon gates:
-  - Item costs.
   - Archive/rift requirements for rift boss.
 - Restore rewards:
   - Boss relic drops.

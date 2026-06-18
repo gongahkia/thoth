@@ -65,11 +65,11 @@ local biomeEnemyKinds = {
     rift = { "rift_stalker" },
 }
 local bossSummonDefsByLair = {
-    marsh_hive = { kind = "marsh_broodheart", biome = "marsh" },
-    glass_spire = { kind = "glass_maw", biome = "desert" },
-    badlands_foundry = { kind = "badlands_warden", biome = "badlands" },
-    frost_vault = { kind = "frost_nullifier", biome = "snowfield" },
-    crystal_vault = { kind = "rift_signal_tyrant", biome = "crystal_field" },
+    marsh_hive = { kind = "marsh_broodheart", biome = "marsh", cost = { water_barrel = 1, reed_fiber = 3, science_pack = 1 } },
+    glass_spire = { kind = "glass_maw", biome = "desert", cost = { sand_glass = 3, cactus_fiber = 3, science_pack = 1 } },
+    badlands_foundry = { kind = "badlands_warden", biome = "badlands", cost = { basalt = 4, iron_plate = 4, advanced_science_pack = 1 } },
+    frost_vault = { kind = "frost_nullifier", biome = "snowfield", cost = { ice_shard = 4, circuit_board = 2, advanced_science_pack = 1 } },
+    crystal_vault = { kind = "rift_signal_tyrant", biome = "crystal_field", cost = { beacon_core = 1, crystal = 2, advanced_science_pack = 2 } },
 }
 local bossSummonOffsets = {
     { -2, 0 },
@@ -803,6 +803,17 @@ function Simulation:trySummonBossAt(x, y, z)
     if not self:bossExamComplete(def.kind) then
         return false
     end
+    local sx, sy = self:bossSpawnCell(x, y, z, lair)
+    if not sx or not self:canConsumeCost(def.cost) then
+        return false
+    end
+    self:consumeCost(def.cost)
+    local boss = self:addEntity(def.kind, sx, sy, z or 0)
+    boss.attackCooldown = 40
+    return true
+end
+
+function Simulation:bossSpawnCell(x, y, z, lair)
     for _, offset in ipairs(bossSummonOffsets) do
         local sx = x + offset[1]
         local sy = y + offset[2]
@@ -810,12 +821,26 @@ function Simulation:trySummonBossAt(x, y, z)
             and self.world:isWalkable(sx, sy, z or 0)
             and not self:entityAt(sx, sy, z or 0)
             and not self:machineAt(sx, sy, z or 0) then
-            local boss = self:addEntity(def.kind, sx, sy, z or 0)
-            boss.attackCooldown = 40
-            return true
+            return sx, sy
         end
     end
-    return false
+    return nil, nil
+end
+
+function Simulation:canConsumeCost(cost)
+    for item, count in pairs(cost or {}) do
+        if self:itemCount(item) < count then
+            return false
+        end
+    end
+    return true
+end
+
+function Simulation:consumeCost(cost)
+    for item, count in pairs(cost or {}) do
+        self:consumeItem(item, count)
+    end
+    return true
 end
 
 function Simulation:bossExamCurrent(kind)
