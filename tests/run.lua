@@ -1223,6 +1223,26 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local unpowered = Simulation.new(90)
+    local unpoweredGate = unpowered:addMachine("rift_gate", 1, 0, "south")
+    runSteps(unpowered, 1)
+    expect(unpoweredGate.status == "missing_power", "rift gate should require power")
+    local sim = Simulation.new(91)
+    local generator = sim:addMachine("generator", 0, 1, "south")
+    generator.inventory:add("coal", 2)
+    sim:addMachine("power_pole", 1, 1, "south")
+    local gate = sim:addMachine("rift_gate", 1, 0, "south")
+    runSteps(sim, 1)
+    expect(gate.status == "missing_input", "powered rift gate should require beacon core")
+    gate.inventory:add("beacon_core", 1)
+    runSteps(sim, 180)
+    expect(gate.progress == 180 and gate.status == "idle", "rift gate should finish charging")
+    expect(gate.inventory:count("beacon_core") == 0, "rift gate should consume beacon core")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:machineById(gate.id).progress == 180, "charged rift gate should persist")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do

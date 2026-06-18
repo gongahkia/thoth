@@ -50,6 +50,7 @@ local outpostRouteWindowTicks = 600
 local outpostRouteStableThreshold = 3
 local scoutDispatchTicks = 120
 local archiveTerminalTicks = 360
+local riftGateTicks = 180
 local requiredOutpostBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field" }
 local scoutBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field", "rift" }
 local outpostActivationItems = {
@@ -2266,6 +2267,8 @@ function Simulation:updateMachines()
             self:updateOutpostBeacon(machine)
         elseif machine.kind == "archive_terminal" then
             self:updateArchiveTerminal(machine)
+        elseif machine.kind == "rift_gate" then
+            self:updateRiftGate(machine)
         end
     end
     self:updateLogistics()
@@ -2880,6 +2883,24 @@ function Simulation:updateArchiveTerminal(machine)
     machine.status = "idle"
 end
 
+function Simulation:updateRiftGate(machine)
+    if machine.progress >= riftGateTicks then
+        machine.progress = riftGateTicks
+        machine.status = "idle"
+        return
+    end
+    if not self:isMachinePowered(machine.id) then
+        machine.status = "missing_power"
+        return
+    end
+    if machine.progress == 0 and not machine.inventory:consume("beacon_core", 1) then
+        machine.status = "missing_input"
+        return
+    end
+    machine.progress = math.min(machine.progress + 1, riftGateTicks)
+    machine.status = machine.progress >= riftGateTicks and "idle" or "working"
+end
+
 function Simulation:tryArchiveUnlock(machine)
     local preferred = math.max(0, math.min(#archiveChoiceDefs - 1, machine.requestThreshold or 0))
     for offset = 0, #archiveChoiceDefs - 1 do
@@ -3303,6 +3324,9 @@ function Simulation:acceptItem(machine, item)
     end
     if machine.kind == "archive_terminal" then
         return (item == "beacon_core" or item == "science_pack" or item == "advanced_science_pack" or archiveFragmentItems[item] == true) and machine.inventory:add(item, 1)
+    end
+    if machine.kind == "rift_gate" then
+        return item == "beacon_core" and machine.inventory:add(item, 1)
     end
     if machine.kind == "chest" or machine.kind == "provider_chest" or machine.kind == "requester_chest" or machine.kind == "train_stop" then
         return machine.inventory:add(item, 1)
