@@ -317,6 +317,17 @@ tests[#tests + 1] = function()
     expect(provider.inventory:count("wood") == 1, "unpowered logistic port consumed provider item")
 end
 
+tests[#tests + 1] = function()
+    local sim = Simulation.new(30)
+    local first = sim:addMachine("train_stop", 0, 0, "south")
+    local second = sim:addMachine("train_stop", 5, 0, "south")
+    first.inventory:add("iron_plate", 1)
+    runSteps(sim, 95)
+    expect(first.inventory:count("iron_plate") == 0, "train stop did not consume source cargo")
+    expect(second.inventory:count("iron_plate") == 1, "train stop did not receive cargo")
+    expect(sim.productionTotals.train_deliveries == 1, "train delivery counter did not increment")
+end
+
 for index, test in ipairs(tests) do
     local ok, err = pcall(test)
     if not ok then

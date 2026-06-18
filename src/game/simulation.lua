@@ -88,6 +88,7 @@ function Simulation.new(seed)
             copper_plate = 0,
             science_pack = 0,
             water_barrel = 0,
+            train_deliveries = 0,
         },
     }, Simulation)
     return self
@@ -570,6 +571,7 @@ function Simulation:updateMachines()
         end
     end
     self:updateLogistics()
+    self:updateTrainStops()
 end
 
 function Simulation:refuel(machine)
@@ -840,6 +842,49 @@ function Simulation:updateLogistics()
                     }
                     self.nextLogisticJobId = self.nextLogisticJobId + 1
                     activeJobs = activeJobs + 1
+                end
+            end
+        end
+    end
+end
+
+function Simulation:updateTrainStops()
+    local stopIds = {}
+    for _, machine in ipairs(self.machines) do
+        if machine.kind == "train_stop" then
+            stopIds[#stopIds + 1] = machine.id
+        end
+    end
+    table.sort(stopIds)
+    if #stopIds < 2 then
+        for _, id in ipairs(stopIds) do
+            local stop = self:machineById(id)
+            if stop then
+                stop.status = "missing_input"
+            end
+        end
+        return
+    end
+    for index, id in ipairs(stopIds) do
+        local stop = self:machineById(id)
+        local target = self:machineById(stopIds[(index % #stopIds) + 1])
+        if stop and target then
+            local stacks = stop.inventory:stacks()
+            if #stacks == 0 then
+                stop.progress = 0
+                stop.status = "missing_input"
+            else
+                stop.progress = stop.progress + 1
+                stop.status = "working"
+                if stop.progress >= 90 then
+                    local item = stacks[1].item
+                    if target.inventory:add(item, 1) and stop.inventory:consume(item, 1) then
+                        self.productionTotals.train_deliveries = (self.productionTotals.train_deliveries or 0) + 1
+                        stop.progress = 0
+                        stop.status = "idle"
+                    else
+                        stop.status = "output_blocked"
+                    end
                 end
             end
         end

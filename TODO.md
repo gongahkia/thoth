@@ -112,13 +112,6 @@
   - `make check` still passes.
   - `make smoke` still exits cleanly.
 
-## Phase 10: Core Automation Parity
-
-- Restore fluids/trains:
-  - Train-stop cargo hops.
-- Acceptance:
-  - Tests cover splitter alternation, power grouping, power under-supply, electric mining, circuit thresholds, logistic delivery persistence, pump/pipe water, and train cargo hop.
-
 ## Phase 11: Progression And Contracts
 
 - Restore 3-tech chain:
