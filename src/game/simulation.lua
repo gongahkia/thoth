@@ -49,6 +49,7 @@ local outpostDeliveryTicks = 100
 local outpostRouteWindowTicks = 600
 local outpostRouteStableThreshold = 3
 local scoutDispatchTicks = 120
+local archiveTerminalTicks = 360
 local requiredOutpostBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field" }
 local scoutBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field", "rift" }
 local outpostActivationItems = {
@@ -2239,6 +2240,8 @@ function Simulation:updateMachines()
             self:updatePressureRelay(machine)
         elseif machine.kind == "outpost_beacon" then
             self:updateOutpostBeacon(machine)
+        elseif machine.kind == "archive_terminal" then
+            self:updateArchiveTerminal(machine)
         end
     end
     self:updateLogistics()
@@ -2826,6 +2829,21 @@ function Simulation:updateOutpostBeacon(machine)
     end
     self.productionTotals.outposts_activated = (self.productionTotals.outposts_activated or 0) + 1
     self:markActivatedOutpostBiome(self.world:biomeAt(machine.x, machine.y, machine.z or 0))
+    machine.status = "idle"
+end
+
+function Simulation:updateArchiveTerminal(machine)
+    if not self:isMachinePowered(machine.id) then
+        machine.status = "missing_power"
+        return
+    end
+    machine.progress = math.min(machine.progress + 1, archiveTerminalTicks)
+    machine.status = "working"
+    if machine.progress < archiveTerminalTicks then
+        return
+    end
+    self.productionTotals.archive_signals = (self.productionTotals.archive_signals or 0) + 1
+    machine.progress = 0
     machine.status = "idle"
 end
 

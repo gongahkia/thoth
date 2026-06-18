@@ -1180,6 +1180,23 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local unpowered = Simulation.new(87)
+    local unpoweredTerminal = unpowered:addMachine("archive_terminal", 1, 0, "south")
+    runSteps(unpowered, 1)
+    expect(unpoweredTerminal.status == "missing_power", "archive terminal should require power")
+    local sim = Simulation.new(88)
+    local generator = sim:addMachine("generator", 0, 1, "south")
+    generator.inventory:add("coal", 4)
+    sim:addMachine("power_pole", 1, 1, "south")
+    local terminal = sim:addMachine("archive_terminal", 1, 0, "south")
+    runSteps(sim, 360)
+    expect(sim.productionTotals.archive_signals == 1, "powered archive terminal should charge one signal")
+    expect(terminal.progress == 0 and terminal.status == "idle", "charged archive terminal should reset progress")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded.productionTotals.archive_signals == 1, "archive signal should persist")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do
