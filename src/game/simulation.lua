@@ -518,6 +518,10 @@ function Simulation.commands.placeGhost(direction, item, orientation)
     return { type = "place_ghost", direction = direction, item = item, orientation = orientation or direction }
 end
 
+function Simulation.commands.cancelGhost(direction)
+    return { type = "cancel_ghost", direction = direction }
+end
+
 function Simulation.commands.craft(recipeKey)
     return { type = "craft", recipeKey = recipeKey }
 end
@@ -773,6 +777,10 @@ function Simulation:apply(command)
     end
     if command.type == "place_ghost" then
         self:placeGhost(command.direction, command.item, command.orientation)
+        return
+    end
+    if command.type == "cancel_ghost" then
+        self:cancelGhost(command.direction)
         return
     end
     if command.type == "craft" then
@@ -1511,6 +1519,21 @@ function Simulation:placeGhost(direction, item, orientation)
     }
     self.nextGhostId = self.nextGhostId + 1
     return true
+end
+
+function Simulation:cancelGhost(direction)
+    direction = direction or self.player.facing
+    self.player.facing = direction
+    local x, y = Grid.front(self.player.x, self.player.y, direction)
+    local z = self.player.z or 0
+    for index = #self.ghostBuilds, 1, -1 do
+        local ghost = self.ghostBuilds[index]
+        if not ghost.fulfilled and ghost.x == x and ghost.y == y and (ghost.z or 0) == z then
+            table.remove(self.ghostBuilds, index)
+            return true
+        end
+    end
+    return false
 end
 
 function Simulation:hasAdjacentWorkbench()

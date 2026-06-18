@@ -651,6 +651,10 @@ tests[#tests + 1] = function()
     loaded:queue(Simulation.commands.placeGhost("south", "wall", "south"))
     loaded:step()
     expect(#loaded.ghostBuilds == 2 and loaded.ghostBuilds[2].tile == "wall", "tile ghost should record target tile")
+    loaded:queue(Simulation.commands.cancelGhost("south"))
+    loaded:step()
+    expect(#loaded.ghostBuilds == 1 and loaded.ghostBuilds[1].item == "workbench", "cancel ghost should remove target ghost")
+    expect(not loaded:cancelGhost("west"), "cancel ghost should reject empty target")
 end
 
 tests[#tests + 1] = function()
