@@ -115,7 +115,6 @@
 ## Phase 12: World, Biomes, And Exploration
 
 - Restore exploration systems:
-  - Lair hearths.
   - Recovery crates.
 - Add Lua-native chunk cache:
   - Cache chunks by `z:cx:cy`.

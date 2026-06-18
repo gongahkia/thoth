@@ -162,6 +162,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(40)
+    sim.player.x = 1
+    sim.player.y = 18
+    sim:queue(Simulation.commands.mine("east"))
+    sim:step()
+    expect(sim:itemCount("lair_hearth") == 1, "lair hearth should be claimable")
+    expect(sim.world:getTile(2, 18, 0).id == "grass", "claimed lair hearth should clear")
+end
+
+tests[#tests + 1] = function()
     local a = Simulation.new(42)
     local b = Simulation.new(42)
     local commands = {
