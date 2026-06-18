@@ -451,6 +451,7 @@ function Simulation.new(seed, startInTutorial)
             archive_signals = 0,
             rift_jumps = 0,
             rift_storms_triggered = 0,
+            rift_storms_survived = 0,
             outposts_activated = 0,
             outpost_deliveries = 0,
             scout_dispatches = 0,
@@ -1823,6 +1824,7 @@ function Simulation:postVictoryExpeditionBoard()
     end
     add("cartography", "Map every biome with automated scout dispatches", self:scoutedBiomeCount(), #scoutBiomes)
     add("relic_set", "Claim the full five-relic boss set", self.productionTotals.boss_relics_claimed or 0, 5)
+    add("storm_veteran", "Survive three rift storms after opening the gate", self.productionTotals.rift_storms_survived or 0, 3)
     return entries
 end
 
@@ -3041,6 +3043,7 @@ function Simulation:updateRiftStorms()
     self.riftStorm.ticksRemaining = math.max(0, (self.riftStorm.ticksRemaining or 0) - 1)
     if self.riftStorm.ticksRemaining == 0 then
         self.riftStorm.severity = 0
+        self.productionTotals.rift_storms_survived = (self.productionTotals.rift_storms_survived or 0) + 1
     end
 end
 
