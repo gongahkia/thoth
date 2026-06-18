@@ -115,9 +115,6 @@
 ## Phase 10: Core Automation Parity
 
 - Add Lua-native machine indexes:
-  - Maintain `machineByCell[z:x:y]`.
-  - Maintain `machineById[id]`.
-  - Rebuild on load; update on placement/removal.
   - Use dirty flags for power/logistic recalculation instead of full scans every tick.
 - Restore logistics:
   - Provider/requester delivery jobs.

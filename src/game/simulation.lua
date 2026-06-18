@@ -66,6 +66,8 @@ function Simulation.new(seed)
             hp = 20,
         },
         machines = {},
+        machineByCell = {},
+        machineByIdIndex = {},
         nextMachineId = 1,
         commandQueue = {},
         unlockedRecipes = recipeUnlockedDefaults(),
@@ -74,6 +76,8 @@ function Simulation.new(seed)
         researchProgress = 0,
         powerNetworks = {},
         poweredMachineIds = {},
+        powerDirty = true,
+        logisticDirty = true,
         productionTotals = {
             iron_plate = 0,
             copper_plate = 0,
@@ -189,22 +193,20 @@ function Simulation:assignFirstHotbar(item)
 end
 
 function Simulation:machineAt(x, y, z)
-    z = z or 0
-    for _, machine in ipairs(self.machines) do
-        if machine.x == x and machine.y == y and (machine.z or 0) == z then
-            return machine
-        end
-    end
-    return nil
+    return self.machineByCell[Grid.key(x, y, z or 0)]
 end
 
 function Simulation:machineById(id)
+    return self.machineByIdIndex[id]
+end
+
+function Simulation:rebuildMachineIndexes()
+    self.machineByCell = {}
+    self.machineByIdIndex = {}
     for _, machine in ipairs(self.machines) do
-        if machine.id == id then
-            return machine
-        end
+        self.machineByCell[Grid.key(machine.x, machine.y, machine.z or 0)] = machine
+        self.machineByIdIndex[machine.id] = machine
     end
-    return nil
 end
 
 function Simulation:hasMachine(kind)
@@ -251,7 +253,23 @@ function Simulation:addMachine(kind, x, y, direction)
     table.sort(self.machines, function(a, b)
         return a.id < b.id
     end)
+    self:rebuildMachineIndexes()
+    self.powerDirty = true
+    self.logisticDirty = true
     return machine
+end
+
+function Simulation:removeMachineById(id)
+    for index, machine in ipairs(self.machines) do
+        if machine.id == id then
+            table.remove(self.machines, index)
+            self:rebuildMachineIndexes()
+            self.powerDirty = true
+            self.logisticDirty = true
+            return true
+        end
+    end
+    return false
 end
 
 function Simulation:canPlaceMachine(kind, x, y, z)
@@ -615,13 +633,44 @@ function Simulation:isMachinePowered(machineId)
 end
 
 function Simulation:updatePowerNetworks()
-    self.powerNetworks = {}
     self.poweredMachineIds = {}
     for _, machine in ipairs(self.machines) do
         if machine.kind == "generator" or machine.kind == "power_pole" then
             machine.status = "idle"
         end
     end
+
+    if self.powerDirty then
+        self:rebuildPowerNetworks()
+        self.powerDirty = false
+    end
+
+    for _, network in ipairs(self.powerNetworks) do
+        network.supply = 0
+        network.powered = false
+        if network.demand > 0 then
+            for _, generatorId in ipairs(network.generatorIds) do
+                local generator = self:machineById(generatorId)
+                if generator and self:refuel(generator) then
+                    generator.fuel = generator.fuel - 1
+                    generator.status = "working"
+                    network.supply = network.supply + 2
+                elseif generator then
+                    generator.status = "missing_fuel"
+                end
+            end
+        end
+        network.powered = network.supply >= network.demand
+        if network.powered then
+            for _, consumerId in ipairs(network.consumerIds) do
+                self.poweredMachineIds[consumerId] = true
+            end
+        end
+    end
+end
+
+function Simulation:rebuildPowerNetworks()
+    self.powerNetworks = {}
 
     local poleIndexes = {}
     for index, machine in ipairs(self.machines) do
@@ -673,25 +722,6 @@ function Simulation:updatePowerNetworks()
                 end
             end
 
-            if network.demand > 0 then
-                for _, generatorId in ipairs(network.generatorIds) do
-                    local generator = self:machineById(generatorId)
-                    if generator and self:refuel(generator) then
-                        generator.fuel = generator.fuel - 1
-                        generator.status = "working"
-                        network.supply = network.supply + 2
-                    elseif generator then
-                        generator.status = "missing_fuel"
-                    end
-                end
-            end
-
-            network.powered = network.supply >= network.demand
-            if network.powered then
-                for _, consumerId in ipairs(network.consumerIds) do
-                    self.poweredMachineIds[consumerId] = true
-                end
-            end
             self.powerNetworks[#self.powerNetworks + 1] = network
         end
     end
@@ -1173,12 +1203,15 @@ function Simulation.fromSnapshot(snapshot)
         machine.status = value.status or "idle"
         self.machines[#self.machines + 1] = machine
     end
+    self:rebuildMachineIndexes()
     self.nextMachineId = snapshot.nextMachineId or (#self.machines + 1)
     self.unlockedRecipes = copySet(snapshot.unlockedRecipes or recipeUnlockedDefaults())
     self.completedTechs = copySet(snapshot.completedTechs or {})
     self.activeTech = snapshot.activeTech or "logistics_1"
     self.researchProgress = snapshot.researchProgress or 0
     self.productionTotals = copySet(snapshot.productionTotals or {})
+    self.powerDirty = true
+    self.logisticDirty = true
     return self
 end
 

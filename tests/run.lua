@@ -256,6 +256,19 @@ tests[#tests + 1] = function()
     end
 end
 
+tests[#tests + 1] = function()
+    local sim = Simulation.new(26)
+    local chest = sim:addMachine("chest", 4, -2, "south")
+    expect(sim:machineAt(4, -2, 0) == chest, "machineByCell index missed placed machine")
+    expect(sim:machineById(chest.id) == chest, "machineById index missed placed machine")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:machineAt(4, -2, 0).kind == "chest", "machineByCell index did not rebuild on load")
+    expect(loaded:machineById(chest.id).kind == "chest", "machineById index did not rebuild on load")
+    expect(loaded:removeMachineById(chest.id), "machine removal failed")
+    expect(loaded:machineAt(4, -2, 0) == nil, "machineByCell index did not clear removed machine")
+    expect(loaded:machineById(chest.id) == nil, "machineById index did not clear removed machine")
+end
+
 for index, test in ipairs(tests) do
     local ok, err = pcall(test)
     if not ok then
