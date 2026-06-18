@@ -115,7 +115,6 @@
 ## Phase 9: Data Registry Parity
 
 - Port old C++ tiles, items, machines, recipes, and techs into Lua tables.
-- Split large registry tables from `src/game/defs.lua` into `src/game/data/*.lua` once the file becomes hard to scan.
 - Add registry validation tests for:
   - Missing item/tile/machine ids.
   - Bad recipe inputs or outputs.
