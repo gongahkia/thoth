@@ -112,11 +112,6 @@
   - `make check` still passes.
   - `make smoke` still exits cleanly.
 
-## Phase 15: Archive, Rift, Post-Victory
-
-- Acceptance:
-  - Tests cover archive charging, archive unlocks, rift travel, rift storm effects, outer band resources, post-victory board progress, and save/load persistence.
-
 ## Phase 16: Planning, Construction, Performance
 
 - Restore planning mode:
