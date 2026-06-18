@@ -300,6 +300,26 @@ function World:generatedTile(x, y, z)
 
     local h = Rng.hash(self.seed, x, y, z)
     local biome = self:biomeAt(x, y, z)
+    if biome == "rift" then
+        local rx = math.floor(x / 2)
+        local ry = math.floor(y / 2)
+        if Rng.hash(self.seed + 7421, rx, ry, z) % 1000 < 130 then
+            return tile("water")
+        end
+        if Rng.hash(self.seed + 7422, rx, ry, z) % 1000 < 180 then
+            return tile("copper_ore", resourceRichness(self.seed + 7421, x, y) + 4)
+        end
+        if Rng.hash(self.seed + 7423, rx, ry, z) % 1000 < 180 then
+            return tile("iron_ore", resourceRichness(self.seed + 7421, x, y) + 4)
+        end
+        if Rng.hash(self.seed + 7424, rx, ry, z) % 1000 < 120 then
+            return tile("coal_ore", resourceRichness(self.seed + 7421, x, y) + 4)
+        end
+        if Rng.hash(self.seed + 7425, rx, ry, z) % 1000 < 520 then
+            return tile("stone", 2)
+        end
+        return tile("dirt")
+    end
     if h % 97 == 0 then
         return tile("water")
     end

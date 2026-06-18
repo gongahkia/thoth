@@ -93,6 +93,17 @@ tests[#tests + 1] = function()
     expect(world:getTile(-8, 8, 0).id == "mud", "marsh base terrain missing")
     expect(world:getTile(29, 12, 0).id == "basalt", "badlands base terrain missing")
     expect(world:getTile(-43, 12, 0).id == "stone", "crystal field base terrain missing")
+    local riftResources = {}
+    for x = 4096, 4144 do
+        for y = -24, 24 do
+            local tile = world:getTile(x, y, 0)
+            if tile.id == "iron_ore" or tile.id == "copper_ore" or tile.id == "coal_ore" then
+                riftResources[tile.id] = true
+                expect(tile.data >= 12, "rift ore should be richer than starter ore")
+            end
+        end
+    end
+    expect(riftResources.iron_ore and riftResources.copper_ore and riftResources.coal_ore, "rift band should include rich ore mix")
 end
 
 tests[#tests + 1] = function()
@@ -186,7 +197,8 @@ tests[#tests + 1] = function()
     expect(world:getTile(-16, -10, 0).id == "ice", "snowfield material missing")
     expect(world:getTile(28, 12, 0).id == "basalt", "badlands material missing")
     expect(world:getTile(-28, 16, 0).id == "crystal", "crystal field material missing")
-    expect(world:getTile(3844, -29, 0).id == "crystal", "rift material missing")
+    local riftMaterial = world:getTile(3844, -29, 0).id
+    expect(riftMaterial == "stone" or riftMaterial == "iron_ore" or riftMaterial == "copper_ore" or riftMaterial == "coal_ore", "rift material missing")
 end
 
 tests[#tests + 1] = function()
