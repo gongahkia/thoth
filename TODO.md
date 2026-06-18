@@ -115,7 +115,6 @@
 ## Phase 15: Archive, Rift, Post-Victory
 
 - Restore post-victory expedition board:
-  - Scrap recycling.
   - Powered mining.
 - Acceptance:
   - Tests cover archive charging, archive unlocks, rift travel, rift storm effects, outer band resources, post-victory board progress, and save/load persistence.

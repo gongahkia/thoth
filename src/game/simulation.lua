@@ -460,6 +460,7 @@ function Simulation.new(seed, startInTutorial)
             pressure_enemies_defeated = 0,
             pressure_wave_rewards_claimed = 0,
             scrap_recovered = 0,
+            scrap_recycled = 0,
             dungeon_chests_opened = 0,
             creatures_defeated = 0,
             bosses_defeated = 0,
@@ -1458,6 +1459,9 @@ function Simulation:craft(recipeKey)
         return false
     end
     self:addItem(recipe.output.item, recipe.output.count)
+    if (recipe.inputs.scrap or 0) > 0 then
+        self.productionTotals.scrap_recycled = (self.productionTotals.scrap_recycled or 0) + recipe.inputs.scrap
+    end
     return true
 end
 
@@ -1839,6 +1843,7 @@ function Simulation:postVictoryExpeditionBoard()
     add("pressure_harvest", "Claim five pressure wave rewards", self.productionTotals.pressure_wave_rewards_claimed or 0, 5)
     add("lair_caches", "Open five dungeon or lair caches", self.productionTotals.dungeon_chests_opened or 0, 5)
     add("rift_freight", "Complete twenty train-stop cargo hops for remote freight", self.productionTotals.train_deliveries or 0, 20)
+    add("scrap_economy", "Recycle ten scrap into useful factory plates", self.productionTotals.scrap_recycled or 0, 10)
     return entries
 end
 
