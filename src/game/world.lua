@@ -19,6 +19,24 @@ end
 
 function World:generatedTile(x, y, z)
     z = z or 0
+    if z == 2 then
+        if x < -6 or x > 6 or y < -5 or y > 5 then
+            return tile("dungeon_wall")
+        end
+        if x == -6 or x == 6 or y == -5 or y == 5 then
+            return tile("dungeon_wall")
+        end
+        if x == 5 and y == 0 then
+            return tile("stairs_down")
+        end
+        if x == -3 and y == 0 then
+            return tile("tree")
+        end
+        if x == -2 and y == 2 then
+            return tile("stone")
+        end
+        return tile("floor")
+    end
     if z ~= 0 then
         return tile("grass")
     end

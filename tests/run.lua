@@ -434,6 +434,62 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(36, true)
+    local function stepComplete(state, key)
+        for _, step in ipairs(state:tutorialProgress()) do
+            if step.key == key then
+                return step.complete
+            end
+        end
+        return false
+    end
+    expect(sim.world:getTile(0, 0, 2).id == "floor", "tutorial spawn should be floor")
+    expect(sim.world:getTile(-3, 0, 2).id == "tree", "tutorial room should contain a tree")
+    expect(sim.world:getTile(-2, 2, 2).id == "stone", "tutorial room should contain stone")
+    expect(sim.world:getTile(5, 0, 2).id == "stairs_down", "tutorial room should contain an exit")
+    expect(sim.world:getTile(6, 0, 2).id == "dungeon_wall", "tutorial room should be isolated")
+    expect(sim:tutorialState().active and not sim:tutorialState().completed, "tutorial start state should be active")
+    expect(sim.player.z == 2 and sim:machineAt(3, 0, 2) ~= nil, "tutorial should spawn player and chest on tutorial layer")
+    sim.world:setTile(0, -1, 2, { id = "grass", data = 0 })
+    sim:queue(Simulation.commands.mine("north"))
+    sim:step()
+    expect(not stepComplete(sim, "mine"), "failed mine should not complete tutorial mine step")
+    sim:queue(Simulation.commands.move("east"))
+    sim:step()
+    expect(stepComplete(sim, "move"), "successful move should complete tutorial move step")
+    sim.player.x = -2
+    sim.player.y = 0
+    sim:queue(Simulation.commands.mine("west"))
+    sim:step()
+    expect(stepComplete(sim, "mine"), "successful mine should complete tutorial mine step")
+    sim:addItem("wood", 5)
+    sim:addItem("stone", 2)
+    sim:queue(Simulation.commands.craft("workbench"))
+    sim:step()
+    expect(stepComplete(sim, "craft"), "successful craft should complete tutorial craft step")
+    sim.player.x = 0
+    sim.player.y = 0
+    sim:queue(Simulation.commands.place("south", "workbench", "south"))
+    sim:step()
+    expect(stepComplete(sim, "place"), "successful place should complete tutorial place step")
+    sim.player.x = 2
+    sim.player.y = 0
+    sim:addItem("wood", 1)
+    sim:queue(Simulation.commands.deposit("east", "wood"))
+    sim:step()
+    expect(stepComplete(sim, "deposit"), "successful deposit should complete tutorial deposit step")
+    expect(sim:tutorialExitReady(), "tutorial exit should unlock after checklist completion")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:tutorialExitReady(), "tutorial checklist should persist")
+    loaded.player.x = 4
+    loaded.player.y = 0
+    loaded:queue(Simulation.commands.move("east"))
+    loaded:step()
+    expect(not loaded:tutorialState().active and loaded:tutorialState().completed, "tutorial exit should complete tutorial")
+    expect(loaded.player.z == 0, "tutorial exit should return to real layer")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(31)
     local lab = sim:addMachine("lab", 0, 0, "south")
     lab.inventory:add("science_pack", 7)

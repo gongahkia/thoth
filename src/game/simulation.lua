@@ -38,6 +38,35 @@ local achievementDefs = {
     { key = "main_objective", title = "Rift Prep", description = "Complete the main progression objective", required = 1 },
 }
 
+local tutorialLayer = 2
+local tutorialSteps = {
+    { key = "move", label = "Move with WASD" },
+    { key = "mine", label = "Mine a resource" },
+    { key = "craft", label = "Craft a workbench" },
+    { key = "place", label = "Place a machine" },
+    { key = "deposit", label = "Deposit into the chest" },
+}
+
+local function completedTutorialActions()
+    local actions = {}
+    for _, step in ipairs(tutorialSteps) do
+        actions[step.key] = true
+    end
+    return actions
+end
+
+local function copyTutorial(tutorial)
+    local source = tutorial or {}
+    return {
+        active = source.active == true,
+        completed = source.completed ~= false,
+        actions = copySet(source.actions or (source.completed == false and {} or completedTutorialActions())),
+        realSpawnX = source.realSpawnX or 0,
+        realSpawnY = source.realSpawnY or 0,
+        realSpawnZ = source.realSpawnZ or 0,
+    }
+end
+
 local function recipeUnlockedDefaults()
     local result = {}
     for key, recipe in pairs(Defs.recipes) do
@@ -68,13 +97,13 @@ local function copyContracts(contracts)
     return result
 end
 
-local function newMachine(id, kind, x, y, direction)
+local function newMachine(id, kind, x, y, direction, z)
     return {
         id = id,
         kind = kind,
         x = x,
         y = y,
-        z = 0,
+        z = z or 0,
         direction = direction or "south",
         inventory = Inventory.new(),
         progress = 0,
@@ -91,7 +120,7 @@ local function newMachine(id, kind, x, y, direction)
     }
 end
 
-function Simulation.new(seed)
+function Simulation.new(seed, startInTutorial)
     local self = setmetatable({
         seed = seed or 1,
         tick = 0,
@@ -125,6 +154,14 @@ function Simulation.new(seed)
         supplyContracts = defaultSupplyContracts(),
         unlockedAchievements = {},
         unlockedAchievementSet = {},
+        tutorial = {
+            active = false,
+            completed = true,
+            actions = completedTutorialActions(),
+            realSpawnX = 0,
+            realSpawnY = 0,
+            realSpawnZ = 0,
+        },
         productionTotals = {
             iron_plate = 0,
             copper_plate = 0,
@@ -133,6 +170,9 @@ function Simulation.new(seed)
             train_deliveries = 0,
         },
     }, Simulation)
+    if startInTutorial then
+        self:beginTutorial()
+    end
     return self
 end
 
@@ -303,8 +343,8 @@ function Simulation:isWalkable(x, y, z)
     return self.world:isWalkable(x, y, z or 0) and self:machineAt(x, y, z or 0) == nil
 end
 
-function Simulation:addMachine(kind, x, y, direction)
-    local machine = newMachine(self.nextMachineId, kind, x, y, direction)
+function Simulation:addMachine(kind, x, y, direction, z)
+    local machine = newMachine(self.nextMachineId, kind, x, y, direction, z)
     self.nextMachineId = self.nextMachineId + 1
     self.machines[#self.machines + 1] = machine
     table.sort(self.machines, function(a, b)
@@ -351,23 +391,33 @@ function Simulation:apply(command)
         return
     end
     if command.type == "move" then
-        self:move(command.direction)
+        if self:move(command.direction) then
+            self:recordTutorialAction("move")
+        end
         return
     end
     if command.type == "mine" then
-        self:mine(command.direction)
+        if self:mine(command.direction) then
+            self:recordTutorialAction("mine")
+        end
         return
     end
     if command.type == "place" then
-        self:place(command.direction, command.item, command.orientation)
+        if self:place(command.direction, command.item, command.orientation) then
+            self:recordTutorialAction("place")
+        end
         return
     end
     if command.type == "craft" then
-        self:craft(command.recipeKey)
+        if self:craft(command.recipeKey) then
+            self:recordTutorialAction("craft")
+        end
         return
     end
     if command.type == "deposit" then
-        self:deposit(command.direction, command.item)
+        if self:deposit(command.direction, command.item) then
+            self:recordTutorialAction("deposit")
+        end
         return
     end
     if command.type == "select_hotbar" then
@@ -383,7 +433,9 @@ function Simulation:apply(command)
         return
     end
     if command.type == "deposit_machine" then
-        self:depositToMachine(command.machineId, command.item, command.count)
+        if self:depositToMachine(command.machineId, command.item, command.count) then
+            self:recordTutorialAction("deposit")
+        end
         return
     end
     if command.type == "withdraw_machine" then
@@ -407,10 +459,16 @@ function Simulation:move(direction)
     direction = direction or self.player.facing
     self.player.facing = direction
     local x, y = Grid.front(self.player.x, self.player.y, direction)
+    if self.player.z == tutorialLayer and x == 5 and y == 0 and self:tutorialExitReady() then
+        self:completeTutorial()
+        return true
+    end
     if self:isWalkable(x, y, self.player.z) then
         self.player.x = x
         self.player.y = y
+        return true
     end
+    return false
 end
 
 function Simulation:mine(direction)
@@ -443,7 +501,7 @@ function Simulation:place(direction, item, orientation)
         if not self:consumeItem(item, 1) then
             return false
         end
-        self:addMachine(itemDef.machine, x, y, orientation or direction)
+        self:addMachine(itemDef.machine, x, y, orientation or direction, self.player.z)
         return true
     end
     if itemDef.tile then
@@ -859,6 +917,61 @@ end
 
 function Simulation:unlockedAchievementCount()
     return #self.unlockedAchievements
+end
+
+function Simulation:beginTutorial()
+    self.tutorial.active = true
+    self.tutorial.completed = false
+    self.tutorial.actions = {}
+    self.player.x = 0
+    self.player.y = 0
+    self.player.z = tutorialLayer
+    self.player.facing = "east"
+    if not self:machineAt(3, 0, tutorialLayer) then
+        self:addMachine("chest", 3, 0, "south", tutorialLayer)
+    end
+end
+
+function Simulation:completeTutorial()
+    self.tutorial.active = false
+    self.tutorial.completed = true
+    self.tutorial.actions = completedTutorialActions()
+    self.player.x = self.tutorial.realSpawnX
+    self.player.y = self.tutorial.realSpawnY
+    self.player.z = self.tutorial.realSpawnZ
+    self.player.facing = "south"
+end
+
+function Simulation:recordTutorialAction(action)
+    if not self.tutorial.active or self.tutorial.completed or self.player.z ~= tutorialLayer then
+        return
+    end
+    self.tutorial.actions[action] = true
+end
+
+function Simulation:tutorialState()
+    return self.tutorial
+end
+
+function Simulation:tutorialProgress()
+    local progress = {}
+    for _, step in ipairs(tutorialSteps) do
+        progress[#progress + 1] = {
+            key = step.key,
+            label = step.label,
+            complete = self.tutorial.actions[step.key] == true,
+        }
+    end
+    return progress
+end
+
+function Simulation:tutorialExitReady()
+    for _, step in ipairs(tutorialSteps) do
+        if self.tutorial.actions[step.key] ~= true then
+            return false
+        end
+    end
+    return true
 end
 
 function Simulation:updateMachines()
@@ -1689,6 +1802,7 @@ function Simulation:snapshot()
         completedTechs = copySet(self.completedTechs),
         activeTech = self.activeTech,
         researchProgress = self.researchProgress,
+        tutorial = copyTutorial(self.tutorial),
         productionTotals = copySet(self.productionTotals),
     }
 end
@@ -1730,6 +1844,7 @@ function Simulation.fromSnapshot(snapshot)
     self.completedTechs = copySet(snapshot.completedTechs or {})
     self.activeTech = snapshot.activeTech or self:nextIncompleteTech()
     self.researchProgress = snapshot.researchProgress or 0
+    self.tutorial = copyTutorial(snapshot.tutorial)
     self.productionTotals = copySet(snapshot.productionTotals or {})
     self.powerDirty = true
     self.logisticDirty = true

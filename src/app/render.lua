@@ -128,8 +128,8 @@ function Render.load()
     end
 end
 
-function Render.drawTile(sim, x, y, screenX, screenY)
-    local tile = sim.world:getTile(x, y, 0)
+function Render.drawTile(sim, x, y, z, screenX, screenY)
+    local tile = sim.world:getTile(x, y, z or 0)
     if drawSprite(tile.id, screenX, screenY) then
         return
     end
@@ -160,11 +160,13 @@ function Render.drawWorld(sim, app)
     local radiusY = math.ceil(height / tileSize / 2) + 2
     for y = sim.player.y - radiusY, sim.player.y + radiusY do
         for x = sim.player.x - radiusX, sim.player.x + radiusX do
-            Render.drawTile(sim, x, y, offsetX + x * tileSize, offsetY + y * tileSize)
+            Render.drawTile(sim, x, y, sim.player.z, offsetX + x * tileSize, offsetY + y * tileSize)
         end
     end
     for _, machine in ipairs(sim.machines) do
-        Render.drawMachine(machine, offsetX + machine.x * tileSize, offsetY + machine.y * tileSize)
+        if (machine.z or 0) == sim.player.z then
+            Render.drawMachine(machine, offsetX + machine.x * tileSize, offsetY + machine.y * tileSize)
+        end
     end
     local sx = offsetX + sim.player.x * tileSize
     local sy = offsetY + sim.player.y * tileSize
@@ -563,6 +565,24 @@ local function drawAchievementsPanel(sim)
     end
 end
 
+local function drawTutorialPanel(sim)
+    local state = sim:tutorialState()
+    if not state.active then
+        return
+    end
+    local x = 638
+    local y = 266
+    local w = 326
+    love.graphics.setColor(0.06, 0.07, 0.08, 0.78)
+    love.graphics.rectangle("fill", x, y, w, 126)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Tutorial", x + 10, y + 8)
+    for index, step in ipairs(sim:tutorialProgress()) do
+        love.graphics.setColor(step.complete and 0.72 or 0.86, step.complete and 0.92 or 0.72, step.complete and 0.62 or 0.42, 1)
+        love.graphics.print((step.complete and "[x]" or "[ ]") .. step.label, x + 10, y + 8 + index * 20)
+    end
+end
+
 function Render.drawHud(sim, app)
     love.graphics.setColor(0.06, 0.07, 0.08, 0.86)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), 124)
@@ -586,6 +606,7 @@ function Render.draw(sim, app)
     drawProductionPanel(sim)
     drawFactoryDashboard(sim)
     drawAchievementsPanel(sim)
+    drawTutorialPanel(sim)
     drawMachinePanel(sim, app)
     drawInventoryPanel(sim, app)
     drawRecipeCards(sim, app)

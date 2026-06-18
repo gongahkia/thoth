@@ -114,8 +114,6 @@
 
 ## Phase 11: Progression And Contracts
 
-- Restore progression surfaces:
-  - Tutorial layer and tutorial checklist.
 - Add Lua-native replay fixtures:
   - Ore-to-plate.
   - Science/research.
