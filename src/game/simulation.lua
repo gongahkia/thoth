@@ -86,6 +86,7 @@ local bossExamDefs = {
     glass_maw = { item = "sand_glass", required = 3 },
     badlands_warden = { production = "powered_ore", required = 8 },
     frost_nullifier = { production = "logistic_deliveries", required = 3 },
+    rift_signal_tyrant = { rift = true, required = 5 },
 }
 
 local tutorialSteps = {
@@ -234,6 +235,9 @@ function Simulation.new(seed, startInTutorial)
             train_deliveries = 0,
             powered_ore = 0,
             logistic_deliveries = 0,
+            archive_signals = 0,
+            rift_jumps = 0,
+            outposts_activated = 0,
         },
     }, Simulation)
     if startInTutorial then
@@ -848,6 +852,11 @@ function Simulation:bossExamCurrent(kind)
     if not exam then
         return 0
     end
+    if exam.rift then
+        return ((self.productionTotals.archive_signals or 0) > 0 and 1 or 0)
+            + ((self.productionTotals.rift_jumps or 0) > 0 and 1 or 0)
+            + math.min(3, self.productionTotals.outposts_activated or 0)
+    end
     if exam.item then
         return self:anyItemCount(exam.item)
     end
@@ -861,7 +870,7 @@ end
 
 function Simulation:bossExamProgress()
     local progress = {}
-    for _, kind in ipairs({ "marsh_broodheart", "glass_maw", "badlands_warden", "frost_nullifier" }) do
+    for _, kind in ipairs({ "marsh_broodheart", "glass_maw", "badlands_warden", "frost_nullifier", "rift_signal_tyrant" }) do
         local exam = bossExamDefs[kind]
         progress[#progress + 1] = {
             kind = kind,

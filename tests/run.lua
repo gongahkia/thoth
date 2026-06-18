@@ -410,6 +410,10 @@ tests[#tests + 1] = function()
             sim.productionTotals.powered_ore = 8
         elseif kind == "frost_nullifier" then
             sim.productionTotals.logistic_deliveries = 3
+        elseif kind == "rift_signal_tyrant" then
+            sim.productionTotals.archive_signals = 1
+            sim.productionTotals.rift_jumps = 1
+            sim.productionTotals.outposts_activated = 3
         end
     end
     local cases = {
@@ -451,7 +455,7 @@ tests[#tests + 1] = function()
     frost.productionTotals.logistic_deliveries = 3
     addItems(frost, bossCosts.frost_nullifier)
     expect(frost:trySummonBossAt(-18, 0, 0), "frost boss exam should unlock summon")
-    expect(#frost:bossExamProgress() == 4, "boss exam progress should expose factory exams")
+    expect(#frost:bossExamProgress() == 5, "boss exam progress should expose all exams")
 end
 
 tests[#tests + 1] = function()
@@ -463,6 +467,18 @@ tests[#tests + 1] = function()
     expect(sim:itemCount("water_barrel") == 0, "boss summon should consume water cost")
     expect(sim:itemCount("reed_fiber") == 0, "boss summon should consume biome material cost")
     expect(sim:itemCount("science_pack") == 0, "boss summon should consume science cost")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(61)
+    addItems(sim, bossCosts.rift_signal_tyrant)
+    expect(not sim:trySummonBossAt(-36, 20, 0), "rift boss should require archive and rift progress")
+    sim.productionTotals.archive_signals = 1
+    sim.productionTotals.rift_jumps = 1
+    sim.productionTotals.outposts_activated = 2
+    expect(not sim:trySummonBossAt(-36, 20, 0), "rift boss should require three outpost activations")
+    sim.productionTotals.outposts_activated = 3
+    expect(sim:trySummonBossAt(-36, 20, 0), "rift boss archive/rift gate should unlock summon")
 end
 
 tests[#tests + 1] = function()
