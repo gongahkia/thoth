@@ -45,6 +45,24 @@ local function resourceRichness(seed, x, y)
     return 8 + (Rng.hash(seed + 5003, x, y, 0) % 5) + distanceBonus
 end
 
+local lairRadius = 5
+local authoredLairs = {
+    { key = "marsh_hive", x = 0, y = 18, material = "reeds" },
+    { key = "glass_spire", x = 18, y = -2, material = "cactus" },
+    { key = "badlands_foundry", x = 36, y = 20, material = "basalt" },
+    { key = "frost_vault", x = -18, y = 0, material = "ice" },
+    { key = "crystal_vault", x = -36, y = 20, material = "crystal" },
+}
+
+local function authoredLairAt(x, y)
+    for _, lair in ipairs(authoredLairs) do
+        if math.abs(x - lair.x) <= lairRadius and math.abs(y - lair.y) <= lairRadius then
+            return lair
+        end
+    end
+    return nil
+end
+
 function World.new(seed, overrides)
     return setmetatable({ seed = seed or 1, overrides = overrides or {}, chunks = {} }, World)
 end
@@ -140,6 +158,15 @@ function World:biomeAt(x, y, z)
     return "grassland"
 end
 
+function World:lairAt(x, y, z)
+    z = z or 0
+    if z ~= 0 and z ~= -1 then
+        return nil
+    end
+    local lair = authoredLairAt(x, y)
+    return lair and lair.key or nil
+end
+
 function World:generatedTile(x, y, z)
     z = z or 0
     if z == 2 then
@@ -177,6 +204,25 @@ function World:generatedTile(x, y, z)
     end
     if x == 3 and y == -3 or x == 4 and y == -3 then
         return tile("copper_ore", 22)
+    end
+
+    local lair = authoredLairAt(x, y)
+    if z == 0 and lair then
+        local localX = math.abs(x - lair.x)
+        local localY = math.abs(y - lair.y)
+        if localX == lairRadius or localY == lairRadius then
+            return tile("dungeon_wall")
+        end
+        if localX == 0 and localY == 0 then
+            return tile("stairs_down")
+        end
+        if localX == 2 and localY == 0 then
+            return tile("lair_hearth")
+        end
+        if localX == 3 and localY == 1 then
+            return tile(lair.material, 2)
+        end
+        return tile("dungeon_floor")
     end
 
     local h = Rng.hash(self.seed, x, y, z)

@@ -114,12 +114,6 @@
 
 ## Phase 12: World, Biomes, And Exploration
 
-- Restore authored lairs:
-  - Marsh Hive.
-  - Glass Spire.
-  - Badlands Foundry.
-  - Frost Vault.
-  - Crystal Vault.
 - Restore seeded procedural lairs beyond the starter ring.
 - Restore exploration systems:
   - Boat traversal.

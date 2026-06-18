@@ -57,7 +57,7 @@ tests[#tests + 1] = function()
     expect(world:getTile(10, -12, 0).id == "sand", "desert base terrain missing")
     expect(world:getTile(-24, -10, 0).id == "snow", "snowfield base terrain missing")
     expect(world:getTile(-8, 8, 0).id == "mud", "marsh base terrain missing")
-    expect(world:getTile(36, 20, 0).id == "basalt", "badlands base terrain missing")
+    expect(world:getTile(30, 12, 0).id == "basalt", "badlands base terrain missing")
     expect(world:getTile(-43, 12, 0).id == "stone", "crystal field base terrain missing")
 end
 
@@ -68,6 +68,25 @@ tests[#tests + 1] = function()
     expect(near.id == "iron_ore", "near procedural ore sample changed")
     expect(far.id == "coal_ore", "far procedural ore sample changed")
     expect(far.data > near.data, "far ore should be richer than near ore")
+end
+
+tests[#tests + 1] = function()
+    local world = World.new(303)
+    local lairs = {
+        { "marsh_hive", 0, 18 },
+        { "glass_spire", 18, -2 },
+        { "badlands_foundry", 36, 20 },
+        { "frost_vault", -18, 0 },
+        { "crystal_vault", -36, 20 },
+    }
+    for _, lair in ipairs(lairs) do
+        local key, x, y = lair[1], lair[2], lair[3]
+        expect(world:lairAt(x, y, 0) == key, "authored lair identity missing " .. key)
+        expect(world:lairAt(x, y, -1) == key, "authored lair interior identity missing " .. key)
+        expect(world:getTile(x, y, 0).id == "stairs_down", "authored lair should expose stairs " .. key)
+        expect(world:getTile(x + 5, y, 0).id == "dungeon_wall", "authored lair boundary missing " .. key)
+        expect(world:getTile(x + 2, y, 0).id == "lair_hearth", "authored lair hearth missing " .. key)
+    end
 end
 
 tests[#tests + 1] = function()
