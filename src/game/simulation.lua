@@ -396,6 +396,7 @@ function Simulation.new(seed, startInTutorial)
     local self = setmetatable({
         seed = seed or 1,
         tick = 0,
+        gameMode = "survival",
         world = World.new(seed or 1),
         player = {
             x = 0,
@@ -559,6 +560,10 @@ end
 
 function Simulation.commands.selectArchiveChoice(machineId, choiceIndex)
     return { type = "select_archive_choice", machineId = machineId, choiceIndex = choiceIndex }
+end
+
+function Simulation.commands.togglePlanningMode()
+    return { type = "toggle_planning_mode" }
 end
 
 function Simulation:queue(command)
@@ -808,7 +813,24 @@ function Simulation:apply(command)
     end
     if command.type == "select_archive_choice" then
         self:selectArchiveChoice(command.machineId, command.choiceIndex)
+        return
     end
+    if command.type == "toggle_planning_mode" then
+        self:togglePlanningMode()
+    end
+end
+
+function Simulation:isPlanningMode()
+    return self.gameMode == "planning"
+end
+
+function Simulation:togglePlanningMode()
+    self.gameMode = self:isPlanningMode() and "survival" or "planning"
+    return self.gameMode
+end
+
+function Simulation:gameModeText()
+    return "mode: " .. self.gameMode
 end
 
 function Simulation:damagePlayer(amount)
@@ -3650,6 +3672,7 @@ function Simulation:snapshot()
     return {
         seed = self.seed,
         tick = self.tick,
+        gameMode = self.gameMode,
         world = self.world:snapshot(),
         player = {
             x = self.player.x,
@@ -3685,6 +3708,7 @@ function Simulation.fromSnapshot(snapshot)
     local self = Simulation.new(snapshot.seed)
     self.seed = snapshot.seed
     self.tick = snapshot.tick or 0
+    self.gameMode = snapshot.gameMode or "survival"
     self.world = World.fromSnapshot(snapshot.world or { seed = snapshot.seed, tiles = {} })
     self.player.x = snapshot.player.x
     self.player.y = snapshot.player.y

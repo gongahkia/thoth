@@ -624,6 +624,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(95)
+    expect(not sim:isPlanningMode() and sim:gameModeText() == "mode: survival", "simulation should start in survival mode")
+    sim:queue(Simulation.commands.togglePlanningMode())
+    sim:step()
+    expect(sim:isPlanningMode() and sim:gameModeText() == "mode: planning", "planning toggle should enter planning mode")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:isPlanningMode(), "planning mode should persist")
+    loaded:queue(Simulation.commands.togglePlanningMode())
+    loaded:step()
+    expect(not loaded:isPlanningMode() and loaded:gameModeText() == "mode: survival", "planning toggle should return to survival")
+end
+
+tests[#tests + 1] = function()
     local frames = {
         { tick = 0, command = Simulation.commands.face("west") },
         { tick = 0, command = Simulation.commands.mine("west") },
