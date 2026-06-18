@@ -303,6 +303,9 @@ function World:generatedTile(x, y, z)
     if h % 97 == 0 then
         return tile("water")
     end
+    if biome ~= "grassland" and h % 211 == 0 then
+        return tile("recovery_crate")
+    end
     if biome == "desert" and h % 31 == 0 then
         return tile("cactus", 2)
     end

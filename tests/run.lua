@@ -151,8 +151,14 @@ tests[#tests + 1] = function()
     expect(world:getTile(2, 9, 0).id == "reeds", "marsh material missing")
     expect(world:getTile(-16, -10, 0).id == "ice", "snowfield material missing")
     expect(world:getTile(28, 12, 0).id == "basalt", "badlands material missing")
-    expect(world:getTile(-31, 13, 0).id == "crystal", "crystal field material missing")
+    expect(world:getTile(-28, 16, 0).id == "crystal", "crystal field material missing")
     expect(world:getTile(3844, -29, 0).id == "crystal", "rift material missing")
+end
+
+tests[#tests + 1] = function()
+    local world = World.new(606)
+    expect(world:biomeAt(-8, -80, 0) ~= "grassland", "biome cache sample should be in a biome")
+    expect(world:getTile(-8, -80, 0).id == "recovery_crate", "biome cache crate missing")
 end
 
 tests[#tests + 1] = function()
