@@ -29,6 +29,28 @@ local function recipeUnlockedDefaults()
     return result
 end
 
+local function defaultSupplyContracts()
+    return {
+        { id = "iron_supply", item = "iron_plate", target = 5, delivered = 0, complete = false },
+        { id = "science_supply", item = "science_pack", target = 3, delivered = 0, complete = false },
+        { id = "drone_supply", item = "logistic_drone", target = 1, delivered = 0, complete = false },
+    }
+end
+
+local function copyContracts(contracts)
+    local result = {}
+    for _, contract in ipairs(contracts or {}) do
+        result[#result + 1] = {
+            id = contract.id,
+            item = contract.item,
+            target = contract.target or 0,
+            delivered = contract.delivered or 0,
+            complete = contract.complete == true,
+        }
+    end
+    return result
+end
+
 local function newMachine(id, kind, x, y, direction)
     return {
         id = id,
@@ -83,6 +105,7 @@ function Simulation.new(seed)
         logisticIndex = { providerIds = {}, requesterIds = {}, portIds = {} },
         logisticJobs = {},
         nextLogisticJobId = 1,
+        supplyContracts = defaultSupplyContracts(),
         productionTotals = {
             iron_plate = 0,
             copper_plate = 0,
@@ -152,6 +175,10 @@ end
 
 function Simulation.commands.configureRequest(machineId, requestItem, threshold)
     return { type = "configure_request", machineId = machineId, requestItem = requestItem, threshold = threshold or 0 }
+end
+
+function Simulation.commands.submitSupplyContract(contractId)
+    return { type = "submit_supply_contract", contractId = contractId }
 end
 
 function Simulation:queue(command)
@@ -349,6 +376,10 @@ function Simulation:apply(command)
     end
     if command.type == "configure_request" then
         self:configureRequest(command.machineId, command.requestItem, command.threshold)
+        return
+    end
+    if command.type == "submit_supply_contract" then
+        self:submitSupplyContract(command.contractId)
     end
 end
 
@@ -542,6 +573,31 @@ function Simulation:configureRequest(machineId, requestItem, threshold)
     end
     machine.requestItem = Defs.item(requestItem) and requestItem or nil
     machine.requestThreshold = machine.requestItem and math.max(0, tonumber(threshold) or 0) or 0
+    return true
+end
+
+function Simulation:supplyContract(contractId)
+    for _, contract in ipairs(self.supplyContracts) do
+        if contract.id == contractId then
+            return contract
+        end
+    end
+    return nil
+end
+
+function Simulation:submitSupplyContract(contractId)
+    local contract = self:supplyContract(contractId)
+    if not contract or contract.complete then
+        return false
+    end
+    local remaining = math.max(0, contract.target - contract.delivered)
+    local available = self:itemCount(contract.item)
+    local moved = math.min(remaining, available)
+    if moved <= 0 or not self.player.inventory:consume(contract.item, moved) then
+        return false
+    end
+    contract.delivered = contract.delivered + moved
+    contract.complete = contract.delivered >= contract.target
     return true
 end
 
@@ -1358,6 +1414,7 @@ function Simulation:snapshot()
         nextMachineId = self.nextMachineId,
         logisticJobs = self.logisticJobs,
         nextLogisticJobId = self.nextLogisticJobId,
+        supplyContracts = copyContracts(self.supplyContracts),
         unlockedRecipes = copySet(self.unlockedRecipes),
         completedTechs = copySet(self.completedTechs),
         activeTech = self.activeTech,
@@ -1409,6 +1466,7 @@ function Simulation.fromSnapshot(snapshot)
     self.logisticIndex = { providerIds = {}, requesterIds = {}, portIds = {} }
     self.logisticJobs = snapshot.logisticJobs or {}
     self.nextLogisticJobId = snapshot.nextLogisticJobId or (#self.logisticJobs + 1)
+    self.supplyContracts = copyContracts(snapshot.supplyContracts or defaultSupplyContracts())
     return self
 end
 
