@@ -52,6 +52,8 @@ local scoutDispatchTicks = 120
 local archiveTerminalTicks = 360
 local riftGateTicks = 180
 local riftOffset = 4096
+local riftStormBaseTicks = 120
+local riftStormCooldownTicks = 300
 local requiredOutpostBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field" }
 local scoutBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field", "rift" }
 local outpostActivationItems = {
@@ -343,6 +345,15 @@ local function copyOutpostRoutes(routes)
     return result
 end
 
+local function copyRiftStorm(storm)
+    local source = storm or {}
+    return {
+        severity = source.severity or 0,
+        ticksRemaining = source.ticksRemaining or 0,
+        cooldownTicks = source.cooldownTicks or 0,
+    }
+end
+
 local function newMachine(id, kind, x, y, direction, z)
     return {
         id = id,
@@ -417,6 +428,7 @@ function Simulation.new(seed, startInTutorial)
         nextLogisticJobId = 1,
         supplyContracts = defaultSupplyContracts(),
         outpostRoutes = {},
+        riftStorm = { severity = 0, ticksRemaining = 0, cooldownTicks = 0 },
         unlockedAchievements = {},
         unlockedAchievementSet = {},
         tutorial = {
@@ -438,6 +450,7 @@ function Simulation.new(seed, startInTutorial)
             logistic_deliveries = 0,
             archive_signals = 0,
             rift_jumps = 0,
+            rift_storms_triggered = 0,
             outposts_activated = 0,
             outpost_deliveries = 0,
             scout_dispatches = 0,
@@ -557,6 +570,7 @@ function Simulation:step()
         self:apply(command)
     end
     self:updateMachines()
+    self:updateRiftStorms()
     self:ensureFactoryPressureEntity()
     self:updateEntities()
     self:updateAchievements()
@@ -2897,7 +2911,7 @@ function Simulation:updateRiftGate(machine)
         machine.status = "missing_input"
         return
     end
-    machine.progress = math.min(machine.progress + 1, riftGateTicks)
+    machine.progress = math.min(machine.progress + 1 + self:riftStormChargeBonus(machine), riftGateTicks)
     machine.status = "working"
     if machine.progress >= riftGateTicks then
         self:completeRiftJump(machine)
@@ -2907,8 +2921,83 @@ end
 function Simulation:completeRiftJump(machine)
     self.player.x = self.player.x + (self.player.x >= (riftOffset / 2) and -riftOffset or riftOffset)
     self.productionTotals.rift_jumps = (self.productionTotals.rift_jumps or 0) + 1
+    self:startRiftStorm(self:currentRiftStormSeverity())
     machine.progress = 0
     machine.status = "idle"
+end
+
+function Simulation:riftStormActive()
+    return (self.riftStorm.ticksRemaining or 0) > 0 and (self.riftStorm.severity or 0) > 0
+end
+
+function Simulation:currentRiftStormSeverity()
+    local severity = 1 + math.min(3, math.floor((self.productionTotals.rift_jumps or 0) / 2))
+    if self:factoryPressureLevel() >= 220 then
+        severity = severity + 1
+    end
+    if self.world:biomeAt(self.player.x, self.player.y, self.player.z) == "rift" then
+        severity = severity + 1
+    end
+    if (self.productionTotals.pressure_waves_repelled or 0) >= 3 then
+        severity = severity - 1
+    end
+    return math.max(1, math.min(4, severity))
+end
+
+function Simulation:startRiftStorm(severity)
+    local normalized = math.max(1, math.min(4, severity or 1))
+    local duration = riftStormBaseTicks + normalized * 30
+    self.productionTotals.rift_storms_triggered = (self.productionTotals.rift_storms_triggered or 0) + 1
+    self.riftStorm.severity = math.max(self.riftStorm.severity or 0, normalized)
+    self.riftStorm.ticksRemaining = math.max(self.riftStorm.ticksRemaining or 0, duration)
+    self.riftStorm.cooldownTicks = math.max(self.riftStorm.cooldownTicks or 0, riftStormCooldownTicks)
+end
+
+function Simulation:riftStormChargeBonus(machine)
+    if not self:riftStormActive() or machine.kind ~= "rift_gate" then
+        return 0
+    end
+    if machine.socketedRelic == "rift_crown" then
+        return 1 + math.floor((self.riftStorm.severity or 1) / 2)
+    end
+    return 1
+end
+
+function Simulation:updateRiftStorms()
+    if not self:riftStormActive() then
+        if (self.riftStorm.cooldownTicks or 0) > 0 then
+            self.riftStorm.cooldownTicks = self.riftStorm.cooldownTicks - 1
+        end
+        return
+    end
+    local severity = math.max(1, math.min(4, self.riftStorm.severity or 1))
+    if self.tick > 0 and self.tick % 45 == 0 and self.world:biomeAt(self.player.x, self.player.y, self.player.z) == "rift" then
+        self:spawnEntityNear(self.player.x, self.player.y, self.player.z, "rift_stalker", 7)
+    end
+    if self.tick > 0 and self.tick % 60 == 0 then
+        for _, machine in ipairs(self.machines) do
+            if machine.kind == "rift_gate" and machine.progress > 0 then
+                if machine.socketedRelic == "rift_crown" then
+                    machine.progress = math.min(machine.progress + severity * 2, riftGateTicks)
+                    machine.status = "working"
+                else
+                    machine.progress = math.max(0, machine.progress - severity)
+                    machine.status = "output_blocked"
+                end
+            end
+        end
+    end
+    self.riftStorm.ticksRemaining = math.max(0, (self.riftStorm.ticksRemaining or 0) - 1)
+    if self.riftStorm.ticksRemaining == 0 then
+        self.riftStorm.severity = 0
+    end
+end
+
+function Simulation:riftStormText()
+    if not self:riftStormActive() then
+        return "rift storm: calm"
+    end
+    return "rift storm: active severity " .. self.riftStorm.severity .. " for " .. self.riftStorm.ticksRemaining .. " ticks"
 end
 
 function Simulation:tryArchiveUnlock(machine)
@@ -3507,6 +3596,7 @@ function Simulation:snapshot()
         nextLogisticJobId = self.nextLogisticJobId,
         supplyContracts = copyContracts(self.supplyContracts),
         outpostRoutes = copyOutpostRoutes(self.outpostRoutes),
+        riftStorm = copyRiftStorm(self.riftStorm),
         unlockedAchievements = copyList(self.unlockedAchievements),
         unlockedRecipes = copySet(self.unlockedRecipes),
         completedTechs = copySet(self.completedTechs),
@@ -3577,6 +3667,7 @@ function Simulation.fromSnapshot(snapshot)
     self.nextLogisticJobId = snapshot.nextLogisticJobId or (#self.logisticJobs + 1)
     self.supplyContracts = copyContracts(snapshot.supplyContracts or defaultSupplyContracts())
     self.outpostRoutes = copyOutpostRoutes(snapshot.outpostRoutes or {})
+    self.riftStorm = copyRiftStorm(snapshot.riftStorm)
     self.unlockedAchievements = {}
     self.unlockedAchievementSet = {}
     for _, key in ipairs(snapshot.unlockedAchievements or {}) do

@@ -114,8 +114,6 @@
 
 ## Phase 15: Archive, Rift, Post-Victory
 
-- Restore rift systems:
-  - Rift storms and storm modifiers.
 - Restore post-victory expedition board:
   - Scouting.
   - Boss relics.

@@ -1252,8 +1252,22 @@ tests[#tests + 1] = function()
     expect(gate.inventory:count("beacon_core") == 0, "rift gate should consume beacon core")
     expect(sim.productionTotals.rift_jumps == 1, "rift gate should increment jump total")
     expect(sim.player.x >= 4096 and sim.world:biomeAt(sim.player.x, sim.player.y, sim.player.z) == "rift", "rift gate should move player to outer band")
+    expect(sim.productionTotals.rift_storms_triggered == 1 and sim:riftStormActive(), "rift jump should trigger active storm")
+    expect(sim:riftStormText():find("active") ~= nil, "rift storm text should expose active state")
     local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded.productionTotals.rift_jumps == 1 and loaded.player.x >= 4096, "rift jump should persist")
+    expect(loaded.productionTotals.rift_jumps == 1 and loaded.player.x >= 4096 and loaded:riftStormActive(), "rift jump storm state should persist")
+
+    local storm = Simulation.new(92)
+    storm.player.x = 4096
+    local stormGenerator = storm:addMachine("generator", 4096, 1, "south")
+    stormGenerator.inventory:add("coal", 2)
+    storm:addMachine("power_pole", 4097, 1, "south")
+    local stormGate = storm:addMachine("rift_gate", 4097, 0, "south")
+    stormGate.progress = 40
+    storm.riftStorm = { severity = 3, ticksRemaining = 90, cooldownTicks = 100 }
+    storm.tick = 60
+    storm:step()
+    expect(stormGate.progress < 40 and stormGate.status == "output_blocked", "rift storm should jolt unanchored gate charge")
 end
 
 tests[#tests + 1] = function()
