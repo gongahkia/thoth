@@ -1018,6 +1018,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local machineSim = Simulation.new(75)
+    machineSim.player.x = 10
+    machineSim.player.y = 10
+    local chest = machineSim:addMachine("chest", 1, 0, "south")
+    chest.durability = 1
+    machineSim:addEntity("slime", 0, 0, 0, 3)
+    machineSim:updateEntities()
+    expect(machineSim:machineAt(1, 0, 0) == nil, "hostile should damage adjacent machine structure")
+    local wallSim = Simulation.new(76)
+    wallSim.player.x = 10
+    wallSim.player.y = 10
+    wallSim.world:setTile(1, 0, 0, { id = "wall", data = 1 })
+    wallSim:addEntity("slime", 0, 0, 0, 3)
+    wallSim:updateEntities()
+    expect(wallSim.world:getTile(1, 0, 0).id == "grass", "hostile should destroy adjacent wall tile")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(34)
     local function findPanel(panels, key)
         for _, panel in ipairs(panels) do

@@ -44,6 +44,23 @@ local pressureWeights = {
 }
 local guardTowerAmmo = { "copper_coil", "frost_cell", "stone_shot" }
 local arcTowerAmmo = { "rift_shell", "crystal_charge", "copper_coil" }
+local machineDurability = {
+    wall = 12,
+    plank_wall = 8,
+    door = 8,
+    chest = 8,
+    provider_chest = 8,
+    requester_chest = 8,
+    guard_tower = 12,
+    arc_tower = 12,
+    repair_pylon = 12,
+    pressure_relay = 12,
+}
+local tileDurability = {
+    wall = 10,
+    plank_wall = 6,
+    door = 6,
+}
 
 local function copySet(values)
     local result = {}
@@ -220,6 +237,7 @@ local function newMachine(id, kind, x, y, direction, z)
         requestItem = nil,
         requestThreshold = 0,
         socketedRelic = nil,
+        durability = machineDurability[kind] or 10,
         status = "idle",
     }
 end
@@ -800,6 +818,8 @@ function Simulation:updateEntities()
             if (entity.z or 0) == self.player.z and Grid.manhattan(entity.x, entity.y, self.player.x, self.player.y) <= 1 and entity.attackCooldown <= 0 then
                 self:damagePlayer(self:entityAttackDamage(entity))
                 entity.attackCooldown = 30
+            elseif entity.attackCooldown <= 0 and self:damageAdjacentStructure(entity, self:isBossKind(entity.kind) and 2 or 1) then
+                entity.attackCooldown = 45
             else
                 self:moveEntityTowardTarget(entity)
             end
@@ -846,6 +866,43 @@ function Simulation:moveEntityTowardTarget(entity)
         if self:entityCanMoveTo(entity, candidate.x, candidate.y) then
             entity.x = candidate.x
             entity.y = candidate.y
+            return true
+        end
+    end
+    return false
+end
+
+function Simulation:damageMachine(machine, amount)
+    machine.durability = (machine.durability or machineDurability[machine.kind] or 10) - amount
+    if machine.durability <= 0 then
+        return self:removeMachineById(machine.id)
+    end
+    return true
+end
+
+function Simulation:damageStructureAt(x, y, z, amount)
+    local machine = self:machineAt(x, y, z)
+    if machine then
+        return self:damageMachine(machine, amount)
+    end
+    local tile = self.world:getTile(x, y, z or 0)
+    local maxDurability = tileDurability[tile.id]
+    if not maxDurability then
+        return false
+    end
+    local durability = (tile.data and tile.data > 0 and tile.data or maxDurability) - amount
+    if durability <= 0 then
+        self.world:setTile(x, y, z or 0, { id = (z or 0) < 0 and "dungeon_floor" or "grass", data = 0 })
+    else
+        self.world:setTile(x, y, z or 0, { id = tile.id, data = durability })
+    end
+    return true
+end
+
+function Simulation:damageAdjacentStructure(entity, amount)
+    for _, direction in ipairs(Grid.order) do
+        local x, y = Grid.front(entity.x, entity.y, direction)
+        if self:damageStructureAt(x, y, entity.z or 0, amount) then
             return true
         end
     end
@@ -2681,6 +2738,7 @@ function Simulation:snapshot()
             requestItem = machine.requestItem,
             requestThreshold = machine.requestThreshold,
             socketedRelic = machine.socketedRelic,
+            durability = machine.durability,
             status = machine.status,
         }
     end
@@ -2759,6 +2817,7 @@ function Simulation.fromSnapshot(snapshot)
         machine.requestItem = value.requestItem
         machine.requestThreshold = value.requestThreshold or 0
         machine.socketedRelic = value.socketedRelic
+        machine.durability = value.durability or machine.durability
         machine.status = value.status or "idle"
         self.machines[#self.machines + 1] = machine
     end
