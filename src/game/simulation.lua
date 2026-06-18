@@ -46,6 +46,15 @@ local guardTowerAmmo = { "copper_coil", "frost_cell", "stone_shot" }
 local arcTowerAmmo = { "rift_shell", "crystal_charge", "copper_coil" }
 local outpostBeaconTicks = 80
 local requiredOutpostBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field" }
+local outpostActivationItems = {
+    marsh = "water_barrel",
+    desert = "sand_glass",
+    badlands = "basalt",
+    snowfield = "ice_shard",
+    crystal_field = "crystal",
+    rift = "beacon_core",
+    grassland = "stone",
+}
 local machineDurability = {
     wall = 12,
     plank_wall = 8,
@@ -92,6 +101,10 @@ end
 
 local function outpostBiomeKey(prefix, biome)
     return prefix .. "_" .. tostring(biome or "grassland")
+end
+
+local function outpostActivationItem(biome)
+    return outpostActivationItems[biome] or "stone"
 end
 
 local function copySet(values)
@@ -2471,6 +2484,11 @@ function Simulation:updateOutpostBeacon(machine)
         machine.status = "missing_power"
         return
     end
+    local input = outpostActivationItem(self.world:biomeAt(machine.x, machine.y, machine.z or 0))
+    if machine.progress == 0 and not machine.inventory:consume(input, 1) then
+        machine.status = "missing_input"
+        return
+    end
     machine.progress = math.min(machine.progress + 1, outpostBeaconTicks)
     machine.status = "working"
     if machine.progress < outpostBeaconTicks then
@@ -2822,6 +2840,14 @@ function Simulation:acceptItem(machine, item)
     end
     if machine.kind == "pressure_relay" then
         return item == "advanced_science_pack" and machine.inventory:add(item, 1)
+    end
+    if machine.kind == "outpost_beacon" then
+        for _, input in pairs(outpostActivationItems) do
+            if item == input then
+                return machine.inventory:add(item, 1)
+            end
+        end
+        return false
     end
     if machine.kind == "chest" or machine.kind == "provider_chest" or machine.kind == "requester_chest" or machine.kind == "train_stop" then
         return machine.inventory:add(item, 1)
