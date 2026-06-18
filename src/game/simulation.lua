@@ -69,6 +69,15 @@ local scoutRewards = {
     rift = "scrap",
     grassland = "wood",
 }
+local scoutFragments = {
+    marsh = "marsh_fragment",
+    desert = "desert_fragment",
+    badlands = "badlands_fragment",
+    snowfield = "frost_fragment",
+    crystal_field = "crystal_fragment",
+    rift = "rift_fragment",
+    grassland = "archive_fragment",
+}
 local machineDurability = {
     wall = 12,
     plank_wall = 8,
@@ -139,6 +148,10 @@ local function scoutBiomeForReward(item)
         end
     end
     return nil
+end
+
+local function fragmentForBiome(biome)
+    return scoutFragments[biome] or "archive_fragment"
 end
 
 local function copySet(values)
@@ -2546,7 +2559,17 @@ function Simulation:updateScoutAutomation()
                 if port.progress >= scoutDispatchTicks then
                     local biome = scoutBiomeForReward(port.carriedItem) or self:scoutTargetBiome(port)
                     local recovered = scoutRewardCountForBiome(biome)
+                    if self.world:biomeAt(port.x, port.y, port.z or 0) == biome then
+                        recovered = recovered + 1
+                    end
+                    if self:hasActivatedOutpostBiome(biome) then
+                        recovered = recovered + 1
+                    end
+                    if self:outpostRouteStability(biome) >= outpostRouteStableThreshold then
+                        recovered = recovered + 1
+                    end
                     port.inventory:add(port.carriedItem, recovered)
+                    port.inventory:add(fragmentForBiome(biome), 1)
                     self:markScoutedBiome(biome)
                     self.productionTotals.scout_dispatches = (self.productionTotals.scout_dispatches or 0) + 1
                     self.productionTotals.scout_materials_recovered = (self.productionTotals.scout_materials_recovered or 0) + recovered

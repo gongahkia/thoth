@@ -113,9 +113,6 @@
   - `make smoke` still exits cleanly.
 
 ## Phase 14: Pressure, Defense, Outposts
-
-- Restore outposts:
-  - Route-bonus materials and fragments.
 - Acceptance:
   - Tests cover pressure wave spawn/reward, pressure hotspot map, tower targeting, structure damage, repair pylon effects, pressure relay effects, outpost activation, outpost delivery contracts, stable outpost routes, local-biome scouting, and scout rewards.
 
