@@ -172,6 +172,20 @@ tests[#tests + 1] = function()
     expect(right.inventory:count("copper_ore") == 1, "splitter did not alternate right")
 end
 
+tests[#tests + 1] = function()
+    local sim = Simulation.new(19)
+    local source = sim:addMachine("chest", -1, 0, "south")
+    local inserter = sim:addMachine("circuit_inserter", 0, 0, "east")
+    local target = sim:addMachine("chest", 1, 0, "south")
+    source.inventory:add("iron_ore", 5)
+    source.inventory:add("copper_ore", 5)
+    sim:queue(Simulation.commands.configureCircuit(inserter.id, "iron_ore", "less_than", 2))
+    runSteps(sim, 90)
+    expect(target.inventory:count("iron_ore") == 2, "circuit inserter ignored less-than threshold")
+    expect(target.inventory:count("copper_ore") == 0, "circuit inserter ignored item filter")
+    expect(source.inventory:count("iron_ore") == 3, "circuit inserter moved too many filtered items")
+end
+
 for index, test in ipairs(tests) do
     local ok, err = pcall(test)
     if not ok then

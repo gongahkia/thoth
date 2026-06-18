@@ -25,6 +25,7 @@ local machineColors = {
     assembler = { 98, 142, 176 },
     lab = { 144, 104, 188 },
     splitter = { 214, 178, 74 },
+    circuit_inserter = { 94, 172, 136 },
 }
 
 local stateColors = {
@@ -308,11 +309,16 @@ local function drawMachinePanel(sim, app)
     love.graphics.print("input " .. input, x + 10, y + 92)
     love.graphics.print("output " .. output, x + 10, y + 112)
     love.graphics.print("inv " .. (stacksText(machine.inventory) ~= "" and stacksText(machine.inventory) or "-"), x + 10, y + 132)
+    local detailY = y + 152
     if machine.carriedItem then
-        love.graphics.print("carried " .. machine.carriedItem, x + 10, y + 152)
+        love.graphics.print("carried " .. machine.carriedItem, x + 10, detailY)
+        detailY = detailY + 18
+    end
+    if machine.kind == "circuit_inserter" then
+        love.graphics.print("circuit " .. (machine.filterItem or "-") .. " " .. machine.circuitComparator .. " " .. machine.circuitThreshold, x + 10, detailY)
     end
 
-    local buttonY = y + 176
+    local buttonY = math.max(y + 176, detailY + 22)
     local recipeOrder = Defs.machineRecipeOrder[machine.kind]
     if recipeOrder then
         love.graphics.setColor(0.9, 0.92, 0.86, 1)

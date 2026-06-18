@@ -115,7 +115,6 @@
 ## Phase 10: Core Automation Parity
 
 - Restore machines:
-  - Circuit inserter.
   - Provider chest and requester chest.
   - Logistic port and logistic drone.
   - Generator, power pole, electric miner.

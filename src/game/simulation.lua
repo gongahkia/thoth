@@ -43,6 +43,9 @@ local function newMachine(id, kind, x, y, direction)
         carriedItem = nil,
         outputItem = nil,
         recipeKey = kind == "assembler" and "science_pack" or kind == "furnace" and "iron_plate" or nil,
+        filterItem = nil,
+        circuitComparator = "always",
+        circuitThreshold = 0,
         status = "idle",
     }
 end
@@ -122,6 +125,16 @@ end
 
 function Simulation.commands.withdrawMachine(machineId, item, count)
     return { type = "withdraw_machine", machineId = machineId, item = item, count = count or 1 }
+end
+
+function Simulation.commands.configureCircuit(machineId, filterItem, comparator, threshold)
+    return {
+        type = "configure_circuit",
+        machineId = machineId,
+        filterItem = filterItem,
+        comparator = comparator or "always",
+        threshold = threshold or 0,
+    }
 end
 
 function Simulation:queue(command)
@@ -297,6 +310,10 @@ function Simulation:apply(command)
     end
     if command.type == "withdraw_machine" then
         self:withdrawFromMachine(command.machineId, command.item, command.count)
+        return
+    end
+    if command.type == "configure_circuit" then
+        self:configureCircuit(command.machineId, command.filterItem, command.comparator, command.threshold)
     end
 end
 
@@ -468,6 +485,21 @@ function Simulation:setMachineRecipe(machineId, recipeKey)
     return true
 end
 
+function Simulation:configureCircuit(machineId, filterItem, comparator, threshold)
+    local machine = self:machineById(machineId)
+    if not machine or machine.kind ~= "circuit_inserter" then
+        return false
+    end
+    machine.filterItem = Defs.item(filterItem) and filterItem or nil
+    if comparator == "less_than" or comparator == "greater_or_equal" then
+        machine.circuitComparator = comparator
+    else
+        machine.circuitComparator = "always"
+    end
+    machine.circuitThreshold = math.max(0, tonumber(threshold) or 0)
+    return true
+end
+
 function Simulation:updateMachines()
     for _, machine in ipairs(self.machines) do
         if machine.kind == "burner_miner" then
@@ -476,7 +508,7 @@ function Simulation:updateMachines()
             self:updateBelt(machine)
         elseif machine.kind == "splitter" then
             self:updateSplitter(machine)
-        elseif machine.kind == "inserter" then
+        elseif machine.kind == "inserter" or machine.kind == "circuit_inserter" then
             self:updateInserter(machine)
         elseif machine.kind == "furnace" then
             self:updateFurnace(machine)
@@ -561,6 +593,41 @@ function Simulation:updateSplitter(machine)
     machine.status = "output_blocked"
 end
 
+function Simulation:countMachineItem(machine, item)
+    if not item then
+        local total = 0
+        for _, stack in ipairs(machine.inventory:stacks()) do
+            total = total + stack.count
+        end
+        return total + (machine.carriedItem and 1 or 0) + (machine.outputItem and 1 or 0)
+    end
+    local total = machine.inventory:count(item)
+    if machine.carriedItem == item then
+        total = total + 1
+    end
+    if machine.outputItem == item then
+        total = total + 1
+    end
+    return total
+end
+
+function Simulation:circuitAllows(machine, target)
+    if machine.kind ~= "circuit_inserter" or machine.circuitComparator == "always" then
+        return true
+    end
+    if not target then
+        return false
+    end
+    local count = self:countMachineItem(target, machine.filterItem)
+    if machine.circuitComparator == "less_than" then
+        return count < machine.circuitThreshold
+    end
+    if machine.circuitComparator == "greater_or_equal" then
+        return count >= machine.circuitThreshold
+    end
+    return true
+end
+
 function Simulation:updateInserter(machine)
     machine.progress = machine.progress + 1
     if machine.progress < 15 then
@@ -583,7 +650,12 @@ function Simulation:updateInserter(machine)
         machine.status = "missing_input"
         return
     end
-    machine.carriedItem = self:extractItem(source)
+    local tx, ty = Grid.front(machine.x, machine.y, machine.direction)
+    if not self:circuitAllows(machine, self:machineAt(tx, ty, machine.z or 0)) then
+        machine.status = "idle"
+        return
+    end
+    machine.carriedItem = self:extractItem(source, machine.kind == "circuit_inserter" and machine.filterItem or nil)
     machine.status = machine.carriedItem and "working" or "missing_input"
 end
 
@@ -709,13 +781,19 @@ function Simulation:acceptItem(machine, item)
     return false
 end
 
-function Simulation:extractItem(machine)
+function Simulation:extractItem(machine, filterItem)
     if machine.kind == "belt" or machine.kind == "fast_belt" or machine.kind == "splitter" then
         local item = machine.carriedItem
+        if filterItem and item ~= filterItem then
+            return nil
+        end
         machine.carriedItem = nil
         return item
     end
     local outputs = machineOutputs[machine.kind] or Defs.itemOrder
+    if filterItem then
+        outputs = { filterItem }
+    end
     for _, item in ipairs(outputs) do
         if machine.inventory:consume(item, 1) then
             return item
@@ -811,6 +889,9 @@ function Simulation:snapshot()
             carriedItem = machine.carriedItem,
             outputItem = machine.outputItem,
             recipeKey = machine.recipeKey,
+            filterItem = machine.filterItem,
+            circuitComparator = machine.circuitComparator,
+            circuitThreshold = machine.circuitThreshold,
             status = machine.status,
         }
     end
@@ -861,6 +942,9 @@ function Simulation.fromSnapshot(snapshot)
         machine.carriedItem = value.carriedItem
         machine.outputItem = value.outputItem
         machine.recipeKey = value.recipeKey or (value.kind == "furnace" and "iron_plate" or value.kind == "assembler" and "science_pack" or nil)
+        machine.filterItem = value.filterItem
+        machine.circuitComparator = value.circuitComparator or "always"
+        machine.circuitThreshold = value.circuitThreshold or 0
         machine.status = value.status or "idle"
         self.machines[#self.machines + 1] = machine
     end
