@@ -114,20 +114,12 @@
 
 ## Phase 9: Data Registry Parity
 
-- Port old C++ tiles, items, machines, recipes, and techs into Lua tables.
 - Add registry validation tests for:
   - Missing item/tile/machine ids.
   - Bad recipe inputs or outputs.
   - Invalid machine placement references.
   - Missing recipe unlocks.
   - Stack sizes and placeable item metadata.
-- Include old terrain/resource/tile set:
-  - Grass, dirt, sand, beach, snow, ice, mud, reeds, cactus, stone, basalt, crystal.
-  - Water, deep water, coral.
-  - Iron ore, copper ore, coal ore.
-  - Floor, wall, plank wall, door, stairs up/down, bed.
-  - Dungeon floor/wall, lair hearth, recovery crate.
-- Include old item/machine/recipe/tech keys or record an explicit deferred note per omitted key.
 - Acceptance:
   - Lua registry covers old C++ registry keys or documents each omitted key.
   - Registry validation is part of `make check`.

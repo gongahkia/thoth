@@ -366,7 +366,7 @@ local function drawRecipeCards(sim, app)
     love.graphics.rectangle("fill", panelX - 8, panelY - 32, cardW + 16, 600)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Build", panelX, panelY - 24)
-    for index, recipeKey in ipairs(Defs.recipeOrder) do
+    for index, recipeKey in ipairs(Defs.buildRecipeOrder or Defs.recipeOrder) do
         local recipe = Defs.recipe(recipeKey)
         local y = panelY + (index - 1) * (cardH + 7)
         local state, detail = recipeState(sim, recipeKey)
@@ -407,7 +407,7 @@ local function drawInventoryPanel(sim, app)
     if app.selectedInventoryItem then
         love.graphics.print("assign " .. itemName(app.selectedInventoryItem), panelX + 110, panelY + 8)
     end
-    for index, item in ipairs(Defs.itemOrder) do
+    for index, item in ipairs(Defs.inventoryPanelOrder or Defs.itemOrder) do
         local col = (index - 1) % 6
         local row = math.floor((index - 1) / 6)
         local x = panelX + 10 + col * (cellW + 4)

@@ -7,9 +7,9 @@ local Simulation = {}
 Simulation.__index = Simulation
 
 local machineOutputs = {
-    burner_miner = { "iron_ore", "copper_ore", "coal" },
-    furnace = { "iron_plate", "copper_plate" },
-    assembler = { "science_pack" },
+    burner_miner = Defs.itemOrder,
+    furnace = { "iron_plate", "copper_plate", "sand_glass" },
+    assembler = { "science_pack", "advanced_science_pack", "circuit_board", "beacon_core" },
     chest = Defs.itemOrder,
 }
 
@@ -581,16 +581,11 @@ function Simulation:updateFurnace(machine)
         end
         return
     end
-    local ore = recipe.output.item == "copper_plate" and "copper_ore" or "iron_ore"
-    if machine.inventory:count(ore) <= 0 then
+    if not machine.inventory:canConsume(recipe.inputs) then
         machine.status = "missing_input"
         return
     end
-    if not machine.inventory:consume("coal", 1) then
-        machine.status = "missing_fuel"
-        return
-    end
-    machine.inventory:consume(ore, 1)
+    machine.inventory:consumeAll(recipe.inputs)
     machine.outputItem = recipe.output.item
     machine.progress = recipe.ticks or 60
     machine.status = "working"
