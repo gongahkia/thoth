@@ -63,6 +63,45 @@ local function authoredLairAt(x, y)
     return nil
 end
 
+local generatedLairDefs = {
+    { key = "marsh_hive", material = "reeds" },
+    { key = "glass_spire", material = "cactus" },
+    { key = "badlands_foundry", material = "basalt" },
+    { key = "frost_vault", material = "ice" },
+    { key = "crystal_vault", material = "crystal" },
+}
+
+local function generatedLairAt(seed, x, y)
+    if math.abs(x) + math.abs(y) < 160 then
+        return nil
+    end
+    local cellSize = 96
+    local cellX = World.floorDiv(x, cellSize)
+    local cellY = World.floorDiv(y, cellSize)
+    local best
+    local bestDistance = math.huge
+    for cy = cellY - 1, cellY + 1 do
+        for cx = cellX - 1, cellX + 1 do
+            local h = Rng.hash(seed + 12001, cx, cy, 0)
+            if h % 1000 < 220 then
+                local centerX = cx * cellSize + 48 + ((math.floor(h / 16) % 49) - 24)
+                local centerY = cy * cellSize + 48 + ((math.floor(h / 2048) % 49) - 24)
+                if math.abs(centerX) + math.abs(centerY) >= 160 and not authoredLairAt(centerX, centerY) then
+                    local dx = x - centerX
+                    local dy = y - centerY
+                    local distance = dx * dx + dy * dy
+                    if distance <= lairRadius * lairRadius and distance < bestDistance then
+                        local def = generatedLairDefs[(h % #generatedLairDefs) + 1]
+                        best = { key = def.key, x = centerX, y = centerY, material = def.material }
+                        bestDistance = distance
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
 function World.new(seed, overrides)
     return setmetatable({ seed = seed or 1, overrides = overrides or {}, chunks = {} }, World)
 end
@@ -163,7 +202,7 @@ function World:lairAt(x, y, z)
     if z ~= 0 and z ~= -1 then
         return nil
     end
-    local lair = authoredLairAt(x, y)
+    local lair = authoredLairAt(x, y) or generatedLairAt(self.seed, x, y)
     return lair and lair.key or nil
 end
 
@@ -206,7 +245,7 @@ function World:generatedTile(x, y, z)
         return tile("copper_ore", 22)
     end
 
-    local lair = authoredLairAt(x, y)
+    local lair = authoredLairAt(x, y) or generatedLairAt(self.seed, x, y)
     if z == 0 and lair then
         local localX = math.abs(x - lair.x)
         local localY = math.abs(y - lair.y)

@@ -114,7 +114,6 @@
 
 ## Phase 12: World, Biomes, And Exploration
 
-- Restore seeded procedural lairs beyond the starter ring.
 - Restore exploration systems:
   - Boat traversal.
   - Stairs and layers.

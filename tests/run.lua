@@ -90,6 +90,15 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local world = World.new(404)
+    expect(world:lairAt(417, -453, 0) == "marsh_hive", "generated lair identity missing")
+    expect(world:lairAt(417, -453, -1) == "marsh_hive", "generated lair interior identity missing")
+    expect(world:getTile(417, -453, 0).id == "stairs_down", "generated lair should expose stairs")
+    expect(world:getTile(422, -453, 0).id == "dungeon_wall", "generated lair boundary missing")
+    expect(world:lairAt(60, 60, 0) == nil, "protected starter ring should not contain generated lair")
+end
+
+tests[#tests + 1] = function()
     local a = Simulation.new(42)
     local b = Simulation.new(42)
     local commands = {
