@@ -285,7 +285,7 @@ local function drawMachinePanel(sim, app)
     app.ui.machineButtons = {}
     local machine, source = targetMachine(sim, app)
     local x = 16
-    local y = 100
+    local y = 132
     local w = 328
     love.graphics.setColor(0.06, 0.07, 0.08, 0.86)
     love.graphics.rectangle("fill", x, y, w, 356)
@@ -359,7 +359,7 @@ end
 local function drawRecipeCards(sim, app)
     app.ui.recipeCards = {}
     local panelX = love.graphics.getWidth() - 284
-    local panelY = 100
+    local panelY = 132
     local cardW = 268
     local cardH = 48
     love.graphics.setColor(0.06, 0.07, 0.08, 0.82)
@@ -446,13 +446,28 @@ local function drawInventoryPanel(sim, app)
     end
 end
 
+local function checklistText(group)
+    local parts = { group.title }
+    for _, item in ipairs(group.items) do
+        local mark = item.blocked and "[-]" or item.done and "[x]" or "[ ]"
+        parts[#parts + 1] = mark .. item.label
+    end
+    return table.concat(parts, " ")
+end
+
 function Render.drawHud(sim, app)
     love.graphics.setColor(0.06, 0.07, 0.08, 0.86)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), 88)
+    love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), 124)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Thoth  tick " .. sim.tick .. "  " .. sim:objectiveText(), 16, 12)
-    love.graphics.print("status " .. tostring(app.status), 16, 34)
-    love.graphics.print("inv " .. stacksText(sim.player.inventory), 16, 56)
+    love.graphics.print("Thoth  tick " .. sim.tick, 16, 10)
+    love.graphics.print("next " .. sim:nextStepText(), 16, 30)
+    love.graphics.print("status " .. tostring(app.status), 16, 50)
+    local checklist = sim:objectiveChecklist()
+    love.graphics.print(checklistText(checklist[1]), 16, 76)
+    love.graphics.print(checklistText(checklist[2]), 16, 96)
+    love.graphics.print(checklistText(checklist[4]), 500, 76)
+    love.graphics.print(checklistText(checklist[3]), 500, 96)
+    love.graphics.print(checklistText(checklist[5]), 820, 96)
 end
 
 function Render.draw(sim, app)

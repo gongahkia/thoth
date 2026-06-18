@@ -148,6 +148,17 @@ tests[#tests + 1] = function()
     expect(blocked.inventory:count("coal") == 1, "furnace consumed fuel without selected ore")
 end
 
+tests[#tests + 1] = function()
+    local sim = Simulation.new(17)
+    expect(sim:nextStepText() == "Mine west trees for workbench wood", "initial next step should point at wood")
+    sim:addItem("wood", 6)
+    sim:addItem("stone", 8)
+    sim:addMachine("workbench", 0, 1, "south")
+    expect(sim:nextStepText() == "Craft and place a burner miner on ore", "next step should advance past starter materials")
+    local checklist = sim:objectiveChecklist()
+    expect(checklist[1].title == "First" and checklist[2].title == "Science", "objective checklist groups missing")
+end
+
 for index, test in ipairs(tests) do
     local ok, err = pcall(test)
     if not ok then

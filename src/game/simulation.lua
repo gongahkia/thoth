@@ -191,6 +191,39 @@ function Simulation:machineById(id)
     return nil
 end
 
+function Simulation:hasMachine(kind)
+    for _, machine in ipairs(self.machines) do
+        if machine.kind == kind then
+            return true
+        end
+    end
+    return false
+end
+
+function Simulation:anyItemCount(item)
+    local total = self:itemCount(item)
+    for _, machine in ipairs(self.machines) do
+        total = total + machine.inventory:count(item)
+        if machine.carriedItem == item then
+            total = total + 1
+        end
+        if machine.outputItem == item then
+            total = total + 1
+        end
+    end
+    return total
+end
+
+function Simulation:machineItemCount(kind, item)
+    local total = 0
+    for _, machine in ipairs(self.machines) do
+        if machine.kind == kind then
+            total = total + machine.inventory:count(item)
+        end
+    end
+    return total
+end
+
 function Simulation:isWalkable(x, y, z)
     return self.world:isWalkable(x, y, z or 0) and self:machineAt(x, y, z or 0) == nil
 end
@@ -680,20 +713,69 @@ function Simulation:recordProduced(item)
     end
 end
 
+function Simulation:objectiveChecklist()
+    local hasBench = self:hasMachine("workbench")
+    local hasMiner = self:hasMachine("burner_miner")
+    local hasFurnace = self:hasMachine("furnace")
+    return {
+        {
+            title = "First",
+            items = {
+                { label = "wood", done = self:anyItemCount("wood") >= 6 or hasBench or hasMiner, next = "Mine west trees for workbench wood" },
+                { label = "stone", done = self:anyItemCount("stone") >= 8 or hasFurnace or hasMiner, next = "Mine southern stone for furnace and belts" },
+                { label = "bench", done = hasBench, next = "Craft and place a workbench" },
+                { label = "miner", done = hasMiner, next = "Craft and place a burner miner on ore" },
+                { label = "plate", done = self.productionTotals.iron_plate > 0, next = "Fuel miner and furnace, then route ore into smelting" },
+            },
+        },
+        {
+            title = "Science",
+            items = {
+                { label = "assembler", done = self:hasMachine("assembler"), next = "Craft and place an assembler near plate supply" },
+                { label = "lab", done = self:hasMachine("lab"), next = "Craft and place a lab" },
+                { label = "pack", done = self:anyItemCount("science_pack") > 0 or self.productionTotals.science_pack > 0, next = "Feed iron and copper plates into an assembler for science" },
+                { label = "logistics", done = self:isTechCompleted("logistics_1"), next = "Move science packs into a lab for Logistics 1" },
+            },
+        },
+        {
+            title = "Power",
+            items = {
+                { label = "science base", done = self:isTechCompleted("logistics_1"), next = "Finish Logistics 1 before the power chain" },
+                { label = "generator", done = false, blocked = true, next = "Generator unlock is scheduled for automation parity" },
+            },
+        },
+        {
+            title = "Supply",
+            items = {
+                { label = "chest", done = self:hasMachine("chest"), next = "Craft a chest for plate output" },
+                { label = "coal", done = self:anyItemCount("coal") > 0 or self:machineItemCount("burner_miner", "coal") > 0, next = "Mine coal and deposit it into burner machines" },
+                { label = "stored plate", done = self:machineItemCount("chest", "iron_plate") > 0, next = "Use inserters to store iron plates in a chest" },
+            },
+        },
+        {
+            title = "Biome",
+            items = {
+                { label = "grassland", done = true, next = "Use the starter grassland to bootstrap production" },
+                { label = "coal patch", done = self.world:getTile(3, 0, 0).id == "coal_ore", next = "Build toward the eastern coal patch" },
+                { label = "ore patches", done = self.world:getTile(0, -3, 0).id == "iron_ore" and self.world:getTile(3, -3, 0).id == "copper_ore", next = "Use northern iron and copper starter patches" },
+            },
+        },
+    }
+end
+
+function Simulation:nextStepText()
+    for _, group in ipairs(self:objectiveChecklist()) do
+        for _, item in ipairs(group.items) do
+            if not item.done and not item.blocked then
+                return item.next
+            end
+        end
+    end
+    return "Scale science and continue the next roadmap phase"
+end
+
 function Simulation:objectiveText()
-    if self:isTechCompleted("logistics_1") then
-        return "Logistics 1 researched"
-    end
-    if self:itemCount("science_pack") > 0 then
-        return "Feed science packs into a lab"
-    end
-    if self.productionTotals.iron_plate > 0 and self.productionTotals.copper_plate > 0 then
-        return "Craft assembler and lab"
-    end
-    if #self.machines == 0 then
-        return "Build a starter factory"
-    end
-    return "Automate ore into plates"
+    return self:nextStepText()
 end
 
 function Simulation:snapshot()

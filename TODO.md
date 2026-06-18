@@ -107,9 +107,6 @@
 
 ## Phase 8: Playable UI Foundation
 
-- Objective/checklist HUD:
-  - Show first-line, science, power, supply, and biome checklists.
-  - Show actionable next step text, not generic status.
 - Acceptance:
   - Player can build ore-to-science without README or memorized hotkeys.
   - `make check` still passes.
