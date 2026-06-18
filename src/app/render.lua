@@ -26,6 +26,13 @@ local machineColors = {
     lab = { 144, 104, 188 },
 }
 
+local stateColors = {
+    ready = { 60, 134, 87 },
+    need = { 180, 136, 54 },
+    locked = { 76, 80, 86 },
+    unaffordable = { 126, 66, 66 },
+}
+
 local function color(rgb, alpha)
     return (rgb[1] or 255) / 255, (rgb[2] or 255) / 255, (rgb[3] or 255) / 255, (alpha or 255) / 255
 end
@@ -110,6 +117,85 @@ local function stacksText(inventory)
     return table.concat(parts, "  ")
 end
 
+local function inputText(inputs)
+    local parts = {}
+    for _, item in ipairs(Defs.itemOrder) do
+        local count = inputs[item]
+        if count then
+            parts[#parts + 1] = count .. " " .. Defs.item(item).name
+        end
+    end
+    return table.concat(parts, ", ")
+end
+
+local function missingText(sim, inputs)
+    local parts = {}
+    for _, item in ipairs(Defs.itemOrder) do
+        local count = inputs[item]
+        local have = count and sim:itemCount(item) or 0
+        if count and have < count then
+            parts[#parts + 1] = Defs.item(item).name .. " " .. have .. "/" .. count
+        end
+    end
+    return table.concat(parts, ", ")
+end
+
+local function recipeState(sim, recipeKey)
+    local recipe = Defs.recipe(recipeKey)
+    if not recipe then
+        return "locked", "missing recipe"
+    end
+    if not sim:isRecipeUnlocked(recipeKey) then
+        return "locked", "research required"
+    end
+    if recipe.station == "workbench" and not sim:hasAdjacentWorkbench() then
+        return "need", "need adjacent workbench"
+    end
+    if recipe.station ~= "hand" and recipe.station ~= "workbench" then
+        return "need", "made in " .. recipe.station
+    end
+    local missing = missingText(sim, recipe.inputs)
+    if missing ~= "" then
+        return "unaffordable", missing
+    end
+    return "ready", inputText(recipe.inputs)
+end
+
+local function drawRecipeCards(sim, app)
+    app.ui = app.ui or {}
+    app.ui.recipeCards = {}
+    local panelX = love.graphics.getWidth() - 284
+    local panelY = 100
+    local cardW = 268
+    local cardH = 48
+    love.graphics.setColor(0.06, 0.07, 0.08, 0.82)
+    love.graphics.rectangle("fill", panelX - 8, panelY - 32, cardW + 16, 600)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Build", panelX, panelY - 24)
+    for index, recipeKey in ipairs(Defs.recipeOrder) do
+        local recipe = Defs.recipe(recipeKey)
+        local y = panelY + (index - 1) * (cardH + 7)
+        local state, detail = recipeState(sim, recipeKey)
+        local rgb = stateColors[state] or stateColors.locked
+        love.graphics.setColor(color(rgb, app.selectedRecipe == recipeKey and 245 or 205))
+        love.graphics.rectangle("fill", panelX, y, cardW, cardH)
+        love.graphics.setColor(app.selectedRecipe == recipeKey and 1 or 0.2, 0.2, 0.2, 1)
+        love.graphics.rectangle("line", panelX, y, cardW, cardH)
+        love.graphics.setColor(0.96, 0.96, 0.9, 1)
+        love.graphics.print(Defs.item(recipe.output.item).name .. " x" .. recipe.output.count, panelX + 8, y + 6)
+        love.graphics.setColor(0.86, 0.88, 0.82, 1)
+        love.graphics.print(state .. "  " .. detail, panelX + 8, y + 25)
+        app.ui.recipeCards[#app.ui.recipeCards + 1] = {
+            x = panelX,
+            y = y,
+            w = cardW,
+            h = cardH,
+            recipeKey = recipeKey,
+            state = state,
+        }
+    end
+end
+
 function Render.drawHud(sim, app)
     love.graphics.setColor(0.06, 0.07, 0.08, 0.86)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), 88)
@@ -130,6 +216,7 @@ function Render.draw(sim, app)
     love.graphics.clear(0.07, 0.08, 0.08, 1)
     Render.drawWorld(sim, app)
     Render.drawHud(sim, app)
+    drawRecipeCards(sim, app)
 end
 
 return Render

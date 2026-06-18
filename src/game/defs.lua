@@ -61,6 +61,10 @@ Defs.recipes = {
     science_pack = { station = "assembler", ticks = 45, inputs = { iron_plate = 1, copper_plate = 1 }, output = { item = "science_pack", count = 1 }, default = true },
 }
 
+Defs.recipeOrder = {
+    "workbench", "furnace", "chest", "belt", "inserter", "burner_miner", "assembler", "lab", "science_pack", "fast_belt",
+}
+
 Defs.techs = {
     logistics_1 = { name = "Logistics 1", inputs = { science_pack = 3 }, unlocks = { "fast_belt" } },
 }

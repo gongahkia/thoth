@@ -107,10 +107,6 @@
 
 ## Phase 8: Playable UI Foundation
 
-- Build menu:
-  - Add recipe cards with ready, need, locked, and unaffordable states.
-  - Add mouse selection and mouse craft.
-  - Keep hotkey crafting as secondary input, not the only path.
 - Machine panel:
   - Show faced or clicked machine name, inventory, progress, status, input, output, and facing direction.
   - Add recipe selector for furnace and assembler.

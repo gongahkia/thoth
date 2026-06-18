@@ -99,4 +99,24 @@ function Input.keypressed(sim, app, key)
     end
 end
 
+function Input.mousepressed(sim, app, x, y, button)
+    if button ~= 1 then
+        return
+    end
+    for _, card in ipairs((app.ui and app.ui.recipeCards) or {}) do
+        if x >= card.x and x <= card.x + card.w and y >= card.y and y <= card.y + card.h then
+            app.selectedRecipe = card.recipeKey
+            if card.state == "ready" then
+                sim:queue(Simulation.commands.craft(card.recipeKey))
+                app.status = "crafted " .. card.recipeKey
+                Audio.play(app.audio, "craft")
+            else
+                app.status = card.state .. " " .. card.recipeKey
+                Audio.play(app.audio, "invalid")
+            end
+            return
+        end
+    end
+end
+
 return Input

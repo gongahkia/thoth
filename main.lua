@@ -82,3 +82,7 @@ function love.keypressed(key)
     end
     Input.keypressed(sim, app, key)
 end
+
+function love.mousepressed(x, y, button)
+    Input.mousepressed(sim, app, x, y, button)
+end
