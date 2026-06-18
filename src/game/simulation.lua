@@ -45,6 +45,7 @@ local pressureWeights = {
 local guardTowerAmmo = { "copper_coil", "frost_cell", "stone_shot" }
 local arcTowerAmmo = { "rift_shell", "crystal_charge", "copper_coil" }
 local outpostBeaconTicks = 80
+local outpostDeliveryTicks = 100
 local requiredOutpostBiomes = { "marsh", "desert", "badlands", "snowfield", "crystal_field" }
 local outpostActivationItems = {
     marsh = "water_barrel",
@@ -262,6 +263,21 @@ local function copyContracts(contracts)
     return result
 end
 
+local function copyOutpostRoutes(routes)
+    local result = {}
+    for _, route in ipairs(routes or {}) do
+        result[#result + 1] = {
+            biome = route.biome,
+            deliveredInWindow = route.deliveredInWindow or 0,
+            requiredPerWindow = route.requiredPerWindow or 2,
+            stability = route.stability or 0,
+            windowStartTick = route.windowStartTick or 0,
+            lastDeliveryTick = route.lastDeliveryTick or 0,
+        }
+    end
+    return result
+end
+
 local function newMachine(id, kind, x, y, direction, z)
     return {
         id = id,
@@ -335,6 +351,7 @@ function Simulation.new(seed, startInTutorial)
         logisticJobs = {},
         nextLogisticJobId = 1,
         supplyContracts = defaultSupplyContracts(),
+        outpostRoutes = {},
         unlockedAchievements = {},
         unlockedAchievementSet = {},
         tutorial = {
@@ -357,6 +374,7 @@ function Simulation.new(seed, startInTutorial)
             archive_signals = 0,
             rift_jumps = 0,
             outposts_activated = 0,
+            outpost_deliveries = 0,
             pressure_waves_repelled = 0,
             pressure_enemies_defeated = 0,
             pressure_wave_rewards_claimed = 0,
@@ -1508,6 +1526,100 @@ function Simulation:activatedOutpostBiomes()
     return biomes
 end
 
+function Simulation:markCompletedOutpostDeliveryBiome(biome)
+    self.productionTotals[outpostBiomeKey("outpost_delivery", biome)] = 1
+end
+
+function Simulation:hasCompletedOutpostDeliveryBiome(biome)
+    return (self.productionTotals[outpostBiomeKey("outpost_delivery", biome)] or 0) > 0
+end
+
+function Simulation:outpostDeliveryBiomeCount()
+    local count = 0
+    for _, biome in ipairs(requiredOutpostBiomes) do
+        if self:hasCompletedOutpostDeliveryBiome(biome) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function Simulation:outpostRouteByBiome(biome)
+    for _, route in ipairs(self.outpostRoutes) do
+        if route.biome == biome then
+            return route
+        end
+    end
+    return nil
+end
+
+function Simulation:outpostRouteForBiome(biome)
+    local existing = self:outpostRouteByBiome(biome)
+    if existing then
+        return existing
+    end
+    local route = {
+        biome = biome,
+        deliveredInWindow = 0,
+        requiredPerWindow = 2,
+        stability = 0,
+        windowStartTick = self.tick,
+        lastDeliveryTick = 0,
+    }
+    self.outpostRoutes[#self.outpostRoutes + 1] = route
+    return route
+end
+
+function Simulation:outpostRoutesProgress()
+    local routes = {}
+    for _, biome in ipairs(requiredOutpostBiomes) do
+        local route = self:outpostRouteByBiome(biome) or { deliveredInWindow = 0, requiredPerWindow = 2, stability = 0 }
+        routes[#routes + 1] = {
+            biome = biome,
+            current = route.deliveredInWindow,
+            required = route.requiredPerWindow,
+            stability = route.stability,
+            active = self:hasActivatedOutpostBiome(biome),
+            stable = false,
+        }
+    end
+    return routes
+end
+
+function Simulation:outpostDeliveryProgress()
+    local progress = {}
+    for _, biome in ipairs(requiredOutpostBiomes) do
+        progress[#progress + 1] = {
+            biome = biome,
+            item = outpostActivationItem(biome),
+            current = self:hasCompletedOutpostDeliveryBiome(biome) and 1 or 0,
+            target = 1,
+            active = self:hasActivatedOutpostBiome(biome),
+            complete = self:hasCompletedOutpostDeliveryBiome(biome),
+        }
+    end
+    return progress
+end
+
+function Simulation:completedOutpostDeliveryContracts()
+    local completed = 0
+    for _, delivery in ipairs(self:outpostDeliveryProgress()) do
+        if delivery.complete then
+            completed = completed + 1
+        end
+    end
+    return completed
+end
+
+function Simulation:currentOutpostDeliveryText()
+    for index, delivery in ipairs(self:outpostDeliveryProgress()) do
+        if delivery.active and not delivery.complete then
+            return "outpost delivery " .. index .. "/" .. #requiredOutpostBiomes .. ": " .. delivery.biome .. " " .. delivery.item
+        end
+    end
+    return "outpost deliveries complete: all activated biomes supplied"
+end
+
 function Simulation:totalSupplyContracts()
     return #self.supplyContracts
 end
@@ -2476,6 +2588,28 @@ end
 
 function Simulation:updateOutpostBeacon(machine)
     if machine.progress >= outpostBeaconTicks then
+        if not self:isMachinePowered(machine.id) then
+            machine.status = "missing_power"
+            return
+        end
+        local biome = self.world:biomeAt(machine.x, machine.y, machine.z or 0)
+        local input = outpostActivationItem(biome)
+        if machine.inventory:count(input) <= 0 then
+            machine.progress = outpostBeaconTicks
+            machine.status = "idle"
+            return
+        end
+        machine.progress = math.min(machine.progress + 1, outpostBeaconTicks + outpostDeliveryTicks)
+        machine.status = "working"
+        if machine.progress < outpostBeaconTicks + outpostDeliveryTicks then
+            return
+        end
+        machine.inventory:consume(input, 1)
+        self.productionTotals.outpost_deliveries = (self.productionTotals.outpost_deliveries or 0) + 1
+        self:markCompletedOutpostDeliveryBiome(biome)
+        local route = self:outpostRouteForBiome(biome)
+        route.deliveredInWindow = route.deliveredInWindow + 1
+        route.lastDeliveryTick = self.tick
         machine.progress = outpostBeaconTicks
         machine.status = "idle"
         return
@@ -3017,6 +3151,7 @@ function Simulation:snapshot()
         logisticJobs = self.logisticJobs,
         nextLogisticJobId = self.nextLogisticJobId,
         supplyContracts = copyContracts(self.supplyContracts),
+        outpostRoutes = copyOutpostRoutes(self.outpostRoutes),
         unlockedAchievements = copyList(self.unlockedAchievements),
         unlockedRecipes = copySet(self.unlockedRecipes),
         completedTechs = copySet(self.completedTechs),
@@ -3086,6 +3221,7 @@ function Simulation.fromSnapshot(snapshot)
     self.logisticJobs = snapshot.logisticJobs or {}
     self.nextLogisticJobId = snapshot.nextLogisticJobId or (#self.logisticJobs + 1)
     self.supplyContracts = copyContracts(snapshot.supplyContracts or defaultSupplyContracts())
+    self.outpostRoutes = copyOutpostRoutes(snapshot.outpostRoutes or {})
     self.unlockedAchievements = {}
     self.unlockedAchievementSet = {}
     for _, key in ipairs(snapshot.unlockedAchievements or {}) do
