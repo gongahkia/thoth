@@ -864,6 +864,20 @@ local function addPoweredPortLine(sim)
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(99)
+    addPoweredPortLine(sim)
+    sim.world:setTile(0, 1, 0, { id = "grass", data = 0 })
+    sim:togglePlanningMode()
+    sim:queue(Simulation.commands.placeGhost("south", "chest", "south"))
+    sim:step()
+    expect(#sim.constructionJobs == 1, "powered port drone should start construction job")
+    expect(sim.constructionJobs[1].ghostId == sim.ghostBuilds[1].id, "construction job should target ghost")
+    expect(sim.ghostBuilds[1].progress > 0, "construction job should mark ghost progress")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(#loaded.constructionJobs == 1 and loaded.constructionJobs[1].item == "chest", "construction job should persist")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(27)
     addPoweredPortLine(sim)
     local provider = sim:addMachine("provider_chest", 3, 0, "south")

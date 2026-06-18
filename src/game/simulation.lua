@@ -48,6 +48,7 @@ local outpostBeaconTicks = 80
 local outpostDeliveryTicks = 100
 local outpostRouteWindowTicks = 600
 local outpostRouteStableThreshold = 3
+local constructionJobTicks = 12
 local scoutDispatchTicks = 120
 local archiveTerminalTicks = 360
 local riftGateTicks = 180
@@ -374,6 +375,21 @@ local function copyGhostBuilds(ghosts)
     return result
 end
 
+local function copyConstructionJobs(jobs)
+    local result = {}
+    for _, job in ipairs(jobs or {}) do
+        result[#result + 1] = {
+            ghostId = job.ghostId,
+            portId = job.portId,
+            sourceId = job.sourceId or 0,
+            item = job.item,
+            remaining = job.remaining or 0,
+            total = job.total or job.remaining or 0,
+        }
+    end
+    return result
+end
+
 local function newMachine(id, kind, x, y, direction, z)
     return {
         id = id,
@@ -449,6 +465,7 @@ function Simulation.new(seed, startInTutorial)
         nextLogisticJobId = 1,
         ghostBuilds = {},
         nextGhostId = 1,
+        constructionJobs = {},
         supplyContracts = defaultSupplyContracts(),
         outpostRoutes = {},
         riftStorm = { severity = 0, ticksRemaining = 0, cooldownTicks = 0 },
@@ -1530,12 +1547,18 @@ function Simulation:ghostBlockedReason(itemDef, x, y, z)
         return "machine"
     end
     if itemDef.machine then
-        return self:canPlaceMachine(itemDef.machine, x, y, z) and nil or "terrain"
+        if self:canPlaceMachine(itemDef.machine, x, y, z) then
+            return nil
+        end
+        return "terrain"
     end
     if itemDef.tile then
         local tile = self.world:getTile(x, y, z)
         local tileDef = Defs.tile(tile.id)
-        return tileDef.buildable and nil or "terrain"
+        if tileDef.buildable then
+            return nil
+        end
+        return "terrain"
     end
     return "item"
 end
@@ -2713,6 +2736,24 @@ function Simulation:poweredDroneCapacity()
     return capacity
 end
 
+function Simulation:ghostById(id)
+    for _, ghost in ipairs(self.ghostBuilds) do
+        if ghost.id == id then
+            return ghost
+        end
+    end
+    return nil
+end
+
+function Simulation:hasConstructionJobForGhost(ghostId)
+    for _, job in ipairs(self.constructionJobs) do
+        if job.ghostId == ghostId then
+            return true
+        end
+    end
+    return false
+end
+
 function Simulation:inboundLogisticCount(requesterId, item)
     local total = 0
     for _, job in ipairs(self.logisticJobs) do
@@ -2737,6 +2778,7 @@ function Simulation:updateLogistics()
     if self.logisticDirty then
         self:rebuildLogisticIndex()
     end
+    self:updateConstructionJobs()
     self:updateScoutAutomation()
     local capacity = self:poweredDroneCapacity()
     if capacity <= 0 then
@@ -2780,6 +2822,56 @@ function Simulation:updateLogistics()
                     self.nextLogisticJobId = self.nextLogisticJobId + 1
                     activeJobs = activeJobs + 1
                 end
+            end
+        end
+    end
+end
+
+function Simulation:updateConstructionJobs()
+    for index = #self.constructionJobs, 1, -1 do
+        local job = self.constructionJobs[index]
+        job.remaining = math.max(0, (job.remaining or 0) - 1)
+        local ghost = self:ghostById(job.ghostId)
+        if ghost then
+            ghost.progress = math.max(ghost.progress or 0, 100 - math.floor((job.remaining * 100) / math.max(1, job.total or 1)))
+        end
+        if job.remaining <= 0 then
+            table.remove(self.constructionJobs, index)
+        end
+    end
+    for _, portId in ipairs(self.logisticIndex.portIds) do
+        local port = self:machineById(portId)
+        if port and self:isMachinePowered(port.id) then
+            local activeScout = port.progress > 0 and port.carriedItem and 1 or 0
+            local activeConstruction = 0
+            for _, job in ipairs(self.constructionJobs) do
+                if job.portId == port.id then
+                    activeConstruction = activeConstruction + 1
+                end
+            end
+            local availableDrones = port.inventory:count("logistic_drone") - activeScout - activeConstruction
+            while availableDrones > 0 do
+                local selected = nil
+                for _, ghost in ipairs(self.ghostBuilds) do
+                    if not ghost.fulfilled and not ghost.blockedReason and not self:hasConstructionJobForGhost(ghost.id) then
+                        selected = ghost
+                        break
+                    end
+                end
+                if not selected then
+                    break
+                end
+                local total = self:isPlanningMode() and 1 or constructionJobTicks
+                self.constructionJobs[#self.constructionJobs + 1] = {
+                    ghostId = selected.id,
+                    portId = port.id,
+                    sourceId = 0,
+                    item = selected.item,
+                    remaining = total,
+                    total = total,
+                }
+                selected.progress = math.max(selected.progress or 0, 1)
+                availableDrones = availableDrones - 1
             end
         end
     end
@@ -3800,6 +3892,7 @@ function Simulation:snapshot()
         nextLogisticJobId = self.nextLogisticJobId,
         ghostBuilds = copyGhostBuilds(self.ghostBuilds),
         nextGhostId = self.nextGhostId,
+        constructionJobs = copyConstructionJobs(self.constructionJobs),
         supplyContracts = copyContracts(self.supplyContracts),
         outpostRoutes = copyOutpostRoutes(self.outpostRoutes),
         riftStorm = copyRiftStorm(self.riftStorm),
@@ -3874,6 +3967,7 @@ function Simulation.fromSnapshot(snapshot)
     self.nextLogisticJobId = snapshot.nextLogisticJobId or (#self.logisticJobs + 1)
     self.ghostBuilds = copyGhostBuilds(snapshot.ghostBuilds or {})
     self.nextGhostId = snapshot.nextGhostId or (#self.ghostBuilds + 1)
+    self.constructionJobs = copyConstructionJobs(snapshot.constructionJobs or {})
     self.supplyContracts = copyContracts(snapshot.supplyContracts or defaultSupplyContracts())
     self.outpostRoutes = copyOutpostRoutes(snapshot.outpostRoutes or {})
     self.riftStorm = copyRiftStorm(snapshot.riftStorm)

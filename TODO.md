@@ -115,7 +115,6 @@
 ## Phase 16: Planning, Construction, Performance
 
 - Restore construction:
-  - Drone construction jobs.
   - Provider-source material pickup.
   - Port-powered delivery requirement.
   - Ghost fulfillment state.
