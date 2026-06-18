@@ -474,6 +474,8 @@ function Simulation:updateMachines()
             self:updateMiner(machine)
         elseif machine.kind == "belt" or machine.kind == "fast_belt" then
             self:updateBelt(machine)
+        elseif machine.kind == "splitter" then
+            self:updateSplitter(machine)
         elseif machine.kind == "inserter" then
             self:updateInserter(machine)
         elseif machine.kind == "furnace" then
@@ -537,6 +539,26 @@ function Simulation:updateBelt(machine)
     else
         machine.status = "output_blocked"
     end
+end
+
+function Simulation:updateSplitter(machine)
+    if not machine.carriedItem then
+        machine.status = "idle"
+        return
+    end
+    local first = machine.progress % 2 == 0 and Grid.left(machine.direction) or Grid.right(machine.direction)
+    local last = machine.progress % 2 == 0 and Grid.right(machine.direction) or Grid.left(machine.direction)
+    local outputs = { first, machine.direction, last }
+    for _, direction in ipairs(outputs) do
+        local x, y = Grid.front(machine.x, machine.y, direction)
+        if self:acceptItemAt(x, y, machine.z or 0, machine.carriedItem) then
+            machine.carriedItem = nil
+            machine.progress = (machine.progress + 1) % 2
+            machine.status = "working"
+            return
+        end
+    end
+    machine.status = "output_blocked"
 end
 
 function Simulation:updateInserter(machine)
@@ -660,7 +682,7 @@ function Simulation:acceptItemAt(x, y, z, item)
 end
 
 function Simulation:acceptItem(machine, item)
-    if machine.kind == "belt" or machine.kind == "fast_belt" then
+    if machine.kind == "belt" or machine.kind == "fast_belt" or machine.kind == "splitter" then
         if machine.carriedItem then
             return false
         end
@@ -688,7 +710,7 @@ function Simulation:acceptItem(machine, item)
 end
 
 function Simulation:extractItem(machine)
-    if machine.kind == "belt" or machine.kind == "fast_belt" then
+    if machine.kind == "belt" or machine.kind == "fast_belt" or machine.kind == "splitter" then
         local item = machine.carriedItem
         machine.carriedItem = nil
         return item

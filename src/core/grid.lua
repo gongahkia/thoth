@@ -22,6 +22,19 @@ function Grid.rotate(direction)
     return "east"
 end
 
+function Grid.left(direction)
+    for i, value in ipairs(Grid.order) do
+        if value == direction then
+            return Grid.order[((i + 2) % #Grid.order) + 1]
+        end
+    end
+    return "north"
+end
+
+function Grid.right(direction)
+    return Grid.rotate(direction)
+end
+
 function Grid.front(x, y, direction)
     local delta = Grid.delta(direction)
     return x + delta.x, y + delta.y

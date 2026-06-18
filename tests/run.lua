@@ -159,6 +159,19 @@ tests[#tests + 1] = function()
     expect(checklist[1].title == "First" and checklist[2].title == "Science", "objective checklist groups missing")
 end
 
+tests[#tests + 1] = function()
+    local sim = Simulation.new(18)
+    local splitter = sim:addMachine("splitter", 0, 0, "east")
+    local left = sim:addMachine("chest", 0, -1, "south")
+    local right = sim:addMachine("chest", 0, 1, "south")
+    expect(sim:acceptItem(splitter, "iron_ore"), "splitter should accept first item")
+    sim:step()
+    expect(left.inventory:count("iron_ore") == 1, "splitter did not send first item left")
+    expect(sim:acceptItem(splitter, "copper_ore"), "splitter should accept second item")
+    sim:step()
+    expect(right.inventory:count("copper_ore") == 1, "splitter did not alternate right")
+end
+
 for index, test in ipairs(tests) do
     local ok, err = pcall(test)
     if not ok then

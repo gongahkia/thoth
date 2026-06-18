@@ -24,6 +24,7 @@ local machineColors = {
     chest = { 154, 102, 52 },
     assembler = { 98, 142, 176 },
     lab = { 144, 104, 188 },
+    splitter = { 214, 178, 74 },
 }
 
 local stateColors = {
