@@ -448,6 +448,7 @@ function Simulation.new(seed, startInTutorial)
         machines = {},
         machineByCell = {},
         machineByIdIndex = {},
+        machineIdsByKind = {},
         nextMachineId = 1,
         entities = {},
         nextEntityId = 1,
@@ -680,15 +681,19 @@ end
 function Simulation:rebuildMachineIndexes()
     self.machineByCell = {}
     self.machineByIdIndex = {}
+    self.machineIdsByKind = {}
     for _, machine in ipairs(self.machines) do
         self.machineByCell[Grid.key(machine.x, machine.y, machine.z or 0)] = machine
         self.machineByIdIndex[machine.id] = machine
+        local ids = self.machineIdsByKind[machine.kind] or {}
+        ids[#ids + 1] = machine.id
+        self.machineIdsByKind[machine.kind] = ids
     end
 end
 
 function Simulation:hasMachine(kind)
-    for _, machine in ipairs(self.machines) do
-        if machine.kind == kind then
+    for _, id in ipairs(self.machineIdsByKind[kind] or {}) do
+        if self:machineById(id) then
             return true
         end
     end
@@ -711,8 +716,9 @@ end
 
 function Simulation:machineItemCount(kind, item)
     local total = 0
-    for _, machine in ipairs(self.machines) do
-        if machine.kind == kind then
+    for _, id in ipairs(self.machineIdsByKind[kind] or {}) do
+        local machine = self:machineById(id)
+        if machine then
             total = total + machine.inventory:count(item)
         end
     end
@@ -2963,13 +2969,7 @@ function Simulation:updateScoutAutomation()
 end
 
 function Simulation:updateTrainStops()
-    local stopIds = {}
-    for _, machine in ipairs(self.machines) do
-        if machine.kind == "train_stop" then
-            stopIds[#stopIds + 1] = machine.id
-        end
-    end
-    table.sort(stopIds)
+    local stopIds = self.machineIdsByKind.train_stop or {}
     if #stopIds < 2 then
         for _, id in ipairs(stopIds) do
             local stop = self:machineById(id)
