@@ -387,6 +387,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local cases = {
+        { 0, 18, "marsh_hive", "marsh_broodheart" },
+        { 18, -2, "glass_spire", "glass_maw" },
+        { 36, 20, "badlands_foundry", "badlands_warden" },
+        { -18, 0, "frost_vault", "frost_nullifier" },
+        { -36, 20, "crystal_vault", "rift_signal_tyrant" },
+    }
+    for _, case in ipairs(cases) do
+        local sim = Simulation.new(55)
+        expect(sim:trySummonBossAt(case[1], case[2], 0), "boss summon should pass at lair " .. case[3])
+        expect(#sim.entities == 1 and sim.entities[1].kind == case[4], "boss summon kind mismatch " .. case[4])
+        expect(sim.world:lairAt(sim.entities[1].x, sim.entities[1].y, 0) == case[3], "boss should spawn inside matching lair")
+    end
+    local blocked = Simulation.new(55)
+    expect(not blocked:trySummonBossAt(0, 0, 0), "boss summon should reject non-lair location")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(7)
     sim:queue(Simulation.commands.face("west"))
     sim:queue(Simulation.commands.mine("west"))

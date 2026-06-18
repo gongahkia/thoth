@@ -64,6 +64,23 @@ local biomeEnemyKinds = {
     crystal_field = { "null_wisp" },
     rift = { "rift_stalker" },
 }
+local bossSummonDefsByLair = {
+    marsh_hive = { kind = "marsh_broodheart", biome = "marsh" },
+    glass_spire = { kind = "glass_maw", biome = "desert" },
+    badlands_foundry = { kind = "badlands_warden", biome = "badlands" },
+    frost_vault = { kind = "frost_nullifier", biome = "snowfield" },
+    crystal_vault = { kind = "rift_signal_tyrant", biome = "crystal_field" },
+}
+local bossSummonOffsets = {
+    { -2, 0 },
+    { 2, 0 },
+    { 0, -2 },
+    { 0, 2 },
+    { -2, -1 },
+    { 2, 1 },
+    { -1, 2 },
+    { 1, -2 },
+}
 
 local tutorialSteps = {
     { key = "move", label = "Move with WASD" },
@@ -291,6 +308,10 @@ end
 
 function Simulation.commands.attack(direction)
     return { type = "attack", direction = direction }
+end
+
+function Simulation.commands.summonBoss(direction)
+    return { type = "summon_boss", direction = direction }
 end
 
 function Simulation:queue(command)
@@ -526,6 +547,10 @@ function Simulation:apply(command)
     end
     if command.type == "attack" then
         self:attack(command.direction)
+        return
+    end
+    if command.type == "summon_boss" then
+        self:trySummonBoss(command.direction)
     end
 end
 
@@ -735,6 +760,58 @@ function Simulation:spawnEntityNear(x, y, z, kind, range)
         end
     end
     return false
+end
+
+function Simulation:bossSummonDefAt(x, y, z)
+    z = z or 0
+    if self.world:getTile(x, y, z).id ~= "stairs_down" then
+        return nil
+    end
+    local lair = self.world:lairAt(x, y, z)
+    local def = lair and bossSummonDefsByLair[lair] or nil
+    if not def or self.world:biomeAt(x, y, z) ~= def.biome then
+        return nil
+    end
+    return def, lair
+end
+
+function Simulation:hasEntityKind(kind)
+    for _, entity in ipairs(self.entities) do
+        if entity.kind == kind then
+            return true
+        end
+    end
+    return false
+end
+
+function Simulation:trySummonBossAt(x, y, z)
+    local def, lair = self:bossSummonDefAt(x, y, z)
+    if not def then
+        return false
+    end
+    if self:hasEntityKind(def.kind) then
+        return true
+    end
+    for _, offset in ipairs(bossSummonOffsets) do
+        local sx = x + offset[1]
+        local sy = y + offset[2]
+        if self.world:lairAt(sx, sy, z or 0) == lair
+            and self.world:isWalkable(sx, sy, z or 0)
+            and not self:entityAt(sx, sy, z or 0)
+            and not self:machineAt(sx, sy, z or 0) then
+            local boss = self:addEntity(def.kind, sx, sy, z or 0)
+            boss.attackCooldown = 40
+            return true
+        end
+    end
+    return false
+end
+
+function Simulation:trySummonBoss(direction)
+    direction = direction or self.player.facing
+    self.player.facing = direction
+    local x, y = Grid.front(self.player.x, self.player.y, direction)
+    return self:trySummonBossAt(x, y, self.player.z)
 end
 
 function Simulation:localEntityKindForTile(x, y, z)
