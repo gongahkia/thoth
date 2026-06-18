@@ -114,7 +114,6 @@
 
 ## Phase 12: World, Biomes, And Exploration
 
-- Restore deterministic chunked terrain.
 - Restore biome selection:
   - Grassland.
   - Desert.

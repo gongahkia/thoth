@@ -4,6 +4,7 @@ local Rng = require("src.core.rng")
 
 local World = {}
 World.__index = World
+World.chunkSize = 32
 
 local function tile(id, data)
     return { id = id, data = data or 0 }
@@ -14,7 +15,53 @@ local function cloneTile(value)
 end
 
 function World.new(seed, overrides)
-    return setmetatable({ seed = seed or 1, overrides = overrides or {} }, World)
+    return setmetatable({ seed = seed or 1, overrides = overrides or {}, chunks = {} }, World)
+end
+
+function World.floorDiv(value, divisor)
+    return math.floor(value / divisor)
+end
+
+function World.floorMod(value, divisor)
+    return value - World.floorDiv(value, divisor) * divisor
+end
+
+function World.chunkKey(cx, cy, z)
+    return tostring(z or 0) .. ":" .. tostring(cx) .. ":" .. tostring(cy)
+end
+
+function World:generateChunk(cx, cy, z)
+    local chunk = { cx = cx, cy = cy, z = z or 0, tiles = {} }
+    for localY = 0, World.chunkSize - 1 do
+        for localX = 0, World.chunkSize - 1 do
+            local worldX = cx * World.chunkSize + localX
+            local worldY = cy * World.chunkSize + localY
+            chunk.tiles[localY * World.chunkSize + localX + 1] = self:generatedTile(worldX, worldY, z or 0)
+        end
+    end
+    return chunk
+end
+
+function World:chunkForTile(x, y, z)
+    local cx = World.floorDiv(x, World.chunkSize)
+    local cy = World.floorDiv(y, World.chunkSize)
+    local key = World.chunkKey(cx, cy, z or 0)
+    if not self.chunks[key] then
+        self.chunks[key] = self:generateChunk(cx, cy, z or 0)
+    end
+    return self.chunks[key]
+end
+
+function World:loadedChunkCount()
+    local count = 0
+    for _ in pairs(self.chunks) do
+        count = count + 1
+    end
+    return count
+end
+
+function World:clearLoadedChunks()
+    self.chunks = {}
 end
 
 function World:generatedTile(x, y, z)
@@ -84,7 +131,10 @@ function World:getTile(x, y, z)
     if override then
         return cloneTile(override)
     end
-    return self:generatedTile(x, y, z or 0)
+    local chunk = self:chunkForTile(x, y, z or 0)
+    local localX = World.floorMod(x, World.chunkSize)
+    local localY = World.floorMod(y, World.chunkSize)
+    return cloneTile(chunk.tiles[localY * World.chunkSize + localX + 1])
 end
 
 function World:setTile(x, y, z, value)

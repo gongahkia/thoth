@@ -4,6 +4,7 @@ local Serialize = require("src.core.serialize")
 local Simulation = require("src.game.simulation")
 local Save = require("src.game.save")
 local Replay = require("src.game.replay")
+local World = require("src.game.world")
 
 local function expect(value, message)
     if not value then
@@ -22,6 +23,27 @@ local function runSteps(sim, count)
 end
 
 local tests = {}
+
+tests[#tests + 1] = function()
+    expect(World.floorDiv(0, World.chunkSize) == 0, "origin chunk div failed")
+    expect(World.floorDiv(31, World.chunkSize) == 0, "positive edge chunk div failed")
+    expect(World.floorDiv(32, World.chunkSize) == 1, "positive boundary chunk div failed")
+    expect(World.floorDiv(-1, World.chunkSize) == -1, "negative edge chunk div failed")
+    expect(World.floorMod(-1, World.chunkSize) == 31, "negative edge chunk mod failed")
+    local first = World.new(101)
+    local second = World.new(101)
+    expect(first:loadedChunkCount() == 0, "fresh world should not load chunks")
+    local a = first:getTile(31, 0, 0)
+    expect(first:loadedChunkCount() == 1, "first tile read should load one chunk")
+    expect(second:getTile(31, 0, 0).id == a.id, "same seed should generate same chunk tile")
+    first:getTile(32, 0, 0)
+    expect(first:loadedChunkCount() == 2, "boundary tile should load adjacent chunk")
+    first:setTile(32, 0, 0, { id = "water", data = 0 })
+    expect(first:getTile(32, 0, 0).id == "water", "chunk boundary mutation should persist")
+    first:clearLoadedChunks()
+    expect(first:loadedChunkCount() == 0, "chunk cache should clear")
+    expect(first:getTile(32, 0, 0).id == "water", "overrides should survive chunk cache clear")
+end
 
 tests[#tests + 1] = function()
     local a = Simulation.new(42)
