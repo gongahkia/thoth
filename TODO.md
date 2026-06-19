@@ -13,13 +13,13 @@
 - Four-hero default roster with eight recruitable classes: Warden, Duelist, Mender, Arcanist, Harrier, Chirurgeon, Exile, Lamplighter.
 - Expedition loop: move, scout rooms, manage light/provisions/hunger, resolve curios and traps, gather/activate quest objects, camp, fight rank-based encounters, return to estate.
 - Combat loop: four party ranks, enemy ranks, initiative, enemy skills, HP, stress, bleed/daze/mark, Death's Door, resolve checks, active afflictions/virtues, retreat, permadeath.
-- Estate loop: carry gold/heirlooms home, recruit/dismiss heroes, assign party ranks, provision expeditions, equip trinkets, train skills/gear, upgrade buildings, treat or lock quirks, assign stress recovery activities.
+- Estate loop: carry gold/heirlooms home, recruit/dismiss heroes, assign party ranks, provision expeditions, equip/sell trinkets, train skills/gear, upgrade buildings, treat or lock quirks, assign stress recovery activities.
 
 ## Done
 
 - Replaced automation registry with RPG data for tiles, items, hero classes, skills, enemies, afflictions, curios, encounters, location, and camp skills.
 - Replaced simulation with deterministic estate, expedition, curio, camping, stress, resolve, and rank combat state.
-- Added estate roster recruitment/dismissal, rank assignment, provisioning, trinkets, quirks, upgrades, and mission rewards.
+- Added estate roster recruitment/dismissal, rank assignment, provisioning, trinket equip/sale, quirks, upgrades, and mission rewards.
 - Added enemy skill AI, Death's Door, hero statuses, hunger checks, low-light pressure, room scouting, camp respite skills, and mission objectives.
 - Added multiple dungeon locations, location-specific enemies/bosses/curios, gather/activate missions, diseases and treatment, combat target hitboxes, estate mouse controls, exact roster controls, loot capacity, estate week cadence, town events, selectable stress recovery activities, quirk growth/locking, virtue variety, and persistent campaign pressure.
 - Preserved chunked `World` snapshots and isometric render projection/cache APIs.

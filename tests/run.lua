@@ -627,6 +627,10 @@ tests[#tests + 1] = function()
     expect(hero.stress == 8, "quirk and trinket stress modifiers should stack")
     runQueued(sim, Simulation.commands.unequipTrinket(hero.id, 1))
     expect(hero.trinkets[1] == false and sim.estate.trinkets.ember_pin == 1, "unequip should return trinket")
+    local gold = sim.estate.gold
+    runQueued(sim, Simulation.commands.sellTrinket("ember_pin"))
+    expect(sim.estate.trinkets.ember_pin == 0 and sim.estate.gold == gold + Defs.trinket("ember_pin").value, "sell should convert unequipped trinket to gold")
+    expect(not sim:sellTrinket("ember_pin"), "sell should reject missing trinket")
 end
 
 tests[#tests + 1] = function()
@@ -803,6 +807,7 @@ tests[#tests + 1] = function()
                 { x = 60, y = 0, w = 20, h = 20, action = "equipTrinket", heroId = hero.id, trinketKey = "ember_pin", slot = 1 },
                 { x = 90, y = 0, w = 20, h = 20, action = "lockQuirk", heroId = hero.id, quirkKey = "iron_nerves" },
                 { x = 120, y = 0, w = 20, h = 20, action = "recoverHero", heroId = hero.id, activityKey = "quiet_rest" },
+                { x = 150, y = 0, w = 20, h = 20, action = "sellTrinket", trinketKey = "cracked_lens" },
             },
         },
     }
@@ -821,6 +826,10 @@ tests[#tests + 1] = function()
     Input.mousepressed(sim, app, 125, 5, 1)
     sim:step()
     expect(hero.recoveryActivity == "quiet_rest", "estate recover button should pass activity key")
+    local gold = sim.estate.gold
+    Input.mousepressed(sim, app, 155, 5, 1)
+    sim:step()
+    expect(sim.estate.trinkets.cracked_lens == 0 and sim.estate.gold == gold + Defs.trinket("cracked_lens").value, "estate sell button should sell exact trinket")
 end
 
 tests[#tests + 1] = function()

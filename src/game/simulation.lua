@@ -262,6 +262,10 @@ function Simulation.commands.unequipTrinket(heroId, slot)
     return { type = "unequipTrinket", heroId = heroId, slot = slot or 1 }
 end
 
+function Simulation.commands.sellTrinket(trinketKey)
+    return { type = "sellTrinket", trinketKey = trinketKey }
+end
+
 function Simulation.commands.upgradeBuilding(buildingKey)
     return { type = "upgradeBuilding", buildingKey = buildingKey }
 end
@@ -362,6 +366,9 @@ function Simulation:apply(command)
     end
     if command.type == "unequipTrinket" then
         return self:unequipTrinket(command.heroId, command.slot)
+    end
+    if command.type == "sellTrinket" then
+        return self:sellTrinket(command.trinketKey)
     end
     if command.type == "upgradeBuilding" then
         return self:upgradeBuilding(command.buildingKey)
@@ -1085,6 +1092,20 @@ function Simulation:unequipTrinket(heroId, slot)
     self.estate.trinkets[trinketKey] = ((self.estate.trinkets or {})[trinketKey] or 0) + 1
     hero.hp = math.min(hero.hp, self:maxHp(hero))
     self:pushLog(hero.name .. " unequipped " .. Defs.trinket(trinketKey).name)
+    return true
+end
+
+function Simulation:sellTrinket(trinketKey)
+    if self.mode ~= "estate" then
+        return false
+    end
+    local trinket = Defs.trinket(trinketKey)
+    if not trinket or ((self.estate.trinkets or {})[trinketKey] or 0) <= 0 then
+        return false
+    end
+    self.estate.trinkets[trinketKey] = self.estate.trinkets[trinketKey] - 1
+    self.estate.gold = self.estate.gold + (trinket.value or 0)
+    self:pushLog("sold " .. trinket.name)
     return true
 end
 

@@ -65,6 +65,7 @@ end
 
 for key, trinket in pairs(Defs.trinkets) do
     expect(trinket.name and trinket.name ~= "", "trinket missing name " .. key)
+    expect(type(trinket.value) == "number" and trinket.value > 0, "trinket missing value " .. key)
 end
 
 for key, quirk in pairs(Defs.quirks) do

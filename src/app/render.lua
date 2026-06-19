@@ -501,7 +501,11 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
         local count = (sim.estate.trinkets or {})[key] or 0
         if count > 0 then
             trinketIndex = trinketIndex + 1
-            addEstateAction(app, key .. ":" .. count, x + ((trinketIndex - 1) % 3) * 82, trinketY + 56 + math.floor((trinketIndex - 1) / 3) * 34, 76, { action = "equipTrinket", heroId = hero.id, trinketKey = key, slot = openSlot, enabled = openSlot ~= nil })
+            local trinket = Defs.trinket(key)
+            local bx = x + ((trinketIndex - 1) % 3) * 82
+            local by = trinketY + 56 + math.floor((trinketIndex - 1) / 3) * 34
+            addEstateAction(app, (trinket.short or key) .. ":" .. count, bx, by, 50, { action = "equipTrinket", heroId = hero.id, trinketKey = key, slot = openSlot, enabled = openSlot ~= nil })
+            addEstateAction(app, "$" .. (trinket.value or 0), bx + 52, by, 24, { action = "sellTrinket", trinketKey = key, enabled = true })
         end
     end
 

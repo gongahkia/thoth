@@ -259,6 +259,8 @@ function Input.mousepressed(sim, app, x, y, button)
                 sim:queue(Simulation.commands.equipTrinket(hitbox.heroId, hitbox.trinketKey, hitbox.slot))
             elseif hitbox.action == "unequipTrinket" then
                 sim:queue(Simulation.commands.unequipTrinket(hitbox.heroId, hitbox.slot))
+            elseif hitbox.action == "sellTrinket" then
+                sim:queue(Simulation.commands.sellTrinket(hitbox.trinketKey))
             elseif hitbox.action == "recoverHero" then
                 sim:queue(Simulation.commands.recoverHero(hitbox.heroId, hitbox.activityKey))
             elseif hitbox.action == "dismissHero" then

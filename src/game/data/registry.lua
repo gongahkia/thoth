@@ -54,11 +54,11 @@ Registry.itemOrder = {
 Registry.inventoryPanelOrder = Registry.itemOrder
 
 Registry.trinkets = {
-    ember_pin = { name = "Ember Pin", stressTaken = -1, speed = -1 },
-    cracked_lens = { name = "Cracked Lens", damageBonus = 1, stressTaken = 1 },
-    chirurgic_thread = { name = "Chirurgic Thread", healBonus = 2 },
-    oath_ring = { name = "Oath Ring", maxHp = 3, speed = -1 },
-    quiet_bell = { name = "Quiet Bell", resolve = 8, damageTaken = 1 },
+    ember_pin = { name = "Ember Pin", short = "pin", value = 30, stressTaken = -1, speed = -1 },
+    cracked_lens = { name = "Cracked Lens", short = "lens", value = 35, damageBonus = 1, stressTaken = 1 },
+    chirurgic_thread = { name = "Chirurgic Thread", short = "thread", value = 40, healBonus = 2 },
+    oath_ring = { name = "Oath Ring", short = "ring", value = 55, maxHp = 3, speed = -1 },
+    quiet_bell = { name = "Quiet Bell", short = "bell", value = 60, resolve = 8, damageTaken = 1 },
 }
 Registry.trinketOrder = { "ember_pin", "cracked_lens", "chirurgic_thread", "oath_ring", "quiet_bell" }
 
