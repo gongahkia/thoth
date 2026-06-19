@@ -93,8 +93,6 @@ Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render
 
 Goal: build every missing player-facing screen. Game must boot from title → load campaign → play → quit gracefully.
 
-- [ ] 2.22 Tag commit `phase2-ui-complete` (0.5h)
-
 **Phase 2 exit criteria:** every player decision currently in code is accessible via UI. No keyboard-shortcut-only features. Controller can play the game start to finish.
 
 ---
