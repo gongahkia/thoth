@@ -48,9 +48,11 @@ function Render.prepareUi(app)
     app.ui = app.ui or {}
     app.ui.skillButtons = app.ui.skillButtons or {}
     app.ui.heroButtons = app.ui.heroButtons or {}
+    app.ui.enemyButtons = app.ui.enemyButtons or {}
     app.ui.itemButtons = app.ui.itemButtons or {}
     clearList(app.ui.skillButtons)
     clearList(app.ui.heroButtons)
+    clearList(app.ui.enemyButtons)
     clearList(app.ui.itemButtons)
 end
 
@@ -449,6 +451,7 @@ function Render.drawCombatOverlay(sim, app)
         love.graphics.printf(hero and hero.name or "-", hx + 4, y + 44, 74, "center")
         if hero then
             love.graphics.printf(hero.hp .. "hp " .. hero.stress .. "s", hx + 4, y + 66, 74, "center")
+            app.ui.heroButtons[#app.ui.heroButtons + 1] = { x = hx, y = y + 38, w = 82, h = 58, rank = rank, side = "ally" }
         end
     end
     for rank = 1, 4 do
@@ -462,6 +465,7 @@ function Render.drawCombatOverlay(sim, app)
         love.graphics.printf(enemy and Defs.enemy(enemy.kind).name or "-", ex + 4, y + 44, 74, "center")
         if enemy then
             love.graphics.printf(enemy.hp .. "hp", ex + 4, y + 66, 74, "center")
+            app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { x = ex, y = y + 38, w = 82, h = 58, rank = rank, side = "enemy" }
         end
     end
     local skillY = y + 116
@@ -474,7 +478,8 @@ function Render.drawCombatOverlay(sim, app)
         love.graphics.setColor(skill.usable and 0.94 or 0.46, skill.usable and 0.96 or 0.46, skill.usable and 0.9 or 0.46, 1)
         love.graphics.printf(skill.index .. " " .. skill.name, sx + 6, skillY + 8, 128, "center")
         if skill.usable then
-            app.ui.skillButtons[#app.ui.skillButtons + 1] = { x = sx, y = skillY, w = 140, h = 42, skillKey = skill.key, targetSide = "enemy" }
+            local def = Defs.skill(skill.key)
+            app.ui.skillButtons[#app.ui.skillButtons + 1] = { x = sx, y = skillY, w = 140, h = 42, skillKey = skill.key, targetSide = def.target == "ally" and "ally" or (def.target == "enemy" and "enemy" or nil), immediate = def.target == "self" or def.target == "party" }
         end
     end
 end

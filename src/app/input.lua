@@ -174,18 +174,45 @@ function Input.mousepressed(sim, app, x, y, button)
     if button ~= 1 then
         return
     end
+    for _, hitbox in ipairs((app.ui and app.ui.enemyButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            if app.pendingSkillKey and app.pendingTargetSide == "enemy" then
+                sim:queue(Simulation.commands.combatSkill(app.pendingSkillKey, hitbox.rank, "enemy"))
+                app.status = "target enemy " .. hitbox.rank
+                app.pendingSkillKey = nil
+                app.pendingTargetSide = nil
+                play(app, "place")
+            end
+            return
+        end
+    end
     for _, hitbox in ipairs((app.ui and app.ui.skillButtons) or {}) do
         if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
-            sim:queue(Simulation.commands.combatSkill(hitbox.skillKey, hitbox.targetRank, hitbox.targetSide))
-            app.status = "skill " .. hitbox.skillKey
+            if hitbox.immediate or not hitbox.targetSide then
+                sim:queue(Simulation.commands.combatSkill(hitbox.skillKey, hitbox.targetRank, hitbox.targetSide))
+                app.pendingSkillKey = nil
+                app.pendingTargetSide = nil
+                app.status = "skill " .. hitbox.skillKey
+            else
+                app.pendingSkillKey = hitbox.skillKey
+                app.pendingTargetSide = hitbox.targetSide
+                app.status = "target " .. hitbox.targetSide
+            end
             play(app, "place")
             return
         end
     end
     for _, hitbox in ipairs((app.ui and app.ui.heroButtons) or {}) do
         if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
-            sim:queue(Simulation.commands.selectHero(hitbox.rank))
-            app.status = "hero " .. hitbox.rank
+            if app.pendingSkillKey and app.pendingTargetSide == "ally" and hitbox.side == "ally" then
+                sim:queue(Simulation.commands.combatSkill(app.pendingSkillKey, hitbox.rank, "ally"))
+                app.status = "target ally " .. hitbox.rank
+                app.pendingSkillKey = nil
+                app.pendingTargetSide = nil
+            else
+                sim:queue(Simulation.commands.selectHero(hitbox.rank))
+                app.status = "hero " .. hitbox.rank
+            end
             play(app, "tick")
             return
         end

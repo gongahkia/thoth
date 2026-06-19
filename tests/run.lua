@@ -564,17 +564,39 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(51)
+    reachEntryCombat(sim)
+    local enemy = sim:enemyAtRank(2)
+    local hp = enemy.hp
+    local app = {
+        ui = {
+            skillButtons = { { x = 0, y = 0, w = 30, h = 30, skillKey = "razor_lunge", targetSide = "enemy" } },
+            enemyButtons = { { x = 40, y = 0, w = 30, h = 30, rank = 2, side = "enemy" } },
+            heroButtons = {},
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    expect(app.pendingSkillKey == "razor_lunge" and sim.commandQueue[1] == nil, "skill click should wait for target")
+    Input.mousepressed(sim, app, 45, 5, 1)
+    sim:step()
+    expect(enemy.hp < hp and app.pendingSkillKey == nil, "enemy click should dispatch targeted skill")
+end
+
+tests[#tests + 1] = function()
     local app = {
         ui = {
             skillButtons = { { stale = true } },
             heroButtons = { { stale = true } },
+            enemyButtons = { { stale = true } },
             itemButtons = { { stale = true } },
         },
     }
     local oldSkills = app.ui.skillButtons
+    local oldEnemies = app.ui.enemyButtons
     Render.prepareUi(app)
     expect(app.ui.skillButtons == oldSkills, "prepareUi should reuse hitbox arrays")
-    expect(#app.ui.skillButtons == 0 and #app.ui.heroButtons == 0 and #app.ui.itemButtons == 0, "prepareUi should clear hitboxes")
+    expect(app.ui.enemyButtons == oldEnemies, "prepareUi should reuse enemy hitbox array")
+    expect(#app.ui.skillButtons == 0 and #app.ui.heroButtons == 0 and #app.ui.enemyButtons == 0 and #app.ui.itemButtons == 0, "prepareUi should clear hitboxes")
 end
 
 for index, test in ipairs(tests) do
