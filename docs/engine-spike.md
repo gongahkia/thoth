@@ -134,3 +134,5 @@ Initial performance result: `fps-min=60` with 400 flat tiles and 34 billboards o
 ## Failure Fallback
 
 Day 1-4 checks passed with `g3d`; the `3DreamEngine` fallback retry path was not triggered.
+
+The both-libraries-failed STOP condition was not triggered.
