@@ -78,6 +78,16 @@ local function queueCutscenes(state, simulation)
     startNextCutscene(state)
 end
 
+local function printRenderSmoke(state)
+    if not state.renderSmoke or state.renderSmokePrinted then
+        return
+    end
+    state.renderSmokePrinted = true
+    print("render-smoke-renderer=" .. tostring(state.renderer))
+    print("render-smoke-mode=" .. tostring(state.worldView and state.worldView.mode))
+    print("render-smoke-rotation=" .. tostring(state.worldView and state.worldView.rotation))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -96,6 +106,7 @@ function love.load(args)
         smoke = hasArg(args, "--smoke"),
         smokeFrames = 0,
         renderBenchmark = renderBenchmark,
+        renderSmoke = hasArg(args, "--render-smoke"),
         renderBenchmarkFrames = 180,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -141,6 +152,7 @@ end
 function love.draw()
     local started = app.renderBenchmark and love.timer.getTime() or nil
     Render.draw(sim, app)
+    printRenderSmoke(app)
     if app.renderBenchmark then
         local elapsedMs = (love.timer.getTime() - started) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1
