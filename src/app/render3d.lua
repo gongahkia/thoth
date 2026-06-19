@@ -7,8 +7,6 @@ local state = {
     g3d = nil,
     assets = {},
 }
-local tilePalette = {}
-local tilePaletteOrder = {}
 local cameraPitch = math.rad(30)
 local cameraDistance = 26
 local cameraViewSize = 24
@@ -16,6 +14,16 @@ local baseYaw = math.rad(45)
 local visibleRadius = 10
 local atlasColumns = 8
 local atlasRows = 5
+
+local function clamp(value, minValue, maxValue)
+    if value < minValue then
+        return minValue
+    end
+    if value > maxValue then
+        return maxValue
+    end
+    return value
+end
 
 local function clearList(list)
     for i = #list, 1, -1 do
@@ -127,25 +135,7 @@ local function loadImage(path)
     return image
 end
 
-local function sortedTileIds()
-    local ids = {}
-    for id in pairs(Defs.tiles) do
-        ids[#ids + 1] = id
-    end
-    table.sort(ids)
-    return ids
-end
-
-local function buildTilePalette()
-    tilePalette = {}
-    tilePaletteOrder = sortedTileIds()
-    local width = math.max(1, #tilePaletteOrder)
-    local data = love.image.newImageData(width, 1)
-    for index, id in ipairs(tilePaletteOrder) do
-        local color = Defs.tile(id).color or { 255, 255, 255 }
-        data:setPixel(index - 1, 0, color[1] / 255, color[2] / 255, color[3] / 255, 1)
-        tilePalette[id] = (index - 0.5) / width
-    end
+local function newImageFromData(data)
     local image = love.graphics.newImage(data)
     image:setFilter("nearest", "nearest")
     return image
@@ -172,7 +162,6 @@ function Render3D.load()
     state.assets.enemy = newSolidImage(0.68, 0.16, 0.18, 1)
     state.assets.alpha = newSolidImage(0.58, 0.12, 0.46, 1)
     state.assets.boss = newSolidImage(0.82, 0.22, 0.12, 1)
-    state.assets.tilePalette = buildTilePalette()
     state.assets.spriteAtlas = loadImage("assets/sprites/thoth_atlas.png")
     state.g3d.camera.updateProjectionMatrix()
     state.g3d.camera.updateViewMatrix()
@@ -206,17 +195,66 @@ local function pushTileQuad(vertices, x, y, z, u)
     vertices[#vertices + 1] = d
 end
 
-local function buildWorldTileModel(sim)
+local function torchLevel(sim)
+    if sim and sim.expedition and sim.expedition.torch then
+        return clamp(sim.expedition.torch, 0, 100)
+    end
+    return 100
+end
+
+local function lightProfile(sim)
+    local torch = torchLevel(sim)
+    local ratio = torch / 100
+    return {
+        torch = torch,
+        ambient = 0.2 + ratio * 0.38,
+        radius = 3.5 + ratio * 9.5,
+    }
+end
+
+local function lightAt(sim, x, y, profile)
+    if not (sim and sim.player) then
+        return 1
+    end
+    profile = profile or lightProfile(sim)
+    local dx = x - sim.player.x
+    local dy = y - sim.player.y
+    local distance = math.sqrt(dx * dx + dy * dy)
+    local falloff = 1 - clamp(distance / profile.radius, 0, 1)
+    falloff = falloff * falloff * (3 - 2 * falloff)
+    return clamp(profile.ambient + falloff * (1 - profile.ambient), 0, 1)
+end
+
+local function litTileColor(rgb, light)
+    local r = clamp((rgb[1] / 255) * light * 1.08, 0, 1)
+    local g = clamp((rgb[2] / 255) * light * (0.9 + light * 0.1), 0, 1)
+    local b = clamp((rgb[3] / 255) * light * (0.78 + light * 0.22), 0, 1)
+    return r, g, b, 1
+end
+
+local function buildWorldTileModel(sim, profile)
     local vertices = {}
     local z = sim.player.z or 0
-    for y = sim.player.y - visibleRadius, sim.player.y + visibleRadius do
-        for x = sim.player.x - visibleRadius, sim.player.x + visibleRadius do
+    local minX = sim.player.x - visibleRadius
+    local maxX = sim.player.x + visibleRadius
+    local minY = sim.player.y - visibleRadius
+    local maxY = sim.player.y + visibleRadius
+    local width = maxX - minX + 1
+    local height = maxY - minY + 1
+    local data = love.image.newImageData(width * height, 1)
+    local index = 0
+    for y = minY, maxY do
+        for x = minX, maxX do
+            index = index + 1
             local tile = sim.world:peekTile(x, y, z)
-            local u = tilePalette[tile.id] or tilePalette.archive_floor or 0.5
+            local rgb = Defs.tile(tile.id).color or { 255, 255, 255 }
+            local light = lightAt(sim, x, y, profile)
+            data:setPixel(index - 1, 0, litTileColor(rgb, light))
+            local u = (index - 0.5) / (width * height)
             pushTileQuad(vertices, x, y, z, u)
         end
     end
-    local model = state.g3d.newModel(vertices, state.assets.tilePalette)
+    local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()
     return model
 end
@@ -267,7 +305,14 @@ local function newBillboard(width, height, frame, x, y, z, yaw, texture)
     return model
 end
 
-local function drawHeroBillboards(sim, yaw)
+local function drawLitModel(model, light)
+    love.graphics.push("all")
+    love.graphics.setColor(light, light, light, 1)
+    model:draw()
+    love.graphics.pop()
+end
+
+local function drawHeroBillboards(sim, yaw, profile)
     if not (state.g3d and (state.assets.spriteAtlas or state.assets.white) and sim.partyState) then
         return
     end
@@ -280,8 +325,10 @@ local function drawHeroBillboards(sim, yaw)
     for _, hero in ipairs(sim:partyState()) do
         if hero.alive ~= false and hero.rank and offsets[hero.rank] then
             local offset = offsets[hero.rank]
-            local model = newBillboard(0.85, 1.1, 24 + hero.rank, sim.player.x + 0.5 + offset[1], sim.player.y + 0.5 + offset[2], sim.player.z or 0, yaw)
-            model:draw()
+            local x = sim.player.x + 0.5 + offset[1]
+            local y = sim.player.y + 0.5 + offset[2]
+            local model = newBillboard(0.85, 1.1, 24 + hero.rank, x, y, sim.player.z or 0, yaw)
+            drawLitModel(model, lightAt(sim, x, y, profile))
         end
     end
 end
@@ -339,7 +386,7 @@ local function enemySize(objectType)
     return 0.95, 1.15
 end
 
-local function drawCombatEnemyBillboards(sim, yaw)
+local function drawCombatEnemyBillboards(sim, yaw, profile)
     if not (sim.combat and sim.combat.enemies) then
         return false
     end
@@ -354,8 +401,10 @@ local function drawCombatEnemyBillboards(sim, yaw)
             local offset = offsets[enemy.rank]
             local objectType = combatEnemyType(enemy)
             local width, height = enemySize(objectType)
-            local model = newBillboard(width, height, enemyFrame(objectType), sim.player.x + 0.5 + offset[1], sim.player.y + 0.5 + offset[2], sim.player.z or 0, yaw, enemyTexture(objectType))
-            model:draw()
+            local x = sim.player.x + 0.5 + offset[1]
+            local y = sim.player.y + 0.5 + offset[2]
+            local model = newBillboard(width, height, enemyFrame(objectType), x, y, sim.player.z or 0, yaw, enemyTexture(objectType))
+            drawLitModel(model, lightAt(sim, x, y, profile))
         end
     end
     return true
@@ -365,7 +414,7 @@ local function isEnemyObject(object)
     return object.type == "threat" or object.type == "alpha" or object.type == "encounter" or object.type == "boss"
 end
 
-local function drawWorldEnemyBillboards(sim, yaw)
+local function drawWorldEnemyBillboards(sim, yaw, profile)
     if not sim.objectsInRect then
         return
     end
@@ -377,17 +426,17 @@ local function drawWorldEnemyBillboards(sim, yaw)
         if isEnemyObject(object) then
             local width, height = enemySize(object.type)
             local model = newBillboard(width, height, enemyFrame(object.type), object.x + 0.5, object.y + 0.5, object.z or 0, yaw, enemyTexture(object.type))
-            model:draw()
+            drawLitModel(model, lightAt(sim, object.x, object.y, profile))
         end
     end
 end
 
-local function drawEnemyBillboards(sim, yaw)
+local function drawEnemyBillboards(sim, yaw, profile)
     if not (state.g3d and (state.assets.spriteAtlas or state.assets.white)) then
         return
     end
-    if not drawCombatEnemyBillboards(sim, yaw) then
-        drawWorldEnemyBillboards(sim, yaw)
+    if not drawCombatEnemyBillboards(sim, yaw, profile) then
+        drawWorldEnemyBillboards(sim, yaw, profile)
     end
 end
 
@@ -401,15 +450,18 @@ function Render3D.drawWorld(sim, app)
     app.worldView.originX = sim and sim.player and sim.player.x or 0
     app.worldView.originY = sim and sim.player and sim.player.y or 0
     app.worldView.rotation = app.viewRotation or 0
-    if not (love and love.graphics and sim and sim.world and state.g3d and state.assets.tilePalette) then
+    if not (love and love.graphics and sim and sim.world and state.g3d) then
         return
     end
     app.worldView.mode = "render3d"
+    local profile = lightProfile(sim)
+    app.worldView.light = { torch = profile.torch, ambient = profile.ambient, radius = profile.radius }
     local yaw = applyCamera(sim, app)
-    local model = buildWorldTileModel(sim)
+    local model = buildWorldTileModel(sim, profile)
+    love.graphics.setColor(1, 1, 1, 1)
     model:draw()
-    drawHeroBillboards(sim, yaw)
-    drawEnemyBillboards(sim, yaw)
+    drawHeroBillboards(sim, yaw, profile)
+    drawEnemyBillboards(sim, yaw, profile)
 end
 
 function Render3D.drawHud()

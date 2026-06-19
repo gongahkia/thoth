@@ -85,7 +85,6 @@ Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
 
 Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render layer. Keep `simulation.lua` untouched.
 
-- [ ] 1.7 Port lighting/torch effects (current `render.lua` has torch falloff math) (16h)
 - [ ] 1.8 Port cutscene system (`Render.cutsceneForEvent`, 24 event types per `docs/cutscene-map.md`) (40h)
 - [ ] 1.9 Port UI panels (current panel copy in `Registry.panelCopy`) (24h)
 - [ ] 1.10 Wire rotation snaps to player input (replace existing `app.viewRotation` placeholder in `main.lua:91`) (4h)
