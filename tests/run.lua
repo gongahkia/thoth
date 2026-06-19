@@ -6,6 +6,7 @@ local Save = require("src.game.save")
 local Replay = require("src.game.replay")
 local Input = require("src.app.input")
 local Render = require("src.app.render")
+local Render3D = require("src.app.render3d")
 local World = require("src.game.world")
 local Defs = require("src.game.defs")
 
@@ -1725,6 +1726,48 @@ tests[#tests + 1] = function()
     local app = { cutscene = Render.cutsceneForStatus("combat won", sim) }
     Render.advanceCutscene(app, 1)
     expect(app.cutscene == nil, "advanceCutscene should expire completed cutscene")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(91)
+    reachEntryCombat(sim)
+    local cases = {
+        { event = "combat_start", message = "combat: entry", kind = "intro", mood = "threat", beat = "arrival", enemies = { "Cyst Bailiff" } },
+        { event = "boss_start", message = "combat: regent", kind = "boss_intro", mood = "boss", beat = "reveal", boss = true, enemies = { "Vault Regent" } },
+        { event = "ambush_start", message = "ambush", kind = "ambush", mood = "panic", beat = "snap", enemies = { "Audit Hound" } },
+        { event = "hero_skill", message = "Mara used Razor Lunge", kind = "strike", mood = "action", beat = "strike", actor = "Mara", skill = "Razor Lunge" },
+        { event = "enemy_skill", message = "Cyst Bailiff used Rusted Chop", kind = "strike", mood = "action", beat = "strike", actor = "Cyst Bailiff", skill = "Rusted Chop" },
+        { event = "boss_skill", message = "Vault Regent used Sentence", kind = "boss_strike", mood = "boss", beat = "smite", actor = "Vault Regent", skill = "Sentence", boss = true },
+        { event = "combat_win", message = "combat won", kind = "victory", mood = "resolve", beat = "triumph" },
+        { event = "boss_win", message = "boss won", kind = "boss_victory", mood = "seal", beat = "triumph", boss = true },
+        { event = "combat_loss", message = "party lost", kind = "defeat", mood = "doom", beat = "collapse" },
+        { event = "boss_loss", message = "boss loss", kind = "boss_defeat", mood = "doom", beat = "collapse", boss = true },
+        { event = "retreat", message = "retreated", kind = "retreat", mood = "flight", beat = "exit" },
+        { event = "retreat_blocked", message = "ambush blocks retreat", kind = "blocked", mood = "panic", beat = "block" },
+        { event = "death_door", message = "Mara reached death's door", kind = "death_door", mood = "threshold", beat = "threshold", actor = "Mara" },
+        { event = "death_save", message = "Mara clung to life", kind = "death_save", mood = "resolve", beat = "revive", actor = "Mara" },
+        { event = "hero_death", message = "Mara fell", kind = "hero_death", mood = "doom", beat = "fall", actor = "Mara" },
+        { event = "resolve_virtue", message = "Mara steadied", kind = "resolve_virtue", mood = "virtue", beat = "resolve", actor = "Mara" },
+        { event = "resolve_affliction", message = "Mara is Panic", kind = "resolve_affliction", mood = "affliction", beat = "fracture", actor = "Mara" },
+        { event = "stress_break", message = "Mara breaks under the dark", kind = "stress_break", mood = "affliction", beat = "break", actor = "Mara" },
+        { event = "affliction_act", message = "Mara lashes out", kind = "affliction_act", mood = "affliction", beat = "lash", actor = "Mara" },
+        { event = "falter", message = "Cyst Bailiff faltered", kind = "falter", mood = "dazed", beat = "stagger", actor = "Cyst Bailiff", side = "enemy" },
+        { event = "hero_hold", message = "Mara holds", kind = "hero_hold", mood = "guard", beat = "hold", actor = "Mara" },
+    }
+    for _, case in ipairs(cases) do
+        local cutscene = Render3D.cutsceneForEvent(case, sim)
+        expect(cutscene and cutscene.kind == case.kind, "render3d should map " .. case.event .. " to " .. case.kind)
+        expect(cutscene.mood == case.mood and cutscene.beat == case.beat, "render3d cutscene should preserve profile for " .. case.event)
+    end
+    expect(Render3D.cutsceneForStatus("combat: entry", sim).kind == "intro", "render3d fallback combat text should map to intro")
+    expect(Render3D.cutsceneForStatus("campaign sealed", sim).kind == "campaign_victory", "render3d fallback campaign win should map to campaign victory")
+    expect(Render3D.cutsceneForStatus("Moth fell", sim).kind == "danger", "render3d fallback danger text should map to danger")
+    expect(Render3D.cutsceneForStatus("used Torch", sim) == nil, "render3d should ignore non-combat item use text")
+    local idle = Render3D.idleCombatScene(sim)
+    expect(idle and idle.kind == "idle" and idle.beat == "idle", "render3d should expose idle combat scene")
+    local app = { cutscene = Render3D.cutsceneForStatus("combat won", sim) }
+    Render3D.advanceCutscene(app, 1)
+    expect(app.cutscene == nil, "render3d advanceCutscene should expire completed cutscene")
 end
 
 tests[#tests + 1] = function()
