@@ -68,7 +68,6 @@ Kit subject to spike feedback. Balance pass after Phase 6 integration.
 Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
 
 ### Day 1 — Library bake-off setup (~4h)
-- [ ] 0.1.4 Create `spike/` directory at repo root (gitignored) for throwaway test files (0.5h)
 - [ ] 0.1.5 Wire chosen lib into a minimal `spike/main.lua` that renders a single 3D cube (0.5h)
 
 ### Day 2 — 3D world spike (~4h)
