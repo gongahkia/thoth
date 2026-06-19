@@ -2561,6 +2561,12 @@ Registry.panelCopy = {
         repair_compact = "The Repair Compact holds: repairs outweighed extraction, and the enclaves force the Estate to share the seal.",
         extraction_collapse = "The Extraction Collapse arrives when dread becomes policy and every route is treated as salvage.",
         quiet_failure = "Quiet Failure arrives when time or deaths close the file before anyone can claim the seal.",
+        merchant_modifier = {
+            estate_seal = "A Merchant survives to price the sealed roads, and the last ledger leaves no victory unbilled.",
+            repair_compact = "A Merchant survives the compact and begins converting shared mercy into enforceable accounts.",
+            extraction_collapse = "A Merchant survives the collapse long enough to prove extraction was always an accounting system.",
+            quiet_failure = "A Merchant survives the quiet failure and files the absence of a seal as a receivable.",
+        },
     },
 }
 Registry.panelCopyOrder = { "faction_panel_copy", "timer_panel_copy", "ending_screen_copy" }

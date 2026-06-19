@@ -709,6 +709,15 @@ function Simulation:partyHasClass(classKey)
     return false
 end
 
+function Simulation:livingRosterHasClass(classKey)
+    for _, hero in ipairs((self.estate and self.estate.roster) or {}) do
+        if hero.alive and hero.class == classKey then
+            return true
+        end
+    end
+    return false
+end
+
 function Simulation:heroModifier(hero, key)
     local total = 0
     local quirks = Defs.quirks
@@ -1922,7 +1931,12 @@ end
 function Simulation:endingScreenCopy(routeKey)
     local copy = Defs.panelCopyFor("ending_screen_copy") or {}
     local route = Defs.endingRoute(routeKey) or {}
-    return copy[routeKey] or route.result
+    local text = copy[routeKey] or route.result
+    local merchant = copy.merchant_modifier or {}
+    if self:livingRosterHasClass("merchant") and merchant[routeKey] then
+        return text .. " " .. merchant[routeKey]
+    end
+    return text
 end
 
 function Simulation:originBark(classKey, eventKey)

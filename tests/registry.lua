@@ -591,6 +591,7 @@ local endingCopy = Defs.panelCopyFor("ending_screen_copy")
 for _, key in ipairs(Defs.endingRouteOrder) do
     expect(endingCopy[key], "ending screen copy missing " .. key)
 end
+expect(endingCopy.merchant_modifier and endingCopy.merchant_modifier.estate_seal:find("Merchant", 1, true), "merchant ending modifier missing")
 expect(Defs.fixtureVisitBark("fixture_visit_barks").greeting and Defs.fixtureVisitBark("fixture_visit_barks").farewell, "fixture visit barks missing")
 expect(Defs.fixtureVisitBark("fixture_visit_barks").greeting ~= Defs.fixtureVisitBark("fixture_visit_barks").farewell, "fixture visit greeting/farewell should differ")
 local enclaveBarks = Defs.enclaveLeaderBark("enclave_leader_barks")

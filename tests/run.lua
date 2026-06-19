@@ -1754,6 +1754,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(140)
+    sim:endExpedition(true)
+    local base = sim:endingScreenCopy("estate_seal")
+    sim:heroAtRank(1).class = "merchant"
+    local shifted = sim:endingScreenCopy("estate_seal")
+    expect(shifted ~= base and shifted:find("Merchant", 1, true) and shifted:find("ledger", 1, true), "living merchant should shift ending copy")
+    sim:heroAtRank(1).alive = false
+    expect(sim:endingScreenCopy("estate_seal") == base, "dead merchant should not shift ending copy")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(118)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("archive_false_index"))
