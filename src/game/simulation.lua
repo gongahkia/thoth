@@ -81,6 +81,9 @@ local function newHero(id, classKey, name, quirks)
         affliction = nil,
         virtue = nil,
         alive = true,
+        deathsDoor = false,
+        deathblowResist = 67,
+        deathblowChecks = 0,
         recovering = 0,
         guard = 0,
         skills = copyList(class.skills),
@@ -448,6 +451,9 @@ function Simulation:healHero(hero, amount)
     end
     local penalty = hero.affliction and ((Defs.affliction(hero.affliction) or {}).healPenalty or 0) or 0
     hero.hp = math.min(self:maxHp(hero), hero.hp + math.max(0, amount + self:heroModifier(hero, "healBonus") - penalty))
+    if hero.hp > 0 then
+        hero.deathsDoor = false
+    end
     return true
 end
 
@@ -457,9 +463,19 @@ function Simulation:damageHero(hero, amount)
     end
     local extra = hero.affliction and ((Defs.affliction(hero.affliction) or {}).damageTaken or 0) or 0
     extra = extra + self:heroModifier(hero, "damageTaken")
-    hero.hp = math.max(0, hero.hp - math.max(0, amount + extra))
-    if hero.hp <= 0 then
+    local damage = math.max(0, amount + extra)
+    hero.hp = hero.hp - damage
+    if hero.hp <= 0 and hero.deathsDoor then
+        hero.deathblowChecks = (hero.deathblowChecks or 0) + 1
+        local resist = clamp((hero.deathblowResist or 67) + self:heroModifier(hero, "deathblowResist") - (hero.deathblowChecks - 1) * 10, 0, 95)
+        if self:roll(1, 100) <= resist then
+            hero.hp = 0
+            self:addStress(hero, 8)
+            self:pushLog(hero.name .. " clung to life")
+            return true
+        end
         hero.alive = false
+        hero.hp = 0
         self.estate.graveyard[#self.estate.graveyard + 1] = {
             id = hero.id,
             name = hero.name,
@@ -468,6 +484,12 @@ function Simulation:damageHero(hero, amount)
         }
         self:compactParty()
         self:pushLog(hero.name .. " fell")
+    elseif hero.hp <= 0 then
+        hero.hp = 0
+        hero.deathsDoor = true
+        hero.deathblowChecks = 0
+        self:addStress(hero, 10)
+        self:pushLog(hero.name .. " reached death's door")
     end
     return true
 end
@@ -1080,12 +1102,106 @@ function Simulation:actorStillAlive(actor)
     return enemy and enemy.hp > 0
 end
 
-function Simulation:applyStatuses(unit)
+function Simulation:hasStatus(unit, kind)
+    for _, status in ipairs(unit.statuses or {}) do
+        if status.kind == kind then
+            return true
+        end
+    end
+    return false
+end
+
+function Simulation:enemyTargetsForSkill(skill, consumeGuard)
+    local targets = {}
+    if skill.target == "party" then
+        for rank = 1, 4 do
+            local hero = self:heroAtRank(rank)
+            if hero and hero.alive then
+                targets[#targets + 1] = hero
+            end
+        end
+        return targets
+    end
+    if skill.target ~= "hero" then
+        return targets
+    end
+    if not skill.ignoreGuard then
+        for rank = 1, 4 do
+            local hero = self:heroAtRank(rank)
+            if hero and hero.alive and (hero.guard or 0) > 0 then
+                if consumeGuard then
+                    hero.guard = hero.guard - 1
+                end
+                return { hero }
+            end
+        end
+    end
+    local candidates = {}
+    local marked = {}
+    for rank = 1, 4 do
+        local hero = self:heroAtRank(rank)
+        if hero and hero.alive and contains(skill.targetRanks, rank) then
+            candidates[#candidates + 1] = hero
+            if self:hasStatus(hero, "marked") then
+                marked[#marked + 1] = hero
+            end
+        end
+    end
+    if #candidates == 0 then
+        return targets
+    end
+    if skill.markBonus and #marked > 0 then
+        return { marked[1] }
+    end
+    if not consumeGuard then
+        return { candidates[1] }
+    end
+    return { candidates[self:roll(1, #candidates)] }
+end
+
+function Simulation:chooseEnemySkill(enemy)
+    local enemyDef = Defs.enemy(enemy.kind)
+    local legal = {}
+    for _, skillKey in ipairs(enemyDef.skills or {}) do
+        local skill = Defs.enemySkill(skillKey)
+        if skill and #self:enemyTargetsForSkill(skill, false) > 0 then
+            legal[#legal + 1] = skillKey
+        end
+    end
+    if #legal == 0 then
+        return nil
+    end
+    if self.expedition and self.expedition.torch < 35 then
+        for _, skillKey in ipairs(legal) do
+            local skill = Defs.enemySkill(skillKey)
+            if skill.stress or skill.target == "party" then
+                return skillKey
+            end
+        end
+    end
+    for _, skillKey in ipairs(legal) do
+        local skill = Defs.enemySkill(skillKey)
+        if skill.markBonus and #self:enemyTargetsForSkill(skill, false) > 0 then
+            for _, target in ipairs(self:enemyTargetsForSkill(skill, false)) do
+                if self:hasStatus(target, "marked") then
+                    return skillKey
+                end
+            end
+        end
+    end
+    return legal[self:roll(1, #legal)]
+end
+
+function Simulation:applyStatuses(unit, side)
     local skip = false
     local kept = {}
     for _, status in ipairs(unit.statuses or {}) do
-        if status.kind == "bleed" then
-            unit.hp = math.max(0, unit.hp - (status.amount or 1))
+        if status.kind == "bleed" or status.kind == "blight" then
+            if side == "hero" then
+                self:damageHero(unit, status.amount or 1)
+            else
+                unit.hp = math.max(0, unit.hp - (status.amount or 1))
+            end
         elseif status.kind == "daze" then
             skip = true
         end
@@ -1114,7 +1230,7 @@ function Simulation:advanceCombat()
             self.combat.turnIndex = self.combat.turnIndex + 1
         elseif actor.side == "enemy" then
             local enemy = self.combat.enemies[actor.id]
-            local skip = self:applyStatuses(enemy)
+            local skip = self:applyStatuses(enemy, "enemy")
             if enemy.hp <= 0 then
                 self.combat.turnIndex = self.combat.turnIndex + 1
             elseif skip then
@@ -1125,46 +1241,64 @@ function Simulation:advanceCombat()
                 self.combat.turnIndex = self.combat.turnIndex + 1
             end
         else
-            self.combat.active = actor
-            self.player.selectedHero = self:heroRank(actor.id) or self.player.selectedHero
-            return true
+            local hero = self:heroById(actor.id)
+            local skip = hero and self:applyStatuses(hero, "hero")
+            if not hero or not hero.alive then
+                self.combat.turnIndex = self.combat.turnIndex + 1
+            elseif skip then
+                self:pushLog(hero.name .. " faltered")
+                self.combat.turnIndex = self.combat.turnIndex + 1
+            else
+                self.combat.active = actor
+                self.player.selectedHero = self:heroRank(actor.id) or self.player.selectedHero
+                return true
+            end
         end
     end
     return false
 end
 
 function Simulation:enemyTurn(enemy)
-    local target = nil
-    for rank = 1, 4 do
-        local hero = self:heroAtRank(rank)
-        if hero and hero.alive and (hero.guard or 0) > 0 then
-            target = hero
-            hero.guard = hero.guard - 1
-            break
-        end
+    local def = Defs.enemy(enemy.kind)
+    local skillKey = self:chooseEnemySkill(enemy)
+    local skill = skillKey and Defs.enemySkill(skillKey) or nil
+    if not skill then
+        return false
     end
-    if not target then
-        for rank = 1, 4 do
-            local hero = self:heroAtRank(rank)
-            if hero and hero.alive then
-                target = hero
-                break
+    local targets = self:enemyTargetsForSkill(skill, true)
+    if #targets == 0 then
+        return false
+    end
+    local damageBonus = 0
+    local stressBonus = 0
+    if self.expedition and self.expedition.torch < 30 then
+        damageBonus = damageBonus + 1
+        stressBonus = stressBonus + 2
+    end
+    for _, target in ipairs(targets) do
+        local damage = 0
+        if skill.damage then
+            damage = self:roll(skill.damage[1], skill.damage[2]) + damageBonus
+            if skill.markBonus and self:hasStatus(target, "marked") then
+                damage = damage + skill.markBonus
+            end
+            self:damageHero(target, damage)
+        end
+        if skill.stress then
+            self:addStress(target, skill.stress + stressBonus)
+        end
+        if skill.status and target.alive then
+            target.statuses = target.statuses or {}
+            target.statuses[#target.statuses + 1] = copyMap(skill.status)
+        end
+        if skill.move and target.alive then
+            local rank = self:heroRank(target.id)
+            if rank then
+                self:moveHeroRank(rank, skill.move)
             end
         end
     end
-    if not target then
-        return false
-    end
-    local def = Defs.enemy(enemy.kind)
-    local damage = self:roll(def.damage[1], def.damage[2])
-    local stress = def.stress or 0
-    if self.expedition and self.expedition.torch < 30 then
-        damage = damage + 1
-        stress = stress + 2
-    end
-    self:damageHero(target, damage)
-    self:addStress(target, stress)
-    self:pushLog(def.name .. " hit " .. target.name)
+    self:pushLog(def.name .. " used " .. skill.name)
     return true
 end
 
@@ -1406,6 +1540,8 @@ function Simulation:partyState()
                 affliction = hero.affliction,
                 virtue = hero.virtue,
                 alive = hero.alive,
+                deathsDoor = hero.deathsDoor,
+                statuses = copyList(hero.statuses),
                 quirks = copyList(hero.quirks),
                 trinkets = copyList(hero.trinkets),
             }
@@ -1507,6 +1643,9 @@ function Simulation:snapshot()
             affliction = hero.affliction,
             virtue = hero.virtue,
             alive = hero.alive,
+            deathsDoor = hero.deathsDoor,
+            deathblowResist = hero.deathblowResist,
+            deathblowChecks = hero.deathblowChecks,
             recovering = hero.recovering,
             guard = hero.guard,
             skills = copyList(hero.skills),
@@ -1635,6 +1774,9 @@ function Simulation.fromSnapshot(snapshot)
         hero.affliction = value.affliction
         hero.virtue = value.virtue
         hero.alive = value.alive ~= false
+        hero.deathsDoor = value.deathsDoor == true
+        hero.deathblowResist = value.deathblowResist or hero.deathblowResist
+        hero.deathblowChecks = value.deathblowChecks or 0
         hero.recovering = value.recovering or 0
         hero.guard = value.guard or 0
         hero.skills = copyList(value.skills or hero.skills)

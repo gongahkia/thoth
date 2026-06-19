@@ -13,6 +13,8 @@ local Defs = {
     quirkOrder = Registry.quirkOrder,
     skills = Registry.skills,
     skillOrder = Registry.skillOrder,
+    enemySkills = Registry.enemySkills,
+    enemySkillOrder = Registry.enemySkillOrder,
     enemies = Registry.enemies,
     enemyOrder = Registry.enemyOrder,
     afflictions = Registry.afflictions,
@@ -53,6 +55,10 @@ end
 
 function Defs.skill(id)
     return Defs.skills[id]
+end
+
+function Defs.enemySkill(id)
+    return Defs.enemySkills[id]
 end
 
 function Defs.enemy(id)

@@ -29,6 +29,7 @@ checkOrder("trinket", Defs.trinketOrder, Defs.trinkets)
 checkOrder("quirk", Defs.quirkOrder, Defs.quirks)
 checkOrder("hero class", Defs.heroClassOrder, Defs.heroClasses)
 checkOrder("skill", Defs.skillOrder, Defs.skills)
+checkOrder("enemy skill", Defs.enemySkillOrder, Defs.enemySkills)
 checkOrder("enemy", Defs.enemyOrder, Defs.enemies)
 checkOrder("affliction", Defs.afflictionOrder, Defs.afflictions)
 checkOrder("curio", Defs.curioOrder, Defs.curios)
@@ -88,6 +89,23 @@ end
 for key, enemy in pairs(Defs.enemies) do
     expect(enemy.name and enemy.maxHp > 0 and enemy.speed >= 0, "enemy missing stats " .. key)
     expect(enemy.damage and enemy.damage[1] <= enemy.damage[2], "enemy bad damage " .. key)
+    expect(type(enemy.skills) == "table" and #enemy.skills > 0, "enemy missing skills " .. key)
+    for _, skillKey in ipairs(enemy.skills) do
+        expect(Defs.enemySkill(skillKey), "enemy references missing skill " .. skillKey)
+    end
+end
+
+for key, skill in pairs(Defs.enemySkills) do
+    expect(skill.name and (skill.target == "hero" or skill.target == "party"), "enemy skill missing target " .. key)
+    if skill.target == "hero" then
+        rankList(skill.targetRanks, "enemy skill target " .. key)
+    end
+    if skill.damage then
+        expect(skill.damage[1] <= skill.damage[2] and skill.damage[1] > 0, "enemy skill bad damage " .. key)
+    end
+    if skill.status then
+        expect(skill.status.kind and skill.status.turns > 0, "enemy skill bad status " .. key)
+    end
 end
 
 for key, curio in pairs(Defs.curios) do

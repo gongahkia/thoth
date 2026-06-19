@@ -196,13 +196,25 @@ Registry.skillOrder = {
     "field_dress", "steady_words", "bone_saw", "lantern_bolt", "hush", "ember_veil",
 }
 
+Registry.enemySkills = {
+    rusted_chop = { name = "Rusted Chop", target = "hero", targetRanks = { 1, 2 }, damage = { 3, 5 }, stress = 1 },
+    ink_splatter = { name = "Ink Splatter", target = "hero", targetRanks = { 3, 4 }, damage = { 1, 3 }, stress = 6, status = { kind = "marked", turns = 2 } },
+    needle_dictation = { name = "Needle Dictation", target = "hero", targetRanks = { 2, 3, 4 }, damage = { 2, 4 }, stress = 4, status = { kind = "bleed", amount = 1, turns = 3 } },
+    gutter_hook = { name = "Gutter Hook", target = "hero", targetRanks = { 2, 3, 4 }, damage = { 3, 5 }, stress = 2, move = -1 },
+    censer_wail = { name = "Censer Wail", target = "party", stress = 4 },
+    regent_sentence = { name = "Regent Sentence", target = "hero", targetRanks = { 1, 2, 3, 4 }, damage = { 5, 8 }, stress = 7, markBonus = 2 },
+}
+Registry.enemySkillOrder = {
+    "rusted_chop", "ink_splatter", "needle_dictation", "gutter_hook", "censer_wail", "regent_sentence",
+}
+
 Registry.enemies = {
-    hollow_guard = { name = "Hollow Guard", maxHp = 16, speed = 2, damage = { 3, 5 }, stress = 1 },
-    ink_wretch = { name = "Ink Wretch", maxHp = 10, speed = 6, damage = { 1, 3 }, stress = 6 },
-    bone_scribe = { name = "Bone Scribe", maxHp = 12, speed = 4, damage = { 2, 4 }, stress = 4 },
-    gutter_thing = { name = "Gutter Thing", maxHp = 14, speed = 5, damage = { 3, 6 }, stress = 2 },
-    pale_censer = { name = "Pale Censer", maxHp = 9, speed = 3, damage = { 1, 2 }, stress = 8 },
-    vault_regent = { name = "Vault Regent", maxHp = 34, speed = 4, damage = { 5, 8 }, stress = 7, boss = true },
+    hollow_guard = { name = "Hollow Guard", maxHp = 16, speed = 2, damage = { 3, 5 }, stress = 1, skills = { "rusted_chop" } },
+    ink_wretch = { name = "Ink Wretch", maxHp = 10, speed = 6, damage = { 1, 3 }, stress = 6, skills = { "ink_splatter", "rusted_chop" } },
+    bone_scribe = { name = "Bone Scribe", maxHp = 12, speed = 4, damage = { 2, 4 }, stress = 4, skills = { "needle_dictation", "ink_splatter" } },
+    gutter_thing = { name = "Gutter Thing", maxHp = 14, speed = 5, damage = { 3, 6 }, stress = 2, skills = { "gutter_hook", "rusted_chop" } },
+    pale_censer = { name = "Pale Censer", maxHp = 9, speed = 3, damage = { 1, 2 }, stress = 8, skills = { "censer_wail", "ink_splatter" } },
+    vault_regent = { name = "Vault Regent", maxHp = 34, speed = 4, damage = { 5, 8 }, stress = 7, boss = true, skills = { "regent_sentence", "censer_wail" } },
 }
 Registry.enemyOrder = { "hollow_guard", "ink_wretch", "bone_scribe", "gutter_thing", "pale_censer", "vault_regent" }
 

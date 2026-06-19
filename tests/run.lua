@@ -147,9 +147,40 @@ tests[#tests + 1] = function()
     local sim = Simulation.new(20)
     local hero = sim:heroAtRank(1)
     sim:damageHero(hero, hero.hp)
-    expect(not hero.alive, "lethal damage should kill hero")
+    expect(hero.alive and hero.deathsDoor and hero.hp == 0, "first lethal damage should reach death's door")
+    expect(#sim.estate.graveyard == 0, "death's door should not record graveyard yet")
+    hero.deathblowResist = 0
+    sim:damageHero(hero, 1)
+    expect(not hero.alive, "failed deathblow check should kill hero")
     expect(#sim.estate.graveyard == 1, "graveyard should record death")
     expect(sim:heroAtRank(1).id ~= hero.id, "party should compact after death")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(35)
+    local hero = sim:heroAtRank(1)
+    hero.hp = 1
+    hero.statuses[#hero.statuses + 1] = { kind = "bleed", amount = 1, turns = 2 }
+    sim:applyStatuses(hero, "hero")
+    expect(hero.deathsDoor and hero.statuses[1].turns == 1, "hero bleed should tick through death's door rules")
+    sim:healHero(hero, 2)
+    expect(not hero.deathsDoor and hero.hp > 0, "healing should clear death's door")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(36)
+    reachEntryCombat(sim)
+    sim.expedition.torch = 20
+    local enemy = sim.combat.enemies[2]
+    sim:enemyTurn(enemy)
+    local marked = false
+    for rank = 1, 4 do
+        local hero = sim:heroAtRank(rank)
+        if hero and sim:hasStatus(hero, "marked") then
+            marked = true
+        end
+    end
+    expect(marked, "low-light ink enemy should prefer marked stress skill")
 end
 
 tests[#tests + 1] = function()

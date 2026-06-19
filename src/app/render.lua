@@ -371,7 +371,10 @@ local function drawHeroRows(sim, app, x, y, w)
         love.graphics.print(hero.rank .. " " .. hero.name .. " / " .. hero.class .. " L" .. (hero.level or 1), x + 6, rowY + 4)
         love.graphics.setColor(0.74, 0.82, 0.74, 1)
         love.graphics.print("hp " .. hero.hp .. "/" .. hero.maxHp .. "  stress " .. hero.stress, x + 6, rowY + 19)
-        if hero.affliction then
+        if hero.deathsDoor then
+            love.graphics.setColor(0.94, 0.34, 0.28, 1)
+            love.graphics.print("door", x + w - 54, rowY + 19)
+        elseif hero.affliction then
             love.graphics.setColor(0.9, 0.46, 0.42, 1)
             love.graphics.print(hero.affliction, x + w - 74, rowY + 19)
         elseif hero.virtue then
