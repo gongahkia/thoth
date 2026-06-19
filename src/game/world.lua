@@ -108,6 +108,20 @@ function World:staticMissionLayout(location)
     elseif layoutId == "cistern_open_deep_sluice" then
         base.encounters["18:4"] = "cistern_bailiff"
         base.encounters["18:10"] = "matron"
+    elseif layoutId == "warrens_douse_vicar" then
+        base.encounters["8:-8"] = "ember_vicar"
+        base.encounters["20:-8"] = nil
+    elseif layoutId == "warrens_open_furnace" then
+        base.encounters["20:4"] = "ember_furnace"
+        base.encounters["20:-8"] = "prioress"
+    elseif layoutId == "warrens_burn_false_vow" then
+        base.encounters["14:-4"] = "ember_swarm"
+    elseif layoutId == "ember_vow_kilns" then
+        base.encounters["8:0"] = "ember_kiln"
+    elseif layoutId == "ember_ash_names" or layoutId == "warrens_warm_ledger" then
+        base.encounters["14:4"] = "ember_clinker"
+    elseif layoutId == "warrens_aron_boy" then
+        base.encounters["8:-8"] = "ember_branch"
     end
     for _, corridor in ipairs(base.corridors or {}) do
         local a = tostring(corridor.ax) .. ":" .. tostring(corridor.ay)

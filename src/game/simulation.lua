@@ -156,7 +156,7 @@ local function newEnemy(id, kind, rank)
             exposeDamage = part.exposeDamage or 0,
         }
     end
-    return { id = id, kind = kind, rank = rank, hp = def.maxHp, stress = 0, statuses = {}, guard = 0, parts = parts, resurrected = false, deathSpawned = false }
+    return { id = id, kind = kind, rank = rank, hp = def.maxHp, stress = 0, statuses = {}, guard = 0, parts = parts, resurrected = false, deathSpawned = false, deathFrontDamaged = false }
 end
 
 local function cloneEnemy(enemy)
@@ -188,6 +188,7 @@ local function cloneEnemy(enemy)
         parts = parts,
         resurrected = enemy.resurrected == true,
         deathSpawned = enemy.deathSpawned == true,
+        deathFrontDamaged = enemy.deathFrontDamaged == true,
     }
 end
 
@@ -1031,6 +1032,7 @@ function Simulation:startExpedition(locationKey)
         threatState = {},
         noise = 0,
         ambushRolls = 0,
+        heatFatigue = 0,
         corridorVisits = {},
         currentCorridor = nil,
         generatedLayoutId = self.world:layout().generatedLayoutId,
@@ -1110,7 +1112,7 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
         campaign.renown = (campaign.renown or 0) + progress
         campaign.dread = math.max(0, (campaign.dread or 0) - 1)
         if mission.dreadBonus then
-            campaign.dread = (campaign.dread or 0) + mission.dreadBonus
+            campaign.dread = math.max(0, (campaign.dread or 0) + mission.dreadBonus)
         end
         if mission.dreadTradeoff then
             campaign.dread = (campaign.dread or 0) + mission.dreadTradeoff
@@ -1896,6 +1898,16 @@ function Simulation:applyCorridorRole(corridor)
         self:pushLog(role .. " raised noise")
         return true
     end
+    if roleDef.heatFatigueOnBacktrack and visits > 0 then
+        self.expedition.heatFatigue = (self.expedition.heatFatigue or 0) + roleDef.heatFatigueOnBacktrack
+        self:pushLog(role .. " raised heat")
+        return true
+    end
+    if roleDef.ambushNoise then
+        self:addNoise(roleDef.ambushNoise)
+        self:pushLog(role .. " hid threats")
+        return true
+    end
     if roleDef.floodAfterActivations and (self.expedition.questActivations or 0) >= roleDef.floodAfterActivations then
         self:addNoise(roleDef.noise or 1)
         self:pushLog(role .. " flooded")
@@ -2086,6 +2098,9 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
         if curio.dread then
             self:adjustDread(curio.dread)
         end
+        if curio.heatFatigue then
+            self.expedition.heatFatigue = (self.expedition.heatFatigue or 0) + curio.heatFatigue
+        end
         self:updateObjective()
         self:pushLog(curio.name .. " activated")
         self:narrate("curio", curioKey)
@@ -2127,6 +2142,9 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
     end
     if curio.dread and (curio.dread > 0 or usedItem) then
         self:adjustDread(curio.dread)
+    end
+    if curio.heatFatigue and not usedItem then
+        self.expedition.heatFatigue = (self.expedition.heatFatigue or 0) + curio.heatFatigue
     end
     self.expedition.curiosUsed[key] = true
     self.world:setTile(x, y, z, { id = self.world:floorTile(), data = 0 })
@@ -2471,6 +2489,15 @@ function Simulation:afterEnemyDamaged(enemy)
         self:pushLog(def.name .. " burst", { event = "danger", actor = def.name, side = "enemy" })
         return true
     end
+    if def.deathFrontDamage and not enemy.deathFrontDamaged then
+        enemy.deathFrontDamaged = true
+        local hero = self:heroAtRank(1)
+        if hero and hero.alive then
+            self:damageHero(hero, def.deathFrontDamage)
+            self:pushLog(def.name .. " immolated", { event = "danger", actor = def.name, side = "enemy" })
+            return true
+        end
+    end
     return false
 end
 
@@ -2530,6 +2557,12 @@ function Simulation:enemyTargetsForSkill(skill, consumeGuard)
     end
     if skill.markBonus and #marked > 0 then
         return { marked[1] }
+    end
+    if skill.targetMostInjured then
+        table.sort(candidates, function(a, b)
+            return (a.hp or 0) < (b.hp or 0)
+        end)
+        return { candidates[1] }
     end
     if not consumeGuard then
         return { candidates[1] }
@@ -2667,6 +2700,9 @@ function Simulation:enemyTurn(enemy)
     end
     if skill.noise then
         self:addNoise(skill.noise)
+    end
+    if skill.heatFatigue and self.expedition then
+        self.expedition.heatFatigue = (self.expedition.heatFatigue or 0) + skill.heatFatigue
     end
     for _, target in ipairs(targets) do
         local damage = 0
@@ -2873,6 +2909,10 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
             else
                 unit.hp = math.max(0, unit.hp - damage)
                 self:afterEnemyDamaged(unit)
+                local enemyDef = Defs.enemy(unit.kind)
+                if enemyDef and enemyDef.reflectDamage and damage > 0 then
+                    self:damageHero(hero, enemyDef.reflectDamage)
+                end
             end
         end
         if skill.stressDamage and targetSide == "enemy" then
@@ -2882,6 +2922,10 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
                 unit.hp = math.max(0, unit.hp - skill.stressDamage)
                 unit.stress = (unit.stress or 0) + skill.stressDamage
                 self:afterEnemyDamaged(unit)
+                local enemyDef = Defs.enemy(unit.kind)
+                if enemyDef and enemyDef.reflectStressDamage then
+                    self:addStress(hero, skill.stressDamage)
+                end
             end
         end
         if skill.heal then
@@ -3222,6 +3266,7 @@ function Simulation:snapshot()
             threatState = copyMap(self.expedition.threatState),
             noise = self.expedition.noise or 0,
             ambushRolls = self.expedition.ambushRolls or 0,
+            heatFatigue = self.expedition.heatFatigue or 0,
             corridorVisits = copyMap(self.expedition.corridorVisits),
             currentCorridor = self.expedition.currentCorridor,
             generatedLayoutId = self.expedition.generatedLayoutId,
@@ -3435,6 +3480,7 @@ function Simulation.fromSnapshot(snapshot)
             threatState = copyMap(exp.threatState),
             noise = exp.noise or 0,
             ambushRolls = exp.ambushRolls or 0,
+            heatFatigue = exp.heatFatigue or 0,
             corridorVisits = copyMap(exp.corridorVisits),
             currentCorridor = exp.currentCorridor,
             generatedLayoutId = exp.generatedLayoutId,

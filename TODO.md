@@ -4,7 +4,6 @@ This file tracks remaining work only. `TODO-CONTENT.md` is the detailed backlog 
 
 ## Immediate Priorities
 
-- [ ] Implement Ember Warrens v2 content: 39 open tasks covering layout grammar, rooms, corridor roles, missions, enemies, boss variant, curios, trinket, narration, tiers, and mini-boss warden work.
 - [ ] Implement Estate and Campaign expansion: 51 open tasks covering Estate fixtures, enclave leaders, faction meters, twin timer, dread rules, ending router, town events, trinket sets, quirks, and camp rituals.
 - [ ] Implement Exploration and Encounter expansion: 16 open tasks covering visible-threat AI, alpha markers, scout/ambush UI, stealth approach, bait, noise decay, injuries, weak-point v2, support repair, and alpha rewards.
 - [ ] Implement Found Documents and Lore Fragments: 7 open tasks covering document registry, Estate journal panel, drop rules, zone document banks, and fixture document barks.

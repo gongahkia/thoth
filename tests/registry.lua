@@ -334,6 +334,50 @@ do
     expect(floodToll and floodToll.boss and floodToll.parts[1].key == "bell_lung", "bell diver flood-toll weak point missing")
 end
 
+do
+    local ember = Defs.location("ember_warrens")
+    expect(ember.layout.grammar.id == "ember_grammar_v1", "ember grammar missing")
+    for _, key in ipairs({ "fuel_branch_tier", "vitrified_cloister_tier", "white_furnace_tier" }) do
+        expect(ember.tiers[key], "ember tier missing " .. key)
+    end
+    for _, key in ipairs({
+        "kiln_nave", "vitrified_dormitory", "ash_confessional", "bellows_choir",
+        "vitrifying_procession", "ash_archive", "furnace_antechamber",
+    }) do
+        expect(ember.layout.roomTemplates[key], "ember room template missing " .. key)
+    end
+    for _, key in ipairs({ "clinker_run", "bellows_spine", "soot_creep" }) do
+        expect(ember.layout.corridorRoles[key], "ember corridor role missing " .. key)
+    end
+    local threatKeys = {}
+    for _, threat in ipairs(ember.layout.threats) do
+        threatKeys[threat.key] = true
+    end
+    expect(threatKeys.white_furnace and threatKeys.kiln_vicar, "ember visible alpha threats missing")
+    for _, key in ipairs({
+        "ember_vow_kilns", "ember_ash_names", "ember_warm_dead",
+        "warrens_douse_vicar", "warrens_burn_false_vow", "warrens_warm_ledger",
+        "warrens_aron_boy", "warrens_open_furnace",
+    }) do
+        expect(Defs.mission(key), "ember v2 mission missing " .. key)
+    end
+    for _, key in ipairs({
+        "kiln_nurse", "glass_penitent", "ash_wasp_cloud", "bellows_acolyte",
+        "clinker_butcher", "white_furnace", "kiln_vicar", "vow_burned_friar",
+        "slag_bearer", "char_mouth_pup", "glass_choirmaster", "cinder_penitent",
+        "cinder_prioress_glass",
+    }) do
+        expect(Defs.enemy(key), "ember v2 enemy missing " .. key)
+    end
+    for _, key in ipairs({ "ash_lung_reliquary", "fuse_saint", "halo_vent", "vitrified_cot" }) do
+        expect(Defs.curio(key), "ember v2 curio missing " .. key)
+    end
+    expect(Defs.trinket("cinder_lens"), "ember trinket missing")
+    expect(Defs.narrationFor("ember_voice_v2"), "ember narration missing")
+    local prioress = Defs.enemy("cinder_prioress_glass")
+    expect(prioress and prioress.boss and prioress.parts[1].key == "halo_vent", "cinder prioress glass weak point missing")
+end
+
 for key, mission in pairs(Defs.missions) do
     expect(mission.name and Defs.location(mission.location), "mission missing location " .. key)
     expect(mission.kind == "scout" or mission.kind == "cleanse" or mission.kind == "boss" or mission.kind == "gather" or mission.kind == "activate", "mission bad kind " .. key)

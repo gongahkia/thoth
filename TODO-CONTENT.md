@@ -2,48 +2,6 @@
 
 Loose Markdown backlog. Task lines keep todo-ish metadata for search/filter use.
 
-## Ember Warrens
-
-- [ ] (A) Add warrens layout grammar with kiln nave, ash bypass, fuel branch, penitent loop, and furnace boss gate +EmberWarrens @worldgen type:layout zone:ember_warrens id:ember_grammar_v1
-- [ ] (A) Add warrens room template called kiln_nave with heat hazard and central curio +EmberWarrens @worldgen type:room zone:ember_warrens id:kiln_nave
-- [ ] (A) Add warrens room template called vitrified_dormitory with injury trap and reward cache +EmberWarrens @worldgen type:room zone:ember_warrens id:vitrified_dormitory
-- [ ] (B) Add warrens room template called ash_confessional with stress tradeoff and repair objective +EmberWarrens @worldgen type:room zone:ember_warrens id:ash_confessional
-- [ ] (B) Add warrens corridor role called clinker_run that costs light but avoids combat +EmberWarrens @simulation type:corridor zone:ember_warrens id:clinker_run
-- [ ] (B) Add warrens corridor role called bellows_spine that increases heat fatigue after backtracking +EmberWarrens @simulation type:corridor zone:ember_warrens id:bellows_spine
-- [ ] (A) Add mission Douse the Vow Kilns with ember_oil objective inversion and dread choice +EmberWarrens @registry type:mission zone:ember_warrens id:ember_vow_kilns
-- [ ] (A) Add mission Carry Out the Ash Names with gather objective and pack pressure +EmberWarrens @registry type:mission zone:ember_warrens id:ember_ash_names
-- [ ] (B) Add mission Spare the Warm Dead with repair objective and lower loot +EmberWarrens @registry type:mission zone:ember_warrens id:ember_warm_dead
-- [ ] (A) Add enemy Kiln Nurse as support that cauterizes enemies and burns heroes +EmberWarrens @registry type:enemy zone:ember_warrens id:kiln_nurse
-- [ ] (A) Add enemy Glass Penitent as armor guard with reflect-style chip damage +EmberWarrens @registry type:enemy zone:ember_warrens id:glass_penitent
-- [ ] (A) Add enemy Ash Wasp Cloud as swarm that pressures torch and back ranks +EmberWarrens @registry type:enemy zone:ember_warrens id:ash_wasp_cloud
-- [ ] (B) Add enemy Bellows Acolyte as stress caster that scales with low torch +EmberWarrens @registry type:enemy zone:ember_warrens id:bellows_acolyte
-- [ ] (B) Add enemy Clinker Butcher as trapper that causes cracked_ribs injury chance +EmberWarrens @registry type:enemy zone:ember_warrens id:clinker_butcher
-- [ ] (B) Add enemy White Furnace as rare alpha that blocks repair routes +EmberWarrens @registry type:enemy zone:ember_warrens id:white_furnace
-- [ ] (A) Add boss variant Cinder Prioress Glass-Crowned with weak point Halo Vent +EmberWarrens @combat type:boss_variant zone:ember_warrens id:prioress_glass
-- [ ] (B) Add curio Ash Lung Reliquary with laudanum safe use and stress-risk greedy use +EmberWarrens @registry type:curio zone:ember_warrens id:ash_lung_reliquary
-- [ ] (B) Add curio Fuse Saint with ward_charm repair use and ember_fever failure +EmberWarrens @registry type:curio zone:ember_warrens id:fuse_saint
-- [ ] (C) Add trinket Cinder Lens for stress damage and injury vulnerability +EmberWarrens @registry type:trinket zone:ember_warrens id:cinder_lens
-- [ ] (A) Add narration bank for heat fatigue, kiln rites, vitrified enemies, and ash retreat +EmberWarrens @narration type:voice zone:ember_warrens id:ember_voice_v2
-- [ ] (A) Add warrens sub-tier definitions for fuel_branch_tier, vitrified_cloister_tier, and white_furnace_tier +EmberWarrens @worldgen type:tier zone:ember_warrens id:warrens_tiers_v1
-- [ ] (A) Add warrens room template called bellows_choir with rising heat fatigue and central curio +EmberWarrens @worldgen type:room zone:ember_warrens id:bellows_choir
-- [ ] (A) Add warrens room template called vitrifying_procession as Tier II mini-boss arena with injury trap +EmberWarrens @worldgen type:room zone:ember_warrens id:vitrifying_procession
-- [ ] (B) Add warrens room template called ash_archive with carry-load objective and dread reward +EmberWarrens @worldgen type:room zone:ember_warrens id:ash_archive
-- [ ] (B) Add warrens room template called furnace_antechamber as Tier III boss antechamber +EmberWarrens @worldgen type:room zone:ember_warrens id:furnace_antechamber
-- [ ] (B) Add warrens corridor role called soot_creep that hides visible threats and amplifies ambush +EmberWarrens @simulation type:corridor zone:ember_warrens id:soot_creep
-- [ ] (A) Add mini-boss warden Kiln Vicar as visible alpha that targets the most injured hero with vitrify +EmberWarrens @combat type:warden zone:ember_warrens id:kiln_vicar
-- [ ] (A) Add enemy Vow-Burned Friar as caster that increases heat fatigue per turn +EmberWarrens @registry type:enemy zone:ember_warrens id:vow_burned_friar
-- [ ] (A) Add enemy Slag Bearer as armor guard that produces ash_tremor on melee hit +EmberWarrens @registry type:enemy zone:ember_warrens id:slag_bearer
-- [ ] (B) Add enemy Char-Mouth Pup as scout swarm that scatters and re-forms +EmberWarrens @registry type:enemy zone:ember_warrens id:char_mouth_pup
-- [ ] (B) Add enemy Glass Choirmaster as support that reflects hero stress damage +EmberWarrens @registry type:enemy zone:ember_warrens id:glass_choirmaster
-- [ ] (B) Add enemy Cinder Penitent as trapper that immolates self on death to burn front rank +EmberWarrens @registry type:enemy zone:ember_warrens id:cinder_penitent
-- [ ] (A) Add mission Douse the Kiln Vicar with mini-boss objective and Ember Penitent faction cost +EmberWarrens @registry type:mission zone:ember_warrens id:warrens_douse_vicar
-- [ ] (A) Add mission Burn the False Vow with activate-and-survive objective and dread reduction +EmberWarrens @registry type:mission zone:ember_warrens id:warrens_burn_false_vow
-- [ ] (B) Add mission Recover the Warm Ledger with gather objective and enclave favor +EmberWarrens @registry type:mission zone:ember_warrens id:warrens_warm_ledger
-- [ ] (B) Add mission Carry Out the Aron Boy with rescue objective and named NPC consequence +EmberWarrens @registry type:mission zone:ember_warrens id:warrens_aron_boy
-- [ ] (B) Add mission Open the White Furnace with key-assembly objective and Tier III unlock +EmberWarrens @registry type:mission zone:ember_warrens id:warrens_open_furnace
-- [ ] (B) Add curio Halo Vent with ember_oil safe use and stress on greedy use +EmberWarrens @registry type:curio zone:ember_warrens id:halo_vent
-- [ ] (C) Add curio Vitrified Cot with ward_charm repair use and ember_fever failure +EmberWarrens @registry type:curio zone:ember_warrens id:vitrified_cot
-
 ## Estate And Campaign
 
 - [ ] (A) Add Estate Survey Office building copy that frames expeditions as paid salvage +Estate @ui type:copy zone:estate id:survey_office_copy

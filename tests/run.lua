@@ -235,6 +235,123 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local vicar = World.new(110, "ember_warrens", { tiles = {}, layoutId = "warrens_douse_vicar" })
+    local furnace = World.new(110, "ember_warrens", { tiles = {}, layoutId = "warrens_open_furnace" })
+    expect(vicar:layout().generatedLayoutId == World.fromSnapshot(vicar:snapshot()):layout().generatedLayoutId, "ember mission layout should snapshot deterministically")
+    expect(vicar:encounterForRoom("8:-8") == "ember_vicar" and vicar:encounterForRoom("20:-8") == nil, "vicar mission should replace boss gate")
+    expect(furnace:encounterForRoom("20:4") == "ember_furnace" and furnace:encounterForRoom("20:-8") == "prioress", "white furnace mission should place furnace and boss gate")
+    expect(furnace:layout().roomTemplateByRole.kiln_nave == "kiln_nave", "ember layout should expose room template roles")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(111)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("ember_vow_kilns"))
+    local torch = sim.expedition.torch
+    sim:applyCorridorRole(sim.world:corridorAt(1, 0))
+    expect(sim.expedition.torch == torch - 7, "clinker run should cost torch")
+    sim.expedition.currentCorridor = nil
+    local bellows = sim.world:corridorAt(9, -8)
+    sim:applyCorridorRole(bellows)
+    local heat = sim.expedition.heatFatigue
+    sim.expedition.currentCorridor = nil
+    sim:applyCorridorRole(bellows)
+    expect(sim.expedition.heatFatigue == heat + 1, "bellows spine should raise heat on backtrack")
+    sim.expedition.currentCorridor = nil
+    local noise = sim.expedition.noise
+    sim:applyCorridorRole(sim.world:corridorAt(8, -1))
+    expect(sim.expedition.noise == noise + 3, "soot creep should amplify ambush noise")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(112)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("ember_vow_kilns"))
+    expect(sim.expedition.supplies:count("ember_oil") == 2, "vow kilns should grant ember oil")
+    sim:resolveCurio(14, -3, 0, "ember_ward")
+    sim:resolveCurio(20, 3, 0, "ember_ward")
+    expect(sim.expedition.objectiveComplete and sim.expedition.supplies:count("ember_oil") == 0, "vow kilns should complete after two wards")
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("ember_ash_names"))
+    expect(sim.expedition.packSlots == 10, "ash names should apply pack pressure")
+    sim:resolveCurio(8, -1, 0, "ash_name")
+    sim:resolveCurio(14, 5, 0, "ash_name")
+    expect(sim.expedition.objectiveComplete and sim.expedition.loot:count("ash_name") == 2, "ash names should complete after two names")
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("warrens_open_furnace"))
+    sim:resolveCurio(20, 5, 0, "white_furnace_key")
+    sim:resolveCurio(20, -7, 0, "white_furnace_key")
+    expect(sim.expedition.objectiveComplete, "white furnace should complete after key assembly")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(113)
+    sim:endExpedition(true)
+    sim.estate.campaign.dread = 0
+    runQueued(sim, Simulation.commands.startExpedition("warrens_burn_false_vow"))
+    sim:resolveCurio(14, -5, 0, "false_vow")
+    sim:endExpedition(false)
+    expect(sim.estate.campaign.dread == 0, "false vow success should not push dread below zero")
+    runQueued(sim, Simulation.commands.startExpedition("warrens_open_furnace"))
+    local heat = sim.expedition.heatFatigue
+    sim:resolveCurio(20, -9, 0, "halo_vent", { forceNoItem = true })
+    expect(sim.expedition.heatFatigue == heat + 1, "halo vent greedy use should raise heat fatigue")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(114)
+    sim:endExpedition(true)
+    sim.estate.campaign.dread = 4
+    runQueued(sim, Simulation.commands.startExpedition("ember_prioress"))
+    expect(sim:startCombat("prioress", "20:-8"), "ember boss variant combat should start")
+    expect(sim.combat.encounter == "prioress_ember" and sim.combat.enemies[1].kind == "cinder_prioress_glass", "high dread should select glass-crowned prioress")
+    expect(sim.combat.enemies[1].parts[1].key == "halo_vent", "glass-crowned prioress should expose halo vent")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(115)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("warrens_douse_vicar"))
+    sim:startCombat("ember_vicar", "8:-8")
+    sim:heroAtRank(1).hp = 20
+    sim:heroAtRank(2).hp = 3
+    sim:heroAtRank(3).hp = 8
+    local target = sim:enemyTargetsForSkill(Defs.enemySkill("halo_vitrify"), false)[1]
+    expect(target == sim:heroAtRank(2), "halo vitrify should target the most injured hero")
+    sim:finishCombat(true)
+    sim:startCombat("ember_furnace", "20:4")
+    local heat = sim.expedition.heatFatigue
+    sim:enemyTurn(sim.combat.enemies[2])
+    expect(sim.expedition.heatFatigue >= heat + 1, "ember heat skills should raise heat fatigue")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(116)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("ember_cleansing"))
+    sim:startCombat("ember_kiln", "8:0")
+    local hero = sim:heroAtRank(1)
+    hero.quirks = {}
+    local hp = hero.hp
+    sim:applySkill(hero, 1, "shield_crack", Defs.skill("shield_crack"), { sim.combat.enemies[2] }, "enemy")
+    expect(hero.hp == hp - 1, "glass penitent should reflect chip damage")
+    sim:finishCombat(true)
+    sim:startCombat("ember_glass", "20:4")
+    local arcanist = sim:heroAtRank(4)
+    arcanist.quirks = {}
+    arcanist.stress = 0
+    sim:applySkill(arcanist, 4, "hush", Defs.skill("hush"), { sim.combat.enemies[1] }, "enemy")
+    expect(arcanist.stress == Defs.skill("hush").stressDamage, "glass choirmaster should reflect stress damage")
+    local front = sim:heroAtRank(1)
+    front.quirks = {}
+    hp = front.hp
+    local cinder = sim.combat.enemies[2]
+    cinder.hp = 0
+    sim:afterEnemyDamaged(cinder)
+    expect(front.hp == hp - Defs.enemy("cinder_penitent").deathFrontDamage, "cinder penitent should burn front rank on death")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(47)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("cistern_survey"))
