@@ -149,7 +149,6 @@ Goal: Balatro-feel polish on every interaction. Audio mix. Final accessibility p
 - [ ] 7.3 Audio mix pass: layer ambient + music + SFX, sidechain duck on critical events (40h)
 - [ ] 7.4 Voice barks: short text-to-speech or sampled stings for class arrivals, deaths, crits (40h opt., skip if cost-prohibitive)
 - [ ] 7.5 Localization scaffolding: extract all strings to `src/game/data/i18n/en.lua`; add `i18n.t(key)` calls in render layer (80h)
-- [ ] 7.6 Community translation onboarding: README section, contribution guide, sample translation (8h)
 - [ ] 7.7 Accessibility final pass: colorblind palettes, high-contrast UI, font scale, motion-reduced toggle, screen-reader-friendly text exports (40h)
 - [ ] 7.8 Performance final pass: cold-boot time <3s, expedition load <1s, frame time <16ms 99th percentile (80h)
 - [ ] 7.9 Memory profiling: ensure <500MB resident (Balatro reference) (16h)
