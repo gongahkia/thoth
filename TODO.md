@@ -109,7 +109,6 @@ Goal: replace `assets/sprites/thoth_atlas.png` (single 128×80 placeholder) with
 
 Goal: full playthrough of Buried Archive Tier I (3 missions) end-to-end, with 4 starter classes (Warden, Duelist, Apothecary, Thief).
 
-- [ ] 4.4 Build Buried Archive Tier I content polish pass: 3 missions (`archive_scout`, `archive_cleansing`, `archive_gather`) (40h)
 - [ ] 4.5 Playtest end-to-end: title → estate → recruit 4 heroes → first mission → camp → return → recover → second mission (24h)
 - [ ] 4.6 Bug bash: log every defect during playtest (16h)
 - [ ] 4.7 Fix top 30 bugs by severity (120h)

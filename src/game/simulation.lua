@@ -3872,7 +3872,7 @@ function Simulation:missionProgressText()
     elseif mission.kind == "activate" then
         progress = self.expedition.questActivations or 0
     end
-    return mission.kind .. " " .. progress .. "/" .. target
+    return (mission.progressLabel or mission.kind) .. " " .. progress .. "/" .. target
         .. "  light " .. self.expedition.torch
         .. "  pack " .. self:lootSlotsUsed() .. "/" .. (self.expedition.packSlots or 12)
         .. "  loot " .. self.expedition.loot:count("coin") .. "c"
@@ -3894,9 +3894,9 @@ function Simulation:objectiveChecklist()
         {
             title = "Expedition",
             items = {
-                { label = mission.kind, done = self.expedition.objectiveComplete, next = mission.name },
-                { label = "camp", done = self.expedition.campUsed, next = "Camp at the cold camp if stress climbs" },
-                { label = "regent", done = self.expedition.bossDefeated, next = "Defeat the Vault Regent or return after scouting" },
+                { label = mission.objectiveLabel or mission.kind, done = self.expedition.objectiveComplete, next = mission.objectiveNext or mission.name },
+                { label = "camp", done = self.expedition.campUsed, next = mission.campHint or "Camp at the cold camp if stress climbs" },
+                { label = "regent", done = self.expedition.bossDefeated, next = mission.regentHint or "Defeat the Vault Regent or return after scouting" },
                 { label = "exit", done = not self.expedition.active, next = "Face the exit gate and press space" },
             },
         },

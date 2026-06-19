@@ -1306,6 +1306,15 @@ Registry.missions = {
         difficulty = "apprentice",
         resolveLevel = 1,
         objectiveRooms = 3,
+        progressLabel = "survey rooms",
+        objectiveLabel = "survey",
+        objectiveNext = "Scout 3 rooms, then leave before the Archive notices the route.",
+        campHint = "Camp only if stress spikes; scouting pays for speed.",
+        regentHint = "Ignore the sealed gate for now; the Estate needs a map first.",
+        intro = {
+            brief = "Chart three rooms past the intake shelves and return with a usable route.",
+            sting = "A map is a promise that someone else can be charged for walking deeper.",
+        },
         reward = { gold = 80, heirlooms = 1 },
     },
     archive_cleansing = {
@@ -1316,6 +1325,15 @@ Registry.missions = {
         difficulty = "apprentice",
         resolveLevel = 1,
         objectiveEncounters = 2,
+        progressLabel = "rooms cleared",
+        objectiveLabel = "cleanse",
+        objectiveNext = "Win 2 fights and keep the corridor usable for the next crew.",
+        campHint = "Camp after the first fight if stress or death's door risk is high.",
+        regentHint = "Leave the Regent sealed; this run is corridor control.",
+        intro = {
+            brief = "Cull two hostile rooms so the Buried Archive stops feeding on its own entrance.",
+            sting = "A cleared shelf is not safe; it is only rentable.",
+        },
         reward = { gold = 110, heirlooms = 2 },
     },
     archive_gather = {
@@ -1326,6 +1344,15 @@ Registry.missions = {
         difficulty = "apprentice",
         resolveLevel = 1,
         objectiveItems = { archive_page = 2 },
+        progressLabel = "folios recovered",
+        objectiveLabel = "recover",
+        objectiveNext = "Recover 2 archive pages from dead-end shelves or curio rooms.",
+        campHint = "Camp before carrying full loot through an uncleared corridor.",
+        regentHint = "Do not chase the Regent while the folios are still loose.",
+        intro = {
+            brief = "Recover two torn folios before the Stack files them under ash and bone.",
+            sting = "Evidence becomes truth only once it reaches the Estate ledger.",
+        },
         reward = { gold = 120, heirlooms = 2 },
     },
     archive_names = {
@@ -1715,7 +1742,7 @@ local missionIntroByKind = {
 }
 for _, missionKey in ipairs(Registry.missionOrder) do
     local mission = Registry.missions[missionKey]
-    mission.intro = missionIntroByKind[mission.kind] or missionIntroByKind.scout
+    mission.intro = mission.intro or missionIntroByKind[mission.kind] or missionIntroByKind.scout
 end
 
 Registry.campSkills = {
