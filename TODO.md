@@ -85,7 +85,6 @@ Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
 
 Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render layer. Keep `simulation.lua` untouched.
 
-- [ ] 1.14 Delete old `src/app/render.lua` once `render3d.lua` is at parity (1h)
 - [ ] 1.15 Rename `render3d.lua` → `render.lua` (1h)
 - [ ] 1.16 Update CI workflow (`.github/workflows/ci.yml`) to run new render smoke (2h)
 - [ ] 1.17 Tag commit `phase1-engine-port-complete` (0.5h)
