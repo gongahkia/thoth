@@ -94,6 +94,19 @@ local function reachEntryCombat(sim)
     expect(sim.mode == "combat", "entry room should start combat")
 end
 
+local function makeActiveMerchant(sim, rank)
+    local hero = sim:heroAtRank(rank)
+    hero.class = "merchant"
+    hero.name = "Leto"
+    hero.skills = { "appraise_weak_point", "brokered_mercy", "settle_accounts" }
+    hero.skillLevels = { appraise_weak_point = 1, brokered_mercy = 1, settle_accounts = 1 }
+    hero.hp = Defs.heroClass("merchant").maxHp
+    hero.stress = 0
+    sim.combat.active = { side = "hero", id = hero.id, rank = rank }
+    sim.player.selectedHero = rank
+    return hero
+end
+
 local tests = {}
 
 tests[#tests + 1] = function()
@@ -765,6 +778,43 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.combatSkill("arterial_cut", 1, "enemy"))
     expect(enemy.hp < hp, "combat skill should damage enemy")
     expect(#enemy.statuses == 1 and enemy.statuses[1].kind == "bleed", "arterial cut should apply bleed")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(216)
+    reachEntryCombat(sim)
+    local merchant = makeActiveMerchant(sim, 4)
+    local enemy = sim:enemyAtRank(1)
+    sim:applySkill(merchant, 4, "appraise_weak_point", Defs.skill("appraise_weak_point"), { enemy }, "enemy")
+    expect(sim:hasStatus(enemy, "marked"), "merchant appraise should mark enemy")
+    local hp = enemy.hp
+    local duelist = sim:heroAtRank(2)
+    sim:applySkill(duelist, 2, "razor_lunge", Defs.skill("razor_lunge"), { enemy }, "enemy")
+    expect(enemy.hp < hp and not sim:hasStatus(enemy, "marked"), "marked enemy should take a direct hit and consume mark")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(217)
+    reachEntryCombat(sim)
+    local merchant = makeActiveMerchant(sim, 4)
+    local ally = sim:heroAtRank(1)
+    ally.hp = ally.hp - 5
+    sim:applySkill(merchant, 4, "brokered_mercy", Defs.skill("brokered_mercy"), { ally }, "ally")
+    expect(ally.hp > Defs.heroClass(ally.class).maxHp - 5 and merchant.stress >= 3, "brokered mercy should heal ally and stress merchant")
+end
+
+tests[#tests + 1] = function()
+    local function settleDamage(enemyHp)
+        local sim = Simulation.new(218)
+        reachEntryCombat(sim)
+        local merchant = makeActiveMerchant(sim, 2)
+        local enemy = sim:enemyAtRank(1)
+        enemy.kind = "hollow_guard"
+        enemy.hp = enemyHp
+        sim:applySkill(merchant, 2, "settle_accounts", Defs.skill("settle_accounts"), { enemy }, "enemy")
+        return enemyHp - enemy.hp
+    end
+    expect(settleDamage(12) > settleDamage(16), "settle accounts should scale damage against missing hp")
 end
 
 tests[#tests + 1] = function()

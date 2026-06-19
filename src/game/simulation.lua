@@ -3912,11 +3912,25 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
             if not target.partKey then
                 unit = self:enemyProtectorFor(unit) or unit
             end
-            local damage = math.max(0, self:roll(skill.damage[1], skill.damage[2]) + damageBonus)
+            local enemyDef = Defs.enemy(unit.kind) or {}
+            local marked = not target.partKey and self:hasStatus(unit, "marked")
+            local damage = self:roll(skill.damage[1], skill.damage[2]) + damageBonus
+            if skill.missingHpScale and enemyDef.maxHp then
+                damage = damage + math.floor(math.max(0, enemyDef.maxHp - (unit.hp or 0)) / enemyDef.maxHp * skill.missingHpScale)
+            end
+            if marked then
+                damage = damage + (skill.markedDamageBonus or 2)
+            else
+                damage = damage - (enemyDef.armor or 0)
+            end
+            damage = math.max(0, damage)
             if target.partKey then
                 self:damageEnemyPart(unit, target.partKey, damage)
             else
                 unit.hp = math.max(0, unit.hp - damage)
+                if marked and damage > 0 then
+                    self:clearStatus(unit, "marked")
+                end
                 self:afterEnemyDamaged(unit)
                 local enemyDef = Defs.enemy(unit.kind)
                 if enemyDef and enemyDef.reflectDamage and damage > 0 then
@@ -3946,6 +3960,9 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
         if skill.status and targetSide == "enemy" and not target.partKey and unit.hp > 0 then
             unit.statuses[#unit.statuses + 1] = copyMap(skill.status)
         end
+    end
+    if skill.selfStress then
+        self:addStress(hero, skill.selfStress)
     end
     if skill.guard then
         hero.guard = math.max(hero.guard or 0, skill.guard)
