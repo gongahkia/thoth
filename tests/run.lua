@@ -571,6 +571,21 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(70)
+    sim:endExpedition(true)
+    sim.estate.gold = 200
+    runQueued(sim, Simulation.commands.recruitHero(1))
+    local hero = sim.estate.roster[#sim.estate.roster]
+    runQueued(sim, Simulation.commands.equipTrinket(hero.id, "cracked_lens", 1))
+    expect(not sim:dismissHero(sim:heroAtRank(1).id), "dismiss should reject party heroes")
+    runQueued(sim, Simulation.commands.dismissHero(hero.id))
+    expect(not sim:heroById(hero.id), "dismiss should remove roster hero")
+    expect(sim.estate.dismissed[1].id == hero.id and sim.estate.trinkets.cracked_lens >= 1, "dismiss should record history and return trinkets")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.estate.dismissed[1].id == hero.id, "dismiss history should survive snapshot")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(44)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.recruitHero(1))
@@ -795,6 +810,18 @@ tests[#tests + 1] = function()
     Input.mousepressed(sim, app, 125, 5, 1)
     sim:step()
     expect(hero.recoveryActivity == "quiet_rest", "estate recover button should pass activity key")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(71)
+    sim:endExpedition(true)
+    sim.estate.gold = 200
+    runQueued(sim, Simulation.commands.recruitHero(1))
+    local hero = sim.estate.roster[#sim.estate.roster]
+    local app = { ui = { estateActionButtons = { { x = 0, y = 0, w = 20, h = 20, action = "dismissHero", heroId = hero.id } } } }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    sim:step()
+    expect(not sim:heroById(hero.id), "estate dismiss button should dismiss roster hero")
 end
 
 tests[#tests + 1] = function()

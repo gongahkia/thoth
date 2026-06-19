@@ -163,6 +163,7 @@ function Simulation.new(seed)
             provisionCart = Inventory.new(),
             upgrades = { stagecoach = 0, guild = 0, forge = 0, infirmary = 0 },
             campaign = newCampaign(),
+            dismissed = {},
             recruits = {},
             nextHeroId = 5,
             recruitSerial = 1,
@@ -231,6 +232,10 @@ end
 
 function Simulation.commands.recoverHero(heroId, activityKey)
     return { type = "recoverHero", heroId = heroId, activityKey = activityKey }
+end
+
+function Simulation.commands.dismissHero(heroId)
+    return { type = "dismissHero", heroId = heroId }
 end
 
 function Simulation.commands.advanceWeek()
@@ -336,6 +341,9 @@ function Simulation:apply(command)
     end
     if command.type == "recoverHero" then
         return self:recoverHero(command.heroId, command.activityKey)
+    end
+    if command.type == "dismissHero" then
+        return self:dismissHero(command.heroId)
     end
     if command.type == "advanceWeek" then
         return self:advanceWeek()
@@ -980,6 +988,32 @@ function Simulation:recruitHero(recruitIndex)
     end
     self:refillRecruits()
     self:pushLog(hero.name .. " recruited")
+    return true
+end
+
+function Simulation:dismissHero(heroId)
+    if self.mode ~= "estate" then
+        return false
+    end
+    local hero = self:heroById(heroId)
+    if not hero or not hero.alive or (hero.recovering or 0) > 0 or self:heroRank(hero.id) or self:livingRosterCount() <= 4 then
+        return false
+    end
+    for _, trinketKey in ipairs(hero.trinkets or {}) do
+        if trinketKey then
+            self.estate.trinkets[trinketKey] = ((self.estate.trinkets or {})[trinketKey] or 0) + 1
+        end
+    end
+    local kept = {}
+    for _, value in ipairs(self.estate.roster) do
+        if value.id ~= hero.id then
+            kept[#kept + 1] = value
+        end
+    end
+    self.estate.roster = kept
+    self.estate.dismissed = self.estate.dismissed or {}
+    self.estate.dismissed[#self.estate.dismissed + 1] = { id = hero.id, name = hero.name, class = hero.class, week = self.estate.week or 1 }
+    self:pushLog(hero.name .. " dismissed")
     return true
 end
 
@@ -2415,6 +2449,10 @@ function Simulation:snapshot()
             quirks = copyList(recruit.quirks),
         }
     end
+    local dismissed = {}
+    for _, entry in ipairs(self.estate.dismissed or {}) do
+        dismissed[#dismissed + 1] = copyMap(entry)
+    end
     local expedition = nil
     if self.expedition then
         expedition = {
@@ -2477,6 +2515,7 @@ function Simulation:snapshot()
             eventHistory = copyList(self.estate.eventHistory),
             roster = roster,
             graveyard = copyList(self.estate.graveyard),
+            dismissed = dismissed,
             trinkets = copyMap(self.estate.trinkets),
             provisionCart = self.estate.provisionCart:stacks(),
             upgrades = copyMap(self.estate.upgrades),
@@ -2511,7 +2550,7 @@ function Simulation.fromSnapshot(snapshot)
         mode = snapshot.mode or "estate",
         world = World.fromSnapshot(snapshot.world or { seed = snapshot.seed or 1, tiles = {} }),
         player = copyMap(snapshot.player or { x = 0, y = 0, z = 0, facing = "east", selectedHero = 1 }),
-        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {}, trinkets = {}, provisionCart = Inventory.new(), upgrades = {}, campaign = newCampaign(), recruits = {}, nextHeroId = 1, recruitSerial = 1 },
+        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {}, dismissed = {}, trinkets = {}, provisionCart = Inventory.new(), upgrades = {}, campaign = newCampaign(), recruits = {}, nextHeroId = 1, recruitSerial = 1 },
         party = copyList(snapshot.party or {}),
         expedition = nil,
         combat = nil,
@@ -2525,6 +2564,7 @@ function Simulation.fromSnapshot(snapshot)
     self.estate.currentEvent = snapshot.estate and snapshot.estate.currentEvent or nil
     self.estate.eventHistory = copyList((snapshot.estate and snapshot.estate.eventHistory) or {})
     self.estate.graveyard = copyList((snapshot.estate and snapshot.estate.graveyard) or {})
+    self.estate.dismissed = copyList((snapshot.estate and snapshot.estate.dismissed) or {})
     self.estate.trinkets = copyMap((snapshot.estate and snapshot.estate.trinkets) or {})
     self.estate.provisionCart = inventoryFromStacks((snapshot.estate and snapshot.estate.provisionCart) or {})
     self.estate.upgrades = copyMap((snapshot.estate and snapshot.estate.upgrades) or { stagecoach = 0, guild = 0, forge = 0, infirmary = 0 })

@@ -261,6 +261,8 @@ function Input.mousepressed(sim, app, x, y, button)
                 sim:queue(Simulation.commands.unequipTrinket(hitbox.heroId, hitbox.slot))
             elseif hitbox.action == "recoverHero" then
                 sim:queue(Simulation.commands.recoverHero(hitbox.heroId, hitbox.activityKey))
+            elseif hitbox.action == "dismissHero" then
+                sim:queue(Simulation.commands.dismissHero(hitbox.heroId))
             elseif hitbox.action == "treatQuirk" then
                 sim:queue(Simulation.commands.treatQuirk(hitbox.heroId, hitbox.quirkKey))
             elseif hitbox.action == "lockQuirk" then
