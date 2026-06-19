@@ -69,6 +69,8 @@ local Defs = {
     factionOrder = Registry.factionOrder,
     factionHazards = Registry.factionHazards,
     factionHazardOrder = Registry.factionHazardOrder,
+    factionPressureRules = Registry.factionPressureRules,
+    factionPressureRuleOrder = Registry.factionPressureRuleOrder,
     dreadRules = Registry.dreadRules,
     dreadRuleOrder = Registry.dreadRuleOrder,
     campaignTimers = Registry.campaignTimers,
@@ -257,6 +259,10 @@ end
 
 function Defs.factionHazard(id)
     return Defs.factionHazards[id]
+end
+
+function Defs.factionPressureRule(id)
+    return Defs.factionPressureRules[id]
 end
 
 function Defs.dreadRule(id)

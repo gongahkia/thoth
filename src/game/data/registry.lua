@@ -2240,6 +2240,30 @@ Registry.factionHazards = {
 }
 Registry.factionHazardOrder = { "faction_hazards_v1" }
 
+Registry.factionPressureRules = {
+    mission_pressure_v1 = {
+        successDread = -1,
+        repairDread = -1,
+        abandonedDread = 1,
+        failedDread = 2,
+        repairEnclave = 1,
+        repairLocal = -1,
+        extractEnclave = -1,
+        extractLocal = 1,
+        rescueEnclave = 1,
+        surveyLamplighters = -1,
+        cleanseLocal = -1,
+        activateLocal = 1,
+        sealLocal = 2,
+        sealLamplighters = -1,
+        factionTradeoff = 2,
+        enclaveTradeoff = -1,
+        namedNpcEnclave = 1,
+        namedNpcLocal = 1,
+    },
+}
+Registry.factionPressureRuleOrder = { "mission_pressure_v1" }
+
 Registry.dreadRules = {
     dread_rules_v1 = {
         greedy_extract = 1,

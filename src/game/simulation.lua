@@ -1108,8 +1108,78 @@ function Simulation:adjustFaction(factionKey, amount)
     return true
 end
 
+function Simulation:localFactionForLocation(locationKey)
+    if locationKey == "buried_archive" then
+        return "faction_custodians"
+    end
+    if locationKey == "salt_cistern" then
+        return "faction_cistern_keepers"
+    end
+    if locationKey == "ember_warrens" then
+        return "faction_ember_penitents"
+    end
+    return nil
+end
+
 function Simulation:missionHasTag(mission, tag)
     return contains((mission and mission.tags) or {}, tag)
+end
+
+local function addFactionDelta(profile, factionKey, amount)
+    if factionKey and amount and amount ~= 0 then
+        profile.factions[factionKey] = (profile.factions[factionKey] or 0) + amount
+    end
+end
+
+function Simulation:missionPressureProfile(mission, success, retreat)
+    local rules = Defs.factionPressureRule("mission_pressure_v1") or {}
+    local profile = { dread = 0, factions = {} }
+    if not mission then
+        return profile
+    end
+    if not success then
+        profile.dread = retreat and (rules.abandonedDread or 1) or (rules.failedDread or 2)
+        return profile
+    end
+    local localFaction = self:localFactionForLocation(mission.location)
+    profile.dread = (rules.successDread or 0) + (mission.dreadBonus or 0) + (mission.dreadTradeoff or 0)
+    if self:missionHasTag(mission, "repair") then
+        profile.dread = profile.dread + (rules.repairDread or 0)
+        addFactionDelta(profile, "enclave_meter", rules.repairEnclave or 0)
+        addFactionDelta(profile, localFaction, rules.repairLocal or 0)
+    end
+    if self:missionHasTag(mission, "extract") and not self:missionHasTag(mission, "repair") then
+        addFactionDelta(profile, "enclave_meter", rules.extractEnclave or 0)
+        addFactionDelta(profile, localFaction, rules.extractLocal or 0)
+    end
+    if self:missionHasTag(mission, "rescue") then
+        addFactionDelta(profile, "enclave_meter", rules.rescueEnclave or 0)
+    end
+    if self:missionHasTag(mission, "survey") then
+        addFactionDelta(profile, "faction_lamplighters", rules.surveyLamplighters or 0)
+    end
+    if self:missionHasTag(mission, "cleanse") then
+        addFactionDelta(profile, localFaction, rules.cleanseLocal or 0)
+    end
+    if self:missionHasTag(mission, "activate") and not self:missionHasTag(mission, "repair") then
+        addFactionDelta(profile, localFaction, rules.activateLocal or 0)
+    end
+    if self:missionHasTag(mission, "seal") or mission.kind == "boss" then
+        addFactionDelta(profile, localFaction, rules.sealLocal or 0)
+        addFactionDelta(profile, "faction_lamplighters", rules.sealLamplighters or 0)
+    end
+    addFactionDelta(profile, mission.factionTradeoff or mission.factionCost, rules.factionTradeoff or 0)
+    if mission.enclaveTradeoff then
+        addFactionDelta(profile, "enclave_meter", rules.enclaveTradeoff or 0)
+    end
+    if mission.enclaveFavor then
+        addFactionDelta(profile, "enclave_meter", mission.enclaveFavor)
+    end
+    if mission.namedNpcConsequence then
+        addFactionDelta(profile, "enclave_meter", rules.namedNpcEnclave or 0)
+        addFactionDelta(profile, localFaction, rules.namedNpcLocal or 0)
+    end
+    return profile
 end
 
 function Simulation:lateWeekPressure()
@@ -1446,21 +1516,13 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
     local campaign = self:ensureCampaignState()
     local locationKey = mission and mission.location or (self.expedition and self.expedition.location) or "buried_archive"
     local missionKey = self.expedition and self.expedition.mission or (mission and mission.name) or locationKey
-    local dreadRules = Defs.dreadRule("dread_rules_v1") or {}
+    local pressure = self:missionPressureProfile(mission, success, retreat)
     if success then
         local progress = mission.kind == "boss" and 2 or 1
         campaign.renown = (campaign.renown or 0) + progress
-        campaign.dread = math.max(0, (campaign.dread or 0) - 1)
-        if mission.dreadBonus then
-            campaign.dread = math.max(0, (campaign.dread or 0) + mission.dreadBonus)
-        end
-        if mission.dreadTradeoff then
-            campaign.dread = (campaign.dread or 0) + mission.dreadTradeoff
-        end
+        campaign.dread = math.max(0, (campaign.dread or 0) + (pressure.dread or 0))
         if self:missionHasTag(mission, "repair") then
             campaign.flags.repairMissions = (campaign.flags.repairMissions or 0) + 1
-            campaign.dread = math.max(0, (campaign.dread or 0) + (dreadRules.repair_mission or 0))
-            self:adjustFaction("enclave_meter", 1)
         end
         if self:missionHasTag(mission, "extract") then
             campaign.flags.extractMissions = (campaign.flags.extractMissions or 0) + 1
@@ -1468,12 +1530,8 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
                 campaign.flags.greedyExtracts = (campaign.flags.greedyExtracts or 0) + 1
             end
         end
-        if locationKey == "buried_archive" then
-            self:adjustFaction("faction_custodians", self:missionHasTag(mission, "repair") and -1 or 1)
-        elseif locationKey == "salt_cistern" then
-            self:adjustFaction("faction_cistern_keepers", self:missionHasTag(mission, "repair") and -1 or 1)
-        elseif locationKey == "ember_warrens" then
-            self:adjustFaction("faction_ember_penitents", self:missionHasTag(mission, "repair") and -1 or 1)
+        for factionKey, amount in pairs(pressure.factions or {}) do
+            self:adjustFaction(factionKey, amount)
         end
         local event = Defs.townEvent(self.estate.currentEvent)
         if event and event.completionDread then
@@ -1485,7 +1543,7 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
             campaign.bossKills[locationKey] = true
         end
     else
-        campaign.dread = (campaign.dread or 0) + (retreat and (dreadRules.abandoned_mission or 1) or 2)
+        campaign.dread = math.max(0, (campaign.dread or 0) + (pressure.dread or 0))
     end
     local defeated = 0
     for _, key in ipairs(Defs.locationOrder) do

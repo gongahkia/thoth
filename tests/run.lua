@@ -1641,6 +1641,23 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(137)
+    sim:endExpedition(true)
+    for _, missionKey in ipairs(Defs.missionOrder) do
+        local profile = sim:missionPressureProfile(Defs.mission(missionKey), true, false)
+        expect(type(profile.dread) == "number" and next(profile.factions) ~= nil, missionKey .. " should expose mission pressure")
+    end
+    local extract = sim:missionPressureProfile(Defs.mission("archive_names"), true, false)
+    expect(extract.factions.faction_custodians == 1 and extract.factions.enclave_meter == -1, "extract mission should pressure local faction and enclave")
+    local repair = sim:missionPressureProfile(Defs.mission("archive_false_index"), true, false)
+    expect(repair.dread == -1 and repair.factions.faction_custodians == -1 and repair.factions.enclave_meter == 1, "repair mission should reduce dread and local pressure")
+    local boss = sim:missionPressureProfile(Defs.mission("archive_regent"), true, false)
+    expect(boss.factions.faction_custodians == 2 and boss.factions.faction_lamplighters == -1, "boss mission should seal local pressure and steady lamplighters")
+    sim:recordMissionOutcome(Defs.mission("archive_names"), true, false)
+    expect((sim.estate.campaign.factions.faction_custodians.value or 0) == 1 and (sim.estate.campaign.factions.enclave_meter.value or 0) == -1, "mission pressure should apply faction deltas")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(118)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("archive_false_index"))
