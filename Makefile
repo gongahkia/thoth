@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke sprite-import-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke sprite-import-smoke model-import-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -262,6 +262,23 @@ sprite-import-smoke:
 	test -s dist/sprite-import-smoke/thoth_atlas.lua; \
 	rm -f $$tmp
 
+model-import-smoke:
+	@set -e; \
+	rm -rf dist/model-import-smoke; \
+	mkdir -p dist/model-import-smoke; \
+	tmp=$$(mktemp); \
+	if command -v xvfb-run >/dev/null 2>&1; then \
+		SDL_AUDIODRIVER=dummy xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --model-import --model-source vendor/g3d/assets/cube.obj --model-out dist/model-import-smoke/cube.obj --model-manifest dist/model-import-smoke/models.lua --model-id smoke_cube | tee $$tmp; \
+	else \
+		SDL_AUDIODRIVER=dummy $(LOVE) . --model-import --model-source vendor/g3d/assets/cube.obj --model-out dist/model-import-smoke/cube.obj --model-manifest dist/model-import-smoke/models.lua --model-id smoke_cube | tee $$tmp; \
+	fi; \
+	grep -q "model-import-format=obj" $$tmp; \
+	grep -q "model-import-vertices=36" $$tmp; \
+	grep -q "model-import-g3d=true" $$tmp; \
+	test -s dist/model-import-smoke/cube.obj; \
+	test -s dist/model-import-smoke/models.lua; \
+	rm -f $$tmp
+
 test:
 	$(LUAJIT) tests/run.lua
 
@@ -270,6 +287,7 @@ check: test
 	$(LUAJIT) tests/assets.lua
 	$(LUAJIT) tests/registry.lua
 	$(MAKE) sprite-import-smoke
+	$(MAKE) model-import-smoke
 	$(MAKE) package-build
 	$(LUAJIT) tests/package.lua $(PACKAGE)
 	$(MAKE) benchmark-smoke

@@ -9,6 +9,7 @@ local Render = require("src.app.render")
 local Settings = require("src.app.settings")
 local Achievements = require("src.app.achievements")
 local SpritePipeline = require("src.app.sprite_pipeline")
+local ModelPipeline = require("src.app.model_pipeline")
 local World = require("src.game.world")
 local Defs = require("src.game.defs")
 
@@ -34,6 +35,16 @@ local function contains(list, value)
         end
     end
     return false
+end
+
+local function readFile(path)
+    local file = io.open(path, "rb")
+    if not file then
+        return nil
+    end
+    local data = file:read("*a")
+    file:close()
+    return data
 end
 
 local function reachableRooms(world, start)
@@ -79,6 +90,18 @@ tests[#tests + 1] = function()
     expect(manifest and manifest.frames == 40 and manifest.image == "assets/sprites/thoth_atlas.png", "sprite pipeline should write manifest data")
     local bad, err = SpritePipeline.plan(127, 80, { frameWidth = 16, frameHeight = 16 })
     expect(not bad and err:find("divisible", 1, true), "sprite pipeline should reject uneven source sheets")
+end
+
+tests[#tests + 1] = function()
+    local parsed = ModelPipeline.parseObj(readFile("vendor/g3d/assets/cube.obj"))
+    expect(parsed and parsed.format == "obj", "model pipeline should parse obj")
+    expect(parsed.vertexCount == 36 and parsed.triangleCount == 12, "model pipeline should triangulate cube")
+    expect(parsed.bounds.min[1] < 0 and parsed.bounds.max[1] > 0, "model pipeline should compute bounds")
+    local entry = ModelPipeline.manifestEntry(parsed, "vendor/g3d/assets/cube.obj", "assets/models/cube.obj", "cube")
+    local manifest = ModelPipeline.loadManifest(ModelPipeline.manifestText({ entry }))
+    expect(manifest and manifest.models[1].id == "cube" and manifest.models[1].triangles == 12, "model pipeline should write manifest")
+    local bad, err = ModelPipeline.import("asset.gltf", "dist/model.obj", "dist/models.lua")
+    expect(not bad and err:find("obj", 1, true), "model pipeline should fail fast for gltf")
 end
 
 tests[#tests + 1] = function()

@@ -8,6 +8,7 @@ local Save = require("src.game.save")
 local Settings = require("src.app.settings")
 local Achievements = require("src.app.achievements")
 local SpritePipeline = require("src.app.sprite_pipeline")
+local ModelPipeline = require("src.app.model_pipeline")
 
 local sim
 local app
@@ -53,6 +54,37 @@ local function runSpriteImport(args)
     print("sprite-import-atlas=" .. tostring(plan.atlasPath))
     print("sprite-import-manifest=" .. tostring(plan.manifestPath))
     love.event.quit(0)
+end
+
+local function whiteTexture()
+    local data = love.image.newImageData(1, 1)
+    data:setPixel(0, 0, 1, 1, 1, 1)
+    local image = love.graphics.newImage(data)
+    image:setFilter("nearest", "nearest")
+    return image
+end
+
+local function runModelImport(args)
+    local source = argValue(args, "--model-source", "vendor/g3d/assets/cube.obj")
+    local modelPath = argValue(args, "--model-out", "dist/model-import-smoke/cube.obj")
+    local manifest = argValue(args, "--model-manifest", "dist/model-import-smoke/models.lua")
+    local id = argValue(args, "--model-id", "smoke_cube")
+    local result, err = ModelPipeline.import(source, modelPath, manifest, { id = id })
+    if not result then
+        print("model-import-error=" .. tostring(err))
+        love.event.quit(1)
+        return
+    end
+    local loaded = false
+    local ok, g3d = pcall(require, "vendor.g3d.g3d")
+    if ok then
+        local model = ModelPipeline.newG3dModel(g3d, result, whiteTexture())
+        loaded = model and model.mesh ~= nil
+    end
+    print("model-import-format=" .. tostring(result.format))
+    print("model-import-vertices=" .. tostring(result.vertexCount))
+    print("model-import-g3d=" .. tostring(loaded))
+    love.event.quit(loaded and 0 or 1)
 end
 
 local function setupRenderBenchmark(state)
@@ -1001,6 +1033,11 @@ function love.load(args)
     if hasArg(args, "--sprite-import") then
         app = { importMode = true }
         runSpriteImport(args)
+        return
+    end
+    if hasArg(args, "--model-import") then
+        app = { importMode = true }
+        runModelImport(args)
         return
     end
     sim = Simulation.new(20260618)
