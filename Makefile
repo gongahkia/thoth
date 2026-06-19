@@ -147,7 +147,7 @@ credits-smoke:
 		$(LOVE) . --credits-smoke | tee $$tmp; \
 	fi; \
 	grep -q "credits-smoke-state=credits" $$tmp; \
-	grep -q "credits-smoke-assets=1" $$tmp; \
+	grep -q "credits-smoke-assets=3" $$tmp; \
 	grep -q "credits-smoke-libraries=2" $$tmp; \
 	grep -q "credits-smoke-back=1" $$tmp; \
 	rm -f $$tmp

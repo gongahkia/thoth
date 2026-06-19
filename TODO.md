@@ -101,7 +101,6 @@ Goal: build every missing player-facing screen. Game must boot from title → lo
 
 Goal: replace `assets/sprites/thoth_atlas.png` (single 128×80 placeholder) with cohesive OGA pack + CC0 3D world geometry.
 
-- [ ] 3.15 Verify no asset license violations (no CC-BY without attribution, no CC-NC, no questionable AI-generated content if any) (2h)
 - [ ] 3.16 Tag commit `phase3-assets-complete` (0.5h)
 
 **Phase 3 exit criteria:** zero placeholder art remaining. All audio/visual assets attributed in credits. License audit clean.

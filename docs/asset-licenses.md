@@ -6,6 +6,7 @@
 |---|---|---|---|---|
 | `spike/assets/george.png` | `https://opengameart.org/content/alternate-lpc-character-sprites-george` | sheep | CC-BY 3.0 | OGA asset is multi-licensed; used here under CC-BY 3.0 for the Phase 0 billboard spike. |
 | `assets/sprites/oga_700_sprites.png` | `https://opengameart.org/content/700-sprites` | JPhilipp / Philipp Lenssen | CC-BY 3.0 | Generated atlas from selected `700 sprites` GIF frames; credit Philipp Lenssen and `outer-court.com`. |
+| `assets/audio/*.wav` | Project-authored procedural waveforms | Thoth contributors | Original project asset | Generated locally as 16-bit mono PCM; no third-party samples or AI-generated source material. |
 
 ## Phase 3 Primary Character Pack
 
