@@ -315,6 +315,9 @@ do
     for _, key in ipairs({ "intake_branch", "misfile_court", "sealed_register" }) do
         expect(archive.tiers[key], "archive tier missing " .. key)
     end
+    expect(archive.tiers.intake_branch.unlock == "default", "archive tier I unlock missing")
+    expect(archive.tiers.misfile_court.unlock == "first_archive_mission", "archive tier II unlock missing")
+    expect(archive.tiers.sealed_register.unlock == "codex_reeve", "archive tier III warden unlock missing")
     for _, key in ipairs({
         "intake_desk", "debt_chancel", "misfiled_morgue", "evidence_well",
         "witness_drawer_court", "debt_vault", "bound_scriptorium", "sealed_atrium",
@@ -362,6 +365,9 @@ do
     for _, key in ipairs({ "pump_forest_tier", "drowned_market_tier", "deep_sluice_tier" }) do
         expect(cistern.tiers[key], "cistern tier missing " .. key)
     end
+    expect(cistern.tiers.pump_forest_tier.unlock == "default", "cistern tier I unlock missing")
+    expect(cistern.tiers.drowned_market_tier.unlock == "first_cistern_mission", "cistern tier II unlock missing")
+    expect(cistern.tiers.deep_sluice_tier.unlock == "pearl_choir", "cistern tier III warden unlock missing")
     for _, key in ipairs({
         "pump_forest", "brine_intake", "drowned_market", "sluice_chapel",
         "cyst_chamber", "filter_shrine", "bell_diver_gate",
@@ -405,6 +411,9 @@ do
     for _, key in ipairs({ "fuel_branch_tier", "vitrified_cloister_tier", "white_furnace_tier" }) do
         expect(ember.tiers[key], "ember tier missing " .. key)
     end
+    expect(ember.tiers.fuel_branch_tier.unlock == "default", "ember tier I unlock missing")
+    expect(ember.tiers.vitrified_cloister_tier.unlock == "first_ember_mission", "ember tier II unlock missing")
+    expect(ember.tiers.white_furnace_tier.unlock == "kiln_vicar", "ember tier III warden unlock missing")
     for _, key in ipairs({
         "kiln_nave", "vitrified_dormitory", "ash_confessional", "bellows_choir",
         "vitrifying_procession", "ash_archive", "furnace_antechamber",
@@ -517,6 +526,7 @@ end
 for _, key in ipairs(Defs.estateFixtureOrder) do
     local fixture = Defs.estateFixture(key)
     expect(fixture and #fixture.barks >= 2, "estate fixture barks missing " .. key)
+    expect(fixture.barks[1] ~= fixture.barks[2], "estate fixture visit barks should be unique " .. key)
 end
 for _, key in ipairs(Defs.enclaveLeaderOrder) do
     local leader = Defs.enclaveLeader(key)
@@ -562,6 +572,7 @@ for _, key in ipairs(Defs.endingRouteOrder) do
     expect(endingCopy[key], "ending screen copy missing " .. key)
 end
 expect(Defs.fixtureVisitBark("fixture_visit_barks").greeting and Defs.fixtureVisitBark("fixture_visit_barks").farewell, "fixture visit barks missing")
+expect(Defs.fixtureVisitBark("fixture_visit_barks").greeting ~= Defs.fixtureVisitBark("fixture_visit_barks").farewell, "fixture visit greeting/farewell should differ")
 expect(Defs.enclaveLeaderBark("enclave_leader_barks").low and Defs.enclaveLeaderBark("enclave_leader_barks").high, "enclave leader barks missing")
 local wardenVoice = Defs.wardenVoice("warden_voice_v1")
 for _, key in ipairs({ "codex_reeve", "pearl_choir", "kiln_vicar" }) do
@@ -591,5 +602,17 @@ for _, key in ipairs(Defs.narrationOrder) do
         expect(line.text ~= "", "narration line empty " .. key .. "/" .. tostring(index))
     end
 end
+
+local todo = assert(io.open("TODO-CONTENT.md", "r"))
+for line in todo:lines() do
+    if line:match("^%- %[[ xX]%]") then
+        expect(line:match("%+%w+"), "TODO-CONTENT task missing +Project metadata")
+        expect(line:match("@%w+"), "TODO-CONTENT task missing @context metadata")
+        expect(line:match("type:%w+"), "TODO-CONTENT task missing type metadata")
+        expect(line:match("zone:%w+"), "TODO-CONTENT task missing zone metadata")
+        expect(line:match("id:[%w_]+"), "TODO-CONTENT task missing id metadata")
+    end
+end
+todo:close()
 
 print("registry checks passed")

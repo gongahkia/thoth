@@ -50,6 +50,13 @@ local function reachableRooms(world, start)
     return seen
 end
 
+local function expectReachable(world, start, rooms, label)
+    local seen = reachableRooms(world, start)
+    for _, roomKey in ipairs(rooms) do
+        expect(seen[roomKey], label .. " missing reachable room " .. roomKey)
+    end
+end
+
 local function reachEntryCombat(sim)
     for _ = 1, 5 do
         runQueued(sim, Simulation.commands.move("east"))
@@ -172,10 +179,12 @@ end
 tests[#tests + 1] = function()
     local choir = World.new(106, "salt_cistern", { tiles = {}, layoutId = "cistern_silence_choir" })
     local sluice = World.new(106, "salt_cistern", { tiles = {}, layoutId = "cistern_open_deep_sluice" })
-    expect(choir:layout().generatedLayoutId == World.fromSnapshot(choir:snapshot()):layout().generatedLayoutId, "cistern mission layout should snapshot deterministically")
+    expect(choir:layout().grammar.id == "cistern_grammar_v1" and choir:layout().generatedLayoutId == World.fromSnapshot(choir:snapshot()):layout().generatedLayoutId, "cistern mission layout should snapshot deterministically")
     expect(choir:encounterForRoom("6:10") == "cistern_choir" and choir:encounterForRoom("18:10") == nil, "pearl choir mission should replace boss gate")
     expect(sluice:encounterForRoom("18:10") == "matron" and sluice:encounterForRoom("18:4") == "cistern_bailiff", "deep sluice mission should place bailiff and boss gate")
     expect(choir:layout().roomTemplateByRole.pump_hub == "pump_forest", "cistern layout should expose room template roles")
+    expectReachable(choir, "0:0", { "6:4", "12:0", "6:10", "12:10", "18:4", "18:10" }, "cistern grammar")
+    expect(#choir:threatsInRect(-999, 999, -999, 999, 0) >= 2, "cistern grammar should expose visible threats")
 end
 
 tests[#tests + 1] = function()
@@ -237,10 +246,12 @@ end
 tests[#tests + 1] = function()
     local vicar = World.new(110, "ember_warrens", { tiles = {}, layoutId = "warrens_douse_vicar" })
     local furnace = World.new(110, "ember_warrens", { tiles = {}, layoutId = "warrens_open_furnace" })
-    expect(vicar:layout().generatedLayoutId == World.fromSnapshot(vicar:snapshot()):layout().generatedLayoutId, "ember mission layout should snapshot deterministically")
+    expect(vicar:layout().grammar.id == "ember_grammar_v1" and vicar:layout().generatedLayoutId == World.fromSnapshot(vicar:snapshot()):layout().generatedLayoutId, "ember mission layout should snapshot deterministically")
     expect(vicar:encounterForRoom("8:-8") == "ember_vicar" and vicar:encounterForRoom("20:-8") == nil, "vicar mission should replace boss gate")
     expect(furnace:encounterForRoom("20:4") == "ember_furnace" and furnace:encounterForRoom("20:-8") == "prioress", "white furnace mission should place furnace and boss gate")
     expect(furnace:layout().roomTemplateByRole.kiln_nave == "kiln_nave", "ember layout should expose room template roles")
+    expectReachable(furnace, "0:0", { "8:0", "8:-8", "14:-4", "14:4", "20:4", "20:-8" }, "ember grammar")
+    expect(#furnace:threatsInRect(-999, 999, -999, 999, 0) >= 2, "ember grammar should expose visible threats")
 end
 
 tests[#tests + 1] = function()
@@ -821,6 +832,14 @@ tests[#tests + 1] = function()
     expect(sim:startCombat("archive_alpha", "shelf_warden", { visible = true, threatKey = "shelf_warden" }), "alpha combat should start")
     sim:finishCombat(true)
     expect(sim.expedition.loot:count("coin") == 80 and sim.expedition.loot:count("heirloom") == 2, "alpha victory should add alpha reward")
+    local alphaCoin = sim.expedition.loot:count("coin")
+    local alphaHeirloom = sim.expedition.loot:count("heirloom")
+    sim = Simulation.new(128)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_regent"))
+    expect(sim:startCombat("regent", "24:0"), "boss combat should start for reward comparison")
+    sim:finishCombat(true)
+    expect(alphaCoin <= sim.expedition.loot:count("coin") and alphaHeirloom <= sim.expedition.loot:count("heirloom"), "alpha reward should not exceed boss reward")
 end
 
 tests[#tests + 1] = function()
@@ -833,6 +852,31 @@ tests[#tests + 1] = function()
     sim.expedition.supplies:add("bandage", 1)
     runQueued(sim, Simulation.commands.useItem("bandage", 1))
     expect(not sim:hasInjury(hero), "bandage should clear one injury")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(129)
+    local hero = sim:heroAtRank(1)
+    for _, injuryKey in ipairs({ "crushed_hand", "salt_bloat", "glass_scarring", "nerve_burn" }) do
+        hero.statuses = {}
+        expect(sim:addInjury(hero, injuryKey) and sim:hasInjury(hero, injuryKey), "new injury should apply " .. injuryKey)
+    end
+    hero.statuses = {}
+    sim:addInjury(hero, "crushed_hand")
+    sim.expedition.supplies:add("salve", 1)
+    runQueued(sim, Simulation.commands.useItem("salve", 1))
+    expect(not sim:hasInjury(hero, "crushed_hand"), "salve should clear one injury")
+    sim:addInjury(hero, "salt_bloat")
+    sim.expedition.supplies:add("bandage", 1)
+    runQueued(sim, Simulation.commands.useItem("bandage", 1))
+    expect(not sim:hasInjury(hero, "salt_bloat"), "bandage should clear one injury")
+    sim:addInjury(hero, "glass_scarring")
+    expect(sim:camp() and not sim:hasInjury(hero, "glass_scarring"), "camp should clear one injury")
+    sim:endExpedition(true)
+    sim:addInjury(hero, "nerve_burn")
+    sim.estate.gold = 100
+    runQueued(sim, Simulation.commands.recoverHero(hero.id))
+    expect(not sim:hasInjury(hero, "nerve_burn"), "estate recovery should clear injuries")
 end
 
 tests[#tests + 1] = function()
@@ -871,6 +915,8 @@ tests[#tests + 1] = function()
     expect(sim.status:find("clerk", 1, true) ~= nil or sim.status:find("Clerk", 1, true) ~= nil, "document collection should trigger fixture bark")
     local loaded = Simulation.fromSnapshot(sim:snapshot())
     expect(loaded:hasDocument("archive_writ_01") and loaded:journalEntries()[1].key == "archive_writ_01" and loaded.documentPopup.key == "archive_writ_01", "journal should survive snapshot")
+    local fresh = Simulation.new(122)
+    expect(not fresh:hasDocument("archive_writ_01") and #fresh:journalEntries() == 0, "new campaign should start with empty document journal")
 end
 
 tests[#tests + 1] = function()
@@ -946,9 +992,11 @@ tests[#tests + 1] = function()
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("archive_silence_reeve"))
     expect(sim:startCombat("archive_reeve", "8:6"), "archive warden combat should start")
+    expect(Defs.enemy(sim.combat.enemies[1].kind).alpha and Defs.enemy(sim.combat.enemies[1].kind).warden, "archive warden should be visible alpha class")
     expect(sim.narration:find("Reeve", 1, true) ~= nil, "warden start should use warden voice")
     sim:finishCombat(true)
     expect(sim:hasDocument("archive_writ_01"), "archive warden should drop archive document")
+    expect(sim.expedition.clearedEncounters["8:6"], "warden defeat should clear zone encounter")
     expect(sim.narration:find("Reeve", 1, true) ~= nil, "warden defeat should use warden voice")
     sim = Simulation.new(124)
     sim:endExpedition(true)
@@ -1080,7 +1128,7 @@ tests[#tests + 1] = function()
     sim:endExpedition(true)
     sim.estate.campaign.weekLimit = sim.estate.week
     runQueued(sim, Simulation.commands.advanceWeek())
-    expect(sim.estate.campaign.lost and sim.estate.campaign.lossReason == "weeks", "week limit should collapse campaign")
+    expect(sim.estate.campaign.lost and sim.estate.campaign.lossReason == "weeks" and sim.estate.campaign.endingRoute == "quiet_failure", "week limit should collapse campaign to quiet failure")
 end
 
 tests[#tests + 1] = function()
@@ -1089,7 +1137,7 @@ tests[#tests + 1] = function()
     sim.estate.campaign.dreadLimit = 2
     sim.estate.campaign.dread = 2
     sim:evaluateCampaignState()
-    expect(sim.estate.campaign.lost and sim.estate.campaign.lossReason == "dread", "dread limit should collapse campaign")
+    expect(sim.estate.campaign.lost and sim.estate.campaign.lossReason == "dread" and sim.estate.campaign.endingRoute == "extraction_collapse", "dread limit should collapse campaign to extraction collapse")
 end
 
 tests[#tests + 1] = function()
@@ -1114,6 +1162,27 @@ tests[#tests + 1] = function()
     expect(sim.estate.heirlooms == 2 and sim.estate.campaign.dread == 3, "archive tithe should trade heirloom for dread reduction")
     sim:applyTownEvent("pyre_demand")
     expect(contains(sim.estate.missionBoard, "warrens_douse_vicar") and sim:factionState("faction_ember_penitents") == "vigil_called", "pyre demand should open warrens douse and raise faction tension")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(131)
+    sim:endExpedition(true)
+    sim:adjustFaction("faction_custodians", 2)
+    expect(sim:factionState("faction_custodians") == "audit_alert", "custodians should enter audit alert")
+    sim:adjustFaction("faction_custodians", 2)
+    expect(sim:factionState("faction_custodians") == "hostile", "custodians should enter hostile")
+    sim:adjustFaction("faction_cistern_keepers", 2)
+    expect(sim:factionState("faction_cistern_keepers") == "flood_held", "cistern keepers should hold flood")
+    sim:adjustFaction("faction_cistern_keepers", 2)
+    expect(sim:factionState("faction_cistern_keepers") == "embargo", "cistern keepers should embargo")
+    sim:adjustFaction("faction_ember_penitents", 2)
+    expect(sim:factionState("faction_ember_penitents") == "vigil_called", "ember penitents should call vigil")
+    sim:adjustFaction("faction_ember_penitents", 2)
+    expect(sim:factionState("faction_ember_penitents") == "pyre_open", "ember penitents should open pyre")
+    sim:adjustFaction("faction_lamplighters", -2)
+    expect(sim:factionState("faction_lamplighters") == "full_torch", "lamplighters should grant full torch state")
+    sim:adjustFaction("faction_lamplighters", 4)
+    expect(sim:factionState("faction_lamplighters") == "strike", "lamplighters should strike")
 end
 
 tests[#tests + 1] = function()
@@ -1156,6 +1225,11 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.equipTrinket(hero.id, "ember_pin", 1))
     runQueued(sim, Simulation.commands.equipTrinket(hero.id, "cracked_lens", 2))
     expect(sim:heroModifier(hero, "heatResist") == 1 and sim:heroModifier(hero, "injuryVulnerability") == 5, "two-piece cinder set should activate with cost")
+    sim.estate.trinkets.cinder_lens = 1
+    sim.estate.trinkets.kiln_token = 1
+    runQueued(sim, Simulation.commands.equipTrinket(sim:heroAtRank(2).id, "cinder_lens", 1))
+    runQueued(sim, Simulation.commands.equipTrinket(sim:heroAtRank(3).id, "kiln_token", 1))
+    expect(sim:heroModifier(hero, "burnDamage") == 2 and sim:heroModifier(hero, "heatResist") == 1, "four-piece cinder set should activate")
     sim.estate.gold = 100
     sim:applyTownEvent("salt_rationing")
     runQueued(sim, Simulation.commands.buyProvision("torch", 1))
@@ -1170,6 +1244,10 @@ end
 tests[#tests + 1] = function()
     local sim = Simulation.new(121)
     sim:endExpedition(true)
+    sim.estate.week = 9
+    expect(sim:lateWeekPressure() == 1, "week nine should start late pressure")
+    sim.estate.week = 12
+    expect(sim:lateWeekPressure() == 4, "late pressure should scale to cap")
     sim:adjustFaction("faction_lamplighters", 3)
     runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
     expect(sim.expedition.torch == 60, "lamplighter strike should delay torch")
@@ -1181,16 +1259,36 @@ tests[#tests + 1] = function()
     sim.estate.week = 10
     runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
     expect(sim.expedition.latePressure == 2 and sim.expedition.noise >= 2, "late-week pressure should raise mission noise")
+    local triggered = false
+    for seed = 1, 40 do
+        local pressure = Simulation.new(seed)
+        pressure:endExpedition(true)
+        pressure.estate.week = 12
+        pressure:startExpedition("archive_scout")
+        pressure.expedition.torch = 0
+        pressure.expedition.threatState["0:0"] = "stalked"
+        if pressure:tryStartPressureEncounter("0:0") then
+            triggered = pressure.combat and pressure.combat.pressure and pressure.combat.ambush
+            break
+        end
+    end
+    expect(triggered, "late-week pressure should support archive ambush pressure")
 end
 
 tests[#tests + 1] = function()
     local sim = Simulation.new(122)
     sim:endExpedition(true)
+    expect(sim:resolveEndingRoute("victory") == "estate_seal", "default victory should route to estate seal")
     sim.estate.campaign.flags.repairMissions = 3
     expect(sim:resolveEndingRoute("victory") == "repair_compact", "repair-heavy victory should route to repair compact")
     sim.estate.campaign.dread = sim.estate.campaign.dreadLimit
     sim:evaluateCampaignState()
     expect(sim.estate.campaign.lost and sim.estate.campaign.endingRoute == "extraction_collapse", "dread cap should route to extraction collapse")
+    sim = Simulation.new(130)
+    sim:endExpedition(true)
+    sim.estate.campaign.deathLimit = 0
+    sim:evaluateCampaignState()
+    expect(sim.estate.campaign.lost and sim.estate.campaign.endingRoute == "quiet_failure", "death cap should route to quiet failure")
 end
 
 tests[#tests + 1] = function()

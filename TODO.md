@@ -4,7 +4,6 @@ This file tracks remaining work only. `TODO-CONTENT.md` is the detailed backlog 
 
 ## Immediate Priorities
 
-- [ ] Implement Tests and Validation backlog: 18 open tasks covering content registry, layout grammar, visible threats, weak points, injuries, campaign timer, wardens, tiers, factions, trinket sets, documents, fixture barks, endings, and late-week pressure.
 
 ## Verification Gate
 
