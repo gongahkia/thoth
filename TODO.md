@@ -101,10 +101,6 @@ Goal: build every missing player-facing screen. Game must boot from title → lo
 
 Goal: replace `assets/sprites/thoth_atlas.png` (single 128×80 placeholder) with cohesive OGA pack + CC0 3D world geometry.
 
-- [ ] 3.1 Survey OGA for billboard-friendly fantasy character packs (8h)
-  - candidate: LPC collection (CC-BY-SA)
-  - candidate: DawnLike 16×16 (CC-BY 4.0)
-  - candidate: 2DPIXX fantasy isometric (CC0)
 - [ ] 3.2 Pick one primary character pack; document license in `docs/asset-licenses.md` (2h)
 - [ ] 3.3 Build sprite-import pipeline: PNG → atlas → billboard texture (8h)
 - [ ] 3.4 Map 8 hero classes to OGA sprite candidates (1h per class × 8 = 8h)
