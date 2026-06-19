@@ -48,7 +48,7 @@ butler push dist/thoth.love <itch-user>/thoth:love-beta --userversion phase5-bet
 
 ## Feedback Intake
 
-Use a single linked form or issue template with these categories:
+Use the GitHub Issues `Beta feedback` form or an equivalent linked form with these categories:
 
 - Bug: crash, blocked progress, save/load failure, input issue.
 - Balance: class, boss, resource, town event, faction pressure.
