@@ -13,6 +13,8 @@ Triggers:
 Manual input:
 
 - `upload_to_itch`: uploads built packages to itch.io with butler when true.
+- `create_github_release`: creates a GitHub Release and attaches packages when true.
+- `release_tag`: tag used for manual GitHub Release creation.
 
 Outputs:
 
@@ -65,6 +67,18 @@ Butler integration:
 - Uses `BUTLER_API_KEY` for CI auth: `https://itch.io/docs/butler/login.html`
 - Sets `--userversion` to the Git ref name for each pushed channel.
 
+GitHub Release integration:
+
+- Tag-triggered workflow runs create a GitHub Release for the pushed tag.
+- Manual runs create a GitHub Release when `create_github_release=true` and `release_tag` is non-empty.
+- If the manual `release_tag` does not already exist, `gh release create` creates it at the workflow commit via `--target "$GITHUB_SHA"`.
+- Existing releases are detected with `gh release view`; assets are refreshed with `gh release upload --clobber`.
+- Release notes are generated with `gh release create --generate-notes`.
+- The five built packages are attached as release assets with display labels.
+- Non-`v*` release tags are marked prerelease and not latest.
+- Uses `GH_TOKEN: ${{ github.token }}` per GitHub CLI workflow auth guidance.
+- Sources: `https://cli.github.com/manual/gh_release_create`, `https://cli.github.com/manual/gh_release_upload`, `https://docs.github.com/actions/using-workflows/using-github-cli-in-workflows`
+
 Verification:
 
 - Local syntax check: `ruby -e 'require "yaml"; YAML.parse_file(".github/workflows/release-build.yml"); puts "yaml ok"'`
@@ -72,5 +86,4 @@ Verification:
 - Remote GitHub Actions packaging run: not run locally.
 
 Out of scope:
-
-- GitHub Release attach/changelog automation remains TODO 8.3.
+- Clean-install verification remains TODO 8.4.
