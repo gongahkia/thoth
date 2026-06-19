@@ -39,6 +39,15 @@ local function panel(x, y, w, h, alpha)
     love.graphics.rectangle("line", x, y, w, h)
 end
 
+local function drawMeter(x, y, w, h, ratio, color)
+    love.graphics.setColor(0.08, 0.09, 0.09, 1)
+    love.graphics.rectangle("fill", x, y, w, h)
+    love.graphics.setColor(color[1], color[2], color[3], color[4] or 1)
+    love.graphics.rectangle("fill", x, y, w * clamp(ratio or 0, 0, 1), h)
+    love.graphics.setColor(0.24, 0.26, 0.24, 1)
+    love.graphics.rectangle("line", x, y, w, h)
+end
+
 local function compactStacks(stacks)
     local parts = {}
     for _, stack in ipairs(stacks or {}) do
@@ -718,6 +727,15 @@ function Render.titleMenuItems(app)
     }
 end
 
+function Render.expeditionHudSummary(sim)
+    local roomKey = sim and sim.currentRoomKey and sim:currentRoomKey() or nil
+    return {
+        torch = sim and sim.expedition and sim.expedition.torch or nil,
+        currentRoom = roomKey or "corridor",
+        partyCount = sim and sim.partyState and #sim:partyState() or 0,
+    }
+end
+
 local function layoutTitleButtons(app, items, width, height)
     local buttonW = math.min(320, math.max(220, width - 88))
     local x = math.max(44, width - buttonW - 96)
@@ -896,13 +914,16 @@ local function drawHeroRows(sim, app, x, y, w)
         local rowY = y + (hero.rank - 1) * 42
         local active = hero.rank == sim.player.selectedHero
         love.graphics.setColor(active and 0.2 or 0.12, active and 0.24 or 0.14, active and 0.18 or 0.13, 1)
-        love.graphics.rectangle("fill", x, rowY, w, 36)
+        love.graphics.rectangle("fill", x, rowY, w, 40)
         love.graphics.setColor(active and 0.82 or 0.32, active and 0.72 or 0.34, active and 0.34 or 0.28, 1)
-        love.graphics.rectangle("line", x, rowY, w, 36)
+        love.graphics.rectangle("line", x, rowY, w, 40)
         love.graphics.setColor(0.94, 0.96, 0.9, 1)
         love.graphics.print(hero.rank .. " " .. hero.name .. " / " .. hero.class .. " L" .. (hero.level or 1), x + 6, rowY + 4)
+        drawMeter(x + 6, rowY + 20, w - 78, 6, (hero.hp or 0) / math.max(1, hero.maxHp or 1), { 0.34, 0.68, 0.42, 1 })
+        drawMeter(x + 6, rowY + 30, w - 78, 6, (hero.stress or 0) / 100, { 0.78, 0.58, 0.26, 1 })
         love.graphics.setColor(0.74, 0.82, 0.74, 1)
-        love.graphics.print("hp " .. hero.hp .. "/" .. hero.maxHp .. "  stress " .. hero.stress, x + 6, rowY + 19)
+        love.graphics.print(hero.hp .. "/" .. hero.maxHp, x + w - 66, rowY + 17)
+        love.graphics.print("s" .. hero.stress, x + w - 66, rowY + 28)
         if hero.deathsDoor then
             love.graphics.setColor(0.94, 0.34, 0.28, 1)
             love.graphics.print("door", x + w - 54, rowY + 19)
@@ -916,7 +937,7 @@ local function drawHeroRows(sim, app, x, y, w)
             love.graphics.setColor(0.68, 0.72, 0.46, 1)
             love.graphics.print("ill", x + w - 34, rowY + 19)
         end
-        app.ui.heroButtons[#app.ui.heroButtons + 1] = { x = x, y = rowY, w = w, h = 36, rank = hero.rank }
+        app.ui.heroButtons[#app.ui.heroButtons + 1] = { x = x, y = rowY, w = w, h = 40, rank = hero.rank }
     end
 end
 
@@ -1207,11 +1228,11 @@ end
 
 function Render.drawHud(sim, app)
     local width = love.graphics.getWidth()
-    panel(0, 0, width, 76, 0.9)
+    panel(0, 0, width, 92, 0.9)
     if app.eventFlash then
         local color = app.eventFlash.color or { 0.42, 0.54, 0.76 }
         love.graphics.setColor(color[1], color[2], color[3], math.min(0.5, app.eventFlash.t or 0))
-        love.graphics.rectangle("fill", 0, 74, width, 2)
+        love.graphics.rectangle("fill", 0, 90, width, 2)
     end
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Thoth  tick " .. sim.tick .. "  " .. sim.mode .. "  pos " .. sim.player.x .. "," .. sim.player.y .. "  view " .. ((app.viewRotation or 0) * 90), 16, 10)
@@ -1219,14 +1240,22 @@ function Render.drawHud(sim, app)
     love.graphics.printf("next " .. sim:nextStepText(), 16, 32, width - 320)
     local checklist = sim:objectiveChecklist()[1]
     love.graphics.printf(checklistText(checklist), 16, 54, width - 32)
-    love.graphics.printf(sim:missionProgressText(), width - 286, 54, 270, "right")
+    local summary = Render.expeditionHudSummary(sim)
+    love.graphics.printf("room " .. tostring(summary.currentRoom), 16, 74, 260)
+    if sim.expedition then
+        love.graphics.setColor(0.9, 0.82, 0.48, 1)
+        love.graphics.printf("torch " .. tostring(summary.torch), width - 286, 36, 270, "right")
+        drawMeter(width - 176, 58, 160, 8, (summary.torch or 0) / 100, { 0.86, 0.58, 0.22, 1 })
+    end
+    love.graphics.setColor(0.74, 0.78, 0.72, 1)
+    love.graphics.printf(sim:missionProgressText(), width - 286, 74, 270, "right")
 end
 
 function Render.drawSidePanel(sim, app)
     local width, height = love.graphics.getDimensions()
     local x = width - 306
-    local y = 88
-    panel(x, y, 292, height - 104, 0.88)
+    local y = 104
+    panel(x, y, 292, height - 120, 0.88)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Party", x + 10, y + 10)
     drawHeroRows(sim, app, x + 10, y + 34, 272)

@@ -327,6 +327,10 @@ local function printRenderSmoke(state)
     print("render-smoke-renderer=" .. tostring(state.renderer))
     print("render-smoke-mode=" .. tostring(state.worldView and state.worldView.mode))
     print("render-smoke-rotation=" .. tostring(state.worldView and state.worldView.rotation))
+    local hud = Render.expeditionHudSummary(sim)
+    print("render-smoke-hud-torch=" .. tostring(hud.torch))
+    print("render-smoke-hud-room=" .. tostring(hud.currentRoom))
+    print("render-smoke-hud-party=" .. tostring(hud.partyCount))
 end
 
 local function printTitleSmoke(state)

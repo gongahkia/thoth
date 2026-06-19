@@ -65,6 +65,9 @@ render-smoke:
 	fi; \
 	grep -q "render-smoke-renderer=render3d" $$tmp; \
 	grep -q "render-smoke-mode=render3d" $$tmp; \
+	grep -q "render-smoke-hud-torch=" $$tmp; \
+	grep -q "render-smoke-hud-room=" $$tmp; \
+	grep -q "render-smoke-hud-party=4" $$tmp; \
 	rm -f $$tmp
 
 test:

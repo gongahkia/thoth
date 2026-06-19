@@ -1117,6 +1117,14 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(80)
+    local summary = Render.expeditionHudSummary(sim)
+    expect(summary.torch == sim.expedition.torch, "hud summary should expose torch level")
+    expect(summary.currentRoom == sim:currentRoomKey(), "hud summary should expose current room")
+    expect(summary.partyCount == 4, "hud summary should expose party count")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(79)
     sim:endExpedition(true)
     sim.estate.campaign.deathLimit = 1
