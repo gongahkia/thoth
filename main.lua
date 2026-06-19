@@ -33,6 +33,28 @@ local function argValue(args, target, fallback)
     return fallback
 end
 
+local function capturePreviewIfNeeded(state)
+    if not (state and state.previewCapture and not state.previewCaptured and love and love.graphics) then
+        return false
+    end
+    state.previewCaptured = true
+    local path = state.previewCapture
+    love.graphics.captureScreenshot(function(imageData)
+        local encoded = imageData:encode("png")
+        local file = io.open(path, "wb")
+        if file then
+            file:write(encoded:getString())
+            file:close()
+            print("preview-capture=" .. path)
+            love.event.quit(0)
+        else
+            print("preview-capture-error=" .. path)
+            love.event.quit(1)
+        end
+    end)
+    return true
+end
+
 local function runSpriteImport(args)
     local frameWidth, frameHeight = SpritePipeline.parseFrameSize(argValue(args, "--sprite-frame", "32x32"))
     if not frameWidth then
@@ -1084,6 +1106,7 @@ function love.load(args)
     local polishSmoke = hasArg(args, "--polish-smoke")
     local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke or tutorialSmoke or toastSmoke or polishSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
+    local previewCapture = argValue(args, "--preview-capture", nil)
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
         setupRenderBenchmark(sim)
@@ -1140,6 +1163,8 @@ function love.load(args)
         smokeFrames = 0,
         renderBenchmark = renderBenchmark,
         renderSmoke = renderSmoke,
+        previewCapture = previewCapture,
+        previewCaptured = false,
         titleSmoke = titleSmoke,
         settingsSmoke = settingsSmoke,
         estateSmoke = estateSmoke,
@@ -1270,26 +1295,31 @@ function love.draw()
         Render.drawTitle(sim, app)
         printTitleSmoke(app)
         printPolishSmoke(app)
+        capturePreviewIfNeeded(app)
         return
     end
     if app.uiState == "settings" then
         Render.drawSettings(app)
         printSettingsSmoke(app)
+        capturePreviewIfNeeded(app)
         return
     end
     if app.uiState == "gameover" then
         Render.drawGameOver(sim, app)
         printGameOverSmoke(app)
+        capturePreviewIfNeeded(app)
         return
     end
     if app.uiState == "credits" then
         Render.drawCredits(app)
         printCreditsSmoke(app)
+        capturePreviewIfNeeded(app)
         return
     end
     if app.uiState == "journal" then
         Render.drawJournal(sim, app)
         printJournalSmoke(app)
+        capturePreviewIfNeeded(app)
         return
     end
     local started = app.renderBenchmark and love.timer.getTime() or nil
@@ -1305,6 +1335,7 @@ function love.draw()
     printControllerSmoke(app)
     printTutorialSmoke(app)
     printToastSmoke(app)
+    capturePreviewIfNeeded(app)
     if app.renderBenchmark then
         local elapsedMs = (love.timer.getTime() - started) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1

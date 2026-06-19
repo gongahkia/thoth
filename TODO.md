@@ -109,7 +109,6 @@ Goal: replace `assets/sprites/thoth_atlas.png` (single 128×80 placeholder) with
 
 Goal: full playthrough of Buried Archive Tier I (3 missions) end-to-end, with 4 starter classes (Warden, Duelist, Apothecary, Thief).
 
-- [ ] 4.10 Build itch.io alpha page: description, screenshots, GIF, download link (8h)
 - [ ] 4.11 Drop free alpha on itch.io; share to 3 communities (r/love2d, r/IndieDev, RPG Maker horror Discord) (4h)
 - [ ] 4.12 Collect feedback for 4 weeks. Categorize: bug / balance / feel / scope (16h)
 - [ ] 4.13 Triage feedback; write `docs/alpha-feedback-triage.md` (8h)
