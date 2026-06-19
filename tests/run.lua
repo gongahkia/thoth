@@ -1251,6 +1251,46 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(1)
+    runQueued(sim, Simulation.commands.endExpedition(true))
+    expect(sim.mode == "estate", "playtest should reach estate from initial title handoff")
+    expect(sim.estate.recruits[2] and sim.estate.recruits[2].class == "harrier", "playtest seed should offer a Thief recruit")
+    runQueued(sim, Simulation.commands.recruitHero(2))
+    local thief = sim.estate.roster[#sim.estate.roster]
+    expect(thief.class == "harrier", "playtest should recruit Thief")
+    runQueued(sim, Simulation.commands.assignParty(thief.id, 4))
+    local classes = {}
+    for _, hero in ipairs(sim:partyState()) do
+        classes[hero.classId] = true
+    end
+    expect(classes.warden and classes.duelist and classes.mender and classes.harrier, "playtest party should use Warden/Duelist/Apothecary/Thief")
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim.expedition.mission == "archive_scout", "playtest should enter first archive mission")
+    runQueued(sim, Simulation.commands.camp())
+    expect(sim.expedition.campUsed and sim.expedition.camping, "playtest should camp mid-mission")
+    runQueued(sim, Simulation.commands.campSkill("watch_order", 1))
+    runQueued(sim, Simulation.commands.finishCamp())
+    expect(not sim.expedition.camping and sim.mode == "expedition", "playtest should leave camp without ambush")
+    sim.expedition.roomsScouted = 3
+    expect(sim:updateObjective(), "playtest should complete first mission objective")
+    runQueued(sim, Simulation.commands.endExpedition(false))
+    expect(sim.mode == "estate" and sim.estate.campaign.completedMissions.archive_scout, "playtest should return after first mission")
+    local reserve
+    for _, hero in ipairs(sim.estate.roster) do
+        if not sim:heroRank(hero.id) then
+            reserve = hero
+            break
+        end
+    end
+    expect(reserve ~= nil, "playtest should have reserve hero for recovery")
+    reserve.stress = 40
+    runQueued(sim, Simulation.commands.recoverHero(reserve.id))
+    expect(reserve.recovering == 1, "playtest should send reserve to recovery")
+    runQueued(sim, Simulation.commands.startExpedition("archive_cleansing"))
+    expect(sim.mode == "expedition" and sim.expedition.mission == "archive_cleansing", "playtest should enter second mission")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(43)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("archive_regent"))
