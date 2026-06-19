@@ -249,6 +249,7 @@ function Render.prepareUi(app)
     app.ui.gameOverButtons = app.ui.gameOverButtons or {}
     app.ui.creditsButtons = app.ui.creditsButtons or {}
     app.ui.journalButtons = app.ui.journalButtons or {}
+    app.ui.tutorialButtons = app.ui.tutorialButtons or {}
     app.ui.titleButtons = app.ui.titleButtons or {}
     app.ui.settingsButtons = app.ui.settingsButtons or {}
     clearList(app.ui.skillButtons)
@@ -269,6 +270,7 @@ function Render.prepareUi(app)
     clearList(app.ui.gameOverButtons)
     clearList(app.ui.creditsButtons)
     clearList(app.ui.journalButtons)
+    clearList(app.ui.tutorialButtons)
     clearList(app.ui.titleButtons)
     clearList(app.ui.settingsButtons)
 end
@@ -1372,6 +1374,57 @@ function Render.drawJournal(sim, app)
     love.graphics.printf("documents " .. #summary.documents .. " / epitaphs " .. #summary.epitaphs, width - 360, height - 72, 280, "right")
     love.graphics.pop()
     return summary
+end
+
+local tutorialSteps = {
+    { key = "torch", title = "Torch", body = "Torch falls as the party advances. Spend carried torches before dark rooms turn pressure into ambush." },
+    { key = "stress", title = "Stress", body = "Stress can break heroes before HP does. Camp skills, curios, and retreat are pressure valves." },
+    { key = "rank", title = "Rank", body = "Rank controls skills and targets. Front and back positions decide who can act and who can be hit." },
+}
+
+function Render.tutorialSteps()
+    return tutorialSteps
+end
+
+local function layoutTutorialButtons(app, x, y, w)
+    app.ui.tutorialButtons[#app.ui.tutorialButtons + 1] = { x = x + 18, y = y + 148, w = 92, h = 34, action = "skip", enabled = true, index = 1 }
+    app.ui.tutorialButtons[#app.ui.tutorialButtons + 1] = { x = x + w - 226, y = y + 148, w = 92, h = 34, action = "prev", enabled = (app.tutorial.index or 1) > 1, index = 2 }
+    app.ui.tutorialButtons[#app.ui.tutorialButtons + 1] = { x = x + w - 122, y = y + 148, w = 104, h = 34, action = "next", enabled = true, index = 3 }
+end
+
+function Render.drawTutorial(app)
+    if not (app and app.tutorial and app.tutorial.active) then
+        return
+    end
+    Render.prepareUi(app)
+    app.tutorial.index = clamp(app.tutorial.index or 1, 1, #tutorialSteps)
+    local w, h = 480, 204
+    layoutTutorialButtons(app, 1280 - w - 36, 116, w)
+    if not (love and love.graphics) then
+        return tutorialSteps
+    end
+    clearList(app.ui.tutorialButtons)
+    local width = love.graphics.getWidth()
+    local x = width - w - 36
+    local y = 116
+    layoutTutorialButtons(app, x, y, w)
+    local step = tutorialSteps[app.tutorial.index]
+    panel(x, y, w, h, 0.97)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.printf(step.title, x + 18, y + 18, w - 36)
+    love.graphics.setColor(0.68, 0.72, 0.66, 1)
+    love.graphics.printf(step.body, x + 18, y + 52, w - 36)
+    love.graphics.setColor(0.58, 0.62, 0.58, 1)
+    love.graphics.printf(tostring(app.tutorial.index) .. "/" .. tostring(#tutorialSteps), x + 18, y + 120, w - 36, "right")
+    for _, button in ipairs(app.ui.tutorialButtons) do
+        love.graphics.setColor(button.enabled and 0.11 or 0.07, button.enabled and 0.13 or 0.07, button.enabled and 0.11 or 0.07, 1)
+        love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+        love.graphics.setColor(button.enabled and 0.44 or 0.22, button.enabled and 0.5 or 0.22, button.enabled and 0.34 or 0.22, 1)
+        love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+        love.graphics.setColor(button.enabled and 0.9 or 0.4, button.enabled and 0.92 or 0.4, button.enabled and 0.84 or 0.4, 1)
+        love.graphics.printf(button.action == "next" and (app.tutorial.index == #tutorialSteps and "Done" or "Next") or (button.action == "prev" and "Back" or "Skip"), button.x + 6, button.y + 10, button.w - 12, "center")
+    end
+    return tutorialSteps
 end
 
 local function layoutTitleButtons(app, items, width, height)
@@ -2572,6 +2625,7 @@ function Render.draw(sim, app)
     Render.drawCurioModal(app)
     Render.drawCutscene(sim, app)
     Render.drawKeyboardFocus(app)
+    Render.drawTutorial(app)
     Render.drawPauseMenu(app)
     Render.drawConfirmDialog(app)
     love.graphics.pop()

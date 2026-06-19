@@ -77,6 +77,11 @@ jobs:
           SDL_AUDIODRIVER: dummy
         run: make journal-smoke
 
+      - name: Run tutorial smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make tutorial-smoke
+
       - name: Run keyboard smoke
         env:
           SDL_AUDIODRIVER: dummy

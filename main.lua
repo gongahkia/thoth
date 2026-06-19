@@ -91,6 +91,14 @@ local function resetVisualState(state, simulation)
     state.pendingTargetSide = nil
 end
 
+local function startTutorial(state)
+    if state.tutorialSeen then
+        return
+    end
+    state.tutorial = { active = true, index = 1 }
+    state.status = "tutorial"
+end
+
 local function describeSave(loaded)
     if not loaded then
         return "no save"
@@ -110,6 +118,9 @@ local function enterGame(state, simulation, status)
     state.uiState = "game"
     state.status = status or "ready"
     resetVisualState(state, sim)
+    if status == "new game" then
+        startTutorial(state)
+    end
     local campaign = sim and sim.estate and sim.estate.campaign
     if campaign and (campaign.lost or campaign.victory) then
         state.uiState = "gameover"
@@ -661,6 +672,52 @@ local function mouseJournal(state, x, y)
     return false
 end
 
+local function closeTutorial(state)
+    state.tutorialSeen = true
+    state.tutorial = nil
+    state.status = "ready"
+end
+
+local function keyTutorial(state, key)
+    local steps = Render.tutorialSteps()
+    if key == "escape" or key == "backspace" then
+        closeTutorial(state)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "left" or key == "a" or key == "up" or key == "w" then
+        state.tutorial.index = math.max(1, (state.tutorial.index or 1) - 1)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "right" or key == "d" or key == "down" or key == "s" or key == "return" or key == "kpenter" or key == "space" then
+        if (state.tutorial.index or 1) >= #steps then
+            closeTutorial(state)
+        else
+            state.tutorial.index = (state.tutorial.index or 1) + 1
+        end
+        Audio.play(state.audio, "tick")
+    end
+end
+
+local function mouseTutorial(state, x, y)
+    for _, hitbox in ipairs((state.ui and state.ui.tutorialButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            if hitbox.action == "skip" then
+                closeTutorial(state)
+            elseif hitbox.action == "prev" and hitbox.enabled then
+                state.tutorial.index = math.max(1, (state.tutorial.index or 1) - 1)
+            elseif hitbox.action == "next" then
+                keyTutorial(state, "return")
+                return true
+            end
+            Audio.play(state.audio, "tick")
+            return true
+        end
+    end
+    return false
+end
+
 local function printRenderSmoke(state)
     if not state.renderSmoke or state.renderSmokePrinted then
         return
@@ -873,6 +930,16 @@ local function printJournalSmoke(state)
     print("journal-smoke-buttons=" .. tostring(#((state.ui and state.ui.journalButtons) or {})))
 end
 
+local function printTutorialSmoke(state)
+    if not state.tutorialSmoke or state.tutorialSmokePrinted then
+        return
+    end
+    state.tutorialSmokePrinted = true
+    print("tutorial-smoke-active=" .. tostring(state.tutorial and state.tutorial.active == true))
+    print("tutorial-smoke-steps=" .. tostring(#Render.tutorialSteps()))
+    print("tutorial-smoke-buttons=" .. tostring(#((state.ui and state.ui.tutorialButtons) or {})))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -890,7 +957,8 @@ function love.load(args)
     local keyboardSmoke = hasArg(args, "--keyboard-smoke")
     local controllerSmoke = hasArg(args, "--controller-smoke")
     local journalSmoke = hasArg(args, "--journal-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke
+    local tutorialSmoke = hasArg(args, "--tutorial-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke or tutorialSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
@@ -957,6 +1025,7 @@ function love.load(args)
         keyboardSmoke = keyboardSmoke,
         controllerSmoke = controllerSmoke,
         journalSmoke = journalSmoke,
+        tutorialSmoke = tutorialSmoke,
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -979,6 +1048,10 @@ function love.load(args)
     end
     if journalSmoke then
         openJournal(app, "game")
+    end
+    if tutorialSmoke then
+        app.tutorialSeen = false
+        startTutorial(app)
     end
     Render.load()
 end
@@ -1075,6 +1148,7 @@ function love.draw()
     printConfirmSmoke(app)
     printKeyboardSmoke(app)
     printControllerSmoke(app)
+    printTutorialSmoke(app)
     if app.renderBenchmark then
         local elapsedMs = (love.timer.getTime() - started) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1
@@ -1113,6 +1187,10 @@ local function handleKey(key)
     end
     if app.uiState == "journal" then
         keyJournal(app, key)
+        return
+    end
+    if app.tutorial and app.tutorial.active then
+        keyTutorial(app, key)
         return
     end
     if app.confirmDialog then
@@ -1207,6 +1285,10 @@ function love.mousepressed(x, y, button)
     end
     if button == 1 and app.uiState == "journal" then
         mouseJournal(app, x, y)
+        return
+    end
+    if button == 1 and app.tutorial and app.tutorial.active then
+        mouseTutorial(app, x, y)
         return
     end
     if button == 1 and app.confirmDialog then

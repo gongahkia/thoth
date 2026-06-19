@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke keyboard-smoke controller-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke keyboard-smoke controller-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -164,6 +164,19 @@ journal-smoke:
 	grep -q "journal-smoke-documents=1" $$tmp; \
 	grep -q "journal-smoke-epitaphs=1" $$tmp; \
 	grep -q "journal-smoke-buttons=" $$tmp; \
+	rm -f $$tmp
+
+tutorial-smoke:
+	@set -e; \
+	tmp=$$(mktemp); \
+	if command -v xvfb-run >/dev/null 2>&1; then \
+		xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --tutorial-smoke | tee $$tmp; \
+	else \
+		$(LOVE) . --tutorial-smoke | tee $$tmp; \
+	fi; \
+	grep -q "tutorial-smoke-active=true" $$tmp; \
+	grep -q "tutorial-smoke-steps=3" $$tmp; \
+	grep -q "tutorial-smoke-buttons=3" $$tmp; \
 	rm -f $$tmp
 
 keyboard-smoke:

@@ -93,7 +93,6 @@ Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render
 
 Goal: build every missing player-facing screen. Game must boot from title → load campaign → play → quit gracefully.
 
-- [ ] 2.19 Add tutorial system: first-expedition guided overlay explaining torch/stress/rank (40h)
 - [ ] 2.20 Add achievement scaffolding (in-game, not Steam) — display unlock toasts (24h)
 - [ ] 2.21 Polish pass: micro-animations on every button, juice on every interaction (Balatro feel) (80h)
 - [ ] 2.22 Tag commit `phase2-ui-complete` (0.5h)

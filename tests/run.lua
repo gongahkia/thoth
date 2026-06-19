@@ -2148,6 +2148,10 @@ tests[#tests + 1] = function()
     expect(#journal.documents == 1 and journal.documents[1].text ~= "", "journal should expose found document text")
     expect(#journal.epitaphs == 1 and journal.epitaphs[1].epitaph ~= "", "journal should expose graveyard epitaphs")
     expect(#app.ui.journalButtons >= 4, "journal draw should populate journal hitboxes")
+    app.tutorial = { active = true, index = 1 }
+    local tutorial = Render.drawTutorial(app)
+    expect(#tutorial == 3 and tutorial[1].key == "torch" and tutorial[3].key == "rank", "tutorial should expose torch, stress, and rank steps")
+    expect(#app.ui.tutorialButtons == 3, "tutorial draw should populate tutorial controls")
     app.settings = Settings.defaults()
     Render.drawSettings(app)
     local hasBack = false
@@ -2182,6 +2186,7 @@ tests[#tests + 1] = function()
             gameOverButtons = { { stale = true } },
             creditsButtons = { { stale = true } },
             journalButtons = { { stale = true } },
+            tutorialButtons = { { stale = true } },
             titleButtons = { { stale = true } },
             settingsButtons = { { stale = true } },
         },
@@ -2200,7 +2205,7 @@ tests[#tests + 1] = function()
     expect(#app.ui.partyRankSlots == 0, "prepareUi should clear party rank slots")
     expect(#app.ui.curioButtons == 0, "prepareUi should clear curio buttons")
     expect(#app.ui.campSkillButtons == 0 and #app.ui.campHeroButtons == 0, "prepareUi should clear camp buttons")
-    expect(#app.ui.pauseButtons == 0 and #app.ui.confirmButtons == 0 and #app.ui.gameOverButtons == 0 and #app.ui.creditsButtons == 0 and #app.ui.journalButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
+    expect(#app.ui.pauseButtons == 0 and #app.ui.confirmButtons == 0 and #app.ui.gameOverButtons == 0 and #app.ui.creditsButtons == 0 and #app.ui.journalButtons == 0 and #app.ui.tutorialButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
     app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
     app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }
     Render.prepareUi(app)
