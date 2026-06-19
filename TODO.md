@@ -27,3 +27,4 @@
 - Replaced active tests and benchmark with RPG coverage.
 - Expanded replay coverage for estate, provisioning, mission, and camp commands.
 - Added semantic audio cue routing and HUD event flash feedback over existing WAV assets.
+- Added deterministic original narration lines for expedition, combat, stress, camp, curio, collapse, and campaign victory beats.

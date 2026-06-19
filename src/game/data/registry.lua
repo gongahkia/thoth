@@ -781,4 +781,55 @@ Registry.townEvents = {
 }
 Registry.townEventOrder = { "supply_cache", "memorial_bell", "levy_notice", "clear_roads", "bad_omens", "archivist_tithe", "old_maps", "candle_vigil" }
 
+Registry.narration = {
+    mission_start = {
+        "The gate shuts softly; the dark answers loudly.",
+        "Four lanterns cross the threshold, each carrying a debt.",
+    },
+    mission_complete = {
+        "What was taken from the deep returns with interest.",
+        "A narrow victory, but narrow roads still lead home.",
+    },
+    retreat = {
+        "They leave breath behind and call the remainder survival.",
+        "The road back accepts every trembling step.",
+    },
+    combat_start = {
+        "Shapes gather where courage thins.",
+        "Steel remembers its purpose before the hand does.",
+    },
+    combat_win = {
+        "The floor keeps its dead; the living keep moving.",
+        "Silence falls, bought with blood and nerve.",
+    },
+    resolve = {
+        "A mind at the edge may harden, or crack.",
+        "The heart is weighed, and the scale is cruel.",
+    },
+    death = {
+        "A name leaves the roster and enters the stone.",
+        "The expedition grows lighter by one soul.",
+    },
+    camp = {
+        "Rest is a small fire built in hostile country.",
+        "For a moment, exhaustion has a roof.",
+    },
+    curio = {
+        "Old things answer, though never for free.",
+        "The ruin gives with one hand and marks with the other.",
+    },
+    campaign_sealed = {
+        "The estate exhales, not healed, but spared.",
+        "The last seal holds; dawn finds the roofs still standing.",
+    },
+    collapse = {
+        "The ledgers close on loss.",
+        "The estate is not conquered; it is consumed.",
+    },
+}
+Registry.narrationOrder = {
+    "mission_start", "mission_complete", "retreat", "combat_start", "combat_win",
+    "resolve", "death", "camp", "curio", "campaign_sealed", "collapse",
+}
+
 return Registry

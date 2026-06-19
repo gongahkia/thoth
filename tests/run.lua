@@ -88,6 +88,7 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.startExpedition("cistern_survey"))
     expect(sim.expedition.location == "salt_cistern" and sim.world.location == "salt_cistern", "mission should start its location world")
     expect(sim.world:getTile(6, 4, 0).id == "salt_font", "location specials should render in world")
+    expect(sim.narration ~= "", "mission start should set narration")
 end
 
 tests[#tests + 1] = function()
@@ -502,6 +503,7 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.interact())
     expect(sim.estate.trinkets.quiet_bell >= 1 and sim.estate.gold >= 320, "boss mission should pay reward")
     expect(sim.estate.campaign.bossKills.buried_archive and sim.estate.campaign.locationProgress.buried_archive == 2, "boss mission should mark location boss progress")
+    expect(sim.narration ~= "", "boss return should keep narration")
 end
 
 tests[#tests + 1] = function()
@@ -530,7 +532,7 @@ tests[#tests + 1] = function()
     expect(sim.estate.campaign.victory and sim.estate.campaign.renown == 6, "all boss wins should complete campaign arc")
     expect(sim.estate.campaign.finalSeal and sim.estate.heirlooms >= heirlooms + 3 and sim.estate.trinkets.scribe_wax >= 1, "campaign victory should grant final seal reward")
     local loaded = Simulation.fromSnapshot(sim:snapshot())
-    expect(loaded.estate.campaign.victory and loaded.estate.campaign.finalSeal and loaded.estate.campaign.bossKills.ember_warrens, "campaign snapshot should preserve boss wins")
+    expect(loaded.estate.campaign.victory and loaded.estate.campaign.finalSeal and loaded.estate.campaign.bossKills.ember_warrens and loaded.narration ~= "", "campaign snapshot should preserve boss wins")
 end
 
 tests[#tests + 1] = function()

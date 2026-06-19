@@ -39,6 +39,8 @@ local Defs = {
     estateActivityOrder = Registry.estateActivityOrder,
     townEvents = Registry.townEvents,
     townEventOrder = Registry.townEventOrder,
+    narration = Registry.narration,
+    narrationOrder = Registry.narrationOrder,
 }
 
 function Defs.tile(id)
@@ -115,6 +117,10 @@ end
 
 function Defs.townEvent(id)
     return Defs.townEvents[id]
+end
+
+function Defs.narrationFor(id)
+    return Defs.narration[id]
 end
 
 return Defs

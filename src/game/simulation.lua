@@ -188,6 +188,7 @@ function Simulation.new(seed)
         combat = nil,
         commandQueue = {},
         status = "ready",
+        narration = "",
         log = {},
     }, Simulation)
     self:refillRecruits()
@@ -426,6 +427,16 @@ function Simulation:pushLog(message)
     end
 end
 
+function Simulation:narrate(kind, salt)
+    local lines = Defs.narrationFor(kind)
+    if not lines or #lines == 0 then
+        return false
+    end
+    local index = (Rng.hash(self.seed + 9901, self.tick, self.rollIndex, #(salt or kind)) % #lines) + 1
+    self.narration = lines[index]
+    return true
+end
+
 function Simulation:roll(minValue, maxValue)
     self.rollIndex = self.rollIndex + 1
     local span = maxValue - minValue + 1
@@ -627,6 +638,7 @@ function Simulation:damageHero(hero, amount)
         self:compactParty()
         self:evaluateCampaignState()
         self:pushLog(hero.name .. " fell")
+        self:narrate("death", hero.name)
     elseif hero.hp <= 0 then
         hero.hp = 0
         hero.deathsDoor = true
@@ -710,6 +722,7 @@ function Simulation:resolveCheck(hero)
         self:stressParty(hero, 3)
         self:pushLog(hero.name .. " is " .. Defs.affliction(hero.affliction).name)
     end
+    self:narrate("resolve", hero.name)
 end
 
 function Simulation:afflictionAct(hero)
@@ -902,6 +915,7 @@ function Simulation:startExpedition(locationKey)
     self:applyMissionLevelPenalty(mission)
     self:discoverCurrentRoom()
     self:pushLog("entered " .. mission.name)
+    self:narrate("mission_start", missionKey)
     return true
 end
 
@@ -932,6 +946,7 @@ function Simulation:endExpedition(retreat)
         end
         self:recordMissionOutcome(mission, true, retreat)
         self:pushLog("mission complete")
+        self:narrate("mission_complete", self.expedition.mission)
     else
         self.estate.gold = self.estate.gold + math.floor(coin / 2)
         for rank = 1, 4 do
@@ -945,6 +960,7 @@ function Simulation:endExpedition(retreat)
         end
         self:recordMissionOutcome(mission, false, retreat)
         self:pushLog("expedition abandoned")
+        self:narrate("retreat", self.expedition.mission)
     end
     self.mode = "estate"
     self.combat = nil
@@ -983,6 +999,7 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
         self.estate.heirlooms = self.estate.heirlooms + 3
         self.estate.trinkets.scribe_wax = (self.estate.trinkets.scribe_wax or 0) + 1
         self:pushLog("campaign sealed")
+        self:narrate("campaign_sealed", "victory")
     end
     self:refreshMissionBoard(true)
     self:evaluateCampaignState()
@@ -1012,6 +1029,7 @@ function Simulation:evaluateCampaignState()
     end
     if campaign.lost then
         self:pushLog("campaign collapsed: " .. campaign.lossReason)
+        self:narrate("collapse", campaign.lossReason or "lost")
     end
     return campaign.lost == true
 end
@@ -1789,6 +1807,7 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
         end
         self:updateObjective()
         self:pushLog(curio.name .. " activated")
+        self:narrate("curio", curioKey)
         return true
     end
     local usedItem = false
@@ -1819,6 +1838,7 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
     self.world:setTile(x, y, z, { id = self.world:floorTile(), data = 0 })
     self:updateObjective()
     self:pushLog(curio.name .. " resolved")
+    self:narrate("curio", curioKey)
     return true
 end
 
@@ -1844,6 +1864,7 @@ function Simulation:camp()
         end
     end
     self:pushLog("camped")
+    self:narrate("camp", "camped")
     return true
 end
 
@@ -1981,6 +2002,7 @@ function Simulation:startCombat(encounterKey, roomKey, options)
         self.expedition.torch = 0
     end
     self:pushLog("combat: " .. encounterKey)
+    self:narrate("combat_start", encounterKey)
     self:advanceCombat()
     return true
 end
@@ -2323,12 +2345,14 @@ function Simulation:finishCombat(victory)
         end
         self.mode = "expedition"
         self:pushLog("combat won")
+        self:narrate("combat_win", self.combat.encounter)
     else
         self.mode = "estate"
         if self.expedition then
             self.expedition.active = false
         end
         self:pushLog("party lost")
+        self:narrate("death", "party")
     end
     self.combat = nil
     return true
@@ -2818,6 +2842,7 @@ function Simulation:snapshot()
         expedition = expedition,
         combat = combat,
         status = self.status,
+        narration = self.narration,
         log = copyList(self.log),
     }
 end
@@ -2839,6 +2864,7 @@ function Simulation.fromSnapshot(snapshot)
         combat = nil,
         commandQueue = {},
         status = snapshot.status or "loaded",
+        narration = snapshot.narration or "",
         log = copyList(snapshot.log or {}),
     }, Simulation)
     self.estate.gold = (snapshot.estate and snapshot.estate.gold) or 0

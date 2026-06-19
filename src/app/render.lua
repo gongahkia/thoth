@@ -642,11 +642,15 @@ function Render.drawSidePanel(sim, app)
     love.graphics.setColor(0.75, 0.78, 0.72, 1)
     love.graphics.printf(sim.expedition and stacksText(sim.expedition.loot) or ("gold:" .. sim.estate.gold .. " heirlooms:" .. sim.estate.heirlooms), x + 10, detailY + 94, 272)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Log", x + 10, detailY + 150)
+    love.graphics.print("Voice", x + 10, detailY + 126)
+    love.graphics.setColor(0.68, 0.72, 0.68, 1)
+    love.graphics.printf(sim.narration or "-", x + 10, detailY + 146, 272)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Log", x + 10, detailY + 198)
     love.graphics.setColor(0.72, 0.76, 0.72, 1)
     local log = sim.expedition and sim.expedition.log or sim.log
     for i = math.max(1, #log - 5), #log do
-        love.graphics.print(log[i], x + 10, detailY + 154 + (i - math.max(1, #log - 5) + 1) * 18)
+        love.graphics.print(log[i], x + 10, detailY + 202 + (i - math.max(1, #log - 5) + 1) * 18)
     end
 end
 

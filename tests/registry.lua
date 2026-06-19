@@ -208,4 +208,9 @@ for key, event in pairs(Defs.townEvents) do
     end
 end
 
+for _, key in ipairs(Defs.narrationOrder) do
+    local lines = Defs.narrationFor(key)
+    expect(lines and #lines >= 2, "narration missing lines " .. key)
+end
+
 print("registry checks passed")
