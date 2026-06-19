@@ -1917,7 +1917,7 @@ tests[#tests + 1] = function()
         return contains(sim:unlockedClassKeys(), key)
     end
     expect(hasClass("warden") and hasClass("duelist") and hasClass("mender") and hasClass("harrier"), "starter classes should be unlocked")
-    expect(not hasClass("arcanist") and not hasClass("chirurgeon") and not hasClass("exile") and not hasClass("lamplighter"), "advanced classes should start locked")
+    expect(not hasClass("arcanist") and not hasClass("chirurgeon") and not hasClass("exile") and not hasClass("lamplighter") and not hasClass("merchant"), "advanced classes should start locked")
     sim.estate.recruits = { { class = "lamplighter", name = "Locked", quirks = {} } }
     sim:refillRecruits()
     for _, recruit in ipairs(sim.estate.recruits) do
@@ -1932,6 +1932,7 @@ tests[#tests + 1] = function()
     expect(hasClass("exile"), "cistern progress should unlock exile")
     sim.estate.campaign.bossKills.salt_cistern = true
     expect(hasClass("lamplighter"), "cistern boss kill should unlock lamplighter")
+    expect(not hasClass("merchant"), "merchant should stay locked until its unlock event")
     local loaded = Simulation.fromSnapshot(sim:snapshot())
     expect(contains(loaded:unlockedClassKeys(), "lamplighter"), "class gates should survive snapshot through campaign state")
 end

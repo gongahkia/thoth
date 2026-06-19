@@ -324,8 +324,15 @@ Registry.heroClasses = {
         resolve = 58,
         skills = { "staff_strike", "kindle", "white_flare" },
     },
+    merchant = {
+        name = "Merchant",
+        maxHp = 19,
+        speed = 4,
+        resolve = 54,
+        skills = { "appraise_weak_point", "brokered_mercy", "settle_accounts" },
+    },
 }
-Registry.heroClassOrder = { "warden", "duelist", "mender", "arcanist", "harrier", "chirurgeon", "exile", "lamplighter" }
+Registry.heroClassOrder = { "warden", "duelist", "mender", "arcanist", "harrier", "chirurgeon", "exile", "lamplighter", "merchant" }
 Registry.classUnlocks = {
     warden = { default = true, reason = "Available at Estate start." },
     duelist = { default = true, reason = "Available at Estate start." },
@@ -335,6 +342,7 @@ Registry.classUnlocks = {
     chirurgeon = { bossKill = "buried_archive", reason = "Defeat the Vault Regent." },
     exile = { location = "salt_cistern", progress = 1, reason = "Complete any Salt Cistern expedition." },
     lamplighter = { bossKill = "salt_cistern", reason = "Defeat the Bell Diver." },
+    merchant = { reason = "Locked until the Merchant unlock event is implemented." },
 }
 Registry.classUnlockOrder = Registry.heroClassOrder
 
@@ -541,12 +549,39 @@ Registry.skills = {
         stressDamage = 3,
         status = { kind = "daze", amount = 1, turns = 1 },
     },
+    appraise_weak_point = {
+        name = "Appraise Weak Point",
+        class = "merchant",
+        userRanks = { 3, 4 },
+        target = "enemy",
+        targetRanks = { 1, 2, 3, 4 },
+        status = { kind = "marked", amount = 1, turns = 2 },
+    },
+    brokered_mercy = {
+        name = "Brokered Mercy",
+        class = "merchant",
+        userRanks = { 2, 3, 4 },
+        target = "ally",
+        targetRanks = { 1, 2, 3, 4 },
+        heal = { 6, 6 },
+        selfStress = 3,
+    },
+    settle_accounts = {
+        name = "Settle Accounts",
+        class = "merchant",
+        userRanks = { 1, 2 },
+        target = "enemy",
+        targetRanks = { 1, 2 },
+        damage = { 2, 4 },
+        missingHpScale = 4,
+    },
 }
 Registry.skillOrder = {
     "shield_crack", "hold_line", "iron_oath", "razor_lunge", "arterial_cut", "shadow_step",
     "field_dress", "steady_words", "bone_saw", "lantern_bolt", "hush", "ember_veil",
     "crossbolt", "pinning_shot", "disengage", "acrid_vial", "cauterize", "triage",
     "low_sweep", "grit_teeth", "war_cry", "staff_strike", "kindle", "white_flare",
+    "appraise_weak_point", "brokered_mercy", "settle_accounts",
 }
 
 Registry.enemySkills = {
@@ -2164,8 +2199,9 @@ Registry.classLore = {
     chirurgeon = { origin = "The Chirurgeon keeps bodies useful longer than hope does." },
     exile = { origin = "The Exile knows every border is a receipt." },
     lamplighter = { origin = "The Lamplighter was paid to make darkness legible, not safe." },
+    merchant = { origin = "The Merchant learned that mercy is an entry; debt outlasts the body." },
 }
-Registry.classLoreOrder = { "warden", "duelist", "mender", "arcanist", "harrier", "chirurgeon", "exile", "lamplighter" }
+Registry.classLoreOrder = { "warden", "duelist", "mender", "arcanist", "harrier", "chirurgeon", "exile", "lamplighter", "merchant" }
 Registry.classLoreBanks = {
     class_origins = { classes = Registry.classLoreOrder },
 }
@@ -2180,6 +2216,7 @@ Registry.recruitBarks = {
     chirurgeon = { "Open wounds tell useful truths.", "The Estate pays for survival, not comfort." },
     exile = { "I know what locked doors call justice.", "A bad bargain is still a map." },
     lamplighter = { "I sell distance from the dark.", "No flame is free here." },
+    merchant = { "The ledger was open before I arrived.", "Mercy is cheaper when itemized." },
 }
 Registry.recruitBarkOrder = Registry.classLoreOrder
 Registry.barkBanks = {
@@ -2550,6 +2587,7 @@ Registry.originBarks = {
         chirurgeon = { arrival = "A Chirurgeon inventories pain by habit.", firstDeath = "The diagnosis ended before the bleeding did.", factionShift = "A Chirurgeon knows debt by its symptoms." },
         exile = { arrival = "An Exile treats welcome as a temporary error.", firstDeath = "The outcast still earned a stone.", factionShift = "An Exile expects every faction to turn." },
         lamplighter = { arrival = "A Lamplighter checks the wick before the oath.", firstDeath = "The flame recorded the absence.", factionShift = "A Lamplighter counts politics in fuel." },
+        merchant = { arrival = "A Merchant arrives with the ledger already opened.", firstDeath = "The account closed at a loss.", factionShift = "A Merchant marks faction weather as price movement." },
     },
 }
 Registry.originBarkOrder = { "origin_barks_v1" }

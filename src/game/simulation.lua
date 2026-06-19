@@ -16,6 +16,7 @@ local heroNames = {
     chirurgeon = "Vand",
     exile = "Rook",
     lamplighter = "Aster",
+    merchant = "Leto",
 }
 
 local recruitNames = {
@@ -32,6 +33,7 @@ local defaultQuirks = {
     chirurgeon = { "field_reader", "brittle" },
     exile = { "steady_hand", "gloomy" },
     lamplighter = { "iron_nerves", "faint_pulse" },
+    merchant = { "field_reader", "gloomy" },
 }
 
 local starterClassOrder = { "warden", "duelist", "mender", "harrier" }
