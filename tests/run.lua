@@ -572,6 +572,21 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(77)
+    sim:endExpedition(true)
+    local hero = sim:heroAtRank(1)
+    runQueued(sim, Simulation.commands.equipTrinket(hero.id, "ember_pin", 1))
+    sim:startCombat("entry", "8:0")
+    hero.deathsDoor = true
+    hero.deathblowResist = 0
+    sim:damageHero(hero, hero.hp + 1)
+    sim.estate.campaign.flags.survivorTrinketDebt = true
+    sim.estate.campaign.dread = 0
+    sim:finishCombat(false)
+    expect(sim.estate.trinkets.ember_pin == 1 and sim.estate.campaign.dread == 1, "survivor debt should recover one trinket and add dread")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(37)
     local rations = sim.expedition.supplies:count("ration")
     for _ = 1, 6 do
@@ -672,6 +687,62 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(94)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    sim.expedition.torch = 85
+    sim.player.x = 15
+    sim.player.y = 5
+    sim.player.facing = "east"
+    runQueued(sim, Simulation.commands.stealthApproach())
+    expect(sim.expedition.stealthApproach and sim.expedition.torch == 75, "stealth approach should spend torch and arm approach state")
+    runQueued(sim, Simulation.commands.interact())
+    expect(sim.mode == "combat" and sim.combat.stealthed and not sim.combat.ambush, "stealth approach should carry into visible threat combat")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.combat.stealthed, "stealthed combat should survive snapshot")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(95)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    sim.expedition.supplies:add("bait_chime", 1)
+    local noise = sim.expedition.noise
+    runQueued(sim, Simulation.commands.useItem("bait_chime", 1))
+    expect(sim.expedition.clearedEncounters.archive_sentinel and sim.expedition.noise > noise, "bait chime should lure one visible threat and raise noise")
+    expect(sim.expedition.supplies:count("bait_chime") == 0, "bait chime should be consumed when it lures")
+    local objects = sim:objectsInRect(24, 24, 5, 5, 0)
+    expect(sim.expedition.alphaMarkers.red_indexer and sim.expedition.alphaMarkers.red_indexer.roomKey == "24:6", "alpha marker should appear when alpha is visible")
+    expect(objects[1].tooltip == Defs.scoutTooltip("scout_odds_tooltip").high, "visible threat should expose scout odds tooltip")
+    sim.expedition.scoutedRooms["24:6"] = true
+    expect(sim:scoutOddsTooltip("24:6") == Defs.scoutTooltip("scout_odds_tooltip").low, "scouted room should expose reduced odds copy")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.expedition.alphaMarkers.red_indexer.roomKey == "24:6", "alpha marker should survive snapshot")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(97)
+    expect(sim:itemTooltip("bandage"):find("injury", 1, true) ~= nil and sim:itemTooltip("ward_charm"):find("resolve", 1, true) ~= nil, "provision tooltip should expose injury cure copy")
+    sim.expedition.noise = 5
+    runQueued(sim, Simulation.commands.camp())
+    expect(sim.expedition.noise == 3, "camp should decay noise")
+    sim = Simulation.new(98)
+    sim.expedition.noise = 5
+    sim.expedition.torch = 60
+    sim.expedition.supplies:add("torch", 1)
+    runQueued(sim, Simulation.commands.useItem("torch", 1))
+    expect(sim.expedition.torch >= 75 and sim.expedition.noise == 4, "high torch should decay noise")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(99)
+    sim.expedition.noise = 12
+    runQueued(sim, Simulation.commands.camp())
+    runQueued(sim, Simulation.commands.finishCamp())
+    expect(sim.mode == "combat" and sim.combat.encounter == "archive_ambush" and sim.combat.pressure and sim.combat.ambush, "high noise should trigger camp ambush")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(2)
     local roomKey = sim:currentRoomKey()
     sim.expedition.torch = 0
@@ -705,6 +776,20 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(100)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim:startCombat("archive_elite", "weakpoint_chain"), "archive elite should start for chain test")
+    local enemy = sim.combat.enemies[1]
+    expect(sim:damageEnemyPart(enemy, "open_codex", 99), "first weak point should disable")
+    expect(sim.status:find("Lectern Cant", 1, true) ~= nil, "weak point log should name disabled skill")
+    expect(sim:damageEnemyPart(enemy, "bone_clasp", 99), "second weak point should disable")
+    expect(sim:hasStatus(enemy, "daze") and enemy.weakPointChainTurns == 1, "two broken weak points should chain daze")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.combat.enemies[1].weakPointChainTurns == 1, "weak point chain should survive snapshot")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(105)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("archive_witness_confession"))
@@ -714,6 +799,28 @@ tests[#tests + 1] = function()
     ally.stress = 5
     sim:enemyTurn(witness)
     expect(ally.stress < 5, "pressed witness should restore adjacent enemy stress damage")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(106)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim:startCombat("archive_elite", "support_repair"), "archive elite should start for repair test")
+    local enemy = sim.combat.enemies[1]
+    local support = sim.combat.enemies[2]
+    sim:damageEnemyPart(enemy, "open_codex", 99)
+    expect(enemy.parts[1].disabled, "weak point should be disabled before repair")
+    sim:enemyTurn(support)
+    expect(not enemy.parts[1].disabled and enemy.parts[1].hp > 0 and sim.combat.partRepaired, "support should repair one disabled weak point once")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(107)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim:startCombat("archive_alpha", "shelf_warden", { visible = true, threatKey = "shelf_warden" }), "alpha combat should start")
+    sim:finishCombat(true)
+    expect(sim.expedition.loot:count("coin") == 80 and sim.expedition.loot:count("heirloom") == 2, "alpha victory should add alpha reward")
 end
 
 tests[#tests + 1] = function()

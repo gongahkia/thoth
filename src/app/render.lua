@@ -1408,7 +1408,7 @@ function Render.drawEstatePanel(sim, app)
         love.graphics.rectangle("line", bx, by, 128, 28)
         love.graphics.setColor(0.86, 0.88, 0.8, 1)
         love.graphics.printf(item.name .. " " .. item.cost .. "g", bx + 4, by + 7, 120, "center")
-        app.ui.provisionButtons[#app.ui.provisionButtons + 1] = { x = bx, y = by, w = 128, h = 28, item = itemKey }
+        app.ui.provisionButtons[#app.ui.provisionButtons + 1] = { x = bx, y = by, w = 128, h = 28, item = itemKey, tooltip = sim:itemTooltip(itemKey) }
     end
     local selected = drawRosterBrowser(sim, app, x + 446, y + 10, 252, 254)
     drawSelectedEstateHero(sim, app, selected, x + 446, y + 286, 252)

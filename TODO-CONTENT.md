@@ -2,25 +2,6 @@
 
 Loose Markdown backlog. Task lines keep todo-ish metadata for search/filter use.
 
-## Exploration And Encounters
-
-- [ ] (A) Add visible threat behavior table for idle, stalk, guard, flee, and call_help +Encounter @simulation type:threat_ai zone:global id:visible_threat_behaviors
-- [ ] (A) Add alpha threat rule that creates a persistent map marker after first sighting +Encounter @simulation type:alpha zone:global id:alpha_marker
-- [ ] (A) Add scouted-room modifier text for ambush odds and visible threat preview +Encounter @ui type:tooltip zone:global id:scout_odds_tooltip
-- [ ] (B) Add stealth approach command that spends torch to reduce visible threat opening advantage +Encounter @input type:command zone:global id:stealth_approach
-- [ ] (B) Add bait provision item that can lure one visible threat from a required route +Encounter @registry type:item zone:global id:bait_chime
-- [ ] (B) Add noise decay on camp and high torch so pressure is readable +Encounter @simulation type:pressure zone:global id:noise_decay
-- [ ] (A) Add injury definitions for crushed_hand, salt_bloat, glass_scarring, and nerve_burn +Encounter @registry type:injury zone:global id:injury_v2
-- [ ] (B) Add injury cure copy to provision tooltips for bandage, salve, laudanum, ward_charm +Encounter @ui type:tooltip zone:global id:injury_cure_tooltips
-- [ ] (A) Add weak-point label copy that states disabled skill in combat log +Encounter @combat type:weak_point zone:global id:part_disable_log
-- [ ] (B) Add enemy support action that restores a disabled weak point once per elite fight +Encounter @combat type:support_skill zone:global id:part_repair_skill
-- [ ] (B) Add combat reward bump for defeating alpha threats without retreat +Encounter @simulation type:reward zone:global id:alpha_reward
-- [ ] (C) Add defeat recovery event where survivors retrieve one fallen trinket for a debt +Encounter @simulation type:recovery zone:global id:survivor_trinket_debt
-- [ ] (B) Add visible-threat alpha pursuit AI that stalks one corridor before engaging +Encounter @simulation type:threat_ai zone:global id:alpha_stalk_corridor
-- [ ] (B) Add ambush template triggered when noise exceeds cap during camp +Encounter @simulation type:ambush zone:global id:camp_ambush_noise
-- [ ] (C) Add weak-point chain rule where breaking two parts disables a boss procedure for one turn +Encounter @combat type:weak_point zone:global id:weak_point_chain
-- [ ] (B) Add ambush downgrade when stealth approach succeeds with full torch +Encounter @simulation type:ambush zone:global id:stealth_downgrade
-
 ## Found Documents And Lore Fragments
 
 - [ ] (A) Add document registry with types writ_fragment, valve_schematic, penitent_confession, intake_colophon, and survivor_page +Narrative @registry type:document_registry zone:global id:document_registry_v1

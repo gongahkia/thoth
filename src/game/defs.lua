@@ -74,6 +74,28 @@ local Defs = {
     endingRouteOrder = Registry.endingRouteOrder,
     endingRouters = Registry.endingRouters,
     endingRouterOrder = Registry.endingRouterOrder,
+    threatBehaviors = Registry.threatBehaviors,
+    threatBehaviorOrder = Registry.threatBehaviorOrder,
+    alphaRules = Registry.alphaRules,
+    alphaRuleOrder = Registry.alphaRuleOrder,
+    scoutTooltips = Registry.scoutTooltips,
+    scoutTooltipOrder = Registry.scoutTooltipOrder,
+    expeditionCommands = Registry.expeditionCommands,
+    expeditionCommandOrder = Registry.expeditionCommandOrder,
+    pressureRules = Registry.pressureRules,
+    pressureRuleOrder = Registry.pressureRuleOrder,
+    injuryCureTooltips = Registry.injuryCureTooltips,
+    injuryCureTooltipOrder = Registry.injuryCureTooltipOrder,
+    weakPointRules = Registry.weakPointRules,
+    weakPointRuleOrder = Registry.weakPointRuleOrder,
+    supportRules = Registry.supportRules,
+    supportRuleOrder = Registry.supportRuleOrder,
+    rewardRules = Registry.rewardRules,
+    rewardRuleOrder = Registry.rewardRuleOrder,
+    recoveryRules = Registry.recoveryRules,
+    recoveryRuleOrder = Registry.recoveryRuleOrder,
+    ambushRules = Registry.ambushRules,
+    ambushRuleOrder = Registry.ambushRuleOrder,
     narration = Registry.narration,
     narrationOrder = Registry.narrationOrder,
 }
@@ -220,6 +242,50 @@ end
 
 function Defs.endingRouter(id)
     return Defs.endingRouters[id]
+end
+
+function Defs.threatBehavior(id)
+    return Defs.threatBehaviors[id]
+end
+
+function Defs.alphaRule(id)
+    return Defs.alphaRules[id]
+end
+
+function Defs.scoutTooltip(id)
+    return Defs.scoutTooltips[id]
+end
+
+function Defs.expeditionCommand(id)
+    return Defs.expeditionCommands[id]
+end
+
+function Defs.pressureRule(id)
+    return Defs.pressureRules[id]
+end
+
+function Defs.injuryCureTooltip(id)
+    return Defs.injuryCureTooltips[id]
+end
+
+function Defs.weakPointRule(id)
+    return Defs.weakPointRules[id]
+end
+
+function Defs.supportRule(id)
+    return Defs.supportRules[id]
+end
+
+function Defs.rewardRule(id)
+    return Defs.rewardRules[id]
+end
+
+function Defs.recoveryRule(id)
+    return Defs.recoveryRules[id]
+end
+
+function Defs.ambushRule(id)
+    return Defs.ambushRules[id]
 end
 
 function Defs.narrationFor(id)

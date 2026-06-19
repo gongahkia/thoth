@@ -79,6 +79,17 @@ checkOrder("faction", Defs.factionOrder, Defs.factions)
 checkOrder("dread rule", Defs.dreadRuleOrder, Defs.dreadRules)
 checkOrder("campaign timer", Defs.campaignTimerOrder, Defs.campaignTimers)
 checkOrder("ending route", Defs.endingRouteOrder, Defs.endingRoutes)
+checkOrder("threat behavior", Defs.threatBehaviorOrder, Defs.threatBehaviors)
+checkOrder("alpha rule", Defs.alphaRuleOrder, Defs.alphaRules)
+checkOrder("scout tooltip", Defs.scoutTooltipOrder, Defs.scoutTooltips)
+checkOrder("expedition command", Defs.expeditionCommandOrder, Defs.expeditionCommands)
+checkOrder("pressure rule", Defs.pressureRuleOrder, Defs.pressureRules)
+checkOrder("injury cure tooltip", Defs.injuryCureTooltipOrder, Defs.injuryCureTooltips)
+checkOrder("weak point rule", Defs.weakPointRuleOrder, Defs.weakPointRules)
+checkOrder("support rule", Defs.supportRuleOrder, Defs.supportRules)
+checkOrder("reward rule", Defs.rewardRuleOrder, Defs.rewardRules)
+checkOrder("recovery rule", Defs.recoveryRuleOrder, Defs.recoveryRules)
+checkOrder("ambush rule", Defs.ambushRuleOrder, Defs.ambushRules)
 
 for key, tile in pairs(Defs.tiles) do
     expect(tile.name and tile.name ~= "", "tile missing name " .. key)
@@ -109,6 +120,7 @@ for _, taxonomy in ipairs({ "salvage", "medicine", "light", "key", "ritual_reage
     end
     expect(covered, "item taxonomy unused " .. taxonomy)
 end
+expect(Defs.item("bait_chime").provision and Defs.item("bait_chime").taxonomy == "light", "bait chime provision missing")
 
 for key, trinket in pairs(Defs.trinkets) do
     expect(trinket.name and trinket.name ~= "", "trinket missing name " .. key)
@@ -135,6 +147,26 @@ end
 
 for key, injury in pairs(Defs.injuries) do
     expect(injury.name and injury.name ~= "", "injury missing name " .. key)
+end
+for _, key in ipairs({ "crushed_hand", "salt_bloat", "glass_scarring", "nerve_burn" }) do
+    expect(Defs.injury(key), "encounter injury missing " .. key)
+end
+
+do
+    expect(Defs.threatBehavior("visible_threat_behaviors").call_help.encounter == "archive_ambush", "visible threat behavior missing")
+    expect(Defs.alphaRule("alpha_marker").marker == "alpha", "alpha marker rule missing")
+    expect(Defs.scoutTooltip("scout_odds_tooltip").low, "scout odds tooltip missing")
+    expect(Defs.expeditionCommand("stealth_approach").torchCost == 10, "stealth approach command missing")
+    expect(Defs.pressureRule("noise_decay").camp == 2, "noise decay rule missing")
+    expect(Defs.injuryCureTooltip("injury_cure_tooltips").bandage, "injury cure tooltip missing")
+    expect(Defs.weakPointRule("part_disable_log").includeDisabledSkill, "part disable log rule missing")
+    expect(Defs.weakPointRule("weak_point_chain").disabledParts == 2, "weak point chain rule missing")
+    expect(Defs.supportRule("part_repair_skill").heal == 4, "part repair skill rule missing")
+    expect(Defs.rewardRule("alpha_reward").coin == 45, "alpha reward rule missing")
+    expect(Defs.recoveryRule("survivor_trinket_debt").trinkets == 1, "survivor trinket debt rule missing")
+    expect(Defs.alphaRule("alpha_stalk_corridor").state == "stalked", "alpha stalk corridor rule missing")
+    expect(Defs.ambushRule("camp_ambush_noise").encounter == "archive_ambush", "camp ambush noise rule missing")
+    expect(Defs.ambushRule("stealth_downgrade").fullTorch == 70, "stealth downgrade rule missing")
 end
 
 for key, activity in pairs(Defs.estateActivities) do

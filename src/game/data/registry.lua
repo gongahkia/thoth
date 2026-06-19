@@ -110,6 +110,7 @@ Registry.items = {
     skeleton_key = { name = "Skeleton Key", short = "k", stack = 8, cost = 12, provision = true, taxonomy = "key" },
     salve = { name = "Salve", short = "s", stack = 8, cost = 9, provision = true, taxonomy = "medicine" },
     ward_charm = { name = "Ward Charm", short = "w", stack = 4, cost = 18, provision = true, taxonomy = "ritual_reagent" },
+    bait_chime = { name = "Bait Chime", short = "bait", stack = 2, cost = 12, provision = true, taxonomy = "light" },
     relic = { name = "Relic", stack = 99, taxonomy = "salvage" },
     coin = { name = "Coin", stack = 999, taxonomy = "salvage" },
     heirloom = { name = "Heirloom", stack = 99, taxonomy = "salvage" },
@@ -131,7 +132,7 @@ Registry.items = {
 }
 
 Registry.itemOrder = {
-    "torch", "ration", "bandage", "laudanum", "skeleton_key", "salve", "ward_charm",
+    "torch", "ration", "bandage", "laudanum", "skeleton_key", "salve", "ward_charm", "bait_chime",
     "archive_page", "sealed_name", "page_bearer", "false_index_writ", "misfiled_dead",
     "valve_key", "salt_register", "tov_child", "deep_sluice_key", "ember_oil",
     "ash_name", "warm_ledger", "aron_boy", "white_furnace_key", "false_vow_writ", "relic", "coin", "heirloom",
@@ -244,8 +245,12 @@ Registry.injuries = {
     cracked_ribs = { name = "Cracked Ribs", maxHp = -2, stressTaken = 1 },
     lamp_burn = { name = "Lamp Burn", healBonus = -1, stressTaken = 1 },
     split_brow = { name = "Split Brow", resolve = -4, damageTaken = 1 },
+    crushed_hand = { name = "Crushed Hand", damageBonus = -2, weakPointDamage = -1 },
+    salt_bloat = { name = "Salt Bloat", maxHp = -3, blightResist = -10 },
+    glass_scarring = { name = "Glass Scarring", stressTaken = 2, injuryVulnerability = 8 },
+    nerve_burn = { name = "Nerve Burn", speed = -2, resolve = -6 },
 }
-Registry.injuryOrder = { "torn_shoulder", "cracked_ribs", "lamp_burn", "split_brow" }
+Registry.injuryOrder = { "torn_shoulder", "cracked_ribs", "lamp_burn", "split_brow", "crushed_hand", "salt_bloat", "glass_scarring", "nerve_burn" }
 
 Registry.heroClasses = {
     warden = {
@@ -1842,6 +1847,78 @@ Registry.endingRouters = {
     ending_router = { routes = Registry.endingRouteOrder },
 }
 Registry.endingRouterOrder = { "ending_router" }
+
+Registry.threatBehaviors = {
+    visible_threat_behaviors = {
+        idle = { noise = 0 },
+        stalk = { noise = 1, state = "stalked" },
+        guard = { visible = true },
+        flee = { clearsRoute = true },
+        call_help = { noise = 3, encounter = "archive_ambush" },
+    },
+}
+Registry.threatBehaviorOrder = { "visible_threat_behaviors" }
+
+Registry.alphaRules = {
+    alpha_marker = { persistent = true, marker = "alpha" },
+    alpha_stalk_corridor = { state = "stalked", corridorSteps = 1 },
+}
+Registry.alphaRuleOrder = { "alpha_marker", "alpha_stalk_corridor" }
+
+Registry.scoutTooltips = {
+    scout_odds_tooltip = {
+        low = "scouted: ambush pressure reduced",
+        high = "unscouted: noise and darkness can break into an ambush",
+    },
+}
+Registry.scoutTooltipOrder = { "scout_odds_tooltip" }
+
+Registry.expeditionCommands = {
+    stealth_approach = { torchCost = 10, fullTorchDowngrade = 70 },
+}
+Registry.expeditionCommandOrder = { "stealth_approach" }
+
+Registry.pressureRules = {
+    noise_decay = { camp = 2, highTorch = 1, highTorchThreshold = 75 },
+}
+Registry.pressureRuleOrder = { "noise_decay" }
+
+Registry.injuryCureTooltips = {
+    injury_cure_tooltips = {
+        bandage = "clears bleeding and one injury",
+        salve = "heals and clears one injury",
+        laudanum = "relieves stress before injury checks cascade",
+        ward_charm = "stabilizes resolve against ritual injuries",
+    },
+}
+Registry.injuryCureTooltipOrder = { "injury_cure_tooltips" }
+
+Registry.weakPointRules = {
+    part_disable_log = { includeDisabledSkill = true },
+    weak_point_chain = { disabledParts = 2, dazeTurns = 1 },
+}
+Registry.weakPointRuleOrder = { "part_disable_log", "weak_point_chain" }
+
+Registry.supportRules = {
+    part_repair_skill = { oncePerFight = true, heal = 4 },
+}
+Registry.supportRuleOrder = { "part_repair_skill" }
+
+Registry.rewardRules = {
+    alpha_reward = { coin = 45, heirloom = 1 },
+}
+Registry.rewardRuleOrder = { "alpha_reward" }
+
+Registry.recoveryRules = {
+    survivor_trinket_debt = { trinkets = 1, dread = 1 },
+}
+Registry.recoveryRuleOrder = { "survivor_trinket_debt" }
+
+Registry.ambushRules = {
+    camp_ambush_noise = { noise = 10, encounter = "archive_ambush" },
+    stealth_downgrade = { fullTorch = 70 },
+}
+Registry.ambushRuleOrder = { "camp_ambush_noise", "stealth_downgrade" }
 
 Registry.narration = {
     mission_start = {

@@ -201,6 +201,7 @@ local function cloneEnemy(enemy)
         resurrected = enemy.resurrected == true,
         deathSpawned = enemy.deathSpawned == true,
         deathFrontDamaged = enemy.deathFrontDamaged == true,
+        weakPointChainTurns = enemy.weakPointChainTurns or 0,
     }
 end
 
@@ -318,6 +319,10 @@ end
 
 function Simulation.commands.useItem(item, heroRank)
     return { type = "useItem", item = item, heroRank = heroRank }
+end
+
+function Simulation.commands.stealthApproach()
+    return { type = "stealthApproach" }
 end
 
 function Simulation.commands.combatSkill(skillKey, targetRank, targetSide, targetPart)
@@ -440,6 +445,9 @@ function Simulation:apply(command)
     end
     if command.type == "useItem" then
         return self:useItem(command.item, command.heroRank)
+    end
+    if command.type == "stealthApproach" then
+        return self:stealthApproach()
     end
     if command.type == "combatSkill" then
         return self:combatSkill(command.skillKey, command.targetRank, command.targetSide, command.targetPart)
@@ -1257,8 +1265,10 @@ function Simulation:startExpedition(locationKey)
         stepsSinceMeal = 0,
         hungerChecks = 0,
         threatState = {},
+        alphaMarkers = {},
         noise = 0,
         ambushRolls = 0,
+        stealthApproach = false,
         heatFatigue = 0,
         corridorVisits = {},
         currentCorridor = nil,
@@ -2135,6 +2145,86 @@ function Simulation:addNoise(amount)
     return true
 end
 
+function Simulation:decayNoise(amount)
+    if not self.expedition then
+        return false
+    end
+    self.expedition.noise = math.max(0, (self.expedition.noise or 0) - (amount or 1))
+    return true
+end
+
+function Simulation:isAlphaThreatKey(threatKey)
+    if not threatKey or not self.world then
+        return false
+    end
+    for _, threat in ipairs(self.world:layout().threats or {}) do
+        if threat.key == threatKey then
+            return threat.rare == true
+        end
+    end
+    return false
+end
+
+function Simulation:updateThreatBehaviors()
+    if not self.expedition or not self.world then
+        return false
+    end
+    local changed = false
+    local behavior = Defs.threatBehavior("visible_threat_behaviors") or {}
+    local alphaStalk = Defs.alphaRule("alpha_stalk_corridor") or {}
+    for _, threat in ipairs(self.world:threatsInRect(self.player.x - 8, self.player.x + 8, self.player.y - 8, self.player.y + 8, self.player.z or 0)) do
+        if not self.expedition.clearedEncounters[threat.key] and threat.rare then
+            self.expedition.alphaMarkers[threat.key] = { x = threat.x, y = threat.y, roomKey = threat.roomKey }
+            if threat.roomKey and not self.expedition.threatState[threat.roomKey] then
+                self.expedition.threatState[threat.roomKey] = alphaStalk.state or (behavior.stalk and behavior.stalk.state) or "stalked"
+            end
+            changed = true
+        end
+    end
+    return changed
+end
+
+function Simulation:stealthApproach()
+    if self.mode ~= "expedition" or not self.expedition then
+        return false
+    end
+    local rule = Defs.expeditionCommand("stealth_approach") or {}
+    local cost = rule.torchCost or 10
+    if (self.expedition.torch or 0) < cost then
+        return false
+    end
+    local x, y, z = self:targetCell()
+    local threat = self.world:threatAt(x, y, z)
+    if not threat or self.expedition.clearedEncounters[threat.key] then
+        return false
+    end
+    self.expedition.torch = math.max(0, self.expedition.torch - cost)
+    self.expedition.stealthApproach = true
+    if threat.roomKey then
+        self.expedition.threatState[threat.roomKey] = "stealthed"
+    end
+    self:pushLog("stealth approach")
+    return true
+end
+
+function Simulation:lureThreat()
+    if self.mode ~= "expedition" or not self.expedition then
+        return false
+    end
+    for _, threat in ipairs(self.world:threatsInRect(-999, 999, -999, 999, self.player.z or 0)) do
+        if not self.expedition.clearedEncounters[threat.key] then
+            self.expedition.clearedEncounters[threat.key] = true
+            if threat.roomKey then
+                self.expedition.threatState[threat.roomKey] = "lured"
+            end
+            self:addNoise(2)
+            self:pushLog("bait chime lured threat")
+            return true
+        end
+    end
+    return false
+end
+
 function Simulation:adjustDread(amount)
     if not self.estate or not self.estate.campaign or not amount or amount == 0 then
         return false
@@ -2258,7 +2348,10 @@ function Simulation:tryStartPressureEncounter(roomKey)
     self.expedition.noise = math.max(0, noise - 2)
     local key = "pressure:" .. tostring(roomKey or (self.player.x .. ":" .. self.player.y)) .. ":" .. tostring(self.expedition.ambushRolls)
     self:pushLog("archive pressure broke")
-    return self:startCombat("archive_ambush", key, { ambush = true, pressure = true })
+    local downgrade = Defs.ambushRule("stealth_downgrade") or {}
+    local stealthed = self.expedition.stealthApproach and (self.expedition.torch or 0) >= (downgrade.fullTorch or 70)
+    self.expedition.stealthApproach = false
+    return self:startCombat("archive_ambush", key, { ambush = not stealthed, pressure = true, stealthed = stealthed })
 end
 
 function Simulation:checkTileHazard(x, y, z)
@@ -2297,6 +2390,7 @@ function Simulation:move(direction)
     local corridor = self.world:corridorAt(x, y)
     self:applyCorridorRole(corridor)
     local roomKey = self:discoverCurrentRoom()
+    self:updateThreatBehaviors()
     self:pushLog("moved " .. direction)
     if self:tryStartRoomEncounter(roomKey) then
         return true
@@ -2337,10 +2431,12 @@ function Simulation:interact()
     local threat = self.world:threatAt(x, y, z)
     if threat and not self.expedition.clearedEncounters[threat.key] then
         if threat.roomKey then
-            self.expedition.threatState[threat.roomKey] = "engaged"
+            self.expedition.threatState[threat.roomKey] = self.expedition.threatState[threat.roomKey] == "stealthed" and "stealthed" or "engaged"
         end
         self:addNoise(1)
-        return self:startCombat(threat.encounter, threat.key, { visible = true, threatKey = threat.key })
+        local stealthed = self.expedition.stealthApproach == true
+        self.expedition.stealthApproach = false
+        return self:startCombat(threat.encounter, threat.key, { visible = true, threatKey = threat.key, stealthed = stealthed })
     end
     if tileDef.encounter then
         return self:startCombat(tileDef.encounter, self:currentRoomKey() or (x .. ":" .. y))
@@ -2455,6 +2551,7 @@ function Simulation:camp()
     end
     self.expedition.campUsed = true
     self.expedition.camping = { respite = 4, usedSkills = {}, ambushPrevented = false }
+    self:decayNoise((Defs.pressureRule("noise_decay") or {}).camp or 2)
     self.expedition.supplies:consume("ration", math.min(2, self.expedition.supplies:count("ration")))
     self.expedition.torch = clamp(self.expedition.torch + 20, 0, 100)
     for rank = 1, 4 do
@@ -2548,6 +2645,11 @@ function Simulation:finishCamp()
     end
     local camping = self.expedition.camping
     self.expedition.camping = nil
+    local noiseRule = Defs.ambushRule("camp_ambush_noise") or {}
+    if (self.expedition.noise or 0) >= (noiseRule.noise or 10) and not camping.ambushPrevented then
+        self:pushLog("noise drew camp ambush")
+        return self:startCombat(noiseRule.encounter or "archive_ambush", "camp_noise", { ambush = true, pressure = true })
+    end
     if not camping.ambushPrevented and self:roll(1, 100) <= 25 then
         self:pushLog("camp ambush")
         return self:startCombat("entry", "camp", { ambush = true })
@@ -2564,6 +2666,10 @@ function Simulation:useItem(item, heroRank)
     if item == "torch" then
         local torchGain = 25 + self:partyModifierMax("torchEfficiency") - self:heroModifier(hero, "torchWaste")
         self.expedition.torch = clamp(self.expedition.torch + torchGain, 0, 100)
+        local noiseRule = Defs.pressureRule("noise_decay") or {}
+        if self.expedition.torch >= (noiseRule.highTorchThreshold or 75) then
+            self:decayNoise(noiseRule.highTorch or 1)
+        end
     elseif item == "ration" then
         self:healHero(hero, 2)
         self:healStress(hero, 1)
@@ -2577,6 +2683,11 @@ function Simulation:useItem(item, heroRank)
         self:clearInjury(hero)
     elseif item == "ward_charm" then
         hero.virtue = hero.virtue or "focused"
+    elseif item == "bait_chime" then
+        if not self:lureThreat() then
+            self.expedition.supplies:add(item, 1)
+            return false
+        end
     else
         self.expedition.supplies:add(item, 1)
         return false
@@ -2621,7 +2732,9 @@ function Simulation:startCombat(encounterKey, roomKey, options)
         ambush = options.ambush == true,
         visible = options.visible == true,
         pressure = options.pressure == true,
+        stealthed = options.stealthed == true,
         threatKey = options.threatKey,
+        partRepaired = false,
         log = {},
     }
     if self.combat.ambush and self.expedition then
@@ -2763,6 +2876,42 @@ function Simulation:enemyStressPenalty(enemy)
     return penalty
 end
 
+function Simulation:disabledPartCount(enemy)
+    local count = 0
+    for _, part in ipairs((enemy and enemy.parts) or {}) do
+        if part.disabled then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function Simulation:repairDisabledPart(support)
+    if not self.combat or self.combat.partRepaired then
+        return false
+    end
+    local supportDef = Defs.enemy(support and support.kind)
+    if not supportDef or not contains(supportDef.roles, "support") then
+        return false
+    end
+    local rule = Defs.supportRule("part_repair_skill") or {}
+    for _, ally in ipairs(self.combat.enemies or {}) do
+        local allyDef = Defs.enemy(ally.kind)
+        if ally ~= support and ally.hp > 0 and allyDef and (allyDef.elite or contains(allyDef.roles, "elite")) then
+            for _, part in ipairs(ally.parts or {}) do
+                if part.disabled then
+                    part.disabled = false
+                    part.hp = math.min(part.maxHp or (rule.heal or 4), math.max(1, rule.heal or 4))
+                    self.combat.partRepaired = true
+                    self:pushLog(supportDef.name .. " repaired " .. (part.name or part.key), { event = "enemy_support", actor = supportDef.name, side = "enemy" })
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
 function Simulation:enemyProtectorFor(enemy)
     if not enemy or not self.combat then
         return nil
@@ -2820,7 +2969,24 @@ function Simulation:damageEnemyPart(enemy, partKey, amount)
     end
     part.disabled = true
     enemy.hp = math.max(0, enemy.hp - (part.exposeDamage or 0))
-    self:pushLog((Defs.enemy(enemy.kind).name) .. " lost " .. (part.name or part.key), { event = "danger", actor = Defs.enemy(enemy.kind).name, side = "enemy" })
+    local enemyDef = Defs.enemy(enemy.kind)
+    local message = enemyDef.name .. " lost " .. (part.name or part.key)
+    local logRule = Defs.weakPointRule("part_disable_log") or {}
+    if logRule.includeDisabledSkill and #(part.skillLocks or {}) > 0 then
+        local names = {}
+        for _, skillKey in ipairs(part.skillLocks or {}) do
+            names[#names + 1] = (Defs.enemySkill(skillKey) or {}).name or skillKey
+        end
+        message = message .. " disabled " .. table.concat(names, ", ")
+    end
+    self:pushLog(message, { event = "danger", actor = enemyDef.name, side = "enemy" })
+    local chainRule = Defs.weakPointRule("weak_point_chain") or {}
+    if self:disabledPartCount(enemy) >= (chainRule.disabledParts or 2) and not self:hasStatus(enemy, "daze") then
+        enemy.statuses = enemy.statuses or {}
+        enemy.statuses[#enemy.statuses + 1] = { kind = "daze", turns = chainRule.dazeTurns or 1 }
+        enemy.weakPointChainTurns = chainRule.dazeTurns or 1
+        self:pushLog(enemyDef.name .. " procedure broke", { event = "falter", actor = enemyDef.name, side = "enemy" })
+    end
     return true
 end
 
@@ -3063,6 +3229,7 @@ function Simulation:enemyTurn(enemy)
             end
         end
     end
+    self:repairDisabledPart(enemy)
     self:pushLog(def.name .. " used " .. skill.name, { event = def.boss and "boss_skill" or "enemy_skill", actor = def.name, skill = skill.name, side = "enemy", boss = def.boss == true })
     return true
 end
@@ -3086,6 +3253,7 @@ function Simulation:finishCombat(victory)
     local outcomeEncounter = self.combat.encounter
     if victory then
         local bossWon = false
+        local alphaWon = self.combat.visible and self:isAlphaThreatKey(self.combat.threatKey)
         for _, trinketKey in ipairs(self.combat.fallenTrinkets or {}) do
             self.estate.trinkets[trinketKey] = ((self.estate.trinkets or {})[trinketKey] or 0) + 1
         end
@@ -3096,6 +3264,11 @@ function Simulation:finishCombat(victory)
             self.expedition.clearedEncounters[self.combat.roomKey or self.combat.encounter] = true
             self:addLoot("coin", bossWon and 120 or 35)
             self:addLoot("heirloom", bossWon and 2 or 1)
+            if alphaWon then
+                local reward = Defs.rewardRule("alpha_reward") or {}
+                self:addLoot("coin", reward.coin or 45)
+                self:addLoot("heirloom", reward.heirloom or 1)
+            end
             for rank = 1, 4 do
                 local hero = self:heroAtRank(rank)
                 if hero and hero.alive then
@@ -3118,6 +3291,21 @@ function Simulation:finishCombat(victory)
         self.mode = "estate"
         if self.expedition then
             self.expedition.active = false
+        end
+        if self.estate.campaign and self.estate.campaign.flags and self.estate.campaign.flags.survivorTrinketDebt then
+            local rule = Defs.recoveryRule("survivor_trinket_debt") or {}
+            local recovered = 0
+            for _, trinketKey in ipairs(self.combat.fallenTrinkets or {}) do
+                if recovered >= (rule.trinkets or 1) then
+                    break
+                end
+                self.estate.trinkets[trinketKey] = ((self.estate.trinkets or {})[trinketKey] or 0) + 1
+                recovered = recovered + 1
+            end
+            if recovered > 0 then
+                self:adjustDread(rule.dread or 1)
+                self:pushLog("survivor trinket debt paid")
+            end
         end
         self:pushLog("party lost", { event = bossActive and "boss_loss" or "combat_loss", encounter = outcomeEncounter, boss = bossActive, enemies = combatEnemyNames(self.combat) })
         self:narrate("death", "party")
@@ -3312,6 +3500,23 @@ function Simulation:selectedItem()
     return nil
 end
 
+function Simulation:itemTooltip(itemKey)
+    local item = Defs.item(itemKey)
+    if not item then
+        return nil
+    end
+    local cure = (Defs.injuryCureTooltip("injury_cure_tooltips") or {})[itemKey]
+    return cure and (item.name .. ": " .. cure) or item.name
+end
+
+function Simulation:scoutOddsTooltip(roomKey)
+    local copy = Defs.scoutTooltip("scout_odds_tooltip") or {}
+    if self.expedition and roomKey and self.expedition.scoutedRooms[roomKey] then
+        return copy.low
+    end
+    return copy.high
+end
+
 function Simulation:objectsInRect(minX, maxX, minY, maxY, z)
     local result = {}
     if not self.expedition then
@@ -3336,6 +3541,9 @@ function Simulation:objectsInRect(minX, maxX, minY, maxY, z)
     end
     for _, threat in ipairs(self.world:threatsInRect(minX, maxX, minY, maxY, z or 0)) do
         if not self.expedition.clearedEncounters[threat.key] then
+            if threat.rare then
+                self.expedition.alphaMarkers[threat.key] = { x = threat.x, y = threat.y, roomKey = threat.roomKey }
+            end
             result[#result + 1] = {
                 type = threat.rare and "alpha" or "threat",
                 x = threat.x,
@@ -3344,6 +3552,7 @@ function Simulation:objectsInRect(minX, maxX, minY, maxY, z)
                 encounter = threat.encounter,
                 threatKey = threat.key,
                 roomKey = threat.roomKey,
+                tooltip = self:scoutOddsTooltip(threat.roomKey),
             }
         end
     end
@@ -3352,7 +3561,7 @@ function Simulation:objectsInRect(minX, maxX, minY, maxY, z)
         if encounter and not self.expedition.clearedEncounters[room.key]
             and room.x >= minX and room.x <= maxX and room.y >= minY and room.y <= maxY
         then
-            result[#result + 1] = { type = "encounter", x = room.x, y = room.y, z = z or 0, encounter = encounter }
+            result[#result + 1] = { type = "encounter", x = room.x, y = room.y, z = z or 0, encounter = encounter, tooltip = self:scoutOddsTooltip(room.key) }
         end
     end
     table.sort(result, function(a, b)
@@ -3576,6 +3785,8 @@ function Simulation:snapshot()
             stepsSinceMeal = self.expedition.stepsSinceMeal,
             hungerChecks = self.expedition.hungerChecks,
             threatState = copyMap(self.expedition.threatState),
+            alphaMarkers = copyNestedMap(self.expedition.alphaMarkers),
+            stealthApproach = self.expedition.stealthApproach == true,
             noise = self.expedition.noise or 0,
             ambushRolls = self.expedition.ambushRolls or 0,
             heatFatigue = self.expedition.heatFatigue or 0,
@@ -3613,7 +3824,9 @@ function Simulation:snapshot()
             ambush = self.combat.ambush == true,
             visible = self.combat.visible == true,
             pressure = self.combat.pressure == true,
+            stealthed = self.combat.stealthed == true,
             threatKey = self.combat.threatKey,
+            partRepaired = self.combat.partRepaired == true,
             log = copyList(self.combat.log),
         }
     end
@@ -3798,6 +4011,8 @@ function Simulation.fromSnapshot(snapshot)
             stepsSinceMeal = exp.stepsSinceMeal or 0,
             hungerChecks = exp.hungerChecks or 0,
             threatState = copyMap(exp.threatState),
+            alphaMarkers = copyNestedMap(exp.alphaMarkers),
+            stealthApproach = exp.stealthApproach == true,
             noise = exp.noise or 0,
             ambushRolls = exp.ambushRolls or 0,
             heatFatigue = exp.heatFatigue or 0,
@@ -3835,7 +4050,9 @@ function Simulation.fromSnapshot(snapshot)
             ambush = combat.ambush == true,
             visible = combat.visible == true,
             pressure = combat.pressure == true,
+            stealthed = combat.stealthed == true,
             threatKey = combat.threatKey,
+            partRepaired = combat.partRepaired == true,
             log = copyList(combat.log or {}),
         }
         for _, enemy in ipairs(combat.enemies or {}) do
