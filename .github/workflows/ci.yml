@@ -77,6 +77,11 @@ jobs:
           SDL_AUDIODRIVER: dummy
         run: make keyboard-smoke
 
+      - name: Run controller smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make controller-smoke
+
       - name: Run render3d smoke
         env:
           SDL_AUDIODRIVER: dummy

@@ -503,6 +503,21 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local conf = assert(io.open("conf.lua", "r"))
+    local confText = conf:read("*a")
+    conf:close()
+    expect(confText:find("t.modules.joystick = true", 1, true) ~= nil, "controller support should enable joystick module")
+    expect(Input.gamepadButtonKey("a") == "return" and Input.gamepadButtonKey("b") == "escape", "gamepad buttons should map to select and back")
+    expect(Input.gamepadButtonKey("x") == "space" and Input.gamepadButtonKey("y") == "tab", "gamepad buttons should map to interact and focus")
+    local axisState = {}
+    expect(Input.gamepadAxisKey("leftx", 0.8, axisState) == "right", "left stick should map positive x to right")
+    expect(Input.gamepadAxisKey("leftx", 0.9, axisState) == nil, "held stick should not repeat until recentered")
+    expect(Input.gamepadAxisKey("leftx", 0.1, axisState) == nil, "recentered stick should clear state")
+    expect(Input.gamepadAxisKey("leftx", -0.8, axisState) == "left", "left stick should map negative x to left")
+    expect(Input.gamepadAxisKey("lefty", -0.8, axisState) == "up" and Input.gamepadAxisKey("lefty", 0.8, axisState) == "down", "left stick y should map to vertical nav")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(15)
     reachEntryCombat(sim)
     expect(sim.combat.encounter == "entry", "entry encounter key missing")

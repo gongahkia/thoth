@@ -50,6 +50,20 @@ local focusGroups = {
     "partyRankSlots",
     "estateActionButtons",
 }
+local gamepadButtonKeys = {
+    a = "return",
+    b = "escape",
+    x = "space",
+    y = "tab",
+    back = "tab",
+    start = "escape",
+    dpup = "up",
+    dpdown = "down",
+    dpleft = "left",
+    dpright = "right",
+    leftshoulder = "[",
+    rightshoulder = "]",
+}
 
 local function worldDirectionForScreen(app, screenDirection)
     local index = screenDirectionIndexes[screenDirection] or 0
@@ -152,6 +166,29 @@ end
 
 function Input.focusedEntry(app)
     return focusedEntry(app)
+end
+
+function Input.gamepadButtonKey(button)
+    return gamepadButtonKeys[button]
+end
+
+function Input.gamepadAxisKey(axis, value, axisState)
+    axisState = axisState or {}
+    local key
+    if axis == "leftx" then
+        key = value <= -0.55 and "left" or (value >= 0.55 and "right" or nil)
+    elseif axis == "lefty" then
+        key = value <= -0.55 and "up" or (value >= 0.55 and "down" or nil)
+    end
+    if not key then
+        axisState[axis] = nil
+        return nil
+    end
+    if axisState[axis] == key then
+        return nil
+    end
+    axisState[axis] = key
+    return key
 end
 
 local function boundMovementDirection(app, key)

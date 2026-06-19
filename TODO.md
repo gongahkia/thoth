@@ -93,7 +93,6 @@ Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render
 
 Goal: build every missing player-facing screen. Game must boot from title → load campaign → play → quit gracefully.
 
-- [ ] 2.17 Add controller support enable in `conf.lua:9` (`t.modules.joystick = true`); map gamepad to UI nav + game input (40h)
 - [ ] 2.18 Build journal screen: found documents (`Registry.documents`), epitaphs (`Registry.graveyardEpitaphs`) (16h)
 - [ ] 2.19 Add tutorial system: first-expedition guided overlay explaining torch/stress/rank (40h)
 - [ ] 2.20 Add achievement scaffolding (in-game, not Steam) — display unlock toasts (24h)

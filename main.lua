@@ -799,6 +799,17 @@ local function printKeyboardSmoke(state)
     print("keyboard-smoke-back=" .. tostring(backed))
 end
 
+local function printControllerSmoke(state)
+    if not state.controllerSmoke or state.controllerSmokePrinted then
+        return
+    end
+    state.controllerSmokePrinted = true
+    local axisState = {}
+    print("controller-smoke-a=" .. tostring(Input.gamepadButtonKey("a")))
+    print("controller-smoke-b=" .. tostring(Input.gamepadButtonKey("b")))
+    print("controller-smoke-axis=" .. tostring(Input.gamepadAxisKey("leftx", 0.8, axisState)))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -814,7 +825,8 @@ function love.load(args)
     local creditsSmoke = hasArg(args, "--credits-smoke")
     local confirmSmoke = hasArg(args, "--confirm-smoke")
     local keyboardSmoke = hasArg(args, "--keyboard-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke
+    local controllerSmoke = hasArg(args, "--controller-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
@@ -872,6 +884,7 @@ function love.load(args)
         creditsSmoke = creditsSmoke,
         confirmSmoke = confirmSmoke,
         keyboardSmoke = keyboardSmoke,
+        controllerSmoke = controllerSmoke,
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -981,6 +994,7 @@ function love.draw()
     printPauseSmoke(app)
     printConfirmSmoke(app)
     printKeyboardSmoke(app)
+    printControllerSmoke(app)
     if app.renderBenchmark then
         local elapsedMs = (love.timer.getTime() - started) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1
@@ -998,7 +1012,9 @@ function love.draw()
     end
 end
 
-function love.keypressed(key)
+local gamepadAxisState = {}
+
+local function handleKey(key)
     if app.uiState == "title" then
         keyTitle(app, key)
         return
@@ -1056,6 +1072,24 @@ function love.keypressed(key)
         return
     end
     Input.keypressed(sim, app, key)
+end
+
+function love.keypressed(key)
+    handleKey(key)
+end
+
+function love.gamepadpressed(_, button)
+    local key = Input.gamepadButtonKey(button)
+    if key then
+        handleKey(key)
+    end
+end
+
+function love.gamepadaxis(_, axis, value)
+    local key = Input.gamepadAxisKey(axis, value, gamepadAxisState)
+    if key then
+        handleKey(key)
+    end
 end
 
 function love.keyreleased(key)
