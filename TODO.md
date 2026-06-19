@@ -162,7 +162,6 @@ Goal: Balatro-feel polish on every interaction. Audio mix. Final accessibility p
 
 Goal: ship 1.0 on itch.io + GitHub releases.
 
-- [ ] 8.1 Build pipeline: GitHub Actions release workflow building `thoth.love`, Windows .exe (via love-release or makelove), macOS .app, Linux .AppImage (40h)
 - [ ] 8.2 itch.io upload via butler CLI integration in release workflow (16h)
 - [ ] 8.3 GitHub release: auto-tag, auto-attach builds, auto-generate changelog from commits (16h)
 - [ ] 8.4 Verify clean install on Windows, macOS, Linux from scratch (24h)

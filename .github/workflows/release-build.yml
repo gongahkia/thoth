@@ -1,0 +1,80 @@
+name: Thoth Release Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+      - "phase*-*"
+
+permissions:
+  contents: read
+
+jobs:
+  release-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Lua runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y luajit love zip xvfb xauth rsync
+
+      - name: Verify source package
+        run: make check
+
+      - name: Stage release source
+        run: |
+          rm -rf build/love-src release
+          mkdir -p build/love-src/vendor/g3d release
+          rsync -a main.lua conf.lua TODO.md build/love-src/
+          rsync -a src assets docs build/love-src/
+          rsync -a vendor/g3d/g3d build/love-src/vendor/g3d/
+          rsync -a vendor/g3d/LICENSE build/love-src/vendor/g3d/
+          rm -rf build/love-src/assets/previews build/love-src/assets/replays
+
+      - name: Build release packages
+        id: love-build
+        uses: nhartland/love-build@v1
+        with:
+          app_name: thoth
+          love_version: "11.5"
+          source_dir: build/love-src
+          result_dir: release
+
+      - name: Upload LOVE package
+        uses: actions/upload-artifact@v4
+        with:
+          name: thoth-love
+          path: ${{ steps.love-build.outputs['love-filename'] }}
+          if-no-files-found: error
+
+      - name: Upload Windows x64 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: thoth-windows-x64
+          path: ${{ steps.love-build.outputs['win64-filename'] }}
+          if-no-files-found: error
+
+      - name: Upload Windows x86 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: thoth-windows-x86
+          path: ${{ steps.love-build.outputs['win32-filename'] }}
+          if-no-files-found: error
+
+      - name: Upload macOS package
+        uses: actions/upload-artifact@v4
+        with:
+          name: thoth-macos
+          path: ${{ steps.love-build.outputs['macos-filename'] }}
+          if-no-files-found: error
+
+      - name: Upload Linux AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: thoth-linux-appimage
+          path: ${{ steps.love-build.outputs['linux_x86_64-filename'] }}
+          if-no-files-found: error
