@@ -634,6 +634,22 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(73)
+    sim:endExpedition(true)
+    sim.estate.gold = 1000
+    sim:refillTrinketMarket(true)
+    local offer = sim.estate.trinketStock[1]
+    local count = sim.estate.trinkets[offer.trinket] or 0
+    runQueued(sim, Simulation.commands.buyTrinket(1))
+    expect(sim.estate.trinkets[offer.trinket] == count + 1 and sim.estate.gold == 1000 - offer.price, "market buy should spend gold and add trinket")
+    expect(#sim.estate.trinketStock == sim:trinketMarketSlots() - 1, "market buy should remove offer")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(#loaded.estate.trinketStock == #sim.estate.trinketStock, "market stock should survive snapshot")
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(#sim.estate.trinketStock == sim:trinketMarketSlots(), "new week should refill market stock")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(33)
     sim:endExpedition(true)
     sim.estate.gold = 200
@@ -842,6 +858,18 @@ tests[#tests + 1] = function()
     Input.mousepressed(sim, app, 5, 5, 1)
     sim:step()
     expect(not sim:heroById(hero.id), "estate dismiss button should dismiss roster hero")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(74)
+    sim:endExpedition(true)
+    sim.estate.gold = 1000
+    local offer = sim.estate.trinketStock[1]
+    local count = sim.estate.trinkets[offer.trinket] or 0
+    local app = { ui = { estateActionButtons = { { x = 0, y = 0, w = 20, h = 20, action = "buyTrinket", stockIndex = 1 } } } }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    sim:step()
+    expect(sim.estate.trinkets[offer.trinket] == count + 1, "estate market button should buy offered trinket")
 end
 
 tests[#tests + 1] = function()

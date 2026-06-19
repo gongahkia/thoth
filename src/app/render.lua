@@ -678,13 +678,18 @@ function Render.drawEstatePanel(sim, app)
         end
     end
     love.graphics.printf(#trinkets > 0 and table.concat(trinkets, "  ") or "no trinkets", x + 10, y + 100, 312)
-    love.graphics.printf("cart " .. stacksText(sim.estate.provisionCart), x + 10, y + 118, 400)
+    love.graphics.print("Market", x + 10, y + 122)
+    for index, offer in ipairs(sim.estate.trinketStock or {}) do
+        local trinket = Defs.trinket(offer.trinket)
+        addEstateAction(app, (trinket.short or offer.trinket) .. " " .. offer.price, x + 70 + (index - 1) * 112, y + 116, 104, { action = "buyTrinket", stockIndex = index, enabled = sim.estate.gold >= (offer.price or 0) })
+    end
+    love.graphics.printf("cart " .. stacksText(sim.estate.provisionCart), x + 10, y + 146, 400)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Missions", x + 10, y + 146)
+    love.graphics.print("Missions", x + 10, y + 174)
     for index, key in ipairs(Defs.missionOrder) do
         local mission = Defs.mission(key)
         local bx = x + 10 + ((index - 1) % 2) * 205
-        local by = y + 168 + math.floor((index - 1) / 2) * 34
+        local by = y + 196 + math.floor((index - 1) / 2) * 34
         love.graphics.setColor(0.13, 0.16, 0.15, 1)
         love.graphics.rectangle("fill", bx, by, 196, 28)
         love.graphics.setColor(0.42, 0.48, 0.36, 1)
@@ -693,7 +698,7 @@ function Render.drawEstatePanel(sim, app)
         love.graphics.printf(mission.kind .. " / " .. mission.location, bx + 4, by + 7, 188, "center")
         app.ui.missionButtons[#app.ui.missionButtons + 1] = { x = bx, y = by, w = 196, h = 28, missionKey = key }
     end
-    local recruitY = y + 300
+    local recruitY = y + 380
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Recruits", x + 10, recruitY)
     for index, recruit in ipairs(sim.estate.recruits or {}) do
@@ -707,7 +712,7 @@ function Render.drawEstatePanel(sim, app)
         love.graphics.printf(recruit.name .. " " .. Defs.heroClass(recruit.class).name, bx + 4, by + 7, 120, "center")
         app.ui.recruitButtons[#app.ui.recruitButtons + 1] = { x = bx, y = by, w = 128, h = 28, recruitIndex = index }
     end
-    local provisionY = y + 392
+    local provisionY = y + 472
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Provisions", x + 10, provisionY)
     local provisionItems = { "torch", "ration", "bandage", "laudanum", "skeleton_key", "salve" }

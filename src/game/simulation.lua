@@ -109,6 +109,13 @@ local function recruitCandidate(seed, serial)
     return { class = classKey, name = name, quirks = { positive, negative } }
 end
 
+local function trinketOffer(seed, week, index)
+    local order = Defs.trinketOrder
+    local trinketKey = order[(Rng.hash(seed + 6101, week or 1, index or 1, 0) % #order) + 1]
+    local trinket = Defs.trinket(trinketKey)
+    return { trinket = trinketKey, price = (trinket.value or 0) * 2 }
+end
+
 local function newEnemy(id, kind, rank)
     local def = Defs.enemy(kind)
     return { id = id, kind = kind, rank = rank, hp = def.maxHp, stress = 0, statuses = {}, guard = 0 }
@@ -160,6 +167,7 @@ function Simulation.new(seed)
             roster = roster,
             graveyard = {},
             trinkets = { ember_pin = 1, cracked_lens = 1, chirurgic_thread = 1 },
+            trinketStock = {},
             provisionCart = Inventory.new(),
             upgrades = { stagecoach = 0, guild = 0, forge = 0, infirmary = 0 },
             campaign = newCampaign(),
@@ -176,6 +184,7 @@ function Simulation.new(seed)
         log = {},
     }, Simulation)
     self:refillRecruits()
+    self:refillTrinketMarket(true)
     self:startExpedition("buried_archive")
     return self
 end
@@ -264,6 +273,10 @@ end
 
 function Simulation.commands.sellTrinket(trinketKey)
     return { type = "sellTrinket", trinketKey = trinketKey }
+end
+
+function Simulation.commands.buyTrinket(stockIndex)
+    return { type = "buyTrinket", stockIndex = stockIndex or 1 }
 end
 
 function Simulation.commands.upgradeBuilding(buildingKey)
@@ -369,6 +382,9 @@ function Simulation:apply(command)
     end
     if command.type == "sellTrinket" then
         return self:sellTrinket(command.trinketKey)
+    end
+    if command.type == "buyTrinket" then
+        return self:buyTrinket(command.stockIndex)
     end
     if command.type == "upgradeBuilding" then
         return self:upgradeBuilding(command.buildingKey)
@@ -865,6 +881,7 @@ function Simulation:advanceWeek()
     end
     self:applyCampaignPressure()
     self:refillRecruits()
+    self:refillTrinketMarket(true)
     self:rollTownEvent()
     return true
 end
@@ -995,6 +1012,39 @@ function Simulation:recruitHero(recruitIndex)
     end
     self:refillRecruits()
     self:pushLog(hero.name .. " recruited")
+    return true
+end
+
+function Simulation:trinketMarketSlots()
+    return 3
+end
+
+function Simulation:refillTrinketMarket(force)
+    if self.estate.trinketStock and #self.estate.trinketStock > 0 and not force then
+        return false
+    end
+    self.estate.trinketStock = {}
+    for index = 1, self:trinketMarketSlots() do
+        self.estate.trinketStock[#self.estate.trinketStock + 1] = trinketOffer(self.seed, self.estate.week or 1, index)
+    end
+    return true
+end
+
+function Simulation:buyTrinket(stockIndex)
+    if self.mode ~= "estate" then
+        return false
+    end
+    self:refillTrinketMarket(false)
+    local index = clamp(tonumber(stockIndex) or 1, 1, #self.estate.trinketStock)
+    local offer = self.estate.trinketStock[index]
+    local trinket = offer and Defs.trinket(offer.trinket)
+    if not offer or not trinket or self.estate.gold < (offer.price or 0) then
+        return false
+    end
+    self.estate.gold = self.estate.gold - offer.price
+    self.estate.trinkets[offer.trinket] = ((self.estate.trinkets or {})[offer.trinket] or 0) + 1
+    table.remove(self.estate.trinketStock, index)
+    self:pushLog("bought " .. trinket.name)
     return true
 end
 
@@ -2474,6 +2524,10 @@ function Simulation:snapshot()
     for _, entry in ipairs(self.estate.dismissed or {}) do
         dismissed[#dismissed + 1] = copyMap(entry)
     end
+    local trinketStock = {}
+    for _, offer in ipairs(self.estate.trinketStock or {}) do
+        trinketStock[#trinketStock + 1] = copyMap(offer)
+    end
     local expedition = nil
     if self.expedition then
         expedition = {
@@ -2538,6 +2592,7 @@ function Simulation:snapshot()
             graveyard = copyList(self.estate.graveyard),
             dismissed = dismissed,
             trinkets = copyMap(self.estate.trinkets),
+            trinketStock = trinketStock,
             provisionCart = self.estate.provisionCart:stacks(),
             upgrades = copyMap(self.estate.upgrades),
             campaign = {
@@ -2571,7 +2626,7 @@ function Simulation.fromSnapshot(snapshot)
         mode = snapshot.mode or "estate",
         world = World.fromSnapshot(snapshot.world or { seed = snapshot.seed or 1, tiles = {} }),
         player = copyMap(snapshot.player or { x = 0, y = 0, z = 0, facing = "east", selectedHero = 1 }),
-        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {}, dismissed = {}, trinkets = {}, provisionCart = Inventory.new(), upgrades = {}, campaign = newCampaign(), recruits = {}, nextHeroId = 1, recruitSerial = 1 },
+        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {}, dismissed = {}, trinkets = {}, trinketStock = {}, provisionCart = Inventory.new(), upgrades = {}, campaign = newCampaign(), recruits = {}, nextHeroId = 1, recruitSerial = 1 },
         party = copyList(snapshot.party or {}),
         expedition = nil,
         combat = nil,
@@ -2587,6 +2642,14 @@ function Simulation.fromSnapshot(snapshot)
     self.estate.graveyard = copyList((snapshot.estate and snapshot.estate.graveyard) or {})
     self.estate.dismissed = copyList((snapshot.estate and snapshot.estate.dismissed) or {})
     self.estate.trinkets = copyMap((snapshot.estate and snapshot.estate.trinkets) or {})
+    self.estate.trinketStock = {}
+    if snapshot.estate and snapshot.estate.trinketStock then
+        for _, offer in ipairs(snapshot.estate.trinketStock) do
+            self.estate.trinketStock[#self.estate.trinketStock + 1] = copyMap(offer)
+        end
+    else
+        self:refillTrinketMarket(true)
+    end
     self.estate.provisionCart = inventoryFromStacks((snapshot.estate and snapshot.estate.provisionCart) or {})
     self.estate.upgrades = copyMap((snapshot.estate and snapshot.estate.upgrades) or { stagecoach = 0, guild = 0, forge = 0, infirmary = 0 })
     for _, buildingKey in ipairs(Defs.estateBuildingOrder) do
