@@ -275,6 +275,31 @@ function Input.mousepressed(sim, app, x, y, button)
         end
         return
     end
+    for _, hitbox in ipairs((app.ui and app.ui.campSkillButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            if hitbox.target == "party" then
+                sim:queue(Simulation.commands.campSkill(hitbox.skillKey))
+                app.pendingCampSkillKey = nil
+                app.status = "camp skill " .. hitbox.skillKey
+            else
+                app.pendingCampSkillKey = hitbox.skillKey
+                app.status = "assign camp " .. hitbox.skillKey
+            end
+            play(app, "craft")
+            return
+        end
+    end
+    for _, hitbox in ipairs((app.ui and app.ui.campHeroButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            if app.pendingCampSkillKey then
+                sim:queue(Simulation.commands.campSkill(app.pendingCampSkillKey, hitbox.rank))
+                app.status = "camp hero " .. hitbox.rank
+                app.pendingCampSkillKey = nil
+                play(app, "craft")
+            end
+            return
+        end
+    end
     for _, hitbox in ipairs((app.ui and app.ui.enemyButtons) or {}) do
         if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
             if app.pendingSkillKey and app.pendingTargetSide == "enemy" then

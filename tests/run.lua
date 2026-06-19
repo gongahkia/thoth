@@ -1117,6 +1117,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(83)
+    sim:camp()
+    local summary = Render.campHudSummary(sim, {})
+    expect(summary.active and #summary.skills == 7 and summary.partyCount == 4, "camp hud summary should expose skills and party")
+    local app = {
+        ui = {
+            campSkillButtons = { { x = 0, y = 0, w = 20, h = 20, skillKey = "bind_wounds", target = "ally" } },
+            campHeroButtons = { { x = 30, y = 0, w = 20, h = 20, rank = 2 } },
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    expect(app.pendingCampSkillKey == "bind_wounds", "camp skill click should wait for hero target")
+    Input.mousepressed(sim, app, 35, 5, 1)
+    sim:step()
+    expect(app.pendingCampSkillKey == nil and sim.expedition.camping.usedSkills.bind_wounds, "camp hero click should assign pending skill")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(82)
     sim.player.facing = "east"
     sim.world:setTile(sim.player.x + 1, sim.player.y, sim.player.z, { id = "salt_font", data = 0 })
@@ -2078,6 +2096,8 @@ tests[#tests + 1] = function()
             rosterButtons = { { stale = true } },
             partyRankSlots = { { stale = true } },
             curioButtons = { { stale = true } },
+            campSkillButtons = { { stale = true } },
+            campHeroButtons = { { stale = true } },
             titleButtons = { { stale = true } },
             settingsButtons = { { stale = true } },
         },
@@ -2095,6 +2115,7 @@ tests[#tests + 1] = function()
     expect(#app.ui.rosterButtons == 0, "prepareUi should clear roster hitboxes")
     expect(#app.ui.partyRankSlots == 0, "prepareUi should clear party rank slots")
     expect(#app.ui.curioButtons == 0, "prepareUi should clear curio buttons")
+    expect(#app.ui.campSkillButtons == 0 and #app.ui.campHeroButtons == 0, "prepareUi should clear camp buttons")
     expect(#app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
     app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
     app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }

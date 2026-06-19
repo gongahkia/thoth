@@ -217,6 +217,8 @@ function Render.prepareUi(app)
     app.ui.rosterButtons = app.ui.rosterButtons or {}
     app.ui.partyRankSlots = app.ui.partyRankSlots or {}
     app.ui.curioButtons = app.ui.curioButtons or {}
+    app.ui.campSkillButtons = app.ui.campSkillButtons or {}
+    app.ui.campHeroButtons = app.ui.campHeroButtons or {}
     app.ui.titleButtons = app.ui.titleButtons or {}
     app.ui.settingsButtons = app.ui.settingsButtons or {}
     clearList(app.ui.skillButtons)
@@ -230,6 +232,8 @@ function Render.prepareUi(app)
     clearList(app.ui.rosterButtons)
     clearList(app.ui.partyRankSlots)
     clearList(app.ui.curioButtons)
+    clearList(app.ui.campSkillButtons)
+    clearList(app.ui.campHeroButtons)
     clearList(app.ui.titleButtons)
     clearList(app.ui.settingsButtons)
 end
@@ -767,6 +771,17 @@ function Render.combatHudSummary(sim, app)
         active = combatActorLabel(sim, sim and sim.combat and sim.combat.active),
         target = app and app.pendingTargetSide or nil,
         skill = app and app.pendingSkillKey or nil,
+    }
+end
+
+function Render.campHudSummary(sim, app)
+    local camping = sim and sim.expedition and sim.expedition.camping
+    return {
+        active = camping ~= nil,
+        respite = camping and camping.respite or 0,
+        skills = sim and sim.availableCampSkills and sim:availableCampSkills() or {},
+        pendingSkill = app and app.pendingCampSkillKey or nil,
+        partyCount = sim and sim.partyState and #sim:partyState() or 0,
     }
 end
 
@@ -1876,27 +1891,50 @@ function Render.drawCombatOverlay(sim, app)
     end
 end
 
-function Render.drawCampOverlay(sim)
+function Render.drawCampOverlay(sim, app)
     if not (sim.expedition and sim.expedition.camping) then
         return
     end
     local width, height = love.graphics.getDimensions()
     local x = 28
-    local y = height - 164
+    local y = height - 238
     local w = width - 370
-    panel(x, y, w, 144, 0.93)
+    panel(x, y, w, 218, 0.93)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Camp  respite " .. sim.expedition.camping.respite, x + 10, y + 8)
-    local skillY = y + 44
+    local summary = Render.campHudSummary(sim, app)
+    if summary.pendingSkill then
+        love.graphics.setColor(0.9, 0.72, 0.42, 1)
+        love.graphics.printf("assign " .. tostring(summary.pendingSkill), x + w - 260, y + 8, 240, "right")
+    end
+    local skillY = y + 42
     for _, skill in ipairs(sim:availableCampSkills()) do
-        local sx = x + 12 + (skill.index - 1) * 150
+        local sx = x + 12 + ((skill.index - 1) % 4) * 150
+        local sy = skillY + math.floor((skill.index - 1) / 4) * 58
         love.graphics.setColor(skill.usable and 0.18 or 0.1, skill.usable and 0.22 or 0.1, skill.usable and 0.2 or 0.1, 1)
-        love.graphics.rectangle("fill", sx, skillY, 140, 54)
+        love.graphics.rectangle("fill", sx, sy, 140, 50)
         love.graphics.setColor(skill.usable and 0.74 or 0.34, skill.usable and 0.66 or 0.34, skill.usable and 0.36 or 0.32, 1)
-        love.graphics.rectangle("line", sx, skillY, 140, 54)
+        love.graphics.rectangle("line", sx, sy, 140, 50)
         love.graphics.setColor(skill.usable and 0.94 or 0.46, skill.usable and 0.96 or 0.46, skill.usable and 0.9 or 0.46, 1)
-        love.graphics.printf(skill.index .. " " .. skill.name, sx + 6, skillY + 8, 128, "center")
-        love.graphics.printf("cost " .. skill.cost, sx + 6, skillY + 30, 128, "center")
+        love.graphics.printf(skill.index .. " " .. skill.name, sx + 6, sy + 7, 128, "center")
+        love.graphics.printf("cost " .. skill.cost, sx + 6, sy + 28, 128, "center")
+        if skill.usable then
+            local def = Defs.campSkill(skill.key)
+            app.ui.campSkillButtons[#app.ui.campSkillButtons + 1] = { x = sx, y = sy, w = 140, h = 50, skillKey = skill.key, target = def and def.target or "party" }
+        end
+    end
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Assign Hero", x + 10, y + 162)
+    for _, hero in ipairs(sim:partyState()) do
+        local hx = x + 100 + (hero.rank - 1) * 104
+        local hy = y + 154
+        love.graphics.setColor(0.12, 0.15, 0.14, 1)
+        love.graphics.rectangle("fill", hx, hy, 96, 40)
+        love.graphics.setColor(0.42, 0.52, 0.38, 1)
+        love.graphics.rectangle("line", hx, hy, 96, 40)
+        love.graphics.setColor(0.88, 0.9, 0.82, 1)
+        love.graphics.printf("R" .. hero.rank .. " " .. hero.name, hx + 4, hy + 13, 88, "center")
+        app.ui.campHeroButtons[#app.ui.campHeroButtons + 1] = { x = hx, y = hy, w = 96, h = 40, rank = hero.rank }
     end
 end
 
@@ -2025,7 +2063,7 @@ function Render.draw(sim, app)
     Render.drawSidePanel(sim, app)
     Render.drawCombatStage(sim, app)
     Render.drawCombatOverlay(sim, app)
-    Render.drawCampOverlay(sim)
+    Render.drawCampOverlay(sim, app)
     Render.drawEstatePanel(sim, app)
     Render.drawCurioResult(app)
     Render.drawCurioModal(app)

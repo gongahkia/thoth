@@ -47,6 +47,11 @@ jobs:
           SDL_AUDIODRIVER: dummy
         run: make curio-smoke
 
+      - name: Run camp smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make camp-smoke
+
       - name: Run render3d smoke
         env:
           SDL_AUDIODRIVER: dummy

@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -81,6 +81,20 @@ curio-smoke:
 	grep -q "curio-smoke-modal=salt_font" $$tmp; \
 	grep -q "curio-smoke-buttons=4" $$tmp; \
 	grep -q "curio-smoke-enabled=4" $$tmp; \
+	rm -f $$tmp
+
+camp-smoke:
+	@set -e; \
+	tmp=$$(mktemp); \
+	if command -v xvfb-run >/dev/null 2>&1; then \
+		xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --camp-smoke | tee $$tmp; \
+	else \
+		$(LOVE) . --camp-smoke | tee $$tmp; \
+	fi; \
+	grep -q "camp-smoke-active=true" $$tmp; \
+	grep -q "camp-smoke-skills=7" $$tmp; \
+	grep -q "camp-smoke-heroes=4" $$tmp; \
+	grep -q "camp-smoke-respite=" $$tmp; \
 	rm -f $$tmp
 
 render-smoke:

@@ -429,6 +429,18 @@ local function printCurioSmoke(state)
     print("curio-smoke-enabled=" .. tostring(enabled))
 end
 
+local function printCampSmoke(state)
+    if not state.campSmoke or state.campSmokePrinted then
+        return
+    end
+    state.campSmokePrinted = true
+    local summary = Render.campHudSummary(sim, state)
+    print("camp-smoke-active=" .. tostring(summary.active))
+    print("camp-smoke-skills=" .. tostring(#((state.ui and state.ui.campSkillButtons) or {})))
+    print("camp-smoke-heroes=" .. tostring(#((state.ui and state.ui.campHeroButtons) or {})))
+    print("camp-smoke-respite=" .. tostring(summary.respite))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -438,7 +450,8 @@ function love.load(args)
     local estateSmoke = hasArg(args, "--estate-smoke")
     local combatSmoke = hasArg(args, "--combat-smoke")
     local curioSmoke = hasArg(args, "--curio-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke
+    local campSmoke = hasArg(args, "--camp-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
@@ -454,6 +467,9 @@ function love.load(args)
     if curioSmoke then
         sim.player.facing = "east"
         sim.world:setTile(sim.player.x + 1, sim.player.y, sim.player.z, { id = "salt_font", data = 0 })
+    end
+    if campSmoke then
+        sim:camp()
     end
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
@@ -477,6 +493,7 @@ function love.load(args)
         estateSmoke = estateSmoke,
         combatSmoke = combatSmoke,
         curioSmoke = curioSmoke,
+        campSmoke = campSmoke,
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -557,6 +574,7 @@ function love.draw()
     printEstateSmoke(app)
     printCombatSmoke(app)
     printCurioSmoke(app)
+    printCampSmoke(app)
     if app.renderBenchmark then
         local elapsedMs = (love.timer.getTime() - started) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1
