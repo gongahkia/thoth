@@ -7,6 +7,10 @@ local Defs = {
     inventoryPanelOrder = Registry.inventoryPanelOrder,
     heroClasses = Registry.heroClasses,
     heroClassOrder = Registry.heroClassOrder,
+    trinkets = Registry.trinkets,
+    trinketOrder = Registry.trinketOrder,
+    quirks = Registry.quirks,
+    quirkOrder = Registry.quirkOrder,
     skills = Registry.skills,
     skillOrder = Registry.skillOrder,
     enemies = Registry.enemies,
@@ -23,6 +27,8 @@ local Defs = {
     locationOrder = Registry.locationOrder,
     campSkills = Registry.campSkills,
     campSkillOrder = Registry.campSkillOrder,
+    estateBuildings = Registry.estateBuildings,
+    estateBuildingOrder = Registry.estateBuildingOrder,
 }
 
 function Defs.tile(id)
@@ -35,6 +41,14 @@ end
 
 function Defs.heroClass(id)
     return Defs.heroClasses[id]
+end
+
+function Defs.trinket(id)
+    return Defs.trinkets[id]
+end
+
+function Defs.quirk(id)
+    return Defs.quirks[id]
 end
 
 function Defs.skill(id)
@@ -67,6 +81,10 @@ end
 
 function Defs.campSkill(id)
     return Defs.campSkills[id]
+end
+
+function Defs.estateBuilding(id)
+    return Defs.estateBuildings[id]
 end
 
 return Defs

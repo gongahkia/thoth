@@ -32,6 +32,30 @@ Registry.itemOrder = {
 }
 Registry.inventoryPanelOrder = Registry.itemOrder
 
+Registry.trinkets = {
+    ember_pin = { name = "Ember Pin", stressTaken = -1, speed = -1 },
+    cracked_lens = { name = "Cracked Lens", damageBonus = 1, stressTaken = 1 },
+    chirurgic_thread = { name = "Chirurgic Thread", healBonus = 2 },
+    oath_ring = { name = "Oath Ring", maxHp = 3, speed = -1 },
+    quiet_bell = { name = "Quiet Bell", resolve = 8, damageTaken = 1 },
+}
+Registry.trinketOrder = { "ember_pin", "cracked_lens", "chirurgic_thread", "oath_ring", "quiet_bell" }
+
+Registry.quirks = {
+    iron_nerves = { name = "Iron Nerves", kind = "positive", stressTaken = -1 },
+    quick_reflexes = { name = "Quick Reflexes", kind = "positive", speed = 1 },
+    steady_hand = { name = "Steady Hand", kind = "positive", damageBonus = 1 },
+    field_reader = { name = "Field Reader", kind = "positive", resolve = 6 },
+    gloomy = { name = "Gloomy", kind = "negative", stressTaken = 2 },
+    brittle = { name = "Brittle", kind = "negative", damageTaken = 1 },
+    faint_pulse = { name = "Faint Pulse", kind = "negative", maxHp = -2 },
+    soft_voice = { name = "Soft Voice", kind = "negative", healBonus = -1 },
+}
+Registry.quirkOrder = {
+    "iron_nerves", "quick_reflexes", "steady_hand", "field_reader",
+    "gloomy", "brittle", "faint_pulse", "soft_voice",
+}
+
 Registry.heroClasses = {
     warden = {
         name = "Warden",
@@ -231,5 +255,13 @@ Registry.campSkills = {
     watch_order = { name = "Watch Order", torch = 20, stressHeal = 2 },
 }
 Registry.campSkillOrder = { "bind_wounds", "watch_order" }
+
+Registry.estateBuildings = {
+    stagecoach = { name = "Stagecoach", maxLevel = 3, heirloomCost = 2, rosterLimit = 6, rosterPerLevel = 2, recruitSlots = 3, slotsPerLevel = 1, recruitCost = 20, discountPerLevel = 3 },
+    guild = { name = "Guild", maxLevel = 3, heirloomCost = 3, maxSkillLevel = 2, skillMaxPerLevel = 1, skillUpgradeCost = 30 },
+    forge = { name = "Forge", maxLevel = 3, heirloomCost = 3, maxGearLevel = 1, gearMaxPerLevel = 1, gearUpgradeCost = 35 },
+    infirmary = { name = "Infirmary", maxLevel = 3, heirloomCost = 2, recoverCost = 25, quirkTreatmentCost = 35, discountPerLevel = 4 },
+}
+Registry.estateBuildingOrder = { "stagecoach", "guild", "forge", "infirmary" }
 
 return Registry

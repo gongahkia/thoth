@@ -54,6 +54,8 @@ tests[#tests + 1] = function()
     local sim = Simulation.new(11)
     expect(sim.mode == "expedition", "new sim should start playable expedition")
     expect(#sim.estate.roster == 4, "default roster should have four heroes")
+    expect(#sim.estate.recruits == 3, "estate should seed recruit candidates")
+    expect(sim.estate.trinkets.ember_pin == 1, "estate should seed trinkets")
     expect(sim.expedition.supplies:count("torch") == 4, "default supplies missing torches")
     expect(sim.expedition.roomsScouted == 1, "starting room should be scouted")
 end
@@ -234,6 +236,57 @@ tests[#tests + 1] = function()
     local gold = sim.estate.gold
     runQueued(sim, Simulation.commands.recoverHero(hero.id))
     expect(hero.stress == 10 and sim.estate.gold == gold - 25, "estate recovery should spend gold and reduce stress")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(31)
+    sim:endExpedition(true)
+    local rosterSize = #sim.estate.roster
+    local gold = sim.estate.gold
+    runQueued(sim, Simulation.commands.recruitHero(1))
+    expect(#sim.estate.roster == rosterSize + 1, "recruitment should add a hero")
+    expect(sim.estate.gold == gold - 20, "recruitment should spend stagecoach cost")
+    expect(#sim.estate.recruits == sim:recruitSlots(), "recruitment should refill candidates")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(32)
+    sim:endExpedition(true)
+    local hero = sim:heroAtRank(1)
+    hero.stress = 0
+    runQueued(sim, Simulation.commands.equipTrinket(hero.id, "ember_pin", 1))
+    expect(hero.trinkets[1] == "ember_pin" and sim.estate.trinkets.ember_pin == 0, "equip should move trinket to hero")
+    sim:addStress(hero, 10)
+    expect(hero.stress == 8, "quirk and trinket stress modifiers should stack")
+    runQueued(sim, Simulation.commands.unequipTrinket(hero.id, 1))
+    expect(hero.trinkets[1] == false and sim.estate.trinkets.ember_pin == 1, "unequip should return trinket")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(33)
+    sim:endExpedition(true)
+    sim.estate.gold = 200
+    local hero = sim:heroAtRank(2)
+    runQueued(sim, Simulation.commands.upgradeSkill(hero.id, "razor_lunge"))
+    expect(hero.skillLevels.razor_lunge == 2 and sim.estate.gold == 170, "skill upgrade should spend gold and raise level")
+    runQueued(sim, Simulation.commands.upgradeGear(hero.id, "weapon"))
+    expect(hero.weapon == 1 and sim.estate.gold == 135, "weapon upgrade should spend gold")
+    local hp = sim:maxHp(hero)
+    runQueued(sim, Simulation.commands.upgradeGear(hero.id, "armor"))
+    expect(hero.armor == 1 and sim:maxHp(hero) == hp + 3, "armor upgrade should raise max hp")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(34)
+    sim:endExpedition(true)
+    sim.estate.gold = 200
+    sim.estate.heirlooms = 10
+    local hero = sim:heroAtRank(1)
+    runQueued(sim, Simulation.commands.upgradeBuilding("stagecoach"))
+    expect(sim:buildingLevel("stagecoach") == 1 and sim:rosterLimit() == 8, "stagecoach upgrade should raise roster limit")
+    expect(#sim.estate.recruits == 4 and sim.estate.heirlooms == 8, "stagecoach upgrade should refill and spend heirlooms")
+    runQueued(sim, Simulation.commands.treatQuirk(hero.id, "brittle"))
+    expect(not string.find(table.concat(hero.quirks, ","), "brittle"), "quirk treatment should remove negative quirk")
 end
 
 tests[#tests + 1] = function()

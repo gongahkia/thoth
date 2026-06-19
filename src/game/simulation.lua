@@ -14,6 +14,18 @@ local heroNames = {
     arcanist = "Sel",
 }
 
+local recruitNames = {
+    "Iven", "Sable", "Rusk", "Nera", "Cadmus", "Tamsin", "Orrel", "Voss",
+    "Liora", "Bram", "Anik", "Mirel",
+}
+
+local defaultQuirks = {
+    warden = { "iron_nerves", "brittle" },
+    duelist = { "quick_reflexes", "gloomy" },
+    mender = { "field_reader", "soft_voice" },
+    arcanist = { "steady_hand", "faint_pulse" },
+}
+
 local objectCells = {
     { type = "exit", x = -2, y = 2, z = 0, tile = "exit_gate" },
     { type = "curio", x = 4, y = 0, z = 0, tile = "wire_snare", curio = "wire_snare" },
@@ -52,11 +64,15 @@ local function clamp(value, minValue, maxValue)
     return math.max(minValue, math.min(maxValue, value))
 end
 
-local function newHero(id, classKey)
+local function newHero(id, classKey, name, quirks)
     local class = Defs.heroClass(classKey)
+    local skillLevels = {}
+    for _, skillKey in ipairs(class.skills) do
+        skillLevels[skillKey] = 1
+    end
     return {
         id = id,
-        name = heroNames[classKey] or class.name,
+        name = name or heroNames[classKey] or class.name,
         class = classKey,
         level = 1,
         xp = 0,
@@ -68,7 +84,24 @@ local function newHero(id, classKey)
         recovering = 0,
         guard = 0,
         skills = copyList(class.skills),
+        skillLevels = skillLevels,
+        weapon = 0,
+        armor = 0,
+        quirks = copyList(quirks or defaultQuirks[classKey] or {}),
+        trinkets = { false, false },
+        statuses = {},
     }
+end
+
+local function recruitCandidate(seed, serial)
+    local classes = Defs.heroClassOrder
+    local positives = { "iron_nerves", "quick_reflexes", "steady_hand", "field_reader" }
+    local negatives = { "gloomy", "brittle", "faint_pulse", "soft_voice" }
+    local classKey = classes[(Rng.hash(seed + 2101, serial, 1, 0) % #classes) + 1]
+    local name = recruitNames[(Rng.hash(seed + 2101, serial, 2, 0) % #recruitNames) + 1]
+    local positive = positives[(Rng.hash(seed + 2101, serial, 3, 0) % #positives) + 1]
+    local negative = negatives[(Rng.hash(seed + 2101, serial, 4, 0) % #negatives) + 1]
+    return { class = classKey, name = name, quirks = { positive, negative } }
 end
 
 local function newEnemy(id, kind, rank)
@@ -108,7 +141,17 @@ function Simulation.new(seed)
         mode = "estate",
         world = World.new(seed or 1),
         player = { x = 0, y = 0, z = 0, facing = "east", selectedHero = 1 },
-        estate = { gold = 150, heirlooms = 0, roster = roster, graveyard = {} },
+        estate = {
+            gold = 150,
+            heirlooms = 0,
+            roster = roster,
+            graveyard = {},
+            trinkets = { ember_pin = 1, cracked_lens = 1, chirurgic_thread = 1 },
+            upgrades = { stagecoach = 0, guild = 0, forge = 0, infirmary = 0 },
+            recruits = {},
+            nextHeroId = 5,
+            recruitSerial = 1,
+        },
         party = { 1, 2, 3, 4 },
         expedition = nil,
         combat = nil,
@@ -116,6 +159,7 @@ function Simulation.new(seed)
         status = "ready",
         log = {},
     }, Simulation)
+    self:refillRecruits()
     self:startExpedition("buried_archive")
     return self
 end
@@ -164,6 +208,34 @@ end
 
 function Simulation.commands.recoverHero(heroId)
     return { type = "recoverHero", heroId = heroId }
+end
+
+function Simulation.commands.recruitHero(recruitIndex)
+    return { type = "recruitHero", recruitIndex = recruitIndex or 1 }
+end
+
+function Simulation.commands.equipTrinket(heroId, trinketKey, slot)
+    return { type = "equipTrinket", heroId = heroId, trinketKey = trinketKey, slot = slot or 1 }
+end
+
+function Simulation.commands.unequipTrinket(heroId, slot)
+    return { type = "unequipTrinket", heroId = heroId, slot = slot or 1 }
+end
+
+function Simulation.commands.upgradeBuilding(buildingKey)
+    return { type = "upgradeBuilding", buildingKey = buildingKey }
+end
+
+function Simulation.commands.upgradeSkill(heroId, skillKey)
+    return { type = "upgradeSkill", heroId = heroId, skillKey = skillKey }
+end
+
+function Simulation.commands.upgradeGear(heroId, kind)
+    return { type = "upgradeGear", heroId = heroId, kind = kind }
+end
+
+function Simulation.commands.treatQuirk(heroId, quirkKey)
+    return { type = "treatQuirk", heroId = heroId, quirkKey = quirkKey }
 end
 
 function Simulation:queue(command)
@@ -216,6 +288,27 @@ function Simulation:apply(command)
     if command.type == "recoverHero" then
         return self:recoverHero(command.heroId)
     end
+    if command.type == "recruitHero" then
+        return self:recruitHero(command.recruitIndex)
+    end
+    if command.type == "equipTrinket" then
+        return self:equipTrinket(command.heroId, command.trinketKey, command.slot)
+    end
+    if command.type == "unequipTrinket" then
+        return self:unequipTrinket(command.heroId, command.slot)
+    end
+    if command.type == "upgradeBuilding" then
+        return self:upgradeBuilding(command.buildingKey)
+    end
+    if command.type == "upgradeSkill" then
+        return self:upgradeSkill(command.heroId, command.skillKey)
+    end
+    if command.type == "upgradeGear" then
+        return self:upgradeGear(command.heroId, command.kind)
+    end
+    if command.type == "treatQuirk" then
+        return self:treatQuirk(command.heroId, command.quirkKey)
+    end
     return false
 end
 
@@ -259,6 +352,55 @@ function Simulation:heroRank(heroId)
     return nil
 end
 
+function Simulation:buildingLevel(buildingKey)
+    return (self.estate.upgrades and self.estate.upgrades[buildingKey]) or 0
+end
+
+function Simulation:heroModifier(hero, key)
+    local total = 0
+    for _, quirkKey in ipairs(hero.quirks or {}) do
+        local quirk = Defs.quirk(quirkKey)
+        total = total + ((quirk and quirk[key]) or 0)
+    end
+    for _, trinketKey in ipairs(hero.trinkets or {}) do
+        local trinket = trinketKey and Defs.trinket(trinketKey)
+        total = total + ((trinket and trinket[key]) or 0)
+    end
+    return total
+end
+
+function Simulation:heroSpeed(hero)
+    return math.max(0, self:classDef(hero).speed + self:heroModifier(hero, "speed"))
+end
+
+function Simulation:heroResolve(hero)
+    return clamp(self:classDef(hero).resolve + ((hero.level or 1) - 1) * 4 + self:heroModifier(hero, "resolve"), 5, 95)
+end
+
+function Simulation:skillLevel(hero, skillKey)
+    return math.max(1, (hero.skillLevels and hero.skillLevels[skillKey]) or 1)
+end
+
+function Simulation:rosterLimit()
+    local def = Defs.estateBuilding("stagecoach")
+    return def.rosterLimit + self:buildingLevel("stagecoach") * def.rosterPerLevel
+end
+
+function Simulation:recruitSlots()
+    local def = Defs.estateBuilding("stagecoach")
+    return def.recruitSlots + self:buildingLevel("stagecoach") * def.slotsPerLevel
+end
+
+function Simulation:livingRosterCount()
+    local count = 0
+    for _, hero in ipairs(self.estate.roster) do
+        if hero.alive then
+            count = count + 1
+        end
+    end
+    return count
+end
+
 function Simulation:livingHeroCount()
     local count = 0
     for rank = 1, 4 do
@@ -297,7 +439,7 @@ function Simulation:classDef(hero)
 end
 
 function Simulation:maxHp(hero)
-    return self:classDef(hero).maxHp
+    return math.max(1, self:classDef(hero).maxHp + ((hero.level or 1) - 1) * 2 + (hero.armor or 0) * 3 + self:heroModifier(hero, "maxHp"))
 end
 
 function Simulation:healHero(hero, amount)
@@ -305,7 +447,7 @@ function Simulation:healHero(hero, amount)
         return false
     end
     local penalty = hero.affliction and ((Defs.affliction(hero.affliction) or {}).healPenalty or 0) or 0
-    hero.hp = math.min(self:maxHp(hero), hero.hp + math.max(0, amount - penalty))
+    hero.hp = math.min(self:maxHp(hero), hero.hp + math.max(0, amount + self:heroModifier(hero, "healBonus") - penalty))
     return true
 end
 
@@ -314,6 +456,7 @@ function Simulation:damageHero(hero, amount)
         return false
     end
     local extra = hero.affliction and ((Defs.affliction(hero.affliction) or {}).damageTaken or 0) or 0
+    extra = extra + self:heroModifier(hero, "damageTaken")
     hero.hp = math.max(0, hero.hp - math.max(0, amount + extra))
     if hero.hp <= 0 then
         hero.alive = false
@@ -340,6 +483,7 @@ function Simulation:addStress(hero, amount)
     if hero.virtue then
         modifier = modifier + ((Defs.virtue(hero.virtue) or {}).stressTaken or 0)
     end
+    modifier = modifier + self:heroModifier(hero, "stressTaken")
     hero.stress = clamp(hero.stress + amount + modifier, 0, 200)
     if hero.stress >= 100 and not hero.affliction and not hero.virtue then
         self:resolveCheck(hero)
@@ -361,9 +505,8 @@ function Simulation:healStress(hero, amount)
 end
 
 function Simulation:resolveCheck(hero)
-    local class = self:classDef(hero)
     local roll = self:roll(1, 100)
-    if roll <= class.resolve then
+    if roll <= self:heroResolve(hero) then
         hero.virtue = "focused"
         self:pushLog(hero.name .. " steadied")
     else
@@ -437,7 +580,7 @@ function Simulation:endExpedition(retreat)
         for rank = 1, 4 do
             local hero = self:heroAtRank(rank)
             if hero and hero.alive then
-                hero.xp = hero.xp + 1
+                self:awardXp(hero, 1)
                 self:healStress(hero, 8)
             end
         end
@@ -455,6 +598,198 @@ function Simulation:endExpedition(retreat)
     self.mode = "estate"
     self.combat = nil
     self.expedition.active = false
+    self:refillRecruits()
+    return true
+end
+
+function Simulation:awardXp(hero, amount)
+    if not hero or not hero.alive then
+        return false
+    end
+    hero.xp = (hero.xp or 0) + (amount or 0)
+    while hero.level < 5 and hero.xp >= hero.level * 2 do
+        hero.xp = hero.xp - hero.level * 2
+        hero.level = hero.level + 1
+        hero.hp = self:maxHp(hero)
+        self:pushLog(hero.name .. " reached resolve " .. hero.level)
+    end
+    return true
+end
+
+function Simulation:refillRecruits()
+    self.estate.recruits = self.estate.recruits or {}
+    while #self.estate.recruits < self:recruitSlots() do
+        local serial = self.estate.recruitSerial or 1
+        self.estate.recruits[#self.estate.recruits + 1] = recruitCandidate(self.seed, serial)
+        self.estate.recruitSerial = serial + 1
+    end
+end
+
+function Simulation:recruitCost()
+    local def = Defs.estateBuilding("stagecoach")
+    return math.max(0, def.recruitCost - self:buildingLevel("stagecoach") * def.discountPerLevel)
+end
+
+function Simulation:recruitHero(recruitIndex)
+    if self.mode ~= "estate" then
+        return false
+    end
+    self:refillRecruits()
+    local index = clamp(tonumber(recruitIndex) or 1, 1, #self.estate.recruits)
+    local recruit = self.estate.recruits[index]
+    local cost = self:recruitCost()
+    if not recruit or self.estate.gold < cost or self:livingRosterCount() >= self:rosterLimit() then
+        return false
+    end
+    self.estate.gold = self.estate.gold - cost
+    local hero = newHero(self.estate.nextHeroId or (#self.estate.roster + 1), recruit.class, recruit.name, recruit.quirks)
+    self.estate.nextHeroId = hero.id + 1
+    self.estate.roster[#self.estate.roster + 1] = hero
+    table.remove(self.estate.recruits, index)
+    for rank = 1, 4 do
+        if not self.party[rank] then
+            self.party[rank] = hero.id
+            break
+        end
+    end
+    self:refillRecruits()
+    self:pushLog(hero.name .. " recruited")
+    return true
+end
+
+function Simulation:equipTrinket(heroId, trinketKey, slot)
+    if self.mode ~= "estate" or not Defs.trinket(trinketKey) then
+        return false
+    end
+    local hero = self:heroById(heroId)
+    slot = clamp(tonumber(slot) or 1, 1, 2)
+    if not hero or not hero.alive or hero.trinkets[slot] or ((self.estate.trinkets or {})[trinketKey] or 0) <= 0 then
+        return false
+    end
+    self.estate.trinkets[trinketKey] = self.estate.trinkets[trinketKey] - 1
+    hero.trinkets[slot] = trinketKey
+    self:pushLog(hero.name .. " equipped " .. Defs.trinket(trinketKey).name)
+    return true
+end
+
+function Simulation:unequipTrinket(heroId, slot)
+    if self.mode ~= "estate" then
+        return false
+    end
+    local hero = self:heroById(heroId)
+    slot = clamp(tonumber(slot) or 1, 1, 2)
+    if not hero or not hero.trinkets[slot] then
+        return false
+    end
+    local trinketKey = hero.trinkets[slot]
+    hero.trinkets[slot] = false
+    self.estate.trinkets[trinketKey] = ((self.estate.trinkets or {})[trinketKey] or 0) + 1
+    hero.hp = math.min(hero.hp, self:maxHp(hero))
+    self:pushLog(hero.name .. " unequipped " .. Defs.trinket(trinketKey).name)
+    return true
+end
+
+function Simulation:upgradeBuilding(buildingKey)
+    if self.mode ~= "estate" then
+        return false
+    end
+    local def = Defs.estateBuilding(buildingKey)
+    if not def then
+        return false
+    end
+    local level = self:buildingLevel(buildingKey)
+    local cost = def.heirloomCost * (level + 1)
+    if level >= def.maxLevel or self.estate.heirlooms < cost then
+        return false
+    end
+    self.estate.heirlooms = self.estate.heirlooms - cost
+    self.estate.upgrades[buildingKey] = level + 1
+    if buildingKey == "stagecoach" then
+        self:refillRecruits()
+    end
+    self:pushLog(def.name .. " upgraded")
+    return true
+end
+
+function Simulation:maxSkillLevel()
+    local def = Defs.estateBuilding("guild")
+    return def.maxSkillLevel + self:buildingLevel("guild") * def.skillMaxPerLevel
+end
+
+function Simulation:upgradeSkill(heroId, skillKey)
+    if self.mode ~= "estate" then
+        return false
+    end
+    local hero = self:heroById(heroId)
+    local skill = Defs.skill(skillKey)
+    if not hero or not hero.alive or not skill or skill.class ~= hero.class or not contains(hero.skills, skillKey) then
+        return false
+    end
+    local current = self:skillLevel(hero, skillKey)
+    if current >= self:maxSkillLevel() then
+        return false
+    end
+    local cost = Defs.estateBuilding("guild").skillUpgradeCost * current
+    if self.estate.gold < cost then
+        return false
+    end
+    self.estate.gold = self.estate.gold - cost
+    hero.skillLevels[skillKey] = current + 1
+    self:pushLog(hero.name .. " trained " .. skill.name)
+    return true
+end
+
+function Simulation:maxGearLevel()
+    local def = Defs.estateBuilding("forge")
+    return def.maxGearLevel + self:buildingLevel("forge") * def.gearMaxPerLevel
+end
+
+function Simulation:upgradeGear(heroId, kind)
+    if self.mode ~= "estate" or (kind ~= "weapon" and kind ~= "armor") then
+        return false
+    end
+    local hero = self:heroById(heroId)
+    if not hero or not hero.alive or (hero[kind] or 0) >= self:maxGearLevel() then
+        return false
+    end
+    local current = hero[kind] or 0
+    local cost = Defs.estateBuilding("forge").gearUpgradeCost * (current + 1)
+    if self.estate.gold < cost then
+        return false
+    end
+    self.estate.gold = self.estate.gold - cost
+    hero[kind] = current + 1
+    if kind == "armor" then
+        hero.hp = self:maxHp(hero)
+    end
+    self:pushLog(hero.name .. " improved " .. kind)
+    return true
+end
+
+function Simulation:treatQuirk(heroId, quirkKey)
+    if self.mode ~= "estate" then
+        return false
+    end
+    local hero = self:heroById(heroId)
+    local quirk = Defs.quirk(quirkKey)
+    if not hero or not hero.alive or not quirk or quirk.kind ~= "negative" or not contains(hero.quirks, quirkKey) then
+        return false
+    end
+    local def = Defs.estateBuilding("infirmary")
+    local cost = math.max(0, def.quirkTreatmentCost - self:buildingLevel("infirmary") * def.discountPerLevel)
+    if self.estate.gold < cost then
+        return false
+    end
+    self.estate.gold = self.estate.gold - cost
+    local kept = {}
+    for _, value in ipairs(hero.quirks or {}) do
+        if value ~= quirkKey then
+            kept[#kept + 1] = value
+        end
+    end
+    hero.quirks = kept
+    hero.hp = math.min(hero.hp, self:maxHp(hero))
+    self:pushLog(hero.name .. " treated " .. quirk.name)
     return true
 end
 
@@ -463,10 +798,12 @@ function Simulation:recoverHero(heroId)
         return false
     end
     local hero = self:heroById(heroId)
-    if not hero or not hero.alive or self.estate.gold < 25 then
+    local def = Defs.estateBuilding("infirmary")
+    local cost = math.max(0, def.recoverCost - self:buildingLevel("infirmary") * def.discountPerLevel)
+    if not hero or not hero.alive or self.estate.gold < cost then
         return false
     end
-    self.estate.gold = self.estate.gold - 25
+    self.estate.gold = self.estate.gold - cost
     self:healStress(hero, 30)
     hero.recovering = math.max(0, (hero.recovering or 0) - 1)
     self:pushLog(hero.name .. " recovered")
@@ -702,7 +1039,7 @@ end
 function Simulation:actorSpeed(actor)
     if actor.side == "hero" then
         local hero = self:heroById(actor.id)
-        return hero and self:classDef(hero).speed or 0
+        return hero and self:heroSpeed(hero) or 0
     end
     local enemy = self.combat.enemies[actor.id]
     return enemy and Defs.enemy(enemy.kind).speed or 0
@@ -840,10 +1177,17 @@ function Simulation:finishCombat(victory)
             self.expedition.clearedEncounters[self.combat.roomKey or self.combat.encounter] = true
             self.expedition.loot:add("coin", self.combat.encounter == "regent" and 120 or 35)
             self.expedition.loot:add("heirloom", self.combat.encounter == "regent" and 2 or 1)
+            for rank = 1, 4 do
+                local hero = self:heroAtRank(rank)
+                if hero and hero.alive then
+                    self:awardXp(hero, self.combat.encounter == "regent" and 2 or 1)
+                end
+            end
             if self.combat.encounter == "regent" then
                 self.expedition.bossDefeated = true
                 self.expedition.objectiveComplete = true
                 self.world:setTile(24, 0, 0, { id = "archive_floor", data = 0 })
+                self.estate.trinkets.quiet_bell = (self.estate.trinkets.quiet_bell or 0) + 1
             end
         end
         self.mode = "expedition"
@@ -931,7 +1275,8 @@ function Simulation:combatSkill(skillKey, targetRank, targetSide)
 end
 
 function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetSide)
-    local damageBonus = 0
+    local skillLevel = self:skillLevel(hero, skillKey)
+    local damageBonus = (hero.weapon or 0) + (skillLevel - 1) + self:heroModifier(hero, "damageBonus")
     if hero.affliction == "reckless" then
         damageBonus = damageBonus + 1
     end
@@ -947,10 +1292,10 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
             target.stress = (target.stress or 0) + skill.stressDamage
         end
         if skill.heal then
-            self:healHero(target, self:roll(skill.heal[1], skill.heal[2]))
+            self:healHero(target, self:roll(skill.heal[1], skill.heal[2]) + (skillLevel - 1))
         end
         if skill.stressHeal then
-            self:healStress(target, skill.stressHeal)
+            self:healStress(target, skill.stressHeal + math.floor((skillLevel - 1) / 2))
         end
         if skill.status and targetSide == "enemy" and target.hp > 0 then
             target.statuses[#target.statuses + 1] = copyMap(skill.status)
@@ -1054,12 +1399,15 @@ function Simulation:partyState()
                 id = hero.id,
                 name = hero.name,
                 class = class.name,
+                level = hero.level,
                 hp = hero.hp,
-                maxHp = class.maxHp,
+                maxHp = self:maxHp(hero),
                 stress = hero.stress,
                 affliction = hero.affliction,
                 virtue = hero.virtue,
                 alive = hero.alive,
+                quirks = copyList(hero.quirks),
+                trinkets = copyList(hero.trinkets),
             }
         end
     end
@@ -1079,6 +1427,7 @@ function Simulation:availableSkills()
             index = index,
             key = skillKey,
             name = skill.name,
+            level = self:skillLevel(hero, skillKey),
             usable = self.mode ~= "combat" or contains(skill.userRanks, rank),
         }
     end
@@ -1161,7 +1510,20 @@ function Simulation:snapshot()
             recovering = hero.recovering,
             guard = hero.guard,
             skills = copyList(hero.skills),
+            skillLevels = copyMap(hero.skillLevels),
+            weapon = hero.weapon,
+            armor = hero.armor,
+            quirks = copyList(hero.quirks),
+            trinkets = copyList(hero.trinkets),
             statuses = copyList(hero.statuses),
+        }
+    end
+    local recruits = {}
+    for _, recruit in ipairs(self.estate.recruits or {}) do
+        recruits[#recruits + 1] = {
+            class = recruit.class,
+            name = recruit.name,
+            quirks = copyList(recruit.quirks),
         }
     end
     local expedition = nil
@@ -1212,6 +1574,11 @@ function Simulation:snapshot()
             heirlooms = self.estate.heirlooms,
             roster = roster,
             graveyard = copyList(self.estate.graveyard),
+            trinkets = copyMap(self.estate.trinkets),
+            upgrades = copyMap(self.estate.upgrades),
+            recruits = recruits,
+            nextHeroId = self.estate.nextHeroId,
+            recruitSerial = self.estate.recruitSerial,
         },
         party = copyList(self.party),
         expedition = expedition,
@@ -1232,7 +1599,7 @@ function Simulation.fromSnapshot(snapshot)
         mode = snapshot.mode or "estate",
         world = World.fromSnapshot(snapshot.world or { seed = snapshot.seed or 1, tiles = {} }),
         player = copyMap(snapshot.player or { x = 0, y = 0, z = 0, facing = "east", selectedHero = 1 }),
-        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {} },
+        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {}, trinkets = {}, upgrades = {}, recruits = {}, nextHeroId = 1, recruitSerial = 1 },
         party = copyList(snapshot.party or {}),
         expedition = nil,
         combat = nil,
@@ -1243,6 +1610,21 @@ function Simulation.fromSnapshot(snapshot)
     self.estate.gold = (snapshot.estate and snapshot.estate.gold) or 0
     self.estate.heirlooms = (snapshot.estate and snapshot.estate.heirlooms) or 0
     self.estate.graveyard = copyList((snapshot.estate and snapshot.estate.graveyard) or {})
+    self.estate.trinkets = copyMap((snapshot.estate and snapshot.estate.trinkets) or {})
+    self.estate.upgrades = copyMap((snapshot.estate and snapshot.estate.upgrades) or { stagecoach = 0, guild = 0, forge = 0, infirmary = 0 })
+    for _, buildingKey in ipairs(Defs.estateBuildingOrder) do
+        self.estate.upgrades[buildingKey] = self.estate.upgrades[buildingKey] or 0
+    end
+    self.estate.recruits = {}
+    for _, recruit in ipairs((snapshot.estate and snapshot.estate.recruits) or {}) do
+        self.estate.recruits[#self.estate.recruits + 1] = {
+            class = recruit.class,
+            name = recruit.name,
+            quirks = copyList(recruit.quirks),
+        }
+    end
+    self.estate.nextHeroId = (snapshot.estate and snapshot.estate.nextHeroId) or 1
+    self.estate.recruitSerial = (snapshot.estate and snapshot.estate.recruitSerial) or 1
     for _, value in ipairs((snapshot.estate and snapshot.estate.roster) or {}) do
         local hero = newHero(value.id, value.class)
         hero.name = value.name or hero.name
@@ -1256,9 +1638,21 @@ function Simulation.fromSnapshot(snapshot)
         hero.recovering = value.recovering or 0
         hero.guard = value.guard or 0
         hero.skills = copyList(value.skills or hero.skills)
+        hero.skillLevels = copyMap(value.skillLevels or hero.skillLevels)
+        for _, skillKey in ipairs(hero.skills) do
+            hero.skillLevels[skillKey] = hero.skillLevels[skillKey] or 1
+        end
+        hero.weapon = value.weapon or 0
+        hero.armor = value.armor or 0
+        hero.quirks = copyList(value.quirks or hero.quirks)
+        hero.trinkets = copyList(value.trinkets or hero.trinkets)
+        hero.trinkets[1] = hero.trinkets[1] or false
+        hero.trinkets[2] = hero.trinkets[2] or false
         hero.statuses = copyList(value.statuses or {})
         self.estate.roster[#self.estate.roster + 1] = hero
+        self.estate.nextHeroId = math.max(self.estate.nextHeroId, hero.id + 1)
     end
+    self:refillRecruits()
     local exp = snapshot.expedition
     if exp then
         self.expedition = {

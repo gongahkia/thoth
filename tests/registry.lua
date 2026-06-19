@@ -25,6 +25,8 @@ local function rankList(value, label)
 end
 
 checkOrder("item", Defs.itemOrder, Defs.items)
+checkOrder("trinket", Defs.trinketOrder, Defs.trinkets)
+checkOrder("quirk", Defs.quirkOrder, Defs.quirks)
 checkOrder("hero class", Defs.heroClassOrder, Defs.heroClasses)
 checkOrder("skill", Defs.skillOrder, Defs.skills)
 checkOrder("enemy", Defs.enemyOrder, Defs.enemies)
@@ -32,6 +34,7 @@ checkOrder("affliction", Defs.afflictionOrder, Defs.afflictions)
 checkOrder("curio", Defs.curioOrder, Defs.curios)
 checkOrder("encounter", Defs.encounterOrder, Defs.encounters)
 checkOrder("location", Defs.locationOrder, Defs.locations)
+checkOrder("estate building", Defs.estateBuildingOrder, Defs.estateBuildings)
 
 for key, tile in pairs(Defs.tiles) do
     expect(tile.name and tile.name ~= "", "tile missing name " .. key)
@@ -48,6 +51,14 @@ end
 for key, item in pairs(Defs.items) do
     expect(item.name and item.name ~= "", "item missing name " .. key)
     expect(type(item.stack) == "number" and item.stack > 0, "item bad stack " .. key)
+end
+
+for key, trinket in pairs(Defs.trinkets) do
+    expect(trinket.name and trinket.name ~= "", "trinket missing name " .. key)
+end
+
+for key, quirk in pairs(Defs.quirks) do
+    expect(quirk.name and (quirk.kind == "positive" or quirk.kind == "negative"), "quirk missing data " .. key)
 end
 
 for key, class in pairs(Defs.heroClasses) do
@@ -101,6 +112,10 @@ for key, location in pairs(Defs.locations) do
     for _, encounterKey in pairs(location.encounters or {}) do
         expect(Defs.encounter(encounterKey), "location missing encounter " .. encounterKey)
     end
+end
+
+for key, building in pairs(Defs.estateBuildings) do
+    expect(building.name and building.maxLevel >= 1 and building.heirloomCost >= 0, "building missing data " .. key)
 end
 
 print("registry checks passed")

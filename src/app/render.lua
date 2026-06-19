@@ -368,7 +368,7 @@ local function drawHeroRows(sim, app, x, y, w)
         love.graphics.setColor(active and 0.82 or 0.32, active and 0.72 or 0.34, active and 0.34 or 0.28, 1)
         love.graphics.rectangle("line", x, rowY, w, 36)
         love.graphics.setColor(0.94, 0.96, 0.9, 1)
-        love.graphics.print(hero.rank .. " " .. hero.name .. " / " .. hero.class, x + 6, rowY + 4)
+        love.graphics.print(hero.rank .. " " .. hero.name .. " / " .. hero.class .. " L" .. (hero.level or 1), x + 6, rowY + 4)
         love.graphics.setColor(0.74, 0.82, 0.74, 1)
         love.graphics.print("hp " .. hero.hp .. "/" .. hero.maxHp .. "  stress " .. hero.stress, x + 6, rowY + 19)
         if hero.affliction then
@@ -479,13 +479,26 @@ function Render.drawEstatePanel(sim, app)
     end
     local x = 24
     local y = 92
-    panel(x, y, 332, 190, 0.92)
+    panel(x, y, 332, 326, 0.92)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Estate", x + 10, y + 10)
     love.graphics.print("gold " .. sim.estate.gold .. "  heirlooms " .. sim.estate.heirlooms, x + 10, y + 34)
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
-    love.graphics.print("space starts expedition; click heroes to select", x + 10, y + 58)
-    drawHeroRows(sim, app, x + 10, y + 86, 312)
+    love.graphics.print("roster " .. sim:livingRosterCount() .. "/" .. sim:rosterLimit() .. "  recruits " .. #sim.estate.recruits, x + 10, y + 58)
+    local upgrades = {}
+    for _, key in ipairs(Defs.estateBuildingOrder) do
+        upgrades[#upgrades + 1] = key .. ":" .. sim:buildingLevel(key)
+    end
+    love.graphics.printf(table.concat(upgrades, "  "), x + 10, y + 78, 312)
+    local trinkets = {}
+    for _, key in ipairs(Defs.trinketOrder) do
+        local count = (sim.estate.trinkets or {})[key] or 0
+        if count > 0 then
+            trinkets[#trinkets + 1] = key .. ":" .. count
+        end
+    end
+    love.graphics.printf(#trinkets > 0 and table.concat(trinkets, "  ") or "no trinkets", x + 10, y + 100, 312)
+    drawHeroRows(sim, app, x + 10, y + 128, 312)
 end
 
 function Render.draw(sim, app)
