@@ -18,6 +18,7 @@ Class-fit notes are [Inference] from class skills/lore plus the visible front-fr
 | `chirurgeon` | Chirurgeon | Hooded physician/alchemist | `wmg4_*` | `smr1_*` | [Inference] `wmg4` gives a hooded clinical support read; `smr1` works for a vial/staff alchemist read. |
 | `exile` | Exile | Rough outcast/bruiser | `mst4_*` | `trk1_*` | [Inference] `mst4` reads as an outsider/bandit; `trk1` is the heavier exile fallback. |
 | `lamplighter` | Lamplighter | Staff and light source | `smr3_*` | `amg1_*` | [Inference] `smr3` has the strongest staff/light silhouette; `amg1` keeps the same staff role with a warmer palette. |
+| `merchant` | Merchant | Ledger clerk/contract broker | `man3_*` | `scr4_*` | [Inference] `man3` reads as the clearest plain official silhouette; `scr4` is the scribe fallback. |
 
 ## Import Notes
 

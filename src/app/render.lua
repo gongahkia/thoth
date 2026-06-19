@@ -712,6 +712,7 @@ local classNameToKey = {
     Chirurgeon = "chirurgeon",
     Exile = "exile",
     Lamplighter = "lamplighter",
+    Merchant = "merchant",
 }
 
 local function namedAtlasFrame(name, fallback)

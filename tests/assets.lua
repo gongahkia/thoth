@@ -33,6 +33,7 @@ assert(manifest and manifest.image == "assets/sprites/oga_700_sprites.png", "mis
 assert(manifest.frames == 304 and manifest.columns == 16 and manifest.rows == 19, "bad sprite atlas manifest")
 assert(manifest.frameWidth == 32 and manifest.frameHeight == 32, "bad sprite atlas frame size")
 assert(manifest.classes and manifest.classes.warden and manifest.classes.warden.group == "gsd1", "missing hero sprite mapping")
+assert(manifest.classes.merchant and manifest.classes.merchant.group == "man3", "missing merchant sprite mapping")
 assert(manifest.enemies and manifest.enemies.hollow_guard and manifest.enemies.hollow_guard.group == "skl1", "missing enemy sprite mapping")
 assert(manifest.framesByName and manifest.framesByName["group.gsd1.fr1"] == 0, "missing named sprite frame")
 
