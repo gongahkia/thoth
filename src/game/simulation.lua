@@ -4527,7 +4527,7 @@ function Simulation:snapshot()
         }
     end
     return {
-        version = 3,
+        version = 4,
         seed = self.seed,
         tick = self.tick,
         rollIndex = self.rollIndex,
@@ -4582,7 +4582,7 @@ function Simulation:snapshot()
 end
 
 function Simulation.fromSnapshot(snapshot)
-    if snapshot.version and snapshot.version ~= 2 and snapshot.version ~= 3 then
+    if snapshot.version and snapshot.version ~= 2 and snapshot.version ~= 3 and snapshot.version ~= 4 then
         return nil, "unsupported simulation snapshot version"
     end
     local self = setmetatable({

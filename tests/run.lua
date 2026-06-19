@@ -2243,9 +2243,13 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.move("east"))
     runQueued(sim, Simulation.commands.useItem("torch"))
     local text = Save.toText(sim)
-    expect(text:match("^THOTH_LUA_SAVE 3"), "save writer should use v3 header")
+    expect(text:match("^THOTH_LUA_SAVE 4"), "save writer should use v4 header")
     local loaded = assert(Save.fromText(text))
     expect(sameSnapshot(sim, loaded), "save round trip should preserve snapshot")
+    local v3Snapshot = sim:snapshot()
+    v3Snapshot.version = 3
+    local v3Loaded = assert(Save.fromText("THOTH_LUA_SAVE 3\n" .. Serialize.encode(v3Snapshot) .. "\n"))
+    expect(v3Loaded:snapshot().version == 4 and sameSnapshot(sim, v3Loaded), "v3 save should migrate to v4")
     local oldSnapshot = sim:snapshot()
     oldSnapshot.version = 2
     oldSnapshot.expedition.threatState = nil

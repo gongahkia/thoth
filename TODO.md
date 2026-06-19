@@ -153,7 +153,6 @@ Goal: Balatro-feel polish on every interaction. Audio mix. Final accessibility p
 - [ ] 7.7 Accessibility final pass: colorblind palettes, high-contrast UI, font scale, motion-reduced toggle, screen-reader-friendly text exports (40h)
 - [ ] 7.8 Performance final pass: cold-boot time <3s, expedition load <1s, frame time <16ms 99th percentile (80h)
 - [ ] 7.9 Memory profiling: ensure <500MB resident (Balatro reference) (16h)
-- [ ] 7.10 Save format final lock: bump to version 4, write migration from v3 (16h)
 - [ ] 7.12 Replay viewer UI: load replay from `Replay.write` output, view it as cutscene (40h opt.)
 - [ ] 7.13 Modding hooks: expose `Registry` as override-friendly Lua table; document override pattern (40h opt.)
 - [ ] 7.15 Tag commit `phase7-polish-complete` (0.5h)
