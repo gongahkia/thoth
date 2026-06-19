@@ -2,7 +2,7 @@
 
 Date: 2026-06-19
 
-Status: Day 1 bake-off complete.
+Status: Day 1-4 spike checks complete; Phase 1 approach drafted.
 
 Local runtime: LOVE 11.5.
 
@@ -113,3 +113,20 @@ save-roundtrip-match=true
 ```
 
 Result: `Save.write` and `Save.read` roundtripped a stepped simulation through LOVE filesystem state, then removed the temporary save file.
+
+## Phase 1 Integration Approach
+
+Use `g3d` as the Phase 1 render candidate.
+
+Port order:
+
+1. Add `src/app/render3d.lua` behind the existing `Render.*` interface.
+2. Keep `src/game/simulation.lua` untouched; rendering reads snapshots/app state only.
+3. Move the spike camera math into the render layer as explicit state: `baseYaw`, `snapIndex`, `targetYaw`, and interpolated `cameraYaw`.
+4. Render map geometry as batched tile meshes first. Start with one mesh per visible floor layer; split by material only if needed.
+5. Render heroes/enemies as billboard models using yaw cancellation from the spike: `sprite:setRotation(0, 0, math.pi / 2 - cameraYaw)`.
+6. Keep the spike verifier commands as parity checks while porting: `--verify-fps`, `--verify-sim`, `--verify-save`, and `--verify-billboard`.
+
+Initial performance result: `fps-min=60` with 400 flat tiles and 34 billboards on local LOVE 11.5 after warmup.
+
+[Inference] The current prototype is sufficient to open Phase 1 because it covers the required camera, grid, billboard, FPS, simulation, and save/load checks without touching game logic.
