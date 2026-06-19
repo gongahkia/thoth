@@ -394,6 +394,25 @@ local function printEstateSmoke(state)
     print("estate-smoke-missions=" .. tostring(#((state.ui and state.ui.missionButtons) or {})))
 end
 
+local function printCombatSmoke(state)
+    if not state.combatSmoke or state.combatSmokePrinted then
+        return
+    end
+    state.combatSmokePrinted = true
+    local allyTargets = 0
+    for _, hitbox in ipairs((state.ui and state.ui.heroButtons) or {}) do
+        if hitbox.side == "ally" then
+            allyTargets = allyTargets + 1
+        end
+    end
+    local summary = Render.combatHudSummary(sim, state)
+    print("combat-smoke-mode=" .. tostring(sim and sim.mode))
+    print("combat-smoke-turns=" .. tostring(#summary.turns))
+    print("combat-smoke-skills=" .. tostring(#((state.ui and state.ui.skillButtons) or {})))
+    print("combat-smoke-ally-targets=" .. tostring(allyTargets))
+    print("combat-smoke-enemy-targets=" .. tostring(#((state.ui and state.ui.enemyButtons) or {})))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -401,7 +420,8 @@ function love.load(args)
     local titleSmoke = hasArg(args, "--title-smoke")
     local settingsSmoke = hasArg(args, "--settings-smoke")
     local estateSmoke = hasArg(args, "--estate-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke
+    local combatSmoke = hasArg(args, "--combat-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
@@ -410,6 +430,9 @@ function love.load(args)
     if estateSmoke then
         sim:endExpedition(true)
         sim.estate.heirlooms = math.max(sim.estate.heirlooms or 0, 20)
+    end
+    if combatSmoke then
+        sim:startCombat("entry", sim:currentRoomKey() or "0:0")
     end
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
@@ -431,6 +454,7 @@ function love.load(args)
         titleSmoke = titleSmoke,
         settingsSmoke = settingsSmoke,
         estateSmoke = estateSmoke,
+        combatSmoke = combatSmoke,
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -500,6 +524,7 @@ function love.draw()
     Render.draw(sim, app)
     printRenderSmoke(app)
     printEstateSmoke(app)
+    printCombatSmoke(app)
     if app.renderBenchmark then
         local elapsedMs = (love.timer.getTime() - started) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1

@@ -1117,6 +1117,15 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(81)
+    reachEntryCombat(sim)
+    local summary = Render.combatHudSummary(sim, { pendingSkillKey = "arterial_cut", pendingTargetSide = "enemy" })
+    expect(summary.mode == "combat" and #summary.turns == 6, "combat hud summary should expose turn order")
+    expect(summary.active:find("R", 1, true), "combat hud summary should expose active rank")
+    expect(summary.skill == "arterial_cut" and summary.target == "enemy", "combat hud summary should expose target picker")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(80)
     local summary = Render.expeditionHudSummary(sim)
     expect(summary.torch == sim.expedition.torch, "hud summary should expose torch level")

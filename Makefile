@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -53,6 +53,21 @@ estate-smoke:
 	grep -q "estate-smoke-roster=" $$tmp; \
 	grep -q "estate-smoke-party-slots=4" $$tmp; \
 	grep -q "estate-smoke-missions=" $$tmp; \
+	rm -f $$tmp
+
+combat-smoke:
+	@set -e; \
+	tmp=$$(mktemp); \
+	if command -v xvfb-run >/dev/null 2>&1; then \
+		xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --combat-smoke | tee $$tmp; \
+	else \
+		$(LOVE) . --combat-smoke | tee $$tmp; \
+	fi; \
+	grep -q "combat-smoke-mode=combat" $$tmp; \
+	grep -q "combat-smoke-turns=6" $$tmp; \
+	grep -q "combat-smoke-skills=3" $$tmp; \
+	grep -q "combat-smoke-ally-targets=4" $$tmp; \
+	grep -q "combat-smoke-enemy-targets=2" $$tmp; \
 	rm -f $$tmp
 
 render-smoke:

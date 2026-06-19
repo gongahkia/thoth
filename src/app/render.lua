@@ -736,6 +736,38 @@ function Render.expeditionHudSummary(sim)
     }
 end
 
+local function combatActorLabel(sim, actor)
+    if not actor then
+        return "-"
+    end
+    if actor.side == "hero" then
+        local hero = sim:heroById(actor.id)
+        return "R" .. tostring(actor.rank or "?") .. " " .. (hero and hero.name or "hero")
+    end
+    local enemy = sim.combat and sim.combat.enemies and sim.combat.enemies[actor.id]
+    local enemyDef = enemy and Defs.enemy(enemy.kind)
+    return "E" .. tostring(actor.rank or "?") .. " " .. (enemyDef and enemyDef.name or "enemy")
+end
+
+function Render.combatHudSummary(sim, app)
+    local turns = {}
+    for index, actor in ipairs((sim and sim.combat and sim.combat.turnQueue) or {}) do
+        turns[#turns + 1] = {
+            index = index,
+            active = index == ((sim.combat and sim.combat.turnIndex) or 0),
+            label = combatActorLabel(sim, actor),
+        }
+    end
+    return {
+        mode = sim and sim.mode or nil,
+        round = sim and sim.combat and sim.combat.round or nil,
+        turns = turns,
+        active = combatActorLabel(sim, sim and sim.combat and sim.combat.active),
+        target = app and app.pendingTargetSide or nil,
+        skill = app and app.pendingSkillKey or nil,
+    }
+end
+
 local function layoutTitleButtons(app, items, width, height)
     local buttonW = math.min(320, math.max(220, width - 88))
     local x = math.max(44, width - buttonW - 96)
@@ -1682,6 +1714,17 @@ function Render.drawCombatOverlay(sim, app)
     love.graphics.print("Combat  round " .. sim.combat.round, x + 10, y + 8)
     local active = sim:activeHero()
     love.graphics.print(active and (active.name .. " acts") or "enemy turn", x + 170, y + 8)
+    local summary = Render.combatHudSummary(sim, app)
+    local turnLabels = {}
+    for _, turn in ipairs(summary.turns) do
+        turnLabels[#turnLabels + 1] = (turn.active and ">" or "") .. turn.label
+    end
+    love.graphics.setColor(0.68, 0.72, 0.66, 1)
+    love.graphics.printf("turn " .. table.concat(turnLabels, "  "), x + 10, y + 24, w - 20)
+    if summary.skill then
+        love.graphics.setColor(0.9, 0.72, 0.42, 1)
+        love.graphics.printf("target " .. tostring(summary.target or "-") .. " for " .. tostring(summary.skill), x + w - 310, y + 8, 292, "right")
+    end
     for rank = 1, 4 do
         local hero = sim:heroAtRank(rank)
         local hx = x + 18 + (rank - 1) * 92
@@ -1690,6 +1733,7 @@ function Render.drawCombatOverlay(sim, app)
         love.graphics.setColor(0.42, 0.52, 0.38, 1)
         love.graphics.rectangle("line", hx, y + 38, 82, 58)
         love.graphics.setColor(0.9, 0.92, 0.86, 1)
+        love.graphics.print("R" .. rank, hx + 4, y + 42)
         love.graphics.printf(hero and hero.name or "-", hx + 4, y + 44, 74, "center")
         if hero then
             love.graphics.printf(hero.hp .. "hp " .. hero.stress .. "s", hx + 4, y + 66, 74, "center")
@@ -1704,6 +1748,7 @@ function Render.drawCombatOverlay(sim, app)
         love.graphics.setColor(0.58, 0.28, 0.28, 1)
         love.graphics.rectangle("line", ex, y + 38, 82, 58)
         love.graphics.setColor(0.94, 0.86, 0.82, 1)
+        love.graphics.print("E" .. rank, ex + 4, y + 42)
         love.graphics.printf(enemy and Defs.enemy(enemy.kind).name or "-", ex + 4, y + 44, 74, "center")
         if enemy then
             love.graphics.printf(enemy.hp .. "hp", ex + 4, y + 66, 74, "center")
