@@ -542,7 +542,7 @@ for _, key in ipairs(Defs.estateFixtureOrder) do
 end
 for _, key in ipairs(Defs.enclaveLeaderOrder) do
     local leader = Defs.enclaveLeader(key)
-    expect(leader and Defs.location(leader.zone) and leader.branch and #leader.barks >= 4, "enclave leader bad data " .. key)
+    expect(leader and Defs.location(leader.zone) and leader.branch and Defs.faction(leader.faction) and #leader.barks >= 4, "enclave leader bad data " .. key)
     local seenBarks = {}
     for _, bark in ipairs(leader.barks) do
         expect(bark ~= "" and not seenBarks[bark], "enclave leader duplicate/empty bark " .. key)

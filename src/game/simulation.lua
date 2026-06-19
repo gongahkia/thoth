@@ -1931,6 +1931,27 @@ function Simulation:originBark(classKey, eventKey)
     return classBarks[eventKey]
 end
 
+function Simulation:enclaveLeaderReaction(leaderKey)
+    local leader = Defs.enclaveLeader(leaderKey)
+    if not leader then
+        return nil
+    end
+    local bank = Defs.enclaveLeaderBark("enclave_leader_barks") or {}
+    local factionKey = leader.faction
+    local merchantBarks = bank.merchant or {}
+    if self:partyHasClass("merchant") and factionKey and merchantBarks[factionKey] then
+        return merchantBarks[factionKey]
+    end
+    local state = factionKey and self:factionState(factionKey) or "neutral"
+    if state == "hostile" or state == "embargo" or state == "pyre_open" or state == "strike" then
+        return bank.high or leader.barks[1]
+    end
+    if state ~= "neutral" then
+        return bank.tense or leader.barks[1]
+    end
+    return bank.low or leader.barks[1]
+end
+
 function Simulation:awardXp(hero, amount)
     if not hero or not hero.alive then
         return false

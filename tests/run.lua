@@ -1744,6 +1744,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(138)
+    sim:endExpedition(true)
+    expect(sim:enclaveLeaderReaction("enclave_cael") == "Your name is still negotiable.", "neutral leader bark should use generic low line")
+    sim:adjustFaction("faction_custodians", 2)
+    expect(sim:enclaveLeaderReaction("enclave_cael") == "The enclave counts favors faster than weeks.", "tense leader bark should use generic tense line")
+    sim:heroAtRank(1).class = "merchant"
+    expect(sim:enclaveLeaderReaction("enclave_cael"):find("Merchant", 1, true), "merchant party should trigger faction-broker leader reaction")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(118)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("archive_false_index"))
