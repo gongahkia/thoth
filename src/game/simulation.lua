@@ -501,7 +501,7 @@ end
 
 function Simulation:recruitSlots()
     local def = Defs.estateBuilding("stagecoach")
-    return def.recruitSlots + self:buildingLevel("stagecoach") * def.slotsPerLevel
+    return math.max(def.recruitSlots + self:buildingLevel("stagecoach") * def.slotsPerLevel, 4 - self:livingRosterCount())
 end
 
 function Simulation:livingRosterCount()

@@ -571,6 +571,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(72)
+    sim:endExpedition(true)
+    for _, hero in ipairs(sim.estate.roster) do
+        hero.alive = false
+    end
+    sim.estate.recruits = {}
+    sim:refillRecruits()
+    expect(#sim.estate.recruits == 4, "stagecoach should expose enough recruits after catastrophic roster loss")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(70)
     sim:endExpedition(true)
     sim.estate.gold = 200
