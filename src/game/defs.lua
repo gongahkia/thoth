@@ -3,6 +3,7 @@ local Registry = require("src.game.data.registry")
 local Defs = {
     contentRules = Registry.contentRules,
     tiles = Registry.tiles,
+    tileOrder = Registry.tileOrder,
     items = Registry.items,
     itemOrder = Registry.itemOrder,
     inventoryPanelOrder = Registry.inventoryPanelOrder,

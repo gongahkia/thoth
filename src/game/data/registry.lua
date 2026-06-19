@@ -102,6 +102,21 @@ Registry.tiles = {
     black_water = { name = "Black Water", walkable = false, color = { 20, 46, 58 } },
 }
 
+Registry.tileOrder = {
+    "archive_floor", "archive_wall", "corridor",
+    "salt_floor", "salt_wall", "salt_causeway", "brine_pool",
+    "ember_floor", "ember_wall", "ember_corridor", "ash_choke",
+    "sealed_door", "camp_marker", "relic_cache", "whispering_idol", "wire_snare",
+    "salt_font", "brine_lockbox", "ash_vent", "ember_reliquary", "lost_page",
+    "sealed_name", "false_index", "page_bearer", "misfiled_dead", "witness_drawer",
+    "clerk_cocoon", "name_press", "open_register", "stamped_confessional",
+    "tide_valve", "salt_register", "tov_child", "deep_sluice_key", "shutoff_shrine",
+    "silted_cradle", "pressure_bell", "brine_reliquary",
+    "ember_ward", "ash_name", "warm_ledger", "aron_boy", "white_furnace_key",
+    "false_vow", "ash_lung_reliquary", "fuse_saint", "halo_vent", "vitrified_cot",
+    "boss_sigil", "tide_sigil", "ember_sigil", "exit_gate", "black_water",
+}
+
 Registry.items = {
     torch = { name = "Torch", short = "t", stack = 12, cost = 5, provision = true, taxonomy = "light" },
     ration = { name = "Ration", short = "r", stack = 16, cost = 3, provision = true },

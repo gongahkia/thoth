@@ -10,6 +10,7 @@ local Settings = require("src.app.settings")
 local Achievements = require("src.app.achievements")
 local SpritePipeline = require("src.app.sprite_pipeline")
 local ModelPipeline = require("src.app.model_pipeline")
+local TileModelMap = require("assets.models.tile_model_map")
 local World = require("src.game.world")
 local Defs = require("src.game.defs")
 
@@ -102,6 +103,22 @@ tests[#tests + 1] = function()
     expect(manifest and manifest.models[1].id == "cube" and manifest.models[1].triangles == 12, "model pipeline should write manifest")
     local bad, err = ModelPipeline.import("asset.gltf", "dist/model.obj", "dist/models.lua")
     expect(not bad and err:find("obj", 1, true), "model pipeline should fail fast for gltf")
+end
+
+tests[#tests + 1] = function()
+    local seen = {}
+    for _, key in ipairs(Defs.tileOrder or {}) do
+        expect(Defs.tiles[key], "tile order references missing tile " .. tostring(key))
+        expect(not seen[key], "tile order has duplicate " .. tostring(key))
+        seen[key] = true
+    end
+    for key in pairs(Defs.tiles or {}) do
+        expect(seen[key], "tile order missing " .. tostring(key))
+        local mapped = TileModelMap.tiles[key]
+        expect(mapped and mapped.path and mapped.role, "tile model map missing " .. tostring(key))
+        expect(mapped.path:find("addons/kaykit_dungeon_remastered/Assets/obj/", 1, true) == 1, "tile model path should use KayKit obj root")
+        expect(mapped.path:match("%.obj$"), "tile model path should be obj")
+    end
 end
 
 tests[#tests + 1] = function()
