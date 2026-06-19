@@ -241,6 +241,14 @@ function Input.mousepressed(sim, app, x, y, button)
             return
         end
     end
+    for _, hitbox in ipairs((app.ui and app.ui.rosterButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            app.estateHeroId = hitbox.heroId
+            app.status = "roster " .. hitbox.heroId
+            play(app, "tick")
+            return
+        end
+    end
     for _, hitbox in ipairs((app.ui and app.ui.estateActionButtons) or {}) do
         if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
             if hitbox.action == "upgradeSkill" then
@@ -249,6 +257,8 @@ function Input.mousepressed(sim, app, x, y, button)
                 sim:queue(Simulation.commands.upgradeGear(hitbox.heroId, hitbox.kind))
             elseif hitbox.action == "equipTrinket" then
                 sim:queue(Simulation.commands.equipTrinket(hitbox.heroId, hitbox.trinketKey, hitbox.slot))
+            elseif hitbox.action == "unequipTrinket" then
+                sim:queue(Simulation.commands.unequipTrinket(hitbox.heroId, hitbox.slot))
             elseif hitbox.action == "recoverHero" then
                 sim:queue(Simulation.commands.recoverHero(hitbox.heroId))
             elseif hitbox.action == "treatQuirk" then

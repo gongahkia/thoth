@@ -54,6 +54,7 @@ function Render.prepareUi(app)
     app.ui.recruitButtons = app.ui.recruitButtons or {}
     app.ui.provisionButtons = app.ui.provisionButtons or {}
     app.ui.estateActionButtons = app.ui.estateActionButtons or {}
+    app.ui.rosterButtons = app.ui.rosterButtons or {}
     clearList(app.ui.skillButtons)
     clearList(app.ui.heroButtons)
     clearList(app.ui.enemyButtons)
@@ -62,6 +63,7 @@ function Render.prepareUi(app)
     clearList(app.ui.recruitButtons)
     clearList(app.ui.provisionButtons)
     clearList(app.ui.estateActionButtons)
+    clearList(app.ui.rosterButtons)
 end
 
 function Render.rotateDelta(dx, dy, rotation)
@@ -409,15 +411,6 @@ local function stacksText(inventory)
     return #parts > 0 and table.concat(parts, "  ") or "-"
 end
 
-local function firstAvailableTrinket(sim)
-    for _, key in ipairs(Defs.trinketOrder) do
-        if ((sim.estate.trinkets or {})[key] or 0) > 0 then
-            return key
-        end
-    end
-    return nil
-end
-
 local function firstOpenTrinketSlot(hero)
     for slot = 1, 2 do
         if not hero.trinkets or not hero.trinkets[slot] then
@@ -427,14 +420,12 @@ local function firstOpenTrinketSlot(hero)
     return nil
 end
 
-local function firstNegativeQuirk(hero)
-    for _, key in ipairs(hero.quirks or {}) do
-        local quirk = Defs.quirk(key)
-        if quirk and quirk.kind == "negative" then
-            return key
-        end
+local function selectedEstateHero(sim, app)
+    local selected = app.estateHeroId and sim:heroById(app.estateHeroId)
+    if selected and selected.alive then
+        return selected
     end
-    return nil
+    return sim:heroAtRank(sim.player.selectedHero) or sim:heroAtRank(1) or sim.estate.roster[1]
 end
 
 local function addEstateAction(app, label, x, y, w, action)
@@ -450,6 +441,85 @@ local function addEstateAction(app, label, x, y, w, action)
         action.w = w
         action.h = 28
         app.ui.estateActionButtons[#app.ui.estateActionButtons + 1] = action
+    end
+end
+
+local function drawRosterBrowser(sim, app, x, y, w, h)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Roster", x, y)
+    local selected = selectedEstateHero(sim, app)
+    for index, hero in ipairs(sim.estate.roster) do
+        local rowY = y + 22 + (index - 1) * 34
+        if rowY + 28 > y + h then
+            break
+        end
+        local active = selected and selected.id == hero.id
+        local class = Defs.heroClass(hero.class)
+        love.graphics.setColor(active and 0.2 or 0.11, active and 0.23 or 0.13, active and 0.18 or 0.13, 1)
+        love.graphics.rectangle("fill", x, rowY, w, 28)
+        love.graphics.setColor(active and 0.72 or 0.32, active and 0.62 or 0.34, active and 0.32 or 0.28, 1)
+        love.graphics.rectangle("line", x, rowY, w, 28)
+        love.graphics.setColor(hero.alive and 0.9 or 0.48, hero.alive and 0.92 or 0.44, hero.alive and 0.86 or 0.42, 1)
+        love.graphics.printf(hero.name .. " / " .. class.name .. " L" .. (hero.level or 1), x + 4, rowY + 6, w - 8, "left")
+        app.ui.rosterButtons[#app.ui.rosterButtons + 1] = { x = x, y = rowY, w = w, h = 28, heroId = hero.id }
+    end
+    return selected
+end
+
+local function drawSelectedEstateHero(sim, app, hero, x, y, w)
+    if not hero then
+        return
+    end
+    local class = Defs.heroClass(hero.class)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print(hero.name .. " / " .. class.name, x, y)
+    love.graphics.setColor(0.74, 0.78, 0.72, 1)
+    love.graphics.printf("hp " .. hero.hp .. "/" .. sim:maxHp(hero) .. " stress " .. hero.stress .. " weapon " .. (hero.weapon or 0) .. " armor " .. (hero.armor or 0), x, y + 18, w)
+
+    local actionY = y + 44
+    for index, skillKey in ipairs(hero.skills or {}) do
+        addEstateAction(app, "train " .. index, x + ((index - 1) % 3) * 82, actionY + math.floor((index - 1) / 3) * 34, 76, { action = "upgradeSkill", heroId = hero.id, skillKey = skillKey, enabled = true })
+    end
+    addEstateAction(app, "weapon", x, actionY + 40, 76, { action = "upgradeGear", heroId = hero.id, kind = "weapon", enabled = true })
+    addEstateAction(app, "armor", x + 82, actionY + 40, 76, { action = "upgradeGear", heroId = hero.id, kind = "armor", enabled = true })
+    addEstateAction(app, "recover", x + 164, actionY + 40, 76, { action = "recoverHero", heroId = hero.id, enabled = (hero.recovering or 0) <= 0 })
+
+    local trinketY = actionY + 84
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Trinkets", x, trinketY)
+    for slot = 1, 2 do
+        local key = hero.trinkets and hero.trinkets[slot]
+        addEstateAction(app, key and ("slot " .. slot .. " -" ) or ("slot " .. slot), x + (slot - 1) * 82, trinketY + 22, 76, { action = "unequipTrinket", heroId = hero.id, slot = slot, enabled = key ~= false and key ~= nil })
+    end
+    local openSlot = firstOpenTrinketSlot(hero)
+    local trinketIndex = 0
+    for _, key in ipairs(Defs.trinketOrder) do
+        local count = (sim.estate.trinkets or {})[key] or 0
+        if count > 0 then
+            trinketIndex = trinketIndex + 1
+            addEstateAction(app, key .. ":" .. count, x + ((trinketIndex - 1) % 3) * 82, trinketY + 56 + math.floor((trinketIndex - 1) / 3) * 34, 76, { action = "equipTrinket", heroId = hero.id, trinketKey = key, slot = openSlot, enabled = openSlot ~= nil })
+        end
+    end
+
+    local treatY = trinketY + 126
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Treatment", x, treatY)
+    local index = 0
+    for _, key in ipairs(hero.quirks or {}) do
+        local quirk = Defs.quirk(key)
+        if quirk and quirk.kind == "negative" then
+            addEstateAction(app, key, x + (index % 3) * 82, treatY + 22 + math.floor(index / 3) * 34, 76, { action = "treatQuirk", heroId = hero.id, quirkKey = key, enabled = true })
+            index = index + 1
+        end
+    end
+    for _, key in ipairs(hero.diseases or {}) do
+        addEstateAction(app, key, x + (index % 3) * 82, treatY + 22 + math.floor(index / 3) * 34, 76, { action = "treatDisease", heroId = hero.id, diseaseKey = key, enabled = true })
+        index = index + 1
+    end
+
+    local rankY = treatY + 90
+    for rank = 1, 4 do
+        addEstateAction(app, "rank " .. rank, x + (rank - 1) * 62, rankY, 56, { action = "assignParty", heroId = hero.id, rank = rank, enabled = true })
     end
 end
 
@@ -566,7 +636,7 @@ function Render.drawEstatePanel(sim, app)
     end
     local x = 24
     local y = 92
-    panel(x, y, 430, 610, 0.92)
+    panel(x, y, 720, 610, 0.92)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Estate", x + 10, y + 10)
     love.graphics.print("week " .. (sim.estate.week or 1) .. "  gold " .. sim.estate.gold .. "  heirlooms " .. sim.estate.heirlooms, x + 10, y + 34)
@@ -633,32 +703,8 @@ function Render.drawEstatePanel(sim, app)
         love.graphics.printf(item.name .. " " .. item.cost .. "g", bx + 4, by + 7, 120, "center")
         app.ui.provisionButtons[#app.ui.provisionButtons + 1] = { x = bx, y = by, w = 128, h = 28, item = itemKey }
     end
-    local hero = sim:heroAtRank(sim.player.selectedHero) or sim:heroAtRank(1)
-    local actionY = y + 480
-    love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print(hero and ("Selected: " .. hero.name) or "Selected", x + 10, actionY)
-    if hero then
-        local skillKey = hero.skills and hero.skills[1]
-        local trinketKey = firstAvailableTrinket(sim)
-        local trinketSlot = firstOpenTrinketSlot(hero)
-        local quirkKey = firstNegativeQuirk(hero)
-        local diseaseKey = hero.diseases and hero.diseases[1]
-        local actions = {
-            { label = "train", action = "upgradeSkill", heroId = hero.id, skillKey = skillKey, enabled = skillKey ~= nil },
-            { label = "weapon", action = "upgradeGear", heroId = hero.id, kind = "weapon", enabled = true },
-            { label = "armor", action = "upgradeGear", heroId = hero.id, kind = "armor", enabled = true },
-            { label = "trinket", action = "equipTrinket", heroId = hero.id, trinketKey = trinketKey, slot = trinketSlot, enabled = trinketKey ~= nil and trinketSlot ~= nil },
-            { label = "recover", action = "recoverHero", heroId = hero.id, enabled = (hero.recovering or 0) <= 0 },
-            { label = "quirk", action = "treatQuirk", heroId = hero.id, quirkKey = quirkKey, enabled = quirkKey ~= nil },
-            { label = "disease", action = "treatDisease", heroId = hero.id, diseaseKey = diseaseKey, enabled = diseaseKey ~= nil },
-        }
-        for index, action in ipairs(actions) do
-            addEstateAction(app, action.label, x + 10 + ((index - 1) % 4) * 102, actionY + 24 + math.floor((index - 1) / 4) * 34, 94, action)
-        end
-        for rank = 1, 4 do
-            addEstateAction(app, "rank " .. rank, x + 10 + (rank - 1) * 102, actionY + 92, 94, { action = "assignParty", heroId = hero.id, rank = rank, enabled = true })
-        end
-    end
+    local selected = drawRosterBrowser(sim, app, x + 446, y + 10, 252, 254)
+    drawSelectedEstateHero(sim, app, selected, x + 446, y + 286, 252)
 end
 
 function Render.draw(sim, app)

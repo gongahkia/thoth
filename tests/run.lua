@@ -692,6 +692,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(62)
+    sim:endExpedition(true)
+    local hero = sim:heroAtRank(1)
+    sim:equipTrinket(hero.id, "ember_pin", 1)
+    local app = {
+        ui = {
+            rosterButtons = { { x = 0, y = 0, w = 20, h = 20, heroId = hero.id } },
+            estateActionButtons = { { x = 30, y = 0, w = 20, h = 20, action = "unequipTrinket", heroId = hero.id, slot = 1 } },
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    expect(app.estateHeroId == hero.id, "roster button should select exact hero")
+    Input.mousepressed(sim, app, 35, 5, 1)
+    sim:step()
+    expect(hero.trinkets[1] == false and sim.estate.trinkets.ember_pin == 1, "unequip button should return exact trinket")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(51)
     reachEntryCombat(sim)
     local enemy = sim:enemyAtRank(2)
@@ -721,6 +739,7 @@ tests[#tests + 1] = function()
             recruitButtons = { { stale = true } },
             provisionButtons = { { stale = true } },
             estateActionButtons = { { stale = true } },
+            rosterButtons = { { stale = true } },
         },
     }
     local oldSkills = app.ui.skillButtons
@@ -731,6 +750,7 @@ tests[#tests + 1] = function()
     expect(#app.ui.skillButtons == 0 and #app.ui.heroButtons == 0 and #app.ui.enemyButtons == 0 and #app.ui.itemButtons == 0, "prepareUi should clear combat hitboxes")
     expect(#app.ui.missionButtons == 0 and #app.ui.recruitButtons == 0 and #app.ui.provisionButtons == 0, "prepareUi should clear estate hitboxes")
     expect(#app.ui.estateActionButtons == 0, "prepareUi should clear estate action hitboxes")
+    expect(#app.ui.rosterButtons == 0, "prepareUi should clear roster hitboxes")
 end
 
 for index, test in ipairs(tests) do
