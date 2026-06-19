@@ -530,7 +530,8 @@ function Render.drawEstatePanel(sim, app)
         missions[#missions + 1] = Defs.mission(key).kind
     end
     love.graphics.printf("missions " .. table.concat(missions, " / "), x + 10, y + 118, 312)
-    drawHeroRows(sim, app, x + 10, y + 128, 312)
+    love.graphics.printf("cart " .. stacksText(sim.estate.provisionCart), x + 10, y + 136, 312)
+    drawHeroRows(sim, app, x + 10, y + 160, 312)
 end
 
 function Render.draw(sim, app)

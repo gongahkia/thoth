@@ -15,13 +15,13 @@ Registry.tiles = {
 }
 
 Registry.items = {
-    torch = { name = "Torch", stack = 12 },
-    ration = { name = "Ration", stack = 16 },
-    bandage = { name = "Bandage", stack = 8 },
-    laudanum = { name = "Laudanum", stack = 8 },
-    skeleton_key = { name = "Skeleton Key", stack = 8 },
-    salve = { name = "Salve", stack = 8 },
-    ward_charm = { name = "Ward Charm", stack = 4 },
+    torch = { name = "Torch", stack = 12, cost = 5, provision = true },
+    ration = { name = "Ration", stack = 16, cost = 3, provision = true },
+    bandage = { name = "Bandage", stack = 8, cost = 6, provision = true },
+    laudanum = { name = "Laudanum", stack = 8, cost = 7, provision = true },
+    skeleton_key = { name = "Skeleton Key", stack = 8, cost = 12, provision = true },
+    salve = { name = "Salve", stack = 8, cost = 9, provision = true },
+    ward_charm = { name = "Ward Charm", stack = 4, cost = 18, provision = true },
     relic = { name = "Relic", stack = 99 },
     coin = { name = "Coin", stack = 999 },
     heirloom = { name = "Heirloom", stack = 99 },

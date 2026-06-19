@@ -150,6 +150,7 @@ function Simulation.new(seed)
             roster = roster,
             graveyard = {},
             trinkets = { ember_pin = 1, cracked_lens = 1, chirurgic_thread = 1 },
+            provisionCart = Inventory.new(),
             upgrades = { stagecoach = 0, guild = 0, forge = 0, infirmary = 0 },
             recruits = {},
             nextHeroId = 5,
@@ -219,6 +220,14 @@ end
 
 function Simulation.commands.recoverHero(heroId)
     return { type = "recoverHero", heroId = heroId }
+end
+
+function Simulation.commands.assignParty(heroId, rank)
+    return { type = "assignParty", heroId = heroId, rank = rank }
+end
+
+function Simulation.commands.buyProvision(item, count)
+    return { type = "buyProvision", item = item, count = count or 1 }
 end
 
 function Simulation.commands.recruitHero(recruitIndex)
@@ -304,6 +313,12 @@ function Simulation:apply(command)
     end
     if command.type == "recoverHero" then
         return self:recoverHero(command.heroId)
+    end
+    if command.type == "assignParty" then
+        return self:assignParty(command.heroId, command.rank)
+    end
+    if command.type == "buyProvision" then
+        return self:buyProvision(command.item, command.count)
     end
     if command.type == "recruitHero" then
         return self:recruitHero(command.recruitIndex)
@@ -591,19 +606,24 @@ function Simulation:startExpedition(locationKey)
     self.player.selectedHero = 1
     self.mode = "expedition"
     self.combat = nil
+    local supplies = Inventory.new({
+        { item = "torch", count = 4 },
+        { item = "ration", count = 8 },
+        { item = "bandage", count = 2 },
+        { item = "laudanum", count = 2 },
+        { item = "skeleton_key", count = 1 },
+        { item = "salve", count = 1 },
+    })
+    for _, stack in ipairs((self.estate.provisionCart and self.estate.provisionCart:stacks()) or {}) do
+        supplies:add(stack.item, stack.count)
+    end
+    self.estate.provisionCart = Inventory.new()
     self.expedition = {
         active = true,
         mission = missionKey,
         location = mission.location,
         torch = 75,
-        supplies = Inventory.new({
-            { item = "torch", count = 4 },
-            { item = "ration", count = 8 },
-            { item = "bandage", count = 2 },
-            { item = "laudanum", count = 2 },
-            { item = "skeleton_key", count = 1 },
-            { item = "salve", count = 1 },
-        }),
+        supplies = supplies,
         loot = Inventory.new(),
         visitedRooms = {},
         scoutedRooms = {},
@@ -714,6 +734,45 @@ function Simulation:recruitHero(recruitIndex)
     end
     self:refillRecruits()
     self:pushLog(hero.name .. " recruited")
+    return true
+end
+
+function Simulation:assignParty(heroId, rank)
+    if self.mode ~= "estate" then
+        return false
+    end
+    local hero = self:heroById(heroId)
+    rank = clamp(tonumber(rank) or 1, 1, 4)
+    if not hero or not hero.alive or (hero.recovering or 0) > 0 then
+        return false
+    end
+    local current = self:heroRank(hero.id)
+    if current then
+        self.party[current], self.party[rank] = self.party[rank], self.party[current]
+    else
+        self.party[rank] = hero.id
+    end
+    self.player.selectedHero = rank
+    self:pushLog(hero.name .. " assigned rank " .. rank)
+    return true
+end
+
+function Simulation:buyProvision(item, count)
+    if self.mode ~= "estate" then
+        return false
+    end
+    local def = Defs.item(item)
+    count = math.max(1, tonumber(count) or 1)
+    if not def or not def.provision then
+        return false
+    end
+    local cost = (def.cost or 0) * count
+    if self.estate.gold < cost then
+        return false
+    end
+    self.estate.gold = self.estate.gold - cost
+    self.estate.provisionCart:add(item, count)
+    self:pushLog("bought " .. def.name)
     return true
 end
 
@@ -1973,6 +2032,7 @@ function Simulation:snapshot()
             roster = roster,
             graveyard = copyList(self.estate.graveyard),
             trinkets = copyMap(self.estate.trinkets),
+            provisionCart = self.estate.provisionCart:stacks(),
             upgrades = copyMap(self.estate.upgrades),
             recruits = recruits,
             nextHeroId = self.estate.nextHeroId,
@@ -1997,7 +2057,7 @@ function Simulation.fromSnapshot(snapshot)
         mode = snapshot.mode or "estate",
         world = World.fromSnapshot(snapshot.world or { seed = snapshot.seed or 1, tiles = {} }),
         player = copyMap(snapshot.player or { x = 0, y = 0, z = 0, facing = "east", selectedHero = 1 }),
-        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {}, trinkets = {}, upgrades = {}, recruits = {}, nextHeroId = 1, recruitSerial = 1 },
+        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {}, trinkets = {}, provisionCart = Inventory.new(), upgrades = {}, recruits = {}, nextHeroId = 1, recruitSerial = 1 },
         party = copyList(snapshot.party or {}),
         expedition = nil,
         combat = nil,
@@ -2009,6 +2069,7 @@ function Simulation.fromSnapshot(snapshot)
     self.estate.heirlooms = (snapshot.estate and snapshot.estate.heirlooms) or 0
     self.estate.graveyard = copyList((snapshot.estate and snapshot.estate.graveyard) or {})
     self.estate.trinkets = copyMap((snapshot.estate and snapshot.estate.trinkets) or {})
+    self.estate.provisionCart = inventoryFromStacks((snapshot.estate and snapshot.estate.provisionCart) or {})
     self.estate.upgrades = copyMap((snapshot.estate and snapshot.estate.upgrades) or { stagecoach = 0, guild = 0, forge = 0, infirmary = 0 })
     for _, buildingKey in ipairs(Defs.estateBuildingOrder) do
         self.estate.upgrades[buildingKey] = self.estate.upgrades[buildingKey] or 0

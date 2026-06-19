@@ -54,6 +54,9 @@ end
 for key, item in pairs(Defs.items) do
     expect(item.name and item.name ~= "", "item missing name " .. key)
     expect(type(item.stack) == "number" and item.stack > 0, "item bad stack " .. key)
+    if item.provision then
+        expect(type(item.cost) == "number" and item.cost > 0, "provision missing cost " .. key)
+    end
 end
 
 for key, trinket in pairs(Defs.trinkets) do

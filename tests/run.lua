@@ -380,6 +380,26 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(44)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.recruitHero(1))
+    local hero = sim.estate.roster[#sim.estate.roster]
+    runQueued(sim, Simulation.commands.assignParty(hero.id, 4))
+    expect(sim.party[4] == hero.id and sim.player.selectedHero == 4, "assign party should place roster hero in target rank")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(45)
+    sim:endExpedition(true)
+    local gold = sim.estate.gold
+    runQueued(sim, Simulation.commands.buyProvision("torch", 2))
+    expect(sim.estate.gold == gold - 10 and sim.estate.provisionCart:count("torch") == 2, "buy provision should spend gold into cart")
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim.expedition.supplies:count("torch") == 6, "start expedition should merge provision cart")
+    expect(sim.estate.provisionCart:count("torch") == 0, "start expedition should clear provision cart")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(32)
     sim:endExpedition(true)
     local hero = sim:heroAtRank(1)
