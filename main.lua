@@ -2,7 +2,7 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 
 local Simulation = require("src.game.simulation")
 local Input = require("src.app.input")
-local Render = require("src.app.render3d")
+local Render = require("src.app.render")
 local Audio = require("src.app.audio")
 local Save = require("src.game.save")
 

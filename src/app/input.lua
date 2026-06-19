@@ -70,7 +70,7 @@ end
 
 local function activeRender(app)
     if app and (app.renderer == "render3d" or (app.worldView and app.worldView.mode == "render3d")) then
-        return require("src.app.render3d")
+        return require("src.app.render")
     end
     return require("src.app.render")
 end

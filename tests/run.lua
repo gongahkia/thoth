@@ -6,7 +6,6 @@ local Save = require("src.game.save")
 local Replay = require("src.game.replay")
 local Input = require("src.app.input")
 local Render = require("src.app.render")
-local Render3D = require("src.app.render3d")
 local World = require("src.game.world")
 local Defs = require("src.game.defs")
 
@@ -1685,15 +1684,15 @@ tests[#tests + 1] = function()
     sx, sy = Render.projectIso(view, 10, -1)
     wx, wy = Render.screenToWorld(view, sx, sy)
     expect(wx == 10 and wy == -1, "rotated iso projection should round trip")
-    sx, sy = Render3D.projectIso(view, 10, -1)
-    wx, wy = Render3D.screenToWorld(view, sx, sy)
+    sx, sy = Render.projectIso(view, 10, -1)
+    wx, wy = Render.screenToWorld(view, sx, sy)
     expect(wx == 10 and wy == -1, "render3d rotated projection should round trip")
 end
 
 tests[#tests + 1] = function()
     local oldLove = love
     love = nil
-    local state = Render3D.load()
+    local state = Render.load()
     expect(state.headless and state.g3d == nil, "render3d load should support headless mode")
     local sim = Simulation.new(91)
     local app = {
@@ -1710,7 +1709,7 @@ tests[#tests + 1] = function()
             rosterButtons = {},
         },
     }
-    Render3D.draw(sim, app)
+    Render.draw(sim, app)
     expect(app.worldView.mode == "render3d-placeholder", "render3d headless draw should leave placeholder worldView")
     expect(app.worldView.rotation == 3, "render3d headless draw should preserve rotation metadata")
     expect(#app.ui.skillButtons == 0, "render3d headless draw should still clear stale hitboxes")
@@ -1785,18 +1784,18 @@ tests[#tests + 1] = function()
         { event = "hero_hold", message = "Mara holds", kind = "hero_hold", mood = "guard", beat = "hold", actor = "Mara" },
     }
     for _, case in ipairs(cases) do
-        local cutscene = Render3D.cutsceneForEvent(case, sim)
+        local cutscene = Render.cutsceneForEvent(case, sim)
         expect(cutscene and cutscene.kind == case.kind, "render3d should map " .. case.event .. " to " .. case.kind)
         expect(cutscene.mood == case.mood and cutscene.beat == case.beat, "render3d cutscene should preserve profile for " .. case.event)
     end
-    expect(Render3D.cutsceneForStatus("combat: entry", sim).kind == "intro", "render3d fallback combat text should map to intro")
-    expect(Render3D.cutsceneForStatus("campaign sealed", sim).kind == "campaign_victory", "render3d fallback campaign win should map to campaign victory")
-    expect(Render3D.cutsceneForStatus("Moth fell", sim).kind == "danger", "render3d fallback danger text should map to danger")
-    expect(Render3D.cutsceneForStatus("used Torch", sim) == nil, "render3d should ignore non-combat item use text")
-    local idle = Render3D.idleCombatScene(sim)
+    expect(Render.cutsceneForStatus("combat: entry", sim).kind == "intro", "render3d fallback combat text should map to intro")
+    expect(Render.cutsceneForStatus("campaign sealed", sim).kind == "campaign_victory", "render3d fallback campaign win should map to campaign victory")
+    expect(Render.cutsceneForStatus("Moth fell", sim).kind == "danger", "render3d fallback danger text should map to danger")
+    expect(Render.cutsceneForStatus("used Torch", sim) == nil, "render3d should ignore non-combat item use text")
+    local idle = Render.idleCombatScene(sim)
     expect(idle and idle.kind == "idle" and idle.beat == "idle", "render3d should expose idle combat scene")
-    local app = { cutscene = Render3D.cutsceneForStatus("combat won", sim) }
-    Render3D.advanceCutscene(app, 1)
+    local app = { cutscene = Render.cutsceneForStatus("combat won", sim) }
+    Render.advanceCutscene(app, 1)
     expect(app.cutscene == nil, "render3d advanceCutscene should expire completed cutscene")
 end
 
@@ -1978,7 +1977,7 @@ tests[#tests + 1] = function()
     expect(#app.ui.rosterButtons == 0, "prepareUi should clear roster hitboxes")
     app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
     app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }
-    Render3D.prepareUi(app)
+    Render.prepareUi(app)
     expect(app.ui.skillButtons == oldSkills and app.ui.enemyButtons == oldEnemies, "render3d prepareUi should reuse hitbox arrays")
     expect(#app.ui.skillButtons == 0 and #app.ui.enemyButtons == 0, "render3d prepareUi should clear reused combat hitboxes")
 end
