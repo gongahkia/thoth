@@ -369,11 +369,11 @@ A paid blade from Estate patron circles or a debtor trained for spectacle.
 
 Content angle: treats the Stack as a stage until injuries make it personal.
 
-### Mender
+### Apothecary
 
-Field medic trained on salvage crews, more practical than holy.
+Field herbalist trained on salvage crews, more practical than holy. Carries tinctures, triage tools, and a working knowledge of which salts keep flesh from rotting.
 
-Content angle: sees bodies as patients first and records second.
+Content angle: sees bodies as patients first and records second. Dissonance: a classic-trade name applied to a profession the Stack copied first.
 
 ### Arcanist
 
@@ -381,11 +381,11 @@ Interpreter of old Stack signs, half scholar and half liability.
 
 Content angle: understands enough procedures to exploit them and enough to fear them.
 
-### Harrier
+### Thief
 
-Scout, poacher, courier, and route thief.
+Scout, poacher, courier, and route thief. Has lifted from Estate caravans and Stack curios with equal patience.
 
-Content angle: best at reading visible threats; least loyal to official maps.
+Content angle: best at reading visible threats; least loyal to official maps. Dissonance: the only honest profession in a town that calls extraction "survey."
 
 ### Chirurgeon
 
@@ -404,6 +404,12 @@ Content angle: gives the party a non-Estate view without making that view pure.
 Route worker from the crews who keep expeditions possible.
 
 Content angle: knows light is both comfort and signal; should carry the game's exploration identity.
+
+### Merchant
+
+Itinerant ledger-keeper contracted by the Estate to weigh, tally, and witness on the field. Carries scales, sealed coin, and the writ that lets the party draw against future salvage.
+
+Content angle: the only class that profits as dread rises; turns mercy, salvage, and triage into transactions the party can refuse but rarely afford to. Dissonance: a classic-fantasy guild title naturalized into the Stack's institutional economy, more comfortable in a survey office than in a debt chancel and yet most fluent in both.
 
 ## Enemy Design Rules
 
@@ -660,12 +666,13 @@ When a hero arrives by stagecoach, they should imply a previous job, not a class
 
 - Warden: route guard discharged after a survey went bad.
 - Duelist: paid blade from a patron circle; lost the patron.
-- Mender: salvage-crew medic, recovered from disease.
+- Apothecary: salvage-crew medic, recovered from disease.
 - Arcanist: scribe who read too far and was sent up for air.
-- Harrier: poacher caught moving across Estate maps.
+- Thief: poacher caught moving across Estate maps.
 - Chirurgeon: infirmary apprentice who copied the wrong technique.
 - Exile: enclave member sold for a route.
 - Lamplighter: crew worker whose lamp finally paid out.
+- Merchant: field accountant bought into Estate service after the last Survey ledger-keeper did not return.
 
 Origin should be visible in one bark on arrival and one bark on first death. Nothing more.
 
