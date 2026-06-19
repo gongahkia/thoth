@@ -366,6 +366,31 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local cases = {
+        { "cistern_survey", "Salt Cistern", "cistern rooms sounded 1/4", "Scout 4 cistern rooms" },
+        { "cistern_valves", "tide valves", "tide valves opened 0/2", "Spend 2 Valve Keys" },
+        { "cistern_low_reservoir", "low reservoir", "low reservoir bled 0/2", "Bleed 2 low reservoir valves" },
+        { "cistern_salt_register", "Salt Register", "salt register recovered 0/1", "Recover the Salt Register" },
+        { "cistern_gatekeepers", "gatekeepers", "gatekeepers spared 0/1", "Spend 1 Valve Key to spare" },
+        { "cistern_silence_choir", "Pearl Choir", "pearl choir silenced 0/1", "Defeat the Pearl Choir" },
+        { "cistern_drain_market", "drowned market", "drowned market drained 0/2", "Open 2 market drains" },
+        { "cistern_tov_child", "Tov Child", "Tov child recovered 0/1", "Recover the Tov Child" },
+        { "cistern_flood_bailiff", "Bailiff Walk", "bailiff walk flooded 0/1", "Spend 1 Valve Key to flood" },
+        { "cistern_open_deep_sluice", "Deep Sluice Keys", "deep sluice keys recovered 0/2", "Recover 2 Deep Sluice Keys" },
+    }
+    local sim = Simulation.new(134)
+    sim:endExpedition(true)
+    for _, case in ipairs(cases) do
+        local key, introNeedle, progressNeedle, objectiveNeedle = case[1], case[2], case[3], case[4]
+        runQueued(sim, Simulation.commands.startExpedition(key))
+        expect(sim:missionIntro(key).brief:find(introNeedle, 1, true), key .. " intro should be mission-specific")
+        expect(sim:missionProgressText():find(progressNeedle, 1, true), key .. " should expose polished progress text")
+        expect(sim:objectiveChecklist()[1].items[1].next:find(objectiveNeedle, 1, true), key .. " should expose next-step copy")
+        sim:endExpedition(true)
+    end
+end
+
+tests[#tests + 1] = function()
     local vicar = World.new(110, "ember_warrens", { tiles = {}, layoutId = "warrens_douse_vicar" })
     local furnace = World.new(110, "ember_warrens", { tiles = {}, layoutId = "warrens_open_furnace" })
     expect(vicar:layout().grammar.id == "ember_grammar_v1" and vicar:layout().generatedLayoutId == World.fromSnapshot(vicar:snapshot()):layout().generatedLayoutId, "ember mission layout should snapshot deterministically")
