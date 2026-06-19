@@ -4,13 +4,16 @@ local Simulation = require("src.game.simulation")
 local Save = {}
 
 function Save.toText(simulation)
-    return "THOTH_LUA_SAVE 1\n" .. Serialize.encode(simulation:snapshot()) .. "\n"
+    return "THOTH_LUA_SAVE 2\n" .. Serialize.encode(simulation:snapshot()) .. "\n"
 end
 
 function Save.fromText(text)
-    local header, body = text:match("^(THOTH_LUA_SAVE%s+1)%s+(.+)$")
-    if not header then
+    local version, body = text:match("^THOTH_LUA_SAVE%s+(%d+)%s+(.+)$")
+    if not version then
         return nil, "bad save header"
+    end
+    if tonumber(version) ~= 2 then
+        return nil, "unsupported save version " .. tostring(version)
     end
     local snapshot, err = Serialize.decode(body)
     if not snapshot then

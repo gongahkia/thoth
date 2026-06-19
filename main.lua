@@ -20,22 +20,9 @@ local function hasArg(args, target)
     return false
 end
 
-local function addBenchmarkLine(state, y)
-    state.world:setTile(0, y, 0, { id = "iron_ore", data = 240 })
-    local miner = state:addMachine("burner_miner", 0, y, "east")
-    miner.inventory:add("coal", 240)
-    state:addMachine("belt", 1, y, "east")
-    state:addMachine("inserter", 2, y, "east")
-    local furnace = state:addMachine("furnace", 3, y, "east")
-    furnace.inventory:add("coal", 240)
-    state:addMachine("inserter", 4, y, "east")
-    state:addMachine("chest", 5, y, "south")
-end
-
 local function setupRenderBenchmark(state)
-    for line = 1, 18 do
-        addBenchmarkLine(state, (line - 9) * 3)
-    end
+    state.player.x = 12
+    state.player.y = 3
 end
 
 function love.load(args)
@@ -48,7 +35,6 @@ function love.load(args)
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
         paused = false,
-        buildDirection = "east",
         viewRotation = 0,
         status = "ready",
         audio = Audio.load(),
@@ -123,6 +109,10 @@ function love.keypressed(key)
         return
     end
     Input.keypressed(sim, app, key)
+end
+
+function love.keyreleased(key)
+    Input.keyreleased(sim, app, key)
 end
 
 function love.mousepressed(x, y, button)

@@ -1,116 +1,31 @@
-# Thoth Lua/LOVE Reboot Todo
+# Thoth RPG Rewrite Todo
 
 ## Current Repo State
 
-- Previous state was C++17/raylib: deterministic core in `include/thoth` and `src/thoth`, raylib shell in `src/app`, tests in `tests/test_world.cpp`, benchmark in `benchmarks/`.
-- Verified before reboot: `make test` passed with `1/1` suite in `115.05s`; one existing non-fatal unused lambda-capture warning.
-- Local target runtime verified: `LOVE 11.5`, `Luajit 2.1`; `stylua`, `luacheck`, and `luarocks` were not installed.
-- Known old asset mismatch: sprite README claimed `128x64`, tracked atlas was `128x80`.
-- C++/raylib source, CMake build, old tests, old replay artifacts, old preview artifacts, authored `.art`/`.sfx` sources, and tracked local profile state were removed.
+- Runtime is Lua/LOVE 11.5 with headless LuaJIT tests.
+- The active game is now an original isometric expedition RPG inspired by stress-heavy dungeon crawlers.
+- Keep the LOVE shell, deterministic command queue, save/replay format, chunked world, and isometric projection/cache renderer.
+- Tests remain the first quality gate; formatter/linter adoption waits until tools are installed or vendored.
 
-## Reboot Target
+## V1 Target
 
-- Hard reboot in Lua/LOVE 11.5.
-- No C++ compatibility layer.
-- Current roadmap targets full gameplay/system parity with the previous C++ prototype.
-- Tests are the first quality gate; formatter/linter adoption waits until tools are installed or vendored.
+- Playable vertical slice in the Buried Archive.
+- Four-hero default roster: Warden, Duelist, Mender, Arcanist.
+- Expedition loop: move, scout rooms, manage light/provisions, resolve curios, camp once, fight rank-based encounters, return to estate.
+- Combat loop: four party ranks, enemy ranks, initiative, HP, stress, bleed/daze, resolve checks, afflictions, one virtue, retreat, permadeath.
+- Estate loop: carry gold/heirlooms home and recover stressed heroes.
 
-## Research Basis
+## Done
 
-- Factorio validates the core automation pillars: mining, logistics, power, research, blueprints, circuits, pollution/defense, and a clear endpoint.
-- Mindustry validates factory plus wave-defense readability.
-- shapez 2 validates visible production goals, debugging, blueprints, and low-friction building.
-- Core Keeper validates biome, boss, resource, and exploration loops.
-- The Riftbreaker validates base-building, defense, exploration, and outpost escalation.
+- Replaced automation registry with RPG data for tiles, items, hero classes, skills, enemies, afflictions, curios, encounters, location, and camp skills.
+- Replaced simulation with deterministic estate, expedition, curio, camping, stress, resolve, and rank combat state.
+- Preserved chunked `World` snapshots and isometric render projection/cache APIs.
+- Bumped save/replay headers to v2 and made old versions fail explicitly.
+- Replaced active tests and benchmark with RPG coverage.
 
-## Parity Policy
+## Next
 
-- Target full old C++ gameplay/system parity, using commit `0b7fff6` as the reference.
-- Do not port C++ file layout, class shapes, or API names unless they fit the Lua codebase.
-- Keep Lua implementation data-driven and headless-testable.
-- Prefer Lua-native optimized structures over direct C++ class ports.
-- UI/playability work still precedes late-game parity because the old C++ prototype was feature-rich but still rough.
-
-## Phase 1: Repository Reset
-
-- Done:
-  - Remove `CMakeLists.txt`, `include/`, `src/`, `tests/test_world.cpp`, `benchmarks/`, old replay/preview artifacts, and tracked `thoth_profile.txt`.
-  - Keep reusable runtime assets: `assets/sprites/thoth_atlas.png` and `assets/audio/*.wav`.
-  - Replace C++ CI with Lua/LOVE CI.
-- Acceptance:
-  - `rg --files` shows no C++ source/header/test/benchmark paths.
-  - `make test` no longer invokes CMake.
-
-## Phase 2: Minimal LOVE Shell
-
-- Done:
-  - Add `main.lua` with LOVE callbacks and a fixed 60 Hz simulation step.
-  - Add `conf.lua` with `identity = "thoth"`, 1280x720 default window, and unused modules disabled.
-  - Add app modules for input, rendering, and audio.
-- Acceptance:
-  - `make run` launches the LOVE app locally.
-  - `make smoke` opens LOVE and exits after a few frames.
-  - `F5`/`F9` save/load through `love.filesystem`.
-
-## Phase 3: Deterministic Simulation MVP
-
-- Done:
-  - Add deterministic RNG/hash helpers.
-  - Add seeded world generation with starter trees, stone, coal, iron, and copper.
-  - Add player movement, facing, mining, inventory, hotbar, crafting, placement, and deposit commands.
-  - Add machine state and deterministic tick updates.
-- Acceptance:
-  - Same seed plus same command sequence produces identical snapshots.
-  - Mining and crafting tests pass headlessly under Luajit.
-
-## Phase 4: Starter Factory Loop
-
-- Done:
-  - Add workbench, burner miner, belt, fast belt, inserter, furnace, chest, assembler, and lab.
-  - Add ore-to-plate production through miner, belt, inserter, furnace, and chest.
-  - Add minimal science pack and Logistics 1 research unlock for fast belts.
-- Acceptance:
-  - Headless factory test produces at least one iron plate in a chest.
-  - Headless research test unlocks `fast_belt`.
-
-## Phase 5: Save/Replay
-
-- Done:
-  - Add deterministic snapshot serialization.
-  - Add plain Lua save/load text format.
-  - Add replay text format and replay runner.
-- Acceptance:
-  - Save/load round trip preserves snapshots.
-  - Replay final snapshot equals direct simulation final snapshot.
-
-## Phase 6: Assets/UI
-
-- Done:
-  - Load retained PNG atlas where available.
-  - Load retained WAV cues where available.
-  - Draw world, machines, player, faced tile highlight, HUD, and hotbar.
-  - Add asset sanity checks for PNG/WAV headers.
-- Acceptance:
-  - `make check` passes.
-  - Missing optional audio cue does not crash runtime.
-
-## Phase 7: Build/CI/Package
-
-- Done:
-  - Replace `Makefile` with `run`, `test`, `check`, `package`, and `clean`.
-  - Replace GitHub Actions workflow with Luajit/LOVE/zip setup.
-  - Add `.love` package target with archive integrity test.
-- Acceptance:
-  - `make test` passes.
-  - `make check` passes.
-  - `make package` creates `dist/thoth.love` with `main.lua`, `conf.lua`, `src/`, and `assets/` at archive root.
-
-## Lua-Native Implementation Notes
-
-- Use table-driven registries in `src/game/defs.lua`; split large content into `src/game/data/*.lua` once tables grow.
-- Maintain machine spatial index keyed by `z:x:y`; rebuild only on placement/removal/load.
-- Keep command queue and fixed tick deterministic; sort ids before resolving same-tick jobs.
-- Store production counters as event increments, not derived full scans.
-- Add focused test files by subsystem rather than one huge `tests/run.lua`.
-- Keep LOVE-only APIs out of simulation modules so headless Luajit tests remain fast.
-- Use plain Lua data serialization until save format pressure justifies a stricter parser.
+- Add more expedition layouts after the V1 loop is stable.
+- Add richer hero recovery choices and roster recruitment.
+- Add more enemy behaviors after combat readability is verified.
+- Add authored visual/audio cues for RPG actions when assets are available.

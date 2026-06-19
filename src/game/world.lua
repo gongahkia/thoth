@@ -14,92 +14,48 @@ local function cloneTile(value)
     return { id = value.id, data = value.data or 0 }
 end
 
-local function inside(value, minValue, maxValue)
-    return value >= minValue and value <= maxValue
-end
-
-local function baseTerrain(biome, roll)
-    if biome == "desert" then
-        return roll < 880 and "sand" or "dirt"
-    end
-    if biome == "snowfield" then
-        return roll < 850 and "snow" or "grass"
-    end
-    if biome == "marsh" then
-        return roll < 720 and "mud" or (roll < 900 and "grass" or "dirt")
-    end
-    if biome == "badlands" then
-        return roll < 520 and "basalt" or (roll < 780 and "sand" or "stone")
-    end
-    if biome == "crystal_field" then
-        return roll < 560 and "stone" or (roll < 760 and "basalt" or "dirt")
-    end
-    if biome == "rift" then
-        return roll < 650 and "stone" or "dirt"
-    end
-    return roll < 230 and "dirt" or "grass"
-end
-
-local function resourceRichness(seed, x, y)
-    local distanceBonus = math.min(8, math.floor((math.abs(x) + math.abs(y)) / 64))
-    return 8 + (Rng.hash(seed + 5003, x, y, 0) % 5) + distanceBonus
-end
-
-local lairRadius = 5
-local authoredLairs = {
-    { key = "marsh_hive", x = 0, y = 18, material = "reeds" },
-    { key = "glass_spire", x = 18, y = -2, material = "cactus" },
-    { key = "badlands_foundry", x = 36, y = 20, material = "basalt" },
-    { key = "frost_vault", x = -18, y = 0, material = "ice" },
-    { key = "crystal_vault", x = -36, y = 20, material = "crystal" },
+local rooms = {
+    { key = "0:0", x = 0, y = 0, w = 3, h = 3 },
+    { key = "8:0", x = 8, y = 0, w = 3, h = 3 },
+    { key = "16:0", x = 16, y = 0, w = 3, h = 3 },
+    { key = "24:0", x = 24, y = 0, w = 3, h = 3 },
+    { key = "8:6", x = 8, y = 6, w = 3, h = 3 },
+    { key = "16:6", x = 16, y = 6, w = 3, h = 3 },
+    { key = "24:6", x = 24, y = 6, w = 3, h = 3 },
 }
 
-local function authoredLairAt(x, y)
-    for _, lair in ipairs(authoredLairs) do
-        if math.abs(x - lair.x) <= lairRadius and math.abs(y - lair.y) <= lairRadius then
-            return lair
-        end
-    end
-    return nil
-end
-
-local generatedLairDefs = {
-    { key = "marsh_hive", material = "reeds" },
-    { key = "glass_spire", material = "cactus" },
-    { key = "badlands_foundry", material = "basalt" },
-    { key = "frost_vault", material = "ice" },
-    { key = "crystal_vault", material = "crystal" },
+local corridors = {
+    { ax = 0, ay = 0, bx = 8, by = 0 },
+    { ax = 8, ay = 0, bx = 16, by = 0 },
+    { ax = 16, ay = 0, bx = 24, by = 0 },
+    { ax = 8, ay = 0, bx = 8, by = 6 },
+    { ax = 8, ay = 6, bx = 16, by = 6 },
+    { ax = 16, ay = 6, bx = 24, by = 6 },
+    { ax = 24, ay = 0, bx = 24, by = 6 },
 }
 
-local function generatedLairAt(seed, x, y)
-    if math.abs(x) + math.abs(y) < 160 then
-        return nil
+local specialTiles = {
+    [Grid.key(0, 0, 0)] = "archive_floor",
+    [Grid.key(-2, 2, 0)] = "exit_gate",
+    [Grid.key(4, 0, 0)] = "wire_snare",
+    [Grid.key(8, 6, 0)] = "camp_marker",
+    [Grid.key(16, 0, 0)] = "relic_cache",
+    [Grid.key(16, 6, 0)] = "whispering_idol",
+    [Grid.key(24, 0, 0)] = "boss_sigil",
+}
+
+local function inRoom(x, y, room)
+    return math.abs(x - room.x) <= room.w and math.abs(y - room.y) <= room.h
+end
+
+local function inCorridor(x, y, corridor)
+    if corridor.ay == corridor.by and y == corridor.ay then
+        return x >= math.min(corridor.ax, corridor.bx) and x <= math.max(corridor.ax, corridor.bx)
     end
-    local cellSize = 96
-    local cellX = World.floorDiv(x, cellSize)
-    local cellY = World.floorDiv(y, cellSize)
-    local best
-    local bestDistance = math.huge
-    for cy = cellY - 1, cellY + 1 do
-        for cx = cellX - 1, cellX + 1 do
-            local h = Rng.hash(seed + 12001, cx, cy, 0)
-            if h % 1000 < 220 then
-                local centerX = cx * cellSize + 48 + ((math.floor(h / 16) % 49) - 24)
-                local centerY = cy * cellSize + 48 + ((math.floor(h / 2048) % 49) - 24)
-                if math.abs(centerX) + math.abs(centerY) >= 160 and not authoredLairAt(centerX, centerY) then
-                    local dx = x - centerX
-                    local dy = y - centerY
-                    local distance = dx * dx + dy * dy
-                    if distance <= lairRadius * lairRadius and distance < bestDistance then
-                        local def = generatedLairDefs[(h % #generatedLairDefs) + 1]
-                        best = { key = def.key, x = centerX, y = centerY, material = def.material }
-                        bestDistance = distance
-                    end
-                end
-            end
-        end
+    if corridor.ax == corridor.bx and x == corridor.ax then
+        return y >= math.min(corridor.ay, corridor.by) and y <= math.max(corridor.ay, corridor.by)
     end
-    return best
+    return false
 end
 
 function World.new(seed, overrides)
@@ -116,6 +72,23 @@ end
 
 function World.chunkKey(cx, cy, z)
     return tostring(z or 0) .. ":" .. tostring(cx) .. ":" .. tostring(cy)
+end
+
+function World:roomAt(x, y)
+    for _, room in ipairs(rooms) do
+        if inRoom(x, y, room) then
+            return room.key, room
+        end
+    end
+    return nil, nil
+end
+
+function World:roomCenters()
+    local result = {}
+    for _, room in ipairs(rooms) do
+        result[#result + 1] = { key = room.key, x = room.x, y = room.y }
+    end
+    return result
 end
 
 function World:generateChunk(cx, cy, z)
@@ -152,214 +125,31 @@ function World:clearLoadedChunks()
     self.chunks = {}
 end
 
-function World:biomeAt(x, y, z)
-    z = z or 0
-    if math.abs(x) >= 3840 then
-        return "rift"
-    end
-    if inside(x, 10, 24) and inside(y, -12, 8) then
-        return "desert"
-    end
-    if inside(x, -24, -10) and inside(y, -10, 10) then
-        return "snowfield"
-    end
-    if inside(x, -8, 8) and inside(y, 8, 22) then
-        return "marsh"
-    end
-    if inside(x, 28, 44) and inside(y, 12, 28) then
-        return "badlands"
-    end
-    if inside(x, -44, -28) and inside(y, 12, 28) then
-        return "crystal_field"
-    end
-    if inside(x, -9, 9) and inside(y, -7, 7) then
-        return "grassland"
-    end
-
-    local cellX = World.floorDiv(x, 64)
-    local cellY = World.floorDiv(y, 64)
-    local roll = Rng.hash(self.seed + 7001, cellX, cellY, z) % 1000
-    if roll < 90 then
-        return "desert"
-    end
-    if roll < 170 then
-        return "snowfield"
-    end
-    if roll < 250 then
-        return "marsh"
-    end
-    if roll < 320 then
-        return "badlands"
-    end
-    if roll < 380 then
-        return "crystal_field"
-    end
-    return "grassland"
-end
-
-function World:lairAt(x, y, z)
-    z = z or 0
-    if z ~= 0 and z ~= -1 then
-        return nil
-    end
-    local lair = authoredLairAt(x, y) or generatedLairAt(self.seed, x, y)
-    return lair and lair.key or nil
-end
-
 function World:generatedTile(x, y, z)
-    z = z or 0
-    if z == 2 then
-        if x < -6 or x > 6 or y < -5 or y > 5 then
-            return tile("dungeon_wall")
-        end
-        if x == -6 or x == 6 or y == -5 or y == 5 then
-            return tile("dungeon_wall")
-        end
-        if x == 5 and y == 0 then
-            return tile("stairs_down")
-        end
-        if x == -3 and y == 0 then
-            return tile("tree")
-        end
-        if x == -2 and y == 2 then
-            return tile("stone")
-        end
-        return tile("floor")
+    if (z or 0) ~= 0 then
+        return tile("archive_wall")
     end
-    if z < 0 then
-        local lair = authoredLairAt(x, y) or generatedLairAt(self.seed, x, y)
-        if lair then
-            local localX = math.abs(x - lair.x)
-            local localY = math.abs(y - lair.y)
-            if localX == lairRadius or localY == lairRadius then
-                return tile("dungeon_wall")
+    local special = specialTiles[Grid.key(x, y, z)]
+    if special then
+        return tile(special)
+    end
+    for _, corridor in ipairs(corridors) do
+        if inCorridor(x, y, corridor) then
+            return tile("corridor")
+        end
+    end
+    for _, room in ipairs(rooms) do
+        if inRoom(x, y, room) then
+            if math.abs(x - room.x) == room.w or math.abs(y - room.y) == room.h then
+                return tile("archive_wall")
             end
-            if localX == 0 and localY == 0 then
-                return tile("stairs_up")
+            if Rng.hash(self.seed + 11017, x, y, z) % 71 == 0 then
+                return tile("black_water")
             end
-            if localX == 2 and localY == 0 then
-                return tile("lair_hearth")
-            end
-            if localX == 3 and localY == 1 then
-                return tile(lair.material, 2)
-            end
-            return tile("dungeon_floor")
+            return tile("archive_floor")
         end
-        local localX = World.floorMod(x, 16)
-        local localY = World.floorMod(y, 16)
-        local room = inside(localX, 3, 12) and inside(localY, 3, 12)
-        local corridor = localX == 8 or localY == 8
-        if (World.floorMod(x, 32) == 0 and World.floorMod(y, 32) == 0) or (x == 0 and y == 0) then
-            return tile("stairs_up")
-        end
-        if not room and not corridor then
-            return tile("dungeon_wall")
-        end
-        if Rng.hash(self.seed + 14001, x, y, z) % 1000 < 24 then
-            return tile("crystal", 1)
-        end
-        return tile("dungeon_floor")
     end
-    if z ~= 0 then
-        return tile("grass")
-    end
-    if x == -1 and y == 0 or x == -2 and y == 0 or x == -1 and y == -1 or x == -3 and y == 1 then
-        return tile("tree")
-    end
-    if x == 0 and y == 3 or x == -1 and y == 3 or x == 1 and y == 4 then
-        return tile("stone")
-    end
-    if x == 3 and y == 0 or x == 4 and y == 0 then
-        return tile("coal_ore", 18)
-    end
-    if x == 0 and y == -3 or x == 1 and y == -3 then
-        return tile("iron_ore", 22)
-    end
-    if x == 3 and y == -3 or x == 4 and y == -3 then
-        return tile("copper_ore", 22)
-    end
-
-    local lair = authoredLairAt(x, y) or generatedLairAt(self.seed, x, y)
-    if z == 0 and lair then
-        local localX = math.abs(x - lair.x)
-        local localY = math.abs(y - lair.y)
-        if localX == lairRadius or localY == lairRadius then
-            return tile("dungeon_wall")
-        end
-        if localX == 0 and localY == 0 then
-            return tile("stairs_down")
-        end
-        if localX == 2 and localY == 0 then
-            return tile("lair_hearth")
-        end
-        if localX == 3 and localY == 1 then
-            return tile(lair.material, 2)
-        end
-        return tile("dungeon_floor")
-    end
-
-    local h = Rng.hash(self.seed, x, y, z)
-    local biome = self:biomeAt(x, y, z)
-    if biome == "rift" then
-        local rx = math.floor(x / 2)
-        local ry = math.floor(y / 2)
-        if Rng.hash(self.seed + 7421, rx, ry, z) % 1000 < 130 then
-            return tile("water")
-        end
-        if Rng.hash(self.seed + 7422, rx, ry, z) % 1000 < 180 then
-            return tile("copper_ore", resourceRichness(self.seed + 7421, x, y) + 4)
-        end
-        if Rng.hash(self.seed + 7423, rx, ry, z) % 1000 < 180 then
-            return tile("iron_ore", resourceRichness(self.seed + 7421, x, y) + 4)
-        end
-        if Rng.hash(self.seed + 7424, rx, ry, z) % 1000 < 120 then
-            return tile("coal_ore", resourceRichness(self.seed + 7421, x, y) + 4)
-        end
-        if Rng.hash(self.seed + 7425, rx, ry, z) % 1000 < 520 then
-            return tile("stone", 2)
-        end
-        return tile("dirt")
-    end
-    if h % 97 == 0 then
-        return tile("water")
-    end
-    if biome ~= "grassland" and h % 211 == 0 then
-        return tile("recovery_crate")
-    end
-    if biome == "desert" and h % 31 == 0 then
-        return tile("cactus", 2)
-    end
-    if biome == "marsh" and h % 23 == 0 then
-        return tile("reeds", 2)
-    end
-    if biome == "snowfield" and h % 29 == 0 then
-        return tile("ice", 2)
-    end
-    if biome == "badlands" and h % 19 == 0 then
-        return tile("basalt", 3)
-    end
-    if biome == "crystal_field" and h % 17 == 0 then
-        return tile("crystal", 2)
-    end
-    if biome == "rift" and h % 13 == 0 then
-        return tile("crystal", 3)
-    end
-    if h % 43 == 0 then
-        return tile("tree")
-    end
-    if h % 37 == 0 then
-        return tile("stone")
-    end
-    if h % 89 == 0 then
-        return tile("iron_ore", resourceRichness(self.seed, x, y))
-    end
-    if h % 101 == 0 then
-        return tile("copper_ore", resourceRichness(self.seed, x, y))
-    end
-    if h % 113 == 0 then
-        return tile("coal_ore", resourceRichness(self.seed, x, y))
-    end
-    return tile(baseTerrain(biome, Rng.hash(self.seed + 9001, x, y, z) % 1000))
+    return tile("archive_wall")
 end
 
 function World:getTile(x, y, z)
@@ -393,36 +183,6 @@ end
 
 function World:isWalkable(x, y, z)
     return Defs.tile(self:getTile(x, y, z).id).walkable == true
-end
-
-function World:mineTile(x, y, z)
-    local current = self:getTile(x, y, z)
-    local def = Defs.tile(current.id)
-    if not def.drop then
-        return nil
-    end
-    if def.resource and current.data and current.data > 1 then
-        current.data = current.data - 1
-        self:setTile(x, y, z, current)
-    else
-        self:setTile(x, y, z, tile("grass"))
-    end
-    return def.drop
-end
-
-function World:consumeResource(x, y, z)
-    local current = self:getTile(x, y, z)
-    local def = Defs.tile(current.id)
-    if not def.resource or (current.data or 0) <= 0 then
-        return nil
-    end
-    current.data = current.data - 1
-    if current.data <= 0 then
-        self:setTile(x, y, z, tile("grass"))
-    else
-        self:setTile(x, y, z, current)
-    end
-    return def.resource
 end
 
 function World:snapshot()

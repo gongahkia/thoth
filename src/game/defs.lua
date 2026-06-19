@@ -5,39 +5,68 @@ local Defs = {
     items = Registry.items,
     itemOrder = Registry.itemOrder,
     inventoryPanelOrder = Registry.inventoryPanelOrder,
-    machines = Registry.machines,
-    recipes = Registry.recipes,
-    recipeOrder = Registry.recipeOrder,
-    buildRecipeOrder = Registry.buildRecipeOrder,
-    machineRecipes = Registry.machineRecipes,
-    machineRecipeOrder = Registry.machineRecipeOrder,
-    techs = Registry.techs,
-    techOrder = Registry.techOrder,
+    heroClasses = Registry.heroClasses,
+    heroClassOrder = Registry.heroClassOrder,
+    skills = Registry.skills,
+    skillOrder = Registry.skillOrder,
+    enemies = Registry.enemies,
+    enemyOrder = Registry.enemyOrder,
+    afflictions = Registry.afflictions,
+    afflictionOrder = Registry.afflictionOrder,
+    virtues = Registry.virtues,
+    virtueOrder = Registry.virtueOrder,
+    curios = Registry.curios,
+    curioOrder = Registry.curioOrder,
+    encounters = Registry.encounters,
+    encounterOrder = Registry.encounterOrder,
+    locations = Registry.locations,
+    locationOrder = Registry.locationOrder,
+    campSkills = Registry.campSkills,
+    campSkillOrder = Registry.campSkillOrder,
 }
 
 function Defs.tile(id)
-    return Defs.tiles[id] or Defs.tiles.grass
+    return Defs.tiles[id] or Defs.tiles.archive_wall
 end
 
 function Defs.item(id)
     return Defs.items[id]
 end
 
-function Defs.machine(id)
-    return Defs.machines[id]
+function Defs.heroClass(id)
+    return Defs.heroClasses[id]
 end
 
-function Defs.recipe(id)
-    return Defs.recipes[id]
+function Defs.skill(id)
+    return Defs.skills[id]
 end
 
-function Defs.machineRecipe(kind, id)
-    local recipes = Defs.machineRecipes[kind]
-    return recipes and recipes[id]
+function Defs.enemy(id)
+    return Defs.enemies[id]
 end
 
-function Defs.tech(id)
-    return Defs.techs[id]
+function Defs.affliction(id)
+    return Defs.afflictions[id]
+end
+
+function Defs.virtue(id)
+    return Defs.virtues[id]
+end
+
+function Defs.curio(id)
+    return Defs.curios[id]
+end
+
+function Defs.encounter(id)
+    return Defs.encounters[id]
+end
+
+function Defs.location(id)
+    return Defs.locations[id]
+end
+
+function Defs.campSkill(id)
+    return Defs.campSkills[id]
 end
 
 return Defs

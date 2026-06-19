@@ -1,22 +1,52 @@
 package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.path
 
 local Replay = require("src.game.replay")
+local Simulation = require("src.game.simulation")
 
 local function expect(value, message)
     if not value then
-        error(message or "expectation failed", 2)
+        error(message or "replay expectation failed", 2)
     end
 end
 
 local fixtures = {
-    require("tests.fixtures.replays.ore_to_plate"),
-    require("tests.fixtures.replays.science_research"),
-    require("tests.fixtures.replays.full_flow"),
+    {
+        name = "light_and_selection",
+        seed = 101,
+        finalTick = 4,
+        frames = {
+            { tick = 0, command = Simulation.commands.move("east") },
+            { tick = 1, command = Simulation.commands.useItem("torch") },
+            { tick = 2, command = Simulation.commands.selectHero(2) },
+        },
+        validate = function(sim)
+            expect(sim.player.x == 1, "replay movement failed")
+            expect(sim.expedition.torch == 99, "replay torch use failed")
+            expect(sim.player.selectedHero == 2, "replay hero selection failed")
+        end,
+    },
+    {
+        name = "entry_retreat",
+        seed = 102,
+        finalTick = 7,
+        frames = {
+            { tick = 0, command = Simulation.commands.move("east") },
+            { tick = 1, command = Simulation.commands.move("east") },
+            { tick = 2, command = Simulation.commands.move("east") },
+            { tick = 3, command = Simulation.commands.move("east") },
+            { tick = 4, command = Simulation.commands.move("east") },
+            { tick = 5, command = Simulation.commands.retreat() },
+        },
+        validate = function(sim)
+            expect(sim.mode == "expedition", "retreat replay should return to exploration")
+            expect(sim.combat == nil, "retreat replay should clear combat")
+        end,
+    },
 }
 
 for _, fixture in ipairs(fixtures) do
-    local sim = Replay.run(fixture.seed, fixture.frames or {}, fixture.finalTick, fixture.setup)
-    fixture.validate(sim, expect)
+    local sim = Replay.run(fixture.seed, fixture.frames, fixture.finalTick)
+    fixture.validate(sim)
     io.stdout:write("replay ok ", fixture.name, "\n")
 end
 

@@ -23,13 +23,16 @@ function Replay.run(seed, frames, finalTick, setup)
 end
 
 function Replay.toText(seed, frames, finalTick)
-    return "THOTH_LUA_REPLAY 1\n" .. Serialize.encode({ seed = seed, frames = frames, finalTick = finalTick }) .. "\n"
+    return "THOTH_LUA_REPLAY 2\n" .. Serialize.encode({ version = 2, seed = seed, frames = frames, finalTick = finalTick }) .. "\n"
 end
 
 function Replay.fromText(text)
-    local header, body = text:match("^(THOTH_LUA_REPLAY%s+1)%s+(.+)$")
-    if not header then
+    local version, body = text:match("^THOTH_LUA_REPLAY%s+(%d+)%s+(.+)$")
+    if not version then
         return nil, "bad replay header"
+    end
+    if tonumber(version) ~= 2 then
+        return nil, "unsupported replay version " .. tostring(version)
     end
     return Serialize.decode(body)
 end
