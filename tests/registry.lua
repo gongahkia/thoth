@@ -8,53 +8,6 @@ local function expect(value, message)
     end
 end
 
-local expected = {
-    tiles = {
-        "grass", "dirt", "sand", "beach", "snow", "ice", "mud", "reeds", "cactus", "stone", "basalt", "crystal",
-        "tree", "water", "deep_water", "coral", "iron_ore", "copper_ore", "coal_ore", "floor", "wall",
-        "plank_wall", "door", "stairs_up", "stairs_down", "bed", "dungeon_floor", "dungeon_wall", "lair_hearth",
-        "recovery_crate",
-    },
-    items = {
-        "none", "wood", "stone", "coal", "iron_ore", "iron_plate", "copper_ore", "copper_plate", "sand",
-        "sand_glass", "reed_fiber", "cactus_fiber", "kelp", "shell", "coral_shard", "ice_shard", "basalt",
-        "crystal", "hide", "bone", "slime", "venom", "scrap", "marsh_heart", "glass_heart", "warden_core",
-        "frost_core", "rift_crown", "archive_fragment", "marsh_fragment", "desert_fragment", "badlands_fragment",
-        "frost_fragment", "crystal_fragment", "rift_fragment", "power_shard", "stone_shot", "copper_coil",
-        "crystal_charge", "frost_cell", "rift_shell", "belt", "inserter", "burner_miner", "furnace", "chest",
-        "workbench", "science_pack", "assembler", "lab", "fast_belt", "generator", "power_pole", "electric_miner",
-        "circuit_board", "advanced_science_pack", "circuit_inserter", "provider_chest", "requester_chest",
-        "logistic_port", "logistic_drone", "beacon_core", "archive_terminal", "splitter", "train_stop",
-        "water_barrel", "pipe", "offshore_pump", "rift_gate", "guard_tower", "outpost_beacon", "repair_pylon",
-        "pressure_relay", "arc_tower", "wall", "plank_wall", "door", "stairs_up", "stairs_down", "boat", "bed",
-        "lair_hearth", "recovery_crate",
-    },
-    machines = {
-        "belt", "fast_belt", "inserter", "burner_miner", "furnace", "chest", "workbench", "assembler", "lab",
-        "generator", "power_pole", "electric_miner", "circuit_inserter", "provider_chest", "requester_chest",
-        "logistic_port", "archive_terminal", "splitter", "train_stop", "pipe", "offshore_pump", "rift_gate",
-        "guard_tower", "outpost_beacon", "repair_pylon", "pressure_relay", "arc_tower",
-    },
-    recipes = {
-        "workbench", "furnace", "chest", "belt", "inserter", "burner_miner", "assembler", "lab", "iron_plate",
-        "copper_plate", "sand_glass", "boat", "plank_wall", "wall", "basalt_wall", "door", "stairs_up",
-        "stairs_down", "bed", "salvage_iron_plate", "salvage_copper_plate", "stone_shot", "copper_coil",
-        "crystal_charge", "frost_cell", "rift_shell", "lair_hearth", "science_pack", "reed_science_pack",
-        "fast_belt", "generator", "power_pole", "electric_miner", "circuit_board", "advanced_science_pack",
-        "crystal_lens", "basalt_circuit_board", "circuit_inserter", "provider_chest", "requester_chest",
-        "logistic_port", "logistic_drone", "splitter", "pipe", "offshore_pump", "beacon_core", "rift_beacon_core",
-        "archive_terminal", "train_stop", "rift_gate", "guard_tower", "outpost_beacon", "repair_pylon",
-        "pressure_relay", "arc_tower", "dry_copper_plate", "washed_iron_plate",
-    },
-    techs = { "logistics_1", "automation_control", "logistic_network" },
-}
-
-local function checkExpectedKeys(name, defs)
-    for _, key in ipairs(expected[name]) do
-        expect(defs[key] ~= nil, name .. " missing legacy key " .. key)
-    end
-end
-
 local function checkOrder(name, order, defs)
     local seen = {}
     for _, key in ipairs(order) do
@@ -64,112 +17,218 @@ local function checkOrder(name, order, defs)
     end
 end
 
-local function recipeUnlocked(recipeKey)
-    local archiveUnlockedRecipes = {
-        reed_science_pack = true,
-        dry_copper_plate = true,
-        washed_iron_plate = true,
-        basalt_circuit_board = true,
-        rift_beacon_core = true,
-    }
-    if archiveUnlockedRecipes[recipeKey] then
-        return true
+local function rankList(value, label)
+    expect(type(value) == "table" and #value > 0, label .. " needs ranks")
+    for _, rank in ipairs(value) do
+        expect(type(rank) == "number" and rank >= 1 and rank <= 4, label .. " rank out of range")
     end
-    for _, tech in pairs(Defs.techs) do
-        for _, unlock in ipairs(tech.unlocks or {}) do
-            if unlock == recipeKey then
-                return true
-            end
-        end
-    end
-    return false
 end
 
-checkExpectedKeys("tiles", Defs.tiles)
-checkExpectedKeys("items", Defs.items)
-checkExpectedKeys("machines", Defs.machines)
-checkExpectedKeys("recipes", Defs.recipes)
-checkExpectedKeys("techs", Defs.techs)
 checkOrder("item", Defs.itemOrder, Defs.items)
-checkOrder("recipe", Defs.recipeOrder, Defs.recipes)
-checkOrder("tech", Defs.techOrder, Defs.techs)
+checkOrder("trinket", Defs.trinketOrder, Defs.trinkets)
+checkOrder("quirk", Defs.quirkOrder, Defs.quirks)
+checkOrder("disease", Defs.diseaseOrder, Defs.diseases)
+checkOrder("injury", Defs.injuryOrder, Defs.injuries)
+checkOrder("hero class", Defs.heroClassOrder, Defs.heroClasses)
+checkOrder("skill", Defs.skillOrder, Defs.skills)
+checkOrder("enemy skill", Defs.enemySkillOrder, Defs.enemySkills)
+checkOrder("enemy", Defs.enemyOrder, Defs.enemies)
+checkOrder("affliction", Defs.afflictionOrder, Defs.afflictions)
+checkOrder("virtue", Defs.virtueOrder, Defs.virtues)
+checkOrder("curio", Defs.curioOrder, Defs.curios)
+checkOrder("encounter", Defs.encounterOrder, Defs.encounters)
+checkOrder("location", Defs.locationOrder, Defs.locations)
+checkOrder("mission", Defs.missionOrder, Defs.missions)
+checkOrder("camp skill", Defs.campSkillOrder, Defs.campSkills)
+checkOrder("estate building", Defs.estateBuildingOrder, Defs.estateBuildings)
+checkOrder("estate activity", Defs.estateActivityOrder, Defs.estateActivities)
+checkOrder("town event", Defs.townEventOrder, Defs.townEvents)
 
 for key, tile in pairs(Defs.tiles) do
-    expect(tile.name and tile.name ~= "", "tile " .. key .. " missing name")
-    expect(type(tile.walkable) == "boolean", "tile " .. key .. " missing walkable")
-    expect(type(tile.buildable) == "boolean", "tile " .. key .. " missing buildable")
-    expect(type(tile.color) == "table" and #tile.color == 3, "tile " .. key .. " missing color")
-    if tile.drop then
-        expect(Defs.items[tile.drop] ~= nil, "tile " .. key .. " drops missing item " .. tile.drop)
+    expect(tile.name and tile.name ~= "", "tile missing name " .. key)
+    expect(type(tile.walkable) == "boolean", "tile missing walkable " .. key)
+    expect(type(tile.color) == "table" and #tile.color == 3, "tile missing color " .. key)
+    if tile.curio then
+        expect(Defs.curio(tile.curio), "tile curio missing " .. tile.curio)
     end
-    if tile.resource then
-        expect(Defs.items[tile.resource] ~= nil, "tile " .. key .. " has missing resource " .. tile.resource)
+    if tile.encounter then
+        expect(Defs.encounter(tile.encounter), "tile encounter missing " .. tile.encounter)
     end
 end
 
 for key, item in pairs(Defs.items) do
-    expect(item.name and item.name ~= "", "item " .. key .. " missing name")
-    if key == "none" then
-        expect(item.stack == 0, "item none must have stack 0")
-    else
-        expect(type(item.stack) == "number" and item.stack > 0, "item " .. key .. " has bad stack size")
-    end
-    if item.tile then
-        expect(Defs.tiles[item.tile] ~= nil, "item " .. key .. " places missing tile " .. item.tile)
-    end
-    if item.machine then
-        expect(Defs.machines[item.machine] ~= nil, "item " .. key .. " places missing machine " .. item.machine)
-    end
-    expect(not (item.tile and item.machine), "item " .. key .. " places both tile and machine")
-end
-
-for key, machine in pairs(Defs.machines) do
-    expect(machine.name and machine.name ~= "", "machine " .. key .. " missing name")
-    expect(machine.inventory == nil or machine.inventory >= 0, "machine " .. key .. " has bad inventory size")
-    local placeable = false
-    for _, item in pairs(Defs.items) do
-        placeable = placeable or item.machine == key
-    end
-    expect(placeable, "machine " .. key .. " has no placeable item")
-end
-
-for key, recipe in pairs(Defs.recipes) do
-    expect(recipe.station == "hand" or recipe.station == "workbench" or recipe.station == "furnace" or recipe.station == "assembler", "recipe " .. key .. " has bad station")
-    expect(type(recipe.ticks) == "number" and recipe.ticks > 0, "recipe " .. key .. " has bad ticks")
-    expect(type(recipe.inputs) == "table" and next(recipe.inputs) ~= nil, "recipe " .. key .. " has no inputs")
-    for item, count in pairs(recipe.inputs) do
-        expect(Defs.items[item] ~= nil, "recipe " .. key .. " input missing item " .. item)
-        expect(type(count) == "number" and count > 0, "recipe " .. key .. " has bad input count for " .. item)
-    end
-    expect(recipe.output and Defs.items[recipe.output.item] ~= nil, "recipe " .. key .. " output missing item")
-    expect(type(recipe.output.count) == "number" and recipe.output.count > 0, "recipe " .. key .. " has bad output count")
-    if recipe.default == false then
-        expect(recipeUnlocked(key), "locked recipe " .. key .. " has no tech unlock")
+    expect(item.name and item.name ~= "", "item missing name " .. key)
+    expect(type(item.stack) == "number" and item.stack > 0, "item bad stack " .. key)
+    if item.provision then
+        expect(type(item.cost) == "number" and item.cost > 0, "provision missing cost " .. key)
     end
 end
 
-for kind, order in pairs(Defs.machineRecipeOrder) do
-    expect(Defs.machines[kind] ~= nil, "machine recipe order missing machine " .. kind)
-    for _, recipeKey in ipairs(order) do
-        local recipe = Defs.machineRecipe(kind, recipeKey)
-        expect(recipe ~= nil, "machine recipe " .. kind .. "/" .. recipeKey .. " is missing")
-        expect(recipe.station == kind, "machine recipe " .. recipeKey .. " has station " .. tostring(recipe.station))
+for key, trinket in pairs(Defs.trinkets) do
+    expect(trinket.name and trinket.name ~= "", "trinket missing name " .. key)
+    expect(type(trinket.value) == "number" and trinket.value > 0, "trinket missing value " .. key)
+end
+
+for key, quirk in pairs(Defs.quirks) do
+    expect(quirk.name and (quirk.kind == "positive" or quirk.kind == "negative"), "quirk missing data " .. key)
+end
+
+for key, disease in pairs(Defs.diseases) do
+    expect(disease.name and disease.name ~= "", "disease missing name " .. key)
+end
+
+for key, injury in pairs(Defs.injuries) do
+    expect(injury.name and injury.name ~= "", "injury missing name " .. key)
+end
+
+for key, activity in pairs(Defs.estateActivities) do
+    expect(activity.name and activity.cost and activity.stressHeal and activity.weeks, "estate activity missing data " .. key)
+    expect(activity.cost >= 0 and activity.stressHeal > 0 and activity.weeks >= 1, "estate activity bad values " .. key)
+end
+
+for key, class in pairs(Defs.heroClasses) do
+    expect(class.name and class.maxHp and class.speed and class.resolve, "class missing stats " .. key)
+    expect(#class.skills == 3, "class should expose three v1 skills " .. key)
+    for _, skillKey in ipairs(class.skills) do
+        local skill = Defs.skill(skillKey)
+        expect(skill and skill.class == key, "class skill mismatch " .. key .. "/" .. tostring(skillKey))
     end
 end
 
-for key, tech in pairs(Defs.techs) do
-    expect(tech.name and tech.name ~= "", "tech " .. key .. " missing name")
-    expect(type(tech.inputs) == "table" and next(tech.inputs) ~= nil, "tech " .. key .. " has no inputs")
-    for item, count in pairs(tech.inputs) do
-        expect(Defs.items[item] ~= nil, "tech " .. key .. " input missing item " .. item)
-        expect(type(count) == "number" and count > 0, "tech " .. key .. " has bad input count for " .. item)
+for key, skill in pairs(Defs.skills) do
+    expect(Defs.heroClass(skill.class), "skill class missing " .. key)
+    rankList(skill.userRanks, "skill " .. key)
+    expect(skill.target == "enemy" or skill.target == "ally" or skill.target == "self" or skill.target == "party", "skill bad target " .. key)
+    if skill.target == "enemy" or skill.target == "ally" then
+        rankList(skill.targetRanks, "skill target " .. key)
     end
-    local unlockSeen = {}
-    for _, recipeKey in ipairs(tech.unlocks or {}) do
-        expect(Defs.recipes[recipeKey] ~= nil, "tech " .. key .. " unlocks missing recipe " .. recipeKey)
-        expect(not unlockSeen[recipeKey], "tech " .. key .. " repeats unlock " .. recipeKey)
-        unlockSeen[recipeKey] = true
+    if skill.damage then
+        expect(skill.damage[1] <= skill.damage[2] and skill.damage[1] > 0, "skill bad damage " .. key)
     end
+    if skill.heal then
+        expect(skill.heal[1] <= skill.heal[2] and skill.heal[1] > 0, "skill bad heal " .. key)
+    end
+end
+
+for key, enemy in pairs(Defs.enemies) do
+    expect(enemy.name and enemy.maxHp > 0 and enemy.speed >= 0, "enemy missing stats " .. key)
+    expect(enemy.damage and enemy.damage[1] <= enemy.damage[2], "enemy bad damage " .. key)
+    expect(type(enemy.skills) == "table" and #enemy.skills > 0, "enemy missing skills " .. key)
+    for _, skillKey in ipairs(enemy.skills) do
+        expect(Defs.enemySkill(skillKey), "enemy references missing skill " .. skillKey)
+    end
+    for _, part in ipairs(enemy.parts or {}) do
+        expect(part.key and part.name and part.hp > 0, "enemy part missing data " .. key)
+        for _, skillKey in ipairs(part.skillLocks or {}) do
+            expect(Defs.enemySkill(skillKey), "enemy part references missing skill " .. skillKey)
+        end
+    end
+end
+expect(#Defs.enemyOrder >= 26, "enemy roster should include expanded enemy types")
+
+for key, skill in pairs(Defs.enemySkills) do
+    expect(skill.name and (skill.target == "hero" or skill.target == "party"), "enemy skill missing target " .. key)
+    if skill.target == "hero" then
+        rankList(skill.targetRanks, "enemy skill target " .. key)
+    end
+    if skill.damage then
+        expect(skill.damage[1] <= skill.damage[2] and skill.damage[1] > 0, "enemy skill bad damage " .. key)
+    end
+    if skill.status then
+        expect(skill.status.kind and skill.status.turns > 0, "enemy skill bad status " .. key)
+    end
+end
+
+for key, curio in pairs(Defs.curios) do
+    expect(curio.name and curio.name ~= "", "curio missing name " .. key)
+    if curio.item then
+        expect(Defs.item(curio.item), "curio item missing " .. curio.item)
+    end
+    if curio.questGather then
+        expect(Defs.item(curio.questGather.item), "curio quest gather missing item " .. curio.questGather.item)
+    end
+    for item in pairs(curio.loot or {}) do
+        expect(Defs.item(item), "curio loot missing item " .. item)
+    end
+end
+
+for key, encounter in pairs(Defs.encounters) do
+    expect(#encounter > 0, "encounter empty " .. key)
+    for _, enemyKey in ipairs(encounter) do
+        expect(Defs.enemy(enemyKey), "encounter missing enemy " .. enemyKey)
+    end
+end
+
+for key, location in pairs(Defs.locations) do
+    expect(location.name and location.start and location.objectiveRooms > 0, "location missing data " .. key)
+    expect(location.layout and #location.layout.rooms >= 7 and #location.layout.corridors > 0, "location missing layout " .. key)
+    expect(Defs.tile(location.layout.floorTile), "location missing floor tile " .. key)
+    expect(Defs.tile(location.layout.wallTile), "location missing wall tile " .. key)
+    expect(Defs.tile(location.layout.corridorTile), "location missing corridor tile " .. key)
+    if location.layout.generator then
+        expect(location.layout.roles and location.layout.grammar and location.layout.templates, "generated location missing grammar data " .. key)
+    end
+    if location.layout.obstacleTile then
+        expect(Defs.tile(location.layout.obstacleTile), "location missing obstacle tile " .. key)
+    end
+    expect(location.provisions and #location.provisions > 0, "location missing provision kit " .. key)
+    for _, stack in ipairs(location.provisions or {}) do
+        expect(Defs.item(stack.item) and Defs.item(stack.item).provision and stack.count > 0, "location bad provision kit " .. key)
+    end
+    for _, special in ipairs(location.layout.specials or {}) do
+        expect(Defs.tile(special.tile), "location special missing tile " .. tostring(special.tile))
+    end
+    for _, encounterKey in pairs(location.encounters or {}) do
+        expect(Defs.encounter(encounterKey), "location missing encounter " .. encounterKey)
+    end
+    for _, threat in ipairs(location.layout.threats or {}) do
+        expect(threat.key and threat.roomRole and Defs.encounter(threat.encounter), "location bad threat " .. key)
+    end
+end
+
+for key, mission in pairs(Defs.missions) do
+    expect(mission.name and Defs.location(mission.location), "mission missing location " .. key)
+    expect(mission.kind == "scout" or mission.kind == "cleanse" or mission.kind == "boss" or mission.kind == "gather" or mission.kind == "activate", "mission bad kind " .. key)
+    expect(mission.difficulty == "apprentice" or mission.difficulty == "veteran" or mission.difficulty == "champion", "mission bad difficulty " .. key)
+    expect(mission.resolveLevel == 1 or mission.resolveLevel == 3 or mission.resolveLevel == 5, "mission bad resolve level " .. key)
+    for item in pairs(mission.objectiveItems or {}) do
+        expect(Defs.item(item), "mission objective missing item " .. item)
+    end
+    for _, stack in ipairs(mission.questProvision or {}) do
+        expect(Defs.item(stack.item) and stack.count > 0, "mission quest provision invalid " .. tostring(stack.item))
+    end
+    if mission.reward and mission.reward.trinket then
+        expect(Defs.trinket(mission.reward.trinket), "mission reward missing trinket " .. mission.reward.trinket)
+    end
+    if mission.kind == "boss" then
+        expect(Defs.encounter(mission.bossEncounter), "mission boss encounter missing " .. key)
+        expect(Defs.encounter(mission.bossVariantEncounter), "mission boss variant missing " .. key)
+        expect(type(mission.variantDread) == "number", "mission boss variant dread missing " .. key)
+    end
+end
+
+for key, skill in pairs(Defs.campSkills) do
+    expect(skill.name and skill.cost >= 0, "camp skill missing data " .. key)
+    expect(skill.target == "ally" or skill.target == "party", "camp skill bad target " .. key)
+end
+
+for key, building in pairs(Defs.estateBuildings) do
+    expect(building.name and building.maxLevel >= 1 and building.heirloomCost >= 0, "building missing data " .. key)
+end
+
+for key, event in pairs(Defs.townEvents) do
+    expect(event.name and event.name ~= "", "town event missing name " .. key)
+    for item in pairs(event.provisions or {}) do
+        expect(Defs.item(item), "town event provision missing item " .. item)
+    end
+    if event.heirlooms then
+        expect(type(event.heirlooms) == "number", "town event bad heirlooms " .. key)
+    end
+end
+
+for _, key in ipairs(Defs.narrationOrder) do
+    local lines = Defs.narrationFor(key)
+    expect(lines and #lines >= 2, "narration missing lines " .. key)
 end
 
 print("registry checks passed")

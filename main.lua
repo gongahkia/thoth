@@ -20,22 +20,62 @@ local function hasArg(args, target)
     return false
 end
 
-local function addBenchmarkLine(state, y)
-    state.world:setTile(0, y, 0, { id = "iron_ore", data = 240 })
-    local miner = state:addMachine("burner_miner", 0, y, "east")
-    miner.inventory:add("coal", 240)
-    state:addMachine("belt", 1, y, "east")
-    state:addMachine("inserter", 2, y, "east")
-    local furnace = state:addMachine("furnace", 3, y, "east")
-    furnace.inventory:add("coal", 240)
-    state:addMachine("inserter", 4, y, "east")
-    state:addMachine("chest", 5, y, "south")
+local function setupRenderBenchmark(state)
+    state.player.x = 12
+    state.player.y = 3
 end
 
-local function setupRenderBenchmark(state)
-    for line = 1, 18 do
-        addBenchmarkLine(state, (line - 9) * 3)
+local function cueColor(cue)
+    if cue == "danger" then
+        return { 0.85, 0.18, 0.16 }
     end
+    if cue == "victory" then
+        return { 0.82, 0.66, 0.28 }
+    end
+    if cue == "combat" then
+        return { 0.7, 0.24, 0.24 }
+    end
+    if cue == "loot" then
+        return { 0.38, 0.72, 0.46 }
+    end
+    return { 0.42, 0.54, 0.76 }
+end
+
+local function startNextCutscene(state)
+    if state.cutscene then
+        return
+    end
+    local queue = state.cutsceneQueue
+    if queue and #queue > 0 then
+        state.cutscene = table.remove(queue, 1)
+    end
+end
+
+local function playStatusCue(state, simulation)
+    if simulation.status == state.lastCueStatus then
+        return
+    end
+    state.lastCueStatus = simulation.status
+    local cue = Audio.cueForStatus(simulation.status)
+    if cue then
+        Audio.play(state.audio, cue)
+        state.eventFlash = { cue = cue, color = cueColor(cue), t = 0.45 }
+    end
+end
+
+local function queueCutscenes(state, simulation)
+    state.lastVisualEventId = state.lastVisualEventId or (simulation.eventSerial or 0)
+    state.cutsceneQueue = state.cutsceneQueue or {}
+    for _, event in ipairs(simulation.events or {}) do
+        if event.id > state.lastVisualEventId then
+            local cutscene = Render.cutsceneForEvent(event, simulation)
+            if cutscene then
+                state.cutsceneQueue[#state.cutsceneQueue + 1] = cutscene
+            end
+            state.lastVisualEventId = event.id
+        end
+    end
+    startNextCutscene(state)
 end
 
 function love.load(args)
@@ -48,7 +88,6 @@ function love.load(args)
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
         paused = false,
-        buildDirection = "east",
         viewRotation = 0,
         status = "ready",
         audio = Audio.load(),
@@ -60,17 +99,30 @@ function love.load(args)
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
         renderBenchmarkMaxMs = 0,
+        lastCueStatus = sim.status,
+        lastVisualEventId = sim.eventSerial or 0,
+        cutsceneQueue = {},
     }
     Render.load()
 end
 
 function love.update(dt)
     Input.update(sim, app, dt)
+    Render.advanceCutscene(app, dt)
+    startNextCutscene(app)
+    if app.eventFlash then
+        app.eventFlash.t = math.max(0, app.eventFlash.t - dt)
+        if app.eventFlash.t <= 0 then
+            app.eventFlash = nil
+        end
+    end
     accumulator = math.min(accumulator + dt, 0.25)
     local maxSteps = love.keyboard.isDown("lshift", "rshift") and 6 or 3
     local steps = 0
     while not app.paused and accumulator >= fixedDt and steps < maxSteps do
         sim:step()
+        playStatusCue(app, sim)
+        queueCutscenes(app, sim)
         accumulator = accumulator - fixedDt
         steps = steps + 1
     end
@@ -115,6 +167,10 @@ function love.keypressed(key)
         if loaded then
             sim = loaded
             app.status = "loaded"
+            app.lastCueStatus = sim.status
+            app.lastVisualEventId = sim.eventSerial or 0
+            app.cutscene = nil
+            app.cutsceneQueue = {}
             Audio.play(app.audio, "load")
         else
             app.status = "load failed: " .. tostring(err)
@@ -123,6 +179,10 @@ function love.keypressed(key)
         return
     end
     Input.keypressed(sim, app, key)
+end
+
+function love.keyreleased(key)
+    Input.keyreleased(sim, app, key)
 end
 
 function love.mousepressed(x, y, button)

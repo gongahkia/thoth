@@ -30,13 +30,13 @@ check: test
 	$(MAKE) benchmark-smoke
 
 benchmark:
-	$(LUAJIT) benchmarks/mixed_factory.lua
+	$(LUAJIT) benchmarks/rpg_expedition.lua
 
 benchmark-smoke:
-	THOTH_BENCH_TICKS=60 THOTH_BENCH_BURNER_LINES=2 THOTH_BENCH_POWERED_LINES=1 $(LUAJIT) benchmarks/mixed_factory.lua
+	THOTH_BENCH_TICKS=60 THOTH_BENCH_RUNS=4 $(LUAJIT) benchmarks/rpg_expedition.lua
 
 benchmark-scaled:
-	THOTH_BENCH_TICKS=900 THOTH_BENCH_BURNER_LINES=48 THOTH_BENCH_POWERED_LINES=16 $(LUAJIT) benchmarks/mixed_factory.lua
+	THOTH_BENCH_TICKS=900 THOTH_BENCH_RUNS=24 $(LUAJIT) benchmarks/rpg_expedition.lua
 
 render-benchmark:
 	@if command -v xvfb-run >/dev/null 2>&1; then \

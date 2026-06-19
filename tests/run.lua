@@ -7,6 +7,7 @@ local Replay = require("src.game.replay")
 local Input = require("src.app.input")
 local Render = require("src.app.render")
 local World = require("src.game.world")
+local Defs = require("src.game.defs")
 
 local function expect(value, message)
     if not value then
@@ -18,1759 +19,1285 @@ local function sameSnapshot(a, b)
     return Serialize.encode(a:snapshot()) == Serialize.encode(b:snapshot())
 end
 
-local function runSteps(sim, count)
-    for _ = 1, count do
-        sim:step()
-    end
+local function runQueued(sim, command)
+    sim:queue(command)
+    sim:step()
 end
 
-local bossCosts = {
-    marsh_broodheart = { water_barrel = 1, reed_fiber = 3, science_pack = 1 },
-    glass_maw = { sand_glass = 3, cactus_fiber = 3, science_pack = 1 },
-    badlands_warden = { basalt = 4, iron_plate = 4, advanced_science_pack = 1 },
-    frost_nullifier = { ice_shard = 4, circuit_board = 2, advanced_science_pack = 1 },
-    rift_signal_tyrant = { beacon_core = 1, crystal = 2, advanced_science_pack = 2 },
-}
-
-local function addItems(sim, items)
-    for item, count in pairs(items) do
-        sim:addItem(item, count)
+local function contains(list, value)
+    for _, entry in ipairs(list or {}) do
+        if entry == value then
+            return true
+        end
     end
+    return false
+end
+
+local function reachableRooms(world, start)
+    local seen = { [start] = true }
+    local queue = { start }
+    local index = 1
+    while queue[index] do
+        local roomKey = queue[index]
+        index = index + 1
+        for _, adjacent in ipairs(world:connectedRooms(roomKey)) do
+            if not seen[adjacent] then
+                seen[adjacent] = true
+                queue[#queue + 1] = adjacent
+            end
+        end
+    end
+    return seen
+end
+
+local function reachEntryCombat(sim)
+    for _ = 1, 5 do
+        runQueued(sim, Simulation.commands.move("east"))
+    end
+    expect(sim.mode == "combat", "entry room should start combat")
 end
 
 local tests = {}
 
 tests[#tests + 1] = function()
-    expect(World.floorDiv(0, World.chunkSize) == 0, "origin chunk div failed")
-    expect(World.floorDiv(31, World.chunkSize) == 0, "positive edge chunk div failed")
-    expect(World.floorDiv(32, World.chunkSize) == 1, "positive boundary chunk div failed")
-    expect(World.floorDiv(-1, World.chunkSize) == -1, "negative edge chunk div failed")
-    expect(World.floorMod(-1, World.chunkSize) == 31, "negative edge chunk mod failed")
-    local first = World.new(101)
-    local second = World.new(101)
-    expect(first:loadedChunkCount() == 0, "fresh world should not load chunks")
-    local a = first:getTile(31, 0, 0)
-    expect(first:loadedChunkCount() == 1, "first tile read should load one chunk")
-    expect(second:getTile(31, 0, 0).id == a.id, "same seed should generate same chunk tile")
-    first:getTile(32, 0, 0)
-    expect(first:loadedChunkCount() == 2, "boundary tile should load adjacent chunk")
-    first:setTile(32, 0, 0, { id = "water", data = 0 })
-    expect(first:getTile(32, 0, 0).id == "water", "chunk boundary mutation should persist")
-    first:clearLoadedChunks()
-    expect(first:loadedChunkCount() == 0, "chunk cache should clear")
-    expect(first:getTile(32, 0, 0).id == "water", "overrides should survive chunk cache clear")
-    local cached = World.new(707)
-    local origin = cached:getTile(0, 0, 0)
-    cached:getTile(32, 0, 0)
-    cached:setTile(33, 0, 0, { id = "water", data = 0 })
-    local snapshot = cached:snapshot()
-    expect(#snapshot.chunks == 2, "snapshot should preserve loaded chunk keys")
-    expect(#snapshot.tiles == 1, "snapshot should include only modified tiles")
-    local loaded = World.fromSnapshot(snapshot)
-    expect(loaded:loadedChunkCount() == 2, "loaded world should restore cached chunks")
-    expect(loaded:getTile(0, 0, 0).id == origin.id, "loaded chunk should preserve deterministic generation")
-    expect(loaded:getTile(33, 0, 0).id == "water", "loaded world should preserve modified tile")
+    expect(World.floorDiv(31, World.chunkSize) == 0, "positive chunk edge failed")
+    expect(World.floorDiv(32, World.chunkSize) == 1, "positive chunk boundary failed")
+    expect(World.floorDiv(-1, World.chunkSize) == -1, "negative chunk edge failed")
+    expect(World.floorMod(-1, World.chunkSize) == 31, "negative chunk mod failed")
+    local world = World.new(101)
+    expect(world:loadedChunkCount() == 0, "fresh world loaded chunks")
+    expect(world:getTile(0, 0, 0).id == "archive_floor", "origin should be archive floor")
+    expect(world:getTile(3, 0, 0).id == "corridor", "corridor should pierce room edge")
+    expect(world:getTile(-2, 2, 0).id == "exit_gate", "exit gate missing")
+    local connected = world:connectedRooms("0:0")
+    expect(contains(connected, "8:0") and contains(connected, "0:8"), "room graph should expose corridor links")
+    local baseRevision = world:chunkRevision(0, 0, 0)
+    world:setTile(4, 0, 0, { id = "archive_floor", data = 0 })
+    expect(world:getTile(4, 0, 0).id == "archive_floor", "override did not persist")
+    expect(world:chunkRevision(0, 0, 0) == baseRevision + 1, "override should bump chunk revision")
+    local loaded = World.fromSnapshot(world:snapshot())
+    expect(loaded:getTile(4, 0, 0).id == "archive_floor", "world snapshot lost override")
 end
 
 tests[#tests + 1] = function()
-    local world = World.new(808)
-    expect(world:getTile(-1, 0, 0).id == "tree", "starter tree missing")
-    expect(world:getTile(0, 3, 0).id == "stone", "starter stone missing")
-    expect(world:getTile(3, 0, 0).id == "coal_ore" and world:getTile(3, 0, 0).data == 18, "starter coal missing")
-    expect(world:getTile(0, -3, 0).id == "iron_ore" and world:getTile(0, -3, 0).data == 22, "starter iron missing")
-    expect(world:getTile(3, -3, 0).id == "copper_ore" and world:getTile(3, -3, 0).data == 22, "starter copper missing")
+    local scout = World.new(101, "buried_archive", { tiles = {}, layoutId = "archive_scout" })
+    local cleanse = World.new(101, "buried_archive", { tiles = {}, layoutId = "archive_cleansing" })
+    expect(scout:layout().generated and scout:layout().generatedLayoutId == World.fromSnapshot(scout:snapshot()):layout().generatedLayoutId, "archive layout should generate deterministically")
+    expect(cleanse:encounterForRoom("16:6") == "undercroft" and scout:encounterForRoom("16:6") == nil, "mission grammar should vary archive encounter anchors")
+    local seen = reachableRooms(cleanse, "0:0")
+    expect(seen["24:0"] and seen["16:0"] and seen["0:8"] and seen["8:6"], "generated archive required rooms should be reachable")
+    expect(contains(cleanse:connectedRooms("8:0"), "16:0") and contains(cleanse:connectedRooms("8:0"), "8:6"), "generated archive should include a loop and optional branch")
+    expect(#cleanse:threatsInRect(-999, 999, -999, 999, 0) >= 2, "generated archive should expose visible threats")
 end
 
 tests[#tests + 1] = function()
-    local world = World.new(99)
-    expect(world:biomeAt(0, 0, 0) == "grassland", "origin should remain grassland")
-    expect(world:biomeAt(12, 0, 0) == "desert", "starter desert biome missing")
-    expect(world:biomeAt(-12, 0, 0) == "snowfield", "starter snowfield biome missing")
-    expect(world:biomeAt(0, 12, 0) == "marsh", "starter marsh biome missing")
-    expect(world:biomeAt(36, 20, 0) == "badlands", "starter badlands biome missing")
-    expect(world:biomeAt(-36, 20, 0) == "crystal_field", "starter crystal biome missing")
-    expect(world:biomeAt(4096, 0, 0) == "rift", "rift band biome missing")
-    expect(world:getTile(11, -12, 0).id == "sand", "desert base terrain missing")
-    expect(world:getTile(-24, -10, 0).id == "snow", "snowfield base terrain missing")
-    expect(world:getTile(-8, 8, 0).id == "mud", "marsh base terrain missing")
-    expect(world:getTile(29, 12, 0).id == "basalt", "badlands base terrain missing")
-    expect(world:getTile(-43, 12, 0).id == "stone", "crystal field base terrain missing")
-    local riftResources = {}
-    for x = 4096, 4144 do
-        for y = -24, 24 do
-            local tile = world:getTile(x, y, 0)
-            if tile.id == "iron_ore" or tile.id == "copper_ore" or tile.id == "coal_ore" then
-                riftResources[tile.id] = true
-                expect(tile.data >= 12, "rift ore should be richer than starter ore")
-            end
-        end
+    local sim = Simulation.new(11)
+    expect(sim.mode == "expedition", "new sim should start playable expedition")
+    expect(#sim.estate.roster == 4, "default roster should have four heroes")
+    expect(#sim.estate.recruits == 3, "estate should seed recruit candidates")
+    expect(sim.estate.trinkets.ember_pin == 1, "estate should seed trinkets")
+    expect(sim.expedition.supplies:count("torch") == 4, "default supplies missing torches")
+    expect(sim.expedition.roomsScouted == 1, "starting room should be scouted")
+end
+
+tests[#tests + 1] = function()
+    local world = World.new(46, "salt_cistern")
+    expect(world.location == "salt_cistern", "world should store location key")
+    expect(world:getTile(0, 0, 0).id == "salt_floor", "salt cistern origin should use location floor")
+    expect(world:getTile(1, 0, 0).id == "salt_causeway", "salt cistern corridor should use location corridor")
+    expect(table.concat(world:connectedRooms("0:0"), ",") == "6:4", "salt cistern room graph should use location corridors")
+    local loaded = World.fromSnapshot(world:snapshot())
+    expect(loaded.location == "salt_cistern" and loaded:getTile(0, 0, 0).id == "salt_floor", "world snapshot should preserve location")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(47)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_survey"))
+    expect(sim.expedition.location == "salt_cistern" and sim.world.location == "salt_cistern", "mission should start its location world")
+    expect(sim.world:getTile(6, 4, 0).id == "salt_font", "location specials should render in world")
+    expect(sim.narration ~= "", "mission start should set narration")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(77)
+    sim:endExpedition(true)
+    for rank = 1, 4 do
+        local hero = sim:heroAtRank(rank)
+        hero.level = 3
     end
-    expect(riftResources.iron_ore and riftResources.copper_ore and riftResources.coal_ore, "rift band should include rich ore mix")
+    sim.estate.provisionCart:add("torch", 1)
+    expect(not sim:startExpedition("archive_scout"), "overlevel party should refuse apprentice mission")
+    expect(sim.mode == "estate" and sim.estate.provisionCart:count("torch") == 1, "refused mission should not consume provisions")
 end
 
 tests[#tests + 1] = function()
-    local world = World.new(202)
-    local near = world:getTile(-1, -176, 0)
-    local far = world:getTile(-2, -755, 0)
-    expect(near.id == "iron_ore", "near procedural ore sample changed")
-    expect(far.id == "coal_ore", "far procedural ore sample changed")
-    expect(far.data > near.data, "far ore should be richer than near ore")
+    local sim = Simulation.new(78)
+    sim:endExpedition(true)
+    for rank = 1, 4 do
+        local hero = sim:heroAtRank(rank)
+        hero.level = 1
+        hero.stress = 0
+        hero.quirks = {}
+    end
+    runQueued(sim, Simulation.commands.startExpedition("ember_cleansing"))
+    expect(sim.mode == "expedition" and sim.expedition.mission == "ember_cleansing", "underlevel party should still enter high-tier mission")
+    expect(sim:heroAtRank(3).stress == 24, "underlevel mission should add deterministic stress pressure")
 end
 
 tests[#tests + 1] = function()
-    local world = World.new(303)
-    local lairs = {
-        { "marsh_hive", 0, 18 },
-        { "glass_spire", 18, -2 },
-        { "badlands_foundry", 36, 20 },
-        { "frost_vault", -18, 0 },
-        { "crystal_vault", -36, 20 },
+    local sim = Simulation.new(84)
+    sim:endExpedition(true)
+    sim:refreshMissionBoard(true)
+    expect(#sim.estate.missionBoard == sim:missionBoardSlots(), "mission board should expose weekly mission slots")
+    expect(not contains(sim.estate.missionBoard, "archive_regent"), "boss mission should be gated before location progress")
+    sim.estate.campaign.locationProgress.buried_archive = 2
+    sim:refreshMissionBoard(true)
+    expect(contains(sim.estate.missionBoard, "archive_regent"), "boss mission should appear after location progress")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(contains(loaded.estate.missionBoard, "archive_regent"), "mission board should survive snapshot")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(48)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_bell"))
+    sim:startCombat("matron", "18:10")
+    sim:finishCombat(true)
+    expect(sim.expedition.objectiveComplete and sim.expedition.bossDefeated, "cistern boss should complete boss mission")
+    expect(sim.world:getTile(18, 10, 0).id == "salt_floor", "boss special should clear to location floor")
+    sim.player.x = -2
+    sim.player.y = 1
+    sim.player.facing = "south"
+    local heirlooms = sim.estate.heirlooms
+    runQueued(sim, Simulation.commands.interact())
+    expect(sim.mode == "estate" and sim.estate.heirlooms >= heirlooms + 4, "cistern mission should pay boss reward")
+end
+
+tests[#tests + 1] = function()
+    local a = Simulation.new(12)
+    local b = Simulation.new(12)
+    local commands = {
+        Simulation.commands.move("east"),
+        Simulation.commands.move("east"),
+        Simulation.commands.useItem("torch"),
+        Simulation.commands.selectHero(2),
     }
-    for _, lair in ipairs(lairs) do
-        local key, x, y = lair[1], lair[2], lair[3]
-        expect(world:lairAt(x, y, 0) == key, "authored lair identity missing " .. key)
-        expect(world:lairAt(x, y, -1) == key, "authored lair interior identity missing " .. key)
-        expect(world:getTile(x, y, 0).id == "stairs_down", "authored lair should expose stairs " .. key)
-        expect(world:getTile(x + 5, y, 0).id == "dungeon_wall", "authored lair boundary missing " .. key)
-        expect(world:getTile(x + 2, y, 0).id == "lair_hearth", "authored lair hearth missing " .. key)
+    for _, command in ipairs(commands) do
+        runQueued(a, command)
+        runQueued(b, command)
     end
+    expect(sameSnapshot(a, b), "same commands should be deterministic")
 end
 
 tests[#tests + 1] = function()
-    local world = World.new(404)
-    expect(world:lairAt(417, -453, 0) == "marsh_hive", "generated lair identity missing")
-    expect(world:lairAt(417, -453, -1) == "marsh_hive", "generated lair interior identity missing")
-    expect(world:getTile(417, -453, 0).id == "stairs_down", "generated lair should expose stairs")
-    expect(world:getTile(422, -453, 0).id == "dungeon_wall", "generated lair boundary missing")
-    expect(world:lairAt(60, 60, 0) == nil, "protected starter ring should not contain generated lair")
-end
-
-tests[#tests + 1] = function()
-    local world = World.new(41)
-    local baseChunk = world:chunkRevision(0, 0, 0)
-    local nextChunk = world:chunkRevision(1, 0, 0)
-    world:setTile(0, 0, 0, { id = "grass", data = 7 })
-    expect(world:chunkRevision(0, 0, 0) == baseChunk + 1, "setTile should bump changed chunk revision")
-    expect(world:chunkRevision(1, 0, 0) == nextChunk, "setTile should not bump unrelated chunk revision")
-    local clone = world:getTile(0, 0, 0)
-    clone.id = "water"
-    expect(world:getTile(0, 0, 0).id == "grass", "getTile should return a clone")
-    expect(world:peekTile(0, 0, 0).id == "grass", "peekTile should expose the current tile")
-    expect(world:peekTile(1, 0, 0).id == world:getTile(1, 0, 0).id, "peekTile should match generated tiles")
-    world:clearLoadedChunks()
-    expect(world:chunkRevision(0, 0, 0) == baseChunk + 1, "chunk clear should not dirty terrain revision")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(37)
-    sim.world:setTile(1, 0, 0, { id = "water", data = 0 })
-    sim.world:setTile(2, 0, 0, { id = "grass", data = 0 })
-    sim:queue(Simulation.commands.move("east"))
-    sim:step()
-    expect(sim.player.x == 0, "player should not enter water without boat")
-    sim:addItem("boat", 1)
-    sim:queue(Simulation.commands.move("east"))
-    sim:step()
-    expect(sim.player.x == 1 and sim.player.inBoat, "boat should allow water traversal")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded.player.inBoat, "boat state should persist")
-    loaded:queue(Simulation.commands.move("east"))
-    loaded:step()
-    expect(loaded.player.x == 2 and not loaded.player.inBoat, "leaving water should exit boat traversal")
+    local sim = Simulation.new(13)
+    sim.player.y = -2
+    runQueued(sim, Simulation.commands.move("north"))
+    expect(sim.player.x == 0 and sim.player.y == -2, "wall move should not change position")
+    sim.player.y = 0
+    runQueued(sim, Simulation.commands.move("east"))
+    expect(sim.player.x == 1 and sim.expedition.torch == 74, "valid move should advance and decay light")
 end
 
 tests[#tests + 1] = function()
     local oldLove = love
-    local sim = Simulation.new(40)
-    local app = { moveCooldown = 0, status = "ready" }
-    sim.world:setTile(0, -1, 0, { id = "grass", data = 0 })
-    sim.world:setTile(1, -1, 0, { id = "grass", data = 0 })
-    love = { keyboard = { isDown = function(key) return key == "w" end } }
+    local sim = Simulation.new(14)
+    local app = { moveCooldown = 0, viewRotation = 1, status = "ready" }
+    love = { keyboard = { isDown = function() return false end } }
+    Input.keypressed(sim, app, "w")
     Input.update(sim, app, 0.2)
     sim:step()
-    expect(sim.player.y == -1, "holding w should queue north movement")
-    expect(app.status:find("move north") == 1, "held movement should update status")
-    Input.keypressed(sim, app, "right")
-    sim:step()
-    expect(sim.player.x == 1, "right arrow should queue east movement")
-    expect(app.status:find("move east") == 1, "arrow movement should update status")
+    expect(sim.player.x == 1 and sim.player.y == 0, "rotated screen up should map east")
+    Input.keypressed(sim, app, "]")
+    expect(app.viewRotation == 2, "right bracket should rotate view")
     love = oldLove
 end
 
 tests[#tests + 1] = function()
-    local sim = Simulation.new(43)
-    local app = { moveCooldown = 0, status = "ready", viewRotation = 1 }
-    sim.world:setTile(1, 0, 0, { id = "grass", data = 0 })
-    Input.keypressed(sim, app, "w")
-    sim:step()
-    expect(sim.player.x == 1 and sim.player.y == 0, "rotated view should map screen-up to east")
-    Input.keypressed(sim, app, "]")
-    expect(app.viewRotation == 2, "right bracket should rotate view clockwise")
-    Input.keypressed(sim, app, "[")
-    expect(app.viewRotation == 1, "left bracket should rotate view counterclockwise")
+    local sim = Simulation.new(15)
+    reachEntryCombat(sim)
+    expect(sim.combat.encounter == "entry", "entry encounter key missing")
+    expect(sim:activeHero().class == "duelist", "fastest hero should act first")
+    expect(sim:livingEnemyCount() == 2, "entry encounter enemy count changed")
 end
 
 tests[#tests + 1] = function()
-    local view = {
-        mode = "iso",
-        centerX = 200,
-        centerY = 120,
-        halfW = 32,
-        halfH = 16,
-        originX = 5,
-        originY = -2,
-        rotation = 3,
-    }
-    local x, y = 7, -1
-    local sx, sy = Render.projectIso(view, x, y)
-    local wx, wy = Render.screenToWorld(view, sx, sy)
-    expect(wx == x and wy == y, "isometric project/unproject should round-trip")
+    local sim = Simulation.new(16)
+    reachEntryCombat(sim)
+    local enemy = sim:enemyAtRank(1)
+    local hp = enemy.hp
+    runQueued(sim, Simulation.commands.combatSkill("arterial_cut", 1, "enemy"))
+    expect(enemy.hp < hp, "combat skill should damage enemy")
+    expect(#enemy.statuses == 1 and enemy.statuses[1].kind == "bleed", "arterial cut should apply bleed")
 end
 
 tests[#tests + 1] = function()
-    local sim = Simulation.new(44)
-    local machine = sim:addMachine("chest", 1, 0, "south")
-    local app = {
-        status = "ready",
-        worldView = {
-            mode = "iso",
-            centerX = 200,
-            centerY = 120,
-            halfW = 32,
-            halfH = 16,
-            originX = 0,
-            originY = 0,
-            rotation = 1,
-        },
-    }
-    local sx, sy = Render.projectIso(app.worldView, 1, 0)
-    Input.mousepressed(sim, app, sx, sy, 1)
-    expect(app.selectedMachineId == machine.id, "isometric mouse pick should select rotated machines")
+    local sim = Simulation.new(17)
+    reachEntryCombat(sim)
+    local hero = sim:activeHero()
+    local stress = hero.stress
+    runQueued(sim, Simulation.commands.passTurn())
+    expect(hero.stress >= stress + 2, "passing should add stress")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(18)
+    reachEntryCombat(sim)
+    runQueued(sim, Simulation.commands.retreat())
+    expect(sim.mode == "expedition" and sim.combat == nil, "combat retreat should return to exploration")
+    expect(sim.expedition.torch == 60, "retreat should cost light after five moves")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(83)
+    sim.expedition.torch = 55
+    sim:startCombat("entry", "camp", { ambush = true })
+    expect(sim.mode == "combat" and sim.combat.ambush and sim.expedition.torch == 0, "camp ambush should start combat at zero light")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.combat.ambush, "combat ambush flag should survive snapshot")
+    expect(not sim:retreat() and sim.mode == "combat", "camp ambush should block retreat")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(19)
+    local hero = sim:heroAtRank(1)
+    hero.stress = 99
+    sim:addStress(hero, 3)
+    expect(hero.affliction or hero.virtue, "stress over threshold should resolve")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(46)
+    local hero = sim:heroAtRank(1)
+    local ally = sim:heroAtRank(2)
+    hero.affliction = "panic"
+    ally.stress = 0
+    sim:afflictionAct(hero)
+    expect(ally.stress > 0 and hero.stress > 0, "panic affliction should stress hero and party")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(47)
+    reachEntryCombat(sim)
+    local hero = sim:activeHero()
+    hero.affliction = "reckless"
+    local enemy = sim:enemyAtRank(1)
+    local hp = enemy.hp
+    sim:afflictionAct(hero)
+    expect(enemy.hp == hp - 2, "reckless affliction should lash out in combat")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(20)
+    local hero = sim:heroAtRank(1)
+    sim:damageHero(hero, hero.hp)
+    expect(hero.alive and hero.deathsDoor and hero.hp == 0, "first lethal damage should reach death's door")
+    expect(#sim.estate.graveyard == 0, "death's door should not record graveyard yet")
+    hero.deathblowResist = 0
+    sim:damageHero(hero, 1)
+    expect(not hero.alive, "failed deathblow check should kill hero")
+    expect(#sim.estate.graveyard == 1, "graveyard should record death")
+    expect(sim:heroAtRank(1).id ~= hero.id, "party should compact after death")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(75)
+    sim:endExpedition(true)
+    local hero = sim:heroAtRank(1)
+    runQueued(sim, Simulation.commands.equipTrinket(hero.id, "ember_pin", 1))
+    sim:startCombat("entry", "8:0")
+    hero.deathsDoor = true
+    hero.deathblowResist = 0
+    sim:damageHero(hero, hero.hp + 1)
+    expect(hero.trinkets[1] == false and sim.combat.fallenTrinkets[1] == "ember_pin", "combat death should move trinket into fallen spoils")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.combat.fallenTrinkets[1] == "ember_pin", "fallen trinkets should survive snapshot")
+    sim:finishCombat(true)
+    expect(sim.estate.trinkets.ember_pin == 1, "combat victory should recover fallen trinket")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(76)
+    sim:endExpedition(true)
+    local hero = sim:heroAtRank(1)
+    runQueued(sim, Simulation.commands.equipTrinket(hero.id, "ember_pin", 1))
+    sim:startCombat("entry", "8:0")
+    hero.deathsDoor = true
+    hero.deathblowResist = 0
+    sim:damageHero(hero, hero.hp + 1)
+    sim:finishCombat(false)
+    expect((sim.estate.trinkets.ember_pin or 0) == 0, "combat loss should not recover fallen trinket")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(37)
+    local rations = sim.expedition.supplies:count("ration")
+    for _ = 1, 6 do
+        sim:checkHunger()
+    end
+    expect(sim.expedition.hungerChecks == 1, "six steps should trigger one hunger check")
+    expect(sim.expedition.supplies:count("ration") == rations - 4, "hunger should consume one ration per living hero")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(38)
+    sim.expedition.supplies:consume("ration", sim.expedition.supplies:count("ration"))
+    local hero = sim:heroAtRank(1)
+    local hp = hero.hp
+    for _ = 1, 6 do
+        sim:checkHunger()
+    end
+    expect(hero.hp < hp and hero.stress > 0, "starvation should damage and stress heroes")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(39)
+    local hero = sim:heroAtRank(1)
+    local hp = hero.hp
+    local bandages = sim.expedition.supplies:count("bandage")
+    for _ = 1, 4 do
+        runQueued(sim, Simulation.commands.move("east"))
+    end
+    expect(hero.hp < hp, "stepping onto trap should hurt selected hero")
+    expect(sim.expedition.supplies:count("bandage") == bandages, "forced trap should not auto-spend bandage")
+    expect(sim.world:getTile(4, 0, 0).id == "archive_floor", "forced trap should clear hazard")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(8)
+    sim.expedition.torch = 100
+    local ok = sim:scoutFromRoom("0:0")
+    expect(ok and sim.expedition.scoutedRooms["8:0"], "high-light scouting should reveal connected room for seed 8")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(35)
+    local hero = sim:heroAtRank(1)
+    hero.hp = 1
+    hero.statuses[#hero.statuses + 1] = { kind = "bleed", amount = 1, turns = 2 }
+    sim:applyStatuses(hero, "hero")
+    expect(hero.deathsDoor and hero.statuses[1].turns == 1, "hero bleed should tick through death's door rules")
+    sim:healHero(hero, 2)
+    expect(not hero.deathsDoor and hero.hp > 0, "healing should clear death's door")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(36)
+    reachEntryCombat(sim)
+    sim.expedition.torch = 20
+    local enemy = sim.combat.enemies[2]
+    sim:enemyTurn(enemy)
+    local marked = false
+    for rank = 1, 4 do
+        local hero = sim:heroAtRank(rank)
+        if hero and sim:hasStatus(hero, "marked") then
+            marked = true
+        end
+    end
+    expect(marked, "low-light ink enemy should prefer marked stress skill")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(86)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim:startCombat("archive_branch", "0:8"), "archive branch encounter should start")
+    expect(sim.combat.enemies[1].kind == "parchment_swarm" and sim.combat.enemies[2].kind == "folio_bulwark", "archive branch should use archive role enemies")
+    sim = Simulation.new(87)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_survey"))
+    expect(sim:startCombat("cistern_branch", "12:10"), "cistern branch encounter should start")
+    expect(sim.combat.enemies[1].kind == "salt_eel", "cistern branch should use new enemy")
+    sim = Simulation.new(88)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("ember_cleansing"))
+    expect(sim:startCombat("ember_branch", "8:-8"), "ember branch encounter should start")
+    expect(sim.combat.enemies[1].kind == "ember_mote", "ember branch should use new enemy")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(94)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    sim.player.x = 15
+    sim.player.y = 5
+    sim.player.facing = "east"
+    runQueued(sim, Simulation.commands.interact())
+    expect(sim.mode == "combat" and sim.combat.encounter == "archive_elite" and sim.combat.visible, "visible archive threat should start elite combat")
+    expect(sim.combat.threatKey == "archive_lectern", "visible archive threat should preserve threat key")
+    sim:finishCombat(true)
+    expect(sim.expedition.clearedEncounters.archive_lectern, "visible archive threat should clear by threat key")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(2)
+    local roomKey = sim:currentRoomKey()
+    sim.expedition.torch = 0
+    sim.expedition.noise = 12
+    sim.expedition.threatState[roomKey] = "stalked"
+    expect(sim:tryStartPressureEncounter(roomKey), "low light and noise should trigger deterministic archive pressure")
+    expect(sim.mode == "combat" and sim.combat.encounter == "archive_ambush" and sim.combat.pressure and sim.combat.ambush, "pressure encounter should start ambush combat")
+    local noisy = Simulation.new(7)
+    noisy.expedition.torch = 0
+    noisy.expedition.noise = 12
+    noisy.expedition.threatState.ghost = "stalked"
+    expect(noisy:tryStartPressureEncounter("ghost"), "unscouted pressure should be dangerous")
+    local scouted = Simulation.new(7)
+    scouted.expedition.torch = 0
+    scouted.expedition.noise = 12
+    scouted.expedition.threatState.ghost = "stalked"
+    scouted.expedition.scoutedRooms.ghost = true
+    expect(not scouted:tryStartPressureEncounter("ghost"), "scouting should reduce deterministic ambush pressure")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(95)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim:startCombat("archive_elite", "weakpoint_test"), "archive elite should start")
+    local enemy = sim:enemyAtRank(1)
+    enemy.parts[1].hp = 1
+    expect(enemy.parts[1].key == "open_codex", "elite should expose weak point data")
+    runQueued(sim, Simulation.commands.combatSkill("razor_lunge", 1, "enemy", "open_codex"))
+    expect(enemy.parts[1].disabled and sim:enemySkillLocked(enemy, "lectern_cant"), "weak point hit should disable mapped skill")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(96)
+    local hero = sim:heroAtRank(1)
+    sim:resolveCurio(4, 0, 0, "wire_snare", { forceNoItem = true })
+    expect(sim:hasInjury(hero), "trap should apply expedition injury")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded:hasInjury(loaded:heroById(hero.id)), "injury should survive snapshot")
+    sim.expedition.supplies:add("bandage", 1)
+    runQueued(sim, Simulation.commands.useItem("bandage", 1))
+    expect(not sim:hasInjury(hero), "bandage should clear one injury")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(21)
+    sim.player.x = 3
+    sim.player.y = 0
+    sim.player.facing = "east"
+    local bandages = sim.expedition.supplies:count("bandage")
+    runQueued(sim, Simulation.commands.interact())
+    expect(sim.expedition.curiosUsed["0:4:0"], "trap curio should be marked used")
+    expect(sim.expedition.supplies:count("bandage") == bandages - 1, "trap should consume bandage")
+    expect(sim.world:getTile(4, 0, 0).id == "archive_floor", "resolved curio should clear tile")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(22)
+    sim.player.x = 15
+    sim.player.y = 0
+    sim.player.facing = "east"
+    runQueued(sim, Simulation.commands.interact())
+    expect(sim.expedition.loot:count("relic") == 2, "keyed cache should grant relics")
+    expect(sim.expedition.loot:count("coin") == 45, "keyed cache should grant coin")
+    expect(sim.expedition.supplies:count("skeleton_key") == 0, "cache should consume key")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(23)
+    local hero = sim:heroAtRank(2)
+    hero.hp = hero.hp - 5
+    hero.stress = 20
+    sim.player.x = 8
+    sim.player.y = 5
+    sim.player.facing = "south"
+    runQueued(sim, Simulation.commands.interact())
+    expect(sim.expedition.campUsed, "camp marker interaction should camp")
+    expect(sim.expedition.camping and sim.expedition.camping.respite == 4, "camp should enter respite phase")
+    expect(hero.hp > 15 and hero.stress < 20, "camp should heal hp and stress")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(40)
+    runQueued(sim, Simulation.commands.camp())
+    local x = sim.player.x
+    runQueued(sim, Simulation.commands.move("east"))
+    expect(sim.player.x == x, "camping should block movement")
+    local hero = sim:heroAtRank(2)
+    hero.hp = hero.hp - 8
+    hero.stress = 20
+    hero.statuses[#hero.statuses + 1] = { kind = "bleed", amount = 1, turns = 3 }
+    runQueued(sim, Simulation.commands.campSkill("watch_order"))
+    expect(sim.expedition.camping.respite == 2 and sim.expedition.camping.ambushPrevented, "watch order should spend respite and prevent ambush")
+    runQueued(sim, Simulation.commands.campSkill("bind_wounds", 2))
+    expect(not sim.expedition.camping, "spending all respite should finish camp")
+    expect(hero.hp > 14 and hero.stress < 20, "bind wounds should restore target")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(41)
+    runQueued(sim, Simulation.commands.camp())
+    local hero = sim:heroAtRank(1)
+    hero.statuses[#hero.statuses + 1] = { kind = "bleed", amount = 1, turns = 3 }
+    runQueued(sim, Simulation.commands.campSkill("bitter_tonic", 1))
+    expect(#hero.statuses == 0 and sim.expedition.camping.respite == 3, "bitter tonic should clear bleed and spend one respite")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(24)
+    sim.expedition.torch = 40
+    runQueued(sim, Simulation.commands.useItem("torch"))
+    expect(sim.expedition.torch == 65, "torch should add light")
+    expect(sim.expedition.supplies:count("torch") == 3, "torch should consume supply")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(25)
+    reachEntryCombat(sim)
+    sim:finishCombat(true)
+    expect(sim.mode == "expedition", "victory should return to expedition")
+    expect(sim.expedition.clearedEncounters["8:0"], "victory should clear room encounter")
+    expect(sim.expedition.loot:count("coin") > 0, "victory should grant loot")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(54)
+    sim.expedition.packSlots = 1
+    expect(sim:addLoot("coin", 10), "first loot stack should fit")
+    expect(sim:addLoot("coin", 5), "existing loot stack should ignore slot limit")
+    expect(not sim:addLoot("heirloom", 1), "new loot stack should fail when pack is full")
+    expect(sim.expedition.loot:count("coin") == 15 and sim.expedition.loot:count("heirloom") == 0, "pack full should preserve loot counts")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(26)
+    sim.expedition.roomsScouted = 3
+    sim.expedition.objectiveComplete = true
+    sim.expedition.loot:add("coin", 50)
+    sim.player.x = -2
+    sim.player.y = 1
+    sim.player.facing = "south"
+    runQueued(sim, Simulation.commands.interact())
+    expect(sim.mode == "estate", "exit should end completed expedition")
+    expect(sim.estate.gold >= 260, "completed expedition should transfer loot and mission reward after town event")
+    expect(sim.estate.heirlooms == 1, "completed expedition should pay mission heirloom reward")
+    expect(sim.estate.currentEvent, "expedition return should roll town event")
+    expect(sim.estate.campaign.renown == 1 and sim.estate.campaign.completedMissions.archive_scout, "completed mission should advance campaign")
+    expect(sim.estate.campaign.locationProgress.buried_archive == 1, "completed mission should advance location progress")
 end
 
 tests[#tests + 1] = function()
     local sim = Simulation.new(42)
-    local west = sim:addMachine("chest", -1, 0, "south")
-    local east = sim:addMachine("chest", 33, 0, "south")
-    sim:addMachine("chest", 0, 33, "south")
-    sim:addMachine("chest", 0, 0, "south", -1)
-    local visible = sim:machinesInRect(-2, 34, -1, 1, 0)
-    expect(#visible == 2, "machinesInRect should include only machines in bounds and layer")
-    expect(visible[1].id == west.id and visible[2].id == east.id, "machinesInRect should preserve id ordering")
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_cleansing"))
+    expect(sim.expedition.mission == "archive_cleansing", "start expedition should accept mission key")
+    expect(not sim.expedition.objectiveComplete, "cleanse mission should start incomplete")
+    sim:startCombat("entry", "8:0")
+    sim:finishCombat(true)
+    expect(not sim.expedition.objectiveComplete, "one cleared encounter should not complete cleanse mission")
+    sim:startCombat("stacks", "16:0")
+    sim:finishCombat(true)
+    expect(sim.expedition.objectiveComplete, "two cleared encounters should complete cleanse mission")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(43)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_regent"))
+    sim:startCombat("regent", "24:0")
+    sim:finishCombat(true)
+    expect(sim.expedition.objectiveComplete and sim.expedition.bossDefeated, "boss mission should complete on regent victory")
+    sim.player.x = -2
+    sim.player.y = 1
+    sim.player.facing = "south"
+    runQueued(sim, Simulation.commands.interact())
+    expect(sim.estate.trinkets.quiet_bell >= 1 and sim.estate.gold >= 320, "boss mission should pay reward")
+    expect(sim.estate.campaign.bossKills.buried_archive and sim.estate.campaign.locationProgress.buried_archive == 2, "boss mission should mark location boss progress")
+    expect(sim.narration ~= "", "boss return should keep narration")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(85)
+    sim:endExpedition(true)
+    sim.estate.campaign.dread = 4
+    runQueued(sim, Simulation.commands.startExpedition("archive_regent"))
+    expect(sim:startCombat("regent", "24:0"), "variant boss combat should start")
+    expect(sim.combat.encounter == "regent_crowned" and sim.combat.baseEncounter == "regent", "high dread should select boss variant")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.combat.encounter == "regent_crowned" and loaded.combat.baseEncounter == "regent", "boss variant should survive snapshot")
+    sim:finishCombat(true)
+    expect(sim.expedition.objectiveComplete and sim.world:getTile(24, 0, 0).id == "archive_floor", "boss variant should complete and clear base sigil")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(66)
+    sim:endExpedition(true)
+    local heirlooms = sim.estate.heirlooms
+    for _, missionKey in ipairs({ "archive_regent", "cistern_bell", "ember_prioress" }) do
+        sim:startExpedition(missionKey)
+        sim.expedition.objectiveComplete = true
+        sim.expedition.bossDefeated = true
+        sim:endExpedition(false)
+    end
+    expect(sim.estate.campaign.victory and sim.estate.campaign.renown == 6, "all boss wins should complete campaign arc")
+    expect(sim.estate.campaign.finalSeal and sim.estate.heirlooms >= heirlooms + 3 and sim.estate.trinkets.scribe_wax >= 1, "campaign victory should grant final seal reward")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.estate.campaign.victory and loaded.estate.campaign.finalSeal and loaded.estate.campaign.bossKills.ember_warrens and loaded.narration ~= "", "campaign snapshot should preserve boss wins")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(79)
+    sim:endExpedition(true)
+    sim.estate.campaign.deathLimit = 1
+    local hero = sim:heroAtRank(1)
+    hero.deathsDoor = true
+    hero.deathblowResist = 0
+    sim:damageHero(hero, hero.hp + 1)
+    expect(sim.estate.campaign.lost and sim.estate.campaign.lossReason == "deaths", "death limit should collapse campaign")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.estate.campaign.lost and loaded.estate.campaign.lossReason == "deaths", "campaign loss should survive snapshot")
+    expect(not sim:startExpedition("archive_scout"), "collapsed campaign should block new expeditions")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(80)
+    sim:endExpedition(true)
+    sim.estate.campaign.weekLimit = sim.estate.week
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(sim.estate.campaign.lost and sim.estate.campaign.lossReason == "weeks", "week limit should collapse campaign")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(81)
+    sim:endExpedition(true)
+    sim.estate.campaign.dreadLimit = 2
+    sim.estate.campaign.dread = 2
+    sim:evaluateCampaignState()
+    expect(sim.estate.campaign.lost and sim.estate.campaign.lossReason == "dread", "dread limit should collapse campaign")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(82)
+    sim:endExpedition(true)
+    sim.estate.campaign.victory = true
+    sim.estate.campaign.deathLimit = 0
+    sim.estate.campaign.weekLimit = 0
+    sim.estate.campaign.dreadLimit = 0
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(sim.estate.campaign.victory and not sim.estate.campaign.lost, "victory should disable collapse limits")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(56)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_gather"))
+    sim:resolveCurio(8, 1, 0, "lost_page")
+    expect(not sim.expedition.objectiveComplete and sim.expedition.loot:count("archive_page") == 1, "one gathered item should not complete gather mission")
+    sim:resolveCurio(16, -1, 0, "lost_page")
+    expect(sim.expedition.objectiveComplete and sim.expedition.loot:count("archive_page") == 2, "gather mission should complete after objective items")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(57)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_valves"))
+    expect(sim.expedition.supplies:count("valve_key") == 2, "activate mission should grant quest provisions")
+    sim:resolveCurio(6, 5, 0, "tide_valve")
+    expect(not sim.expedition.objectiveComplete and sim.expedition.questActivations == 1, "one activation should not complete activate mission")
+    sim:resolveCurio(18, 5, 0, "tide_valve")
+    expect(sim.expedition.objectiveComplete and sim.expedition.supplies:count("valve_key") == 0, "activate mission should consume provisions and complete")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(58)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("ember_wards"))
+    sim.expedition.supplies:consume("ember_oil", sim.expedition.supplies:count("ember_oil"))
+    expect(not sim:resolveCurio(14, -3, 0, "ember_ward"), "activate curio should fail without quest item")
+    expect(not sim.expedition.curiosUsed["0:14:-3"], "failed activation should not mark curio used")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(27)
+    sim.expedition.loot:add("coin", 20)
+    runQueued(sim, Simulation.commands.endExpedition(true))
+    expect(sim.mode == "estate", "retreat end should return to estate")
+    expect(sim.estate.gold >= 140, "retreat should transfer half coin after town event")
+    expect(sim.estate.currentEvent, "retreat should advance week and roll town event")
+    expect(sim.estate.campaign.dread == 1, "retreat should raise campaign dread")
+    local stress = sim:heroAtRank(1).stress
+    expect(stress > 0, "retreat should stress party")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(67)
+    sim:endExpedition(true)
+    local hero = sim:heroAtRank(1)
+    hero.stress = 0
+    sim.estate.campaign.dread = 6
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(hero.stress >= 1, "high dread should add estate pressure stress")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(28)
+    sim:endExpedition(true)
+    local hero = sim:heroAtRank(1)
+    hero.stress = 40
+    local gold = sim.estate.gold
+    runQueued(sim, Simulation.commands.recoverHero(hero.id))
+    expect(hero.stress == 10 and hero.recovering == 1 and sim.estate.gold == gold - 25, "estate recovery should spend gold and start cooldown")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(68)
+    sim:endExpedition(true)
+    sim.estate.gold = 100
+    local hero = sim:heroAtRank(1)
+    hero.stress = 70
+    runQueued(sim, Simulation.commands.recoverHero(hero.id, "quiet_rest"))
+    expect(hero.stress == 48 and hero.recovering == 1 and hero.recoveryActivity == "quiet_rest" and sim.estate.gold == 82, "activity recovery should spend activity cost and mark activity")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded:heroById(hero.id).recoveryActivity == "quiet_rest", "activity recovery should survive snapshot")
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(hero.recovering == 0 and hero.recoveryActivity == nil, "activity should clear when hero returns")
+    expect(not sim:recoverHero(hero.id, "missing_activity"), "invalid activity should fail")
+end
+
+tests[#tests + 1] = function()
+    local activity = Defs.estateActivities.ash_vigil
+    local oldChance = activity.sideEffectChance
+    activity.sideEffectChance = 100
+    local sim = Simulation.new(69)
+    sim:endExpedition(true)
+    sim.estate.gold = 100
+    local hero = sim:heroAtRank(1)
+    hero.quirks = { "iron_nerves", "quick_reflexes" }
+    runQueued(sim, Simulation.commands.recoverHero(hero.id, "ash_vigil"))
+    runQueued(sim, Simulation.commands.advanceWeek())
+    activity.sideEffectChance = oldChance
+    expect(#hero.quirks == 3, "activity side effect should resolve on return week")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(55)
+    sim:endExpedition(true)
+    local week = sim.estate.week
+    local hero = sim:heroAtRank(1)
+    hero.recovering = 1
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(sim.estate.week == week + 1 and hero.recovering == 0, "advance week should tick recovery")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(60)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(sim.estate.currentEvent and #sim.estate.eventHistory > 0, "advance week should roll town event")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(61)
+    sim:endExpedition(true)
+    local gold = sim.estate.gold
+    sim:applyTownEvent("clear_roads")
+    expect(sim.estate.gold == gold + 30 and sim.estate.currentEvent == "clear_roads", "town event should apply gold effect")
+    sim:applyTownEvent("supply_cache")
+    expect(sim.estate.provisionCart:count("torch") > 0, "town event should add provisions")
+    local heirlooms = sim.estate.heirlooms
+    sim:applyTownEvent("archivist_tithe")
+    expect(sim.estate.heirlooms == heirlooms + 1, "town event should apply heirloom effect")
+    sim:applyTownEvent("old_maps")
+    expect(sim.estate.provisionCart:count("ward_charm") == 1, "town event should add rare provisions")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(31)
+    sim:endExpedition(true)
+    local rosterSize = #sim.estate.roster
+    local gold = sim.estate.gold
+    runQueued(sim, Simulation.commands.recruitHero(1))
+    expect(#sim.estate.roster == rosterSize + 1, "recruitment should add a hero")
+    expect(sim.estate.gold == gold - 20, "recruitment should spend stagecoach cost")
+    expect(#sim.estate.recruits == sim:recruitSlots(), "recruitment should refill candidates")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(72)
+    sim:endExpedition(true)
+    for _, hero in ipairs(sim.estate.roster) do
+        hero.alive = false
+    end
+    sim.estate.recruits = {}
+    sim:refillRecruits()
+    expect(#sim.estate.recruits == 4, "stagecoach should expose enough recruits after catastrophic roster loss")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(70)
+    sim:endExpedition(true)
+    sim.estate.gold = 200
+    runQueued(sim, Simulation.commands.recruitHero(1))
+    local hero = sim.estate.roster[#sim.estate.roster]
+    runQueued(sim, Simulation.commands.equipTrinket(hero.id, "cracked_lens", 1))
+    expect(not sim:dismissHero(sim:heroAtRank(1).id), "dismiss should reject party heroes")
+    runQueued(sim, Simulation.commands.dismissHero(hero.id))
+    expect(not sim:heroById(hero.id), "dismiss should remove roster hero")
+    expect(sim.estate.dismissed[1].id == hero.id and sim.estate.trinkets.cracked_lens >= 1, "dismiss should record history and return trinkets")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.estate.dismissed[1].id == hero.id, "dismiss history should survive snapshot")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(44)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.recruitHero(1))
+    local hero = sim.estate.roster[#sim.estate.roster]
+    runQueued(sim, Simulation.commands.assignParty(hero.id, 4))
+    expect(sim.party[4] == hero.id and sim.player.selectedHero == 4, "assign party should place roster hero in target rank")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(45)
+    sim:endExpedition(true)
+    local gold = sim.estate.gold
+    runQueued(sim, Simulation.commands.buyProvision("torch", 2))
+    expect(sim.estate.gold == gold - 10 and sim.estate.provisionCart:count("torch") == 2, "buy provision should spend gold into cart")
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim.expedition.supplies:count("torch") == 6, "start expedition should merge provision cart")
+    expect(sim.estate.provisionCart:count("torch") == 0, "start expedition should clear provision cart")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(46)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_survey"))
+    expect(sim.expedition.supplies:count("torch") == 3 and sim.expedition.supplies:count("ration") == 10, "cistern should use location provision kit")
+    sim = Simulation.new(47)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("ember_cleansing"))
+    expect(sim.expedition.supplies:count("torch") == 5 and sim.expedition.supplies:count("ward_charm") == 1, "ember should use location provision kit")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(32)
+    sim:endExpedition(true)
+    local hero = sim:heroAtRank(1)
+    hero.stress = 0
+    runQueued(sim, Simulation.commands.equipTrinket(hero.id, "ember_pin", 1))
+    expect(hero.trinkets[1] == "ember_pin" and sim.estate.trinkets.ember_pin == 0, "equip should move trinket to hero")
+    sim:addStress(hero, 10)
+    expect(hero.stress == 8, "quirk and trinket stress modifiers should stack")
+    runQueued(sim, Simulation.commands.unequipTrinket(hero.id, 1))
+    expect(hero.trinkets[1] == false and sim.estate.trinkets.ember_pin == 1, "unequip should return trinket")
+    local gold = sim.estate.gold
+    runQueued(sim, Simulation.commands.sellTrinket("ember_pin"))
+    expect(sim.estate.trinkets.ember_pin == 0 and sim.estate.gold == gold + Defs.trinket("ember_pin").value, "sell should convert unequipped trinket to gold")
+    expect(not sim:sellTrinket("ember_pin"), "sell should reject missing trinket")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(73)
+    sim:endExpedition(true)
+    sim.estate.gold = 1000
+    sim:refillTrinketMarket(true)
+    local offer = sim.estate.trinketStock[1]
+    local count = sim.estate.trinkets[offer.trinket] or 0
+    runQueued(sim, Simulation.commands.buyTrinket(1))
+    expect(sim.estate.trinkets[offer.trinket] == count + 1 and sim.estate.gold == 1000 - offer.price, "market buy should spend gold and add trinket")
+    expect(#sim.estate.trinketStock == sim:trinketMarketSlots() - 1, "market buy should remove offer")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(#loaded.estate.trinketStock == #sim.estate.trinketStock, "market stock should survive snapshot")
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(#sim.estate.trinketStock == sim:trinketMarketSlots(), "new week should refill market stock")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(33)
+    sim:endExpedition(true)
+    sim.estate.gold = 200
+    local hero = sim:heroAtRank(2)
+    runQueued(sim, Simulation.commands.upgradeSkill(hero.id, "razor_lunge"))
+    expect(hero.skillLevels.razor_lunge == 2 and sim.estate.gold == 170, "skill upgrade should spend gold and raise level")
+    runQueued(sim, Simulation.commands.upgradeGear(hero.id, "weapon"))
+    expect(hero.weapon == 1 and sim.estate.gold == 135, "weapon upgrade should spend gold")
+    local hp = sim:maxHp(hero)
+    runQueued(sim, Simulation.commands.upgradeGear(hero.id, "armor"))
+    expect(hero.armor == 1 and sim:maxHp(hero) == hp + 3, "armor upgrade should raise max hp")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(34)
+    sim:endExpedition(true)
+    sim.estate.gold = 200
+    sim.estate.heirlooms = 10
+    local hero = sim:heroAtRank(1)
+    runQueued(sim, Simulation.commands.upgradeBuilding("stagecoach"))
+    expect(sim:buildingLevel("stagecoach") == 1 and sim:rosterLimit() == 8, "stagecoach upgrade should raise roster limit")
+    expect(#sim.estate.recruits == 4 and sim.estate.heirlooms == 8, "stagecoach upgrade should refill and spend heirlooms")
+    runQueued(sim, Simulation.commands.treatQuirk(hero.id, "brittle"))
+    expect(not string.find(table.concat(hero.quirks, ","), "brittle"), "quirk treatment should remove negative quirk")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(63)
+    local hero = sim:heroAtRank(1)
+    hero.quirks = { "iron_nerves", "quick_reflexes" }
+    expect(sim:gainQuirk(hero, "positive"), "gain quirk should add new positive quirk")
+    expect(#hero.quirks == 3, "gain quirk should grow quirk list")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(64)
+    sim:endExpedition(true)
+    sim.estate.gold = 200
+    local hero = sim:heroAtRank(1)
+    hero.quirks = { "iron_nerves", "quick_reflexes", "steady_hand", "field_reader", "hard_skinned" }
+    runQueued(sim, Simulation.commands.lockQuirk(hero.id, "iron_nerves"))
+    expect(hero.lockedQuirks.iron_nerves == true and sim.estate.gold == 155, "lock quirk should spend gold and mark positive quirk")
+    sim:gainQuirk(hero, "negative")
+    expect(contains(hero.quirks, "iron_nerves"), "locked quirk should not be replaced")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(65)
+    local hero = sim:heroAtRank(1)
+    hero.stress = 99
+    hero.class = "warden"
+    sim:addStress(hero, 2)
+    expect(hero.virtue == nil or Defs.virtue(hero.virtue), "resolve virtue should be from registry")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(49)
+    local hero = sim:heroAtRank(1)
+    sim:contractDisease(hero, "brine_rot")
+    expect(hero.diseases[1] == "brine_rot" and sim:maxHp(hero) < 28, "disease should apply stat modifier")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(50)
+    sim:endExpedition(true)
+    sim.estate.gold = 100
+    local hero = sim:heroAtRank(1)
+    sim:contractDisease(hero, "salt_cough")
+    runQueued(sim, Simulation.commands.treatDisease(hero.id, "salt_cough"))
+    expect(#hero.diseases == 0 and sim.estate.gold == 70, "treat disease should spend infirmary cost and remove disease")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(29)
+    runQueued(sim, Simulation.commands.move("east"))
+    runQueued(sim, Simulation.commands.useItem("torch"))
+    local text = Save.toText(sim)
+    expect(text:match("^THOTH_LUA_SAVE 3"), "save writer should use v3 header")
+    local loaded = assert(Save.fromText(text))
+    expect(sameSnapshot(sim, loaded), "save round trip should preserve snapshot")
+    local oldSnapshot = sim:snapshot()
+    oldSnapshot.version = 2
+    oldSnapshot.expedition.threatState = nil
+    oldSnapshot.expedition.noise = nil
+    oldSnapshot.expedition.ambushRolls = nil
+    oldSnapshot.expedition.generatedLayoutId = nil
+    oldSnapshot.world.layoutId = nil
+    local oldLoaded = assert(Save.fromText("THOTH_LUA_SAVE 2\n" .. Serialize.encode(oldSnapshot) .. "\n"))
+    expect(oldLoaded.expedition.threatState and oldLoaded.expedition.noise == 0 and oldLoaded.world.layoutId == oldLoaded.expedition.mission, "v2 save should load pressure defaults")
+    local old, err = Save.fromText("THOTH_LUA_SAVE 1\n{}\n")
+    expect(old == nil and tostring(err):find("unsupported save version"), "legacy save should fail explicitly")
+end
+
+tests[#tests + 1] = function()
+    local frames = {
+        { tick = 0, command = Simulation.commands.move("east") },
+        { tick = 1, command = Simulation.commands.useItem("torch") },
+        { tick = 2, command = Simulation.commands.selectHero(2) },
+    }
+    local replay = Replay.run(30, frames, 4)
+    local direct = Simulation.new(30)
+    for tick = 0, 3 do
+        for _, frame in ipairs(frames) do
+            if frame.tick == tick then
+                direct:queue(frame.command)
+            end
+        end
+        direct:step()
+    end
+    expect(sameSnapshot(replay, direct), "replay should equal direct simulation")
+    local text = Replay.toText(30, frames, 4)
+    local decoded = assert(Replay.fromText(text))
+    expect(decoded.version == 2 and decoded.finalTick == 4, "replay v2 should decode")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(89)
+    local before = sim.eventSerial or 0
+    sim:pushLog("combat: test", { event = "combat_start" })
+    expect(sim.eventSerial == before + 1 and sim.events[#sim.events].message == "combat: test", "pushLog should buffer visual events")
+    expect(sim.events[#sim.events].event == "combat_start", "pushLog should keep transient event metadata")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect((loaded.eventSerial or 0) == 0 and #(loaded.events or {}) == 0, "visual event buffer should not persist in saves")
+    loaded:pushLog("combat won")
+    expect(loaded.eventSerial == 1 and loaded.events[1].message == "combat won", "loaded sim should resume visual event ids")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(91)
+    reachEntryCombat(sim)
+    local startEvent = sim.events[#sim.events]
+    expect(startEvent.event == "combat_start" and startEvent.boss == false and startEvent.enemies[1] == "Hollow Guard", "normal combat should emit start metadata")
+    sim:finishCombat(true)
+    expect(sim.events[#sim.events].event == "combat_win", "normal victory should emit combat_win")
+    sim = Simulation.new(92)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_regent"))
+    expect(sim:startCombat("regent", "24:0"), "boss combat should start")
+    startEvent = sim.events[#sim.events]
+    expect(startEvent.event == "boss_start" and startEvent.boss == true and startEvent.enemies[1] == "Vault Regent", "boss combat should emit boss_start")
+    sim:finishCombat(true)
+    expect(sim.events[#sim.events].event == "boss_win" and sim.events[#sim.events].boss == true, "boss victory should emit boss_win")
+    sim = Simulation.new(93)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_regent"))
+    expect(sim:startCombat("regent", "24:0"), "boss combat should start for loss")
+    sim:finishCombat(false)
+    expect(sim.events[#sim.events].event == "boss_loss" and sim.events[#sim.events].boss == true, "boss loss should emit boss_loss")
+end
+
+tests[#tests + 1] = function()
+    local view = {
+        centerX = 400,
+        centerY = 260,
+        halfW = 32,
+        halfH = 16,
+        originX = 10,
+        originY = -4,
+        rotation = 0,
+    }
+    local sx, sy = Render.projectIso(view, 13, -2)
+    local wx, wy = Render.screenToWorld(view, sx, sy)
+    expect(wx == 13 and wy == -2, "iso projection should round trip")
+    view.rotation = 1
+    sx, sy = Render.projectIso(view, 10, -1)
+    wx, wy = Render.screenToWorld(view, sx, sy)
+    expect(wx == 10 and wy == -1, "rotated iso projection should round trip")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(90)
+    reachEntryCombat(sim)
+    local hero = sim:activeHero()
+    local enemy = sim:enemyAtRank(1)
+    local heroCutscene = Render.cutsceneForStatus(hero.name .. " used Razor Lunge", sim)
+    expect(heroCutscene and heroCutscene.kind == "strike" and heroCutscene.side == "ally", "hero skill should map to ally strike cutscene")
+    expect(heroCutscene.beat == "strike" and heroCutscene.focus == "actor" and heroCutscene.caption == "Skill", "legacy hero skill cutscene should carry strike profile metadata")
+    local enemyName = Defs.enemy(enemy.kind).name
+    local enemyCutscene = Render.cutsceneForStatus(enemyName .. " used Rusted Chop", sim)
+    expect(enemyCutscene and enemyCutscene.kind == "strike" and enemyCutscene.side == "enemy", "enemy skill should map to enemy strike cutscene")
+    expect(enemyCutscene.camera == "hit" and enemyCutscene.mood == "action", "enemy strike cutscene should carry action camera metadata")
+    local bossStartCutscene = Render.cutsceneForEvent({ message = "combat: regent", event = "boss_start", boss = true, enemies = { "Vault Regent" } }, sim)
+    expect(bossStartCutscene.kind == "boss_intro", "boss start should map to boss intro")
+    expect(bossStartCutscene.caption == "Vault Regent", "boss start cutscene should caption enemy name")
+    local bossSkillCutscene = Render.cutsceneForEvent({ message = "Vault Regent used Sentence", event = "boss_skill", actor = "Vault Regent", skill = "Sentence", boss = true }, sim)
+    expect(bossSkillCutscene.kind == "boss_strike", "boss skill should map to boss strike")
+    expect(bossSkillCutscene.mood == "boss" and bossSkillCutscene.beat == "smite" and bossSkillCutscene.caption == "Sentence", "boss strike should carry boss scene metadata")
+    expect(Render.cutsceneForEvent({ message = "combat won", event = "boss_win", boss = true, enemies = { "Vault Regent" } }, sim).kind == "boss_victory", "boss win should map to boss victory")
+    expect(Render.cutsceneForEvent({ message = "party lost", event = "boss_loss", boss = true, enemies = { "Vault Regent" } }, sim).kind == "boss_defeat", "boss loss should map to boss defeat")
+    expect(Render.cutsceneForEvent({ message = "retreated", event = "retreat" }, sim).kind == "retreat", "retreat should map to retreat cutscene")
+    expect(Render.cutsceneForEvent({ message = "ambush blocks retreat", event = "retreat_blocked" }, sim).kind == "blocked", "blocked retreat should map to blocked cutscene")
+    expect(Render.cutsceneForEvent({ message = "Mara reached death's door", event = "death_door", actor = "Mara" }, sim).kind == "death_door", "death door should map to death door cutscene")
+    expect(Render.cutsceneForEvent({ message = "Mara clung to life", event = "death_save", actor = "Mara" }, sim).kind == "death_save", "death save should map to death save cutscene")
+    expect(Render.cutsceneForEvent({ message = "Mara fell", event = "hero_death", actor = "Mara" }, sim).kind == "hero_death", "hero death should map to death cutscene")
+    expect(Render.cutsceneForEvent({ message = "Mara steadied", event = "resolve_virtue", actor = "Mara" }, sim).kind == "resolve_virtue", "virtue should map to resolve cutscene")
+    expect(Render.cutsceneForEvent({ message = "Mara is Panic", event = "resolve_affliction", actor = "Mara" }, sim).kind == "resolve_affliction", "affliction should map to resolve cutscene")
+    expect(Render.cutsceneForEvent({ message = "Mara breaks under the dark", event = "stress_break", actor = "Mara" }, sim).kind == "stress_break", "stress break should map to stress cutscene")
+    local idle = Render.idleCombatScene(sim)
+    expect(idle and idle.kind == "idle" and idle.title == hero.name .. " acts", "combat should expose persistent idle stage scene")
+    expect(idle.mood == "watch" and idle.beat == "idle", "idle combat scene should carry ambient stage metadata")
+    expect(Render.cutsceneForStatus("combat: entry", sim).kind == "intro", "combat start should map to intro cutscene")
+    expect(Render.cutsceneForStatus("combat won", sim).kind == "victory", "combat win should map to victory cutscene")
+    expect(Render.cutsceneForStatus("campaign sealed", sim).beat == "seal", "campaign victory should map to seal beat")
+    expect(Render.cutsceneForStatus("Moth fell", sim).kind == "danger", "death event should map to danger cutscene")
+    expect(Render.cutsceneForStatus("used Torch", sim) == nil, "provision use should not map to combat cutscene")
+    local app = { cutscene = Render.cutsceneForStatus("combat won", sim) }
+    Render.advanceCutscene(app, 1)
+    expect(app.cutscene == nil, "advanceCutscene should expire completed cutscene")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(52)
+    sim:endExpedition(true)
+    local app = {
+        ui = {
+            missionButtons = { { x = 0, y = 0, w = 20, h = 20, missionKey = "ember_cleansing" } },
+            recruitButtons = {},
+            provisionButtons = {},
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    sim:step()
+    expect(sim.expedition.mission == "ember_cleansing" and sim.expedition.location == "ember_warrens", "mission button should start selected mission")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(53)
+    sim:endExpedition(true)
+    local app = {
+        ui = {
+            missionButtons = {},
+            recruitButtons = { { x = 0, y = 0, w = 20, h = 20, recruitIndex = 1 } },
+            provisionButtons = { { x = 30, y = 0, w = 20, h = 20, item = "torch" } },
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    sim:step()
+    expect(#sim.estate.roster == 5, "recruit button should queue recruitment")
+    local torches = sim.estate.provisionCart:count("torch")
+    Input.mousepressed(sim, app, 35, 5, 1)
+    sim:step()
+    expect(sim.estate.provisionCart:count("torch") == torches + 1, "provision button should buy item")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(59)
+    sim:endExpedition(true)
+    sim.estate.gold = 200
+    sim.estate.heirlooms = 10
+    local hero = sim:heroAtRank(1)
+    hero.stress = 40
+    sim:contractDisease(hero, "salt_cough")
+    local app = {
+        ui = {
+            estateActionButtons = {
+                { x = 0, y = 0, w = 20, h = 20, action = "upgradeGear", heroId = hero.id, kind = "weapon" },
+                { x = 30, y = 0, w = 20, h = 20, action = "treatDisease", heroId = hero.id, diseaseKey = "salt_cough" },
+                { x = 60, y = 0, w = 20, h = 20, action = "equipTrinket", heroId = hero.id, trinketKey = "ember_pin", slot = 1 },
+                { x = 90, y = 0, w = 20, h = 20, action = "lockQuirk", heroId = hero.id, quirkKey = "iron_nerves" },
+                { x = 120, y = 0, w = 20, h = 20, action = "recoverHero", heroId = hero.id, activityKey = "quiet_rest" },
+                { x = 150, y = 0, w = 20, h = 20, action = "sellTrinket", trinketKey = "cracked_lens" },
+            },
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    sim:step()
+    expect(hero.weapon == 1, "estate gear button should upgrade weapon")
+    Input.mousepressed(sim, app, 35, 5, 1)
+    sim:step()
+    expect(#hero.diseases == 0, "estate disease button should treat disease")
+    Input.mousepressed(sim, app, 65, 5, 1)
+    sim:step()
+    expect(hero.trinkets[1] == "ember_pin", "estate trinket button should equip trinket")
+    Input.mousepressed(sim, app, 95, 5, 1)
+    sim:step()
+    expect(hero.lockedQuirks.iron_nerves == true, "estate lock button should lock positive quirk")
+    Input.mousepressed(sim, app, 125, 5, 1)
+    sim:step()
+    expect(hero.recoveryActivity == "quiet_rest", "estate recover button should pass activity key")
+    local gold = sim.estate.gold
+    Input.mousepressed(sim, app, 155, 5, 1)
+    sim:step()
+    expect(sim.estate.trinkets.cracked_lens == 0 and sim.estate.gold == gold + Defs.trinket("cracked_lens").value, "estate sell button should sell exact trinket")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(71)
+    sim:endExpedition(true)
+    sim.estate.gold = 200
+    runQueued(sim, Simulation.commands.recruitHero(1))
+    local hero = sim.estate.roster[#sim.estate.roster]
+    local app = { ui = { estateActionButtons = { { x = 0, y = 0, w = 20, h = 20, action = "dismissHero", heroId = hero.id } } } }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    sim:step()
+    expect(not sim:heroById(hero.id), "estate dismiss button should dismiss roster hero")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(74)
+    sim:endExpedition(true)
+    sim.estate.gold = 1000
+    local offer = sim.estate.trinketStock[1]
+    local count = sim.estate.trinkets[offer.trinket] or 0
+    local app = { ui = { estateActionButtons = { { x = 0, y = 0, w = 20, h = 20, action = "buyTrinket", stockIndex = 1 } } } }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    sim:step()
+    expect(sim.estate.trinkets[offer.trinket] == count + 1, "estate market button should buy offered trinket")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(62)
+    sim:endExpedition(true)
+    local hero = sim:heroAtRank(1)
+    sim:equipTrinket(hero.id, "ember_pin", 1)
+    local app = {
+        ui = {
+            rosterButtons = { { x = 0, y = 0, w = 20, h = 20, heroId = hero.id } },
+            estateActionButtons = { { x = 30, y = 0, w = 20, h = 20, action = "unequipTrinket", heroId = hero.id, slot = 1 } },
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    expect(app.estateHeroId == hero.id, "roster button should select exact hero")
+    Input.mousepressed(sim, app, 35, 5, 1)
+    sim:step()
+    expect(hero.trinkets[1] == false and sim.estate.trinkets.ember_pin == 1, "unequip button should return exact trinket")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(75)
+    sim:endExpedition(true)
+    local app = {
+        ui = {
+            estateActionButtons = {
+                { x = 0, y = 0, w = 20, h = 20, action = "rosterFilter", filter = "stressed" },
+                { x = 30, y = 0, w = 20, h = 20, action = "rosterSort", sort = "level" },
+            },
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    expect(app.rosterFilter == "stressed", "roster filter button should set local filter")
+    Input.mousepressed(sim, app, 35, 5, 1)
+    expect(app.rosterSort == "level", "roster sort button should set local sort")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(51)
+    reachEntryCombat(sim)
+    local enemy = sim:enemyAtRank(2)
+    local hp = enemy.hp
+    local app = {
+        ui = {
+            skillButtons = { { x = 0, y = 0, w = 30, h = 30, skillKey = "razor_lunge", targetSide = "enemy" } },
+            enemyButtons = { { x = 40, y = 0, w = 30, h = 30, rank = 2, side = "enemy" } },
+            heroButtons = {},
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    expect(app.pendingSkillKey == "razor_lunge" and sim.commandQueue[1] == nil, "skill click should wait for target")
+    Input.mousepressed(sim, app, 45, 5, 1)
+    sim:step()
+    expect(enemy.hp < hp and app.pendingSkillKey == nil, "enemy click should dispatch targeted skill")
 end
 
 tests[#tests + 1] = function()
     local app = {
         ui = {
-            machineButtons = { { stale = true } },
-            recipeCards = { { stale = true } },
-            inventoryCells = { { stale = true } },
-            hotbarSlots = { { stale = true } },
-            hotbarClears = { { stale = true } },
+            skillButtons = { { stale = true } },
+            heroButtons = { { stale = true } },
+            enemyButtons = { { stale = true } },
+            itemButtons = { { stale = true } },
+            missionButtons = { { stale = true } },
+            recruitButtons = { { stale = true } },
+            provisionButtons = { { stale = true } },
+            estateActionButtons = { { stale = true } },
+            rosterButtons = { { stale = true } },
         },
     }
-    local oldUi = app.ui
-    local oldCards = app.ui.recipeCards
+    local oldSkills = app.ui.skillButtons
+    local oldEnemies = app.ui.enemyButtons
     Render.prepareUi(app)
-    expect(app.ui == oldUi, "prepareUi should reuse the ui table")
-    expect(app.ui.recipeCards == oldCards, "prepareUi should reuse hitbox arrays")
-    expect(#app.ui.machineButtons == 0 and #app.ui.recipeCards == 0, "prepareUi should clear stale hitboxes")
-    expect(#app.ui.inventoryCells == 0 and #app.ui.hotbarSlots == 0 and #app.ui.hotbarClears == 0, "prepareUi should clear all ui hitbox lists")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(38)
-    sim.world:setTile(1, 0, 0, { id = "stairs_down", data = 0 })
-    sim.world:setTile(2, 0, -1, { id = "stairs_up", data = 0 })
-    sim:queue(Simulation.commands.move("east"))
-    sim:step()
-    expect(sim.player.x == 1 and sim.player.z == -1, "stairs down should move player to lower layer")
-    sim:queue(Simulation.commands.move("east"))
-    sim:step()
-    expect(sim.player.x == 2 and sim.player.z == 0, "stairs up should move player to upper layer")
-    local tutorial = Simulation.new(39, true)
-    tutorial.player.x = 4
-    tutorial.player.y = 0
-    tutorial:queue(Simulation.commands.move("east"))
-    tutorial:step()
-    expect(tutorial.player.z == 2 and tutorial:tutorialState().active, "tutorial stairs should stay locked before checklist completion")
-end
-
-tests[#tests + 1] = function()
-    local world = World.new(404)
-    expect(world:getTile(0, 0, -1).id == "stairs_up", "generic dungeon should expose return stairs")
-    expect(world:getTile(1, 1, -1).id == "dungeon_wall", "generic dungeon should have walls")
-    expect(world:getTile(8, 1, -1).id == "dungeon_floor", "generic dungeon should have corridors")
-    expect(world:getTile(0, 18, -1).id == "stairs_up", "authored lair interior should expose return stairs")
-    expect(world:getTile(5, 18, -1).id == "dungeon_wall", "authored lair interior boundary missing")
-    expect(world:getTile(3, 19, -1).id == "reeds", "authored lair interior material missing")
-    expect(world:getTile(417, -453, -1).id == "stairs_up", "generated lair interior should expose return stairs")
-end
-
-tests[#tests + 1] = function()
-    local world = World.new(505)
-    expect(world:getTile(24, 2, 0).id == "cactus", "desert material missing")
-    expect(world:getTile(2, 9, 0).id == "reeds", "marsh material missing")
-    expect(world:getTile(-16, -10, 0).id == "ice", "snowfield material missing")
-    expect(world:getTile(28, 12, 0).id == "basalt", "badlands material missing")
-    expect(world:getTile(-28, 16, 0).id == "crystal", "crystal field material missing")
-    local riftMaterial = world:getTile(3844, -29, 0).id
-    expect(riftMaterial == "stone" or riftMaterial == "iron_ore" or riftMaterial == "copper_ore" or riftMaterial == "coal_ore", "rift material missing")
-end
-
-tests[#tests + 1] = function()
-    local world = World.new(606)
-    expect(world:biomeAt(-8, -80, 0) ~= "grassland", "biome cache sample should be in a biome")
-    expect(world:getTile(-8, -80, 0).id == "recovery_crate", "biome cache crate missing")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(40)
-    sim.player.x = 1
-    sim.player.y = 18
-    sim:queue(Simulation.commands.mine("east"))
-    sim:step()
-    expect(sim:itemCount("lair_hearth") == 1, "lair hearth should be claimable")
-    expect(sim.world:getTile(2, 18, 0).id == "grass", "claimed lair hearth should clear")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(606)
-    sim.player.x = -9
-    sim.player.y = -80
-    sim:queue(Simulation.commands.mine("east"))
-    sim:step()
-    expect(sim:itemCount("recovery_crate") == 1, "recovery crate should be claimable")
-    expect(sim.world:getTile(-8, -80, 0).id == "grass", "claimed recovery crate should clear")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(607)
-    sim.player.z = -1
-    sim.world:setTile(1, 0, -1, { id = "recovery_crate", data = 0 })
-    sim:queue(Simulation.commands.mine("east"))
-    sim:step()
-    expect(sim.productionTotals.dungeon_chests_opened == 1, "dungeon recovery crate should count as opened cache")
-    expect(sim.world:getTile(1, 0, -1).id == "dungeon_floor", "dungeon cache should clear to dungeon floor")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded.productionTotals.dungeon_chests_opened == 1, "opened dungeon cache counter should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(404)
-    sim.player.x = 417
-    sim.player.y = -453
-    sim.player.z = -1
-    expect(sim.world:lairAt(417, -453, -1) == "marsh_hive", "generated lair cache identity missing before save")
-    expect(sim.world:getTile(417, -453, -1).id == "stairs_up", "generated lair interior missing before save")
-    sim.world:setTile(8, 1, -1, { id = "recovery_crate", data = 0 })
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded.player.z == -1, "dungeon player layer should persist")
-    expect(loaded.world:lairAt(417, -453, -1) == "marsh_hive", "generated lair cache identity should persist")
-    expect(loaded.world:getTile(417, -453, -1).id == "stairs_up", "generated lair interior should persist")
-    expect(loaded.world:getTile(8, 1, -1).id == "recovery_crate", "dungeon tile override should persist")
-end
-
-tests[#tests + 1] = function()
-    local a = Simulation.new(42)
-    local b = Simulation.new(42)
-    local commands = {
-        Simulation.commands.face("west"),
-        Simulation.commands.mine("west"),
-        Simulation.commands.move("east"),
-        Simulation.commands.move("east"),
-        Simulation.commands.mine("east"),
-    }
-    for _, command in ipairs(commands) do
-        a:queue(command)
-        b:queue(command)
-        a:step()
-        b:step()
-    end
-    expect(sameSnapshot(a, b), "same seed and commands diverged")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(43)
-    sim:queue(Simulation.commands.damagePlayer(7))
-    sim:step()
-    expect(sim.player.hp == 13, "player damage should reduce hp")
-    sim:queue(Simulation.commands.healPlayer(100))
-    sim:step()
-    expect(sim.player.hp == 20, "player healing should clamp to max hp")
-    sim:queue(Simulation.commands.damagePlayer(25))
-    sim:step()
-    expect(sim.player.hp == 0, "player damage should clamp at zero")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded.player.hp == 0, "player hp should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(44)
-    local entity = sim:addEntity("slime", 1, 0, 0, 2)
-    sim:queue(Simulation.commands.attack("east"))
-    sim:step()
-    expect(entity.hp == 1, "attack should damage entity hp")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(#loaded.entities == 1 and loaded.entities[1].hp == 1, "entity hp should persist")
-    loaded:queue(Simulation.commands.attack("east"))
-    loaded:step()
-    expect(#loaded.entities == 0, "entity should be removed at zero hp")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(45)
-    local entity = sim:addEntity("slime", 1, 0, 0, 3)
-    sim:step()
-    expect(sim.player.hp == 19 and entity.attackCooldown == 30, "adjacent entity should attack and enter cooldown")
-    sim:step()
-    expect(sim.player.hp == 19 and entity.attackCooldown == 29, "entity cooldown should delay repeat attacks")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded.entities[1].attackCooldown == 29, "entity attack cooldown should persist")
-    runSteps(loaded, 29)
-    expect(loaded.player.hp == 18, "entity should attack again after cooldown")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(46)
-    sim.player.x = 4
-    local entity = sim:addEntity("slime", 0, 0, 0, 3)
-    sim:step()
-    expect(entity.x == 1 and entity.y == 0, "hostile should path toward player")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(47)
-    sim.player.x = 10
-    sim.world:setTile(-1, 0, 0, { id = "grass", data = 0 })
-    sim:addMachine("chest", -4, 0, "south")
-    local entity = sim:addEntity("slime", 0, 0, 0, 3)
-    sim:step()
-    expect(entity.x == -1 and entity.y == 0, "hostile should path toward nearest infrastructure")
-end
-
-tests[#tests + 1] = function()
-    local safe = Simulation.new(48)
-    safe:ensureLocalEntities()
-    expect(#safe.entities == 0, "starter grassland should not spawn local hostiles")
-    local sim = Simulation.new(49)
-    sim.player.x = 0
-    sim.player.y = 12
-    sim:step()
-    expect(#sim.entities > 0, "marsh should spawn local hostiles")
-    for _, entity in ipairs(sim.entities) do
-        expect(entity.kind == "slime", "marsh should spawn slime hostiles")
-        expect(entity.hp == sim:entityMaxHp(entity.kind), "local hostile should use kind hp")
-        expect(sim.world:biomeAt(entity.x, entity.y, entity.z) == "marsh", "local hostile should stay in player biome")
-    end
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(50)
-    sim.player.x = 0
-    sim.player.y = 16
-    local boss = sim:addEntity("marsh_broodheart", 0, 12, 0)
-    expect(boss.hp == 14 and sim:isBossKind(boss.kind), "marsh boss stats missing")
-    boss.hp = 7
-    sim.tick = 90
-    sim:updateEntities()
-    local spawned = false
-    for _, entity in ipairs(sim.entities) do
-        if entity.kind == "slime" then
-            spawned = true
-        end
-    end
-    expect(spawned, "marsh boss half-health phase should spawn slime")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(51)
-    local boss = sim:addEntity("glass_maw", 1, 0, 0)
-    expect(boss.hp == 16 and sim:isBossKind(boss.kind), "glass boss stats missing")
-    sim:attack("east")
-    expect(boss.hp == 15, "glass boss should resist attacks before pressure proof")
-    sim.productionTotals.pressure_waves_repelled = 1
-    sim:attack("east")
-    expect(boss.hp == 13, "glass boss resistance should drop after pressure proof")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(52)
-    local boss = sim:addEntity("badlands_warden", 1, 0, 0)
-    expect(boss.hp == 18 and sim:isBossKind(boss.kind), "badlands boss stats missing")
-    sim:attack("east")
-    expect(boss.hp == 16, "badlands boss should take boss-scale player damage")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(53)
-    sim.player.y = 5
-    local machine = sim:addMachine("assembler", 1, 0, "south")
-    machine.progress = 12
-    machine.status = "working"
-    local boss = sim:addEntity("frost_nullifier", 3, 0, 0)
-    expect(boss.hp == 20 and sim:isBossKind(boss.kind), "frost boss stats missing")
-    sim.tick = 120
-    sim:updateEntities()
-    expect(machine.progress == 0 and machine.status == "missing_power", "frost boss pulse should null nearby machines")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(54)
-    sim.player.y = 5
-    local boss = sim:addEntity("rift_signal_tyrant", 0, 0, 0)
-    expect(boss.hp == 24 and sim:isBossKind(boss.kind), "rift boss stats missing")
-    sim.tick = 90
-    sim:updateEntities()
-    local stalkers = 0
-    for _, entity in ipairs(sim.entities) do
-        if entity.kind == "rift_stalker" then
-            stalkers = stalkers + 1
-        end
-    end
-    expect(stalkers == 1, "rift boss should spawn stalker before outpost coverage")
-    sim.productionTotals.outposts_activated = 5
-    sim.tick = 180
-    sim:updateEntities()
-    local afterCoverage = 0
-    for _, entity in ipairs(sim.entities) do
-        if entity.kind == "rift_stalker" then
-            afterCoverage = afterCoverage + 1
-        end
-    end
-    expect(afterCoverage == stalkers, "rift boss should stop stalker phase after outpost coverage")
-end
-
-tests[#tests + 1] = function()
-    local function satisfyBossExam(sim, kind)
-        if kind == "marsh_broodheart" then
-            sim.productionTotals.water_barrel = 3
-        elseif kind == "glass_maw" then
-            sim:addItem("sand_glass", 3)
-        elseif kind == "badlands_warden" then
-            sim.productionTotals.powered_ore = 8
-        elseif kind == "frost_nullifier" then
-            sim.productionTotals.logistic_deliveries = 3
-        elseif kind == "rift_signal_tyrant" then
-            sim.productionTotals.archive_signals = 1
-            sim.productionTotals.rift_jumps = 1
-            sim.productionTotals.outposts_activated = 3
-        end
-    end
-    local cases = {
-        { 0, 18, "marsh_hive", "marsh_broodheart" },
-        { 18, -2, "glass_spire", "glass_maw" },
-        { 36, 20, "badlands_foundry", "badlands_warden" },
-        { -18, 0, "frost_vault", "frost_nullifier" },
-        { -36, 20, "crystal_vault", "rift_signal_tyrant" },
-    }
-    for _, case in ipairs(cases) do
-        local sim = Simulation.new(55)
-        satisfyBossExam(sim, case[4])
-        addItems(sim, bossCosts[case[4]])
-        expect(sim:trySummonBossAt(case[1], case[2], 0), "boss summon should pass at lair " .. case[3])
-        expect(#sim.entities == 1 and sim.entities[1].kind == case[4], "boss summon kind mismatch " .. case[4])
-        expect(sim.world:lairAt(sim.entities[1].x, sim.entities[1].y, 0) == case[3], "boss should spawn inside matching lair")
-    end
-    local blocked = Simulation.new(55)
-    expect(not blocked:trySummonBossAt(0, 0, 0), "boss summon should reject non-lair location")
-end
-
-tests[#tests + 1] = function()
-    local marsh = Simulation.new(56)
-    expect(not marsh:trySummonBossAt(0, 18, 0), "marsh boss should require water-barrel exam")
-    marsh.productionTotals.water_barrel = 3
-    addItems(marsh, bossCosts.marsh_broodheart)
-    expect(marsh:trySummonBossAt(0, 18, 0), "marsh boss exam should unlock summon")
-    local glass = Simulation.new(57)
-    expect(not glass:trySummonBossAt(18, -2, 0), "glass boss should require sand-glass exam")
-    addItems(glass, bossCosts.glass_maw)
-    expect(glass:trySummonBossAt(18, -2, 0), "glass boss exam should unlock summon")
-    local badlands = Simulation.new(58)
-    expect(not badlands:trySummonBossAt(36, 20, 0), "badlands boss should require powered-ore exam")
-    badlands.productionTotals.powered_ore = 8
-    addItems(badlands, bossCosts.badlands_warden)
-    expect(badlands:trySummonBossAt(36, 20, 0), "badlands boss exam should unlock summon")
-    local frost = Simulation.new(59)
-    expect(not frost:trySummonBossAt(-18, 0, 0), "frost boss should require logistics exam")
-    frost.productionTotals.logistic_deliveries = 3
-    addItems(frost, bossCosts.frost_nullifier)
-    expect(frost:trySummonBossAt(-18, 0, 0), "frost boss exam should unlock summon")
-    expect(#frost:bossExamProgress() == 5, "boss exam progress should expose all exams")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(60)
-    sim.productionTotals.water_barrel = 3
-    expect(not sim:trySummonBossAt(0, 18, 0), "boss summon should require item costs")
-    addItems(sim, bossCosts.marsh_broodheart)
-    expect(sim:trySummonBossAt(0, 18, 0), "boss summon should accept exact item costs")
-    expect(sim:itemCount("water_barrel") == 0, "boss summon should consume water cost")
-    expect(sim:itemCount("reed_fiber") == 0, "boss summon should consume biome material cost")
-    expect(sim:itemCount("science_pack") == 0, "boss summon should consume science cost")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(61)
-    addItems(sim, bossCosts.rift_signal_tyrant)
-    expect(not sim:trySummonBossAt(-36, 20, 0), "rift boss should require archive and rift progress")
-    sim.productionTotals.archive_signals = 1
-    sim.productionTotals.rift_jumps = 1
-    sim.productionTotals.outposts_activated = 2
-    expect(not sim:trySummonBossAt(-36, 20, 0), "rift boss should require three outpost activations")
-    sim.productionTotals.outposts_activated = 3
-    expect(sim:trySummonBossAt(-36, 20, 0), "rift boss archive/rift gate should unlock summon")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(62)
-    local drops = {
-        { "marsh_broodheart", "marsh_heart" },
-        { "glass_maw", "glass_heart" },
-        { "badlands_warden", "warden_core" },
-        { "frost_nullifier", "frost_core" },
-        { "rift_signal_tyrant", "rift_crown" },
-    }
-    for index, drop in ipairs(drops) do
-        local boss = sim:addEntity(drop[1], index, 0, 0, 1)
-        sim:damageEntity(boss, 1)
-        expect(sim:itemCount(drop[2]) == 1, "boss should drop relic " .. drop[2])
-    end
-    expect(#sim.entities == 0, "defeated bosses should be removed")
-    expect(sim.productionTotals.boss_relics_claimed == 5, "boss relic counter should track drops")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:itemCount("rift_crown") == 1 and loaded.productionTotals.boss_relics_claimed == 5, "boss relic drops should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(63)
-    local unlocks = {
-        { "marsh_broodheart", "repair_pylon" },
-        { "glass_maw", "pressure_relay" },
-        { "badlands_warden", "guard_tower" },
-        { "frost_nullifier", "arc_tower" },
-        { "rift_signal_tyrant", "outpost_beacon" },
-    }
-    for _, unlock in ipairs(unlocks) do
-        sim.unlockedRecipes[unlock[2]] = false
-        local boss = sim:addEntity(unlock[1], 0, 0, 0, 1)
-        sim:damageEntity(boss, 1)
-        expect(sim:isRecipeUnlocked(unlock[2]), "boss should unlock support recipe " .. unlock[2])
-    end
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:isRecipeUnlocked("arc_tower") and loaded:isRecipeUnlocked("outpost_beacon"), "support unlocks should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(64)
-    local pylon = sim:addMachine("repair_pylon", 0, 0, "south")
-    local relay = sim:addMachine("pressure_relay", 1, 0, "south")
-    sim:addItem("marsh_heart", 1)
-    sim:addItem("glass_heart", 1)
-    expect(not sim:socketRelic(pylon.id, "glass_heart"), "socketing should reject wrong relic")
-    expect(sim:socketRelic(pylon.id, "marsh_heart"), "socketing should accept matching relic")
-    expect(sim:itemCount("marsh_heart") == 0 and pylon.socketedRelic == "marsh_heart", "socketing should consume and attach relic")
-    sim:queue(Simulation.commands.socketRelic(relay.id, "glass_heart"))
-    sim:step()
-    expect(relay.socketedRelic == "glass_heart", "socket relic command should attach relic")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:machineById(pylon.id).socketedRelic == "marsh_heart", "socketed relic should persist")
-    expect(loaded:machineById(relay.id).socketedRelic == "glass_heart", "second socketed relic should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(7)
-    sim:queue(Simulation.commands.face("west"))
-    sim:queue(Simulation.commands.mine("west"))
-    sim:step()
-    expect(sim:itemCount("wood") == 1, "mining tree should add wood")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(9)
-    sim:addItem("wood", 20)
-    sim:addItem("stone", 20)
-    expect(sim:craft("workbench"), "workbench craft failed")
-    sim:queue(Simulation.commands.place("south", "workbench", "south"))
-    sim:step()
-    expect(sim:machineAt(0, 1, 0).kind == "workbench", "workbench not placed")
-    expect(sim:craft("furnace"), "workbench-gated furnace craft failed")
-    sim:addItem("scrap", 5)
-    expect(sim:craft("salvage_iron_plate"), "scrap iron salvage craft failed")
-    expect(sim:craft("salvage_copper_plate"), "scrap copper salvage craft failed")
-    expect(sim.productionTotals.scrap_recycled == 5, "scrap salvage should count recycled scrap")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded.productionTotals.scrap_recycled == 5, "scrap recycled counter should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(11)
-    sim.world:setTile(0, 0, 0, { id = "iron_ore", data = 20 })
-    local miner = sim:addMachine("burner_miner", 0, 0, "east")
-    miner.inventory:add("coal", 10)
-    sim:addMachine("belt", 1, 0, "east")
-    sim:addMachine("inserter", 2, 0, "east")
-    local furnace = sim:addMachine("furnace", 3, 0, "east")
-    furnace.inventory:add("coal", 10)
-    sim:addMachine("inserter", 4, 0, "east")
-    local chest = sim:addMachine("chest", 5, 0, "south")
-    runSteps(sim, 240)
-    expect(chest.inventory:count("iron_plate") > 0, "starter line did not produce iron plate")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(12)
-    local lab = sim:addMachine("lab", 0, 0, "south")
-    lab.inventory:add("science_pack", 3)
-    runSteps(sim, 80)
-    expect(sim:isTechCompleted("logistics_1"), "lab did not complete logistics_1")
-    expect(sim:isRecipeUnlocked("fast_belt"), "research did not unlock fast_belt")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(13)
-    sim:addItem("wood", 3)
-    sim:addMachine("chest", 2, 0, "south").inventory:add("stone", 5)
-    sim:queue(Simulation.commands.assignHotbar(3, "wood"))
-    sim:queue(Simulation.commands.assignHotbar(1, nil))
-    runSteps(sim, 3)
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(sameSnapshot(sim, loaded), "save/load snapshot mismatch")
-    expect(loaded.player.hotbar[3] == "wood", "assigned hotbar slot did not persist")
-    expect(loaded.player.hotbar[1] == nil, "cleared hotbar slot did not persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(95)
-    expect(not sim:isPlanningMode() and sim:gameModeText() == "mode: survival", "simulation should start in survival mode")
-    sim:queue(Simulation.commands.togglePlanningMode())
-    sim:step()
-    expect(sim:isPlanningMode() and sim:gameModeText() == "mode: planning", "planning toggle should enter planning mode")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:isPlanningMode(), "planning mode should persist")
-    loaded:queue(Simulation.commands.togglePlanningMode())
-    loaded:step()
-    expect(not loaded:isPlanningMode() and loaded:gameModeText() == "mode: survival", "planning toggle should return to survival")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(96)
-    sim:queue(Simulation.commands.placeGhost("east", "workbench", "south"))
-    sim:step()
-    expect(#sim.ghostBuilds == 1, "place ghost command should create ghost build")
-    local ghost = sim.ghostBuilds[1]
-    expect(ghost.id == 1 and ghost.item == "workbench" and ghost.machine, "machine ghost should record item and type")
-    expect(ghost.x == 1 and ghost.y == 0 and ghost.z == 0 and ghost.direction == "south", "machine ghost should record target cell")
-    expect(not sim:machineAt(1, 0, 0), "ghost build should not place a machine immediately")
-    expect(not sim:placeGhost("east", "chest", "south"), "duplicate ghost target should be rejected")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(#loaded.ghostBuilds == 1 and loaded.nextGhostId == 2, "ghost builds should persist")
-    loaded:queue(Simulation.commands.placeGhost("south", "wall", "south"))
-    loaded:step()
-    expect(#loaded.ghostBuilds == 2 and loaded.ghostBuilds[2].tile == "wall", "tile ghost should record target tile")
-    loaded:queue(Simulation.commands.cancelGhost("south"))
-    loaded:step()
-    expect(#loaded.ghostBuilds == 1 and loaded.ghostBuilds[1].item == "workbench", "cancel ghost should remove target ghost")
-    expect(not loaded:cancelGhost("west"), "cancel ghost should reject empty target")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(97)
-    sim:addMachine("chest", 1, 0, "south")
-    expect(sim:placeGhost("east", "workbench", "south"), "ghost over machine should still be recorded")
-    expect(sim.ghostBuilds[1].blockedReason == "machine", "ghost over machine should label machine blockage")
-    sim.world:setTile(0, -1, 0, { id = "water", data = 0 })
-    expect(sim:placeGhost("north", "wall", "north"), "ghost over terrain should still be recorded")
-    expect(sim.ghostBuilds[2].blockedReason == "terrain", "ghost over bad terrain should label terrain blockage")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded.ghostBuilds[1].blockedReason == "machine" and loaded.ghostBuilds[2].blockedReason == "terrain", "ghost blocked reasons should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(98)
-    sim:addItem("workbench", 1)
-    sim:addItem("scrap", 3)
-    sim:togglePlanningMode()
-    sim:queue(Simulation.commands.place("east", "workbench", "south"))
-    sim:step()
-    expect(sim:machineAt(1, 0, 0).kind == "workbench", "planning placement should still place machine")
-    expect(sim:itemCount("workbench") == 1, "planning placement should not consume machine item")
-    expect(sim:craft("salvage_iron_plate"), "planning craft should allow unlocked recipe")
-    expect(sim:itemCount("scrap") == 3, "planning craft should not consume recipe inputs")
-    expect((sim.productionTotals.scrap_recycled or 0) == 0, "planning craft should not count recycled scrap")
-end
-
-tests[#tests + 1] = function()
-    local frames = {
-        { tick = 0, command = Simulation.commands.face("west") },
-        { tick = 0, command = Simulation.commands.mine("west") },
-        { tick = 1, command = Simulation.commands.move("east") },
-    }
-    local direct = Simulation.new(14)
-    direct:queue(frames[1].command)
-    direct:queue(frames[2].command)
-    direct:step()
-    direct:queue(frames[3].command)
-    direct:step()
-    while direct.tick < 5 do
-        direct:step()
-    end
-    local replayed = Replay.run(14, frames, 5)
-    expect(sameSnapshot(direct, replayed), "replay result mismatch")
-    local doc = assert(Replay.fromText(Replay.toText(14, frames, 5)))
-    expect(doc.finalTick == 5 and #doc.frames == 3, "replay serialization failed")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(15)
-    local chest = sim:addMachine("chest", 0, 0, "south")
-    sim:addItem("wood", 8)
-    sim:queue(Simulation.commands.depositMachine(chest.id, "wood", 5))
-    sim:step()
-    expect(chest.inventory:count("wood") == 5, "panel deposit failed")
-    expect(sim:itemCount("wood") == 3, "panel deposit did not consume player items")
-    sim:queue(Simulation.commands.withdrawMachine(chest.id, "wood", "all"))
-    sim:step()
-    expect(chest.inventory:count("wood") == 0, "panel withdraw failed")
-    expect(sim:itemCount("wood") == 8, "panel withdraw did not return items")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(16)
-    local furnace = sim:addMachine("furnace", 0, 0, "south")
-    local blocked = sim:addMachine("furnace", 1, 0, "south")
-    blocked.inventory:add("coal", 1)
-    furnace.inventory:add("coal", 1)
-    furnace.inventory:add("copper_ore", 1)
-    sim:queue(Simulation.commands.setMachineRecipe(furnace.id, "copper_plate"))
-    sim:queue(Simulation.commands.setMachineRecipe(blocked.id, "copper_plate"))
-    sim:step()
-    runSteps(sim, 60)
-    expect(furnace.inventory:count("copper_plate") == 1, "furnace recipe selector did not smelt copper")
-    expect(blocked.inventory:count("coal") == 1, "furnace consumed fuel without selected ore")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(17)
-    local function expectNext(text)
-        expect(sim:nextStepText() == text, "next step should show: " .. text)
-    end
-    expectNext("Mine west trees for workbench wood")
-    sim:addItem("wood", 6)
-    expectNext("Mine southern stone for furnace and belts")
-    sim:addItem("stone", 8)
-    sim:addMachine("workbench", 0, 1, "south")
-    expectNext("Craft and place a burner miner on ore")
-    sim:addMachine("burner_miner", 0, 0, "east")
-    expectNext("Fuel miner and furnace, then route ore into smelting")
-    sim.productionTotals.iron_plate = 1
-    expectNext("Craft and place an assembler near plate supply")
-    sim:addMachine("assembler", 1, 0, "east")
-    expectNext("Craft and place a lab")
-    sim:addMachine("lab", 2, 0, "south")
-    expectNext("Feed iron and copper plates into an assembler for science")
-    sim.productionTotals.science_pack = 1
-    expectNext("Move science packs into a lab for Logistics 1")
-    sim.completedTechs.logistics_1 = true
-    expectNext("Craft a chest for plate output")
-    local checklist = sim:objectiveChecklist()
-    expect(checklist[1].title == "First" and checklist[2].title == "Science" and checklist[4].title == "Supply", "objective checklist groups missing")
-    expect(#sim:tutorialProgress() == 5, "tutorial checklist should expose onboarding steps")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(18)
-    local splitter = sim:addMachine("splitter", 0, 0, "east")
-    local left = sim:addMachine("chest", 0, -1, "south")
-    local right = sim:addMachine("chest", 0, 1, "south")
-    expect(sim:acceptItem(splitter, "iron_ore"), "splitter should accept first item")
-    sim:step()
-    expect(left.inventory:count("iron_ore") == 1, "splitter did not send first item left")
-    expect(sim:acceptItem(splitter, "copper_ore"), "splitter should accept second item")
-    sim:step()
-    expect(right.inventory:count("copper_ore") == 1, "splitter did not alternate right")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(19)
-    local source = sim:addMachine("chest", -1, 0, "south")
-    local inserter = sim:addMachine("circuit_inserter", 0, 0, "east")
-    local target = sim:addMachine("chest", 1, 0, "south")
-    source.inventory:add("iron_ore", 5)
-    source.inventory:add("copper_ore", 5)
-    sim:queue(Simulation.commands.configureCircuit(inserter.id, "iron_ore", "less_than", 2))
-    runSteps(sim, 90)
-    expect(target.inventory:count("iron_ore") == 2, "circuit inserter ignored less-than threshold")
-    expect(target.inventory:count("copper_ore") == 0, "circuit inserter ignored item filter")
-    expect(source.inventory:count("iron_ore") == 3, "circuit inserter moved too many filtered items")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(20)
-    local provider = sim:addMachine("provider_chest", 0, 0, "south")
-    local requester = sim:addMachine("requester_chest", 1, 0, "south")
-    expect(sim:acceptItem(provider, "wood"), "provider chest should accept items")
-    expect(sim:extractItem(provider) == "wood", "provider chest should expose stored items")
-    expect(sim:acceptItem(requester, "stone"), "requester chest should accept items")
-    expect(sim:extractItem(requester) == "stone", "requester chest should expose stored items")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(21)
-    local port = sim:addMachine("logistic_port", 0, 0, "south")
-    expect(sim:acceptItem(port, "logistic_drone"), "logistic port should accept drones")
-    expect(not sim:acceptItem(port, "wood"), "logistic port should reject non-drone items")
-    expect(port.inventory:count("logistic_drone") == 1, "logistic port did not retain drone")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(22)
-    local stop = sim:addMachine("train_stop", 0, 0, "south")
-    expect(sim:acceptItem(stop, "iron_plate"), "train stop should accept freight")
-    expect(sim:extractItem(stop) == "iron_plate", "train stop should expose freight")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(23)
-    sim.world:setTile(0, -1, 0, { id = "water", data = 0 })
-    sim:addMachine("offshore_pump", 0, 0, "east")
-    sim:addMachine("pipe", 1, 0, "east")
-    local chest = sim:addMachine("chest", 2, 0, "south")
-    runSteps(sim, 40)
-    expect(chest.inventory:count("water_barrel") == 1, "pump and pipe did not move water barrel")
-    expect(sim.productionTotals.water_barrel == 1, "water barrel production was not counted")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(24)
-    sim.world:setTile(6, 0, 0, { id = "iron_ore", data = 10 })
-    local generator = sim:addMachine("generator", 0, 0, "east")
-    generator.inventory:add("coal", 1)
-    sim:addMachine("power_pole", 1, 0, "south")
-    sim:addMachine("power_pole", 5, 0, "south")
-    local miner = sim:addMachine("electric_miner", 6, 0, "east")
-    local chest = sim:addMachine("chest", 7, 0, "south")
-    runSteps(sim, 10)
-    expect(sim:isMachinePowered(miner.id), "electric miner was not powered through pole chain")
-    expect(chest.inventory:count("iron_ore") == 1, "powered electric miner did not output ore")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(25)
-    local generator = sim:addMachine("generator", 0, 1, "east")
-    generator.inventory:add("coal", 1)
-    sim:addMachine("power_pole", 0, 0, "south")
-    local miners = {
-        sim:addMachine("electric_miner", 1, 0, "east"),
-        sim:addMachine("electric_miner", -1, 0, "east"),
-        sim:addMachine("electric_miner", 0, -1, "east"),
-    }
-    for index, miner in ipairs(miners) do
-        sim.world:setTile(miner.x, miner.y, 0, { id = "iron_ore", data = 10 + index })
-    end
-    runSteps(sim, 2)
-    for _, miner in ipairs(miners) do
-        expect(not sim:isMachinePowered(miner.id), "under-supplied network powered a consumer")
-        expect(miner.status == "missing_power", "under-supplied electric miner did not stop")
-    end
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(26)
-    local chest = sim:addMachine("chest", 4, -2, "south")
-    expect(sim:machineAt(4, -2, 0) == chest, "machineByCell index missed placed machine")
-    expect(sim:machineById(chest.id) == chest, "machineById index missed placed machine")
-    expect(sim.machineIdsByKind.chest[1] == chest.id, "machine kind index missed placed machine")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:machineAt(4, -2, 0).kind == "chest", "machineByCell index did not rebuild on load")
-    expect(loaded:machineById(chest.id).kind == "chest", "machineById index did not rebuild on load")
-    expect(loaded.machineIdsByKind.chest[1] == chest.id, "machine kind index did not rebuild on load")
-    expect(loaded:removeMachineById(chest.id), "machine removal failed")
-    expect(loaded:machineAt(4, -2, 0) == nil, "machineByCell index did not clear removed machine")
-    expect(loaded:machineById(chest.id) == nil, "machineById index did not clear removed machine")
-    expect(not loaded.machineIdsByKind.chest, "machine kind index did not clear removed machine")
-end
-
-local function addPoweredPortLine(sim)
-    local generator = sim:addMachine("generator", 0, 0, "east")
-    generator.inventory:add("coal", 5)
-    sim:addMachine("power_pole", 1, 0, "south")
-    local port = sim:addMachine("logistic_port", 2, 0, "south")
-    port.inventory:add("logistic_drone", 1)
-    return port
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(99)
-    addPoweredPortLine(sim)
-    sim.world:setTile(0, 1, 0, { id = "grass", data = 0 })
-    sim:togglePlanningMode()
-    sim:queue(Simulation.commands.placeGhost("south", "chest", "south"))
-    sim:step()
-    expect(#sim.constructionJobs == 1, "powered port drone should start construction job")
-    expect(sim.constructionJobs[1].ghostId == sim.ghostBuilds[1].id, "construction job should target ghost")
-    expect(sim.ghostBuilds[1].progress > 0, "construction job should mark ghost progress")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(#loaded.constructionJobs == 1 and loaded.constructionJobs[1].item == "chest", "construction job should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(100)
-    addPoweredPortLine(sim)
-    sim.world:setTile(0, 1, 0, { id = "grass", data = 0 })
-    local provider = sim:addMachine("provider_chest", 3, 0, "south")
-    provider.inventory:add("chest", 1)
-    sim:queue(Simulation.commands.placeGhost("south", "chest", "south"))
-    sim:step()
-    expect(#sim.constructionJobs == 1, "provider stock should allow survival construction job")
-    expect(sim.constructionJobs[1].sourceId == provider.id, "construction job should record provider source")
-    expect(provider.inventory:count("chest") == 0, "construction job should consume provider material")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(101)
-    sim.world:setTile(0, 1, 0, { id = "grass", data = 0 })
-    local port = sim:addMachine("logistic_port", 2, 0, "south")
-    port.inventory:add("logistic_drone", 1)
-    local provider = sim:addMachine("provider_chest", 3, 0, "south")
-    provider.inventory:add("chest", 1)
-    sim:queue(Simulation.commands.placeGhost("south", "chest", "south"))
-    sim:step()
-    expect(#sim.constructionJobs == 0, "unpowered port should not start construction job")
-    expect(provider.inventory:count("chest") == 1, "unpowered port should not consume construction material")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(102)
-    addPoweredPortLine(sim)
-    sim.world:setTile(0, 1, 0, { id = "grass", data = 0 })
-    sim:togglePlanningMode()
-    sim:queue(Simulation.commands.placeGhost("south", "chest", "south"))
-    sim:step()
-    sim:step()
-    expect(#sim.constructionJobs == 0, "completed construction job should clear")
-    expect(sim.ghostBuilds[1].fulfilled and sim.ghostBuilds[1].progress == 100, "completed construction job should fulfill ghost")
-    expect(sim:machineAt(0, 1, 0).kind == "chest", "completed machine ghost should place machine")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded.ghostBuilds[1].fulfilled and loaded:machineAt(0, 1, 0).kind == "chest", "fulfilled ghost state should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(103)
-    addPoweredPortLine(sim)
-    local firstRequester = sim:addMachine("requester_chest", 0, 0, "south")
-    local secondRequester = sim:addMachine("requester_chest", 1, 0, "south")
-    sim.logisticJobs = {
-        { id = 2, toId = secondRequester.id, item = "stone", count = 1, remaining = 2 },
-        { id = 1, toId = firstRequester.id, item = "wood", count = 1, remaining = 2 },
-    }
-    sim.ghostBuilds = {
-        { id = 2, item = "chest", machine = true, x = 4, y = 0, z = 0, direction = "south", fulfilled = false, progress = 0 },
-        { id = 1, item = "chest", machine = true, x = 5, y = 0, z = 0, direction = "south", fulfilled = false, progress = 0 },
-    }
-    sim.constructionJobs = {
-        { ghostId = 2, portId = 0, sourceId = 0, item = "chest", remaining = 2, total = 2 },
-        { ghostId = 1, portId = 0, sourceId = 0, item = "chest", remaining = 2, total = 2 },
-    }
-    sim:step()
-    expect(sim.logisticJobs[1].id == 1 and sim.logisticJobs[2].id == 2, "logistic jobs should tick in id order")
-    expect(sim.constructionJobs[1].ghostId == 1 and sim.constructionJobs[2].ghostId == 2, "construction jobs should tick in ghost id order")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(27)
-    addPoweredPortLine(sim)
-    local provider = sim:addMachine("provider_chest", 3, 0, "south")
-    local requester = sim:addMachine("requester_chest", 4, 0, "south")
-    provider.inventory:add("wood", 3)
-    sim:queue(Simulation.commands.configureRequest(requester.id, "wood", 2))
-    runSteps(sim, 30)
-    expect(requester.inventory:count("wood") == 2, "logistic delivery did not satisfy requester threshold")
-    expect(provider.inventory:count("wood") == 1, "logistic delivery consumed wrong provider count")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(28)
-    addPoweredPortLine(sim)
-    local provider = sim:addMachine("provider_chest", 3, 0, "south")
-    local requester = sim:addMachine("requester_chest", 4, 0, "south")
-    provider.inventory:add("stone", 1)
-    sim:queue(Simulation.commands.configureRequest(requester.id, "stone", 1))
-    runSteps(sim, 2)
-    expect(#sim.logisticJobs == 1, "logistic job was not in flight before save")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    runSteps(loaded, 15)
-    expect(loaded:machineById(requester.id).inventory:count("stone") == 1, "in-flight logistic job did not persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(29)
-    local port = sim:addMachine("logistic_port", 0, 0, "south")
-    port.inventory:add("logistic_drone", 1)
-    local provider = sim:addMachine("provider_chest", 1, 0, "south")
-    local requester = sim:addMachine("requester_chest", 2, 0, "south")
-    provider.inventory:add("wood", 1)
-    sim:queue(Simulation.commands.configureRequest(requester.id, "wood", 1))
-    runSteps(sim, 30)
-    expect(requester.inventory:count("wood") == 0, "unpowered logistic port delivered item")
-    expect(provider.inventory:count("wood") == 1, "unpowered logistic port consumed provider item")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(30)
-    local first = sim:addMachine("train_stop", 0, 0, "south")
-    local second = sim:addMachine("train_stop", 5, 0, "south")
-    first.inventory:add("iron_plate", 1)
-    runSteps(sim, 95)
-    expect(first.inventory:count("iron_plate") == 0, "train stop did not consume source cargo")
-    expect(second.inventory:count("iron_plate") == 1, "train stop did not receive cargo")
-    expect(sim.productionTotals.train_deliveries == 1, "train delivery counter did not increment")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(31)
-    sim:addItem("iron_plate", 3)
-    sim:queue(Simulation.commands.submitSupplyContract("iron_supply"))
-    sim:step()
-    local contract = sim:supplyContract("iron_supply")
-    expect(contract.delivered == 3, "supply contract did not accept partial delivery")
-    expect(not contract.complete, "partial supply contract should stay incomplete")
-    expect(sim:itemCount("iron_plate") == 0, "supply contract did not consume player items")
-    sim:addItem("iron_plate", 2)
-    sim:queue(Simulation.commands.submitSupplyContract("iron_supply"))
-    sim:step()
-    expect(contract.delivered == 5 and contract.complete, "supply contract did not complete at target")
-    sim:addItem("iron_plate", 1)
-    expect(not sim:submitSupplyContract("iron_supply"), "completed supply contract accepted extra delivery")
-    expect(sim:itemCount("iron_plate") == 1, "completed supply contract consumed extra item")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    local loadedContract = loaded:supplyContract("iron_supply")
-    expect(loadedContract.delivered == 5 and loadedContract.complete, "supply contract state did not persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(32)
-    expect(sim:totalSupplyContracts() == 3, "supply contract count should be explicit")
-    expect(sim:completedSupplyContracts() == 0, "fresh simulation should have no completed contracts")
-    expect(sim:currentSupplyContractText():find("Iron Plate") ~= nil, "first contract should ask for iron plates")
-    sim:addItem("iron_plate", 5)
-    sim:addItem("science_pack", 3)
-    sim:addItem("logistic_drone", 1)
-    for _, contractId in ipairs({ "iron_supply", "science_supply", "drone_supply" }) do
-        sim:queue(Simulation.commands.submitSupplyContract(contractId))
-        sim:step()
-    end
-    expect(sim:completedSupplyContracts() == sim:totalSupplyContracts(), "all submitted contracts should complete")
-    expect(sim:currentSupplyContractText():find("contract complete") ~= nil, "completed contract text should show completion")
-    expect(not sim:mainObjectiveComplete(), "main objective should wait for final tech")
-    sim.completedTechs.logistics_1 = true
-    sim.completedTechs.automation_control = true
-    sim.completedTechs.logistic_network = true
-    sim.activeTech = nil
-    expect(sim:mainObjectiveComplete(), "completed contracts and tech should complete the main objective")
-    expect(sim:nextStepText():find("Main objective complete") == 1, "next step should surface objective completion")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:mainObjectiveComplete(), "main objective completion did not survive save/load")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(33)
-    local rates = sim:productionRatePanels()
-    expect(#rates == 5, "production rate panels should expose tracked outputs")
-    expect(rates[1].key == "iron_plate" and rates[1].blocked, "iron rate target should start blocked")
-    expect(sim:productionRateText():find("rates: Iron/min 0/3") == 1, "production rate text should surface first blocked target")
-    sim.productionTotals.iron_plate = 4
-    sim.productionTotals.copper_plate = 4
-    sim.productionTotals.science_pack = 3
-    sim.tick = 3600
-    expect(not sim:productionRatePanels()[1].blocked, "met iron rate target should unblock")
-    expect(sim:productionRateText() == "rates: tracked production meets current targets", "met rate targets should summarize stable production")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(104)
-    local chest = sim:addMachine("chest", 0, 0, "south")
-    chest.inventory:add("iron_plate", 50)
-    sim.tick = 3600
-    expect(sim:productionRatePanels()[1].currentPerMinute == 0, "production rates should not derive from inventory scans")
-    sim.productionTotals.iron_plate = 4
-    expect(sim:productionRatePanels()[1].currentPerMinute == 4, "production rates should use event counters")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(65)
-    expect(sim:factoryPressureLevel() == 0, "empty factory pressure should be zero")
-    sim.productionTotals.science_pack = 10
-    expect(sim:factoryPressureLevel() == 120, "production pressure should include science output")
-    sim:addMachine("lab", 0, 0, "south")
-    sim:addMachine("assembler", 1, 0, "south")
-    sim:addMachine("chest", 2, 0, "south")
-    expect(sim:factoryFootprintPressure() == 14, "factory footprint pressure should weight machines")
-    expect(sim:factoryPressureLevel() == 134, "factory pressure should combine production and footprint")
-    sim.productionTotals.pressure_waves_repelled = 1
-    expect(sim:factoryPressureLevel() == 99, "repelled waves should reduce pressure")
-    expect(sim:factoryPressureText():find("pressure: watched") == 1, "pressure text should summarize pressure tier")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(66)
-    sim.productionTotals.science_pack = 10
-    sim:addMachine("lab", 0, 0, "south")
-    sim:addMachine("assembler", 4, 0, "south")
-    sim:addMachine("chest", 8, 0, "south")
-    local hotspots = sim:pressureHotspots()
-    expect(#hotspots == 3, "pressure hotspots should include weighted machines")
-    expect(hotspots[1].x == 0 and hotspots[1].pressure >= hotspots[2].pressure, "pressure hotspots should sort strongest first")
-    expect(sim:localPressureAt(0, 0, 0) > sim:localPressureAt(20, 20, 0), "local pressure should decay with distance")
-    expect(sim:pressureMapText():find("pressure map: hotspot x0 y0") == 1, "pressure map text should surface top hotspot")
-end
-
-tests[#tests + 1] = function()
-    local quiet = Simulation.new(67)
-    expect(quiet:ticksUntilNextPressureWave() == -1, "quiet pressure should not schedule waves")
-    expect(quiet:pressureWaveAlertText():find("wave alert: none") == 1, "quiet alert should report none")
-    local sim = Simulation.new(67)
-    sim.productionTotals.science_pack = 10
-    sim.tick = 1
-    expect(sim:ticksUntilNextPressureWave() == 299, "pressure wave timer should count down")
-    expect(sim:pressureWaveAlertText():find("wave alert: next probe in 299 ticks") == 1, "wave alert should report probe countdown")
-    sim.productionTotals.science_pack = 20
-    sim.tick = 300
-    expect(sim:ticksUntilNextPressureWave() == 0, "wave timer should hit zero on cadence")
-    expect(sim:pressureWaveAlertText():find("wave alert: surge incoming now") == 1, "wave alert should report incoming surge")
-end
-
-tests[#tests + 1] = function()
-    local a = Simulation.new(68)
-    local b = Simulation.new(68)
-    for _, sim in ipairs({ a, b }) do
-        sim.productionTotals.science_pack = 10
-        sim.tick = 300
-        sim:addMachine("lab", 0, 0, "south")
-        expect(sim:ensureFactoryPressureEntity(), "pressure wave should spawn hostile probe")
-    end
-    expect(#a.entities == 1 and a.entities[1].pressureSpawn, "pressure probe should mark pressure spawn")
-    expect(a.entities[1].kind == "slime", "probe pressure should spawn slime")
-    expect(a.entities[1].x == b.entities[1].x and a.entities[1].y == b.entities[1].y, "pressure probe spawn should be deterministic")
-    local surge = Simulation.new(69)
-    surge.productionTotals.science_pack = 20
-    surge.tick = 300
-    surge:addMachine("lab", 0, 0, "south")
-    expect(surge:ensureFactoryPressureEntity(), "pressure surge should spawn hostiles")
-    expect(#surge.entities == 2, "surge pressure should spawn two hostiles")
-    local loaded = assert(Save.fromText(Save.toText(surge)))
-    expect(loaded.entities[1].pressureSpawn, "pressure spawn marker should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(70)
-    sim.productionTotals.science_pack = 10
-    for index = 1, 3 do
-        local entity = sim:addEntity("slime", index, 0, 0, 1)
-        entity.pressureSpawn = true
-        sim:damageEntity(entity, 1)
-    end
-    expect(sim.productionTotals.pressure_enemies_defeated == 3, "pressure kills should be counted")
-    expect(sim.productionTotals.scrap_recovered == 3 and sim:itemCount("scrap") == 3, "pressure kills should reward scrap")
-    expect(sim.productionTotals.pressure_wave_rewards_claimed == 1, "pressure reward counter should increment")
-    expect(sim:itemCount("science_pack") == 1, "pressure reward should grant science at probe pressure")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded.productionTotals.pressure_wave_rewards_claimed == 1 and loaded:itemCount("scrap") == 3, "pressure rewards should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(71)
-    sim.player.x = 10
-    sim.player.y = 10
-    local generator = sim:addMachine("generator", 1, 0, "south")
-    generator.inventory:add("coal", 10)
-    sim:addMachine("power_pole", 0, 0, "south")
-    local tower = sim:addMachine("guard_tower", 0, 1, "south")
-    sim:addEntity("slime", 0, 3, 0, 1)
-    runSteps(sim, 45)
-    expect(#sim.entities == 0, "guard tower should target and kill hostile in range")
-    expect(tower.status == "working" or tower.status == "idle", "guard tower should process targeting")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(72)
-    sim.player.x = 10
-    sim.player.y = 10
-    local generator = sim:addMachine("generator", 1, 0, "south")
-    generator.inventory:add("coal", 10)
-    sim:addMachine("power_pole", 0, 0, "south")
-    local tower = sim:addMachine("arc_tower", 0, 1, "south")
-    sim:addEntity("rift_stalker", 0, 7, 0, 2)
-    runSteps(sim, 30)
-    expect(#sim.entities == 0, "arc tower should target and kill hostile in longer range")
-    expect(tower.status == "working" or tower.status == "idle", "arc tower should process targeting")
-end
-
-tests[#tests + 1] = function()
-    local guardSim = Simulation.new(73)
-    guardSim.player.x = 10
-    guardSim.player.y = 10
-    local guardGenerator = guardSim:addMachine("generator", 1, 0, "south")
-    guardGenerator.inventory:add("coal", 10)
-    guardSim:addMachine("power_pole", 0, 0, "south")
-    local guard = guardSim:addMachine("guard_tower", 0, 1, "south")
-    expect(guardSim:acceptItem(guard, "copper_coil"), "guard tower should accept ammo")
-    guardSim:addEntity("skeleton", 0, 3, 0, 4)
-    runSteps(guardSim, 45)
-    expect(#guardSim.entities == 0 and guard.inventory:count("copper_coil") == 0, "guard ammo should fire stronger shot and consume ammo")
-    local arcSim = Simulation.new(74)
-    arcSim.player.x = 10
-    arcSim.player.y = 10
-    local arcGenerator = arcSim:addMachine("generator", 1, 0, "south")
-    arcGenerator.inventory:add("coal", 10)
-    arcSim:addMachine("power_pole", 0, 0, "south")
-    local arc = arcSim:addMachine("arc_tower", 0, 1, "south")
-    expect(arcSim:acceptItem(arc, "rift_shell"), "arc tower should accept ammo")
-    arcSim:addEntity("rift_stalker", 0, 7, 0, 5)
-    runSteps(arcSim, 30)
-    expect(#arcSim.entities == 0 and arc.inventory:count("rift_shell") == 0, "arc ammo should fire stronger shot and consume ammo")
-end
-
-tests[#tests + 1] = function()
-    local machineSim = Simulation.new(75)
-    machineSim.player.x = 10
-    machineSim.player.y = 10
-    local chest = machineSim:addMachine("chest", 1, 0, "south")
-    chest.durability = 1
-    machineSim:addEntity("slime", 0, 0, 0, 3)
-    machineSim:updateEntities()
-    expect(machineSim:machineAt(1, 0, 0) == nil, "hostile should damage adjacent machine structure")
-    local wallSim = Simulation.new(76)
-    wallSim.player.x = 10
-    wallSim.player.y = 10
-    wallSim.world:setTile(1, 0, 0, { id = "wall", data = 1 })
-    wallSim:addEntity("slime", 0, 0, 0, 3)
-    wallSim:updateEntities()
-    expect(wallSim.world:getTile(1, 0, 0).id == "grass", "hostile should destroy adjacent wall tile")
-end
-
-tests[#tests + 1] = function()
-    local function poweredPylonSim(seed)
-        local sim = Simulation.new(seed)
-        sim.player.x = 20
-        sim.player.y = 20
-        local generator = sim:addMachine("generator", 0, 0, "south")
-        generator.inventory:add("coal", 80)
-        sim:addMachine("power_pole", 1, 0, "south")
-        local pylon = sim:addMachine("repair_pylon", 2, 0, "south")
-        sim.world:setTile(2, -1, 0, { id = "wall", data = 0 })
-        sim.world:setTile(3, 0, 0, { id = "floor", data = 0 })
-        sim.world:setTile(2, 1, 0, { id = "wall", data = 0 })
-        return sim, pylon
-    end
-
-    local gapSim, gapPylon = poweredPylonSim(77)
-    gapPylon.inventory:add("wall", 1)
-    runSteps(gapSim, 60)
-    expect(gapSim.world:getTile(3, 0, 0).id == "wall", "repair pylon should rebuild adjacent wall gap")
-    expect(gapPylon.inventory:count("wall") == 0, "wall gap repair should consume wall item")
-
-    local wallSim, wallPylon = poweredPylonSim(78)
-    wallPylon.inventory:add("wall", 1)
-    wallSim.world:setTile(2, -1, 0, { id = "wall", data = 1 })
-    runSteps(wallSim, 60)
-    expect(wallSim.world:getTile(2, -1, 0).data > 1, "repair pylon should restore damaged wall durability")
-    expect(wallSim.world:getTile(3, 0, 0).id == "floor", "repair pylon should prioritize damaged wall over wall gap")
-    expect(wallPylon.inventory:count("wall") == 0, "wall repair should consume wall item")
-
-    local machineSim, machinePylon = poweredPylonSim(79)
-    local chest = machineSim:addMachine("chest", 3, 0, "south")
-    chest.durability = 1
-    machinePylon.inventory:add("iron_plate", 1)
-    runSteps(machineSim, 60)
-    expect(chest.durability > 1, "repair pylon should restore damaged machine durability")
-    expect(machinePylon.inventory:count("iron_plate") == 0, "machine repair should consume iron plate")
-end
-
-tests[#tests + 1] = function()
-    local function poweredRelaySim(seed)
-        local sim = Simulation.new(seed)
-        sim.player.x = 20
-        sim.player.y = 20
-        local generator = sim:addMachine("generator", 0, 0, "south")
-        generator.inventory:add("coal", 140)
-        sim:addMachine("power_pole", 1, 0, "south")
-        local relay = sim:addMachine("pressure_relay", 2, 0, "south")
-        relay.inventory:add("advanced_science_pack", 1)
-        sim.productionTotals.science_pack = 10
-        return sim, relay
-    end
-
-    local sim, relay = poweredRelaySim(80)
-    expect(sim:factoryPressureLevel() >= 120, "pressure relay test should start above raid pressure")
-    runSteps(sim, 120)
-    expect(sim.productionTotals.pressure_waves_repelled == 1, "pressure relay cycle should increment pressure mitigation")
-    expect(relay.inventory:count("advanced_science_pack") == 0, "pressure relay should consume advanced science input")
-    expect(sim:factoryPressureLevel() < 120, "pressure relay mitigation should lower pressure below raid threshold")
-
-    local glassSim, glassRelay = poweredRelaySim(81)
-    glassRelay.socketedRelic = "glass_heart"
-    runSteps(glassSim, 90)
-    expect(glassSim.productionTotals.pressure_waves_repelled == 2, "Glass Heart should double pressure relay mitigation")
-
-    local baseline = Simulation.new(82)
-    local baselineGenerator = baseline:addMachine("generator", 0, 0, "south")
-    baselineGenerator.inventory:add("coal", 1)
-    baseline:addMachine("power_pole", 1, 0, "south")
-    baseline.productionTotals.science_pack = 10
-    local relaySim = poweredRelaySim(83)
-    expect(relaySim:localPressureAt(0, 0, 0) < baseline:localPressureAt(0, 0, 0), "nearby relay should mitigate local pressure")
-end
-
-tests[#tests + 1] = function()
-    local unpowered = Simulation.new(84)
-    local unpoweredBeacon = unpowered:addMachine("outpost_beacon", 12, 0, "south")
-    runSteps(unpowered, 1)
-    expect(unpoweredBeacon.status == "missing_power", "outpost beacon should require power")
-    expect((unpowered.productionTotals.outposts_activated or 0) == 0, "unpowered outpost should not activate")
-
-    local sim = Simulation.new(85)
-    sim.player.x = 20
-    sim.player.y = 20
-    local generator = sim:addMachine("generator", 10, 0, "south")
-    generator.inventory:add("coal", 800)
-    sim:addMachine("power_pole", 11, 0, "south")
-    local beacon = sim:addMachine("outpost_beacon", 12, 0, "south")
-    expect(sim.world:biomeAt(12, 0, 0) == "desert", "outpost test should be in desert biome")
-    runSteps(sim, 1)
-    expect(beacon.status == "missing_input", "powered outpost should require biome input")
-    beacon.inventory:add("sand_glass", 1)
-    runSteps(sim, 80)
-    expect(beacon.progress == 80 and beacon.status == "idle", "powered outpost beacon should finish activation")
-    expect(beacon.inventory:count("sand_glass") == 0, "desert outpost activation should consume sand glass")
-    expect(sim.productionTotals.outposts_activated == 1, "outpost activation should increment production total")
-    expect(sim:hasActivatedOutpostBiome("desert"), "outpost activation should track biome coverage")
-    expect(sim:activatedOutpostBiomeCount() == 1 and #sim:activatedOutpostBiomes() == 1, "unique outpost biome coverage should be exposed")
-    expect(sim:currentOutpostDeliveryText():find("desert") ~= nil, "outpost delivery guidance should target activated biome")
-    beacon.inventory:add("sand_glass", 1)
-    runSteps(sim, 100)
-    expect(beacon.progress == 80 and beacon.inventory:count("sand_glass") == 0, "outpost delivery should consume biome input and reset")
-    expect(sim.productionTotals.outpost_deliveries == 1, "outpost delivery should increment production total")
-    expect(sim:hasCompletedOutpostDeliveryBiome("desert") and sim:outpostDeliveryBiomeCount() == 1, "outpost delivery should track biome")
-    local route = sim:outpostRouteByBiome("desert")
-    expect(route and route.deliveredInWindow == 1 and route.requiredPerWindow == 2, "outpost delivery should start sustained route window")
-    for _ = 1, 5 do
-        beacon.inventory:add("sand_glass", 1)
-        runSteps(sim, 100)
-    end
-    expect(sim:stableOutpostRouteCount() == 1, "repeated outpost deliveries should stabilize one route")
-    expect(sim:outpostRouteStability("desert") == 3, "desert route should reach max stability")
-    expect(sim:outpostRouteText():find("stable") ~= nil, "outpost route text should summarize stability")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:machineById(beacon.id).progress == 80, "activated outpost should persist")
-    expect(loaded:hasActivatedOutpostBiome("desert"), "outpost biome coverage should persist")
-    expect(loaded.productionTotals.outpost_deliveries == 6 and loaded:stableOutpostRouteCount() == 1, "stable outpost route should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(86)
-    local generator = sim:addMachine("generator", 12, 1, "south")
-    generator.inventory:add("coal", 3)
-    sim:addMachine("power_pole", 13, 1, "south")
-    local port = sim:addMachine("logistic_port", 14, 1, "south")
-    port.inventory:add("logistic_drone", 1)
-    port.inventory:add("science_pack", 1)
-    expect(sim.world:biomeAt(14, 1, 0) == "desert", "scout test port should be in desert biome")
-    sim:markActivatedOutpostBiome("desert")
-    sim:outpostRouteForBiome("desert").stability = 3
-    sim:step()
-    expect(port.carriedItem == "cactus_fiber" and port.progress > 0, "local-biome scout should target desert first")
-    expect(port.inventory:count("science_pack") == 0, "scout dispatch should consume science")
-    expect(sim:scoutAutomationText():find("desert") ~= nil, "scout text should name local target")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:machineById(port.id).carriedItem == "cactus_fiber", "in-flight scout should persist")
-    runSteps(loaded, 120)
-    local loadedPort = loaded:machineById(port.id)
-    expect(loadedPort.inventory:count("cactus_fiber") >= 5, "completed scout should return route-bonus biome material")
-    expect(loadedPort.inventory:count("desert_fragment") == 1, "completed scout should return biome fragment")
-    expect(loaded.productionTotals.scout_dispatches == 1, "scout dispatch total should increment")
-    expect(loaded.productionTotals.scout_materials_recovered == 5, "scout material recovery should include route bonuses")
-    expect(loaded:hasScoutedBiome("desert") and loaded:scoutedBiomeCount() == 1, "completed scout should mark biome")
-end
-
-tests[#tests + 1] = function()
-    local locked = Simulation.new(93)
-    expect(not locked:postVictoryExpeditionBoard()[1].unlocked, "post-victory board should start locked")
-    expect(locked:postVictoryExpeditionText():find("locked") ~= nil, "locked post-victory board should explain gate")
-    local sim = Simulation.new(94)
-    for _, contract in ipairs(sim.supplyContracts) do
-        contract.delivered = contract.target
-        contract.complete = true
-    end
-    sim.completedTechs.logistic_network = true
-    local board = sim:postVictoryExpeditionBoard()
-    expect(#board == 9 and board[1].key == "cartography", "post-victory board should expose scouting entry")
-    expect(board[2].key == "relic_set" and board[2].required == 5, "post-victory board should expose boss relic entry")
-    expect(board[3].key == "storm_veteran" and board[3].required == 3, "post-victory board should expose rift storm entry")
-    expect(board[4].key == "outpost_network" and board[4].required == 5, "post-victory board should expose outpost route entry")
-    expect(board[5].key == "pressure_harvest" and board[5].required == 5, "post-victory board should expose pressure reward entry")
-    expect(board[6].key == "lair_caches" and board[6].required == 5, "post-victory board should expose lair cache entry")
-    expect(board[7].key == "rift_freight" and board[7].required == 20, "post-victory board should expose train freight entry")
-    expect(board[8].key == "scrap_economy" and board[8].required == 10, "post-victory board should expose scrap recycling entry")
-    expect(board[9].key == "powered_industry" and board[9].required == 50, "post-victory board should expose powered mining entry")
-    expect(board[1].unlocked and not board[1].complete, "scouting entry should unlock incomplete after main objective")
-    expect(sim:postVictoryExpeditionText():find("expedition 1/9") ~= nil, "post-victory text should show scouting progress")
-    for _, biome in ipairs({ "marsh", "desert", "badlands", "snowfield", "crystal_field", "rift" }) do
-        sim:markScoutedBiome(biome)
-    end
-    expect(sim:completedPostVictoryExpeditions() == 1, "completed scouting entry should count")
-    expect(sim:postVictoryExpeditionText():find("five%-relic") ~= nil, "post-victory text should advance to boss relics")
-    sim.productionTotals.boss_relics_claimed = 5
-    expect(sim:completedPostVictoryExpeditions() == 2, "completed boss relic entry should count")
-    expect(sim:postVictoryExpeditionText():find("rift storms") ~= nil, "post-victory text should advance to rift storms")
-    sim.productionTotals.rift_storms_survived = 3
-    expect(sim:completedPostVictoryExpeditions() == 3, "completed rift storm entry should count")
-    expect(sim:postVictoryExpeditionText():find("outpost delivery routes") ~= nil, "post-victory text should advance to outpost routes")
-    for _, biome in ipairs({ "marsh", "desert", "badlands", "snowfield", "crystal_field" }) do
-        sim:outpostRouteForBiome(biome).stability = 3
-    end
-    expect(sim:completedPostVictoryExpeditions() == 4, "completed outpost route entry should count")
-    expect(sim:postVictoryExpeditionText():find("pressure wave rewards") ~= nil, "post-victory text should advance to pressure rewards")
-    sim.productionTotals.pressure_wave_rewards_claimed = 5
-    expect(sim:completedPostVictoryExpeditions() == 5, "completed pressure reward entry should count")
-    expect(sim:postVictoryExpeditionText():find("dungeon or lair caches") ~= nil, "post-victory text should advance to lair caches")
-    sim.productionTotals.dungeon_chests_opened = 5
-    expect(sim:completedPostVictoryExpeditions() == 6, "completed lair cache entry should count")
-    expect(sim:postVictoryExpeditionText():find("remote freight") ~= nil, "post-victory text should advance to train freight")
-    sim.productionTotals.train_deliveries = 20
-    expect(sim:completedPostVictoryExpeditions() == 7, "completed train freight entry should count")
-    expect(sim:postVictoryExpeditionText():find("Recycle ten scrap") ~= nil, "post-victory text should advance to scrap recycling")
-    sim.productionTotals.scrap_recycled = 10
-    expect(sim:completedPostVictoryExpeditions() == 8, "completed scrap recycling entry should count")
-    expect(sim:postVictoryExpeditionText():find("electric miners") ~= nil, "post-victory text should advance to powered mining")
-    sim.productionTotals.powered_ore = 50
-    expect(sim:completedPostVictoryExpeditions() == 9, "completed powered mining entry should count")
-    expect(sim:postVictoryExpeditionText():find("complete") ~= nil, "complete post-victory board should summarize completion")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:completedPostVictoryExpeditions() == 9, "post-victory expedition board should persist")
-end
-
-tests[#tests + 1] = function()
-    local unpowered = Simulation.new(87)
-    local unpoweredTerminal = unpowered:addMachine("archive_terminal", 1, 0, "south")
-    runSteps(unpowered, 1)
-    expect(unpoweredTerminal.status == "missing_power", "archive terminal should require power")
-    local sim = Simulation.new(88)
-    local generator = sim:addMachine("generator", 0, 1, "south")
-    generator.inventory:add("coal", 4)
-    sim:addMachine("power_pole", 1, 1, "south")
-    local terminal = sim:addMachine("archive_terminal", 1, 0, "south")
-    runSteps(sim, 1)
-    expect(terminal.status == "missing_input", "powered archive terminal should require beacon core")
-    terminal.inventory:add("beacon_core", 1)
-    runSteps(sim, 360)
-    expect(sim.productionTotals.archive_signals == 1, "powered archive terminal should charge one signal")
-    expect(terminal.inventory:count("beacon_core") == 0, "archive terminal should consume beacon core")
-    expect(terminal.progress == 0 and terminal.status == "idle", "charged archive terminal should reset progress")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded.productionTotals.archive_signals == 1, "archive signal should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(89)
-    local generator = sim:addMachine("generator", 0, 1, "south")
-    generator.inventory:add("coal", 1)
-    sim:addMachine("power_pole", 1, 1, "south")
-    local terminal = sim:addMachine("archive_terminal", 1, 0, "south")
-    terminal.inventory:add("desert_fragment", 1)
-    terminal.inventory:add("science_pack", 1)
-    expect(not sim:isRecipeUnlocked("dry_copper_plate"), "archive alternate should start locked")
-    local choices = sim:archiveChoices(terminal.id)
-    expect(#choices == 5 and choices[2].recipeKey == "dry_copper_plate" and choices[2].available, "archive choices should expose available alternates")
-    sim:queue(Simulation.commands.selectArchiveChoice(terminal.id, 1))
-    sim:step()
-    expect(sim:isRecipeUnlocked("dry_copper_plate"), "archive fragment should unlock alternate recipe")
-    expect(terminal.inventory:count("desert_fragment") == 0 and terminal.inventory:count("science_pack") == 0, "archive unlock should consume fragment and science")
-    expect(terminal.progress == 0 and terminal.status == "idle", "archive unlock should not start beacon charge")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:isRecipeUnlocked("dry_copper_plate"), "archive recipe unlock should persist")
-    local loadedChoices = loaded:archiveChoices(loaded:machineById(terminal.id).id)
-    expect(loadedChoices[2].unlocked, "archive choice data should expose unlocked recipe")
-end
-
-tests[#tests + 1] = function()
-    local unpowered = Simulation.new(90)
-    local unpoweredGate = unpowered:addMachine("rift_gate", 1, 0, "south")
-    runSteps(unpowered, 1)
-    expect(unpoweredGate.status == "missing_power", "rift gate should require power")
-    local sim = Simulation.new(91)
-    local generator = sim:addMachine("generator", 0, 1, "south")
-    generator.inventory:add("coal", 2)
-    sim:addMachine("power_pole", 1, 1, "south")
-    local gate = sim:addMachine("rift_gate", 1, 0, "south")
-    runSteps(sim, 1)
-    expect(gate.status == "missing_input", "powered rift gate should require beacon core")
-    gate.inventory:add("beacon_core", 1)
-    runSteps(sim, 180)
-    expect(gate.progress == 0 and gate.status == "idle", "rift gate should reset after jump")
-    expect(gate.inventory:count("beacon_core") == 0, "rift gate should consume beacon core")
-    expect(sim.productionTotals.rift_jumps == 1, "rift gate should increment jump total")
-    expect(sim.player.x >= 4096 and sim.world:biomeAt(sim.player.x, sim.player.y, sim.player.z) == "rift", "rift gate should move player to outer band")
-    expect(sim.productionTotals.rift_storms_triggered == 1 and sim:riftStormActive(), "rift jump should trigger active storm")
-    expect(sim:riftStormText():find("active") ~= nil, "rift storm text should expose active state")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded.productionTotals.rift_jumps == 1 and loaded.player.x >= 4096 and loaded:riftStormActive(), "rift jump storm state should persist")
-
-    local storm = Simulation.new(92)
-    storm.player.x = 4096
-    local stormGenerator = storm:addMachine("generator", 4096, 1, "south")
-    stormGenerator.inventory:add("coal", 2)
-    storm:addMachine("power_pole", 4097, 1, "south")
-    local stormGate = storm:addMachine("rift_gate", 4097, 0, "south")
-    stormGate.progress = 40
-    storm.riftStorm = { severity = 3, ticksRemaining = 90, cooldownTicks = 100 }
-    storm.tick = 60
-    storm:step()
-    expect(stormGate.progress < 40 and stormGate.status == "output_blocked", "rift storm should jolt unanchored gate charge")
-    storm.riftStorm = { severity = 2, ticksRemaining = 1, cooldownTicks = 100 }
-    storm:step()
-    expect(not storm:riftStormActive() and storm.productionTotals.rift_storms_survived == 1, "expired rift storm should count as survived")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(34)
-    local function findPanel(panels, key)
-        for _, panel in ipairs(panels) do
-            if panel.key == key then
-                return panel
-            end
-        end
-        return nil
-    end
-    local panels = sim:factoryDashboard()
-    expect(findPanel(panels, "power") ~= nil, "dashboard should include power panel")
-    expect(findPanel(panels, "progression") ~= nil, "dashboard should include progression panel")
-    expect(findPanel(panels, "rates") ~= nil, "dashboard should include rates panel")
-    expect(sim:factoryDashboardText():find("dashboard: next Progression") == 1, "dashboard should surface first incomplete panel")
-    sim.world:setTile(1, 0, 0, { id = "iron_ore", data = 10 })
-    sim:addMachine("power_pole", 0, 0, "south")
-    sim:addMachine("electric_miner", 1, 0, "east")
-    sim:step()
-    local power = findPanel(sim:factoryDashboard(), "power")
-    expect(power.urgent and power.status == "underpowered", "dashboard should flag underpowered networks")
-    expect(sim:factoryDashboardText():find("dashboard: urgent Power") == 1, "dashboard should prioritize urgent power panel")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    loaded:step()
-    local loadedPower = findPanel(loaded:factoryDashboard(), "power")
-    expect(loadedPower.urgent and loadedPower.status == "underpowered", "dashboard state should survive save/load")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(35)
-    sim.productionTotals.iron_plate = 1
-    sim.productionTotals.copper_plate = 1
-    sim.productionTotals.science_pack = 1
-    sim.completedTechs.logistics_1 = true
-    sim.supplyContracts[1].complete = true
-    local progress = sim:achievementProgress()
-    expect(#progress == 6, "achievement progress should expose all definitions")
-    expect(progress[1].current >= progress[1].required, "achievement progress should derive from totals")
-    expect(sim:unlockedAchievementCount() == 0, "achievements should not unlock before a step")
-    sim:step()
-    expect(sim:unlockedAchievementCount() == 5, "seeded achievements should unlock after a step")
-    expect(sim:isAchievementUnlocked("first_iron_plate"), "first plate achievement should unlock")
-    sim:step()
-    expect(sim:unlockedAchievementCount() == 5, "achievement updates should not duplicate unlocks")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:unlockedAchievementCount() == 5, "unlocked achievements should persist")
-    expect(loaded:isAchievementUnlocked("first_supply_contract"), "supply achievement should persist")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(36, true)
-    local function stepComplete(state, key)
-        for _, step in ipairs(state:tutorialProgress()) do
-            if step.key == key then
-                return step.complete
-            end
-        end
-        return false
-    end
-    expect(sim.world:getTile(0, 0, 2).id == "floor", "tutorial spawn should be floor")
-    expect(sim.world:getTile(-3, 0, 2).id == "tree", "tutorial room should contain a tree")
-    expect(sim.world:getTile(-2, 2, 2).id == "stone", "tutorial room should contain stone")
-    expect(sim.world:getTile(5, 0, 2).id == "stairs_down", "tutorial room should contain an exit")
-    expect(sim.world:getTile(6, 0, 2).id == "dungeon_wall", "tutorial room should be isolated")
-    expect(sim:tutorialState().active and not sim:tutorialState().completed, "tutorial start state should be active")
-    expect(sim.player.z == 2 and sim:machineAt(3, 0, 2) ~= nil, "tutorial should spawn player and chest on tutorial layer")
-    sim.world:setTile(0, -1, 2, { id = "grass", data = 0 })
-    sim:queue(Simulation.commands.mine("north"))
-    sim:step()
-    expect(not stepComplete(sim, "mine"), "failed mine should not complete tutorial mine step")
-    sim:queue(Simulation.commands.move("east"))
-    sim:step()
-    expect(stepComplete(sim, "move"), "successful move should complete tutorial move step")
-    sim.player.x = -2
-    sim.player.y = 0
-    sim:queue(Simulation.commands.mine("west"))
-    sim:step()
-    expect(stepComplete(sim, "mine"), "successful mine should complete tutorial mine step")
-    sim:addItem("wood", 5)
-    sim:addItem("stone", 2)
-    sim:queue(Simulation.commands.craft("workbench"))
-    sim:step()
-    expect(stepComplete(sim, "craft"), "successful craft should complete tutorial craft step")
-    sim.player.x = 0
-    sim.player.y = 0
-    sim:queue(Simulation.commands.place("south", "workbench", "south"))
-    sim:step()
-    expect(stepComplete(sim, "place"), "successful place should complete tutorial place step")
-    sim.player.x = 2
-    sim.player.y = 0
-    sim:addItem("wood", 1)
-    sim:queue(Simulation.commands.deposit("east", "wood"))
-    sim:step()
-    expect(stepComplete(sim, "deposit"), "successful deposit should complete tutorial deposit step")
-    expect(sim:tutorialExitReady(), "tutorial exit should unlock after checklist completion")
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded:tutorialExitReady(), "tutorial checklist should persist")
-    loaded.player.x = 4
-    loaded.player.y = 0
-    loaded:queue(Simulation.commands.move("east"))
-    loaded:step()
-    expect(not loaded:tutorialState().active and loaded:tutorialState().completed, "tutorial exit should complete tutorial")
-    expect(loaded.player.z == 0, "tutorial exit should return to real layer")
-end
-
-tests[#tests + 1] = function()
-    local sim = Simulation.new(31)
-    local lab = sim:addMachine("lab", 0, 0, "south")
-    lab.inventory:add("science_pack", 7)
-    runSteps(sim, 180)
-    expect(sim:isTechCompleted("logistics_1"), "logistics_1 was not completed")
-    expect(sim:isTechCompleted("automation_control"), "automation_control was not completed")
-    expect(sim.activeTech == "logistic_network", "active tech did not advance to logistic_network")
-    for _, recipe in ipairs({ "fast_belt", "generator", "power_pole", "electric_miner", "splitter", "pipe" }) do
-        expect(sim:isRecipeUnlocked(recipe), "logistics_1 unlock path missing " .. recipe)
-    end
-    for _, recipe in ipairs({ "circuit_board", "advanced_science_pack", "crystal_lens", "circuit_inserter", "offshore_pump", "guard_tower", "repair_pylon" }) do
-        expect(sim:isRecipeUnlocked(recipe), "automation_control unlock path missing " .. recipe)
-    end
-    lab.inventory:add("advanced_science_pack", 5)
-    runSteps(sim, 120)
-    expect(sim:isTechCompleted("logistic_network"), "logistic_network was not completed")
-    for _, recipe in ipairs({
-        "provider_chest", "requester_chest", "logistic_port", "logistic_drone", "beacon_core", "archive_terminal",
-        "train_stop", "rift_gate", "outpost_beacon", "pressure_relay", "arc_tower",
-    }) do
-        expect(sim:isRecipeUnlocked(recipe), "logistic_network unlock path missing " .. recipe)
-    end
-    local loaded = assert(Save.fromText(Save.toText(sim)))
-    expect(loaded.activeTech == nil, "completed tech chain should stay complete after load")
-    expect(loaded:isRecipeUnlocked("rift_gate"), "final tech unlocks did not persist")
+    expect(app.ui.skillButtons == oldSkills, "prepareUi should reuse hitbox arrays")
+    expect(app.ui.enemyButtons == oldEnemies, "prepareUi should reuse enemy hitbox array")
+    expect(#app.ui.skillButtons == 0 and #app.ui.heroButtons == 0 and #app.ui.enemyButtons == 0 and #app.ui.itemButtons == 0, "prepareUi should clear combat hitboxes")
+    expect(#app.ui.missionButtons == 0 and #app.ui.recruitButtons == 0 and #app.ui.provisionButtons == 0, "prepareUi should clear estate hitboxes")
+    expect(#app.ui.estateActionButtons == 0, "prepareUi should clear estate action hitboxes")
+    expect(#app.ui.rosterButtons == 0, "prepareUi should clear roster hitboxes")
 end
 
 for index, test in ipairs(tests) do
-    local ok, err = pcall(test)
-    if not ok then
-        io.stderr:write("not ok ", index, " - ", tostring(err), "\n")
-        os.exit(1)
-    end
+    test()
     io.stdout:write("ok ", index, "\n")
 end
 
