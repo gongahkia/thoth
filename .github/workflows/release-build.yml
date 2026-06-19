@@ -2,6 +2,12 @@ name: Thoth Release Build
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_to_itch:
+        description: Upload built packages to itch.io via butler
+        required: false
+        default: false
+        type: boolean
   push:
     tags:
       - "v*"
@@ -20,7 +26,7 @@ jobs:
       - name: Install Lua runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y luajit love zip xvfb xauth rsync
+          sudo apt-get install -y luajit love zip unzip curl xvfb xauth rsync
 
       - name: Verify source package
         run: make check
@@ -78,3 +84,40 @@ jobs:
           name: thoth-linux-appimage
           path: ${{ steps.love-build.outputs['linux_x86_64-filename'] }}
           if-no-files-found: error
+
+      - name: Validate itch upload config
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.upload_to_itch) || (startsWith(github.ref, 'refs/tags/') && vars.ITCH_UPLOAD_ENABLED == 'true') }}
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+          ITCH_TARGET: ${{ vars.ITCH_TARGET }}
+        run: |
+          test -n "$BUTLER_API_KEY"
+          test -n "$ITCH_TARGET"
+
+      - name: Install butler
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.upload_to_itch) || (startsWith(github.ref, 'refs/tags/') && vars.ITCH_UPLOAD_ENABLED == 'true') }}
+        run: |
+          curl -L -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          mkdir -p "$HOME/.local/bin"
+          unzip -q butler.zip -d "$HOME/.local/bin"
+          chmod +x "$HOME/.local/bin/butler"
+          "$HOME/.local/bin/butler" version
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Upload packages to itch.io
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.upload_to_itch) || (startsWith(github.ref, 'refs/tags/') && vars.ITCH_UPLOAD_ENABLED == 'true') }}
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+          ITCH_TARGET: ${{ vars.ITCH_TARGET }}
+          ITCH_VERSION: ${{ github.ref_name }}
+          LOVE_PACKAGE: ${{ steps.love-build.outputs['love-filename'] }}
+          WIN64_PACKAGE: ${{ steps.love-build.outputs['win64-filename'] }}
+          WIN32_PACKAGE: ${{ steps.love-build.outputs['win32-filename'] }}
+          MACOS_PACKAGE: ${{ steps.love-build.outputs['macos-filename'] }}
+          LINUX_PACKAGE: ${{ steps.love-build.outputs['linux_x86_64-filename'] }}
+        run: |
+          butler push "$LOVE_PACKAGE" "$ITCH_TARGET:love" --userversion "$ITCH_VERSION"
+          butler push "$WIN64_PACKAGE" "$ITCH_TARGET:windows-x64" --userversion "$ITCH_VERSION"
+          butler push "$WIN32_PACKAGE" "$ITCH_TARGET:windows-x86" --userversion "$ITCH_VERSION"
+          butler push "$MACOS_PACKAGE" "$ITCH_TARGET:macos" --userversion "$ITCH_VERSION"
+          butler push "$LINUX_PACKAGE" "$ITCH_TARGET:linux-appimage" --userversion "$ITCH_VERSION"
