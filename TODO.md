@@ -4,7 +4,6 @@ This file tracks remaining work only. `TODO-CONTENT.md` is the detailed backlog 
 
 ## Immediate Priorities
 
-- [ ] Implement Narrative and UI Text expansion: 16 open tasks covering mission intros, curio copy fields, bestiary hints, loading/torch/camp/victory lines, glossary, faction/timer/ending copy, fixture/enclave barks, warden voice, document popups, and origin barks.
 - [ ] Implement Tests and Validation backlog: 18 open tasks covering content registry, layout grammar, visible threats, weak points, injuries, campaign timer, wardens, tiers, factions, trinket sets, documents, fixture barks, endings, and late-week pressure.
 
 ## Verification Gate

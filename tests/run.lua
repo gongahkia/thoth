@@ -867,9 +867,19 @@ tests[#tests + 1] = function()
     expect(sim:hasDocument("archive_writ_01"), "curio document drop should collect first archive writ")
     local journal = sim:journalEntries()
     expect(journal[1].key == "archive_writ_01" and journal[1].abstract ~= "", "journal should list collected document abstracts")
+    expect(sim.documentPopup and sim.documentPopup.key == "archive_writ_01", "document popup should track found fragment")
     expect(sim.status:find("clerk", 1, true) ~= nil or sim.status:find("Clerk", 1, true) ~= nil, "document collection should trigger fixture bark")
     local loaded = Simulation.fromSnapshot(sim:snapshot())
-    expect(loaded:hasDocument("archive_writ_01") and loaded:journalEntries()[1].key == "archive_writ_01", "journal should survive snapshot")
+    expect(loaded:hasDocument("archive_writ_01") and loaded:journalEntries()[1].key == "archive_writ_01" and loaded.documentPopup.key == "archive_writ_01", "journal should survive snapshot")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(126)
+    expect(sim:missionIntro("archive_scout").brief ~= "" and sim:missionIntro("archive_scout").sting ~= "", "mission intro copy should be readable")
+    expect(sim:curioCopy("relic_cache").observe and sim:curioCopy("relic_cache").result, "curio copy should be readable")
+    expect(sim:bestiaryEntry("ossuary_lectern").weakPointHint:find("weak points", 1, true) ~= nil, "bestiary weak-point hint should be readable")
+    expect(#sim:glossaryEntries() == 6 and sim:panelCopy("timer_panel_copy").body and sim:endingScreenCopy("estate_seal"), "glossary and panel copy should be readable")
+    expect(sim:originBark("warden", "arrival") ~= nil, "origin bark should be readable")
 end
 
 tests[#tests + 1] = function()
@@ -928,6 +938,7 @@ tests[#tests + 1] = function()
     expect(sim.expedition.clearedEncounters["8:0"], "victory should clear room encounter")
     expect(sim.expedition.loot:count("coin") > 0, "victory should grant loot")
     expect(sim:hasDocument("archive_writ_01"), "room loot victory should drop an archive document")
+    expect(sim.narration:find("Extraction", 1, true) ~= nil, "normal victory should use extraction result voice")
 end
 
 tests[#tests + 1] = function()
@@ -935,8 +946,10 @@ tests[#tests + 1] = function()
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("archive_silence_reeve"))
     expect(sim:startCombat("archive_reeve", "8:6"), "archive warden combat should start")
+    expect(sim.narration:find("Reeve", 1, true) ~= nil, "warden start should use warden voice")
     sim:finishCombat(true)
     expect(sim:hasDocument("archive_writ_01"), "archive warden should drop archive document")
+    expect(sim.narration:find("Reeve", 1, true) ~= nil, "warden defeat should use warden voice")
     sim = Simulation.new(124)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("cistern_silence_choir"))
@@ -949,6 +962,18 @@ tests[#tests + 1] = function()
     expect(sim:startCombat("ember_vicar", "8:-8"), "warrens warden combat should start")
     sim:finishCombat(true)
     expect(sim:hasDocument("warrens_confession_01"), "warrens warden should drop penitent confession")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(127)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim.narration:find("Archive", 1, true) ~= nil, "location bark should match archive")
+    sim.expedition.torch = 0
+    sim:checkDarkness()
+    expect(sim.narration:find("shelves", 1, true) ~= nil, "low torch voice should match archive")
+    sim:camp()
+    expect(sim.narration:find("Rest", 1, true) ~= nil or sim.narration:find("fire", 1, true) ~= nil, "camp should use complicity voice")
 end
 
 tests[#tests + 1] = function()

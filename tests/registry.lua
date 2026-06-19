@@ -552,6 +552,26 @@ for _, typeKey in ipairs(Defs.documentTypeOrder) do
     local bark = fixtureBarks[typeKey]
     expect(bark and Defs.estateFixture(bark.fixture) and bark.text ~= "", "fixture document bark missing " .. typeKey)
 end
+local glossary = Defs.glossary("terms_v1")
+for _, key in ipairs({ "dread", "noise", "injury", "alpha", "repair", "extraction" }) do
+    expect(glossary[key] and glossary[key] ~= "", "glossary term missing " .. key)
+end
+expect(Defs.panelCopyFor("faction_panel_copy").body and Defs.panelCopyFor("timer_panel_copy").body, "panel copy missing")
+local endingCopy = Defs.panelCopyFor("ending_screen_copy")
+for _, key in ipairs(Defs.endingRouteOrder) do
+    expect(endingCopy[key], "ending screen copy missing " .. key)
+end
+expect(Defs.fixtureVisitBark("fixture_visit_barks").greeting and Defs.fixtureVisitBark("fixture_visit_barks").farewell, "fixture visit barks missing")
+expect(Defs.enclaveLeaderBark("enclave_leader_barks").low and Defs.enclaveLeaderBark("enclave_leader_barks").high, "enclave leader barks missing")
+local wardenVoice = Defs.wardenVoice("warden_voice_v1")
+for _, key in ipairs({ "codex_reeve", "pearl_choir", "kiln_vicar" }) do
+    expect(wardenVoice[key] and wardenVoice[key].intro and wardenVoice[key].defeat, "warden voice missing " .. key)
+end
+local originBarks = Defs.originBark("origin_barks_v1")
+for _, classKey in ipairs(Defs.heroClassOrder) do
+    local bark = originBarks[classKey]
+    expect(bark and bark.arrival and bark.firstDeath and bark.factionShift, "origin bark missing " .. classKey)
+end
 local dreadRules = Defs.dreadRule("dread_rules_v1")
 for _, key in ipairs({ "greedy_extract", "hero_death", "abandoned_mission", "repair_mission", "vigil", "enclave_compact" }) do
     expect(type(dreadRules[key]) == "number", "dread rule missing " .. key)
