@@ -1379,12 +1379,13 @@ function love.draw()
     printTutorialSmoke(app)
     printToastSmoke(app)
     capturePreviewIfNeeded(app)
-    if app.renderBenchmark then
+    if app.renderBenchmark and not app.renderBenchmarkDone then
         local elapsedMs = (love.timer.getTime() - started) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1
         app.renderBenchmarkTotalMs = app.renderBenchmarkTotalMs + elapsedMs
         app.renderBenchmarkMaxMs = math.max(app.renderBenchmarkMaxMs, elapsedMs)
         if app.renderBenchmarkCount >= app.renderBenchmarkFrames then
+            app.renderBenchmarkDone = true
             print("benchmark=render")
             print("renderer=" .. tostring(app.renderer))
             print("mode=" .. tostring(app.worldView and app.worldView.mode))
@@ -1555,7 +1556,7 @@ function love.mousemoved(x, y)
 end
 
 function love.quit()
-    if app and app.smoke then
+    if app and (app.smoke or app.renderBenchmark) then
         return false
     end
     if app and not app.quitConfirmed and midExpedition() then
