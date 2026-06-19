@@ -168,7 +168,6 @@ Goal: ship 1.0 on itch.io + GitHub releases.
 - [ ] 8.2 itch.io upload via butler CLI integration in release workflow (16h)
 - [ ] 8.3 GitHub release: auto-tag, auto-attach builds, auto-generate changelog from commits (16h)
 - [ ] 8.4 Verify clean install on Windows, macOS, Linux from scratch (24h)
-- [ ] 8.5 Content rating self-assessment: ESRB/PEGI/IARC — document body-horror scope per `WORLD-LORE.md` § Content Acceptance Standard (8h)
 - [ ] 8.6 itch.io store page final: 5 screenshots, 1 trailer (record from gameplay), description copy, tags (16h)
 - [ ] 8.7 Trailer production: 60–90s gameplay edit + music (40h)
 - [ ] 8.8 RC1 → 6-week paid-beta on itch.io for feedback ($0–5 suggested donation, no required purchase) (n/a)
