@@ -1,5 +1,55 @@
 local Registry = {}
 
+local function clone(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local result = {}
+    for key, nested in pairs(value) do
+        result[key] = clone(nested)
+    end
+    return result
+end
+
+local function listHas(list, value)
+    for _, item in ipairs(list) do
+        if item == value then
+            return true
+        end
+    end
+    return false
+end
+
+function Registry.applyOverrides(overrides)
+    if type(overrides) ~= "table" then
+        return false, "registry overrides must be a table"
+    end
+    for category, entries in pairs(overrides) do
+        local target = Registry[category]
+        if type(target) ~= "table" then
+            return false, "unknown registry category " .. tostring(category)
+        end
+        if type(entries) ~= "table" then
+            return false, "registry override category must be a table: " .. tostring(category)
+        end
+        if tostring(category):match("Order$") then
+            for _, key in ipairs(entries) do
+                if type(key) ~= "string" then
+                    return false, "registry order entries must be strings: " .. tostring(category)
+                end
+                if not listHas(target, key) then
+                    target[#target + 1] = key
+                end
+            end
+        else
+            for key, value in pairs(entries) do
+                target[key] = clone(value)
+            end
+        end
+    end
+    return true
+end
+
 Registry.contentRules = {
     namingPrefixes = {
         global = "global_",

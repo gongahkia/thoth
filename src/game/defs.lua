@@ -1,6 +1,8 @@
 local Registry = require("src.game.data.registry")
 
 local Defs = {
+    registry = Registry,
+    applyRegistryOverrides = Registry.applyOverrides,
     contentRules = Registry.contentRules,
     tiles = Registry.tiles,
     tileOrder = Registry.tileOrder,

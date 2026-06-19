@@ -640,4 +640,22 @@ for line in todo:lines() do
 end
 todo:close()
 
+local ok, err = Defs.applyRegistryOverrides({
+    panelCopy = {
+        mod_test_panel = { title = "Mod Test", body = "override body" },
+    },
+    panelCopyOrder = { "mod_test_panel", "mod_test_panel" },
+})
+expect(ok, tostring(err))
+expect(Defs.panelCopyFor("mod_test_panel").body == "override body", "registry override should add map entries")
+local seenModPanel = 0
+for _, key in ipairs(Defs.panelCopyOrder) do
+    if key == "mod_test_panel" then
+        seenModPanel = seenModPanel + 1
+    end
+end
+expect(seenModPanel == 1, "registry override should append order entries once")
+local badOverride = Defs.applyRegistryOverrides({ missingCategory = {} })
+expect(not badOverride, "registry override should reject unknown categories")
+
 print("registry checks passed")
