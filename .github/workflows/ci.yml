@@ -22,8 +22,10 @@ jobs:
       - name: Run asset checks
         run: make check
 
-      - name: Run render smoke
-        run: SDL_AUDIODRIVER=dummy make render-smoke
+      - name: Run render3d smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make render-smoke
 
       - name: Build love package
         run: make package
