@@ -91,6 +91,27 @@ function World:roomCenters()
     return result
 end
 
+function World:connectedRooms(roomKey)
+    local result = {}
+    local seen = {}
+    for _, corridor in ipairs(corridors) do
+        local a = tostring(corridor.ax) .. ":" .. tostring(corridor.ay)
+        local b = tostring(corridor.bx) .. ":" .. tostring(corridor.by)
+        local other = nil
+        if a == roomKey then
+            other = b
+        elseif b == roomKey then
+            other = a
+        end
+        if other and not seen[other] then
+            seen[other] = true
+            result[#result + 1] = other
+        end
+    end
+    table.sort(result)
+    return result
+end
+
 function World:generateChunk(cx, cy, z)
     local chunk = { cx = cx, cy = cy, z = z or 0, tiles = {} }
     for localY = 0, World.chunkSize - 1 do

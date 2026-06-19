@@ -42,6 +42,8 @@ tests[#tests + 1] = function()
     expect(world:getTile(0, 0, 0).id == "archive_floor", "origin should be archive floor")
     expect(world:getTile(3, 0, 0).id == "corridor", "corridor should pierce room edge")
     expect(world:getTile(-2, 2, 0).id == "exit_gate", "exit gate missing")
+    local connected = table.concat(world:connectedRooms("0:0"), ",")
+    expect(connected == "8:0", "room graph should expose corridor links")
     local baseRevision = world:chunkRevision(0, 0, 0)
     world:setTile(4, 0, 0, { id = "archive_floor", data = 0 })
     expect(world:getTile(4, 0, 0).id == "archive_floor", "override did not persist")
@@ -154,6 +156,47 @@ tests[#tests + 1] = function()
     expect(not hero.alive, "failed deathblow check should kill hero")
     expect(#sim.estate.graveyard == 1, "graveyard should record death")
     expect(sim:heroAtRank(1).id ~= hero.id, "party should compact after death")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(37)
+    local rations = sim.expedition.supplies:count("ration")
+    for _ = 1, 6 do
+        sim:checkHunger()
+    end
+    expect(sim.expedition.hungerChecks == 1, "six steps should trigger one hunger check")
+    expect(sim.expedition.supplies:count("ration") == rations - 4, "hunger should consume one ration per living hero")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(38)
+    sim.expedition.supplies:consume("ration", sim.expedition.supplies:count("ration"))
+    local hero = sim:heroAtRank(1)
+    local hp = hero.hp
+    for _ = 1, 6 do
+        sim:checkHunger()
+    end
+    expect(hero.hp < hp and hero.stress > 0, "starvation should damage and stress heroes")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(39)
+    local hero = sim:heroAtRank(1)
+    local hp = hero.hp
+    local bandages = sim.expedition.supplies:count("bandage")
+    for _ = 1, 4 do
+        runQueued(sim, Simulation.commands.move("east"))
+    end
+    expect(hero.hp < hp, "stepping onto trap should hurt selected hero")
+    expect(sim.expedition.supplies:count("bandage") == bandages, "forced trap should not auto-spend bandage")
+    expect(sim.world:getTile(4, 0, 0).id == "archive_floor", "forced trap should clear hazard")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(8)
+    sim.expedition.torch = 100
+    local ok = sim:scoutFromRoom("0:0")
+    expect(ok and sim.expedition.scoutedRooms["8:0"], "high-light scouting should reveal connected room for seed 8")
 end
 
 tests[#tests + 1] = function()

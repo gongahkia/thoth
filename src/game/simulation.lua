@@ -576,9 +576,12 @@ function Simulation:startExpedition(locationKey)
         }),
         loot = Inventory.new(),
         visitedRooms = {},
+        scoutedRooms = {},
         clearedEncounters = {},
         curiosUsed = {},
         roomsScouted = 0,
+        stepsSinceMeal = 0,
+        hungerChecks = 0,
         campUsed = false,
         objectiveComplete = false,
         bossDefeated = false,
@@ -842,6 +845,9 @@ function Simulation:discoverCurrentRoom()
         return nil
     end
     local roomKey = self:currentRoomKey()
+    if roomKey then
+        self.expedition.scoutedRooms[roomKey] = true
+    end
     if roomKey and not self.expedition.visitedRooms[roomKey] then
         self.expedition.visitedRooms[roomKey] = true
         self.expedition.roomsScouted = self.expedition.roomsScouted + 1
@@ -849,14 +855,98 @@ function Simulation:discoverCurrentRoom()
         if self.expedition.roomsScouted >= location.objectiveRooms then
             self.expedition.objectiveComplete = true
         end
+        self:scoutFromRoom(roomKey)
     end
     return roomKey
+end
+
+function Simulation:scoutFromRoom(roomKey)
+    if not self.expedition or not roomKey then
+        return false
+    end
+    local scoutScore = self:roll(1, 100) + math.floor((self.expedition.torch or 0) / 2)
+    if scoutScore < 55 then
+        return false
+    end
+    local count = 0
+    for _, adjacent in ipairs(self.world:connectedRooms(roomKey)) do
+        if not self.expedition.scoutedRooms[adjacent] then
+            self.expedition.scoutedRooms[adjacent] = true
+            count = count + 1
+        end
+    end
+    if count > 0 then
+        self:pushLog("scouted " .. count .. " room" .. (count == 1 and "" or "s"))
+    end
+    return count > 0
 end
 
 function Simulation:decayTorch(amount)
     if self.expedition then
         self.expedition.torch = clamp(self.expedition.torch - (amount or 1), 0, 100)
     end
+end
+
+function Simulation:livingParty()
+    local heroes = {}
+    for rank = 1, 4 do
+        local hero = self:heroAtRank(rank)
+        if hero and hero.alive then
+            heroes[#heroes + 1] = hero
+        end
+    end
+    return heroes
+end
+
+function Simulation:checkHunger()
+    if not self.expedition then
+        return false
+    end
+    self.expedition.stepsSinceMeal = (self.expedition.stepsSinceMeal or 0) + 1
+    if self.expedition.stepsSinceMeal < 6 then
+        return false
+    end
+    self.expedition.stepsSinceMeal = 0
+    self.expedition.hungerChecks = (self.expedition.hungerChecks or 0) + 1
+    local heroes = self:livingParty()
+    local needed = #heroes
+    if self.expedition.supplies:count("ration") >= needed then
+        self.expedition.supplies:consume("ration", needed)
+        self:pushLog("ate rations")
+        return true
+    end
+    local remaining = self.expedition.supplies:count("ration")
+    if remaining > 0 then
+        self.expedition.supplies:consume("ration", remaining)
+    end
+    for _, hero in ipairs(heroes) do
+        self:damageHero(hero, 2)
+        self:addStress(hero, 6)
+    end
+    self:pushLog("hunger gnawed")
+    return true
+end
+
+function Simulation:checkDarkness()
+    if not self.expedition or self.expedition.torch > 0 then
+        return false
+    end
+    for _, hero in ipairs(self:livingParty()) do
+        self:addStress(hero, 1)
+    end
+    self:pushLog("dark pressed in")
+    return true
+end
+
+function Simulation:checkTileHazard(x, y, z)
+    if not self.expedition then
+        return false
+    end
+    local tileDef = Defs.tile(self.world:getTile(x, y, z).id)
+    if tileDef.curio and Defs.curio(tileDef.curio) and Defs.curio(tileDef.curio).damage then
+        return self:resolveCurio(x, y, z, tileDef.curio, { forceNoItem = true })
+    end
+    return false
 end
 
 function Simulation:isWalkable(x, y, z)
@@ -877,6 +967,9 @@ function Simulation:move(direction)
     self.player.x = x
     self.player.y = y
     self:decayTorch(1)
+    self:checkHunger()
+    self:checkDarkness()
+    self:checkTileHazard(x, y, self.player.z)
     local roomKey = self:discoverCurrentRoom()
     self:pushLog("moved " .. direction)
     self:tryStartRoomEncounter(roomKey)
@@ -920,7 +1013,7 @@ function Simulation:interact()
     return false
 end
 
-function Simulation:resolveCurio(x, y, z, curioKey)
+function Simulation:resolveCurio(x, y, z, curioKey, options)
     local key = Grid.key(x, y, z)
     if self.expedition.curiosUsed[key] then
         return false
@@ -933,7 +1026,7 @@ function Simulation:resolveCurio(x, y, z, curioKey)
         return self:camp()
     end
     local usedItem = false
-    if curio.item and self.expedition.supplies:consume(curio.item, 1) then
+    if not (options and options.forceNoItem) and curio.item and self.expedition.supplies:consume(curio.item, 1) then
         usedItem = true
     end
     for item, count in pairs(curio.loot or {}) do
@@ -1674,9 +1767,12 @@ function Simulation:snapshot()
             supplies = self.expedition.supplies:stacks(),
             loot = self.expedition.loot:stacks(),
             visitedRooms = copyMap(self.expedition.visitedRooms),
+            scoutedRooms = copyMap(self.expedition.scoutedRooms),
             clearedEncounters = copyMap(self.expedition.clearedEncounters),
             curiosUsed = copyMap(self.expedition.curiosUsed),
             roomsScouted = self.expedition.roomsScouted,
+            stepsSinceMeal = self.expedition.stepsSinceMeal,
+            hungerChecks = self.expedition.hungerChecks,
             campUsed = self.expedition.campUsed,
             objectiveComplete = self.expedition.objectiveComplete,
             bossDefeated = self.expedition.bossDefeated,
@@ -1804,9 +1900,12 @@ function Simulation.fromSnapshot(snapshot)
             supplies = inventoryFromStacks(exp.supplies),
             loot = inventoryFromStacks(exp.loot),
             visitedRooms = copyMap(exp.visitedRooms),
+            scoutedRooms = copyMap(exp.scoutedRooms),
             clearedEncounters = copyMap(exp.clearedEncounters),
             curiosUsed = copyMap(exp.curiosUsed),
             roomsScouted = exp.roomsScouted or 0,
+            stepsSinceMeal = exp.stepsSinceMeal or 0,
+            hungerChecks = exp.hungerChecks or 0,
             campUsed = exp.campUsed == true,
             objectiveComplete = exp.objectiveComplete == true,
             bossDefeated = exp.bossDefeated == true,
