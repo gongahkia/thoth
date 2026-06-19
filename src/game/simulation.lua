@@ -133,6 +133,10 @@ local function inventoryFromStacks(stacks)
     return Inventory.new(stacks or {})
 end
 
+local function newCampaign()
+    return { renown = 0, dread = 0, completedMissions = {}, locationProgress = {}, bossKills = {}, victory = false }
+end
+
 function Simulation.new(seed)
     local roster = {}
     for index = 1, 4 do
@@ -157,6 +161,7 @@ function Simulation.new(seed)
             trinkets = { ember_pin = 1, cracked_lens = 1, chirurgic_thread = 1 },
             provisionCart = Inventory.new(),
             upgrades = { stagecoach = 0, guild = 0, forge = 0, infirmary = 0 },
+            campaign = newCampaign(),
             recruits = {},
             nextHeroId = 5,
             recruitSerial = 1,
@@ -777,6 +782,7 @@ function Simulation:endExpedition(retreat)
                 end
             end
         end
+        self:recordMissionOutcome(mission, true, retreat)
         self:pushLog("mission complete")
     else
         self.estate.gold = self.estate.gold + math.floor(coin / 2)
@@ -789,6 +795,7 @@ function Simulation:endExpedition(retreat)
                 end
             end
         end
+        self:recordMissionOutcome(mission, false, retreat)
         self:pushLog("expedition abandoned")
     end
     self.mode = "estate"
@@ -796,6 +803,33 @@ function Simulation:endExpedition(retreat)
     self.expedition.active = false
     self:advanceWeek()
     self:refillRecruits()
+    return true
+end
+
+function Simulation:recordMissionOutcome(mission, success, retreat)
+    self.estate.campaign = self.estate.campaign or newCampaign()
+    local campaign = self.estate.campaign
+    local locationKey = mission and mission.location or (self.expedition and self.expedition.location) or "buried_archive"
+    local missionKey = self.expedition and self.expedition.mission or (mission and mission.name) or locationKey
+    if success then
+        local progress = mission.kind == "boss" and 2 or 1
+        campaign.renown = (campaign.renown or 0) + progress
+        campaign.dread = math.max(0, (campaign.dread or 0) - 1)
+        campaign.completedMissions[missionKey] = true
+        campaign.locationProgress[locationKey] = (campaign.locationProgress[locationKey] or 0) + progress
+        if mission.kind == "boss" then
+            campaign.bossKills[locationKey] = true
+        end
+    else
+        campaign.dread = (campaign.dread or 0) + (retreat and 1 or 2)
+    end
+    local defeated = 0
+    for _, key in ipairs(Defs.locationOrder) do
+        if campaign.bossKills[key] then
+            defeated = defeated + 1
+        end
+    end
+    campaign.victory = defeated >= #Defs.locationOrder
     return true
 end
 
@@ -812,8 +846,24 @@ function Simulation:advanceWeek()
             end
         end
     end
+    self:applyCampaignPressure()
     self:refillRecruits()
     self:rollTownEvent()
+    return true
+end
+
+function Simulation:applyCampaignPressure()
+    local dread = self.estate.campaign and (self.estate.campaign.dread or 0) or 0
+    if dread < 6 then
+        return false
+    end
+    local stress = math.max(2, math.floor(dread / 6))
+    for _, hero in ipairs(self.estate.roster) do
+        if hero.alive and (hero.recovering or 0) <= 0 then
+            self:addStress(hero, stress)
+        end
+    end
+    self:pushLog("dread weighs on the estate")
     return true
 end
 
@@ -2394,6 +2444,14 @@ function Simulation:snapshot()
             trinkets = copyMap(self.estate.trinkets),
             provisionCart = self.estate.provisionCart:stacks(),
             upgrades = copyMap(self.estate.upgrades),
+            campaign = {
+                renown = self.estate.campaign and self.estate.campaign.renown or 0,
+                dread = self.estate.campaign and self.estate.campaign.dread or 0,
+                completedMissions = copyMap(self.estate.campaign and self.estate.campaign.completedMissions),
+                locationProgress = copyMap(self.estate.campaign and self.estate.campaign.locationProgress),
+                bossKills = copyMap(self.estate.campaign and self.estate.campaign.bossKills),
+                victory = self.estate.campaign and self.estate.campaign.victory == true,
+            },
             recruits = recruits,
             nextHeroId = self.estate.nextHeroId,
             recruitSerial = self.estate.recruitSerial,
@@ -2417,7 +2475,7 @@ function Simulation.fromSnapshot(snapshot)
         mode = snapshot.mode or "estate",
         world = World.fromSnapshot(snapshot.world or { seed = snapshot.seed or 1, tiles = {} }),
         player = copyMap(snapshot.player or { x = 0, y = 0, z = 0, facing = "east", selectedHero = 1 }),
-        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {}, trinkets = {}, provisionCart = Inventory.new(), upgrades = {}, recruits = {}, nextHeroId = 1, recruitSerial = 1 },
+        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {}, trinkets = {}, provisionCart = Inventory.new(), upgrades = {}, campaign = newCampaign(), recruits = {}, nextHeroId = 1, recruitSerial = 1 },
         party = copyList(snapshot.party or {}),
         expedition = nil,
         combat = nil,
@@ -2437,6 +2495,15 @@ function Simulation.fromSnapshot(snapshot)
     for _, buildingKey in ipairs(Defs.estateBuildingOrder) do
         self.estate.upgrades[buildingKey] = self.estate.upgrades[buildingKey] or 0
     end
+    local campaign = (snapshot.estate and snapshot.estate.campaign) or {}
+    self.estate.campaign = {
+        renown = campaign.renown or 0,
+        dread = campaign.dread or 0,
+        completedMissions = copyMap(campaign.completedMissions),
+        locationProgress = copyMap(campaign.locationProgress),
+        bossKills = copyMap(campaign.bossKills),
+        victory = campaign.victory == true,
+    }
     self.estate.recruits = {}
     for _, recruit in ipairs((snapshot.estate and snapshot.estate.recruits) or {}) do
         self.estate.recruits[#self.estate.recruits + 1] = {

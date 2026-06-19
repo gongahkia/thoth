@@ -393,6 +393,8 @@ tests[#tests + 1] = function()
     expect(sim.estate.gold >= 260, "completed expedition should transfer loot and mission reward after town event")
     expect(sim.estate.heirlooms == 1, "completed expedition should pay mission heirloom reward")
     expect(sim.estate.currentEvent, "expedition return should roll town event")
+    expect(sim.estate.campaign.renown == 1 and sim.estate.campaign.completedMissions.archive_scout, "completed mission should advance campaign")
+    expect(sim.estate.campaign.locationProgress.buried_archive == 1, "completed mission should advance location progress")
 end
 
 tests[#tests + 1] = function()
@@ -421,6 +423,21 @@ tests[#tests + 1] = function()
     sim.player.facing = "south"
     runQueued(sim, Simulation.commands.interact())
     expect(sim.estate.trinkets.quiet_bell >= 1 and sim.estate.gold >= 320, "boss mission should pay reward")
+    expect(sim.estate.campaign.bossKills.buried_archive and sim.estate.campaign.locationProgress.buried_archive == 2, "boss mission should mark location boss progress")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(66)
+    sim:endExpedition(true)
+    for _, missionKey in ipairs({ "archive_regent", "cistern_bell", "ember_prioress" }) do
+        sim:startExpedition(missionKey)
+        sim.expedition.objectiveComplete = true
+        sim.expedition.bossDefeated = true
+        sim:endExpedition(false)
+    end
+    expect(sim.estate.campaign.victory and sim.estate.campaign.renown == 6, "all boss wins should complete campaign arc")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.estate.campaign.victory and loaded.estate.campaign.bossKills.ember_warrens, "campaign snapshot should preserve boss wins")
 end
 
 tests[#tests + 1] = function()
@@ -460,8 +477,19 @@ tests[#tests + 1] = function()
     expect(sim.mode == "estate", "retreat end should return to estate")
     expect(sim.estate.gold >= 140, "retreat should transfer half coin after town event")
     expect(sim.estate.currentEvent, "retreat should advance week and roll town event")
+    expect(sim.estate.campaign.dread == 1, "retreat should raise campaign dread")
     local stress = sim:heroAtRank(1).stress
     expect(stress > 0, "retreat should stress party")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(67)
+    sim:endExpedition(true)
+    local hero = sim:heroAtRank(1)
+    hero.stress = 0
+    sim.estate.campaign.dread = 6
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(hero.stress >= 1, "high dread should add estate pressure stress")
 end
 
 tests[#tests + 1] = function()
