@@ -48,6 +48,7 @@ estate-smoke:
 	grep -q "estate-smoke-mode=estate" $$tmp; \
 	grep -q "estate-smoke-buildings=4" $$tmp; \
 	grep -q "estate-smoke-roster=" $$tmp; \
+	grep -q "estate-smoke-party-slots=4" $$tmp; \
 	grep -q "estate-smoke-missions=" $$tmp; \
 	rm -f $$tmp
 

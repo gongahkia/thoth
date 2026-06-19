@@ -373,6 +373,7 @@ local function printEstateSmoke(state)
     print("estate-smoke-mode=" .. tostring(sim and sim.mode))
     print("estate-smoke-buildings=" .. tostring(buildingButtons))
     print("estate-smoke-roster=" .. tostring(#((state.ui and state.ui.rosterButtons) or {})))
+    print("estate-smoke-party-slots=" .. tostring(#((state.ui and state.ui.partyRankSlots) or {})))
     print("estate-smoke-missions=" .. tostring(#((state.ui and state.ui.missionButtons) or {})))
 end
 
@@ -551,4 +552,11 @@ function love.mousepressed(x, y, button)
         return
     end
     Input.mousepressed(sim, app, x, y, button)
+end
+
+function love.mousereleased(x, y, button)
+    if app.uiState ~= "game" then
+        return
+    end
+    Input.mousereleased(sim, app, x, y, button)
 end

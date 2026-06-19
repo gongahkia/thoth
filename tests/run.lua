@@ -1945,6 +1945,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(76)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.recruitHero(1))
+    local hero = sim.estate.roster[#sim.estate.roster]
+    local app = {
+        ui = {
+            rosterButtons = { { x = 0, y = 0, w = 20, h = 20, heroId = hero.id } },
+            partyRankSlots = { { x = 30, y = 0, w = 20, h = 20, rank = 2 } },
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    expect(app.dragHeroId == hero.id, "roster mouse down should start party drag")
+    Input.mousereleased(sim, app, 35, 5, 1)
+    sim:step()
+    expect(sim:heroRank(hero.id) == 2 and app.dragHeroId == nil, "party rank release should assign dragged hero")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(51)
     reachEntryCombat(sim)
     local enemy = sim:enemyAtRank(2)
@@ -2016,6 +2034,7 @@ tests[#tests + 1] = function()
             provisionButtons = { { stale = true } },
             estateActionButtons = { { stale = true } },
             rosterButtons = { { stale = true } },
+            partyRankSlots = { { stale = true } },
             titleButtons = { { stale = true } },
             settingsButtons = { { stale = true } },
         },
@@ -2031,6 +2050,7 @@ tests[#tests + 1] = function()
     expect(#app.ui.missionButtons == 0 and #app.ui.recruitButtons == 0 and #app.ui.provisionButtons == 0, "prepareUi should clear estate hitboxes")
     expect(#app.ui.estateActionButtons == 0, "prepareUi should clear estate action hitboxes")
     expect(#app.ui.rosterButtons == 0, "prepareUi should clear roster hitboxes")
+    expect(#app.ui.partyRankSlots == 0, "prepareUi should clear party rank slots")
     expect(#app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
     app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
     app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }

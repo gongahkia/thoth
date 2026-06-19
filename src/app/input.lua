@@ -286,6 +286,7 @@ function Input.mousepressed(sim, app, x, y, button)
     for _, hitbox in ipairs((app.ui and app.ui.rosterButtons) or {}) do
         if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
             app.estateHeroId = hitbox.heroId
+            app.dragHeroId = hitbox.heroId
             app.status = "roster " .. hitbox.heroId
             play(app, "tick")
             return
@@ -343,6 +344,22 @@ function Input.mousepressed(sim, app, x, y, button)
             else
                 sim:queue(Simulation.commands.move("north"))
             end
+        end
+    end
+end
+
+function Input.mousereleased(sim, app, x, y, button)
+    if button ~= 1 or not app.dragHeroId then
+        return
+    end
+    local heroId = app.dragHeroId
+    app.dragHeroId = nil
+    for _, hitbox in ipairs((app.ui and app.ui.partyRankSlots) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            sim:queue(Simulation.commands.assignParty(heroId, hitbox.rank))
+            app.status = "assign rank " .. hitbox.rank
+            play(app, "craft")
+            return
         end
     end
 end

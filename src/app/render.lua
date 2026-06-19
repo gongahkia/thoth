@@ -148,6 +148,7 @@ function Render.prepareUi(app)
     app.ui.provisionButtons = app.ui.provisionButtons or {}
     app.ui.estateActionButtons = app.ui.estateActionButtons or {}
     app.ui.rosterButtons = app.ui.rosterButtons or {}
+    app.ui.partyRankSlots = app.ui.partyRankSlots or {}
     app.ui.titleButtons = app.ui.titleButtons or {}
     app.ui.settingsButtons = app.ui.settingsButtons or {}
     clearList(app.ui.skillButtons)
@@ -159,6 +160,7 @@ function Render.prepareUi(app)
     clearList(app.ui.provisionButtons)
     clearList(app.ui.estateActionButtons)
     clearList(app.ui.rosterButtons)
+    clearList(app.ui.partyRankSlots)
     clearList(app.ui.titleButtons)
     clearList(app.ui.settingsButtons)
 end
@@ -997,6 +999,31 @@ local function drawRosterBrowser(sim, app, x, y, w, h)
     return selected
 end
 
+local function drawPartyFormation(sim, app, x, y, w)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Party Formation", x, y)
+    local slotW = math.floor((w - 18) / 4)
+    for rank = 1, 4 do
+        local hero = sim:heroAtRank(rank)
+        local sx = x + (rank - 1) * (slotW + 6)
+        local sy = y + 24
+        love.graphics.setColor(0.12, 0.15, 0.14, 1)
+        love.graphics.rectangle("fill", sx, sy, slotW, 52)
+        love.graphics.setColor(0.42, 0.52, 0.38, 1)
+        love.graphics.rectangle("line", sx, sy, slotW, 52)
+        love.graphics.setColor(0.88, 0.9, 0.82, 1)
+        love.graphics.printf("R" .. rank, sx + 4, sy + 6, slotW - 8, "center")
+        love.graphics.setColor(0.68, 0.74, 0.68, 1)
+        love.graphics.printf(hero and hero.name or "empty", sx + 4, sy + 28, slotW - 8, "center")
+        app.ui.partyRankSlots[#app.ui.partyRankSlots + 1] = { x = sx, y = sy, w = slotW, h = 52, rank = rank }
+    end
+    if app.dragHeroId then
+        local hero = sim:heroById(app.dragHeroId)
+        love.graphics.setColor(0.86, 0.78, 0.44, 1)
+        love.graphics.printf("assigning " .. (hero and hero.name or "hero"), x, y + 84, w, "left")
+    end
+end
+
 local function drawSelectedEstateHero(sim, app, hero, x, y, w)
     if not hero then
         return
@@ -1683,7 +1710,8 @@ function Render.drawEstatePanel(sim, app)
         love.graphics.printf("kit " .. compactStacks(location and location.provisions), bx + 4, by + 21, 188, "center")
         app.ui.missionButtons[#app.ui.missionButtons + 1] = { x = bx, y = by, w = 196, h = 38, missionKey = key }
     end
-    local recruitY = y + 380
+    drawPartyFormation(sim, app, x + 10, y + 356, 410)
+    local recruitY = y + 452
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Recruits", x + 10, recruitY)
     for index, recruit in ipairs(sim.estate.recruits or {}) do
@@ -1697,7 +1725,7 @@ function Render.drawEstatePanel(sim, app)
         love.graphics.printf(recruit.name .. " " .. Defs.heroClass(recruit.class).name, bx + 4, by + 7, 120, "center")
         app.ui.recruitButtons[#app.ui.recruitButtons + 1] = { x = bx, y = by, w = 128, h = 28, recruitIndex = index }
     end
-    local provisionY = y + 472
+    local provisionY = y + 544
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Provisions", x + 10, provisionY)
     local provisionItems = {}
