@@ -385,10 +385,17 @@ Registry.enemySkills = {
     kiln_bite = { name = "Kiln Bite", target = "hero", targetRanks = { 1, 2 }, damage = { 4, 6 }, stress = 1 },
     soot_cloud = { name = "Soot Cloud", target = "hero", targetRanks = { 2, 3, 4 }, damage = { 1, 3 }, stress = 5, status = { kind = "daze", amount = 1, turns = 1 } },
     kiln_liturgy = { name = "Kiln Liturgy", target = "party", stress = 5 },
+    page_swarm = { name = "Page Swarm", target = "hero", targetRanks = { 3, 4 }, damage = { 1, 2 }, stress = 7, status = { kind = "marked", turns = 2 } },
+    marrow_shear = { name = "Marrow Shear", target = "hero", targetRanks = { 1, 2 }, damage = { 4, 7 }, stress = 2, status = { kind = "bleed", amount = 1, turns = 2 } },
+    brine_net = { name = "Brine Net", target = "hero", targetRanks = { 2, 3, 4 }, damage = { 2, 4 }, stress = 3, move = -1, status = { kind = "daze", amount = 1, turns = 1 } },
+    lantern_drown = { name = "Lantern Drown", target = "party", stress = 4 },
+    ember_surge = { name = "Ember Surge", target = "hero", targetRanks = { 1, 2, 3 }, damage = { 3, 5 }, stress = 4, status = { kind = "blight", amount = 1, turns = 2 } },
+    coal_spike = { name = "Coal Spike", target = "hero", targetRanks = { 1, 2 }, damage = { 5, 7 }, stress = 1 },
 }
 Registry.enemySkillOrder = {
     "rusted_chop", "ink_splatter", "needle_dictation", "gutter_hook", "censer_wail", "regent_sentence",
     "brine_spit", "hook_chain", "drowned_hymn", "kiln_bite", "soot_cloud", "kiln_liturgy",
+    "page_swarm", "marrow_shear", "brine_net", "lantern_drown", "ember_surge", "coal_spike",
 }
 
 Registry.enemies = {
@@ -404,10 +411,17 @@ Registry.enemies = {
     ash_husk = { name = "Ash Husk", maxHp = 13, speed = 4, damage = { 3, 5 }, stress = 3, skills = { "kiln_bite", "soot_cloud" } },
     kiln_imp = { name = "Kiln Imp", maxHp = 9, speed = 7, damage = { 2, 4 }, stress = 5, skills = { "soot_cloud", "kiln_bite" } },
     cinder_prioress = { name = "Cinder Prioress", maxHp = 31, speed = 5, damage = { 4, 7 }, stress = 8, boss = true, skills = { "kiln_liturgy", "soot_cloud" } },
+    parchment_swarm = { name = "Parchment Swarm", maxHp = 8, speed = 8, damage = { 1, 2 }, stress = 7, skills = { "page_swarm", "ink_splatter" } },
+    marrow_bailiff = { name = "Marrow Bailiff", maxHp = 20, speed = 3, damage = { 4, 7 }, stress = 2, skills = { "marrow_shear", "rusted_chop" } },
+    salt_eel = { name = "Salt Eel", maxHp = 12, speed = 7, damage = { 2, 5 }, stress = 3, skills = { "brine_net", "brine_spit" } },
+    drowned_lantern = { name = "Drowned Lantern", maxHp = 10, speed = 4, damage = { 1, 3 }, stress = 8, skills = { "lantern_drown", "drowned_hymn" } },
+    ember_mote = { name = "Ember Mote", maxHp = 10, speed = 8, damage = { 2, 4 }, stress = 5, skills = { "ember_surge", "soot_cloud" } },
+    coal_monk = { name = "Coal Monk", maxHp = 18, speed = 2, damage = { 5, 7 }, stress = 2, skills = { "coal_spike", "kiln_liturgy" } },
 }
 Registry.enemyOrder = {
     "hollow_guard", "ink_wretch", "bone_scribe", "gutter_thing", "pale_censer", "vault_regent",
     "drowned_acolyte", "brine_stalker", "bell_diver", "ash_husk", "kiln_imp", "cinder_prioress",
+    "parchment_swarm", "marrow_bailiff", "salt_eel", "drowned_lantern", "ember_mote", "coal_monk",
 }
 
 Registry.afflictions = {
@@ -445,22 +459,26 @@ Registry.curioOrder = {
 
 Registry.encounters = {
     entry = { "hollow_guard", "ink_wretch" },
+    archive_branch = { "parchment_swarm", "hollow_guard", "bone_scribe" },
     stacks = { "bone_scribe", "ink_wretch", "pale_censer" },
-    undercroft = { "gutter_thing", "hollow_guard", "bone_scribe" },
+    undercroft = { "gutter_thing", "marrow_bailiff", "bone_scribe" },
     regent = { "vault_regent", "pale_censer" },
     regent_crowned = { "vault_regent", "bone_scribe", "pale_censer" },
     cistern_entry = { "drowned_acolyte", "brine_stalker" },
-    cistern_depths = { "brine_stalker", "drowned_acolyte", "pale_censer" },
+    cistern_branch = { "salt_eel", "drowned_acolyte", "brine_stalker" },
+    cistern_depths = { "brine_stalker", "drowned_lantern", "pale_censer" },
     matron = { "bell_diver", "drowned_acolyte" },
     matron_toll = { "bell_diver", "brine_stalker", "drowned_acolyte" },
     ember_entry = { "ash_husk", "kiln_imp" },
-    ember_altar = { "kiln_imp", "ash_husk", "pale_censer" },
+    ember_branch = { "ember_mote", "ash_husk", "kiln_imp" },
+    ember_altar = { "kiln_imp", "coal_monk", "pale_censer" },
     prioress = { "cinder_prioress", "kiln_imp" },
     prioress_ember = { "cinder_prioress", "kiln_imp", "ash_husk" },
 }
 Registry.encounterOrder = {
-    "entry", "stacks", "undercroft", "regent", "regent_crowned",
-    "cistern_entry", "cistern_depths", "matron", "matron_toll", "ember_entry", "ember_altar", "prioress", "prioress_ember",
+    "entry", "archive_branch", "stacks", "undercroft", "regent", "regent_crowned",
+    "cistern_entry", "cistern_branch", "cistern_depths", "matron", "matron_toll",
+    "ember_entry", "ember_branch", "ember_altar", "prioress", "prioress_ember",
 }
 
 Registry.locations = {
@@ -518,7 +536,7 @@ Registry.locations = {
         },
         encounters = {
             ["8:0"] = "entry",
-            ["0:8"] = "entry",
+            ["0:8"] = "archive_branch",
             ["16:0"] = "stacks",
             ["16:6"] = "undercroft",
             ["24:0"] = "regent",
@@ -576,7 +594,7 @@ Registry.locations = {
         },
         encounters = {
             ["6:4"] = "cistern_entry",
-            ["12:10"] = "cistern_entry",
+            ["12:10"] = "cistern_branch",
             ["18:4"] = "cistern_depths",
             ["18:10"] = "matron",
         },
@@ -632,7 +650,7 @@ Registry.locations = {
         },
         encounters = {
             ["8:0"] = "ember_entry",
-            ["8:-8"] = "ember_entry",
+            ["8:-8"] = "ember_branch",
             ["14:4"] = "ember_altar",
             ["20:-8"] = "prioress",
         },

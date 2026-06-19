@@ -113,6 +113,7 @@ for key, enemy in pairs(Defs.enemies) do
         expect(Defs.enemySkill(skillKey), "enemy references missing skill " .. skillKey)
     end
 end
+expect(#Defs.enemyOrder >= 18, "enemy roster should include expanded enemy types")
 
 for key, skill in pairs(Defs.enemySkills) do
     expect(skill.name and (skill.target == "hero" or skill.target == "party"), "enemy skill missing target " .. key)

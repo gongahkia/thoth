@@ -371,6 +371,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(86)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim:startCombat("archive_branch", "0:8"), "archive branch encounter should start")
+    expect(sim.combat.enemies[1].kind == "parchment_swarm" and sim.combat.enemies[2].kind == "hollow_guard", "archive branch should use new enemies")
+    sim = Simulation.new(87)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_survey"))
+    expect(sim:startCombat("cistern_branch", "12:10"), "cistern branch encounter should start")
+    expect(sim.combat.enemies[1].kind == "salt_eel", "cistern branch should use new enemy")
+    sim = Simulation.new(88)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("ember_cleansing"))
+    expect(sim:startCombat("ember_branch", "8:-8"), "ember branch encounter should start")
+    expect(sim.combat.enemies[1].kind == "ember_mote", "ember branch should use new enemy")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(21)
     sim.player.x = 3
     sim.player.y = 0
