@@ -56,6 +56,16 @@ local fixtures = {
             { tick = 6, command = Simulation.commands.campSkill("watch_order") },
             { tick = 7, command = Simulation.commands.campSkill("bind_wounds", 4) },
         },
+        setup = function(sim)
+            local startExpedition = sim.startExpedition
+            function sim:startExpedition(locationKey)
+                local ok = startExpedition(self, locationKey)
+                if ok then
+                    self.world:setTile(self.player.x, self.player.y, self.player.z, { id = "camp_marker", data = 0 })
+                end
+                return ok
+            end
+        end,
         validate = function(sim)
             expect(sim.expedition.mission == "archive_cleansing", "mission replay should start selected mission")
             expect(sim.expedition.supplies:count("torch") == 6, "provision replay should merge cart")
@@ -66,7 +76,7 @@ local fixtures = {
 }
 
 for _, fixture in ipairs(fixtures) do
-    local sim = Replay.run(fixture.seed, fixture.frames, fixture.finalTick)
+    local sim = Replay.run(fixture.seed, fixture.frames, fixture.finalTick, fixture.setup)
     fixture.validate(sim)
     io.stdout:write("replay ok ", fixture.name, "\n")
 end

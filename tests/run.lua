@@ -31,6 +31,19 @@ local function runQueued(sim, command)
     sim:step()
 end
 
+local function placeCampMarker(sim)
+    sim.world:setTile(sim.player.x, sim.player.y, sim.player.z or 0, { id = "camp_marker", data = 0 })
+end
+
+local function walkSteps(sim, direction, count)
+    for _ = 1, count do
+        runQueued(sim, Simulation.commands.move(direction))
+        if sim.mode == "combat" then
+            sim:finishCombat(true)
+        end
+    end
+end
+
 local function contains(list, value)
     for _, entry in ipairs(list or {}) do
         if entry == value then
@@ -917,6 +930,7 @@ tests[#tests + 1] = function()
     local sim = Simulation.new(97)
     expect(sim:itemTooltip("bandage"):find("injury", 1, true) ~= nil and sim:itemTooltip("ward_charm"):find("resolve", 1, true) ~= nil, "provision tooltip should expose injury cure copy")
     sim.expedition.noise = 5
+    placeCampMarker(sim)
     runQueued(sim, Simulation.commands.camp())
     expect(sim.expedition.noise == 3, "camp should decay noise")
     sim = Simulation.new(98)
@@ -930,6 +944,7 @@ end
 tests[#tests + 1] = function()
     local sim = Simulation.new(99)
     sim.expedition.noise = 12
+    placeCampMarker(sim)
     runQueued(sim, Simulation.commands.camp())
     runQueued(sim, Simulation.commands.finishCamp())
     expect(sim.mode == "combat" and sim.combat.encounter == "archive_ambush" and sim.combat.pressure and sim.combat.ambush, "high noise should trigger camp ambush")
@@ -1053,6 +1068,7 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.useItem("bandage", 1))
     expect(not sim:hasInjury(hero, "salt_bloat"), "bandage should clear one injury")
     sim:addInjury(hero, "glass_scarring")
+    placeCampMarker(sim)
     expect(sim:camp() and not sim:hasInjury(hero, "glass_scarring"), "camp should clear one injury")
     sim:endExpedition(true)
     sim:addInjury(hero, "nerve_burn")
@@ -1128,6 +1144,7 @@ end
 
 tests[#tests + 1] = function()
     local sim = Simulation.new(40)
+    placeCampMarker(sim)
     runQueued(sim, Simulation.commands.camp())
     local x = sim.player.x
     runQueued(sim, Simulation.commands.move("east"))
@@ -1145,6 +1162,7 @@ end
 
 tests[#tests + 1] = function()
     local sim = Simulation.new(41)
+    placeCampMarker(sim)
     runQueued(sim, Simulation.commands.camp())
     local hero = sim:heroAtRank(1)
     hero.statuses[#hero.statuses + 1] = { kind = "bleed", amount = 1, turns = 3 }
@@ -1204,6 +1222,7 @@ tests[#tests + 1] = function()
     sim.expedition.torch = 0
     sim:checkDarkness()
     expect(sim.narration:find("shelves", 1, true) ~= nil, "low torch voice should match archive")
+    placeCampMarker(sim)
     sim:camp()
     expect(sim.narration:find("Rest", 1, true) ~= nil or sim.narration:find("fire", 1, true) ~= nil, "camp should use complicity voice")
 end
@@ -1251,28 +1270,26 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
-    local sim = Simulation.new(1)
-    runQueued(sim, Simulation.commands.endExpedition(true))
-    expect(sim.mode == "estate", "playtest should reach estate from initial title handoff")
-    expect(sim.estate.recruits[2] and sim.estate.recruits[2].class == "harrier", "playtest seed should offer a Thief recruit")
-    runQueued(sim, Simulation.commands.recruitHero(2))
-    local thief = sim.estate.roster[#sim.estate.roster]
-    expect(thief.class == "harrier", "playtest should recruit Thief")
-    runQueued(sim, Simulation.commands.assignParty(thief.id, 4))
+    local sim = Simulation.newEstate(1)
+    expect(sim.mode == "estate" and not sim.expedition, "playtest should reach estate from initial title handoff")
+    expect(sim.estate.recruits[1] ~= nil, "playtest should offer a reserve recruit")
+    runQueued(sim, Simulation.commands.recruitHero(1))
     local classes = {}
     for _, hero in ipairs(sim:partyState()) do
         classes[hero.classId] = true
     end
-    expect(classes.warden and classes.duelist and classes.mender and classes.harrier, "playtest party should use Warden/Duelist/Apothecary/Thief")
+    expect(classes.warden and classes.duelist and classes.mender and classes.harrier and not classes.arcanist, "playtest party should use Warden/Duelist/Apothecary/Thief")
     runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
     expect(sim.expedition.mission == "archive_scout", "playtest should enter first archive mission")
+    expect(not sim:camp(), "playtest should reject camping away from a cold camp")
+    walkSteps(sim, "east", 8)
+    walkSteps(sim, "south", 6)
     runQueued(sim, Simulation.commands.camp())
     expect(sim.expedition.campUsed and sim.expedition.camping, "playtest should camp mid-mission")
     runQueued(sim, Simulation.commands.campSkill("watch_order", 1))
     runQueued(sim, Simulation.commands.finishCamp())
     expect(not sim.expedition.camping and sim.mode == "expedition", "playtest should leave camp without ambush")
-    sim.expedition.roomsScouted = 3
-    expect(sim:updateObjective(), "playtest should complete first mission objective")
+    expect(sim.expedition.roomsScouted >= 3 and sim:updateObjective(), "playtest should complete first mission objective by scouting")
     runQueued(sim, Simulation.commands.endExpedition(false))
     expect(sim.mode == "estate" and sim.estate.campaign.completedMissions.archive_scout, "playtest should return after first mission")
     local reserve
@@ -1337,6 +1354,7 @@ end
 
 tests[#tests + 1] = function()
     local sim = Simulation.new(83)
+    placeCampMarker(sim)
     sim:camp()
     local summary = Render.campHudSummary(sim, {})
     expect(summary.active and #summary.skills == 7 and summary.partyCount == 4, "camp hud summary should expose skills and party")
@@ -1480,6 +1498,7 @@ tests[#tests + 1] = function()
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("ember_vow_kilns"))
     sim.estate.campaign.dread = 4
+    placeCampMarker(sim)
     expect(sim:camp(), "camp should start for ritual test")
     local torch = sim.expedition.supplies:count("torch")
     local ration = sim.expedition.supplies:count("ration")

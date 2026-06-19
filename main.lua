@@ -1098,6 +1098,7 @@ function love.load(args)
         sim.world:setTile(sim.player.x + 1, sim.player.y, sim.player.z, { id = "salt_font", data = 0 })
     end
     if campSmoke then
+        sim.world:setTile(sim.player.x, sim.player.y, sim.player.z, { id = "camp_marker", data = 0 })
         sim:camp()
     end
     if gameOverSmoke then

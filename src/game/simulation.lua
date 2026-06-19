@@ -34,6 +34,8 @@ local defaultQuirks = {
     lamplighter = { "iron_nerves", "faint_pulse" },
 }
 
+local starterClassOrder = { "warden", "duelist", "mender", "harrier" }
+
 local function copyList(values)
     local result = {}
     for _, value in ipairs(values or {}) do
@@ -248,10 +250,11 @@ local function newCampaign()
     }
 end
 
-function Simulation.new(seed)
+function Simulation.new(seed, options)
+    options = options or {}
     local roster = {}
     for index = 1, 4 do
-        local classKey = Defs.heroClassOrder[index]
+        local classKey = starterClassOrder[index]
         roster[#roster + 1] = newHero(index, classKey)
     end
     local self = setmetatable({
@@ -296,8 +299,14 @@ function Simulation.new(seed)
     self:refillRecruits()
     self:refreshMissionBoard(true)
     self:refillTrinketMarket(true)
-    self:startExpedition("buried_archive")
+    if not options.startInEstate then
+        self:startExpedition("buried_archive")
+    end
     return self
+end
+
+function Simulation.newEstate(seed)
+    return Simulation.new(seed, { startInEstate = true })
 end
 
 Simulation.commands = {}
@@ -2580,6 +2589,30 @@ function Simulation:targetCell()
     return x, y, self.player.z
 end
 
+function Simulation:campMarkerAt(x, y, z)
+    if not self.world then
+        return false
+    end
+    local tile = self.world:getTile(x, y, z or 0)
+    return tile and tile.id == "camp_marker"
+end
+
+function Simulation:canCampHere(x, y, z)
+    local playerZ = self.player.z or 0
+    local targetX, targetY, targetZ = self:targetCell()
+    targetZ = targetZ or 0
+    if x then
+        local zValue = z or 0
+        local matchesPlayer = x == self.player.x and y == self.player.y and zValue == playerZ
+        local matchesTarget = x == targetX and y == targetY and zValue == targetZ
+        return (matchesPlayer or matchesTarget) and self:campMarkerAt(x, y, zValue)
+    end
+    if self:campMarkerAt(self.player.x, self.player.y, playerZ) then
+        return true
+    end
+    return self:campMarkerAt(targetX, targetY, targetZ)
+end
+
 function Simulation:targetCurio()
     if self.mode ~= "expedition" then
         return nil
@@ -2647,7 +2680,7 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
         return false
     end
     if curio.camp then
-        return self:camp()
+        return self:camp(x, y, z)
     end
     if curio.questActivate then
         if curio.item and not self.expedition.supplies:consume(curio.item, 1) then
@@ -2733,7 +2766,7 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
     return true
 end
 
-function Simulation:camp()
+function Simulation:camp(x, y, z)
     if self.mode ~= "expedition" or not self.expedition then
         return false
     end
@@ -2743,10 +2776,17 @@ function Simulation:camp()
     if self.expedition.campUsed then
         return false
     end
+    if not self:canCampHere(x, y, z) then
+        self:pushLog("camp requires cold camp")
+        return false
+    end
     self.expedition.campUsed = true
     self.expedition.camping = { respite = 4, usedSkills = {}, ambushPrevented = false }
     self:decayNoise((Defs.pressureRule("noise_decay") or {}).camp or 2)
-    self.expedition.supplies:consume("ration", math.min(2, self.expedition.supplies:count("ration")))
+    local rations = self.expedition.supplies:count("ration")
+    if rations > 0 then
+        self.expedition.supplies:consume("ration", math.min(2, rations))
+    end
     self.expedition.torch = clamp(self.expedition.torch + 20, 0, 100)
     for rank = 1, 4 do
         local hero = self:heroAtRank(rank)

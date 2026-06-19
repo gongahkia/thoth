@@ -109,7 +109,6 @@ Goal: replace `assets/sprites/thoth_atlas.png` (single 128×80 placeholder) with
 
 Goal: full playthrough of Buried Archive Tier I (3 missions) end-to-end, with 4 starter classes (Warden, Duelist, Apothecary, Thief).
 
-- [ ] 4.7 Fix top 30 bugs by severity (120h)
 - [ ] 4.8 Performance pass: profile, identify slowest 10 functions, optimize (40h)
 - [ ] 4.9 Accessibility pass: colorblind mode, font scaling, audio cue subtitles, motion-reduced toggle (40h)
 - [ ] 4.10 Build itch.io alpha page: description, screenshots, GIF, download link (8h)
