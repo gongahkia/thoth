@@ -56,3 +56,21 @@ captured billboard-snap-4.png
 Result: visually inspected all four captures. The colored axis tiles rotate between snap states, and the OGA sprite remains upright and front-facing in snaps 1/4 through 4/4.
 
 [Inference] The current yaw-cancel billboard math is correct for the four Phase 0 snap positions.
+
+## FPS Verification
+
+Date: 2026-06-20
+
+Command:
+
+```sh
+timeout 10s love spike --verify-fps
+```
+
+Output:
+
+```text
+fps-min=60
+```
+
+Result: the 20x20 tile grid plus 34 OGA billboards met the Phase 0 Day 4 60 FPS floor after a 2s startup warmup and a 3s measurement window.

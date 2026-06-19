@@ -22,6 +22,11 @@ local verifyBillboard = false
 local verifySnap = 1
 local verifyCapture = false
 local verifyPendingName
+local verifyFps = false
+local verifyFpsElapsed = 0
+local verifyFpsMin = math.huge
+local verifyFpsWarmup = 2
+local verifyFpsDuration = 3
 
 local function vert(x, y, z, u, v)
     v = v or 0.5
@@ -161,6 +166,8 @@ function love.load()
     for _, launchArg in ipairs(arg or {}) do
         if launchArg == "--verify-billboard" then
             verifyBillboard = true
+        elseif launchArg == "--verify-fps" then
+            verifyFps = true
         end
     end
     if verifyBillboard then
@@ -193,6 +200,19 @@ function love.update(dt)
         return
     end
     stepCamera(dt)
+    if verifyFps then
+        verifyFpsElapsed = verifyFpsElapsed + dt
+        if verifyFpsElapsed >= verifyFpsWarmup then
+            local fps = love.timer.getFPS()
+            if fps > 0 then
+                verifyFpsMin = math.min(verifyFpsMin, fps)
+            end
+        end
+        if verifyFpsElapsed >= verifyFpsWarmup + verifyFpsDuration then
+            print("fps-min=" .. tostring(verifyFpsMin))
+            love.event.quit(verifyFpsMin >= 60 and 0 or 1)
+        end
+    end
     if love.keyboard.isDown("escape") then
         love.event.push("quit")
     end
@@ -213,7 +233,7 @@ function love.draw()
     end
     love.graphics.setDepthMode()
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print("q/e rotate snap " .. snapIndex .. "/4 34 billboards", 16, 16)
+    love.graphics.print("q/e rotate snap " .. snapIndex .. "/4 34 billboards fps " .. love.timer.getFPS(), 16, 16)
     love.graphics.setDepthMode("lequal", true)
     if verifyPendingName then
         local name = verifyPendingName
