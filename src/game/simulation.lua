@@ -82,6 +82,7 @@ local function newHero(id, classKey, name, quirks)
         weapon = 0,
         armor = 0,
         quirks = copyList(quirks or defaultQuirks[classKey] or {}),
+        diseases = {},
         trinkets = { false, false },
         statuses = {},
     }
@@ -249,6 +250,10 @@ function Simulation.commands.treatQuirk(heroId, quirkKey)
     return { type = "treatQuirk", heroId = heroId, quirkKey = quirkKey }
 end
 
+function Simulation.commands.treatDisease(heroId, diseaseKey)
+    return { type = "treatDisease", heroId = heroId, diseaseKey = diseaseKey }
+end
+
 function Simulation:queue(command)
     self.commandQueue[#self.commandQueue + 1] = command
 end
@@ -332,6 +337,9 @@ function Simulation:apply(command)
     if command.type == "treatQuirk" then
         return self:treatQuirk(command.heroId, command.quirkKey)
     end
+    if command.type == "treatDisease" then
+        return self:treatDisease(command.heroId, command.diseaseKey)
+    end
     return false
 end
 
@@ -384,6 +392,10 @@ function Simulation:heroModifier(hero, key)
     for _, quirkKey in ipairs(hero.quirks or {}) do
         local quirk = Defs.quirk(quirkKey)
         total = total + ((quirk and quirk[key]) or 0)
+    end
+    for _, diseaseKey in ipairs(hero.diseases or {}) do
+        local disease = Defs.disease(diseaseKey)
+        total = total + ((disease and disease[key]) or 0)
     end
     for _, trinketKey in ipairs(hero.trinkets or {}) do
         local trinket = trinketKey and Defs.trinket(trinketKey)
@@ -941,6 +953,62 @@ function Simulation:treatQuirk(heroId, quirkKey)
     return true
 end
 
+function Simulation:contractDisease(hero, diseaseKey)
+    if not hero or not hero.alive or not Defs.disease(diseaseKey) or contains(hero.diseases, diseaseKey) then
+        return false
+    end
+    if #hero.diseases >= 3 then
+        return false
+    end
+    hero.diseases[#hero.diseases + 1] = diseaseKey
+    hero.hp = math.min(hero.hp, self:maxHp(hero))
+    self:pushLog(hero.name .. " contracted " .. Defs.disease(diseaseKey).name)
+    return true
+end
+
+function Simulation:maybeContractDisease(hero, sourceKey)
+    if not hero or not hero.alive then
+        return false
+    end
+    local roll = self:roll(1, 100)
+    if roll > 22 then
+        return false
+    end
+    local index = ((Rng.hash(self.seed + 3301, self.tick, hero.id, #(sourceKey or "")) % #Defs.diseaseOrder) + 1)
+    return self:contractDisease(hero, Defs.diseaseOrder[index])
+end
+
+function Simulation:treatDisease(heroId, diseaseKey)
+    if self.mode ~= "estate" then
+        return false
+    end
+    local hero = self:heroById(heroId)
+    if not hero or not hero.alive then
+        return false
+    end
+    diseaseKey = diseaseKey or hero.diseases[1]
+    local disease = Defs.disease(diseaseKey)
+    if not disease or not contains(hero.diseases, diseaseKey) then
+        return false
+    end
+    local def = Defs.estateBuilding("infirmary")
+    local cost = math.max(0, def.diseaseTreatmentCost - self:buildingLevel("infirmary") * def.discountPerLevel)
+    if self.estate.gold < cost then
+        return false
+    end
+    self.estate.gold = self.estate.gold - cost
+    local kept = {}
+    for _, value in ipairs(hero.diseases or {}) do
+        if value ~= diseaseKey then
+            kept[#kept + 1] = value
+        end
+    end
+    hero.diseases = kept
+    hero.hp = math.min(hero.hp, self:maxHp(hero))
+    self:pushLog(hero.name .. " cured " .. disease.name)
+    return true
+end
+
 function Simulation:recoverHero(heroId)
     if self.mode ~= "estate" then
         return false
@@ -1180,6 +1248,9 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
     local hero = self:heroAtRank(self.player.selectedHero) or self:heroAtRank(1)
     if curio.damage and not usedItem then
         self:damageHero(hero, curio.damage)
+        if curioKey == "ash_vent" or curioKey == "wire_snare" then
+            self:maybeContractDisease(hero, curioKey)
+        end
     end
     if curio.stress then
         if curio.stress < 0 then
@@ -1606,6 +1677,9 @@ function Simulation:enemyTurn(enemy)
         if skill.status and target.alive then
             target.statuses = target.statuses or {}
             target.statuses[#target.statuses + 1] = copyMap(skill.status)
+            if skill.status.kind == "blight" then
+                self:maybeContractDisease(target, skillKey)
+            end
         end
         if skill.move and target.alive then
             local rank = self:heroRank(target.id)
@@ -1881,6 +1955,7 @@ function Simulation:partyState()
                 deathsDoor = hero.deathsDoor,
                 statuses = copyList(hero.statuses),
                 quirks = copyList(hero.quirks),
+                diseases = copyList(hero.diseases),
                 trinkets = copyList(hero.trinkets),
             }
         end
@@ -2016,6 +2091,7 @@ function Simulation:snapshot()
             weapon = hero.weapon,
             armor = hero.armor,
             quirks = copyList(hero.quirks),
+            diseases = copyList(hero.diseases),
             trinkets = copyList(hero.trinkets),
             statuses = copyList(hero.statuses),
         }
@@ -2161,6 +2237,7 @@ function Simulation.fromSnapshot(snapshot)
         hero.weapon = value.weapon or 0
         hero.armor = value.armor or 0
         hero.quirks = copyList(value.quirks or hero.quirks)
+        hero.diseases = copyList(value.diseases or hero.diseases)
         hero.trinkets = copyList(value.trinkets or hero.trinkets)
         hero.trinkets[1] = hero.trinkets[1] or false
         hero.trinkets[2] = hero.trinkets[2] or false

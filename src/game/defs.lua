@@ -11,6 +11,8 @@ local Defs = {
     trinketOrder = Registry.trinketOrder,
     quirks = Registry.quirks,
     quirkOrder = Registry.quirkOrder,
+    diseases = Registry.diseases,
+    diseaseOrder = Registry.diseaseOrder,
     skills = Registry.skills,
     skillOrder = Registry.skillOrder,
     enemySkills = Registry.enemySkills,
@@ -53,6 +55,10 @@ end
 
 function Defs.quirk(id)
     return Defs.quirks[id]
+end
+
+function Defs.disease(id)
+    return Defs.diseases[id]
 end
 
 function Defs.skill(id)

@@ -380,6 +380,9 @@ local function drawHeroRows(sim, app, x, y, w)
         elseif hero.virtue then
             love.graphics.setColor(0.56, 0.82, 0.66, 1)
             love.graphics.print(hero.virtue, x + w - 64, rowY + 19)
+        elseif hero.diseases and #hero.diseases > 0 then
+            love.graphics.setColor(0.68, 0.72, 0.46, 1)
+            love.graphics.print("ill", x + w - 34, rowY + 19)
         end
         app.ui.heroButtons[#app.ui.heroButtons + 1] = { x = x, y = rowY, w = w, h = 36, rank = hero.rank }
     end

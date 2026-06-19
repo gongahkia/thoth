@@ -27,6 +27,7 @@ end
 checkOrder("item", Defs.itemOrder, Defs.items)
 checkOrder("trinket", Defs.trinketOrder, Defs.trinkets)
 checkOrder("quirk", Defs.quirkOrder, Defs.quirks)
+checkOrder("disease", Defs.diseaseOrder, Defs.diseases)
 checkOrder("hero class", Defs.heroClassOrder, Defs.heroClasses)
 checkOrder("skill", Defs.skillOrder, Defs.skills)
 checkOrder("enemy skill", Defs.enemySkillOrder, Defs.enemySkills)
@@ -65,6 +66,10 @@ end
 
 for key, quirk in pairs(Defs.quirks) do
     expect(quirk.name and (quirk.kind == "positive" or quirk.kind == "negative"), "quirk missing data " .. key)
+end
+
+for key, disease in pairs(Defs.diseases) do
+    expect(disease.name and disease.name ~= "", "disease missing name " .. key)
 end
 
 for key, class in pairs(Defs.heroClasses) do

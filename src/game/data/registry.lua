@@ -70,6 +70,14 @@ Registry.quirkOrder = {
     "gloomy", "brittle", "faint_pulse", "soft_voice",
 }
 
+Registry.diseases = {
+    salt_cough = { name = "Salt Cough", speed = -1, stressTaken = 1 },
+    brine_rot = { name = "Brine Rot", maxHp = -3, healBonus = -1 },
+    ember_fever = { name = "Ember Fever", damageTaken = 1, resolve = -5 },
+    glass_eye = { name = "Glass Eye", damageBonus = 1, stressTaken = 1 },
+}
+Registry.diseaseOrder = { "salt_cough", "brine_rot", "ember_fever", "glass_eye" }
+
 Registry.heroClasses = {
     warden = {
         name = "Warden",
@@ -489,7 +497,7 @@ Registry.estateBuildings = {
     stagecoach = { name = "Stagecoach", maxLevel = 3, heirloomCost = 2, rosterLimit = 6, rosterPerLevel = 2, recruitSlots = 3, slotsPerLevel = 1, recruitCost = 20, discountPerLevel = 3 },
     guild = { name = "Guild", maxLevel = 3, heirloomCost = 3, maxSkillLevel = 2, skillMaxPerLevel = 1, skillUpgradeCost = 30 },
     forge = { name = "Forge", maxLevel = 3, heirloomCost = 3, maxGearLevel = 1, gearMaxPerLevel = 1, gearUpgradeCost = 35 },
-    infirmary = { name = "Infirmary", maxLevel = 3, heirloomCost = 2, recoverCost = 25, quirkTreatmentCost = 35, discountPerLevel = 4 },
+    infirmary = { name = "Infirmary", maxLevel = 3, heirloomCost = 2, recoverCost = 25, quirkTreatmentCost = 35, diseaseTreatmentCost = 30, discountPerLevel = 4 },
 }
 Registry.estateBuildingOrder = { "stagecoach", "guild", "forge", "infirmary" }
 

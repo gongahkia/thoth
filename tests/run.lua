@@ -495,6 +495,23 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(49)
+    local hero = sim:heroAtRank(1)
+    sim:contractDisease(hero, "brine_rot")
+    expect(hero.diseases[1] == "brine_rot" and sim:maxHp(hero) < 28, "disease should apply stat modifier")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(50)
+    sim:endExpedition(true)
+    sim.estate.gold = 100
+    local hero = sim:heroAtRank(1)
+    sim:contractDisease(hero, "salt_cough")
+    runQueued(sim, Simulation.commands.treatDisease(hero.id, "salt_cough"))
+    expect(#hero.diseases == 0 and sim.estate.gold == 70, "treat disease should spend infirmary cost and remove disease")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(29)
     runQueued(sim, Simulation.commands.move("east"))
     runQueued(sim, Simulation.commands.useItem("torch"))
