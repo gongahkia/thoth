@@ -230,6 +230,12 @@ Sample voice:
 - "Every door here asks for a name. None ask permission."
 - "The dead are filed cleanly. The living make a mess."
 
+Sub-areas by tier:
+
+- Tier I (Intake Branch): intake desks, debt chancels, scout-friendly shelf corridors.
+- Tier II (Misfile Court): misfiled morgues, witness drawers, the Codex Reeve's audit floor.
+- Tier III (Sealed Register): debt vaults, regent's gate, the Open Register weak-point chain.
+
 ### Salt Cistern
 
 Core idea: water infrastructure as underworld border.
@@ -276,6 +282,12 @@ Sample voice:
 - "The valves turn like throats swallowing names."
 - "Salt keeps what rot would have taken."
 
+Sub-areas by tier:
+
+- Tier I (Pump Forest): pump halls, sluice walks, scoutable valve loops.
+- Tier II (Drowned Market): submerged enclave streets, brine intakes, the Pearl Choir's cyst chamber.
+- Tier III (Deep Sluice): bell diver gate, flood-toll, the Bell Lung weak-point chain.
+
 ### Ember Warrens
 
 Core idea: purification as violence.
@@ -321,6 +333,12 @@ Sample voice:
 - "The ash remembers less, and that may be mercy."
 - "These fires were built to cleanse records. They learned to cleanse witnesses."
 - "Glass keeps the shape and loses the life."
+
+Sub-areas by tier:
+
+- Tier I (Fuel Branch): kiln naves, bellows spines, scoutable fuel stores.
+- Tier II (Vitrified Cloister): glass dormitories, ash confessionals, the Kiln Vicar's vitrifying procession.
+- Tier III (White Furnace): furnace gate, prioress chamber, the Halo Vent weak-point chain.
 
 ## Mechanics-To-Lore Mapping
 
@@ -515,6 +533,141 @@ Possible endings later:
 - Repair Compact: enough repair choices and enclave favor, lower wealth, safer routes.
 - Extraction Collapse: high dread or excessive deaths, Estate consumed by its own survey routes.
 - Quiet Failure: week limit or debt pressure ends the campaign without a final confrontation.
+
+## Campaign Pressure (Weeks And Dread)
+
+V1 campaign uses two readable timers running in parallel. Either reaching cap ends the run.
+
+- Week timer: hard cap of estate weeks. Each survey advances one week. Reaching the cap forces a final reckoning whether or not the player feels ready.
+- Dread timer: rises with greedy extraction, hero death, abandoned missions, enclave betrayal, and certain town events. Falls with repair missions, vigils, enclave compacts, and quiet weeks.
+
+End conditions:
+
+- Estate Seal: all three zone bosses defeated before either cap. Final mission unlocks; ending tier depends on dread.
+- Repair Compact: dread stays low and enclave favor stays high. Final mission shifts to a repair objective.
+- Extraction Collapse: dread reaches cap. Estate is consumed by its own routes; party may attempt one last escape mission.
+- Quiet Failure: week cap reached without all bosses sealed. Campaign ends with the Stack growing beyond the Estate.
+
+Pacing rules:
+
+- The two timers should never both be hidden. At least one is always shown blunt in the UI.
+- Late weeks should add mission pressure modifiers, not new rooms. Pressure is the cheap way to escalate.
+- Dread should sometimes drop. A timer that only rises is a punishment timer, not a pressure timer.
+- A 3-5 hour run should land near 10-14 surveys including a finale. Pad with town events, not longer dungeons.
+
+## Zone Sub-Tiers
+
+Each zone deepens across the campaign rather than swapping for a new zone.
+
+- Tier I: surface routes. Standard enemies, one mini-boss warden, scouted curios, mid-stakes missions.
+- Tier II: opens after the zone's first mission cleared. Adds branch rooms, mid-tier enemies, harder curios, named documents, and an enclave petition.
+- Tier III: opens after the mini-boss warden is felled or repaired. Adds the boss gate, terminal documents, and the zone's hardest weak-points.
+
+Tier transitions should be diegetic. The Stack has noticed the party. The route changes.
+
+## Mini-Boss Wardens
+
+Each zone has one mini-boss warden between trash and the final boss. They are visible alphas first. The party should see them before fighting them.
+
+- Buried Archive: Codex Reeve. Calls audit on a marked hero; that hero loses one skill for the encounter unless the Open Register is broken.
+- Salt Cistern: Pearl Choir. Flooded survivors fused at the cyst; sings under water and re-floods drained rooms unless silenced.
+- Ember Warrens: Kiln Vicar. Penitent saint who tries to vitrify the most injured hero; doused with carried ember oil.
+
+Wardens are not zone bosses. They guard a route or a record, not the procedure. Defeating one should change the zone's behavior, not end it.
+
+## Estate Fixtures
+
+A few named recurring figures give the Estate a face. Keep them procedural-cold, not warm. They speak the office's language. They sometimes lie by omission.
+
+- The Surveyor: head of the Estate Survey Office. Signs contracts, sets quotas, refuses to enter the Stack. Speaks in survey verbs.
+- Foreman Ott: chief of the Lamplighter crews. Former debtor. Knows which routes still kill. The only fixture who has seen the inside.
+- Chirurgeon Major Vell: head of the infirmary. Knows which preservation techniques the Estate copied from the Stack and which it pretends it invented.
+- Clerk of Debts: a position, not a person. Whoever holds it carries the seal. Tracks hero pay, contracts, and graveyard fees.
+- Stage Master: runs the recruitment coach. Decides which survivors get screened in. Has quiet opinions about the Estate.
+- Vault Keeper: handles heirloom trade and trinket appraisal. Treats every relic as evidence first, value second.
+
+Fixture content should never explain everything. They should be useful, partial, and have their own quiet stakes.
+
+## Enclave Leaders
+
+One or two named enclave leaders per zone. They are not noble. They have already made compromises to keep their people alive.
+
+### Buried Archive
+
+- Page-Keeper Ilse: lives among shelves, knows which names unlock which doors. Will trade a route for a record left intact.
+- Bound Scribe Cael: sutured to a ledger but still talks. Half-Custodian; useful, dangerous, possibly already lost.
+
+### Salt Cistern
+
+- Valve-Mother Tov: decides who drinks. Can flood a route or spare an enclave. Wants a child returned from a drowned market.
+- Pressure Father Sett: former Estate dredger who defected after the Brine Midwives took his crew. Knows shortcut valves.
+
+### Ember Warrens
+
+- Ash Vicar Mira: believes purging frees the dead. Will help the party burn a record if it frees a name.
+- Glass-Burnt Aron: skeptic; thinks the kilns lie. Wants the fires doused, even if it traps the dead.
+
+Leaders should give the party choices the Estate would not offer.
+
+## Found Documents And Lore Fragments
+
+Lore reaches the player as found documents, not exposition. Documents stack in the Estate journal across runs.
+
+Document types:
+
+- Writ fragments: half-burned legal text. Reveal who owes what to whom, and what the Stack thinks "owe" means.
+- Valve schematics: pressure diagrams. Reveal which routes flood, drain, or seal under load.
+- Penitent confessions: ash-marked clay. Reveal which dead the kilns burned to free, and which they burned to hide.
+- Intake colophons: stamped labels. Reveal what a room was used for before the Stack absorbed it.
+- Survivor pages: hand-written. The only documents with proper names that are not Estate property.
+
+Rules:
+
+- One image per fragment. No lecture pages.
+- Fragments should never be the only source of a mechanical fact. The mechanics teach themselves; documents add motive.
+- Every fragment names a place, a person, or a procedure. None name three.
+
+## Trinket Sets
+
+Trinkets cluster into named sets. Wearing multiple from a set unlocks a small set bonus and a small set cost.
+
+- Page-Keeper's Vow (Archive): scouting and weak-point bonus; stress vulnerability cost.
+- Salt-Born Compact (Cistern): blight resist and rank-movement bonus; speed penalty.
+- Vow of Cinders (Warrens): heat resist and burn damage bonus; morale penalty.
+- Lamplighter's Token (Estate): torch efficiency and ambush resist; combat damage penalty.
+- Debt-Clerk's Seal (Estate): rewards bonus; injury vulnerability cost.
+
+Set design rules:
+
+- Two-piece bonus should be readable; four-piece bonus should change one decision per fight.
+- Set costs should never silently disable a class identity. They sting; they do not break.
+- Sets should imply a faction or a place. Naming should never be generic stat words.
+
+## Town Pressure And Faction States
+
+Estate weeks should feel like attended time, not menu time.
+
+- Weekly events should imply that the Estate runs without the party. Quotas rise. Survivors arrive. Bills come.
+- Faction state should be visible: Custodians (Archive), Cistern Keepers, Ember Penitents, Lamplighters, Survey Office, and Survivor Enclaves.
+- Faction meters move on mission result, not on dialogue. The party's behavior in the Stack is the conversation.
+- Hostile faction state should produce concrete hazards in the field, not just a price hike: a Lamplighter strike that delays torch resupply, an Ember Penitent rite that raises heat fatigue, an Enclave embargo that closes a known route.
+
+States should be reversible up to a threshold. Past the threshold, they should not be.
+
+## Recruit Origins
+
+When a hero arrives by stagecoach, they should imply a previous job, not a class fantasy.
+
+- Warden: route guard discharged after a survey went bad.
+- Duelist: paid blade from a patron circle; lost the patron.
+- Mender: salvage-crew medic, recovered from disease.
+- Arcanist: scribe who read too far and was sent up for air.
+- Harrier: poacher caught moving across Estate maps.
+- Chirurgeon: infirmary apprentice who copied the wrong technique.
+- Exile: enclave member sold for a route.
+- Lamplighter: crew worker whose lamp finally paid out.
+
+Origin should be visible in one bark on arrival and one bark on first death. Nothing more.
 
 ## Content Acceptance Standard
 

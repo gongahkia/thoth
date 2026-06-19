@@ -812,6 +812,15 @@ Registry.enemyOrder = {
     "ink_drowner", "index_worm", "pressed_witness", "regent_in_red",
 }
 
+for _, enemyKey in ipairs(Registry.enemyOrder) do
+    local enemy = Registry.enemies[enemyKey]
+    local roles = table.concat(enemy.roles or {}, ", ")
+    enemy.bestiary = {
+        behaviorHint = roles ~= "" and ("roles: " .. roles) or "behavior unknown",
+        weakPointHint = (enemy.parts and #enemy.parts > 0) and ("weak points: " .. enemy.parts[1].name) or "no exposed weak point",
+    }
+end
+
 Registry.afflictions = {
     panic = { name = "Panic", stressTaken = 2, accuracy = -1 },
     spite = { name = "Spite", stressTaken = 1, damageTaken = 1 },
@@ -873,6 +882,17 @@ Registry.curioOrder = {
     "ash_name", "warm_ledger", "aron_boy", "white_furnace_key", "false_vow", "ash_lung_reliquary",
     "fuse_saint", "halo_vent", "vitrified_cot", "cold_camp",
 }
+
+for _, curioKey in ipairs(Registry.curioOrder) do
+    local curio = Registry.curios[curioKey]
+    curio.copy = {
+        observe = curio.name .. " waits for a choice.",
+        safe_use = curio.item and ("spend " .. Registry.items[curio.item].name .. " to control the risk") or "handle it carefully",
+        greedy_use = "take value first and accept pressure",
+        repair_use = "spend supplies to lower future harm",
+        result = curio.name .. " is resolved.",
+    }
+end
 
 Registry.encounters = {
     entry = { "hollow_guard", "index_skitter" },
@@ -1671,6 +1691,18 @@ Registry.missionOrder = {
     "warrens_open_furnace", "ember_prioress",
 }
 
+local missionIntroByKind = {
+    scout = { brief = "Map the route and return with useful risk.", sting = "Every scouted door teaches the Estate where to charge next." },
+    cleanse = { brief = "Clear hostile rooms and keep the road usable.", sting = "Safety here means somebody else can be sent deeper." },
+    gather = { brief = "Recover named evidence before the ruin hides it again.", sting = "Proof has weight only after someone survives carrying it." },
+    activate = { brief = "Spend the mission key at the marked rite.", sting = "Repair and extraction differ mostly in who signs the cost." },
+    boss = { brief = "Reach the sealed gate and end the local command.", sting = "A boss dies once; its paperwork lives longer." },
+}
+for _, missionKey in ipairs(Registry.missionOrder) do
+    local mission = Registry.missions[missionKey]
+    mission.intro = missionIntroByKind[mission.kind] or missionIntroByKind.scout
+end
+
 Registry.campSkills = {
     bind_wounds = { name = "Bind Wounds", cost = 2, target = "ally", heal = 5, stressHeal = 3 },
     watch_order = { name = "Watch Order", cost = 2, target = "party", torch = 20, stressHeal = 2, preventAmbush = true },
@@ -2014,7 +2046,102 @@ Registry.ambushRules = {
 }
 Registry.ambushRuleOrder = { "camp_ambush_noise", "stealth_downgrade" }
 
+Registry.glossaryTerms = {
+    terms_v1 = {
+        dread = "campaign pressure; at the cap the Estate collapses",
+        noise = "expedition pressure; high values invite ambush",
+        injury = "lasting harm cleared by care, camp, or treatment",
+        alpha = "visible persistent threat with stronger reward",
+        repair = "route choice that lowers harm but costs supplies",
+        extraction = "route choice that pays now and leaves debt behind",
+    },
+}
+Registry.glossaryTermOrder = { "terms_v1" }
+
+Registry.panelCopy = {
+    faction_panel_copy = {
+        title = "Faction debt",
+        body = "Enclaves remember whether you repair routes or strip them.",
+    },
+    timer_panel_copy = {
+        title = "Time left",
+        body = "Weeks and dread are hard caps, not warnings.",
+    },
+    ending_screen_copy = {
+        estate_seal = "The Estate Seal holds because enough bosses are dead.",
+        repair_compact = "The Compact holds because repairs outweighed extraction.",
+        extraction_collapse = "The Collapse arrives when dread becomes policy.",
+        quiet_failure = "Quiet Failure arrives when time or deaths close the file.",
+    },
+}
+Registry.panelCopyOrder = { "faction_panel_copy", "timer_panel_copy", "ending_screen_copy" }
+
+Registry.fixtureVisitBarks = {
+    fixture_visit_barks = {
+        greeting = "State your debt and choose a room.",
+        farewell = "Return with proof, not excuses.",
+    },
+}
+Registry.fixtureVisitBarkOrder = { "fixture_visit_barks" }
+
+Registry.enclaveLeaderBarks = {
+    enclave_leader_barks = {
+        low = "Your name is still negotiable.",
+        tense = "The enclave counts favors faster than weeks.",
+        high = "One more debt and the route closes.",
+    },
+}
+Registry.enclaveLeaderBarkOrder = { "enclave_leader_barks" }
+
+Registry.wardenVoices = {
+    warden_voice_v1 = {
+        codex_reeve = { intro = "The Reeve opens the ledger to your page.", defeat = "The Codex Reeve loses the line that held the shelves." },
+        pearl_choir = { intro = "The Pearl Choir inhales through the valves.", defeat = "The Pearl Choir's last note drains into the stone." },
+        kiln_vicar = { intro = "The Kiln Vicar blesses the heat with your names.", defeat = "The Kiln Vicar's halo cools into ordinary glass." },
+    },
+}
+Registry.wardenVoiceOrder = { "warden_voice_v1" }
+
+Registry.originBarks = {
+    origin_barks_v1 = {
+        warden = { arrival = "A Warden arrives already braced.", firstDeath = "The line held until it had a name-shaped gap.", factionShift = "Discipline notices political weather." },
+        duelist = { arrival = "A Duelist measures exits before greetings.", firstDeath = "The riposte came too late.", factionShift = "A Duelist favors the side with cleaner odds." },
+        mender = { arrival = "A Mender counts wounds before coins.", firstDeath = "The bandage outlived the hand.", factionShift = "A Mender hears policy as triage." },
+        arcanist = { arrival = "An Arcanist listens for rules under dust.", firstDeath = "The formula broke at the pulse.", factionShift = "An Arcanist tracks faction pressure like weather." },
+        harrier = { arrival = "A Harrier arrives where the road thins.", firstDeath = "The route kept moving without its scout.", factionShift = "A Harrier trusts whoever keeps paths open." },
+        chirurgeon = { arrival = "A Chirurgeon inventories pain by habit.", firstDeath = "The diagnosis ended before the bleeding did.", factionShift = "A Chirurgeon knows debt by its symptoms." },
+        exile = { arrival = "An Exile treats welcome as a temporary error.", firstDeath = "The outcast still earned a stone.", factionShift = "An Exile expects every faction to turn." },
+        lamplighter = { arrival = "A Lamplighter checks the wick before the oath.", firstDeath = "The flame recorded the absence.", factionShift = "A Lamplighter counts politics in fuel." },
+    },
+}
+Registry.originBarkOrder = { "origin_barks_v1" }
+
 Registry.narration = {
+    location_barks = {
+        { id = "nar_location_bark_archive_01", location = "buried_archive", text = "The Archive opens like a mouth trained to whisper invoices." },
+        { id = "nar_location_bark_cistern_01", location = "salt_cistern", text = "The Cistern breathes through valves older than mercy." },
+        { id = "nar_location_bark_warrens_01", location = "ember_warrens", text = "The Warrens glow with vows nobody living should keep." },
+        { id = "nar_location_bark_estate_01", location = "estate", text = "The Estate waits above ground and calls that innocence." },
+    },
+    low_torch_zone_voice = {
+        { id = "nar_low_torch_archive_01", location = "buried_archive", text = "Low light lets the shelves edit your route." },
+        { id = "nar_low_torch_cistern_01", location = "salt_cistern", text = "Low light makes the water sound closer." },
+        { id = "nar_low_torch_warrens_01", location = "ember_warrens", text = "Low light is no mercy where embers can see." },
+    },
+    camp_complicity_voice = {
+        { id = "nar_camp_complicity_01", text = "Rest warms the hands that will reopen the debt." },
+        { id = "nar_camp_complicity_02", text = "Around the fire, nobody asks who benefits from dawn." },
+    },
+    victory_result_voice = {
+        { id = "nar_victory_extract_01", result = "extract", text = "Extraction pays quickly and leaves teeth in the road." },
+        { id = "nar_victory_repair_01", result = "repair", text = "Repair spares strangers who may never learn your names." },
+        { id = "nar_victory_boss_01", result = "boss", text = "A seal closes; its consequences remain awake." },
+    },
+    warden_voice_v1 = {
+        { id = "nar_warden_voice_codex_reeve_01", warden = "codex_reeve", text = "The Reeve opens the ledger to your page." },
+        { id = "nar_warden_voice_pearl_choir_01", warden = "pearl_choir", text = "The Pearl Choir inhales through the valves." },
+        { id = "nar_warden_voice_kiln_vicar_01", warden = "kiln_vicar", text = "The Kiln Vicar blesses the heat with your names." },
+    },
     mission_start = {
         { id = "nar_mission_start_01", text = "The gate shuts softly; the dark answers loudly." },
         { id = "nar_mission_start_02", text = "Four lanterns cross the threshold, each carrying a debt." },
@@ -2077,6 +2204,7 @@ Registry.narration = {
     },
 }
 Registry.narrationOrder = {
+    "location_barks", "low_torch_zone_voice", "camp_complicity_voice", "victory_result_voice", "warden_voice_v1",
     "mission_start", "mission_complete", "retreat", "combat_start", "combat_win",
     "resolve", "death", "camp", "curio", "archive_voice_v2", "cistern_voice_v2", "ember_voice_v2", "campaign_sealed", "collapse",
 }

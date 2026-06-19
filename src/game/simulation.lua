@@ -288,6 +288,7 @@ function Simulation.new(seed)
         commandQueue = {},
         status = "ready",
         narration = "",
+        documentPopup = nil,
         log = {},
         events = {},
         eventSerial = 0,
@@ -547,13 +548,22 @@ function Simulation:pushLog(message, meta)
     end
 end
 
-function Simulation:narrate(kind, salt)
+function Simulation:narrate(kind, salt, filter)
     local lines = Defs.narrationFor(kind)
     if not lines or #lines == 0 then
         return false
     end
-    local index = (Rng.hash(self.seed + 9901, self.tick, self.rollIndex, #(salt or kind)) % #lines) + 1
-    local line = lines[index]
+    local choices = {}
+    for _, line in ipairs(lines) do
+        if not filter or filter(line) then
+            choices[#choices + 1] = line
+        end
+    end
+    if #choices == 0 then
+        return false
+    end
+    local index = (Rng.hash(self.seed + 9901, self.tick, self.rollIndex, #(salt or kind)) % #choices) + 1
+    local line = choices[index]
     self.narration = type(line) == "table" and line.text or line
     return true
 end
@@ -1299,6 +1309,9 @@ function Simulation:startExpedition(locationKey)
     self:discoverCurrentRoom()
     self:pushLog("entered " .. mission.name)
     self:narrate("mission_start", missionKey)
+    self:narrate("location_barks", mission.location, function(line)
+        return line.location == mission.location
+    end)
     return true
 end
 
@@ -1592,6 +1605,7 @@ function Simulation:collectDocument(documentKey, source)
     self.estate.documentLog = self.estate.documentLog or {}
     self.estate.documents[documentKey] = true
     appendUnique(self.estate.documentLog, documentKey)
+    self.documentPopup = { key = documentKey, title = document.title, text = document.text }
     self:pushLog("document: " .. document.title)
     local bark = (Defs.fixtureDocumentBark("fixture_document_barks") or {})[document.type]
     if bark then
@@ -1660,6 +1674,45 @@ function Simulation:journalEntries()
         add(documentKey)
     end
     return result
+end
+
+function Simulation:missionIntro(missionKey)
+    local mission = Defs.mission(missionKey or (self.expedition and self.expedition.mission) or "archive_scout")
+    return mission and mission.intro or nil
+end
+
+function Simulation:curioCopy(curioKey)
+    local curio = Defs.curio(curioKey)
+    return curio and curio.copy or nil
+end
+
+function Simulation:bestiaryEntry(enemyKey)
+    local enemy = Defs.enemy(enemyKey)
+    return enemy and enemy.bestiary or nil
+end
+
+function Simulation:glossaryEntries()
+    local terms = Defs.glossary("terms_v1") or {}
+    local result = {}
+    for _, key in ipairs({ "dread", "noise", "injury", "alpha", "repair", "extraction" }) do
+        result[#result + 1] = { key = key, text = terms[key] }
+    end
+    return result
+end
+
+function Simulation:panelCopy(copyKey)
+    return Defs.panelCopyFor(copyKey)
+end
+
+function Simulation:endingScreenCopy(routeKey)
+    local copy = Defs.panelCopyFor("ending_screen_copy") or {}
+    return copy[routeKey]
+end
+
+function Simulation:originBark(classKey, eventKey)
+    local bank = Defs.originBark("origin_barks_v1") or {}
+    local classBarks = bank[classKey] or {}
+    return classBarks[eventKey]
 end
 
 function Simulation:awardXp(hero, amount)
@@ -2230,6 +2283,9 @@ function Simulation:checkDarkness()
     if not self.expedition or self.expedition.torch > 0 then
         return false
     end
+    self:narrate("low_torch_zone_voice", self.expedition.location, function(line)
+        return line.location == self.expedition.location
+    end)
     for _, hero in ipairs(self:livingParty()) do
         self:addStress(hero, 1)
     end
@@ -2666,7 +2722,7 @@ function Simulation:camp()
         end
     end
     self:pushLog("camped")
-    self:narrate("camp", "camped")
+    self:narrate("camp_complicity_voice", "camped")
     return true
 end
 
@@ -2846,6 +2902,9 @@ function Simulation:startCombat(encounterKey, roomKey, options)
     local hasBoss = combatHasBoss(self.combat)
     self:pushLog("combat: " .. encounterKey, { event = self.combat.ambush and "ambush_start" or (hasBoss and "boss_start" or "combat_start"), encounter = encounterKey, boss = hasBoss, enemies = combatEnemyNames(self.combat) })
     self:narrate("combat_start", encounterKey)
+    if combatHasWarden(self.combat) then
+        self:narrate("warden_voice_v1", encounterKey)
+    end
     self:advanceCombat()
     return true
 end
@@ -3358,13 +3417,16 @@ function Simulation:finishCombat(victory)
     if victory then
         local bossWon = false
         local alphaWon = self.combat.visible and self:isAlphaThreatKey(self.combat.threatKey)
+        local victoryResult = "extract"
         for _, trinketKey in ipairs(self.combat.fallenTrinkets or {}) do
             self.estate.trinkets[trinketKey] = ((self.estate.trinkets or {})[trinketKey] or 0) + 1
         end
         if self.expedition then
             local baseEncounter = self.combat.baseEncounter or self.combat.encounter
             local _, bossMission = self:bossMissionForEncounter(baseEncounter)
+            local mission = Defs.mission(self.expedition.mission)
             bossWon = bossMission ~= nil or bossActive
+            victoryResult = bossWon and "boss" or (self:missionHasTag(mission, "repair") and "repair" or "extract")
             self.expedition.clearedEncounters[self.combat.roomKey or self.combat.encounter] = true
             self:addLoot("coin", bossWon and 120 or 35)
             self:addLoot("heirloom", bossWon and 2 or 1)
@@ -3392,6 +3454,12 @@ function Simulation:finishCombat(victory)
         self.mode = "expedition"
         self:pushLog("combat won", { event = bossWon and "boss_win" or "combat_win", encounter = outcomeEncounter, boss = bossWon, enemies = combatEnemyNames(self.combat) })
         self:narrate("combat_win", self.combat.encounter)
+        self:narrate("victory_result_voice", victoryResult, function(line)
+            return line.result == victoryResult
+        end)
+        if wardenActive then
+            self:narrate("warden_voice_v1", outcomeEncounter)
+        end
     else
         self.mode = "estate"
         if self.expedition then
@@ -3985,6 +4053,7 @@ function Simulation:snapshot()
         combat = combat,
         status = self.status,
         narration = self.narration,
+        documentPopup = self.documentPopup and copyMap(self.documentPopup) or nil,
         log = copyList(self.log),
     }
 end
@@ -4007,6 +4076,7 @@ function Simulation.fromSnapshot(snapshot)
         commandQueue = {},
         status = snapshot.status or "loaded",
         narration = snapshot.narration or "",
+        documentPopup = snapshot.documentPopup and copyMap(snapshot.documentPopup) or nil,
         log = copyList(snapshot.log or {}),
         events = {},
         eventSerial = 0,

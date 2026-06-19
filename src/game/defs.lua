@@ -86,6 +86,18 @@ local Defs = {
     documentDropRuleOrder = Registry.documentDropRuleOrder,
     fixtureDocumentBarks = Registry.fixtureDocumentBarks,
     fixtureDocumentBarkOrder = Registry.fixtureDocumentBarkOrder,
+    glossaryTerms = Registry.glossaryTerms,
+    glossaryTermOrder = Registry.glossaryTermOrder,
+    panelCopy = Registry.panelCopy,
+    panelCopyOrder = Registry.panelCopyOrder,
+    fixtureVisitBarks = Registry.fixtureVisitBarks,
+    fixtureVisitBarkOrder = Registry.fixtureVisitBarkOrder,
+    enclaveLeaderBarks = Registry.enclaveLeaderBarks,
+    enclaveLeaderBarkOrder = Registry.enclaveLeaderBarkOrder,
+    wardenVoices = Registry.wardenVoices,
+    wardenVoiceOrder = Registry.wardenVoiceOrder,
+    originBarks = Registry.originBarks,
+    originBarkOrder = Registry.originBarkOrder,
     threatBehaviors = Registry.threatBehaviors,
     threatBehaviorOrder = Registry.threatBehaviorOrder,
     alphaRules = Registry.alphaRules,
@@ -278,6 +290,30 @@ end
 
 function Defs.fixtureDocumentBark(id)
     return Defs.fixtureDocumentBarks[id]
+end
+
+function Defs.glossary(id)
+    return Defs.glossaryTerms[id]
+end
+
+function Defs.panelCopyFor(id)
+    return Defs.panelCopy[id]
+end
+
+function Defs.fixtureVisitBark(id)
+    return Defs.fixtureVisitBarks[id]
+end
+
+function Defs.enclaveLeaderBark(id)
+    return Defs.enclaveLeaderBarks[id]
+end
+
+function Defs.wardenVoice(id)
+    return Defs.wardenVoices[id]
+end
+
+function Defs.originBark(id)
+    return Defs.originBarks[id]
 end
 
 function Defs.threatBehavior(id)
