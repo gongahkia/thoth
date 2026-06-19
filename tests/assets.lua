@@ -24,6 +24,45 @@ local function read(path)
     return data
 end
 
+local function trackedAssetPaths()
+    local pipe = io.popen("git ls-files assets")
+    assert(pipe, "cannot list tracked assets")
+    local paths = {}
+    for path in pipe:lines() do
+        paths[#paths + 1] = path
+    end
+    local ok = pipe:close()
+    assert(ok, "git ls-files assets failed")
+    return paths
+end
+
+local function assertAssetLicenseCoverage()
+    local licenseText = assert(read("docs/asset-licenses.md"), "missing asset license doc")
+    local rules = {
+        { "^assets/audio/.*%.wav$", "`assets/audio/*.wav`" },
+        { "^assets/audio/README%.md$", "`assets/audio/README.md`" },
+        { "^assets/models/README%.md$", "`assets/models/README.md`" },
+        { "^assets/models/tile_model_map%.lua$", "`assets/models/tile_model_map.lua`" },
+        { "^assets/music/README%.md$", "`assets/music/README.md`" },
+        { "^assets/music/tracks%.lua$", "`assets/music/tracks.lua`" },
+        { "^assets/previews/.*%.gif$", "`assets/previews/*.gif`" },
+        { "^assets/previews/.*%.png$", "`assets/previews/*.png`" },
+        { "^assets/sprites/README%.md$", "`assets/sprites/README.md`" },
+        { "^assets/sprites/oga_700_sprites%.lua$", "`assets/sprites/oga_700_sprites.lua`" },
+        { "^assets/sprites/oga_700_sprites%.png$", "`assets/sprites/oga_700_sprites.png`" },
+    }
+    for _, path in ipairs(trackedAssetPaths()) do
+        local covered = false
+        for _, rule in ipairs(rules) do
+            if path:match(rule[1]) and licenseText:find(rule[2], 1, true) then
+                covered = true
+                break
+            end
+        end
+        assert(covered, "asset missing license trace: " .. path)
+    end
+end
+
 local png = exists("assets/sprites/oga_700_sprites.png")
 assert(png and png:sub(1, 8) == "\137PNG\r\n\26\n", "missing sprite atlas png")
 assert(not exists("assets/sprites/thoth_atlas.png"), "prototype sprite atlas should not be present")
@@ -62,5 +101,6 @@ assert(Audio.cueForEvent({ event = "move", tile = "black_water" }) == "footstep_
 assert(MusicTracks.tracks and MusicTracks.tracks.estate and MusicTracks.tracks.combat_boss, "missing music manifest tracks")
 assert(MusicTracks.contexts.expedition_tense == "expedition_tense", "missing tense music context")
 assert(MusicTracks.tracks.victory_sting.loop == false and MusicTracks.tracks.death_sting.loop == false, "music stings should not loop")
+assertAssetLicenseCoverage()
 
 io.stdout:write("asset checks passed\n")

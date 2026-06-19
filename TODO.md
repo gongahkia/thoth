@@ -157,7 +157,6 @@ Goal: Balatro-feel polish on every interaction. Audio mix. Final accessibility p
 - [ ] 7.11 Settings persistence: separate settings file from save file (16h)
 - [ ] 7.12 Replay viewer UI: load replay from `Replay.write` output, view it as cutscene (40h opt.)
 - [ ] 7.13 Modding hooks: expose `Registry` as override-friendly Lua table; document override pattern (40h opt.)
-- [ ] 7.14 Final asset audit: every file in `assets/` traceable to a license in `docs/asset-licenses.md` (8h)
 - [ ] 7.15 Tag commit `phase7-polish-complete` (0.5h)
 
 **Phase 7 exit criteria:** Balatro-feel polish bar met (subjective; verify via 5 external playtesters' "feel" ratings). No accessibility regressions. Perf budget hit.
