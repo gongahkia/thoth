@@ -70,7 +70,6 @@ Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
 ### Day 1 — Library bake-off setup (~4h)
 
 ### Day 2 — 3D world spike (~4h)
-- [ ] 0.2.4 Add player input: press `q`/`e` to rotate world. Verify rotation feels right (1h)
 
 ### Day 3 — Billboard sprite spike (~4h)
 - [ ] 0.3.1 Place a 2D quad in 3D space (1h)

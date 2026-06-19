@@ -15,8 +15,6 @@ local cameraYaw = baseYaw
 local targetYaw = baseYaw
 local snapIndex = 1
 local snapYaws = {0, math.pi / 2, math.pi, math.pi * 3 / 2}
-local snapTimer = 0
-local snapDelay = 1.6
 local snapSpeed = 6
 local twoPi = math.pi * 2
 
@@ -92,14 +90,17 @@ function love.load()
 end
 
 function love.update(dt)
-    snapTimer = snapTimer + dt
-    if snapTimer >= snapDelay then
-        snapTimer = snapTimer - snapDelay
-        snapCamera(1)
-    end
     stepCamera(dt)
     if love.keyboard.isDown("escape") then
         love.event.push("quit")
+    end
+end
+
+function love.keypressed(key)
+    if key == "q" then
+        snapCamera(-1)
+    elseif key == "e" then
+        snapCamera(1)
     end
 end
 
@@ -107,7 +108,7 @@ function love.draw()
     grid:draw()
     love.graphics.setDepthMode()
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print("g3d 20x20 grid snap " .. snapIndex .. "/4", 16, 16)
+    love.graphics.print("q/e rotate snap " .. snapIndex .. "/4", 16, 16)
     love.graphics.setDepthMode("lequal", true)
 end
 
