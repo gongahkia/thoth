@@ -101,7 +101,6 @@ Goal: build every missing player-facing screen. Game must boot from title → lo
 
 Goal: replace `assets/sprites/thoth_atlas.png` (single 128×80 placeholder) with cohesive OGA pack + CC0 3D world geometry.
 
-- [ ] 3.2 Pick one primary character pack; document license in `docs/asset-licenses.md` (2h)
 - [ ] 3.3 Build sprite-import pipeline: PNG → atlas → billboard texture (8h)
 - [ ] 3.4 Map 8 hero classes to OGA sprite candidates (1h per class × 8 = 8h)
 - [ ] 3.5 Map 59 enemy types (`Registry.enemyOrder`, line 800+) to OGA sprites or fill gaps with AI/edits (1h per enemy × 59 = 59h)
