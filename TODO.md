@@ -30,36 +30,33 @@ Locked 2026-06-19. Single source of truth. `TODO-CONTENT.md` merged into this fi
 
 Class IDs in code stay as `mender`/`harrier` for save-file compat. Display strings update.
 
-## Merchant kit draft v0
+## Merchant kit v1
+
+Design artifact: `docs/merchant-kit.md`.
 
 Tone: the Stack's hand. Counts and weighs while others kill and salvage. Treats heroes as inventory entries. Lore tension: party benefits from Merchant economy while becoming Merchant's ledger.
 
-**Skills (3, matching class-skill convention in registry.lua:255–312):**
+**Skills (3):**
 
-1. `appraise_weak_point` — Ranks 3–4. Mark single target with ledger ink; next ally attack on marked target ignores armor and crits on 5+. Apply "marked" status, 2-turn duration.
-2. `brokered_mercy` — Ranks 2–4. Heal one ally for moderate HP at cost of self stress (+3 stress to Merchant, +6 HP to target). Transactional heal — no free lunches.
-3. `settle_accounts` — Ranks 1–2. Single-target attack scaling with target's missing HP (damage = base + missing_pct × multiplier). Executes the wounded; punishes long fights.
+1. `appraise_weak_point` - Ranks 3-4. Enemy ranks 1-4. Applies `marked` for 2 turns; the next direct hero hit ignores armor and gains crit pressure.
+2. `brokered_mercy` - Ranks 2-4. Ally ranks 1-4. Heals 6 HP and adds 3 stress to the Merchant.
+3. `settle_accounts` - Ranks 1-2. Enemy ranks 1-2. Deals modest direct damage plus missing-HP scaling.
 
 **Camp skills (2):**
 
-- `audit_books` — Restores party stress (-4 each) at cost of 1 trinket drop.
-- `cancel_debt` — Cures one disease on one hero. Consumes 2 faction standing with `faction_survey_office`.
+- `audit_books` - Party stress heal 4. Consumes one carried trinket as an audit loss.
+- `cancel_debt` - Cures one disease on one hero. Costs 2 Survivor Enclave standing (`enclave_meter`) if available.
 
-**Passive (registry trait):**
+**Passive:**
 
-- `merchant_cut` — At dread tier ≥2, +1 loot slot per mission. At dread tier ≥4, also +1 trinket-drop chance per fight. Reverse-pressure: as Estate degrades, Merchant profits more.
+- `merchant_cut` - Dread tier 2+: +1 pack slot while Merchant is on the expedition. Dread tier 4+: first room-loot coin/relic payout gains +1 bonus stack. Reverse-pressure: Estate decay makes the Merchant more profitable.
 
-**Lore bark (registry.lua:1776 style):**
+**Lore/barks:**
 
-- `merchant = { origin = "The Merchant learned that mercy is an entry; debt outlasts the body." }`
-
-**Class bark (registry.lua:2114 style):**
-
-- arrival: `"A Merchant arrives with the ledger already opened."`
-- firstDeath: `"The account closed at a loss."`
-- factionShift: `"A Merchant marks faction weather as price movement."`
-
-Kit subject to spike feedback. Balance pass after Phase 6 integration.
+- Origin: `"The Merchant learned that mercy is an entry; debt outlasts the body."`
+- Arrival: `"A Merchant arrives with the ledger already opened."`
+- First death: `"The account closed at a loss."`
+- Faction shift: `"A Merchant marks faction weather as price movement."`
 
 ---
 
@@ -135,7 +132,6 @@ Goal: fill out Buried Archive (12 missions), Salt Cistern (10 missions), Ember W
 
 Goal: ship 9th class. Late-game design choice: introduce dissonance at the point players have made peace with the institutional tone.
 
-- [ ] 6.1 Finalize Merchant kit design (review v0 draft above, iterate based on Phase 5 balance learnings) (16h)
 - [ ] 6.2 Add `merchant` class to `Registry.heroClasses` (registry.lua:255–312) and `Registry.heroClassOrder` (registry.lua:313) (4h)
 - [ ] 6.3 Implement Merchant 3 skills in `Registry.skills` (registry.lua:315): `appraise_weak_point`, `brokered_mercy`, `settle_accounts` (24h)
 - [ ] 6.4 Implement Merchant 2 camp skills: `audit_books`, `cancel_debt` (16h)
