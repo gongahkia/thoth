@@ -7,6 +7,7 @@ local Audio = require("src.app.audio")
 local Save = require("src.game.save")
 local Settings = require("src.app.settings")
 local Achievements = require("src.app.achievements")
+local SpritePipeline = require("src.app.sprite_pipeline")
 
 local sim
 local app
@@ -20,6 +21,38 @@ local function hasArg(args, target)
         end
     end
     return false
+end
+
+local function argValue(args, target, fallback)
+    for index, value in ipairs(args or {}) do
+        if value == target then
+            return args[index + 1] or fallback
+        end
+    end
+    return fallback
+end
+
+local function runSpriteImport(args)
+    local frameWidth, frameHeight = SpritePipeline.parseFrameSize(argValue(args, "--sprite-frame", "16x16"))
+    if not frameWidth then
+        print("sprite-import-error=bad-frame")
+        love.event.quit(1)
+        return
+    end
+    local source = argValue(args, "--sprite-source", "assets/sprites/thoth_atlas.png")
+    local atlas = argValue(args, "--sprite-atlas", "assets/sprites/thoth_atlas.png")
+    local manifest = argValue(args, "--sprite-manifest", "assets/sprites/thoth_atlas.lua")
+    local columns = tonumber(argValue(args, "--sprite-columns", nil))
+    local plan, err = SpritePipeline.importWithLove(source, atlas, manifest, { frameWidth = frameWidth, frameHeight = frameHeight, columns = columns })
+    if not plan then
+        print("sprite-import-error=" .. tostring(err))
+        love.event.quit(1)
+        return
+    end
+    print("sprite-import-frames=" .. tostring(plan.frames))
+    print("sprite-import-atlas=" .. tostring(plan.atlasPath))
+    print("sprite-import-manifest=" .. tostring(plan.manifestPath))
+    love.event.quit(0)
 end
 
 local function setupRenderBenchmark(state)
@@ -965,6 +998,11 @@ end
 
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
+    if hasArg(args, "--sprite-import") then
+        app = { importMode = true }
+        runSpriteImport(args)
+        return
+    end
     sim = Simulation.new(20260618)
     local renderBenchmark = hasArg(args, "--render-benchmark")
     local titleSmoke = hasArg(args, "--title-smoke")
@@ -1090,6 +1128,9 @@ function love.load(args)
 end
 
 function love.update(dt)
+    if app and app.importMode then
+        return
+    end
     app.titleTime = (app.titleTime or 0) + dt
     Achievements.updateToasts(app, dt)
     if app.uiPulse then
@@ -1153,6 +1194,9 @@ function love.update(dt)
 end
 
 function love.draw()
+    if app and app.importMode then
+        return
+    end
     if app.uiState == "title" then
         Render.drawTitle(sim, app)
         printTitleSmoke(app)

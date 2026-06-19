@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke sprite-import-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -245,6 +245,23 @@ render-smoke:
 	grep -q "render-smoke-hud-party=4" $$tmp; \
 	rm -f $$tmp
 
+sprite-import-smoke:
+	@set -e; \
+	rm -rf dist/sprite-import-smoke; \
+	mkdir -p dist/sprite-import-smoke; \
+	tmp=$$(mktemp); \
+	if command -v xvfb-run >/dev/null 2>&1; then \
+		SDL_AUDIODRIVER=dummy xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --sprite-import --sprite-source assets/sprites/thoth_atlas.png --sprite-atlas dist/sprite-import-smoke/thoth_atlas.png --sprite-manifest dist/sprite-import-smoke/thoth_atlas.lua --sprite-frame 16x16 | tee $$tmp; \
+	else \
+		SDL_AUDIODRIVER=dummy $(LOVE) . --sprite-import --sprite-source assets/sprites/thoth_atlas.png --sprite-atlas dist/sprite-import-smoke/thoth_atlas.png --sprite-manifest dist/sprite-import-smoke/thoth_atlas.lua --sprite-frame 16x16 | tee $$tmp; \
+	fi; \
+	grep -q "sprite-import-frames=40" $$tmp; \
+	grep -q "sprite-import-atlas=dist/sprite-import-smoke/thoth_atlas.png" $$tmp; \
+	grep -q "sprite-import-manifest=dist/sprite-import-smoke/thoth_atlas.lua" $$tmp; \
+	test -s dist/sprite-import-smoke/thoth_atlas.png; \
+	test -s dist/sprite-import-smoke/thoth_atlas.lua; \
+	rm -f $$tmp
+
 test:
 	$(LUAJIT) tests/run.lua
 
@@ -252,6 +269,7 @@ check: test
 	$(LUAJIT) tests/replays.lua
 	$(LUAJIT) tests/assets.lua
 	$(LUAJIT) tests/registry.lua
+	$(MAKE) sprite-import-smoke
 	$(MAKE) package-build
 	$(LUAJIT) tests/package.lua $(PACKAGE)
 	$(MAKE) benchmark-smoke

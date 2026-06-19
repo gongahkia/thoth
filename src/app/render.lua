@@ -15,6 +15,14 @@ local baseYaw = math.rad(45)
 local visibleRadius = 10
 local atlasColumns = 8
 local atlasRows = 5
+local defaultAtlasMeta = {
+    image = "assets/sprites/thoth_atlas.png",
+    frameWidth = 16,
+    frameHeight = 16,
+    columns = atlasColumns,
+    rows = atlasRows,
+    frames = atlasColumns * atlasRows,
+}
 local uiHitboxGroups = {
     "titleButtons",
     "settingsButtons",
@@ -474,6 +482,18 @@ local function loadImage(path)
     return image
 end
 
+local function loadSpriteAtlas()
+    local meta = defaultAtlasMeta
+    if love.filesystem.getInfo("assets/sprites/thoth_atlas.lua", "file") then
+        local chunk = love.filesystem.load("assets/sprites/thoth_atlas.lua")
+        local ok, loaded = pcall(chunk)
+        if ok and type(loaded) == "table" then
+            meta = loaded
+        end
+    end
+    return loadImage(meta.image or defaultAtlasMeta.image), meta
+end
+
 local function newImageFromData(data)
     local image = love.graphics.newImage(data)
     image:setFilter("nearest", "nearest")
@@ -501,7 +521,7 @@ function Render.load()
     state.assets.enemy = newSolidImage(0.68, 0.16, 0.18, 1)
     state.assets.alpha = newSolidImage(0.58, 0.12, 0.46, 1)
     state.assets.boss = newSolidImage(0.82, 0.22, 0.12, 1)
-    state.assets.spriteAtlas = loadImage("assets/sprites/thoth_atlas.png")
+    state.assets.spriteAtlas, state.assets.spriteAtlasMeta = loadSpriteAtlas()
     state.g3d.camera.updateProjectionMatrix()
     state.g3d.camera.updateViewMatrix()
     Render.state = state
@@ -613,13 +633,17 @@ local function applyCamera(sim, app)
 end
 
 local function atlasFrameUv(frame)
-    local index = (frame or 0) % (atlasColumns * atlasRows)
-    local col = index % atlasColumns
-    local row = math.floor(index / atlasColumns)
-    local u0 = col / atlasColumns
-    local u1 = (col + 1) / atlasColumns
-    local v0 = row / atlasRows
-    local v1 = (row + 1) / atlasRows
+    local meta = (state.assets and state.assets.spriteAtlasMeta) or defaultAtlasMeta
+    local columns = meta.columns or atlasColumns
+    local rows = meta.rows or atlasRows
+    local frames = meta.frames or (columns * rows)
+    local index = (frame or 0) % frames
+    local col = index % columns
+    local row = math.floor(index / columns)
+    local u0 = col / columns
+    local u1 = (col + 1) / columns
+    local v0 = row / rows
+    local v1 = (row + 1) / rows
     return u0, v0, u1, v1
 end
 

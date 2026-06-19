@@ -8,6 +8,7 @@ local Input = require("src.app.input")
 local Render = require("src.app.render")
 local Settings = require("src.app.settings")
 local Achievements = require("src.app.achievements")
+local SpritePipeline = require("src.app.sprite_pipeline")
 local World = require("src.game.world")
 local Defs = require("src.game.defs")
 
@@ -67,6 +68,18 @@ local function reachEntryCombat(sim)
 end
 
 local tests = {}
+
+tests[#tests + 1] = function()
+    local plan = SpritePipeline.plan(128, 80, { frameWidth = 16, frameHeight = 16 })
+    expect(plan and plan.frames == 40, "sprite pipeline should count source frames")
+    expect(plan.columns == 8 and plan.rows == 5 and plan.atlasWidth == 128 and plan.atlasHeight == 80, "sprite pipeline should preserve atlas grid by default")
+    local rect = SpritePipeline.frameRect(plan, 10)
+    expect(rect.sourceX == 16 and rect.sourceY == 16 and rect.atlasX == 16 and rect.atlasY == 16, "sprite pipeline should map frame rects")
+    local manifest = SpritePipeline.loadManifest(SpritePipeline.manifestText(plan, "assets/sprites/thoth_atlas.png", "source.png"))
+    expect(manifest and manifest.frames == 40 and manifest.image == "assets/sprites/thoth_atlas.png", "sprite pipeline should write manifest data")
+    local bad, err = SpritePipeline.plan(127, 80, { frameWidth = 16, frameHeight = 16 })
+    expect(not bad and err:find("divisible", 1, true), "sprite pipeline should reject uneven source sheets")
+end
 
 tests[#tests + 1] = function()
     expect(World.floorDiv(31, World.chunkSize) == 0, "positive chunk edge failed")

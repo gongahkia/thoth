@@ -1,0 +1,1 @@
+return {["atlasHeight"]=80,["atlasWidth"]=128,["columns"]=8,["frameHeight"]=16,["frameWidth"]=16,["frames"]=40,["generatedBy"]="manual",["image"]="assets/sprites/thoth_atlas.png",["rows"]=5,["source"]="retained C++ prototype atlas"}
