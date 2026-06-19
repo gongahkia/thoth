@@ -91,6 +91,32 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(77)
+    sim:endExpedition(true)
+    for rank = 1, 4 do
+        local hero = sim:heroAtRank(rank)
+        hero.level = 3
+    end
+    sim.estate.provisionCart:add("torch", 1)
+    expect(not sim:startExpedition("archive_scout"), "overlevel party should refuse apprentice mission")
+    expect(sim.mode == "estate" and sim.estate.provisionCart:count("torch") == 1, "refused mission should not consume provisions")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(78)
+    sim:endExpedition(true)
+    for rank = 1, 4 do
+        local hero = sim:heroAtRank(rank)
+        hero.level = 1
+        hero.stress = 0
+        hero.quirks = {}
+    end
+    runQueued(sim, Simulation.commands.startExpedition("ember_cleansing"))
+    expect(sim.mode == "expedition" and sim.expedition.mission == "ember_cleansing", "underlevel party should still enter high-tier mission")
+    expect(sim:heroAtRank(3).stress == 24, "underlevel mission should add deterministic stress pressure")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(48)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("cistern_bell"))

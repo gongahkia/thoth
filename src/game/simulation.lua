@@ -748,6 +748,38 @@ function Simulation:missionForKey(key)
     return fallback, Defs.mission(fallback)
 end
 
+function Simulation:missionLevelPenalty(mission)
+    local target = mission.resolveLevel or 1
+    local penalty = 0
+    for rank = 1, 4 do
+        local hero = self:heroAtRank(rank)
+        if hero and hero.alive then
+            if (hero.level or 1) > target + 1 then
+                return nil, hero
+            end
+            if (hero.level or 1) < target then
+                penalty = math.max(penalty, target - (hero.level or 1))
+            end
+        end
+    end
+    return penalty
+end
+
+function Simulation:applyMissionLevelPenalty(mission)
+    local penalty = self:missionLevelPenalty(mission)
+    if not penalty or penalty <= 0 then
+        return false
+    end
+    for rank = 1, 4 do
+        local hero = self:heroAtRank(rank)
+        if hero and hero.alive and (hero.level or 1) < (mission.resolveLevel or 1) then
+            self:addStress(hero, penalty * 6)
+        end
+    end
+    self:pushLog("mission exceeds resolve")
+    return true
+end
+
 function Simulation:startExpedition(locationKey)
     if self.expedition and self.expedition.active then
         return false
@@ -755,6 +787,11 @@ function Simulation:startExpedition(locationKey)
     local missionKey, mission = self:missionForKey(locationKey or "archive_scout")
     local location = Defs.location(mission.location)
     if not location then
+        return false
+    end
+    local penalty, refusingHero = self:missionLevelPenalty(mission)
+    if refusingHero then
+        self:pushLog(refusingHero.name .. " refused " .. (mission.difficulty or "mission"))
         return false
     end
     self.world = World.new(self.seed, mission.location)
@@ -801,6 +838,7 @@ function Simulation:startExpedition(locationKey)
         bossDefeated = false,
         log = {},
     }
+    self:applyMissionLevelPenalty(mission)
     self:discoverCurrentRoom()
     self:pushLog("entered " .. mission.name)
     return true

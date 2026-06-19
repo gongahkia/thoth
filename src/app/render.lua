@@ -695,7 +695,7 @@ function Render.drawEstatePanel(sim, app)
         love.graphics.setColor(0.42, 0.48, 0.36, 1)
         love.graphics.rectangle("line", bx, by, 196, 28)
         love.graphics.setColor(0.86, 0.88, 0.8, 1)
-        love.graphics.printf(mission.kind .. " / " .. mission.location, bx + 4, by + 7, 188, "center")
+        love.graphics.printf((mission.difficulty or "mission") .. " " .. mission.kind, bx + 4, by + 7, 188, "center")
         app.ui.missionButtons[#app.ui.missionButtons + 1] = { x = bx, y = by, w = 196, h = 28, missionKey = key }
     end
     local recruitY = y + 380

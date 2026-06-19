@@ -167,6 +167,8 @@ end
 for key, mission in pairs(Defs.missions) do
     expect(mission.name and Defs.location(mission.location), "mission missing location " .. key)
     expect(mission.kind == "scout" or mission.kind == "cleanse" or mission.kind == "boss" or mission.kind == "gather" or mission.kind == "activate", "mission bad kind " .. key)
+    expect(mission.difficulty == "apprentice" or mission.difficulty == "veteran" or mission.difficulty == "champion", "mission bad difficulty " .. key)
+    expect(mission.resolveLevel == 1 or mission.resolveLevel == 3 or mission.resolveLevel == 5, "mission bad resolve level " .. key)
     for item in pairs(mission.objectiveItems or {}) do
         expect(Defs.item(item), "mission objective missing item " .. item)
     end
