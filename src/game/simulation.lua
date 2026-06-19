@@ -310,6 +310,10 @@ function Simulation.commands.interact()
     return { type = "interact" }
 end
 
+function Simulation.commands.curioChoice(x, y, z, curioKey, choice)
+    return { type = "curioChoice", x = x, y = y, z = z or 0, curioKey = curioKey, choice = choice }
+end
+
 function Simulation.commands.startExpedition(locationKey)
     return { type = "startExpedition", locationKey = locationKey or "buried_archive" }
 end
@@ -440,6 +444,9 @@ function Simulation:apply(command)
     end
     if command.type == "interact" then
         return self:interact()
+    end
+    if command.type == "curioChoice" then
+        return self:curioChoice(command.x, command.y, command.z, command.curioKey, command.choice)
     end
     if command.type == "startExpedition" then
         return self:startExpedition(command.locationKey)
@@ -2572,6 +2579,19 @@ function Simulation:targetCell()
     return x, y, self.player.z
 end
 
+function Simulation:targetCurio()
+    if self.mode ~= "expedition" then
+        return nil
+    end
+    local x, y, z = self:targetCell()
+    local tile = self.world:getTile(x, y, z)
+    local tileDef = Defs.tile(tile.id)
+    if not (tileDef and tileDef.curio and Defs.curio(tileDef.curio)) then
+        return nil
+    end
+    return { x = x, y = y, z = z, key = tileDef.curio, curio = Defs.curio(tileDef.curio), usedKey = Grid.key(x, y, z) }
+end
+
 function Simulation:interact()
     if self.mode ~= "expedition" then
         return false
@@ -2600,6 +2620,20 @@ function Simulation:interact()
     end
     self:pushLog("nothing useful")
     return false
+end
+
+function Simulation:curioChoice(x, y, z, curioKey, choice)
+    choice = choice or "safe_use"
+    if choice == "leave_alone" then
+        local curio = Defs.curio(curioKey)
+        self:pushLog((curio and curio.name or "curio") .. " left alone")
+        return true
+    end
+    local options = { ignoreRefusal = true }
+    if choice == "greedy_use" then
+        options.forceNoItem = true
+    end
+    return self:resolveCurio(x, y, z or 0, curioKey, options)
 end
 
 function Simulation:resolveCurio(x, y, z, curioKey, options)

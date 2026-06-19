@@ -109,6 +109,34 @@ local function activeRender(app)
     return require("src.app.render")
 end
 
+local function openCurioModal(sim, app)
+    local modal = activeRender(app).curioModalForTarget(sim)
+    if modal then
+        app.curioModal = modal
+        app.status = "curio " .. modal.key
+        play(app, "tick")
+        return true
+    end
+    return false
+end
+
+local function chooseCurio(sim, app, choice)
+    local modal = app.curioModal
+    if not modal then
+        return false
+    end
+    app.curioModal = nil
+    app.curioResult = { title = modal.title, text = modal.result, t = 1.8 }
+    if choice ~= "leave_alone" then
+        sim:queue(Simulation.commands.curioChoice(modal.x, modal.y, modal.z, modal.key, choice))
+    else
+        sim:queue(Simulation.commands.curioChoice(modal.x, modal.y, modal.z, modal.key, "leave_alone"))
+    end
+    app.status = "curio " .. tostring(choice)
+    play(app, choice == "leave_alone" and "tick" or "produce")
+    return true
+end
+
 function Input.update(sim, app, dt)
     app.moveCooldown = math.max(0, (app.moveCooldown or 0) - dt)
     if app.moveCooldown > 0 or sim.mode ~= "expedition" then
@@ -125,6 +153,22 @@ function Input.update(sim, app, dt)
 end
 
 function Input.keypressed(sim, app, key)
+    if app.curioModal then
+        if key == "escape" then
+            app.curioModal = nil
+            play(app, "tick")
+            return
+        end
+        if key:match("^[1-4]$") then
+            local choice = app.curioModal.choices[tonumber(key)]
+            if choice and choice.enabled then
+                chooseCurio(sim, app, choice.key)
+            else
+                play(app, "invalid")
+            end
+            return
+        end
+    end
     local screenDirection = movementKeys[key] or boundMovementDirection(app, key)
     if screenDirection then
         requestMove(app, screenDirection)
@@ -150,6 +194,8 @@ function Input.keypressed(sim, app, key)
         elseif sim.expedition and sim.expedition.camping then
             sim:queue(Simulation.commands.finishCamp())
             app.status = "finish camp"
+        elseif openCurioModal(sim, app) then
+            return
         else
             sim:queue(Simulation.commands.interact())
             app.status = "interact"
@@ -214,6 +260,19 @@ end
 
 function Input.mousepressed(sim, app, x, y, button)
     if button ~= 1 then
+        return
+    end
+    if app.curioModal then
+        for _, hitbox in ipairs((app.ui and app.ui.curioButtons) or {}) do
+            if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+                if hitbox.enabled then
+                    chooseCurio(sim, app, hitbox.choice)
+                else
+                    play(app, "invalid")
+                end
+                return
+            end
+        end
         return
     end
     for _, hitbox in ipairs((app.ui and app.ui.enemyButtons) or {}) do

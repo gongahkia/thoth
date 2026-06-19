@@ -1117,6 +1117,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(82)
+    sim.player.facing = "east"
+    sim.world:setTile(sim.player.x + 1, sim.player.y, sim.player.z, { id = "salt_font", data = 0 })
+    local modal = Render.curioModalForTarget(sim)
+    expect(modal and modal.key == "salt_font" and #modal.choices == 4, "curio modal should expose four choices")
+    expect(modal.choices[1].key == "safe_use" and modal.choices[4].key == "leave_alone", "curio modal should order choices")
+    local app = { audio = {}, curioModal = modal, ui = { curioButtons = { { x = 0, y = 0, w = 20, h = 20, choice = "greedy_use", enabled = true } } } }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    sim:step()
+    expect(app.curioResult and next(sim.expedition.curiosUsed) ~= nil, "curio choice should resolve and reveal result")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(81)
     reachEntryCombat(sim)
     local summary = Render.combatHudSummary(sim, { pendingSkillKey = "arterial_cut", pendingTargetSide = "enemy" })
@@ -2064,6 +2077,7 @@ tests[#tests + 1] = function()
             estateActionButtons = { { stale = true } },
             rosterButtons = { { stale = true } },
             partyRankSlots = { { stale = true } },
+            curioButtons = { { stale = true } },
             titleButtons = { { stale = true } },
             settingsButtons = { { stale = true } },
         },
@@ -2080,6 +2094,7 @@ tests[#tests + 1] = function()
     expect(#app.ui.estateActionButtons == 0, "prepareUi should clear estate action hitboxes")
     expect(#app.ui.rosterButtons == 0, "prepareUi should clear roster hitboxes")
     expect(#app.ui.partyRankSlots == 0, "prepareUi should clear party rank slots")
+    expect(#app.ui.curioButtons == 0, "prepareUi should clear curio buttons")
     expect(#app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
     app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
     app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }

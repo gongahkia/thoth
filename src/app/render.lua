@@ -216,6 +216,7 @@ function Render.prepareUi(app)
     app.ui.estateActionButtons = app.ui.estateActionButtons or {}
     app.ui.rosterButtons = app.ui.rosterButtons or {}
     app.ui.partyRankSlots = app.ui.partyRankSlots or {}
+    app.ui.curioButtons = app.ui.curioButtons or {}
     app.ui.titleButtons = app.ui.titleButtons or {}
     app.ui.settingsButtons = app.ui.settingsButtons or {}
     clearList(app.ui.skillButtons)
@@ -228,6 +229,7 @@ function Render.prepareUi(app)
     clearList(app.ui.estateActionButtons)
     clearList(app.ui.rosterButtons)
     clearList(app.ui.partyRankSlots)
+    clearList(app.ui.curioButtons)
     clearList(app.ui.titleButtons)
     clearList(app.ui.settingsButtons)
 end
@@ -766,6 +768,93 @@ function Render.combatHudSummary(sim, app)
         target = app and app.pendingTargetSide or nil,
         skill = app and app.pendingSkillKey or nil,
     }
+end
+
+local curioChoiceOrder = {
+    { key = "safe_use", label = "Safe" },
+    { key = "greedy_use", label = "Greedy" },
+    { key = "repair_use", label = "Repair" },
+    { key = "leave_alone", label = "Leave" },
+}
+
+local function listContains(list, value)
+    for _, entry in ipairs(list or {}) do
+        if entry == value then
+            return true
+        end
+    end
+    return false
+end
+
+function Render.curioModalForTarget(sim)
+    local target = sim and sim.targetCurio and sim:targetCurio() or nil
+    if not target then
+        return nil
+    end
+    local copy = target.curio.copy or {}
+    local choices = {}
+    for _, choice in ipairs(curioChoiceOrder) do
+        choices[#choices + 1] = {
+            key = choice.key,
+            label = choice.label,
+            text = copy[choice.key] or choice.label,
+            enabled = listContains(target.curio.outcomes or {}, choice.key),
+        }
+    end
+    return {
+        x = target.x,
+        y = target.y,
+        z = target.z,
+        key = target.key,
+        title = target.curio.name,
+        observe = copy.observe or target.curio.name,
+        result = copy.result or (target.curio.name .. " resolved."),
+        choices = choices,
+    }
+end
+
+function Render.drawCurioModal(app)
+    local modal = app.curioModal
+    if not modal or not (love and love.graphics) then
+        return
+    end
+    local width, height = love.graphics.getDimensions()
+    local w, h = 520, 260
+    local x = (width - w) / 2
+    local y = (height - h) / 2
+    panel(x, y, w, h, 0.96)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.print(modal.title, x + 18, y + 16)
+    love.graphics.setColor(0.68, 0.72, 0.66, 1)
+    love.graphics.printf(modal.observe, x + 18, y + 42, w - 36)
+    for index, choice in ipairs(modal.choices or {}) do
+        local bx = x + 18
+        local by = y + 82 + (index - 1) * 40
+        local bw = w - 36
+        love.graphics.setColor(choice.enabled and 0.14 or 0.08, choice.enabled and 0.17 or 0.08, choice.enabled and 0.15 or 0.08, 1)
+        love.graphics.rectangle("fill", bx, by, bw, 32)
+        love.graphics.setColor(choice.enabled and 0.62 or 0.24, choice.enabled and 0.56 or 0.24, choice.enabled and 0.36 or 0.24, 1)
+        love.graphics.rectangle("line", bx, by, bw, 32)
+        love.graphics.setColor(choice.enabled and 0.9 or 0.38, choice.enabled and 0.92 or 0.38, choice.enabled and 0.84 or 0.38, 1)
+        love.graphics.printf(index .. " " .. choice.label .. " - " .. choice.text, bx + 8, by + 9, bw - 16, "left")
+        app.ui.curioButtons[#app.ui.curioButtons + 1] = { x = bx, y = by, w = bw, h = 32, choice = choice.key, enabled = choice.enabled, index = index }
+    end
+end
+
+function Render.drawCurioResult(app)
+    local result = app.curioResult
+    if not result or not (love and love.graphics) then
+        return
+    end
+    local width = love.graphics.getWidth()
+    local w, h = 460, 88
+    local x = (width - w) / 2
+    local y = 112
+    panel(x, y, w, h, 0.94)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.print(result.title or "Curio", x + 14, y + 12)
+    love.graphics.setColor(0.72, 0.76, 0.68, 1)
+    love.graphics.printf(result.text or "", x + 14, y + 38, w - 28)
 end
 
 local function layoutTitleButtons(app, items, width, height)
@@ -1938,6 +2027,8 @@ function Render.draw(sim, app)
     Render.drawCombatOverlay(sim, app)
     Render.drawCampOverlay(sim)
     Render.drawEstatePanel(sim, app)
+    Render.drawCurioResult(app)
+    Render.drawCurioModal(app)
     Render.drawCutscene(sim, app)
     love.graphics.pop()
 end

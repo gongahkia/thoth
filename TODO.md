@@ -93,7 +93,6 @@ Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render
 
 Goal: build every missing player-facing screen. Game must boot from title → load campaign → play → quit gracefully.
 
-- [ ] 2.10 Build curio interaction modal: 4 choices (safe/greedy/repair/leave), outcome reveal (16h)
 - [ ] 2.11 Build camp screen: 7 camp skills selection (`Registry.campSkillOrder`), hero assignments (24h)
 - [ ] 2.12 Build pause menu: resume / settings / save / quit-to-title (8h)
 - [ ] 2.13 Build game-over screen: campaign summary, dread tier, faction states, restart option (16h)

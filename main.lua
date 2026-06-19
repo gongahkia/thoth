@@ -413,6 +413,22 @@ local function printCombatSmoke(state)
     print("combat-smoke-enemy-targets=" .. tostring(#((state.ui and state.ui.enemyButtons) or {})))
 end
 
+local function printCurioSmoke(state)
+    if not state.curioSmoke or state.curioSmokePrinted then
+        return
+    end
+    state.curioSmokePrinted = true
+    local enabled = 0
+    for _, hitbox in ipairs((state.ui and state.ui.curioButtons) or {}) do
+        if hitbox.enabled then
+            enabled = enabled + 1
+        end
+    end
+    print("curio-smoke-modal=" .. tostring(state.curioModal and state.curioModal.key))
+    print("curio-smoke-buttons=" .. tostring(#((state.ui and state.ui.curioButtons) or {})))
+    print("curio-smoke-enabled=" .. tostring(enabled))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -421,7 +437,8 @@ function love.load(args)
     local settingsSmoke = hasArg(args, "--settings-smoke")
     local estateSmoke = hasArg(args, "--estate-smoke")
     local combatSmoke = hasArg(args, "--combat-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke
+    local curioSmoke = hasArg(args, "--curio-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
@@ -433,6 +450,10 @@ function love.load(args)
     end
     if combatSmoke then
         sim:startCombat("entry", sim:currentRoomKey() or "0:0")
+    end
+    if curioSmoke then
+        sim.player.facing = "east"
+        sim.world:setTile(sim.player.x + 1, sim.player.y, sim.player.z, { id = "salt_font", data = 0 })
     end
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
@@ -455,6 +476,7 @@ function love.load(args)
         settingsSmoke = settingsSmoke,
         estateSmoke = estateSmoke,
         combatSmoke = combatSmoke,
+        curioSmoke = curioSmoke,
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -465,6 +487,9 @@ function love.load(args)
     }
     refreshContinueState(app)
     Audio.applySettings(app.audio, app.settings)
+    if curioSmoke then
+        app.curioModal = Render.curioModalForTarget(sim)
+    end
     Render.load()
 end
 
@@ -486,6 +511,12 @@ function love.update(dt)
         app.eventFlash.t = math.max(0, app.eventFlash.t - dt)
         if app.eventFlash.t <= 0 then
             app.eventFlash = nil
+        end
+    end
+    if app.curioResult then
+        app.curioResult.t = math.max(0, (app.curioResult.t or 0) - dt)
+        if app.curioResult.t <= 0 then
+            app.curioResult = nil
         end
     end
     accumulator = math.min(accumulator + dt, 0.25)
@@ -525,6 +556,7 @@ function love.draw()
     printRenderSmoke(app)
     printEstateSmoke(app)
     printCombatSmoke(app)
+    printCurioSmoke(app)
     if app.renderBenchmark then
         local elapsedMs = (love.timer.getTime() - started) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1

@@ -42,6 +42,11 @@ jobs:
           SDL_AUDIODRIVER: dummy
         run: make combat-smoke
 
+      - name: Run curio smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make curio-smoke
+
       - name: Run render3d smoke
         env:
           SDL_AUDIODRIVER: dummy
