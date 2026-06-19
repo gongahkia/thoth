@@ -1,6 +1,7 @@
 local Defs = require("src.game.defs")
 local Settings = require("src.app.settings")
 local Credits = require("src.app.credits")
+local i18n = require("src.app.i18n")
 
 local Render = {}
 local state = {
@@ -315,31 +316,31 @@ local function actorSide(actor, sim)
 end
 
 local cutsceneProfiles = {
-    default = { mood = "neutral", focus = "stage", beat = "hold", camera = "still", caption = "Event", intensity = 0.65, accent = { 0.7, 0.58, 0.35 } },
-    idle = { mood = "watch", focus = "party", beat = "idle", camera = "still", caption = "Combat", intensity = 0.35, accent = { 0.42, 0.54, 0.36 } },
-    intro = { mood = "threat", focus = "enemy", beat = "arrival", camera = "push", caption = "Encounter", duration = 0.92, intensity = 0.75, accent = { 0.72, 0.2, 0.12 } },
-    boss_intro = { mood = "boss", focus = "boss", beat = "reveal", camera = "quake", caption = "Boss Encounter", duration = 1.18, intensity = 1.2, accent = { 0.86, 0.08, 0.08 } },
-    ambush = { mood = "panic", focus = "enemy", beat = "snap", camera = "snap", caption = "Ambush", duration = 1.0, intensity = 1.05, accent = { 0.9, 0.12, 0.08 } },
-    strike = { mood = "action", focus = "actor", beat = "strike", camera = "hit", caption = "Skill", duration = 0.72, intensity = 0.9, accent = { 0.96, 0.72, 0.32 } },
-    boss_strike = { mood = "boss", focus = "boss", beat = "smite", camera = "quake", caption = "Boss Skill", duration = 0.95, intensity = 1.25, accent = { 0.9, 0.08, 0.06 } },
-    victory = { mood = "resolve", focus = "party", beat = "triumph", camera = "lift", caption = "Victory", duration = 0.86, intensity = 0.8, accent = { 0.86, 0.68, 0.24 } },
-    boss_victory = { mood = "seal", focus = "party", beat = "triumph", camera = "lift", caption = "Boss Felled", duration = 1.2, intensity = 1.05, accent = { 0.92, 0.74, 0.18 } },
-    campaign_victory = { mood = "seal", focus = "party", beat = "seal", camera = "lift", caption = "Campaign Sealed", duration = 1.25, intensity = 1.1, accent = { 0.72, 0.82, 0.42 } },
-    merchant_unlock = { mood = "ledger", focus = "actor", beat = "arrival", camera = "push", caption = "Merchant Unlocked", duration = 1.05, intensity = 0.9, accent = { 0.66, 0.58, 0.34 } },
-    defeat = { mood = "doom", focus = "enemy", beat = "collapse", camera = "sink", caption = "Defeat", duration = 0.95, intensity = 1.0, accent = { 0.78, 0.08, 0.06 } },
-    boss_defeat = { mood = "doom", focus = "boss", beat = "collapse", camera = "sink", caption = "Annihilation", duration = 1.2, intensity = 1.22, accent = { 0.82, 0.04, 0.04 } },
-    retreat = { mood = "flight", focus = "party", beat = "exit", camera = "pull", caption = "Retreat", duration = 0.78, intensity = 0.7, accent = { 0.46, 0.58, 0.48 } },
-    blocked = { mood = "panic", focus = "enemy", beat = "block", camera = "hit", caption = "Blocked", duration = 0.72, intensity = 0.9, accent = { 0.86, 0.08, 0.06 } },
-    death_door = { mood = "threshold", focus = "actor", beat = "threshold", camera = "sink", caption = "Death's Door", duration = 0.85, intensity = 1.05, accent = { 0.72, 0.08, 0.08 } },
-    death_save = { mood = "resolve", focus = "actor", beat = "revive", camera = "lift", caption = "Deathblow Resisted", duration = 0.85, intensity = 0.9, accent = { 0.86, 0.78, 0.38 } },
-    hero_death = { mood = "doom", focus = "actor", beat = "fall", camera = "sink", caption = "Hero Lost", duration = 1.1, intensity = 1.15, accent = { 0.8, 0.06, 0.06 } },
-    resolve_virtue = { mood = "virtue", focus = "actor", beat = "resolve", camera = "lift", caption = "Virtue", duration = 0.95, intensity = 0.95, accent = { 0.62, 0.82, 0.34 } },
-    resolve_affliction = { mood = "affliction", focus = "actor", beat = "fracture", camera = "snap", caption = "Affliction", duration = 0.95, intensity = 1.05, accent = { 0.72, 0.12, 0.52 } },
-    stress_break = { mood = "affliction", focus = "actor", beat = "break", camera = "sink", caption = "Stress Break", duration = 0.95, intensity = 1.0, accent = { 0.7, 0.12, 0.38 } },
-    affliction_act = { mood = "affliction", focus = "actor", beat = "lash", camera = "snap", caption = "Afflicted Action", duration = 0.95, intensity = 0.95, accent = { 0.66, 0.1, 0.44 } },
-    falter = { mood = "dazed", focus = "actor", beat = "stagger", camera = "hit", caption = "Falter", duration = 0.62, intensity = 0.65, accent = { 0.64, 0.62, 0.52 } },
-    hero_hold = { mood = "guard", focus = "actor", beat = "hold", camera = "still", caption = "Hold", duration = 0.62, intensity = 0.55, accent = { 0.62, 0.62, 0.5 } },
-    danger = { mood = "doom", focus = "enemy", beat = "omen", camera = "sink", caption = "Danger", duration = 0.85, intensity = 0.95, accent = { 0.82, 0.08, 0.06 } },
+    default = { mood = "neutral", focus = "stage", beat = "hold", camera = "still", caption = i18n.t("Event"), intensity = 0.65, accent = { 0.7, 0.58, 0.35 } },
+    idle = { mood = "watch", focus = "party", beat = "idle", camera = "still", caption = i18n.t("Combat"), intensity = 0.35, accent = { 0.42, 0.54, 0.36 } },
+    intro = { mood = "threat", focus = "enemy", beat = "arrival", camera = "push", caption = i18n.t("Encounter"), duration = 0.92, intensity = 0.75, accent = { 0.72, 0.2, 0.12 } },
+    boss_intro = { mood = "boss", focus = "boss", beat = "reveal", camera = "quake", caption = i18n.t("Boss Encounter"), duration = 1.18, intensity = 1.2, accent = { 0.86, 0.08, 0.08 } },
+    ambush = { mood = "panic", focus = "enemy", beat = "snap", camera = "snap", caption = i18n.t("Ambush"), duration = 1.0, intensity = 1.05, accent = { 0.9, 0.12, 0.08 } },
+    strike = { mood = "action", focus = "actor", beat = "strike", camera = "hit", caption = i18n.t("Skill"), duration = 0.72, intensity = 0.9, accent = { 0.96, 0.72, 0.32 } },
+    boss_strike = { mood = "boss", focus = "boss", beat = "smite", camera = "quake", caption = i18n.t("Boss Skill"), duration = 0.95, intensity = 1.25, accent = { 0.9, 0.08, 0.06 } },
+    victory = { mood = "resolve", focus = "party", beat = "triumph", camera = "lift", caption = i18n.t("Victory"), duration = 0.86, intensity = 0.8, accent = { 0.86, 0.68, 0.24 } },
+    boss_victory = { mood = "seal", focus = "party", beat = "triumph", camera = "lift", caption = i18n.t("Boss Felled"), duration = 1.2, intensity = 1.05, accent = { 0.92, 0.74, 0.18 } },
+    campaign_victory = { mood = "seal", focus = "party", beat = "seal", camera = "lift", caption = i18n.t("Campaign Sealed"), duration = 1.25, intensity = 1.1, accent = { 0.72, 0.82, 0.42 } },
+    merchant_unlock = { mood = "ledger", focus = "actor", beat = "arrival", camera = "push", caption = i18n.t("Merchant Unlocked"), duration = 1.05, intensity = 0.9, accent = { 0.66, 0.58, 0.34 } },
+    defeat = { mood = "doom", focus = "enemy", beat = "collapse", camera = "sink", caption = i18n.t("Defeat"), duration = 0.95, intensity = 1.0, accent = { 0.78, 0.08, 0.06 } },
+    boss_defeat = { mood = "doom", focus = "boss", beat = "collapse", camera = "sink", caption = i18n.t("Annihilation"), duration = 1.2, intensity = 1.22, accent = { 0.82, 0.04, 0.04 } },
+    retreat = { mood = "flight", focus = "party", beat = "exit", camera = "pull", caption = i18n.t("Retreat"), duration = 0.78, intensity = 0.7, accent = { 0.46, 0.58, 0.48 } },
+    blocked = { mood = "panic", focus = "enemy", beat = "block", camera = "hit", caption = i18n.t("Blocked"), duration = 0.72, intensity = 0.9, accent = { 0.86, 0.08, 0.06 } },
+    death_door = { mood = "threshold", focus = "actor", beat = "threshold", camera = "sink", caption = i18n.t("Death's Door"), duration = 0.85, intensity = 1.05, accent = { 0.72, 0.08, 0.08 } },
+    death_save = { mood = "resolve", focus = "actor", beat = "revive", camera = "lift", caption = i18n.t("Deathblow Resisted"), duration = 0.85, intensity = 0.9, accent = { 0.86, 0.78, 0.38 } },
+    hero_death = { mood = "doom", focus = "actor", beat = "fall", camera = "sink", caption = i18n.t("Hero Lost"), duration = 1.1, intensity = 1.15, accent = { 0.8, 0.06, 0.06 } },
+    resolve_virtue = { mood = "virtue", focus = "actor", beat = "resolve", camera = "lift", caption = i18n.t("Virtue"), duration = 0.95, intensity = 0.95, accent = { 0.62, 0.82, 0.34 } },
+    resolve_affliction = { mood = "affliction", focus = "actor", beat = "fracture", camera = "snap", caption = i18n.t("Affliction"), duration = 0.95, intensity = 1.05, accent = { 0.72, 0.12, 0.52 } },
+    stress_break = { mood = "affliction", focus = "actor", beat = "break", camera = "sink", caption = i18n.t("Stress Break"), duration = 0.95, intensity = 1.0, accent = { 0.7, 0.12, 0.38 } },
+    affliction_act = { mood = "affliction", focus = "actor", beat = "lash", camera = "snap", caption = i18n.t("Afflicted Action"), duration = 0.95, intensity = 0.95, accent = { 0.66, 0.1, 0.44 } },
+    falter = { mood = "dazed", focus = "actor", beat = "stagger", camera = "hit", caption = i18n.t("Falter"), duration = 0.62, intensity = 0.65, accent = { 0.64, 0.62, 0.52 } },
+    hero_hold = { mood = "guard", focus = "actor", beat = "hold", camera = "still", caption = i18n.t("Hold"), duration = 0.62, intensity = 0.55, accent = { 0.62, 0.62, 0.5 } },
+    danger = { mood = "doom", focus = "enemy", beat = "omen", camera = "sink", caption = i18n.t("Danger"), duration = 0.85, intensity = 0.95, accent = { 0.82, 0.08, 0.06 } },
 }
 
 local function sceneAccent(scene)
@@ -448,28 +449,28 @@ function Render.cutsceneForEvent(event, sim)
     end
     local eventKind = event.event
     if eventKind == "combat_start" then
-        return scene("intro", text, { side = "enemy", duration = 0.9, encounter = event.encounter, enemies = event.enemies, caption = encounterCaption(event, "Encounter") })
+        return scene("intro", text, { side = "enemy", duration = 0.9, encounter = event.encounter, enemies = event.enemies, caption = encounterCaption(event, i18n.t("Encounter")) })
     end
     if eventKind == "merchant_unlock" then
-        return scene("merchant_unlock", text, { side = "ally", actor = event.actor, caption = "Merchant Unlocked" })
+        return scene("merchant_unlock", text, { side = "ally", actor = event.actor, caption = i18n.t("Merchant Unlocked") })
     end
     if eventKind == "boss_start" then
-        return scene("boss_intro", text, { side = "enemy", duration = 1.15, encounter = event.encounter, enemies = event.enemies, boss = true, caption = encounterCaption(event, "Boss Encounter") })
+        return scene("boss_intro", text, { side = "enemy", duration = 1.15, encounter = event.encounter, enemies = event.enemies, boss = true, caption = encounterCaption(event, i18n.t("Boss Encounter")) })
     end
     if eventKind == "ambush_start" then
-        return scene("ambush", text, { side = "enemy", duration = 1.0, encounter = event.encounter, enemies = event.enemies, caption = encounterCaption(event, "Ambush") })
+        return scene("ambush", text, { side = "enemy", duration = 1.0, encounter = event.encounter, enemies = event.enemies, caption = encounterCaption(event, i18n.t("Ambush")) })
     end
     if eventKind == "hero_skill" then
-        return scene("strike", text, { side = "ally", duration = 0.72, actor = event.actor, skill = event.skill, caption = eventCaption(event, "Skill"), damage = eventImpactTotal(event), crit = eventHasCrit(event) })
+        return scene("strike", text, { side = "ally", duration = 0.72, actor = event.actor, skill = event.skill, caption = eventCaption(event, i18n.t("Skill")), damage = eventImpactTotal(event), crit = eventHasCrit(event) })
     end
     if eventKind == "enemy_skill" or eventKind == "boss_skill" then
-        return scene(eventKind == "boss_skill" and "boss_strike" or "strike", text, { side = "enemy", duration = eventKind == "boss_skill" and 0.95 or 0.72, actor = event.actor, skill = event.skill, boss = event.boss, caption = eventCaption(event, eventKind == "boss_skill" and "Boss Skill" or "Enemy Skill"), damage = eventImpactTotal(event), crit = eventHasCrit(event) })
+        return scene(eventKind == "boss_skill" and "boss_strike" or "strike", text, { side = "enemy", duration = eventKind == "boss_skill" and 0.95 or 0.72, actor = event.actor, skill = event.skill, boss = event.boss, caption = eventCaption(event, eventKind == "boss_skill" and i18n.t("Boss Skill") or i18n.t("Enemy Skill")), damage = eventImpactTotal(event), crit = eventHasCrit(event) })
     end
     if eventKind == "combat_win" or eventKind == "boss_win" then
-        return scene(eventKind == "boss_win" and "boss_victory" or "victory", text, { side = "ally", duration = eventKind == "boss_win" and 1.2 or 0.86, encounter = event.encounter, enemies = event.enemies, boss = event.boss, caption = eventKind == "boss_win" and "Boss Felled" or "Victory" })
+        return scene(eventKind == "boss_win" and "boss_victory" or "victory", text, { side = "ally", duration = eventKind == "boss_win" and 1.2 or 0.86, encounter = event.encounter, enemies = event.enemies, boss = event.boss, caption = eventKind == "boss_win" and i18n.t("Boss Felled") or i18n.t("Victory") })
     end
     if eventKind == "combat_loss" or eventKind == "boss_loss" then
-        return scene(eventKind == "boss_loss" and "boss_defeat" or "defeat", text, { side = "enemy", duration = eventKind == "boss_loss" and 1.2 or 0.95, encounter = event.encounter, enemies = event.enemies, boss = event.boss, caption = eventKind == "boss_loss" and "Annihilation" or "Defeat" })
+        return scene(eventKind == "boss_loss" and "boss_defeat" or "defeat", text, { side = "enemy", duration = eventKind == "boss_loss" and 1.2 or 0.95, encounter = event.encounter, enemies = event.enemies, boss = event.boss, caption = eventKind == "boss_loss" and i18n.t("Annihilation") or i18n.t("Defeat") })
     end
     if eventKind == "retreat" then
         return scene("retreat", text, { side = "ally", duration = 0.78, encounter = event.encounter, boss = event.boss })
@@ -514,7 +515,7 @@ function Render.idleCombatScene(sim)
         return nil
     end
     local active = sim:activeHero()
-    return scene("idle", active and (active.name .. " acts") or "enemy turn", { side = "ally", duration = 1 })
+    return scene("idle", active and (active.name .. " " .. i18n.t("acts")) or i18n.t("enemy turn"), { side = "ally", duration = 1 })
 end
 
 function Render.advanceCutscene(app, dt)
@@ -967,12 +968,12 @@ function Render.titleMenuItems(app)
     local canContinue = app and app.canContinue == true
     local canReplay = app and app.canReplay == true
     return {
-        { action = "new", label = "New Game", enabled = true },
-        { action = "continue", label = "Continue", enabled = canContinue },
-        { action = "replay", label = "Replay", enabled = canReplay },
-        { action = "settings", label = "Settings", enabled = true },
-        { action = "credits", label = "Credits", enabled = true },
-        { action = "quit", label = "Quit", enabled = true },
+        { action = "new", label = i18n.t("New Game"), enabled = true },
+        { action = "continue", label = i18n.t("Continue"), enabled = canContinue },
+        { action = "replay", label = i18n.t("Replay"), enabled = canReplay },
+        { action = "settings", label = i18n.t("Settings"), enabled = true },
+        { action = "credits", label = i18n.t("Credits"), enabled = true },
+        { action = "quit", label = i18n.t("Quit"), enabled = true },
     }
 end
 
@@ -996,9 +997,9 @@ function Render.classUnlockSummary(sim)
             nextLocked = status
         end
     end
-    local line = "classes " .. tostring(unlocked) .. "/" .. tostring(#statuses)
+    local line = i18n.t("classes") .. " " .. tostring(unlocked) .. "/" .. tostring(#statuses)
     if nextLocked then
-        line = line .. " next " .. nextLocked.name .. ": " .. nextLocked.reason
+        line = line .. " " .. i18n.t("next") .. " " .. nextLocked.name .. ": " .. nextLocked.reason
     end
     return { unlocked = unlocked, total = #statuses, next = nextLocked, line = line, statuses = statuses }
 end
@@ -1009,11 +1010,11 @@ local function combatActorLabel(sim, actor)
     end
     if actor.side == "hero" then
         local hero = sim:heroById(actor.id)
-        return "R" .. tostring(actor.rank or "?") .. " " .. (hero and hero.name or "hero")
+        return i18n.t("R") .. tostring(actor.rank or "?") .. " " .. (hero and hero.name or i18n.t("hero"))
     end
     local enemy = sim.combat and sim.combat.enemies and sim.combat.enemies[actor.id]
     local enemyDef = enemy and Defs.enemy(enemy.kind)
-    return "E" .. tostring(actor.rank or "?") .. " " .. (enemyDef and enemyDef.name or "enemy")
+    return i18n.t("E") .. tostring(actor.rank or "?") .. " " .. (enemyDef and enemyDef.name or i18n.t("enemy"))
 end
 
 function Render.combatHudSummary(sim, app)
@@ -1047,10 +1048,10 @@ function Render.campHudSummary(sim, app)
 end
 
 local curioChoiceOrder = {
-    { key = "safe_use", label = "Safe" },
-    { key = "greedy_use", label = "Greedy" },
-    { key = "repair_use", label = "Repair" },
-    { key = "leave_alone", label = "Leave" },
+    { key = "safe_use", label = i18n.t("Safe") },
+    { key = "greedy_use", label = i18n.t("Greedy") },
+    { key = "repair_use", label = i18n.t("Repair") },
+    { key = "leave_alone", label = i18n.t("Leave") },
 }
 
 local function listContains(list, value)
@@ -1128,16 +1129,16 @@ function Render.drawCurioResult(app)
     local y = 112
     panel(x, y, w, h, 0.94)
     love.graphics.setColor(0.92, 0.9, 0.8, 1)
-    love.graphics.print(result.title or "Curio", x + 14, y + 12)
+    love.graphics.print(result.title or i18n.t("Curio"), x + 14, y + 12)
     love.graphics.setColor(0.72, 0.76, 0.68, 1)
     love.graphics.printf(result.text or "", x + 14, y + 38, w - 28)
 end
 
 local pauseActions = {
-    { action = "resume", label = "Resume" },
-    { action = "save", label = "Save" },
-    { action = "settings", label = "Settings" },
-    { action = "quitTitle", label = "Quit to Title" },
+    { action = "resume", label = i18n.t("Resume") },
+    { action = "save", label = i18n.t("Save") },
+    { action = "settings", label = i18n.t("Settings") },
+    { action = "quitTitle", label = i18n.t("Quit to Title") },
 }
 
 function Render.pauseMenuItems()
@@ -1171,7 +1172,7 @@ function Render.drawPauseMenu(app)
     layoutPauseButtons(app, x, y, w)
     panel(x, y, w, h, 0.96)
     love.graphics.setColor(0.92, 0.9, 0.8, 1)
-    love.graphics.printf("Paused", x, y + 24, w, "center")
+    love.graphics.printf(i18n.t("Paused"), x, y + 24, w, "center")
     for index, item in ipairs(pauseActions) do
         local button = app.ui.pauseButtons[index]
         local active = app.pauseMenuIndex == index
@@ -1187,8 +1188,8 @@ function Render.drawPauseMenu(app)
 end
 
 local confirmActions = {
-    { action = "cancel", label = "Cancel", enabled = true },
-    { action = "confirm", label = "Confirm", enabled = true },
+    { action = "cancel", label = i18n.t("Cancel"), enabled = true },
+    { action = "confirm", label = i18n.t("Confirm"), enabled = true },
 }
 
 function Render.confirmMenuItems()
@@ -1221,7 +1222,7 @@ function Render.drawConfirmDialog(app)
     layoutConfirmButtons(app, x, y, w)
     panel(x, y, w, h, 0.98)
     love.graphics.setColor(0.92, 0.9, 0.8, 1)
-    love.graphics.printf(app.confirmDialog.title or "Confirm", x + 18, y + 22, w - 36, "center")
+    love.graphics.printf(app.confirmDialog.title or i18n.t("Confirm"), x + 18, y + 22, w - 36, "center")
     love.graphics.setColor(0.66, 0.7, 0.64, 1)
     love.graphics.printf(app.confirmDialog.body or "", x + 24, y + 58, w - 48, "center")
     for index, item in ipairs(confirmActions) do
@@ -1299,12 +1300,12 @@ function Render.drawUiMicroAnimations(app)
 end
 
 local gameOverActions = {
-    { action = "restart", label = "Restart", enabled = true },
-    { action = "title", label = "Title", enabled = true },
-    { action = "credits", label = "Credits", enabled = true },
+    { action = "restart", label = i18n.t("Restart"), enabled = true },
+    { action = "title", label = i18n.t("Title"), enabled = true },
+    { action = "credits", label = i18n.t("Credits"), enabled = true },
 }
 
-local dreadTierNames = { [0] = "quiet", [1] = "uneasy", [2] = "strained", [3] = "breaking", [4] = "collapsed" }
+local dreadTierNames = { [0] = i18n.t("quiet"), [1] = i18n.t("uneasy"), [2] = i18n.t("strained"), [3] = i18n.t("breaking"), [4] = i18n.t("collapsed") }
 
 local function dreadTier(dread, limit)
     local cap = math.max(1, limit or 18)
@@ -1340,7 +1341,7 @@ function Render.gameOverSummary(sim)
     return {
         ended = campaign.lost == true or campaign.victory == true,
         won = campaign.victory == true,
-        reason = campaign.victory and "victory" or (campaign.lossReason or "lost"),
+        reason = campaign.victory and i18n.t("victory") or (campaign.lossReason or i18n.t("lost")),
         route = routeKey,
         routeName = route.name or routeKey,
         routeAlias = route.alias or routeKey,
@@ -1402,12 +1403,12 @@ function Render.drawGameOver(sim, app)
     love.graphics.setDepthMode()
     panel(56, 52, width - 112, height - 124, 0.96)
     love.graphics.setColor(0.92, 0.9, 0.8, 1)
-    love.graphics.printf(summary.won and "Campaign Sealed" or "Game Over", 80, 82, width - 160, "left", 0, 1.6, 1.6)
+    love.graphics.printf(summary.won and i18n.t("Campaign Sealed") or i18n.t("Game Over"), 80, 82, width - 160, "left", 0, 1.6, 1.6)
     love.graphics.setColor(0.68, 0.72, 0.66, 1)
-    love.graphics.print(summary.reason .. " / " .. summary.routeName .. " / week " .. summary.week .. " / dread " .. summary.dread .. "/" .. summary.dreadLimit .. " tier " .. summary.dreadTier, 82, 138)
-    love.graphics.print("renown " .. summary.renown .. " / bosses " .. summary.bosses .. "/" .. summary.bossTotal .. " / fallen " .. summary.deaths, 82, 162)
+    love.graphics.print(summary.reason .. " / " .. summary.routeName .. " / " .. i18n.t("week") .. " " .. summary.week .. " / " .. i18n.t("dread") .. " " .. summary.dread .. "/" .. summary.dreadLimit .. " " .. i18n.t("tier") .. " " .. summary.dreadTier, 82, 138)
+    love.graphics.print(i18n.t("renown") .. " " .. summary.renown .. " / " .. i18n.t("bosses") .. " " .. summary.bosses .. "/" .. summary.bossTotal .. " / " .. i18n.t("fallen") .. " " .. summary.deaths, 82, 162)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Party Fate", 82, 210)
+    love.graphics.print(i18n.t("Party Fate"), 82, 210)
     for index, hero in ipairs(summary.party) do
         if index > 6 then
             break
@@ -1418,16 +1419,16 @@ function Render.drawGameOver(sim, app)
         love.graphics.print(line, 82, 238 + (index - 1) * 24)
     end
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Graveyard", 82, 406)
+    love.graphics.print(i18n.t("Graveyard"), 82, 406)
     for index, death in ipairs(summary.graveyard) do
         if index > 5 then
             break
         end
         love.graphics.setColor(0.62, 0.64, 0.58, 1)
-        love.graphics.print((death.name or "fallen") .. "  " .. (death.location or "estate"), 82, 432 + (index - 1) * 22)
+        love.graphics.print((death.name or i18n.t("fallen")) .. "  " .. (death.location or i18n.t("estate")), 82, 432 + (index - 1) * 22)
     end
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Faction State", width * 0.52, 210)
+    love.graphics.print(i18n.t("Faction State"), width * 0.52, 210)
     for index, faction in ipairs(summary.factions) do
         love.graphics.setColor(0.74, 0.78, 0.72, 1)
         love.graphics.print(faction.name, width * 0.52, 238 + (index - 1) * 28)
@@ -1474,9 +1475,9 @@ function Render.drawCredits(app)
     love.graphics.setDepthMode()
     panel(56, 52, width - 112, height - 124, 0.96)
     love.graphics.setColor(0.92, 0.9, 0.8, 1)
-    love.graphics.printf("Credits", 80, 82, width - 160, "left", 0, 1.5, 1.5)
+    love.graphics.printf(i18n.t("Credits"), 80, 82, width - 160, "left", 0, 1.5, 1.5)
     love.graphics.setColor(0.68, 0.72, 0.66, 1)
-    love.graphics.print(data.project .. " / playable prototype", 82, 132)
+    love.graphics.print(data.project .. " / " .. i18n.t("playable prototype"), 82, 132)
     local y = 178 - app.creditsScroll * 24
     local function line(text, x, color)
         if y > 142 and y < height - 112 then
@@ -1501,9 +1502,9 @@ function Render.drawCredits(app)
     love.graphics.setColor(0.42, 0.48, 0.36, 1)
     love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
     love.graphics.setColor(0.92, 0.94, 0.88, 1)
-    love.graphics.printf("Back", button.x + 8, button.y + 13, button.w - 16, "center")
+    love.graphics.printf(i18n.t("Back"), button.x + 8, button.y + 13, button.w - 16, "center")
     love.graphics.setColor(0.58, 0.62, 0.58, 1)
-    love.graphics.printf("scroll " .. tostring(app.creditsScroll) .. "/" .. tostring(maxScroll), width - 260, height - 72, 180, "right")
+    love.graphics.printf(i18n.t("scroll") .. " " .. tostring(app.creditsScroll) .. "/" .. tostring(maxScroll), width - 260, height - 72, 180, "right")
     Render.drawUiMicroAnimations(app)
     love.graphics.pop()
     return data
@@ -1580,9 +1581,9 @@ function Render.drawJournal(sim, app)
     love.graphics.setDepthMode()
     panel(56, 52, width - 112, height - 124, 0.96)
     love.graphics.setColor(0.92, 0.9, 0.94, 1)
-    love.graphics.printf("Journal", 84, 82, width - 168, "left", 0, 1.5, 1.5)
-    drawJournalButton(app, app.ui.journalButtons[1], "Documents", app.journalTab == "documents")
-    drawJournalButton(app, app.ui.journalButtons[2], "Epitaphs", app.journalTab == "epitaphs")
+    love.graphics.printf(i18n.t("Journal"), 84, 82, width - 168, "left", 0, 1.5, 1.5)
+    drawJournalButton(app, app.ui.journalButtons[1], i18n.t("Documents"), app.journalTab == "documents")
+    drawJournalButton(app, app.ui.journalButtons[2], i18n.t("Epitaphs"), app.journalTab == "epitaphs")
     for index, item in ipairs(items) do
         if index > 10 then
             break
@@ -1609,21 +1610,21 @@ function Render.drawJournal(sim, app)
         love.graphics.print(selected.className .. " / " .. selected.location, detailX, detailY + 28)
         love.graphics.printf(selected.epitaph, detailX, detailY + 68, detailW)
     else
-        love.graphics.printf(app.journalTab == "epitaphs" and "no epitaphs" or "no documents", detailX, detailY, detailW)
+        love.graphics.printf(app.journalTab == "epitaphs" and i18n.t("no epitaphs") or i18n.t("no documents"), detailX, detailY, detailW)
     end
     local back = app.ui.journalButtons[#app.ui.journalButtons]
-    drawJournalButton(app, back, "Back", false)
+    drawJournalButton(app, back, i18n.t("Back"), false)
     love.graphics.setColor(0.58, 0.62, 0.58, 1)
-    love.graphics.printf("documents " .. #summary.documents .. " / epitaphs " .. #summary.epitaphs, width - 360, height - 72, 280, "right")
+    love.graphics.printf(i18n.t("documents") .. " " .. #summary.documents .. " / " .. i18n.t("epitaphs") .. " " .. #summary.epitaphs, width - 360, height - 72, 280, "right")
     Render.drawUiMicroAnimations(app)
     love.graphics.pop()
     return summary
 end
 
 local tutorialSteps = {
-    { key = "torch", title = "Torch", body = "Torch falls as the party advances. Spend carried torches before dark rooms turn pressure into ambush." },
-    { key = "stress", title = "Stress", body = "Stress can break heroes before HP does. Camp skills, curios, and retreat are pressure valves." },
-    { key = "rank", title = "Rank", body = "Rank controls skills and targets. Front and back positions decide who can act and who can be hit." },
+    { key = "torch", title = i18n.t("Torch"), body = i18n.t("Torch falls as the party advances. Spend carried torches before dark rooms turn pressure into ambush.") },
+    { key = "stress", title = i18n.t("Stress"), body = i18n.t("Stress can break heroes before HP does. Camp skills, curios, and retreat are pressure valves.") },
+    { key = "rank", title = i18n.t("Rank"), body = i18n.t("Rank controls skills and targets. Front and back positions decide who can act and who can be hit.") },
 }
 
 function Render.tutorialSteps()
@@ -1666,7 +1667,7 @@ function Render.drawTutorial(app)
         love.graphics.setColor(button.enabled and 0.44 or 0.22, button.enabled and 0.5 or 0.22, button.enabled and 0.34 or 0.22, 1)
         love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
         love.graphics.setColor(button.enabled and 0.9 or 0.4, button.enabled and 0.92 or 0.4, button.enabled and 0.84 or 0.4, 1)
-        love.graphics.printf(button.action == "next" and (app.tutorial.index == #tutorialSteps and "Done" or "Next") or (button.action == "prev" and "Back" or "Skip"), button.x + 6, button.y + 10, button.w - 12, "center")
+        love.graphics.printf(button.action == "next" and (app.tutorial.index == #tutorialSteps and i18n.t("Done") or i18n.t("Next")) or (button.action == "prev" and i18n.t("Back") or i18n.t("Skip")), button.x + 6, button.y + 10, button.w - 12, "center")
     end
     return tutorialSteps
 end
@@ -1685,7 +1686,7 @@ function Render.drawToasts(app)
         local y = 106 + (index - 1) * 70
         panel(x, y, 306, 58, 0.96)
         love.graphics.setColor(0.9, 0.82, 0.48, 1)
-        love.graphics.print(toast.title or "Unlocked", x + 12, y + 10)
+        love.graphics.print(toast.title or i18n.t("Unlocked"), x + 12, y + 10)
         love.graphics.setColor(0.7, 0.74, 0.68, 1)
         love.graphics.printf(toast.text or "", x + 12, y + 32, 282)
     end
@@ -1753,16 +1754,16 @@ function Render.drawTitle(sim, app)
     love.graphics.rectangle("fill", 0, 0, width, height)
     drawLedgerSweep(width, height, Render.reducedMotion(app) and 0 or (app.titleTime or 0))
     love.graphics.setColor(0.92, 0.9, 0.8, 1)
-    love.graphics.printf("THOTH", 64, math.max(86, height * 0.28), math.min(520, width - 128), "left", 0, 3.2, 3.2)
+    love.graphics.printf(i18n.t("THOTH"), 64, math.max(86, height * 0.28), math.min(520, width - 128), "left", 0, 3.2, 3.2)
     love.graphics.setColor(0.62, 0.68, 0.62, 1)
-    love.graphics.printf("account the dead", 70, math.max(164, height * 0.28 + 76), math.min(520, width - 128), "left")
+    love.graphics.printf(i18n.t("account the dead"), 70, math.max(164, height * 0.28 + 76), math.min(520, width - 128), "left")
     for index, item in ipairs(items) do
         drawTitleButton(app, item, app.ui.titleButtons[index])
     end
     love.graphics.setColor(0.58, 0.62, 0.58, 1)
-    local status = app.titleStatus or app.saveStatus or "ready"
+    local status = app.titleStatus or app.saveStatus or i18n.t("ready")
     love.graphics.printf(status, 64, height - 54, width - 128, "left")
-    love.graphics.printf("keyboard", 64, height - 32, width - 128, "right")
+    love.graphics.printf(i18n.t("keyboard"), 64, height - 32, width - 128, "right")
     Render.drawUiMicroAnimations(app)
     love.graphics.pop()
     return items
@@ -1797,9 +1798,9 @@ local function drawButtonControl(app, control, x, y, w, active)
     love.graphics.setColor(active and 0.74 or 0.34, active and 0.66 or 0.38, active and 0.36 or 0.32, 1)
     love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
     love.graphics.setColor(0.92, 0.94, 0.88, 1)
-    local value = Settings.valueText(app.settings, control)
+    local value = i18n.t(Settings.valueText(app.settings, control))
     if app.captureBinding == control.binding then
-        value = "press key"
+        value = i18n.t("press key")
     end
     love.graphics.printf(value, button.x + 8, button.y + 8, button.w - 16, "center")
 end
@@ -1822,7 +1823,7 @@ function Render.drawSettings(app)
     love.graphics.setDepthMode()
     panel(48, 48, width - 96, height - 96, 0.94)
     love.graphics.setColor(0.92, 0.9, 0.8, 1)
-    love.graphics.print("Settings", 72, 72)
+    love.graphics.print(i18n.t("Settings"), 72, 72)
     local controls = Settings.controls()
     app.settingsFocus = clamp(app.settingsFocus or 1, 1, #controls)
     local rowX = 72
@@ -1838,7 +1839,7 @@ function Render.drawSettings(app)
         love.graphics.setColor(active and 0.16 or 0.08, active and 0.18 or 0.09, active and 0.15 or 0.09, active and 0.9 or 0.55)
         love.graphics.rectangle("fill", rowX - 8, y - 8, rowW + 16, 30)
         love.graphics.setColor(active and 0.92 or 0.72, active and 0.9 or 0.76, active and 0.8 or 0.7, 1)
-        love.graphics.printf(control.label, rowX, y, 170, "left")
+        love.graphics.printf(i18n.t(control.label), rowX, y, 170, "left")
         if control.kind == "slider" then
             drawSliderControl(app, control, rowX, y, rowW, active)
         elseif control.kind == "toggle" or control.kind == "cycle" or control.kind == "bind" then
@@ -1850,19 +1851,19 @@ function Render.drawSettings(app)
             love.graphics.setColor(active and 0.74 or 0.34, active and 0.66 or 0.38, active and 0.36 or 0.32, 1)
             love.graphics.rectangle("line", rowX + 180, y - 5, 180, 30)
             love.graphics.setColor(0.92, 0.94, 0.88, 1)
-            love.graphics.printf("Back", rowX + 188, y + 3, 164, "center")
+            love.graphics.printf(i18n.t("Back"), rowX + 188, y + 3, 164, "center")
         end
     end
     love.graphics.setColor(0.58, 0.62, 0.58, 1)
-    love.graphics.printf(app.settingsStatus or "", 72, height - 82, width - 144, "left")
+    love.graphics.printf(i18n.t(app.settingsStatus or ""), 72, height - 82, width - 144, "left")
     Render.drawUiMicroAnimations(app)
     love.graphics.pop()
 end
 
 local function checklistText(group)
-    local parts = { group.title }
+    local parts = { i18n.t(group.title or "") }
     for _, item in ipairs(group.items) do
-        parts[#parts + 1] = (item.done and "[x]" or "[ ]") .. item.label
+        parts[#parts + 1] = (item.done and i18n.t("[x]") or i18n.t("[ ]")) .. i18n.t(item.label)
     end
     return table.concat(parts, " ")
 end
@@ -1876,15 +1877,15 @@ local function drawHeroRows(sim, app, x, y, w)
         love.graphics.setColor(active and 0.82 or 0.32, active and 0.72 or 0.34, active and 0.34 or 0.28, 1)
         love.graphics.rectangle("line", x, rowY, w, 40)
         love.graphics.setColor(0.94, 0.96, 0.9, 1)
-        love.graphics.print(hero.rank .. " " .. hero.name .. " / " .. hero.class .. " L" .. (hero.level or 1), x + 6, rowY + 4)
+        love.graphics.print(hero.rank .. " " .. hero.name .. " / " .. i18n.t(hero.class) .. " " .. i18n.t("L") .. (hero.level or 1), x + 6, rowY + 4)
         drawMeter(x + 6, rowY + 20, w - 78, 6, (hero.hp or 0) / math.max(1, hero.maxHp or 1), { 0.34, 0.68, 0.42, 1 })
         drawMeter(x + 6, rowY + 30, w - 78, 6, (hero.stress or 0) / 100, { 0.78, 0.58, 0.26, 1 })
         love.graphics.setColor(0.74, 0.82, 0.74, 1)
         love.graphics.print(hero.hp .. "/" .. hero.maxHp, x + w - 66, rowY + 17)
-        love.graphics.print("s" .. hero.stress, x + w - 66, rowY + 28)
+        love.graphics.print(i18n.t("s") .. hero.stress, x + w - 66, rowY + 28)
         if hero.deathsDoor then
             love.graphics.setColor(0.94, 0.34, 0.28, 1)
-            love.graphics.print("door", x + w - 54, rowY + 19)
+            love.graphics.print(i18n.t("door"), x + w - 54, rowY + 19)
         elseif hero.affliction then
             love.graphics.setColor(0.9, 0.46, 0.42, 1)
             love.graphics.print(hero.affliction, x + w - 74, rowY + 19)
@@ -1893,7 +1894,7 @@ local function drawHeroRows(sim, app, x, y, w)
             love.graphics.print(hero.virtue, x + w - 64, rowY + 19)
         elseif hero.diseases and #hero.diseases > 0 then
             love.graphics.setColor(0.68, 0.72, 0.46, 1)
-            love.graphics.print("ill", x + w - 34, rowY + 19)
+            love.graphics.print(i18n.t("ill"), x + w - 34, rowY + 19)
         end
         app.ui.heroButtons[#app.ui.heroButtons + 1] = { x = x, y = rowY, w = w, h = 40, rank = hero.rank }
     end
@@ -1954,17 +1955,17 @@ local function selectedEstateHero(sim, app)
 end
 
 local rosterFilters = {
-    { key = "all", label = "all" },
-    { key = "party", label = "party" },
-    { key = "recovering", label = "rest" },
-    { key = "stressed", label = "stress" },
+    { key = "all", label = i18n.t("all") },
+    { key = "party", label = i18n.t("party") },
+    { key = "recovering", label = i18n.t("rest") },
+    { key = "stressed", label = i18n.t("stress") },
 }
 
 local rosterSorts = {
-    { key = "rank", label = "rank" },
-    { key = "level", label = "lvl" },
-    { key = "stress", label = "str" },
-    { key = "name", label = "name" },
+    { key = "rank", label = i18n.t("rank") },
+    { key = "level", label = i18n.t("lvl") },
+    { key = "stress", label = i18n.t("str") },
+    { key = "name", label = i18n.t("name") },
 }
 
 local function addEstateAction(app, label, x, y, w, action)
@@ -2032,7 +2033,7 @@ end
 
 local function drawRosterBrowser(sim, app, x, y, w, h)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Roster", x, y)
+    love.graphics.print(i18n.t("Roster"), x, y)
     local filter = app.rosterFilter or "all"
     local sort = app.rosterSort or "rank"
     for index, option in ipairs(rosterFilters) do
@@ -2050,13 +2051,13 @@ local function drawRosterBrowser(sim, app, x, y, w, h)
         local active = selected and selected.id == hero.id
         local class = Defs.heroClass(hero.class)
         local rank = sim:heroRank(hero.id)
-        local suffix = (rank and (" R" .. rank) or "") .. " S" .. (hero.stress or 0)
+        local suffix = (rank and (" " .. i18n.t("R") .. rank) or "") .. " " .. i18n.t("S") .. (hero.stress or 0)
         love.graphics.setColor(active and 0.2 or 0.11, active and 0.23 or 0.13, active and 0.18 or 0.13, 1)
         love.graphics.rectangle("fill", x, rowY, w, 28)
         love.graphics.setColor(active and 0.72 or 0.32, active and 0.62 or 0.34, active and 0.32 or 0.28, 1)
         love.graphics.rectangle("line", x, rowY, w, 28)
         love.graphics.setColor(hero.alive and 0.9 or 0.48, hero.alive and 0.92 or 0.44, hero.alive and 0.86 or 0.42, 1)
-        love.graphics.printf(hero.name .. " / " .. class.name .. " L" .. (hero.level or 1) .. suffix, x + 4, rowY + 6, w - 8, "left")
+        love.graphics.printf(hero.name .. " / " .. i18n.t(class.name) .. " " .. i18n.t("L") .. (hero.level or 1) .. suffix, x + 4, rowY + 6, w - 8, "left")
         app.ui.rosterButtons[#app.ui.rosterButtons + 1] = { x = x, y = rowY, w = w, h = 28, heroId = hero.id }
     end
     return selected
@@ -2064,7 +2065,7 @@ end
 
 local function drawPartyFormation(sim, app, x, y, w)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Party Formation", x, y)
+    love.graphics.print(i18n.t("Party Formation"), x, y)
     local slotW = math.floor((w - 18) / 4)
     for rank = 1, 4 do
         local hero = sim:heroAtRank(rank)
@@ -2075,15 +2076,15 @@ local function drawPartyFormation(sim, app, x, y, w)
         love.graphics.setColor(0.42, 0.52, 0.38, 1)
         love.graphics.rectangle("line", sx, sy, slotW, 52)
         love.graphics.setColor(0.88, 0.9, 0.82, 1)
-        love.graphics.printf("R" .. rank, sx + 4, sy + 6, slotW - 8, "center")
+        love.graphics.printf(i18n.t("R") .. rank, sx + 4, sy + 6, slotW - 8, "center")
         love.graphics.setColor(0.68, 0.74, 0.68, 1)
-        love.graphics.printf(hero and hero.name or "empty", sx + 4, sy + 28, slotW - 8, "center")
+        love.graphics.printf(hero and hero.name or i18n.t("empty"), sx + 4, sy + 28, slotW - 8, "center")
         app.ui.partyRankSlots[#app.ui.partyRankSlots + 1] = { x = sx, y = sy, w = slotW, h = 52, rank = rank }
     end
     if app.dragHeroId then
         local hero = sim:heroById(app.dragHeroId)
         love.graphics.setColor(0.86, 0.78, 0.44, 1)
-        love.graphics.printf("assigning " .. (hero and hero.name or "hero"), x, y + 84, w, "left")
+        love.graphics.printf(i18n.t("assigning") .. " " .. (hero and hero.name or i18n.t("hero")), x, y + 84, w, "left")
     end
 end
 
@@ -2093,31 +2094,31 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
     end
     local class = Defs.heroClass(hero.class)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print(hero.name .. " / " .. class.name, x, y)
+    love.graphics.print(hero.name .. " / " .. i18n.t(class.name), x, y)
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
-    love.graphics.printf("hp " .. hero.hp .. "/" .. sim:maxHp(hero) .. " stress " .. hero.stress .. " weapon " .. (hero.weapon or 0) .. " armor " .. (hero.armor or 0), x, y + 18, w)
+    love.graphics.printf(i18n.t("hp") .. " " .. hero.hp .. "/" .. sim:maxHp(hero) .. " " .. i18n.t("stress") .. " " .. hero.stress .. " " .. i18n.t("weapon") .. " " .. (hero.weapon or 0) .. " " .. i18n.t("armor") .. " " .. (hero.armor or 0), x, y + 18, w)
     local nextXp = (hero.level or 1) < 5 and ((hero.level or 1) * 2) or nil
-    love.graphics.printf("rank " .. (sim:heroRank(hero.id) or "-") .. " resolve " .. sim:heroResolve(hero) .. " xp " .. (hero.xp or 0) .. (nextXp and ("/" .. nextXp) or " max"), x, y + 36, w)
+    love.graphics.printf(i18n.t("rank") .. " " .. (sim:heroRank(hero.id) or "-") .. " " .. i18n.t("resolve") .. " " .. sim:heroResolve(hero) .. " " .. i18n.t("xp") .. " " .. (hero.xp or 0) .. (nextXp and ("/" .. nextXp) or (" " .. i18n.t("max"))), x, y + 36, w)
     local actionY = y + 62
     for index, skillKey in ipairs(hero.skills or {}) do
-        addEstateAction(app, "train " .. index, x + ((index - 1) % 3) * 82, actionY + math.floor((index - 1) / 3) * 34, 76, { action = "upgradeSkill", heroId = hero.id, skillKey = skillKey, enabled = true })
+        addEstateAction(app, i18n.t("train") .. " " .. index, x + ((index - 1) % 3) * 82, actionY + math.floor((index - 1) / 3) * 34, 76, { action = "upgradeSkill", heroId = hero.id, skillKey = skillKey, enabled = true })
     end
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Equipment", x, actionY + 42)
-    addEstateAction(app, "weapon L" .. (hero.weapon or 0), x, actionY + 62, 76, { action = "upgradeGear", heroId = hero.id, kind = "weapon", enabled = true })
-    addEstateAction(app, "armor L" .. (hero.armor or 0), x + 82, actionY + 62, 76, { action = "upgradeGear", heroId = hero.id, kind = "armor", enabled = true })
-    addEstateAction(app, "dismiss", x + 164, actionY + 62, 76, { action = "dismissHero", heroId = hero.id, enabled = not sim:heroRank(hero.id) and sim:livingRosterCount() > 4 and (hero.recovering or 0) <= 0 })
+    love.graphics.print(i18n.t("Equipment"), x, actionY + 42)
+    addEstateAction(app, i18n.t("weapon L") .. (hero.weapon or 0), x, actionY + 62, 76, { action = "upgradeGear", heroId = hero.id, kind = "weapon", enabled = true })
+    addEstateAction(app, i18n.t("armor L") .. (hero.armor or 0), x + 82, actionY + 62, 76, { action = "upgradeGear", heroId = hero.id, kind = "armor", enabled = true })
+    addEstateAction(app, i18n.t("dismiss"), x + 164, actionY + 62, 76, { action = "dismissHero", heroId = hero.id, enabled = not sim:heroRank(hero.id) and sim:livingRosterCount() > 4 and (hero.recovering or 0) <= 0 })
     for index, activityKey in ipairs(Defs.estateActivityOrder) do
         local activity = Defs.estateActivity(activityKey)
         addEstateAction(app, (activity.short or activity.name) .. " " .. activity.cost, x + ((index - 1) % 3) * 82, actionY + 96 + math.floor((index - 1) / 3) * 34, 76, { action = "recoverHero", heroId = hero.id, activityKey = activityKey, enabled = (hero.recovering or 0) <= 0 })
     end
     local trinketY = actionY + 140
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Trinkets", x, trinketY)
+    love.graphics.print(i18n.t("Trinkets"), x, trinketY)
     for slot = 1, 2 do
         local key = hero.trinkets and hero.trinkets[slot]
         local trinket = key and Defs.trinket(key)
-        local label = key and ((trinket and (trinket.short or trinket.name)) or key) or ("slot " .. slot)
+        local label = key and ((trinket and (trinket.short or trinket.name)) or key) or (i18n.t("slot") .. " " .. slot)
         addEstateAction(app, label, x + (slot - 1) * 82, trinketY + 22, 76, { action = "unequipTrinket", heroId = hero.id, slot = slot, tooltipKey = key, enabled = key ~= false and key ~= nil })
     end
     local openSlot = firstOpenTrinketSlot(hero)
@@ -2137,7 +2138,7 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
     if tooltipKey then
         local tooltipLines = Render.trinketTooltip(sim, tooltipKey)
         love.graphics.setColor(0.82, 0.78, 0.56, 1)
-        love.graphics.print("Set Bonus", x, trinketY + 92)
+        love.graphics.print(i18n.t("Set Bonus"), x, trinketY + 92)
         love.graphics.setColor(0.68, 0.72, 0.66, 1)
         for index = 1, math.min(3, #tooltipLines) do
             love.graphics.printf(tooltipLines[index], x, trinketY + 108 + (index - 1) * 16, w)
@@ -2145,7 +2146,7 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
     end
     local treatY = trinketY + 126
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Treatment", x, treatY)
+    love.graphics.print(i18n.t("Treatment"), x, treatY)
     local index = 0
     for _, key in ipairs(hero.quirks or {}) do
         local quirk = Defs.quirk(key)
@@ -2164,17 +2165,17 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
     end
     local rankY = treatY + 90
     for rank = 1, 4 do
-        addEstateAction(app, "rank " .. rank, x + (rank - 1) * 62, rankY, 56, { action = "assignParty", heroId = hero.id, rank = rank, enabled = true })
+        addEstateAction(app, i18n.t("rank") .. " " .. rank, x + (rank - 1) * 62, rankY, 56, { action = "assignParty", heroId = hero.id, rank = rank, enabled = true })
     end
 end
 
 local function drawJournalPanel(sim, x, y, w)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Journal", x, y)
+    love.graphics.print(i18n.t("Journal"), x, y)
     love.graphics.setColor(0.7, 0.74, 0.68, 1)
     local entries = sim:journalEntries()
     if #entries == 0 then
-        love.graphics.print("no documents", x, y + 20)
+        love.graphics.print(i18n.t("no documents"), x, y + 20)
         return
     end
     local first = math.max(1, #entries - 2)
@@ -2211,10 +2212,10 @@ function Render.audioSubtitle(app)
         return nil
     end
     local cue = app.eventFlash.cue
-    local label = cueSubtitleLabels[cue] or tostring(cue or "audio"):gsub("_", " ")
+    local label = i18n.t(cueSubtitleLabels[cue] or tostring(cue or i18n.t("audio")):gsub("_", " "))
     local status = app.eventFlash.status or app.eventFlash.message
     if status and status ~= "" then
-        return label .. ": " .. tostring(status)
+        return label .. ": " .. i18n.t(tostring(status))
     end
     return label
 end
@@ -2247,16 +2248,16 @@ function Render.drawHud(sim, app)
         love.graphics.rectangle("fill", 0, 90, width, 2)
     end
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Thoth  tick " .. sim.tick .. "  " .. sim.mode .. "  pos " .. sim.player.x .. "," .. sim.player.y .. "  view " .. ((app.viewRotation or 0) * 90), 16, 10)
-    love.graphics.printf("status " .. tostring(app.status or sim.status), width - 286, 10, 270, "right")
-    love.graphics.printf("next " .. sim:nextStepText(), 16, 32, width - 320)
+    love.graphics.print(i18n.t("Thoth") .. "  " .. i18n.t("tick") .. " " .. sim.tick .. "  " .. i18n.t(sim.mode) .. "  " .. i18n.t("pos") .. " " .. sim.player.x .. "," .. sim.player.y .. "  " .. i18n.t("view") .. " " .. ((app.viewRotation or 0) * 90), 16, 10)
+    love.graphics.printf(i18n.t("status") .. " " .. i18n.t(tostring(app.status or sim.status)), width - 286, 10, 270, "right")
+    love.graphics.printf(i18n.t("next") .. " " .. i18n.t(sim:nextStepText()), 16, 32, width - 320)
     local checklist = sim:objectiveChecklist()[1]
     love.graphics.printf(checklistText(checklist), 16, 54, width - 32)
     local summary = Render.expeditionHudSummary(sim)
-    love.graphics.printf("room " .. tostring(summary.currentRoom), 16, 74, 260)
+    love.graphics.printf(i18n.t("room") .. " " .. tostring(summary.currentRoom), 16, 74, 260)
     if sim.expedition then
         love.graphics.setColor(0.9, 0.82, 0.48, 1)
-        love.graphics.printf("torch " .. tostring(summary.torch), width - 286, 36, 270, "right")
+        love.graphics.printf(i18n.t("torch") .. " " .. tostring(summary.torch), width - 286, 36, 270, "right")
         drawMeter(width - 176, 58, 160, 8, (summary.torch or 0) / 100, { 0.86, 0.58, 0.22, 1 })
     end
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
@@ -2269,30 +2270,30 @@ function Render.drawSidePanel(sim, app)
     local y = 104
     panel(x, y, 292, height - 120, 0.88)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Party", x + 10, y + 10)
+    love.graphics.print(i18n.t("Party"), x + 10, y + 10)
     drawHeroRows(sim, app, x + 10, y + 34, 272)
     local detailY = y + 214
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Supplies", x + 10, detailY)
+    love.graphics.print(i18n.t("Supplies"), x + 10, detailY)
     love.graphics.setColor(0.75, 0.78, 0.72, 1)
     love.graphics.printf(sim.expedition and stacksText(sim.expedition.supplies) or "-", x + 10, detailY + 20, 272)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Loot", x + 10, detailY + 74)
+    love.graphics.print(i18n.t("Loot"), x + 10, detailY + 74)
     love.graphics.setColor(0.75, 0.78, 0.72, 1)
-    love.graphics.printf(sim.expedition and stacksText(sim.expedition.loot) or ("gold:" .. sim.estate.gold .. " heirlooms:" .. sim.estate.heirlooms), x + 10, detailY + 94, 272)
+    love.graphics.printf(sim.expedition and stacksText(sim.expedition.loot) or (i18n.t("gold") .. ":" .. sim.estate.gold .. " " .. i18n.t("heirlooms") .. ":" .. sim.estate.heirlooms), x + 10, detailY + 94, 272)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Voice", x + 10, detailY + 126)
+    love.graphics.print(i18n.t("Voice"), x + 10, detailY + 126)
     love.graphics.setColor(0.68, 0.72, 0.68, 1)
     love.graphics.printf(sim.narration or "-", x + 10, detailY + 146, 272)
     if sim.documentPopup then
         love.graphics.setColor(0.9, 0.82, 0.58, 1)
-        love.graphics.print("Document", x + 10, detailY + 166)
+        love.graphics.print(i18n.t("Document"), x + 10, detailY + 166)
         love.graphics.setColor(0.68, 0.72, 0.68, 1)
         love.graphics.printf(sim.documentPopup.title .. ": " .. sim.documentPopup.text, x + 10, detailY + 184, 272)
     end
     local logY = sim.documentPopup and (detailY + 244) or (detailY + 198)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Log", x + 10, logY)
+    love.graphics.print(i18n.t("Log"), x + 10, logY)
     love.graphics.setColor(0.72, 0.76, 0.72, 1)
     local log = sim.expedition and sim.expedition.log or sim.log
     for i = math.max(1, #log - 5), #log do
@@ -2586,7 +2587,7 @@ local function drawImpact(scene, x, y, w, h, progress)
         end
         if scene.crit then
             love.graphics.setColor(1, 0.9, 0.42, 0.92 * pulse)
-            love.graphics.printf("CRIT", cx - 70, y + h * 0.14, 140, "center")
+            love.graphics.printf(i18n.t("CRIT"), cx - 70, y + h * 0.14, 140, "center")
         end
         if (scene.damage or 0) > 0 then
             love.graphics.setColor(0.96, 0.88, 0.62, 0.86 * pulse)
@@ -2683,10 +2684,10 @@ function Render.damageNumberLabel(number)
     local prefix = kind == "heal" and "+" or "-"
     local label = prefix .. amount
     if kind == "stress" then
-        label = label .. " stress"
+        label = label .. " " .. i18n.t("stress")
     end
     if number and number.crit then
-        label = label .. " CRIT"
+        label = label .. " " .. i18n.t("CRIT")
     end
     return label
 end
@@ -2772,19 +2773,19 @@ function Render.drawCombatOverlay(sim, app)
     local w = width - 370
     panel(x, y, w, 186, 0.93)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Combat  round " .. sim.combat.round, x + 10, y + 8)
+    love.graphics.print(i18n.t("Combat") .. "  " .. i18n.t("round") .. " " .. sim.combat.round, x + 10, y + 8)
     local active = sim:activeHero()
-    love.graphics.print(active and (active.name .. " acts") or "enemy turn", x + 170, y + 8)
+    love.graphics.print(active and (active.name .. " " .. i18n.t("acts")) or i18n.t("enemy turn"), x + 170, y + 8)
     local summary = Render.combatHudSummary(sim, app)
     local turnLabels = {}
     for _, turn in ipairs(summary.turns) do
         turnLabels[#turnLabels + 1] = (turn.active and ">" or "") .. turn.label
     end
     love.graphics.setColor(0.68, 0.72, 0.66, 1)
-    love.graphics.printf("turn " .. table.concat(turnLabels, "  "), x + 10, y + 24, w - 20)
+    love.graphics.printf(i18n.t("turn") .. " " .. table.concat(turnLabels, "  "), x + 10, y + 24, w - 20)
     if summary.skill then
         love.graphics.setColor(0.9, 0.72, 0.42, 1)
-        love.graphics.printf("target " .. tostring(summary.target or "-") .. " for " .. tostring(summary.skill), x + w - 310, y + 8, 292, "right")
+        love.graphics.printf(i18n.t("target") .. " " .. tostring(summary.target or "-") .. " " .. i18n.t("for") .. " " .. tostring(summary.skill), x + w - 310, y + 8, 292, "right")
     end
     for rank = 1, 4 do
         local hero = sim:heroAtRank(rank)
@@ -2794,10 +2795,10 @@ function Render.drawCombatOverlay(sim, app)
         love.graphics.setColor(0.42, 0.52, 0.38, 1)
         love.graphics.rectangle("line", hx, y + 38, 82, 58)
         love.graphics.setColor(0.9, 0.92, 0.86, 1)
-        love.graphics.print("R" .. rank, hx + 4, y + 42)
+        love.graphics.print(i18n.t("R") .. rank, hx + 4, y + 42)
         love.graphics.printf(hero and hero.name or "-", hx + 4, y + 44, 74, "center")
         if hero then
-            love.graphics.printf(hero.hp .. "hp " .. hero.stress .. "s", hx + 4, y + 66, 74, "center")
+            love.graphics.printf(hero.hp .. i18n.t("hp") .. " " .. hero.stress .. i18n.t("s"), hx + 4, y + 66, 74, "center")
             app.ui.heroButtons[#app.ui.heroButtons + 1] = { x = hx, y = y + 38, w = 82, h = 58, rank = rank, side = "ally" }
         end
     end
@@ -2809,10 +2810,10 @@ function Render.drawCombatOverlay(sim, app)
         love.graphics.setColor(0.58, 0.28, 0.28, 1)
         love.graphics.rectangle("line", ex, y + 38, 82, 58)
         love.graphics.setColor(0.94, 0.86, 0.82, 1)
-        love.graphics.print("E" .. rank, ex + 4, y + 42)
+        love.graphics.print(i18n.t("E") .. rank, ex + 4, y + 42)
         love.graphics.printf(enemy and Defs.enemy(enemy.kind).name or "-", ex + 4, y + 44, 74, "center")
         if enemy then
-            love.graphics.printf(enemy.hp .. "hp", ex + 4, y + 66, 74, "center")
+            love.graphics.printf(enemy.hp .. i18n.t("hp"), ex + 4, y + 66, 74, "center")
             app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { x = ex, y = y + 38, w = 82, h = 58, rank = rank, side = "enemy" }
             for index, part in ipairs(enemy.parts or {}) do
                 if index <= 2 then
@@ -2858,11 +2859,11 @@ function Render.drawCampOverlay(sim, app)
     local w = width - 370
     panel(x, y, w, 218, 0.93)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Camp  respite " .. sim.expedition.camping.respite, x + 10, y + 8)
+    love.graphics.print(i18n.t("Camp") .. "  " .. i18n.t("respite") .. " " .. sim.expedition.camping.respite, x + 10, y + 8)
     local summary = Render.campHudSummary(sim, app)
     if summary.pendingSkill then
         love.graphics.setColor(0.9, 0.72, 0.42, 1)
-        love.graphics.printf("assign " .. tostring(summary.pendingSkill), x + w - 260, y + 8, 240, "right")
+        love.graphics.printf(i18n.t("assign") .. " " .. tostring(summary.pendingSkill), x + w - 260, y + 8, 240, "right")
     end
     local skillY = y + 42
     for _, skill in ipairs(sim:availableCampSkills()) do
@@ -2874,14 +2875,14 @@ function Render.drawCampOverlay(sim, app)
         love.graphics.rectangle("line", sx, sy, 140, 50)
         love.graphics.setColor(skill.usable and 0.94 or 0.46, skill.usable and 0.96 or 0.46, skill.usable and 0.9 or 0.46, 1)
         love.graphics.printf(skill.index .. " " .. skill.name, sx + 6, sy + 7, 128, "center")
-        love.graphics.printf("cost " .. skill.cost, sx + 6, sy + 28, 128, "center")
+        love.graphics.printf(i18n.t("cost") .. " " .. skill.cost, sx + 6, sy + 28, 128, "center")
         if skill.usable then
             local def = Defs.campSkill(skill.key)
             app.ui.campSkillButtons[#app.ui.campSkillButtons + 1] = { x = sx, y = sy, w = 140, h = 50, skillKey = skill.key, target = def and def.target or "party" }
         end
     end
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Assign Hero", x + 10, y + 162)
+    love.graphics.print(i18n.t("Assign Hero"), x + 10, y + 162)
     for _, hero in ipairs(sim:partyState()) do
         local hx = x + 100 + (hero.rank - 1) * 104
         local hy = y + 154
@@ -2890,7 +2891,7 @@ function Render.drawCampOverlay(sim, app)
         love.graphics.setColor(0.42, 0.52, 0.38, 1)
         love.graphics.rectangle("line", hx, hy, 96, 40)
         love.graphics.setColor(0.88, 0.9, 0.82, 1)
-        love.graphics.printf("R" .. hero.rank .. " " .. hero.name, hx + 4, hy + 13, 88, "center")
+        love.graphics.printf(i18n.t("R") .. hero.rank .. " " .. hero.name, hx + 4, hy + 13, 88, "center")
         app.ui.campHeroButtons[#app.ui.campHeroButtons + 1] = { x = hx, y = hy, w = 96, h = 40, rank = hero.rank }
     end
 end
@@ -2903,8 +2904,8 @@ function Render.drawEstatePanel(sim, app)
     local y = 92
     panel(x, y, 720, 610, 0.92)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Estate", x + 10, y + 10)
-    love.graphics.print("week " .. (sim.estate.week or 1) .. "  gold " .. sim.estate.gold .. "  heirlooms " .. sim.estate.heirlooms, x + 10, y + 34)
+    love.graphics.print(i18n.t("Estate"), x + 10, y + 10)
+    love.graphics.print(i18n.t("week") .. " " .. (sim.estate.week or 1) .. "  " .. i18n.t("gold") .. " " .. sim.estate.gold .. "  " .. i18n.t("heirlooms") .. " " .. sim.estate.heirlooms, x + 10, y + 34)
     local campaign = sim.estate.campaign or {}
     local bosses = 0
     for _, key in ipairs(Defs.locationOrder) do
@@ -2912,24 +2913,24 @@ function Render.drawEstatePanel(sim, app)
             bosses = bosses + 1
         end
     end
-    local campaignStatus = campaign.lost and ("lost " .. (campaign.lossReason or "")) or (campaign.victory and "victory" or ("bosses " .. bosses .. "/" .. #Defs.locationOrder))
-    love.graphics.print("renown " .. (campaign.renown or 0) .. "  dread " .. (campaign.dread or 0) .. "  " .. campaignStatus, x + 390, y + 34)
+    local campaignStatus = campaign.lost and (i18n.t("lost") .. " " .. (campaign.lossReason or "")) or (campaign.victory and i18n.t("victory") or (i18n.t("bosses") .. " " .. bosses .. "/" .. #Defs.locationOrder))
+    love.graphics.print(i18n.t("renown") .. " " .. (campaign.renown or 0) .. "  " .. i18n.t("dread") .. " " .. (campaign.dread or 0) .. "  " .. campaignStatus, x + 390, y + 34)
     drawJournalPanel(sim, x + 390, y + 58, 320)
-    addEstateAction(app, "journal", x + 622, y + 56, 88, { action = "openJournal", enabled = true })
+    addEstateAction(app, i18n.t("journal"), x + 622, y + 56, 88, { action = "openJournal", enabled = true })
     local timerCopy = sim:panelCopy("timer_panel_copy")
     local factionCopy = sim:panelCopy("faction_panel_copy")
     love.graphics.setColor(0.62, 0.66, 0.58, 1)
     love.graphics.printf((timerCopy and timerCopy.body or "") .. " " .. (factionCopy and factionCopy.body or ""), x + 390, y + 128, 320)
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
-    love.graphics.print("roster " .. sim:livingRosterCount() .. "/" .. sim:rosterLimit() .. "  recruits " .. #sim.estate.recruits, x + 10, y + 58)
+    love.graphics.print(i18n.t("roster") .. " " .. sim:livingRosterCount() .. "/" .. sim:rosterLimit() .. "  " .. i18n.t("recruits") .. " " .. #sim.estate.recruits, x + 10, y + 58)
     if sim.estate.currentEvent then
         local event = Defs.townEvent(sim.estate.currentEvent)
-        love.graphics.printf("event " .. event.name, x + 220, y + 58, 150)
+        love.graphics.printf(i18n.t("event") .. " " .. event.name, x + 220, y + 58, 150)
         love.graphics.setColor(0.62, 0.66, 0.58, 1)
         love.graphics.printf(event.effect or event.summary or "", x + 220, y + 72, 150)
     end
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Buildings", x + 10, y + 82)
+    love.graphics.print(i18n.t("Buildings"), x + 10, y + 82)
     for index, key in ipairs(Defs.estateBuildingOrder) do
         local building = Defs.estateBuilding(key)
         local level = sim:buildingLevel(key)
@@ -2946,15 +2947,15 @@ function Render.drawEstatePanel(sim, app)
             trinkets[#trinkets + 1] = key .. ":" .. count
         end
     end
-    love.graphics.printf(#trinkets > 0 and table.concat(trinkets, "  ") or "no trinkets", x + 10, y + 174, 312)
-    love.graphics.print("Market", x + 10, y + 196)
+    love.graphics.printf(#trinkets > 0 and table.concat(trinkets, "  ") or i18n.t("no trinkets"), x + 10, y + 174, 312)
+    love.graphics.print(i18n.t("Market"), x + 10, y + 196)
     for index, offer in ipairs(sim.estate.trinketStock or {}) do
         local trinket = Defs.trinket(offer.trinket)
         addEstateAction(app, (trinket.short or offer.trinket) .. " " .. offer.price, x + 70 + (index - 1) * 112, y + 190, 104, { action = "buyTrinket", stockIndex = index, enabled = sim.estate.gold >= (offer.price or 0) })
     end
-    love.graphics.printf("cart " .. stacksText(sim.estate.provisionCart), x + 10, y + 220, 400)
+    love.graphics.printf(i18n.t("cart") .. " " .. stacksText(sim.estate.provisionCart), x + 10, y + 220, 400)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Missions", x + 10, y + 246)
+    love.graphics.print(i18n.t("Missions"), x + 10, y + 246)
     for index, key in ipairs(sim:availableMissionKeys()) do
         local mission = Defs.mission(key)
         local bx = x + 10 + ((index - 1) % 2) * 205
@@ -2964,16 +2965,16 @@ function Render.drawEstatePanel(sim, app)
         love.graphics.setColor(0.42, 0.48, 0.36, 1)
         love.graphics.rectangle("line", bx, by, 196, 38)
         love.graphics.setColor(0.86, 0.88, 0.8, 1)
-        love.graphics.printf((mission.difficulty or "mission") .. " " .. mission.kind, bx + 4, by + 5, 188, "center")
+        love.graphics.printf((mission.difficulty or i18n.t("mission")) .. " " .. mission.kind, bx + 4, by + 5, 188, "center")
         local location = Defs.location(mission.location)
         love.graphics.setColor(0.58, 0.62, 0.55, 1)
-        love.graphics.printf("kit " .. compactStacks(location and location.provisions), bx + 4, by + 21, 188, "center")
+        love.graphics.printf(i18n.t("kit") .. " " .. compactStacks(location and location.provisions), bx + 4, by + 21, 188, "center")
         app.ui.missionButtons[#app.ui.missionButtons + 1] = { x = bx, y = by, w = 196, h = 38, missionKey = key }
     end
     drawPartyFormation(sim, app, x + 10, y + 356, 410)
     local recruitY = y + 452
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Recruits", x + 10, recruitY)
+    love.graphics.print(i18n.t("Recruits"), x + 10, recruitY)
     love.graphics.setColor(0.58, 0.62, 0.55, 1)
     love.graphics.printf(Render.classUnlockSummary(sim).line, x + 92, recruitY, 328, "right")
     for index, recruit in ipairs(sim.estate.recruits or {}) do
@@ -2989,7 +2990,7 @@ function Render.drawEstatePanel(sim, app)
     end
     local provisionY = y + 544
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Provisions", x + 10, provisionY)
+    love.graphics.print(i18n.t("Provisions"), x + 10, provisionY)
     local provisionItems = {}
     for _, itemKey in ipairs(Defs.itemOrder) do
         if Defs.item(itemKey).provision then

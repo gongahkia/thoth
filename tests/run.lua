@@ -11,6 +11,7 @@ local Audio = require("src.app.audio")
 local Accessibility = require("src.app.accessibility")
 local Credits = require("src.app.credits")
 local Settings = require("src.app.settings")
+local I18n = require("src.app.i18n")
 local Achievements = require("src.app.achievements")
 local SpritePipeline = require("src.app.sprite_pipeline")
 local ModelPipeline = require("src.app.model_pipeline")
@@ -110,6 +111,19 @@ local function makeActiveMerchant(sim, rank)
 end
 
 local tests = {}
+
+tests[#tests + 1] = function()
+    expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
+    expect(I18n.t("missing {value}", { value = "fallback" }) == "missing fallback", "i18n should interpolate fallback strings")
+    local source = readFile("src/app/render.lua")
+    expect(source, "render source should be readable for i18n coverage")
+    for key in source:gmatch('i18n%.t%(%s*"([^"]+)"%s*%)') do
+        expect(I18n.has(key), "missing render i18n key " .. key)
+    end
+    for _, control in ipairs(Settings.controls()) do
+        expect(I18n.has(control.label), "missing settings i18n key " .. control.label)
+    end
+end
 
 tests[#tests + 1] = function()
     local function fakeSource()

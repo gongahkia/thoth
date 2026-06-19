@@ -1,6 +1,6 @@
 # Translation Onboarding
 
-Status: contributor workflow and sample format. Runtime extraction remains tracked by TODO 7.5.
+Status: contributor workflow, sample format, and runtime English source table.
 
 ## Scope
 
@@ -27,28 +27,26 @@ Use one Lua file per locale:
 src/game/data/i18n/<locale>.lua
 ```
 
-Until runtime i18n lands, use the sample file:
+Use the sample file for a small locale-shaped reference:
 
 ```text
 docs/i18n/es-419.sample.lua
 ```
 
-Each file returns a table:
+Runtime string files may return either a plain source-string table or a metadata wrapper with `strings`.
+The English source file uses a plain table:
 
 ```lua
 return {
-    locale = "es-419",
-    name = "Spanish (Latin America)",
-    strings = {
-        ["ui.title.new_game"] = "Nueva partida",
-    },
+    ["New Game"] = "New Game",
+    ["Settings"] = "Settings",
 }
 ```
 
 ## Key Rules
 
-- Keep every source key present.
-- Do not add new keys without an English source string.
+- Keep every English source key present.
+- Do not add new keys without adding the English source string first.
 - Preserve placeholders exactly: `{hero}`, `{count}`, `{item}`.
 - Preserve punctuation that drives UI state, such as `%`, `+`, `/`, and `:`.
 - Keep translated strings concise enough for buttons and narrow panels.
