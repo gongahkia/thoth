@@ -1,3 +1,6 @@
 [submodule "vendor/g3d"]
 	path = vendor/g3d
 	url = https://github.com/groverburger/g3d.git
+[submodule "vendor/3DreamEngine"]
+	path = vendor/3DreamEngine
+	url = https://github.com/3dreamengine/3DreamEngine.git
