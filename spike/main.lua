@@ -19,8 +19,8 @@ local snapYaws = {0, math.pi / 2, math.pi, math.pi * 3 / 2}
 local snapSpeed = 6
 local twoPi = math.pi * 2
 
-local function vert(x, y, z, u)
-    local v = 0.5
+local function vert(x, y, z, u, v)
+    v = v or 0.5
     return {x, y, z, u, v, 0, 0, 1, 1, 1, 1, 1}
 end
 
@@ -56,10 +56,10 @@ end
 local function spriteVerts()
     local out = {}
     quad(out,
-        vert(-0.45, 0, 0, 0.25),
-        vert(0.45, 0, 0, 0.25),
-        vert(0.45, 0, 1.35, 0.25),
-        vert(-0.45, 0, 1.35, 0.25))
+        vert(-0.55, 0, 0, 0, 0.25),
+        vert(0.55, 0, 0, 0.25, 0.25),
+        vert(0.55, 0, 1.1, 0.25, 0),
+        vert(-0.55, 0, 1.1, 0, 0))
     return out
 end
 
@@ -73,9 +73,7 @@ local function gridTexture()
 end
 
 local function spriteTexture()
-    local data = love.image.newImageData(1, 1)
-    data:setPixel(0, 0, 0.78, 0.30, 0.22, 1)
-    local image = love.graphics.newImage(data)
+    local image = love.graphics.newImage("assets/george.png")
     image:setFilter("nearest", "nearest")
     return image
 end
@@ -138,7 +136,7 @@ function love.draw()
     sprite:draw()
     love.graphics.setDepthMode()
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print("q/e rotate snap " .. snapIndex .. "/4 billboard", 16, 16)
+    love.graphics.print("q/e rotate snap " .. snapIndex .. "/4 OGA billboard", 16, 16)
     love.graphics.setDepthMode("lequal", true)
 end
 
