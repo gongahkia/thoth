@@ -130,3 +130,7 @@ Port order:
 Initial performance result: `fps-min=60` with 400 flat tiles and 34 billboards on local LOVE 11.5 after warmup.
 
 [Inference] The current prototype is sufficient to open Phase 1 because it covers the required camera, grid, billboard, FPS, simulation, and save/load checks without touching game logic.
+
+## Failure Fallback
+
+Day 1-4 checks passed with `g3d`; the `3DreamEngine` fallback retry path was not triggered.

@@ -76,7 +76,6 @@ Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
 ### Day 4 — Perf + integration spike (~4h)
 
 ### Day 5 — Decision + writeup (~4h)
-- [ ] 0.5.2 If any day failed: document failure mode in `docs/engine-spike.md`, swap to other lib, retry the failed day (variable)
 - [ ] 0.5.3 If both libs fail at perf or rotation: STOP. Re-open engine choice with user. Do not proceed to Phase 1. (n/a)
 - [ ] 0.5.4 Tag commit `phase0-spike-complete` (0.5h)
 - [ ] 0.5.5 Open Phase 1 by archiving spike branch and creating `phase1-engine-port` branch (0.5h)
