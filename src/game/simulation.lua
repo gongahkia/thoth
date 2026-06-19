@@ -555,15 +555,53 @@ function Simulation:healStress(hero, amount)
     return true
 end
 
+function Simulation:stressParty(source, amount)
+    for _, hero in ipairs(self:livingParty()) do
+        if not source or hero.id ~= source.id then
+            self:addStress(hero, amount)
+        end
+    end
+end
+
+function Simulation:healPartyStress(amount)
+    for _, hero in ipairs(self:livingParty()) do
+        self:healStress(hero, amount)
+    end
+end
+
 function Simulation:resolveCheck(hero)
     local roll = self:roll(1, 100)
     if roll <= self:heroResolve(hero) then
         hero.virtue = "focused"
+        self:healPartyStress(4)
         self:pushLog(hero.name .. " steadied")
     else
         hero.affliction = Defs.afflictionOrder[((roll - 1) % #Defs.afflictionOrder) + 1]
+        self:stressParty(hero, 3)
         self:pushLog(hero.name .. " is " .. Defs.affliction(hero.affliction).name)
     end
+end
+
+function Simulation:afflictionAct(hero)
+    if not hero or not hero.alive or not hero.affliction then
+        return false
+    end
+    if hero.affliction == "panic" then
+        self:addStress(hero, 4)
+        self:stressParty(hero, 2)
+    elseif hero.affliction == "spite" then
+        self:stressParty(hero, 3)
+    elseif hero.affliction == "numb" then
+        self:damageHero(hero, 1)
+    elseif hero.affliction == "reckless" and self.combat then
+        local enemy = self:enemyAtRank(1)
+        if enemy then
+            enemy.hp = math.max(0, enemy.hp - 2)
+        end
+        self:addStress(hero, 2)
+    end
+    self:pushLog(hero.name .. " lost control")
+    return true
 end
 
 function Simulation:selectHero(heroRank)
@@ -1531,6 +1569,9 @@ function Simulation:advanceCombat()
                 self.combat.turnIndex = self.combat.turnIndex + 1
             elseif skip then
                 self:pushLog(hero.name .. " faltered")
+                self.combat.turnIndex = self.combat.turnIndex + 1
+            elseif hero.affliction and self:roll(1, 100) <= 15 then
+                self:afflictionAct(hero)
                 self.combat.turnIndex = self.combat.turnIndex + 1
             else
                 self.combat.active = actor

@@ -146,6 +146,27 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(46)
+    local hero = sim:heroAtRank(1)
+    local ally = sim:heroAtRank(2)
+    hero.affliction = "panic"
+    ally.stress = 0
+    sim:afflictionAct(hero)
+    expect(ally.stress > 0 and hero.stress > 0, "panic affliction should stress hero and party")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(47)
+    reachEntryCombat(sim)
+    local hero = sim:activeHero()
+    hero.affliction = "reckless"
+    local enemy = sim:enemyAtRank(1)
+    local hp = enemy.hp
+    sim:afflictionAct(hero)
+    expect(enemy.hp == hp - 2, "reckless affliction should lash out in combat")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(20)
     local hero = sim:heroAtRank(1)
     sim:damageHero(hero, hero.hp)
