@@ -1,10 +1,11 @@
 # Asset Licenses
 
-## Spike Assets
+## Imported Assets
 
 | File | Source | Author | License | Notes |
 |---|---|---|---|---|
 | `spike/assets/george.png` | `https://opengameart.org/content/alternate-lpc-character-sprites-george` | sheep | CC-BY 3.0 | OGA asset is multi-licensed; used here under CC-BY 3.0 for the Phase 0 billboard spike. |
+| `assets/sprites/oga_700_sprites.png` | `https://opengameart.org/content/700-sprites` | JPhilipp / Philipp Lenssen | CC-BY 3.0 | Generated atlas from selected `700 sprites` GIF frames; credit Philipp Lenssen and `outer-court.com`. |
 
 ## Phase 3 Primary Character Pack
 
@@ -13,7 +14,7 @@ Source: `https://opengameart.org/content/700-sprites`
 Author: JPhilipp / Philipp Lenssen
 License: CC-BY 3.0
 Attribution plan: credit Philipp Lenssen, `outer-court.com`, the OGA source URL, and CC-BY 3.0.
-Status: selected as the primary character pack; no local files imported yet.
+Status: selected as the primary character pack; selected frames are imported into `assets/sprites/oga_700_sprites.png`.
 
 ## Phase 3 Primary 3D Model Pack
 

@@ -3790,6 +3790,7 @@ function Simulation:partyState()
                 rank = rank,
                 id = hero.id,
                 name = hero.name,
+                classId = hero.class,
                 class = class.name,
                 level = hero.level,
                 hp = hero.hp,

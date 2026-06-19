@@ -23,12 +23,17 @@ local function read(path)
     return data
 end
 
-local png = exists("assets/sprites/thoth_atlas.png")
+local png = exists("assets/sprites/oga_700_sprites.png")
 assert(png and png:sub(1, 8) == "\137PNG\r\n\26\n", "missing sprite atlas png")
+assert(not exists("assets/sprites/thoth_atlas.png"), "prototype sprite atlas should not be present")
 
-local manifest = SpritePipeline.loadManifest(read("assets/sprites/thoth_atlas.lua"))
-assert(manifest and manifest.image == "assets/sprites/thoth_atlas.png", "missing sprite atlas manifest")
-assert(manifest.frames == 40 and manifest.columns == 8 and manifest.rows == 5, "bad sprite atlas manifest")
+local manifest = SpritePipeline.loadManifest(read("assets/sprites/oga_700_sprites.lua"))
+assert(manifest and manifest.image == "assets/sprites/oga_700_sprites.png", "missing sprite atlas manifest")
+assert(manifest.frames == 304 and manifest.columns == 16 and manifest.rows == 19, "bad sprite atlas manifest")
+assert(manifest.frameWidth == 32 and manifest.frameHeight == 32, "bad sprite atlas frame size")
+assert(manifest.classes and manifest.classes.warden and manifest.classes.warden.group == "gsd1", "missing hero sprite mapping")
+assert(manifest.enemies and manifest.enemies.hollow_guard and manifest.enemies.hollow_guard.group == "skl1", "missing enemy sprite mapping")
+assert(manifest.framesByName and manifest.framesByName["group.gsd1.fr1"] == 0, "missing named sprite frame")
 
 for _, name in ipairs({ "mine", "place", "craft", "invalid", "save", "load", "tick", "produce" }) do
     local wav = exists("assets/audio/" .. name .. ".wav")

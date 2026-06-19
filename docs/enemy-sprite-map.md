@@ -6,7 +6,7 @@ License: CC-BY 3.0
 
 Current `Registry.enemyOrder` has 65 entries. The TODO count of 59 is stale; this map covers all current entries.
 
-Sprite group filenames were verified from `last-guardian-sprites.zip`. Semantic fit is [Inference] from the visible front-frame silhouette and enemy roles. `custom_*` entries are gaps for manual edits or generated sprites before final import.
+Sprite group filenames were verified from `last-guardian-sprites.zip`. Semantic fit is [Inference] from the visible front-frame silhouette and enemy roles. `custom_*` entries are gaps for manual edits or generated sprites before final import. `wmn4_*` is not present in the source zip.
 
 | Enemy ID | Name | Roles | Candidate | Work |
 |---|---|---|---|---|
@@ -29,7 +29,7 @@ Sprite group filenames were verified from `last-guardian-sprites.zip`. Semantic 
 | `halocline_tender` | Halocline Tender | caster, trapper | `smr2_*` | [Inference] staff caster; brine pole/tool edit. |
 | `drowned_pilgrim` | Drowned Pilgrim | guard | `mnt4_*` | [Inference] hooded monk; drowned robe edit. |
 | `reed_mouth_diver` | Reed-Mouth Diver | scout | `thf2_*` | [Inference] light scout; reed mask edit. |
-| `silt_mother` | Silt Mother | trapper, caster | `wmn4_*` | [Inference] robed figure; silt veil/body edit. |
+| `silt_mother` | Silt Mother | trapper, caster | `wmn2_*` | [Inference] robed figure; silt veil/body edit. |
 | `cyst_burst` | Cyst Burst | swarm | `custom_cyst_burst` | Gap: burst swarm effect. |
 | `bell_diver_flood_toll` | Bell Diver Flood-Toll | boss, guard | `pdn4_*` | [Inference] heavier diver variant; flood-toll helmet edit. |
 | `ash_husk` | Ash Husk | guard | `skl1_*` | [Inference] bone body; char/ash repaint. |
@@ -73,7 +73,7 @@ Sprite group filenames were verified from `last-guardian-sprites.zip`. Semantic 
 | `bailiff_in_wax` | Bailiff in Wax | guard, trapper | `knt4_*` | [Inference] armored body; wax mask/lock edits. |
 | `ink_drowner` | Ink Drowner | trapper, caster | `dvl1_*` | [Inference] monster body; ink-black drowning edit. |
 | `index_worm` | Index Worm | scout, swarm | `custom_worm` | Gap: worm body. |
-| `pressed_witness` | Pressed Witness | support, caster | `wmn4_*` | [Inference] robed witness body; flattened/pale edit. |
+| `pressed_witness` | Pressed Witness | support, caster | `wmn3_*` | [Inference] robed witness body; flattened/pale edit. |
 | `regent_in_red` | Regent in Red | boss, caster | `zph1_*` | [Inference] final noble boss base; red crown/register edits. |
 
 ## Import Notes

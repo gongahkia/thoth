@@ -16,12 +16,12 @@ local visibleRadius = 10
 local atlasColumns = 8
 local atlasRows = 5
 local defaultAtlasMeta = {
-    image = "assets/sprites/thoth_atlas.png",
-    frameWidth = 16,
-    frameHeight = 16,
-    columns = atlasColumns,
-    rows = atlasRows,
-    frames = atlasColumns * atlasRows,
+    image = "assets/sprites/oga_700_sprites.png",
+    frameWidth = 32,
+    frameHeight = 32,
+    columns = 16,
+    rows = 19,
+    frames = 304,
 }
 local uiHitboxGroups = {
     "titleButtons",
@@ -484,8 +484,8 @@ end
 
 local function loadSpriteAtlas()
     local meta = defaultAtlasMeta
-    if love.filesystem.getInfo("assets/sprites/thoth_atlas.lua", "file") then
-        local chunk = love.filesystem.load("assets/sprites/thoth_atlas.lua")
+    if love.filesystem.getInfo("assets/sprites/oga_700_sprites.lua", "file") then
+        local chunk = love.filesystem.load("assets/sprites/oga_700_sprites.lua")
         local ok, loaded = pcall(chunk)
         if ok and type(loaded) == "table" then
             meta = loaded
@@ -647,6 +647,36 @@ local function atlasFrameUv(frame)
     return u0, v0, u1, v1
 end
 
+local classNameToKey = {
+    Warden = "warden",
+    Duelist = "duelist",
+    Mender = "mender",
+    Arcanist = "arcanist",
+    Harrier = "harrier",
+    Chirurgeon = "chirurgeon",
+    Exile = "exile",
+    Lamplighter = "lamplighter",
+}
+
+local function namedAtlasFrame(name, fallback)
+    local meta = (state.assets and state.assets.spriteAtlasMeta) or defaultAtlasMeta
+    local framesByName = meta.framesByName or {}
+    if name and framesByName[name] ~= nil then
+        return framesByName[name]
+    end
+    if fallback and framesByName[fallback] ~= nil then
+        return framesByName[fallback]
+    end
+    return 0
+end
+
+local function heroFrame(hero)
+    local meta = (state.assets and state.assets.spriteAtlasMeta) or defaultAtlasMeta
+    local classKey = hero and (hero.classId or classNameToKey[hero.class])
+    local entry = classKey and meta.classes and meta.classes[classKey]
+    return namedAtlasFrame(entry and entry.frame, meta.fallbacks and meta.fallbacks.hero)
+end
+
 local function billboardVerts(width, height, frame)
     local u0, v0, u1, v1 = atlasFrameUv(frame)
     local halfWidth = width / 2
@@ -690,23 +720,20 @@ local function drawHeroBillboards(sim, yaw, profile)
             local offset = offsets[hero.rank]
             local x = sim.player.x + 0.5 + offset[1]
             local y = sim.player.y + 0.5 + offset[2]
-            local model = newBillboard(0.85, 1.1, 24 + hero.rank, x, y, sim.player.z or 0, yaw)
+            local model = newBillboard(0.85, 1.1, heroFrame(hero), x, y, sim.player.z or 0, yaw)
             drawLitModel(model, lightAt(sim, x, y, profile))
         end
     end
 end
 
-local function enemyFrame(objectType)
-    if objectType == "boss" then
-        return 36
+local function enemyFrame(objectType, enemyKind)
+    local meta = (state.assets and state.assets.spriteAtlasMeta) or defaultAtlasMeta
+    local entry = enemyKind and meta.enemies and meta.enemies[enemyKind]
+    if entry then
+        return namedAtlasFrame(entry.frame, meta.fallbacks and meta.fallbacks.threat)
     end
-    if objectType == "alpha" then
-        return 35
-    end
-    if objectType == "encounter" then
-        return 34
-    end
-    return 33
+    local fallback = meta.fallbacks and (meta.fallbacks[objectType] or meta.fallbacks.threat)
+    return namedAtlasFrame(fallback, meta.fallbacks and meta.fallbacks.threat)
 end
 
 local function hasRole(def, role)
@@ -730,13 +757,7 @@ local function combatEnemyType(enemy)
 end
 
 local function enemyTexture(objectType)
-    if objectType == "boss" then
-        return state.assets.boss or state.assets.enemy
-    end
-    if objectType == "alpha" then
-        return state.assets.alpha or state.assets.enemy
-    end
-    return state.assets.enemy or state.assets.white
+    return state.assets.spriteAtlas or state.assets.enemy or state.assets.white
 end
 
 local function enemySize(objectType)
@@ -766,7 +787,7 @@ local function drawCombatEnemyBillboards(sim, yaw, profile)
             local width, height = enemySize(objectType)
             local x = sim.player.x + 0.5 + offset[1]
             local y = sim.player.y + 0.5 + offset[2]
-            local model = newBillboard(width, height, enemyFrame(objectType), x, y, sim.player.z or 0, yaw, enemyTexture(objectType))
+            local model = newBillboard(width, height, enemyFrame(objectType, enemy.kind), x, y, sim.player.z or 0, yaw, enemyTexture(objectType))
             drawLitModel(model, lightAt(sim, x, y, profile))
         end
     end

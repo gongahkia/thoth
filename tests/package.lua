@@ -23,7 +23,7 @@ local required = {
     "src/game/simulation.lua",
     "src/game/data/registry.lua",
     "vendor/g3d/g3d/init.lua",
-    "assets/sprites/thoth_atlas.png",
+    "assets/sprites/oga_700_sprites.png",
     "assets/audio/mine.wav",
     "docs/market-audit.md",
     "docs/asset-licenses.md",

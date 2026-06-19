@@ -34,15 +34,15 @@ local function argValue(args, target, fallback)
 end
 
 local function runSpriteImport(args)
-    local frameWidth, frameHeight = SpritePipeline.parseFrameSize(argValue(args, "--sprite-frame", "16x16"))
+    local frameWidth, frameHeight = SpritePipeline.parseFrameSize(argValue(args, "--sprite-frame", "32x32"))
     if not frameWidth then
         print("sprite-import-error=bad-frame")
         love.event.quit(1)
         return
     end
-    local source = argValue(args, "--sprite-source", "assets/sprites/thoth_atlas.png")
-    local atlas = argValue(args, "--sprite-atlas", "assets/sprites/thoth_atlas.png")
-    local manifest = argValue(args, "--sprite-manifest", "assets/sprites/thoth_atlas.lua")
+    local source = argValue(args, "--sprite-source", "assets/sprites/oga_700_sprites.png")
+    local atlas = argValue(args, "--sprite-atlas", "assets/sprites/oga_700_sprites.png")
+    local manifest = argValue(args, "--sprite-manifest", "assets/sprites/oga_700_sprites.lua")
     local columns = tonumber(argValue(args, "--sprite-columns", nil))
     local plan, err = SpritePipeline.importWithLove(source, atlas, manifest, { frameWidth = frameWidth, frameHeight = frameHeight, columns = columns })
     if not plan then

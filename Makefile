@@ -251,15 +251,15 @@ sprite-import-smoke:
 	mkdir -p dist/sprite-import-smoke; \
 	tmp=$$(mktemp); \
 	if command -v xvfb-run >/dev/null 2>&1; then \
-		SDL_AUDIODRIVER=dummy xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --sprite-import --sprite-source assets/sprites/thoth_atlas.png --sprite-atlas dist/sprite-import-smoke/thoth_atlas.png --sprite-manifest dist/sprite-import-smoke/thoth_atlas.lua --sprite-frame 16x16 | tee $$tmp; \
+		SDL_AUDIODRIVER=dummy xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --sprite-import --sprite-source assets/sprites/oga_700_sprites.png --sprite-atlas dist/sprite-import-smoke/oga_700_sprites.png --sprite-manifest dist/sprite-import-smoke/oga_700_sprites.lua --sprite-frame 32x32 | tee $$tmp; \
 	else \
-		SDL_AUDIODRIVER=dummy $(LOVE) . --sprite-import --sprite-source assets/sprites/thoth_atlas.png --sprite-atlas dist/sprite-import-smoke/thoth_atlas.png --sprite-manifest dist/sprite-import-smoke/thoth_atlas.lua --sprite-frame 16x16 | tee $$tmp; \
+		SDL_AUDIODRIVER=dummy $(LOVE) . --sprite-import --sprite-source assets/sprites/oga_700_sprites.png --sprite-atlas dist/sprite-import-smoke/oga_700_sprites.png --sprite-manifest dist/sprite-import-smoke/oga_700_sprites.lua --sprite-frame 32x32 | tee $$tmp; \
 	fi; \
-	grep -q "sprite-import-frames=40" $$tmp; \
-	grep -q "sprite-import-atlas=dist/sprite-import-smoke/thoth_atlas.png" $$tmp; \
-	grep -q "sprite-import-manifest=dist/sprite-import-smoke/thoth_atlas.lua" $$tmp; \
-	test -s dist/sprite-import-smoke/thoth_atlas.png; \
-	test -s dist/sprite-import-smoke/thoth_atlas.lua; \
+	grep -q "sprite-import-frames=304" $$tmp; \
+	grep -q "sprite-import-atlas=dist/sprite-import-smoke/oga_700_sprites.png" $$tmp; \
+	grep -q "sprite-import-manifest=dist/sprite-import-smoke/oga_700_sprites.lua" $$tmp; \
+	test -s dist/sprite-import-smoke/oga_700_sprites.png; \
+	test -s dist/sprite-import-smoke/oga_700_sprites.lua; \
 	rm -f $$tmp
 
 model-import-smoke:
