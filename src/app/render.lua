@@ -1010,6 +1010,20 @@ function Render.drawConfirmDialog(app)
     return app.confirmDialog
 end
 
+function Render.drawKeyboardFocus(app)
+    local focus = app and app.keyboardFocus
+    if not (focus and app.ui and love and love.graphics) then
+        return
+    end
+    local hitbox = app.ui[focus.group] and app.ui[focus.group][focus.index]
+    if not hitbox then
+        return
+    end
+    love.graphics.setColor(0.95, 0.82, 0.28, 1)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", hitbox.x - 3, hitbox.y - 3, hitbox.w + 6, hitbox.h + 6)
+end
+
 local gameOverActions = {
     { action = "restart", label = "Restart", enabled = true },
     { action = "title", label = "Title", enabled = true },
@@ -2445,6 +2459,7 @@ function Render.draw(sim, app)
     Render.drawCurioResult(app)
     Render.drawCurioModal(app)
     Render.drawCutscene(sim, app)
+    Render.drawKeyboardFocus(app)
     Render.drawPauseMenu(app)
     Render.drawConfirmDialog(app)
     love.graphics.pop()

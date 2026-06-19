@@ -785,6 +785,20 @@ local function printCreditsSmoke(state)
     print("credits-smoke-back=" .. tostring(#((state.ui and state.ui.creditsButtons) or {})))
 end
 
+local function printKeyboardSmoke(state)
+    if not state.keyboardSmoke or state.keyboardSmokePrinted then
+        return
+    end
+    state.keyboardSmokePrinted = true
+    local count = #Input.focusables(state)
+    local entry = Input.cycleFocus(state, 1)
+    local tabbed = entry ~= nil and state.keyboardFocus ~= nil
+    local backed = Input.back(sim, state)
+    print("keyboard-smoke-focusables=" .. tostring(count > 0))
+    print("keyboard-smoke-tab=" .. tostring(tabbed))
+    print("keyboard-smoke-back=" .. tostring(backed))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -799,13 +813,18 @@ function love.load(args)
     local gameOverSmoke = hasArg(args, "--gameover-smoke")
     local creditsSmoke = hasArg(args, "--credits-smoke")
     local confirmSmoke = hasArg(args, "--confirm-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke
+    local keyboardSmoke = hasArg(args, "--keyboard-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
         setupRenderBenchmark(sim)
     end
     if estateSmoke then
+        sim:endExpedition(true)
+        sim.estate.heirlooms = math.max(sim.estate.heirlooms or 0, 20)
+    end
+    if keyboardSmoke then
         sim:endExpedition(true)
         sim.estate.heirlooms = math.max(sim.estate.heirlooms or 0, 20)
     end
@@ -852,6 +871,7 @@ function love.load(args)
         gameOverSmoke = gameOverSmoke,
         creditsSmoke = creditsSmoke,
         confirmSmoke = confirmSmoke,
+        keyboardSmoke = keyboardSmoke,
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -960,6 +980,7 @@ function love.draw()
     printCampSmoke(app)
     printPauseSmoke(app)
     printConfirmSmoke(app)
+    printKeyboardSmoke(app)
     if app.renderBenchmark then
         local elapsedMs = (love.timer.getTime() - started) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1
@@ -1003,6 +1024,9 @@ function love.keypressed(key)
         return
     end
     if Settings.isAction(app.settings, key, "pause", "escape") then
+        if Input.back(sim, app) then
+            return
+        end
         openPause(app)
         Audio.play(app.audio, "tick")
         return

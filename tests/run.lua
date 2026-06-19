@@ -474,6 +474,35 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local oldLove = love
+    local sim = Simulation.new(141)
+    sim:endExpedition(true)
+    local app = {
+        settings = Settings.defaults(),
+        ui = {
+            missionButtons = { { x = 0, y = 0, w = 80, h = 30, missionKey = "archive_scout" } },
+            rosterButtons = { { x = 0, y = 40, w = 80, h = 30, heroId = sim.estate.roster[1].id } },
+            partyRankSlots = { { x = 0, y = 80, w = 80, h = 30, rank = 2 } },
+        },
+    }
+    love = { keyboard = { isDown = function() return false end } }
+    expect(#Input.focusables(app) == 3, "keyboard focus should expose visible UI hitboxes")
+    local first = Input.cycleFocus(app, 1)
+    expect(first.group == "missionButtons" and app.keyboardFocus.index == 1, "tab should focus first hitbox")
+    Input.keypressed(sim, app, "return")
+    expect(sim.commandQueue[#sim.commandQueue].type == "startExpedition", "enter should activate focused hitbox")
+    Input.cycleFocus(app, 1)
+    Input.activateFocused(sim, app)
+    expect(app.estateHeroId == sim.estate.roster[1].id, "keyboard activation should select roster hero")
+    Input.cycleFocus(app, 1)
+    Input.activateFocused(sim, app)
+    expect(sim.commandQueue[#sim.commandQueue].type == "assignParty", "keyboard activation should assign party rank")
+    expect(Input.back(sim, app), "escape back should clear keyboard focus")
+    expect(app.keyboardFocus == nil, "back should clear focus")
+    love = oldLove
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(15)
     reachEntryCombat(sim)
     expect(sim.combat.encounter == "entry", "entry encounter key missing")

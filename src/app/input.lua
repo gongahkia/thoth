@@ -36,6 +36,20 @@ local screenDirectionActions = {
     down = "moveDown",
     left = "moveLeft",
 }
+local focusGroups = {
+    "curioButtons",
+    "campSkillButtons",
+    "campHeroButtons",
+    "skillButtons",
+    "enemyButtons",
+    "heroButtons",
+    "missionButtons",
+    "recruitButtons",
+    "provisionButtons",
+    "rosterButtons",
+    "partyRankSlots",
+    "estateActionButtons",
+}
 
 local function worldDirectionForScreen(app, screenDirection)
     local index = screenDirectionIndexes[screenDirection] or 0
@@ -91,6 +105,53 @@ end
 
 local function play(app, cue)
     Audio.play(app.audio, cue)
+end
+
+local function focusables(app)
+    local result = {}
+    for _, group in ipairs(focusGroups) do
+        for index, hitbox in ipairs((app.ui and app.ui[group]) or {}) do
+            if hitbox.enabled ~= false then
+                result[#result + 1] = { group = group, index = index, hitbox = hitbox }
+            end
+        end
+    end
+    return result
+end
+
+local function sameFocus(a, b)
+    return a and b and a.group == b.group and a.index == b.index
+end
+
+local function focusedEntry(app, entries)
+    entries = entries or focusables(app)
+    for position, entry in ipairs(entries) do
+        if sameFocus(app.keyboardFocus, entry) then
+            return entry, position
+        end
+    end
+    return nil, nil
+end
+
+function Input.focusables(app)
+    return focusables(app)
+end
+
+function Input.cycleFocus(app, delta)
+    local entries = focusables(app)
+    if #entries == 0 then
+        app.keyboardFocus = nil
+        return nil
+    end
+    local _, position = focusedEntry(app, entries)
+    position = position or (delta > 0 and 0 or 1)
+    local nextPosition = ((position - 1 + delta) % #entries) + 1
+    app.keyboardFocus = { group = entries[nextPosition].group, index = entries[nextPosition].index }
+    return entries[nextPosition]
+end
+
+function Input.focusedEntry(app)
+    return focusedEntry(app)
 end
 
 local function boundMovementDirection(app, key)
@@ -152,6 +213,69 @@ function Input.update(sim, app, dt)
     end
 end
 
+function Input.activateFocused(sim, app)
+    local entry = focusedEntry(app)
+    if not entry then
+        entry = Input.cycleFocus(app, 1)
+    end
+    if not entry then
+        return false
+    end
+    local hitbox = entry.hitbox
+    if entry.group == "partyRankSlots" then
+        local heroId = app.dragHeroId or app.estateHeroId
+        if heroId then
+            sim:queue(Simulation.commands.assignParty(heroId, hitbox.rank))
+            app.status = "assign rank " .. hitbox.rank
+            app.dragHeroId = nil
+            play(app, "craft")
+            return true
+        end
+        play(app, "invalid")
+        return true
+    end
+    Input.mousepressed(sim, app, hitbox.x + hitbox.w / 2, hitbox.y + hitbox.h / 2, 1)
+    return true
+end
+
+function Input.back(sim, app)
+    if app.curioModal then
+        app.curioModal = nil
+        play(app, "tick")
+        return true
+    end
+    if app.pendingSkillKey then
+        app.pendingSkillKey = nil
+        app.pendingTargetSide = nil
+        app.status = "target canceled"
+        play(app, "tick")
+        return true
+    end
+    if app.pendingCampSkillKey then
+        app.pendingCampSkillKey = nil
+        app.status = "camp canceled"
+        play(app, "tick")
+        return true
+    end
+    if app.trinketTooltipKey then
+        app.trinketTooltipKey = nil
+        play(app, "tick")
+        return true
+    end
+    if app.keyboardFocus then
+        app.keyboardFocus = nil
+        play(app, "tick")
+        return true
+    end
+    if app.panel == "estate" and sim.mode ~= "estate" then
+        app.panel = nil
+        app.status = "map"
+        play(app, "tick")
+        return true
+    end
+    return false
+end
+
 function Input.keypressed(sim, app, key)
     if app.curioModal then
         if key == "escape" then
@@ -166,6 +290,29 @@ function Input.keypressed(sim, app, key)
             else
                 play(app, "invalid")
             end
+            return
+        end
+    end
+    if key == "tab" then
+        local delta = love.keyboard.isDown("lshift", "rshift") and -1 or 1
+        local entry = Input.cycleFocus(app, delta)
+        if entry then
+            app.status = "focus " .. entry.group
+            play(app, "tick")
+            return
+        end
+        app.panel = app.panel == "estate" and nil or "estate"
+        app.status = app.panel or "map"
+        play(app, "tick")
+        return
+    end
+    if key == "return" or key == "kpenter" then
+        if Input.activateFocused(sim, app) then
+            return
+        end
+    end
+    if key == "backspace" then
+        if Input.back(sim, app) then
             return
         end
     end
@@ -200,12 +347,6 @@ function Input.keypressed(sim, app, key)
             sim:queue(Simulation.commands.interact())
             app.status = "interact"
         end
-        play(app, "tick")
-        return
-    end
-    if key == "tab" then
-        app.panel = app.panel == "estate" and nil or "estate"
-        app.status = app.panel or "map"
         play(app, "tick")
         return
     end
