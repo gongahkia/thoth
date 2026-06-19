@@ -117,6 +117,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(84)
+    sim:endExpedition(true)
+    sim:refreshMissionBoard(true)
+    expect(#sim.estate.missionBoard == sim:missionBoardSlots(), "mission board should expose weekly mission slots")
+    expect(not contains(sim.estate.missionBoard, "archive_regent"), "boss mission should be gated before location progress")
+    sim.estate.campaign.locationProgress.buried_archive = 2
+    sim:refreshMissionBoard(true)
+    expect(contains(sim.estate.missionBoard, "archive_regent"), "boss mission should appear after location progress")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(contains(loaded.estate.missionBoard, "archive_regent"), "mission board should survive snapshot")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(48)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("cistern_bell"))

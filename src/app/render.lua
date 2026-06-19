@@ -687,7 +687,7 @@ function Render.drawEstatePanel(sim, app)
     love.graphics.printf("cart " .. stacksText(sim.estate.provisionCart), x + 10, y + 146, 400)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Missions", x + 10, y + 174)
-    for index, key in ipairs(Defs.missionOrder) do
+    for index, key in ipairs(sim:availableMissionKeys()) do
         local mission = Defs.mission(key)
         local bx = x + 10 + ((index - 1) % 2) * 205
         local by = y + 196 + math.floor((index - 1) / 2) * 34

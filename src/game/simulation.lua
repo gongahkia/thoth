@@ -116,6 +116,12 @@ local function trinketOffer(seed, week, index)
     return { trinket = trinketKey, price = (trinket.value or 0) * 2 }
 end
 
+local function appendUnique(list, value)
+    if not contains(list, value) then
+        list[#list + 1] = value
+    end
+end
+
 local function newEnemy(id, kind, rank)
     local def = Defs.enemy(kind)
     return { id = id, kind = kind, rank = rank, hp = def.maxHp, stress = 0, statuses = {}, guard = 0 }
@@ -172,6 +178,7 @@ function Simulation.new(seed)
             upgrades = { stagecoach = 0, guild = 0, forge = 0, infirmary = 0 },
             campaign = newCampaign(),
             dismissed = {},
+            missionBoard = {},
             recruits = {},
             nextHeroId = 5,
             recruitSerial = 1,
@@ -184,6 +191,7 @@ function Simulation.new(seed)
         log = {},
     }, Simulation)
     self:refillRecruits()
+    self:refreshMissionBoard(true)
     self:refillTrinketMarket(true)
     self:startExpedition("buried_archive")
     return self
@@ -749,6 +757,62 @@ function Simulation:missionForKey(key)
     return fallback, Defs.mission(fallback)
 end
 
+function Simulation:missionBoardSlots()
+    return 4
+end
+
+function Simulation:eligibleMissionKeys()
+    local result = {}
+    local campaign = self.estate.campaign or {}
+    for _, missionKey in ipairs(Defs.missionOrder) do
+        local mission = Defs.mission(missionKey)
+        if mission.kind ~= "boss" then
+            result[#result + 1] = missionKey
+        elseif not (campaign.bossKills and campaign.bossKills[mission.location])
+            and ((campaign.locationProgress and campaign.locationProgress[mission.location]) or 0) >= 2 then
+            result[#result + 1] = missionKey
+        end
+    end
+    return result
+end
+
+function Simulation:refreshMissionBoard(force)
+    if self.estate.missionBoard and #self.estate.missionBoard > 0 and not force then
+        return false
+    end
+    local eligible = self:eligibleMissionKeys()
+    self.estate.missionBoard = {}
+    for _, missionKey in ipairs(eligible) do
+        local mission = Defs.mission(missionKey)
+        if mission.kind == "boss" then
+            appendUnique(self.estate.missionBoard, missionKey)
+        end
+    end
+    local slots = self:missionBoardSlots()
+    for offset = 1, #eligible do
+        if #self.estate.missionBoard >= slots then
+            break
+        end
+        local index = ((Rng.hash(self.seed + 7207, self.estate.week or 1, offset, 0) % #eligible) + 1)
+        appendUnique(self.estate.missionBoard, eligible[index])
+    end
+    for _, missionKey in ipairs(eligible) do
+        if #self.estate.missionBoard >= slots then
+            break
+        end
+        appendUnique(self.estate.missionBoard, missionKey)
+    end
+    if #self.estate.missionBoard == 0 then
+        self.estate.missionBoard[1] = Defs.missionOrder[1]
+    end
+    return true
+end
+
+function Simulation:availableMissionKeys()
+    self:refreshMissionBoard(false)
+    return self.estate.missionBoard
+end
+
 function Simulation:missionLevelPenalty(mission)
     local target = mission.resolveLevel or 1
     local penalty = 0
@@ -921,6 +985,7 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
         end
     end
     campaign.victory = defeated >= #Defs.locationOrder
+    self:refreshMissionBoard(true)
     self:evaluateCampaignState()
     return true
 end
@@ -968,6 +1033,7 @@ function Simulation:advanceWeek()
     end
     self:applyCampaignPressure()
     self:refillRecruits()
+    self:refreshMissionBoard(true)
     self:refillTrinketMarket(true)
     self:rollTownEvent()
     self:evaluateCampaignState()
@@ -2712,6 +2778,7 @@ function Simulation:snapshot()
                 dreadLimit = self.estate.campaign and self.estate.campaign.dreadLimit or 18,
             },
             recruits = recruits,
+            missionBoard = copyList(self.estate.missionBoard),
             nextHeroId = self.estate.nextHeroId,
             recruitSerial = self.estate.recruitSerial,
         },
@@ -2734,7 +2801,7 @@ function Simulation.fromSnapshot(snapshot)
         mode = snapshot.mode or "estate",
         world = World.fromSnapshot(snapshot.world or { seed = snapshot.seed or 1, tiles = {} }),
         player = copyMap(snapshot.player or { x = 0, y = 0, z = 0, facing = "east", selectedHero = 1 }),
-        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {}, dismissed = {}, trinkets = {}, trinketStock = {}, provisionCart = Inventory.new(), upgrades = {}, campaign = newCampaign(), recruits = {}, nextHeroId = 1, recruitSerial = 1 },
+        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {}, dismissed = {}, trinkets = {}, trinketStock = {}, provisionCart = Inventory.new(), upgrades = {}, campaign = newCampaign(), missionBoard = {}, recruits = {}, nextHeroId = 1, recruitSerial = 1 },
         party = copyList(snapshot.party or {}),
         expedition = nil,
         combat = nil,
@@ -2787,6 +2854,10 @@ function Simulation.fromSnapshot(snapshot)
     end
     self.estate.nextHeroId = (snapshot.estate and snapshot.estate.nextHeroId) or 1
     self.estate.recruitSerial = (snapshot.estate and snapshot.estate.recruitSerial) or 1
+    self.estate.missionBoard = copyList((snapshot.estate and snapshot.estate.missionBoard) or {})
+    if #self.estate.missionBoard == 0 then
+        self:refreshMissionBoard(true)
+    end
     for _, value in ipairs((snapshot.estate and snapshot.estate.roster) or {}) do
         local hero = newHero(value.id, value.class)
         hero.name = value.name or hero.name
