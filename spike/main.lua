@@ -6,6 +6,7 @@ package.path = table.concat({
 
 local g3d = require("g3d")
 local grid
+local sprite
 local gridSize = 20
 local viewSize = 26
 local cameraDistance = 28
@@ -52,10 +53,28 @@ local function tileVerts()
     return out
 end
 
-local function texture()
+local function spriteVerts()
+    local out = {}
+    quad(out,
+        vert(-0.45, 0, 0, 0.25),
+        vert(0.45, 0, 0, 0.25),
+        vert(0.45, 0, 1.35, 0.25),
+        vert(-0.45, 0, 1.35, 0.25))
+    return out
+end
+
+local function gridTexture()
     local data = love.image.newImageData(2, 1)
     data:setPixel(0, 0, 0.34, 0.37, 0.42, 1)
     data:setPixel(1, 0, 0.48, 0.50, 0.55, 1)
+    local image = love.graphics.newImage(data)
+    image:setFilter("nearest", "nearest")
+    return image
+end
+
+local function spriteTexture()
+    local data = love.image.newImageData(1, 1)
+    data:setPixel(0, 0, 0.78, 0.30, 0.22, 1)
     local image = love.graphics.newImage(data)
     image:setFilter("nearest", "nearest")
     return image
@@ -84,8 +103,10 @@ end
 
 function love.load()
     love.window.setTitle("Thoth g3d tile grid spike")
-    grid = g3d.newModel(tileVerts(), texture())
+    grid = g3d.newModel(tileVerts(), gridTexture())
     grid:makeNormals()
+    sprite = g3d.newModel(spriteVerts(), spriteTexture(), {0, 0, 0})
+    sprite:makeNormals()
     applyIsoCamera()
 end
 
@@ -106,9 +127,10 @@ end
 
 function love.draw()
     grid:draw()
+    sprite:draw()
     love.graphics.setDepthMode()
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print("q/e rotate snap " .. snapIndex .. "/4", 16, 16)
+    love.graphics.print("q/e rotate snap " .. snapIndex .. "/4 quad", 16, 16)
     love.graphics.setDepthMode("lequal", true)
 end
 
