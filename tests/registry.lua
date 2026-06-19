@@ -132,6 +132,16 @@ end
 
 for key, location in pairs(Defs.locations) do
     expect(location.name and location.start and location.objectiveRooms > 0, "location missing data " .. key)
+    expect(location.layout and #location.layout.rooms > 0 and #location.layout.corridors > 0, "location missing layout " .. key)
+    expect(Defs.tile(location.layout.floorTile), "location missing floor tile " .. key)
+    expect(Defs.tile(location.layout.wallTile), "location missing wall tile " .. key)
+    expect(Defs.tile(location.layout.corridorTile), "location missing corridor tile " .. key)
+    if location.layout.obstacleTile then
+        expect(Defs.tile(location.layout.obstacleTile), "location missing obstacle tile " .. key)
+    end
+    for _, special in ipairs(location.layout.specials or {}) do
+        expect(Defs.tile(special.tile), "location special missing tile " .. tostring(special.tile))
+    end
     for _, encounterKey in pairs(location.encounters or {}) do
         expect(Defs.encounter(encounterKey), "location missing encounter " .. encounterKey)
     end

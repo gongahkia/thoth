@@ -63,6 +63,40 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local world = World.new(46, "salt_cistern")
+    expect(world.location == "salt_cistern", "world should store location key")
+    expect(world:getTile(0, 0, 0).id == "salt_floor", "salt cistern origin should use location floor")
+    expect(world:getTile(1, 0, 0).id == "salt_causeway", "salt cistern corridor should use location corridor")
+    expect(table.concat(world:connectedRooms("0:0"), ",") == "6:4", "salt cistern room graph should use location corridors")
+    local loaded = World.fromSnapshot(world:snapshot())
+    expect(loaded.location == "salt_cistern" and loaded:getTile(0, 0, 0).id == "salt_floor", "world snapshot should preserve location")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(47)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_survey"))
+    expect(sim.expedition.location == "salt_cistern" and sim.world.location == "salt_cistern", "mission should start its location world")
+    expect(sim.world:getTile(6, 4, 0).id == "salt_font", "location specials should render in world")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(48)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_bell"))
+    sim:startCombat("matron", "18:10")
+    sim:finishCombat(true)
+    expect(sim.expedition.objectiveComplete and sim.expedition.bossDefeated, "cistern boss should complete boss mission")
+    expect(sim.world:getTile(18, 10, 0).id == "salt_floor", "boss special should clear to location floor")
+    sim.player.x = -2
+    sim.player.y = 1
+    sim.player.facing = "south"
+    local heirlooms = sim.estate.heirlooms
+    runQueued(sim, Simulation.commands.interact())
+    expect(sim.mode == "estate" and sim.estate.heirlooms >= heirlooms + 4, "cistern mission should pay boss reward")
+end
+
+tests[#tests + 1] = function()
     local a = Simulation.new(12)
     local b = Simulation.new(12)
     local commands = {

@@ -26,15 +26,6 @@ local defaultQuirks = {
     arcanist = { "steady_hand", "faint_pulse" },
 }
 
-local objectCells = {
-    { type = "exit", x = -2, y = 2, z = 0, tile = "exit_gate" },
-    { type = "curio", x = 4, y = 0, z = 0, tile = "wire_snare", curio = "wire_snare" },
-    { type = "curio", x = 8, y = 6, z = 0, tile = "camp_marker", curio = "cold_camp" },
-    { type = "curio", x = 16, y = 0, z = 0, tile = "relic_cache", curio = "relic_cache" },
-    { type = "curio", x = 16, y = 6, z = 0, tile = "whispering_idol", curio = "whispering_idol" },
-    { type = "boss", x = 24, y = 0, z = 0, tile = "boss_sigil", encounter = "regent" },
-}
-
 local function copyList(values)
     local result = {}
     for _, value in ipairs(values or {}) do
@@ -636,7 +627,7 @@ function Simulation:startExpedition(locationKey)
     if not location then
         return false
     end
-    self.world = World.new(self.seed)
+    self.world = World.new(self.seed, mission.location)
     self.player.x = location.start.x
     self.player.y = location.start.y
     self.player.z = location.start.z or 0
@@ -1198,7 +1189,7 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
         end
     end
     self.expedition.curiosUsed[key] = true
-    self.world:setTile(x, y, z, { id = "archive_floor", data = 0 })
+    self.world:setTile(x, y, z, { id = self.world:floorTile(), data = 0 })
     self:pushLog(curio.name .. " resolved")
     return true
 end
@@ -1627,6 +1618,17 @@ function Simulation:enemyTurn(enemy)
     return true
 end
 
+function Simulation:clearEncounterSpecial(encounterKey)
+    for _, special in ipairs(self.world:specialsInRect(-999, 999, -999, 999, 0)) do
+        local tileDef = Defs.tile(special.tile)
+        if tileDef.encounter == encounterKey then
+            self.world:setTile(special.x, special.y, special.z or 0, { id = self.world:floorTile(), data = 0 })
+            return true
+        end
+    end
+    return false
+end
+
 function Simulation:finishCombat(victory)
     if not self.combat then
         return false
@@ -1644,9 +1646,11 @@ function Simulation:finishCombat(victory)
             end
             if self.combat.encounter == "regent" then
                 self.expedition.bossDefeated = true
-                self.world:setTile(24, 0, 0, { id = "archive_floor", data = 0 })
                 self.estate.trinkets.quiet_bell = (self.estate.trinkets.quiet_bell or 0) + 1
+            elseif self.combat.encounter == "matron" or self.combat.encounter == "prioress" then
+                self.expedition.bossDefeated = true
             end
+            self:clearEncounterSpecial(self.combat.encounter)
             self:updateObjective()
         end
         self.mode = "expedition"
@@ -1821,12 +1825,21 @@ function Simulation:objectsInRect(minX, maxX, minY, maxY, z)
     if not self.expedition then
         return result
     end
-    for _, object in ipairs(objectCells) do
-        if object.x >= minX and object.x <= maxX and object.y >= minY and object.y <= maxY and (object.z or 0) == (z or 0) then
-            local used = self.expedition.curiosUsed[Grid.key(object.x, object.y, object.z or 0)]
-            if not used then
-                result[#result + 1] = object
-            end
+    for _, object in ipairs(self.world:specialsInRect(minX, maxX, minY, maxY, z or 0)) do
+        local tileDef = Defs.tile(object.tile)
+        local key = Grid.key(object.x, object.y, object.z or 0)
+        local used = self.expedition.curiosUsed[key]
+        local cleared = tileDef.encounter and self.expedition.clearedEncounters[self.world:roomAt(object.x, object.y) or key]
+        if object.tile ~= self.world:floorTile() and not used and not cleared then
+            result[#result + 1] = {
+                type = tileDef.exit and "exit" or (tileDef.encounter and "boss" or "curio"),
+                x = object.x,
+                y = object.y,
+                z = object.z or 0,
+                tile = object.tile,
+                curio = tileDef.curio,
+                encounter = tileDef.encounter,
+            }
         end
     end
     local location = Defs.location(self.expedition.location)

@@ -14,36 +14,6 @@ local function cloneTile(value)
     return { id = value.id, data = value.data or 0 }
 end
 
-local rooms = {
-    { key = "0:0", x = 0, y = 0, w = 3, h = 3 },
-    { key = "8:0", x = 8, y = 0, w = 3, h = 3 },
-    { key = "16:0", x = 16, y = 0, w = 3, h = 3 },
-    { key = "24:0", x = 24, y = 0, w = 3, h = 3 },
-    { key = "8:6", x = 8, y = 6, w = 3, h = 3 },
-    { key = "16:6", x = 16, y = 6, w = 3, h = 3 },
-    { key = "24:6", x = 24, y = 6, w = 3, h = 3 },
-}
-
-local corridors = {
-    { ax = 0, ay = 0, bx = 8, by = 0 },
-    { ax = 8, ay = 0, bx = 16, by = 0 },
-    { ax = 16, ay = 0, bx = 24, by = 0 },
-    { ax = 8, ay = 0, bx = 8, by = 6 },
-    { ax = 8, ay = 6, bx = 16, by = 6 },
-    { ax = 16, ay = 6, bx = 24, by = 6 },
-    { ax = 24, ay = 0, bx = 24, by = 6 },
-}
-
-local specialTiles = {
-    [Grid.key(0, 0, 0)] = "archive_floor",
-    [Grid.key(-2, 2, 0)] = "exit_gate",
-    [Grid.key(4, 0, 0)] = "wire_snare",
-    [Grid.key(8, 6, 0)] = "camp_marker",
-    [Grid.key(16, 0, 0)] = "relic_cache",
-    [Grid.key(16, 6, 0)] = "whispering_idol",
-    [Grid.key(24, 0, 0)] = "boss_sigil",
-}
-
 local function inRoom(x, y, room)
     return math.abs(x - room.x) <= room.w and math.abs(y - room.y) <= room.h
 end
@@ -55,11 +25,21 @@ local function inCorridor(x, y, corridor)
     if corridor.ax == corridor.bx and x == corridor.ax then
         return y >= math.min(corridor.ay, corridor.by) and y <= math.max(corridor.ay, corridor.by)
     end
+    if y == corridor.ay and x >= math.min(corridor.ax, corridor.bx) and x <= math.max(corridor.ax, corridor.bx) then
+        return true
+    end
+    if x == corridor.bx and y >= math.min(corridor.ay, corridor.by) and y <= math.max(corridor.ay, corridor.by) then
+        return true
+    end
     return false
 end
 
-function World.new(seed, overrides)
-    return setmetatable({ seed = seed or 1, overrides = overrides or {}, chunks = {}, chunkRevisions = {} }, World)
+function World.new(seed, locationKey, overrides)
+    if type(locationKey) == "table" and overrides == nil then
+        overrides = locationKey
+        locationKey = "buried_archive"
+    end
+    return setmetatable({ seed = seed or 1, location = locationKey or "buried_archive", overrides = overrides or {}, chunks = {}, chunkRevisions = {} }, World)
 end
 
 function World.floorDiv(value, divisor)
@@ -74,8 +54,21 @@ function World.chunkKey(cx, cy, z)
     return tostring(z or 0) .. ":" .. tostring(cx) .. ":" .. tostring(cy)
 end
 
+function World:layout()
+    local location = Defs.location(self.location) or Defs.location("buried_archive")
+    return location.layout
+end
+
+function World:floorTile()
+    return self:layout().floorTile or "archive_floor"
+end
+
+function World:wallTile()
+    return self:layout().wallTile or "archive_wall"
+end
+
 function World:roomAt(x, y)
-    for _, room in ipairs(rooms) do
+    for _, room in ipairs(self:layout().rooms or {}) do
         if inRoom(x, y, room) then
             return room.key, room
         end
@@ -85,7 +78,7 @@ end
 
 function World:roomCenters()
     local result = {}
-    for _, room in ipairs(rooms) do
+    for _, room in ipairs(self:layout().rooms or {}) do
         result[#result + 1] = { key = room.key, x = room.x, y = room.y }
     end
     return result
@@ -94,7 +87,7 @@ end
 function World:connectedRooms(roomKey)
     local result = {}
     local seen = {}
-    for _, corridor in ipairs(corridors) do
+    for _, corridor in ipairs(self:layout().corridors or {}) do
         local a = tostring(corridor.ax) .. ":" .. tostring(corridor.ay)
         local b = tostring(corridor.bx) .. ":" .. tostring(corridor.by)
         local other = nil
@@ -109,6 +102,31 @@ function World:connectedRooms(roomKey)
         end
     end
     table.sort(result)
+    return result
+end
+
+function World:specialAt(x, y, z)
+    for _, special in ipairs(self:layout().specials or {}) do
+        if special.x == x and special.y == y and (special.z or 0) == (z or 0) then
+            return special
+        end
+    end
+    return nil
+end
+
+function World:specialsInRect(minX, maxX, minY, maxY, z)
+    local result = {}
+    for _, special in ipairs(self:layout().specials or {}) do
+        if special.x >= minX and special.x <= maxX and special.y >= minY and special.y <= maxY and (special.z or 0) == (z or 0) then
+            result[#result + 1] = {
+                x = special.x,
+                y = special.y,
+                z = special.z or 0,
+                tile = special.tile,
+                roomKey = special.roomKey,
+            }
+        end
+    end
     return result
 end
 
@@ -148,29 +166,30 @@ end
 
 function World:generatedTile(x, y, z)
     if (z or 0) ~= 0 then
-        return tile("archive_wall")
+        return tile(self:wallTile())
     end
-    local special = specialTiles[Grid.key(x, y, z)]
+    local special = self:specialAt(x, y, z)
     if special then
-        return tile(special)
+        return tile(special.tile)
     end
-    for _, corridor in ipairs(corridors) do
+    local layout = self:layout()
+    for _, corridor in ipairs(layout.corridors or {}) do
         if inCorridor(x, y, corridor) then
-            return tile("corridor")
+            return tile(layout.corridorTile or "corridor")
         end
     end
-    for _, room in ipairs(rooms) do
+    for _, room in ipairs(layout.rooms or {}) do
         if inRoom(x, y, room) then
             if math.abs(x - room.x) == room.w or math.abs(y - room.y) == room.h then
-                return tile("archive_wall")
+                return tile(layout.wallTile or "archive_wall")
             end
-            if Rng.hash(self.seed + 11017, x, y, z) % 71 == 0 then
-                return tile("black_water")
+            if layout.obstacleTile and layout.obstacleModulo and Rng.hash(self.seed + 11017, x, y, z) % layout.obstacleModulo == 0 then
+                return tile(layout.obstacleTile)
             end
-            return tile("archive_floor")
+            return tile(layout.floorTile or "archive_floor")
         end
     end
-    return tile("archive_wall")
+    return tile(layout.wallTile or "archive_wall")
 end
 
 function World:getTile(x, y, z)
@@ -221,7 +240,7 @@ function World:snapshot()
     table.sort(chunks, function(a, b)
         return a.key < b.key
     end)
-    return { seed = self.seed, chunks = chunks, tiles = tiles }
+    return { seed = self.seed, location = self.location, chunks = chunks, tiles = tiles }
 end
 
 function World.fromSnapshot(snapshot)
@@ -229,7 +248,7 @@ function World.fromSnapshot(snapshot)
     for _, value in ipairs(snapshot.tiles or {}) do
         overrides[value.key] = tile(value.id, value.data)
     end
-    local world = World.new(snapshot.seed, overrides)
+    local world = World.new(snapshot.seed, snapshot.location or "buried_archive", overrides)
     for _, chunk in ipairs(snapshot.chunks or {}) do
         local key = chunk.key or World.chunkKey(chunk.cx, chunk.cy, chunk.z or 0)
         world.chunks[key] = world:generateChunk(chunk.cx, chunk.cy, chunk.z or 0)
