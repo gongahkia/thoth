@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -35,6 +35,20 @@ settings-smoke:
 	grep -q "settings-smoke-adjust=true" $$tmp; \
 	grep -q "settings-smoke-bind=true" $$tmp; \
 	grep -q "settings-smoke-toggle=true" $$tmp; \
+	rm -f $$tmp
+
+estate-smoke:
+	@set -e; \
+	tmp=$$(mktemp); \
+	if command -v xvfb-run >/dev/null 2>&1; then \
+		xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --estate-smoke | tee $$tmp; \
+	else \
+		$(LOVE) . --estate-smoke | tee $$tmp; \
+	fi; \
+	grep -q "estate-smoke-mode=estate" $$tmp; \
+	grep -q "estate-smoke-buildings=4" $$tmp; \
+	grep -q "estate-smoke-roster=" $$tmp; \
+	grep -q "estate-smoke-missions=" $$tmp; \
 	rm -f $$tmp
 
 render-smoke:

@@ -1641,11 +1641,17 @@ function Render.drawEstatePanel(sim, app)
     if sim.estate.currentEvent then
         love.graphics.print("event " .. Defs.townEvent(sim.estate.currentEvent).name, x + 220, y + 58)
     end
-    local upgrades = {}
-    for _, key in ipairs(Defs.estateBuildingOrder) do
-        upgrades[#upgrades + 1] = key .. ":" .. sim:buildingLevel(key)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Buildings", x + 10, y + 82)
+    for index, key in ipairs(Defs.estateBuildingOrder) do
+        local building = Defs.estateBuilding(key)
+        local level = sim:buildingLevel(key)
+        local cost = (building.heirloomCost or 0) * (level + 1)
+        local bx = x + 10 + ((index - 1) % 2) * 154
+        local by = y + 104 + math.floor((index - 1) / 2) * 34
+        local label = string.sub(building.name, 1, 10) .. " " .. level .. "/" .. building.maxLevel .. " " .. cost .. "h"
+        addEstateAction(app, label, bx, by, 148, { action = "upgradeBuilding", buildingKey = key, enabled = level < building.maxLevel and sim.estate.heirlooms >= cost })
     end
-    love.graphics.printf(table.concat(upgrades, "  "), x + 10, y + 78, 312)
     local trinkets = {}
     for _, key in ipairs(Defs.trinketOrder) do
         local count = (sim.estate.trinkets or {})[key] or 0
@@ -1653,19 +1659,19 @@ function Render.drawEstatePanel(sim, app)
             trinkets[#trinkets + 1] = key .. ":" .. count
         end
     end
-    love.graphics.printf(#trinkets > 0 and table.concat(trinkets, "  ") or "no trinkets", x + 10, y + 100, 312)
-    love.graphics.print("Market", x + 10, y + 122)
+    love.graphics.printf(#trinkets > 0 and table.concat(trinkets, "  ") or "no trinkets", x + 10, y + 174, 312)
+    love.graphics.print("Market", x + 10, y + 196)
     for index, offer in ipairs(sim.estate.trinketStock or {}) do
         local trinket = Defs.trinket(offer.trinket)
-        addEstateAction(app, (trinket.short or offer.trinket) .. " " .. offer.price, x + 70 + (index - 1) * 112, y + 116, 104, { action = "buyTrinket", stockIndex = index, enabled = sim.estate.gold >= (offer.price or 0) })
+        addEstateAction(app, (trinket.short or offer.trinket) .. " " .. offer.price, x + 70 + (index - 1) * 112, y + 190, 104, { action = "buyTrinket", stockIndex = index, enabled = sim.estate.gold >= (offer.price or 0) })
     end
-    love.graphics.printf("cart " .. stacksText(sim.estate.provisionCart), x + 10, y + 146, 400)
+    love.graphics.printf("cart " .. stacksText(sim.estate.provisionCart), x + 10, y + 220, 400)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Missions", x + 10, y + 174)
+    love.graphics.print("Missions", x + 10, y + 246)
     for index, key in ipairs(sim:availableMissionKeys()) do
         local mission = Defs.mission(key)
         local bx = x + 10 + ((index - 1) % 2) * 205
-        local by = y + 196 + math.floor((index - 1) / 2) * 44
+        local by = y + 268 + math.floor((index - 1) / 2) * 44
         love.graphics.setColor(0.13, 0.16, 0.15, 1)
         love.graphics.rectangle("fill", bx, by, 196, 38)
         love.graphics.setColor(0.42, 0.48, 0.36, 1)

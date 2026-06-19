@@ -1857,6 +1857,7 @@ tests[#tests + 1] = function()
                 { x = 90, y = 0, w = 20, h = 20, action = "lockQuirk", heroId = hero.id, quirkKey = "iron_nerves" },
                 { x = 120, y = 0, w = 20, h = 20, action = "recoverHero", heroId = hero.id, activityKey = "quiet_rest" },
                 { x = 150, y = 0, w = 20, h = 20, action = "sellTrinket", trinketKey = "cracked_lens" },
+                { x = 180, y = 0, w = 20, h = 20, action = "upgradeBuilding", buildingKey = "stagecoach" },
             },
         },
     }
@@ -1879,6 +1880,9 @@ tests[#tests + 1] = function()
     Input.mousepressed(sim, app, 155, 5, 1)
     sim:step()
     expect(sim.estate.trinkets.cracked_lens == 0 and sim.estate.gold == gold + Defs.trinket("cracked_lens").value, "estate sell button should sell exact trinket")
+    Input.mousepressed(sim, app, 185, 5, 1)
+    sim:step()
+    expect(sim:buildingLevel("stagecoach") == 1, "estate building button should upgrade building")
 end
 
 tests[#tests + 1] = function()

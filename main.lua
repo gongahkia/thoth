@@ -359,17 +359,39 @@ local function printSettingsSmoke(state)
     print("settings-smoke-toggle=" .. tostring(actions.toggle == true))
 end
 
+local function printEstateSmoke(state)
+    if not state.estateSmoke or state.estateSmokePrinted then
+        return
+    end
+    state.estateSmokePrinted = true
+    local buildingButtons = 0
+    for _, hitbox in ipairs((state.ui and state.ui.estateActionButtons) or {}) do
+        if hitbox.action == "upgradeBuilding" then
+            buildingButtons = buildingButtons + 1
+        end
+    end
+    print("estate-smoke-mode=" .. tostring(sim and sim.mode))
+    print("estate-smoke-buildings=" .. tostring(buildingButtons))
+    print("estate-smoke-roster=" .. tostring(#((state.ui and state.ui.rosterButtons) or {})))
+    print("estate-smoke-missions=" .. tostring(#((state.ui and state.ui.missionButtons) or {})))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
     local renderBenchmark = hasArg(args, "--render-benchmark")
     local titleSmoke = hasArg(args, "--title-smoke")
     local settingsSmoke = hasArg(args, "--settings-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke
+    local estateSmoke = hasArg(args, "--estate-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
         setupRenderBenchmark(sim)
+    end
+    if estateSmoke then
+        sim:endExpedition(true)
+        sim.estate.heirlooms = math.max(sim.estate.heirlooms or 0, 20)
     end
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
@@ -390,6 +412,7 @@ function love.load(args)
         renderSmoke = renderSmoke,
         titleSmoke = titleSmoke,
         settingsSmoke = settingsSmoke,
+        estateSmoke = estateSmoke,
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -458,6 +481,7 @@ function love.draw()
     local started = app.renderBenchmark and love.timer.getTime() or nil
     Render.draw(sim, app)
     printRenderSmoke(app)
+    printEstateSmoke(app)
     if app.renderBenchmark then
         local elapsedMs = (love.timer.getTime() - started) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1

@@ -32,6 +32,11 @@ jobs:
           SDL_AUDIODRIVER: dummy
         run: make settings-smoke
 
+      - name: Run estate smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make estate-smoke
+
       - name: Run render3d smoke
         env:
           SDL_AUDIODRIVER: dummy
