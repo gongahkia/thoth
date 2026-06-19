@@ -6,6 +6,7 @@ local Save = require("src.game.save")
 local Replay = require("src.game.replay")
 local Input = require("src.app.input")
 local Render = require("src.app.render")
+local Audio = require("src.app.audio")
 local Settings = require("src.app.settings")
 local Achievements = require("src.app.achievements")
 local SpritePipeline = require("src.app.sprite_pipeline")
@@ -80,6 +81,58 @@ local function reachEntryCombat(sim)
 end
 
 local tests = {}
+
+tests[#tests + 1] = function()
+    local function fakeSource()
+        return {
+            volume = 0,
+            plays = 0,
+            stops = 0,
+            looping = nil,
+            setVolume = function(self, volume)
+                self.volume = volume
+            end,
+            setLooping = function(self, looping)
+                self.looping = looping
+            end,
+            play = function(self)
+                self.plays = self.plays + 1
+            end,
+            stop = function(self)
+                self.stops = self.stops + 1
+            end,
+        }
+    end
+    local estateSource = fakeSource()
+    local combatSource = fakeSource()
+    local bank = {
+        __music = {
+            manifest = { fadeSeconds = 2, contexts = { estate = "estate", combat = "combat_normal" } },
+            tracks = {
+                estate = { key = "estate", source = estateSource, loop = true },
+                combat_normal = { key = "combat_normal", source = combatSource, loop = true },
+            },
+            fadeSeconds = 2,
+            fade = 0,
+        },
+    }
+    Audio.applySettings(bank, { masterVolume = 0.5, musicVolume = 0.8, sfxVolume = 1 })
+    expect(Audio.setMusicContext(bank, "estate", 0) == "estate", "music should resolve estate context")
+    expect(estateSource.plays == 1 and estateSource.looping == true, "music should start first context")
+    expect(math.abs(estateSource.volume - 0.4) < 0.001, "music should apply master/music volume")
+    Audio.setMusicContext(bank, "combat", 2)
+    Audio.updateMusic(bank, 1)
+    expect(math.abs(estateSource.volume - 0.2) < 0.001, "music should fade current track down")
+    expect(math.abs(combatSource.volume - 0.2) < 0.001, "music should fade next track up")
+    Audio.updateMusic(bank, 1)
+    expect(estateSource.stops == 1 and math.abs(combatSource.volume - 0.4) < 0.001, "music should finish crossfade")
+    Audio.setMusicContext(bank, "estate", 2)
+    Audio.setMusicContext(bank, "combat", 2)
+    expect(estateSource.stops == 2, "music should stop superseded next track")
+    expect(Audio.contextForState({ uiState = "game" }, { mode = "expedition", expedition = { torch = 20 } }) == "expedition_tense", "low torch should select tense music")
+    expect(Audio.contextForState({ uiState = "game" }, { mode = "combat", combat = { enemies = { { kind = "vault_regent" } } } }) == "boss", "boss combat should select boss music")
+    expect(Audio.contextForState({ uiState = "credits" }, {}) == "credits", "credits should select credits music")
+end
 
 tests[#tests + 1] = function()
     local plan = SpritePipeline.plan(128, 80, { frameWidth = 16, frameHeight = 16 })

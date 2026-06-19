@@ -1143,6 +1143,8 @@ function love.load(args)
     }
     refreshContinueState(app)
     Audio.applySettings(app.audio, app.settings)
+    Audio.setMusicContext(app.audio, Audio.contextForState(app, sim), 0)
+    Audio.updateMusic(app.audio, 0)
     if curioSmoke then
         app.curioModal = Render.curioModalForTarget(sim)
     end
@@ -1169,6 +1171,7 @@ function love.update(dt)
         return
     end
     app.titleTime = (app.titleTime or 0) + dt
+    Audio.updateForState(app.audio, dt, app, sim)
     Achievements.updateToasts(app, dt)
     if app.uiPulse then
         app.uiPulse.t = (app.uiPulse.t or 0) - dt

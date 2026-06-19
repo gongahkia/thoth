@@ -101,7 +101,6 @@ Goal: build every missing player-facing screen. Game must boot from title → lo
 
 Goal: replace `assets/sprites/thoth_atlas.png` (single 128×80 placeholder) with cohesive OGA pack + CC0 3D world geometry.
 
-- [ ] 3.12 Wire music tracks into `src/app/audio.lua` with crossfade between scene contexts (16h)
 - [ ] 3.13 Expand SFX library: combat hits per damage type, footsteps per tile type, UI clicks, dialogue chirps (20h)
 - [ ] 3.14 Build asset-attribution generator: auto-emit credits screen text from `docs/asset-licenses.md` (4h)
 - [ ] 3.15 Verify no asset license violations (no CC-BY without attribution, no CC-NC, no questionable AI-generated content if any) (2h)
