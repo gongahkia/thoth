@@ -12,8 +12,8 @@
 - Playable vertical slice across the Buried Archive, Salt Cistern, and Ember Warrens.
 - Four-hero default roster with eight recruitable classes: Warden, Duelist, Mender, Arcanist, Harrier, Chirurgeon, Exile, Lamplighter.
 - Expedition loop: move, scout rooms, manage light/provisions/hunger, resolve curios and traps, gather/activate quest objects, camp, fight rank-based encounters, return to estate.
-- Combat loop: four party ranks, enemy ranks, initiative, enemy skills, HP, stress, bleed/daze/mark, Death's Door, resolve checks, active afflictions, one virtue, retreat, permadeath.
-- Estate loop: carry gold/heirlooms home, recruit heroes, assign party ranks, provision expeditions, equip trinkets, train skills/gear, upgrade buildings, treat quirks, recover stressed heroes.
+- Combat loop: four party ranks, enemy ranks, initiative, enemy skills, HP, stress, bleed/daze/mark, Death's Door, resolve checks, active afflictions/virtues, retreat, permadeath.
+- Estate loop: carry gold/heirlooms home, recruit heroes, assign party ranks, provision expeditions, equip trinkets, train skills/gear, upgrade buildings, treat or lock quirks, recover stressed heroes.
 
 ## Done
 
@@ -21,7 +21,7 @@
 - Replaced simulation with deterministic estate, expedition, curio, camping, stress, resolve, and rank combat state.
 - Added estate roster recruitment, rank assignment, provisioning, trinkets, quirks, upgrades, and mission rewards.
 - Added enemy skill AI, Death's Door, hero statuses, hunger checks, low-light pressure, room scouting, camp respite skills, and mission objectives.
-- Added multiple dungeon locations, location-specific enemies/bosses/curios, gather/activate missions, diseases and treatment, combat target hitboxes, estate mouse controls, loot capacity, estate week cadence, and town events.
+- Added multiple dungeon locations, location-specific enemies/bosses/curios, gather/activate missions, diseases and treatment, combat target hitboxes, estate mouse controls, exact roster controls, loot capacity, estate week cadence, town events, quirk growth/locking, and virtue variety.
 - Preserved chunked `World` snapshots and isometric render projection/cache APIs.
 - Bumped save/replay headers to v2 and made old versions fail explicitly.
 - Replaced active tests and benchmark with RPG coverage.
@@ -30,6 +30,6 @@
 ## Next
 
 - Add more layouts, more bosses, and more long-form campaign pressure.
-- Add richer estate UX for browsing the full roster and choosing exact trinkets/treatments.
-- Add more quirks, virtues, diseases, trinkets, town events, and location-specific provision tuning.
+- Add richer estate UX for filtering/sorting the roster and comparing hero progression.
+- Add more diseases, trinkets, town events, and location-specific provision tuning.
 - Add authored visual/audio cues for RPG actions when assets are available.

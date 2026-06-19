@@ -90,6 +90,7 @@ local function newHero(id, classKey, name, quirks)
         weapon = 0,
         armor = 0,
         quirks = copyList(quirks or defaultQuirks[classKey] or {}),
+        lockedQuirks = {},
         diseases = {},
         trinkets = { false, false },
         statuses = {},
@@ -266,6 +267,10 @@ function Simulation.commands.treatQuirk(heroId, quirkKey)
     return { type = "treatQuirk", heroId = heroId, quirkKey = quirkKey }
 end
 
+function Simulation.commands.lockQuirk(heroId, quirkKey)
+    return { type = "lockQuirk", heroId = heroId, quirkKey = quirkKey }
+end
+
 function Simulation.commands.treatDisease(heroId, diseaseKey)
     return { type = "treatDisease", heroId = heroId, diseaseKey = diseaseKey }
 end
@@ -356,6 +361,9 @@ function Simulation:apply(command)
     if command.type == "treatQuirk" then
         return self:treatQuirk(command.heroId, command.quirkKey)
     end
+    if command.type == "lockQuirk" then
+        return self:lockQuirk(command.heroId, command.quirkKey)
+    end
     if command.type == "treatDisease" then
         return self:treatDisease(command.heroId, command.diseaseKey)
     end
@@ -421,6 +429,43 @@ function Simulation:heroModifier(hero, key)
         total = total + ((trinket and trinket[key]) or 0)
     end
     return total
+end
+
+function Simulation:quirksByKind(kind)
+    local result = {}
+    for _, quirkKey in ipairs(Defs.quirkOrder) do
+        local quirk = Defs.quirk(quirkKey)
+        if quirk and quirk.kind == kind then
+            result[#result + 1] = quirkKey
+        end
+    end
+    return result
+end
+
+function Simulation:gainQuirk(hero, kind)
+    if not hero or not hero.alive then
+        return false
+    end
+    local pool = self:quirksByKind(kind)
+    for offset = 1, #pool do
+        local quirkKey = pool[((self:roll(1, #pool) + offset - 2) % #pool) + 1]
+        if not contains(hero.quirks, quirkKey) then
+            if #hero.quirks >= 5 then
+                for index, existing in ipairs(hero.quirks) do
+                    if not (hero.lockedQuirks and hero.lockedQuirks[existing]) then
+                        hero.quirks[index] = quirkKey
+                        self:pushLog(hero.name .. " changed: " .. Defs.quirk(quirkKey).name)
+                        return true
+                    end
+                end
+                return false
+            end
+            hero.quirks[#hero.quirks + 1] = quirkKey
+            self:pushLog(hero.name .. " gained " .. Defs.quirk(quirkKey).name)
+            return true
+        end
+    end
+    return false
 end
 
 function Simulation:heroSpeed(hero)
@@ -594,7 +639,7 @@ end
 function Simulation:resolveCheck(hero)
     local roll = self:roll(1, 100)
     if roll <= self:heroResolve(hero) then
-        hero.virtue = "focused"
+        hero.virtue = Defs.virtueOrder[((roll - 1) % #Defs.virtueOrder) + 1]
         self:healPartyStress(4)
         self:pushLog(hero.name .. " steadied")
     else
@@ -727,6 +772,9 @@ function Simulation:endExpedition(retreat)
             if hero and hero.alive then
                 self:awardXp(hero, 1)
                 self:healStress(hero, 8)
+                if self:roll(1, 100) <= 45 then
+                    self:gainQuirk(hero, "positive")
+                end
             end
         end
         self:pushLog("mission complete")
@@ -736,6 +784,9 @@ function Simulation:endExpedition(retreat)
             local hero = self:heroAtRank(rank)
             if hero and hero.alive then
                 self:addStress(hero, 8)
+                if self:roll(1, 100) <= 55 then
+                    self:gainQuirk(hero, "negative")
+                end
             end
         end
         self:pushLog("expedition abandoned")
@@ -1052,6 +1103,30 @@ function Simulation:treatQuirk(heroId, quirkKey)
     hero.quirks = kept
     hero.hp = math.min(hero.hp, self:maxHp(hero))
     self:pushLog(hero.name .. " treated " .. quirk.name)
+    return true
+end
+
+function Simulation:lockQuirk(heroId, quirkKey)
+    if self.mode ~= "estate" then
+        return false
+    end
+    local hero = self:heroById(heroId)
+    local quirk = Defs.quirk(quirkKey)
+    if not hero or not hero.alive or not quirk or quirk.kind ~= "positive" or not contains(hero.quirks, quirkKey) then
+        return false
+    end
+    hero.lockedQuirks = hero.lockedQuirks or {}
+    if hero.lockedQuirks[quirkKey] then
+        return false
+    end
+    local def = Defs.estateBuilding("infirmary")
+    local cost = math.max(0, def.quirkLockCost - self:buildingLevel("infirmary") * def.discountPerLevel)
+    if self.estate.gold < cost then
+        return false
+    end
+    self.estate.gold = self.estate.gold - cost
+    hero.lockedQuirks[quirkKey] = true
+    self:pushLog(hero.name .. " locked " .. quirk.name)
     return true
 end
 
@@ -2093,6 +2168,7 @@ function Simulation:partyState()
                 recovering = hero.recovering,
                 statuses = copyList(hero.statuses),
                 quirks = copyList(hero.quirks),
+                lockedQuirks = copyMap(hero.lockedQuirks),
                 diseases = copyList(hero.diseases),
                 trinkets = copyList(hero.trinkets),
             }
@@ -2239,6 +2315,7 @@ function Simulation:snapshot()
             weapon = hero.weapon,
             armor = hero.armor,
             quirks = copyList(hero.quirks),
+            lockedQuirks = copyMap(hero.lockedQuirks),
             diseases = copyList(hero.diseases),
             trinkets = copyList(hero.trinkets),
             statuses = copyList(hero.statuses),
@@ -2393,6 +2470,7 @@ function Simulation.fromSnapshot(snapshot)
         hero.weapon = value.weapon or 0
         hero.armor = value.armor or 0
         hero.quirks = copyList(value.quirks or hero.quirks)
+        hero.lockedQuirks = copyMap(value.lockedQuirks or hero.lockedQuirks)
         hero.diseases = copyList(value.diseases or hero.diseases)
         hero.trinkets = copyList(value.trinkets or hero.trinkets)
         hero.trinkets[1] = hero.trinkets[1] or false

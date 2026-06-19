@@ -7,6 +7,7 @@ local Replay = require("src.game.replay")
 local Input = require("src.app.input")
 local Render = require("src.app.render")
 local World = require("src.game.world")
+local Defs = require("src.game.defs")
 
 local function expect(value, message)
     if not value then
@@ -21,6 +22,15 @@ end
 local function runQueued(sim, command)
     sim:queue(command)
     sim:step()
+end
+
+local function contains(list, value)
+    for _, entry in ipairs(list or {}) do
+        if entry == value then
+            return true
+        end
+    end
+    return false
 end
 
 local function reachEntryCombat(sim)
@@ -563,6 +573,35 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(63)
+    local hero = sim:heroAtRank(1)
+    hero.quirks = { "iron_nerves", "quick_reflexes" }
+    expect(sim:gainQuirk(hero, "positive"), "gain quirk should add new positive quirk")
+    expect(#hero.quirks == 3, "gain quirk should grow quirk list")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(64)
+    sim:endExpedition(true)
+    sim.estate.gold = 200
+    local hero = sim:heroAtRank(1)
+    hero.quirks = { "iron_nerves", "quick_reflexes", "steady_hand", "field_reader", "hard_skinned" }
+    runQueued(sim, Simulation.commands.lockQuirk(hero.id, "iron_nerves"))
+    expect(hero.lockedQuirks.iron_nerves == true and sim.estate.gold == 155, "lock quirk should spend gold and mark positive quirk")
+    sim:gainQuirk(hero, "negative")
+    expect(contains(hero.quirks, "iron_nerves"), "locked quirk should not be replaced")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(65)
+    local hero = sim:heroAtRank(1)
+    hero.stress = 99
+    hero.class = "warden"
+    sim:addStress(hero, 2)
+    expect(hero.virtue == nil or Defs.virtue(hero.virtue), "resolve virtue should be from registry")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(49)
     local hero = sim:heroAtRank(1)
     sim:contractDisease(hero, "brine_rot")
@@ -677,6 +716,7 @@ tests[#tests + 1] = function()
                 { x = 0, y = 0, w = 20, h = 20, action = "upgradeGear", heroId = hero.id, kind = "weapon" },
                 { x = 30, y = 0, w = 20, h = 20, action = "treatDisease", heroId = hero.id, diseaseKey = "salt_cough" },
                 { x = 60, y = 0, w = 20, h = 20, action = "equipTrinket", heroId = hero.id, trinketKey = "ember_pin", slot = 1 },
+                { x = 90, y = 0, w = 20, h = 20, action = "lockQuirk", heroId = hero.id, quirkKey = "iron_nerves" },
             },
         },
     }
@@ -689,6 +729,9 @@ tests[#tests + 1] = function()
     Input.mousepressed(sim, app, 65, 5, 1)
     sim:step()
     expect(hero.trinkets[1] == "ember_pin", "estate trinket button should equip trinket")
+    Input.mousepressed(sim, app, 95, 5, 1)
+    sim:step()
+    expect(hero.lockedQuirks.iron_nerves == true, "estate lock button should lock positive quirk")
 end
 
 tests[#tests + 1] = function()

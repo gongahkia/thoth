@@ -263,6 +263,8 @@ function Input.mousepressed(sim, app, x, y, button)
                 sim:queue(Simulation.commands.recoverHero(hitbox.heroId))
             elseif hitbox.action == "treatQuirk" then
                 sim:queue(Simulation.commands.treatQuirk(hitbox.heroId, hitbox.quirkKey))
+            elseif hitbox.action == "lockQuirk" then
+                sim:queue(Simulation.commands.lockQuirk(hitbox.heroId, hitbox.quirkKey))
             elseif hitbox.action == "treatDisease" then
                 sim:queue(Simulation.commands.treatDisease(hitbox.heroId, hitbox.diseaseKey))
             elseif hitbox.action == "assignParty" then

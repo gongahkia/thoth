@@ -67,14 +67,24 @@ Registry.quirks = {
     quick_reflexes = { name = "Quick Reflexes", kind = "positive", speed = 1 },
     steady_hand = { name = "Steady Hand", kind = "positive", damageBonus = 1 },
     field_reader = { name = "Field Reader", kind = "positive", resolve = 6 },
+    hard_skinned = { name = "Hard Skinned", kind = "positive", damageTaken = -1 },
+    night_eyes = { name = "Night Eyes", kind = "positive", speed = 1, stressTaken = 1 },
+    steady_pulse = { name = "Steady Pulse", kind = "positive", healBonus = 1 },
+    gallows_humor = { name = "Gallows Humor", kind = "positive", stressTaken = -2, resolve = -3 },
     gloomy = { name = "Gloomy", kind = "negative", stressTaken = 2 },
     brittle = { name = "Brittle", kind = "negative", damageTaken = 1 },
     faint_pulse = { name = "Faint Pulse", kind = "negative", maxHp = -2 },
     soft_voice = { name = "Soft Voice", kind = "negative", healBonus = -1 },
+    shaky_hands = { name = "Shaky Hands", kind = "negative", damageBonus = -1 },
+    candle_shy = { name = "Candle Shy", kind = "negative", resolve = -5 },
+    old_wound = { name = "Old Wound", kind = "negative", maxHp = -3 },
+    restless = { name = "Restless", kind = "negative", stressTaken = 1, speed = 1 },
 }
 Registry.quirkOrder = {
     "iron_nerves", "quick_reflexes", "steady_hand", "field_reader",
+    "hard_skinned", "night_eyes", "steady_pulse", "gallows_humor",
     "gloomy", "brittle", "faint_pulse", "soft_voice",
+    "shaky_hands", "candle_shy", "old_wound", "restless",
 }
 
 Registry.diseases = {
@@ -403,8 +413,11 @@ Registry.afflictions = {
 Registry.afflictionOrder = { "panic", "spite", "numb", "reckless" }
 Registry.virtues = {
     focused = { name = "Focused", stressTaken = -2, damageBonus = 1 },
+    stalwart = { name = "Stalwart", stressTaken = -3, damageTaken = -1 },
+    inspired = { name = "Inspired", healBonus = 1, resolve = 8 },
+    fierce = { name = "Fierce", damageBonus = 2, stressTaken = 1 },
 }
-Registry.virtueOrder = { "focused" }
+Registry.virtueOrder = { "focused", "stalwart", "inspired", "fierce" }
 
 Registry.curios = {
     relic_cache = { name = "Relic Cache", item = "skeleton_key", loot = { relic = 2, coin = 45 }, stress = -3 },
@@ -669,7 +682,7 @@ Registry.estateBuildings = {
     stagecoach = { name = "Stagecoach", maxLevel = 3, heirloomCost = 2, rosterLimit = 6, rosterPerLevel = 2, recruitSlots = 3, slotsPerLevel = 1, recruitCost = 20, discountPerLevel = 3 },
     guild = { name = "Guild", maxLevel = 3, heirloomCost = 3, maxSkillLevel = 2, skillMaxPerLevel = 1, skillUpgradeCost = 30 },
     forge = { name = "Forge", maxLevel = 3, heirloomCost = 3, maxGearLevel = 1, gearMaxPerLevel = 1, gearUpgradeCost = 35 },
-    infirmary = { name = "Infirmary", maxLevel = 3, heirloomCost = 2, recoverCost = 25, quirkTreatmentCost = 35, diseaseTreatmentCost = 30, discountPerLevel = 4 },
+    infirmary = { name = "Infirmary", maxLevel = 3, heirloomCost = 2, recoverCost = 25, quirkTreatmentCost = 35, quirkLockCost = 45, diseaseTreatmentCost = 30, discountPerLevel = 4 },
 }
 Registry.estateBuildingOrder = { "stagecoach", "guild", "forge", "infirmary" }
 

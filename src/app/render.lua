@@ -510,6 +510,10 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
         if quirk and quirk.kind == "negative" then
             addEstateAction(app, key, x + (index % 3) * 82, treatY + 22 + math.floor(index / 3) * 34, 76, { action = "treatQuirk", heroId = hero.id, quirkKey = key, enabled = true })
             index = index + 1
+        elseif quirk and quirk.kind == "positive" then
+            local locked = hero.lockedQuirks and hero.lockedQuirks[key]
+            addEstateAction(app, (locked and "*" or "+") .. key, x + (index % 3) * 82, treatY + 22 + math.floor(index / 3) * 34, 76, { action = "lockQuirk", heroId = hero.id, quirkKey = key, enabled = not locked })
+            index = index + 1
         end
     end
     for _, key in ipairs(hero.diseases or {}) do
