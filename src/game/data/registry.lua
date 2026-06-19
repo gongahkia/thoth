@@ -2231,8 +2231,9 @@ Registry.graveyardEpitaphs = {
     salt_cistern = { "The cistern closed softly over the witness.", "Pressure wrote the last line." },
     ember_warrens = { "Ash took the breath; glass kept the shape.", "The vow burned longer than the body." },
     estate = { "The road home ended one door short.", "Paid in full, recorded without mercy." },
+    merchant = { "The ledger closed around the hand that held it.", "Profit survived; the Merchant did not." },
 }
-Registry.graveyardEpitaphOrder = { "buried_archive", "salt_cistern", "ember_warrens", "estate" }
+Registry.graveyardEpitaphOrder = { "buried_archive", "salt_cistern", "ember_warrens", "estate", "merchant" }
 Registry.epitaphBanks = {
     zone_epitaphs = { zones = Registry.graveyardEpitaphOrder },
 }

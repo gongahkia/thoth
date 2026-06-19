@@ -1401,6 +1401,13 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(223)
+    sim.estate.graveyard = { { id = 1, name = "Leto", class = "merchant" } }
+    local journal = Render.journalSummary(sim)
+    expect(journal.epitaphs[1].className == "Merchant" and journal.epitaphs[1].epitaph:find("ledger", 1, true), "merchant graveyard should use class epitaph")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(26)
     sim.expedition.roomsScouted = 3
     sim.expedition.objectiveComplete = true

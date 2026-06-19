@@ -1461,7 +1461,8 @@ function Render.journalSummary(sim)
     local epitaphs = {}
     for index, death in ipairs((sim and sim.estate and sim.estate.graveyard) or {}) do
         local location = death.location or "estate"
-        local lines = Defs.graveyardEpitaphsFor(location) or Defs.graveyardEpitaphsFor("estate") or {}
+        local epitaphKey = death.class and Defs.graveyardEpitaphsFor(death.class) and death.class or location
+        local lines = Defs.graveyardEpitaphsFor(epitaphKey) or Defs.graveyardEpitaphsFor("estate") or {}
         local line = lines[((death.id or index) - 1) % math.max(1, #lines) + 1] or "recorded without epitaph"
         local class = Defs.heroClass(death.class) or {}
         epitaphs[#epitaphs + 1] = {

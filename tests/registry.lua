@@ -534,6 +534,7 @@ expect(Defs.recruitBarksFor("merchant")[1]:find("ledger", 1, true), "merchant re
 for _, key in ipairs(Defs.graveyardEpitaphOrder) do
     expect(#Defs.graveyardEpitaphsFor(key) >= 2, "graveyard epitaphs missing " .. key)
 end
+expect(Defs.graveyardEpitaphsFor("merchant")[1]:find("ledger", 1, true), "merchant graveyard epitaph missing")
 for _, key in ipairs(Defs.estateFixtureOrder) do
     local fixture = Defs.estateFixture(key)
     expect(fixture and #fixture.barks >= 2, "estate fixture barks missing " .. key)
