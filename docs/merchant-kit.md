@@ -104,7 +104,23 @@ Purpose: reverse-pressure. As the Estate degrades, the Merchant extracts better 
 
 ## Unlock
 
-Unlock after Buried Archive Tier III completion: `archive_audit_regent` complete or Buried Archive boss killed.
+Unlock after Buried Archive Tier III completion.
+
+Gate predicate for the event:
+
+- `campaign.completedMissions.archive_regent == true`, or
+- `campaign.bossKills.buried_archive == true`
+
+Do not unlock from `locationProgress.buried_archive` alone. The Merchant should appear only after the Vault Regent is defeated or equivalent saved boss completion is present.
+
+Event design for implementation:
+
+- Event key: `merchant_ledger_offer`
+- Unlock flag: `merchant_ledger_accepted`
+- Class rule target: `merchant = { eventFlag = "merchant_ledger_accepted", reason = "Defeat the Vault Regent, then accept the ledger." }`
+- When the gate predicate is true and the unlock flag is absent, queue an Estate return event before recruit refill.
+- Accepting the event sets the unlock flag, injects one Merchant recruit into the stagecoach, then allows normal recruit generation to include `merchant`.
+- Declining should keep the event available on later Estate returns; no permanent missable class unlock.
 
 ## Writing Hooks
 
