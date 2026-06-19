@@ -1279,7 +1279,11 @@ function Render.gameOverSummary(sim)
         reason = campaign.victory and "victory" or (campaign.lossReason or "lost"),
         route = routeKey,
         routeName = route.name or routeKey,
+        routeAlias = route.alias or routeKey,
+        routeCondition = route.condition or "",
+        routeResult = route.result or "",
         copy = sim and sim.endingScreenCopy and sim:endingScreenCopy(routeKey) or "",
+        routes = sim and sim.endingRouteStatus and sim:endingRouteStatus() or {},
         week = estate.week or 1,
         renown = campaign.renown or 0,
         dread = campaign.dread or 0,
@@ -1367,7 +1371,7 @@ function Render.drawGameOver(sim, app)
         love.graphics.print(faction.state .. " (" .. tostring(faction.value) .. ")", width * 0.74, 238 + (index - 1) * 28)
     end
     love.graphics.setColor(0.62, 0.66, 0.58, 1)
-    love.graphics.printf(summary.copy or "", width * 0.52, 406, width * 0.38)
+    love.graphics.printf((summary.routeCondition or "") .. "\n" .. (summary.routeResult or "") .. "\n\n" .. (summary.copy or ""), width * 0.52, 406, width * 0.38)
     love.graphics.printf(app.gameOverStatus or "", 80, height - 130, width - 160, "center")
     for index, item in ipairs(items) do
         drawGameOverButton(app, item, app.ui.gameOverButtons[index])

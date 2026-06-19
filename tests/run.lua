@@ -1754,6 +1754,13 @@ tests[#tests + 1] = function()
     expect(sim:resolveEndingRoute("victory") == "estate_seal", "default victory should route to estate seal")
     sim.estate.campaign.flags.repairMissions = 3
     expect(sim:resolveEndingRoute("victory") == "repair_compact", "repair-heavy victory should route to repair compact")
+    sim.estate.campaign.flags.extractMissions = 4
+    expect(sim:resolveEndingRoute("victory") == "estate_seal", "extract majority should keep victory on estate seal")
+    sim.estate.campaign.flags.extractMissions = 0
+    sim.estate.campaign.bossKills = { buried_archive = true, salt_cistern = true, ember_warrens = true }
+    local routes = sim:endingRouteStatus()
+    expect(#routes == 4 and routes[1].alias == "seal" and routes[2].alias == "repair", "ending route status should expose four route aliases")
+    expect(sim:endingScreenCopy("repair_compact"):find("Repair Compact", 1, true), "repair route copy should be polished")
     sim.estate.campaign.dread = sim.estate.campaign.dreadLimit
     sim:evaluateCampaignState()
     expect(sim.estate.campaign.lost and sim.estate.campaign.endingRoute == "extraction_collapse", "dread cap should route to extraction collapse")
@@ -1762,6 +1769,8 @@ tests[#tests + 1] = function()
     sim.estate.campaign.deathLimit = 0
     sim:evaluateCampaignState()
     expect(sim.estate.campaign.lost and sim.estate.campaign.endingRoute == "quiet_failure", "death cap should route to quiet failure")
+    local summary = Render.gameOverSummary(sim)
+    expect(summary.routeAlias == "quiet_failure" and summary.routeCondition:find("weeks", 1, true), "game over summary should expose route condition")
 end
 
 tests[#tests + 1] = function()

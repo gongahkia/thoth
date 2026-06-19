@@ -1193,12 +1193,49 @@ end
 function Simulation:resolveEndingRoute(reason)
     local campaign = self:ensureCampaignState()
     if reason == "victory" then
-        return (campaign.flags.repairMissions or 0) >= 3 and "repair_compact" or "estate_seal"
+        local repairs = campaign.flags.repairMissions or 0
+        local extracts = campaign.flags.extractMissions or 0
+        return repairs >= 3 and repairs >= extracts and "repair_compact" or "estate_seal"
     end
     if reason == "dread" then
         return "extraction_collapse"
     end
     return "quiet_failure"
+end
+
+function Simulation:endingRouteStatus()
+    local campaign = self:ensureCampaignState()
+    local bosses = 0
+    for _, key in ipairs(Defs.locationOrder or {}) do
+        if campaign.bossKills and campaign.bossKills[key] then
+            bosses = bosses + 1
+        end
+    end
+    local repairs = campaign.flags.repairMissions or 0
+    local extracts = campaign.flags.extractMissions or 0
+    local statuses = {}
+    for _, routeKey in ipairs(Defs.endingRouteOrder or {}) do
+        local route = Defs.endingRoute(routeKey) or {}
+        local reached = false
+        if routeKey == "estate_seal" then
+            reached = bosses >= #(Defs.locationOrder or {}) and not (repairs >= 3 and repairs >= extracts)
+        elseif routeKey == "repair_compact" then
+            reached = bosses >= #(Defs.locationOrder or {}) and repairs >= 3 and repairs >= extracts
+        elseif routeKey == "extraction_collapse" then
+            reached = (campaign.dread or 0) >= (campaign.dreadLimit or 18)
+        elseif routeKey == "quiet_failure" then
+            reached = ((self.estate and self.estate.week) or 1) >= (campaign.weekLimit or 14) or #((self.estate and self.estate.graveyard) or {}) >= (campaign.deathLimit or 8)
+        end
+        statuses[#statuses + 1] = {
+            key = routeKey,
+            alias = route.alias or routeKey,
+            name = route.name or routeKey,
+            condition = route.condition or "",
+            result = route.result or "",
+            reached = reached,
+        }
+    end
+    return statuses
 end
 
 function Simulation:missionBoardSlots()
@@ -1840,7 +1877,8 @@ end
 
 function Simulation:endingScreenCopy(routeKey)
     local copy = Defs.panelCopyFor("ending_screen_copy") or {}
-    return copy[routeKey]
+    local route = Defs.endingRoute(routeKey) or {}
+    return copy[routeKey] or route.result
 end
 
 function Simulation:originBark(classKey, eventKey)

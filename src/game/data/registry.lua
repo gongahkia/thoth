@@ -2283,10 +2283,34 @@ Registry.campaignTimers = {
 Registry.campaignTimerOrder = { "twin_timer_v1", "week_cap_default" }
 
 Registry.endingRoutes = {
-    estate_seal = { name = "Estate Seal", trigger = "all_bosses" },
-    repair_compact = { name = "Repair Compact", trigger = "three_repairs" },
-    extraction_collapse = { name = "Extraction Collapse", trigger = "dread_cap" },
-    quiet_failure = { name = "Quiet Failure", trigger = "week_or_death_cap" },
+    estate_seal = {
+        name = "Estate Seal",
+        alias = "seal",
+        trigger = "all_bosses",
+        condition = "Defeat all three location bosses without signing the repair compact.",
+        result = "The Estate seals the routes and keeps the last word.",
+    },
+    repair_compact = {
+        name = "Repair Compact",
+        alias = "repair",
+        trigger = "three_repairs",
+        condition = "Defeat all bosses after at least three repairs and no extraction majority.",
+        result = "The enclaves force the Estate to share the seal.",
+    },
+    extraction_collapse = {
+        name = "Extraction Collapse",
+        alias = "collapse",
+        trigger = "dread_cap",
+        condition = "Let dread reach the campaign cap.",
+        result = "Extraction becomes policy until the Estate collapses under it.",
+    },
+    quiet_failure = {
+        name = "Quiet Failure",
+        alias = "quiet_failure",
+        trigger = "week_or_death_cap",
+        condition = "Run out of weeks or lose too many heroes.",
+        result = "The file closes without a final seal.",
+    },
 }
 Registry.endingRouteOrder = { "estate_seal", "repair_compact", "extraction_collapse", "quiet_failure" }
 Registry.endingRouters = {
@@ -2482,10 +2506,10 @@ Registry.panelCopy = {
         body = "Weeks and dread are hard caps, not warnings.",
     },
     ending_screen_copy = {
-        estate_seal = "The Estate Seal holds because enough bosses are dead.",
-        repair_compact = "The Compact holds because repairs outweighed extraction.",
-        extraction_collapse = "The Collapse arrives when dread becomes policy.",
-        quiet_failure = "Quiet Failure arrives when time or deaths close the file.",
+        estate_seal = "The Estate Seal holds: three bosses are dead, the routes are closed, and the Estate keeps the terms.",
+        repair_compact = "The Repair Compact holds: repairs outweighed extraction, and the enclaves force the Estate to share the seal.",
+        extraction_collapse = "The Extraction Collapse arrives when dread becomes policy and every route is treated as salvage.",
+        quiet_failure = "Quiet Failure arrives when time or deaths close the file before anyone can claim the seal.",
     },
 }
 Registry.panelCopyOrder = { "faction_panel_copy", "timer_panel_copy", "ending_screen_copy" }
