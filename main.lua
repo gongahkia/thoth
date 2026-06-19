@@ -110,6 +110,11 @@ local function enterGame(state, simulation, status)
     state.uiState = "game"
     state.status = status or "ready"
     resetVisualState(state, sim)
+    local campaign = sim and sim.estate and sim.estate.campaign
+    if campaign and (campaign.lost or campaign.victory) then
+        state.uiState = "gameover"
+        state.gameOverMenuIndex = 1
+    end
 end
 
 local function requestQuit(state)
@@ -395,6 +400,108 @@ local function mousePause(state, x, y)
     return false
 end
 
+local function campaignEnded(simulation)
+    local campaign = simulation and simulation.estate and simulation.estate.campaign
+    return campaign and (campaign.lost == true or campaign.victory == true)
+end
+
+local function syncGameOverState(state)
+    if state.uiState == "game" and campaignEnded(sim) then
+        state.paused = false
+        state.uiState = "gameover"
+        state.gameOverMenuIndex = state.gameOverMenuIndex or 1
+        state.gameOverStatus = "campaign ended"
+        refreshContinueState(state)
+        return true
+    end
+    return false
+end
+
+local function selectedGameOverItem(state)
+    local items = Render.gameOverMenuItems(state)
+    local index = state.gameOverMenuIndex or 1
+    if not (items[index] and items[index].enabled) then
+        for candidate, item in ipairs(items) do
+            if item.enabled then
+                state.gameOverMenuIndex = candidate
+                return item
+            end
+        end
+    end
+    return items[index]
+end
+
+local function moveGameOverSelection(state, delta)
+    local items = Render.gameOverMenuItems(state)
+    local index = state.gameOverMenuIndex or 1
+    for _ = 1, #items do
+        index = ((index - 1 + delta) % #items) + 1
+        if items[index].enabled then
+            state.gameOverMenuIndex = index
+            return
+        end
+    end
+end
+
+local function activateGameOverAction(state, action)
+    if action == "restart" then
+        enterGame(state, Simulation.new(20260618), "new game")
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if action == "title" then
+        sim = Simulation.new(20260618)
+        state.paused = false
+        state.uiState = "title"
+        state.gameOverStatus = nil
+        resetVisualState(state, sim)
+        refreshContinueState(state)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    state.gameOverStatus = "credits unavailable"
+    Audio.play(state.audio, "invalid")
+end
+
+local function keyGameOver(state, key)
+    if key == "left" or key == "a" or key == "up" or key == "w" then
+        moveGameOverSelection(state, -1)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "right" or key == "d" or key == "down" or key == "s" then
+        moveGameOverSelection(state, 1)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "return" or key == "kpenter" or key == "space" then
+        local item = selectedGameOverItem(state)
+        if item and item.enabled then
+            activateGameOverAction(state, item.action)
+        end
+        return
+    end
+    if key == "escape" then
+        activateGameOverAction(state, "title")
+    end
+end
+
+local function mouseGameOver(state, x, y)
+    for _, hitbox in ipairs((state.ui and state.ui.gameOverButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            state.gameOverMenuIndex = hitbox.index
+            if hitbox.enabled then
+                activateGameOverAction(state, hitbox.action)
+            else
+                state.gameOverStatus = "credits unavailable"
+                Audio.play(state.audio, "invalid")
+            end
+            return true
+        end
+    end
+    return false
+end
+
 local function printRenderSmoke(state)
     if not state.renderSmoke or state.renderSmokePrinted then
         return
@@ -526,6 +633,24 @@ local function printPauseSmoke(state)
     print("pause-smoke-buttons=" .. tostring(#((state.ui and state.ui.pauseButtons) or {})))
 end
 
+local function printGameOverSmoke(state)
+    if not state.gameOverSmoke or state.gameOverSmokePrinted then
+        return
+    end
+    state.gameOverSmokePrinted = true
+    local actions = {}
+    for _, hitbox in ipairs((state.ui and state.ui.gameOverButtons) or {}) do
+        actions[#actions + 1] = hitbox.action
+    end
+    local summary = Render.gameOverSummary(sim)
+    print("gameover-smoke-state=" .. tostring(state.uiState))
+    print("gameover-smoke-reason=" .. tostring(summary.reason))
+    print("gameover-smoke-route=" .. tostring(summary.route))
+    print("gameover-smoke-dread-tier=" .. tostring(summary.dreadTier))
+    print("gameover-smoke-factions=" .. tostring(#summary.factions))
+    print("gameover-smoke-buttons=" .. table.concat(actions, ","))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -537,7 +662,8 @@ function love.load(args)
     local curioSmoke = hasArg(args, "--curio-smoke")
     local campSmoke = hasArg(args, "--camp-smoke")
     local pauseSmoke = hasArg(args, "--pause-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke
+    local gameOverSmoke = hasArg(args, "--gameover-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
@@ -557,10 +683,16 @@ function love.load(args)
     if campSmoke then
         sim:camp()
     end
+    if gameOverSmoke then
+        sim:endExpedition(true)
+        sim.estate.campaign.dreadLimit = 2
+        sim.estate.campaign.dread = 2
+        sim:evaluateCampaignState()
+    end
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
         paused = false,
-        uiState = (titleSmoke and "title") or (settingsSmoke and "settings") or ((smoke or renderBenchmark or renderSmoke) and "game" or "title"),
+        uiState = (titleSmoke and "title") or (settingsSmoke and "settings") or (gameOverSmoke and "gameover") or ((smoke or renderBenchmark or renderSmoke) and "game" or "title"),
         titleMenuIndex = 1,
         titleTime = 0,
         viewRotation = 0,
@@ -581,6 +713,7 @@ function love.load(args)
         curioSmoke = curioSmoke,
         campSmoke = campSmoke,
         pauseSmoke = pauseSmoke,
+        gameOverSmoke = gameOverSmoke,
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -611,6 +744,9 @@ function love.update(dt)
         end
         return
     end
+    if syncGameOverState(app) then
+        return
+    end
     if not app.paused then
         Input.update(sim, app, dt)
     end
@@ -635,6 +771,9 @@ function love.update(dt)
         sim:step()
         playStatusCue(app, sim)
         queueCutscenes(app, sim)
+        if syncGameOverState(app) then
+            break
+        end
         accumulator = accumulator - fixedDt
         steps = steps + 1
     end
@@ -658,6 +797,11 @@ function love.draw()
     if app.uiState == "settings" then
         Render.drawSettings(app)
         printSettingsSmoke(app)
+        return
+    end
+    if app.uiState == "gameover" then
+        Render.drawGameOver(sim, app)
+        printGameOverSmoke(app)
         return
     end
     local started = app.renderBenchmark and love.timer.getTime() or nil
@@ -694,6 +838,10 @@ function love.keypressed(key)
         keySettings(app, key)
         return
     end
+    if app.uiState == "gameover" then
+        keyGameOver(app, key)
+        return
+    end
     if app.paused then
         keyPause(app, key)
         return
@@ -719,6 +867,7 @@ function love.keypressed(key)
             app.lastVisualEventId = sim.eventSerial or 0
             app.cutscene = nil
             app.cutsceneQueue = {}
+            syncGameOverState(app)
             Audio.play(app.audio, "load")
         else
             app.status = "load failed: " .. tostring(err)
@@ -743,6 +892,10 @@ function love.mousepressed(x, y, button)
     end
     if button == 1 and app.uiState == "settings" then
         mouseSettings(app, x, y)
+        return
+    end
+    if button == 1 and app.uiState == "gameover" then
+        mouseGameOver(app, x, y)
         return
     end
     if button == 1 and app.paused then

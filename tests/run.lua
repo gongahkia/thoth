@@ -2076,6 +2076,17 @@ tests[#tests + 1] = function()
     Render.drawPauseMenu(app)
     expect(#app.ui.pauseButtons == 4 and app.ui.pauseButtons[3].action == "settings", "pause draw should populate pause hitboxes")
     expect(app.pauseMenuIndex == 4, "pause draw should clamp focus")
+    local ended = Simulation.new(81)
+    ended:endExpedition(true)
+    ended.estate.campaign.dreadLimit = 2
+    ended.estate.campaign.dread = 2
+    ended:evaluateCampaignState()
+    app.gameOverMenuIndex = 99
+    local gameOverSummary = Render.drawGameOver(ended, app)
+    expect(gameOverSummary.reason == "dread" and gameOverSummary.route == "extraction_collapse", "game over summary should expose loss route")
+    expect(gameOverSummary.dreadTier == 4 and #gameOverSummary.factions == 5, "game over summary should expose dread tier and factions")
+    expect(#app.ui.gameOverButtons == 3 and app.ui.gameOverButtons[1].action == "restart", "game over draw should populate restart hitbox")
+    expect(app.gameOverMenuIndex == 3, "game over draw should clamp focus")
     app.settings = Settings.defaults()
     Render.drawSettings(app)
     local hasBack = false
@@ -2106,6 +2117,7 @@ tests[#tests + 1] = function()
             campSkillButtons = { { stale = true } },
             campHeroButtons = { { stale = true } },
             pauseButtons = { { stale = true } },
+            gameOverButtons = { { stale = true } },
             titleButtons = { { stale = true } },
             settingsButtons = { { stale = true } },
         },
@@ -2124,7 +2136,7 @@ tests[#tests + 1] = function()
     expect(#app.ui.partyRankSlots == 0, "prepareUi should clear party rank slots")
     expect(#app.ui.curioButtons == 0, "prepareUi should clear curio buttons")
     expect(#app.ui.campSkillButtons == 0 and #app.ui.campHeroButtons == 0, "prepareUi should clear camp buttons")
-    expect(#app.ui.pauseButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
+    expect(#app.ui.pauseButtons == 0 and #app.ui.gameOverButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
     app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
     app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }
     Render.prepareUi(app)

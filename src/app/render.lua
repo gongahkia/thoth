@@ -220,6 +220,7 @@ function Render.prepareUi(app)
     app.ui.campSkillButtons = app.ui.campSkillButtons or {}
     app.ui.campHeroButtons = app.ui.campHeroButtons or {}
     app.ui.pauseButtons = app.ui.pauseButtons or {}
+    app.ui.gameOverButtons = app.ui.gameOverButtons or {}
     app.ui.titleButtons = app.ui.titleButtons or {}
     app.ui.settingsButtons = app.ui.settingsButtons or {}
     clearList(app.ui.skillButtons)
@@ -236,6 +237,7 @@ function Render.prepareUi(app)
     clearList(app.ui.campSkillButtons)
     clearList(app.ui.campHeroButtons)
     clearList(app.ui.pauseButtons)
+    clearList(app.ui.gameOverButtons)
     clearList(app.ui.titleButtons)
     clearList(app.ui.settingsButtons)
 end
@@ -925,6 +927,148 @@ function Render.drawPauseMenu(app)
     end
     love.graphics.setColor(0.58, 0.62, 0.58, 1)
     love.graphics.printf(app.pauseStatus or "", x + 20, y + h - 30, w - 40, "center")
+end
+
+local gameOverActions = {
+    { action = "restart", label = "Restart", enabled = true },
+    { action = "title", label = "Title", enabled = true },
+    { action = "credits", label = "Credits", enabled = false },
+}
+
+local dreadTierNames = { [0] = "quiet", [1] = "uneasy", [2] = "strained", [3] = "breaking", [4] = "collapsed" }
+
+local function dreadTier(dread, limit)
+    local cap = math.max(1, limit or 18)
+    return clamp(math.floor(((dread or 0) / cap) * 4), 0, 4)
+end
+
+local function bossKillCount(campaign)
+    local count = 0
+    for _, key in ipairs(Defs.locationOrder or {}) do
+        if campaign.bossKills and campaign.bossKills[key] then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function Render.gameOverMenuItems()
+    return gameOverActions
+end
+
+function Render.gameOverSummary(sim)
+    local estate = (sim and sim.estate) or {}
+    local campaign = estate.campaign or {}
+    local routeKey = campaign.endingRoute or (campaign.victory and "estate_seal" or "quiet_failure")
+    local route = Defs.endingRoute(routeKey) or {}
+    local tier = dreadTier(campaign.dread or 0, campaign.dreadLimit or 18)
+    local factions = {}
+    for _, key in ipairs(Defs.factionOrder or {}) do
+        local def = Defs.faction(key) or {}
+        local entry = (campaign.factions and campaign.factions[key]) or {}
+        factions[#factions + 1] = { key = key, name = def.name or key, state = entry.state or "neutral", value = entry.value or 0 }
+    end
+    return {
+        ended = campaign.lost == true or campaign.victory == true,
+        won = campaign.victory == true,
+        reason = campaign.victory and "victory" or (campaign.lossReason or "lost"),
+        route = routeKey,
+        routeName = route.name or routeKey,
+        copy = sim and sim.endingScreenCopy and sim:endingScreenCopy(routeKey) or "",
+        week = estate.week or 1,
+        renown = campaign.renown or 0,
+        dread = campaign.dread or 0,
+        dreadLimit = campaign.dreadLimit or 18,
+        dreadTier = tier,
+        dreadTierName = dreadTierNames[tier],
+        deaths = #((estate and estate.graveyard) or {}),
+        bosses = bossKillCount(campaign),
+        bossTotal = #(Defs.locationOrder or {}),
+        party = estate.roster or {},
+        graveyard = estate.graveyard or {},
+        factions = factions,
+    }
+end
+
+local function layoutGameOverButtons(app, items, width, height)
+    local totalW = 480
+    local buttonW = 148
+    local gap = 18
+    local x = (width - totalW) / 2
+    local y = height - 96
+    for index, item in ipairs(items) do
+        app.ui.gameOverButtons[#app.ui.gameOverButtons + 1] = { x = x + (index - 1) * (buttonW + gap), y = y, w = buttonW, h = 42, action = item.action, enabled = item.enabled, index = index }
+    end
+end
+
+local function drawGameOverButton(app, item, button)
+    local active = (app.gameOverMenuIndex or 1) == button.index
+    local enabled = item.enabled
+    love.graphics.setColor(active and 0.18 or 0.09, active and 0.2 or 0.1, active and 0.16 or 0.1, enabled and 0.95 or 0.45)
+    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(active and 0.78 or 0.34, active and 0.62 or 0.36, active and 0.32 or 0.3, enabled and 1 or 0.45)
+    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(enabled and 0.94 or 0.46, enabled and 0.94 or 0.46, enabled and 0.86 or 0.46, 1)
+    love.graphics.printf((active and "> " or "") .. item.label, button.x + 8, button.y + 13, button.w - 16, "center")
+end
+
+function Render.drawGameOver(sim, app)
+    Render.prepareUi(app)
+    local summary = Render.gameOverSummary(sim)
+    local items = Render.gameOverMenuItems(app)
+    app.gameOverMenuIndex = clamp(app.gameOverMenuIndex or 1, 1, #items)
+    layoutGameOverButtons(app, items, 1280, 720)
+    if not (love and love.graphics) then
+        return summary
+    end
+    love.graphics.clear(0.035, 0.038, 0.042, 1)
+    local width, height = love.graphics.getDimensions()
+    clearList(app.ui.gameOverButtons)
+    layoutGameOverButtons(app, items, width, height)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    panel(56, 52, width - 112, height - 124, 0.96)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.printf(summary.won and "Campaign Sealed" or "Game Over", 80, 82, width - 160, "left", 0, 1.6, 1.6)
+    love.graphics.setColor(0.68, 0.72, 0.66, 1)
+    love.graphics.print(summary.reason .. " / " .. summary.routeName .. " / week " .. summary.week .. " / dread " .. summary.dread .. "/" .. summary.dreadLimit .. " tier " .. summary.dreadTier, 82, 138)
+    love.graphics.print("renown " .. summary.renown .. " / bosses " .. summary.bosses .. "/" .. summary.bossTotal .. " / fallen " .. summary.deaths, 82, 162)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Party Fate", 82, 210)
+    for index, hero in ipairs(summary.party) do
+        if index > 6 then
+            break
+        end
+        local class = Defs.heroClass(hero.class) or {}
+        local line = hero.name .. "  " .. (class.name or hero.class) .. "  L" .. tostring(hero.level or 1) .. "  stress " .. tostring(hero.stress or 0)
+        love.graphics.setColor(hero.alive == false and 0.56 or 0.76, hero.alive == false and 0.42 or 0.78, hero.alive == false and 0.42 or 0.72, 1)
+        love.graphics.print(line, 82, 238 + (index - 1) * 24)
+    end
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Graveyard", 82, 406)
+    for index, death in ipairs(summary.graveyard) do
+        if index > 5 then
+            break
+        end
+        love.graphics.setColor(0.62, 0.64, 0.58, 1)
+        love.graphics.print((death.name or "fallen") .. "  " .. (death.location or "estate"), 82, 432 + (index - 1) * 22)
+    end
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Faction State", width * 0.52, 210)
+    for index, faction in ipairs(summary.factions) do
+        love.graphics.setColor(0.74, 0.78, 0.72, 1)
+        love.graphics.print(faction.name, width * 0.52, 238 + (index - 1) * 28)
+        love.graphics.setColor(0.58, 0.66, 0.56, 1)
+        love.graphics.print(faction.state .. " (" .. tostring(faction.value) .. ")", width * 0.74, 238 + (index - 1) * 28)
+    end
+    love.graphics.setColor(0.62, 0.66, 0.58, 1)
+    love.graphics.printf(summary.copy or "", width * 0.52, 406, width * 0.38)
+    love.graphics.printf(app.gameOverStatus or "", 80, height - 130, width - 160, "center")
+    for index, item in ipairs(items) do
+        drawGameOverButton(app, item, app.ui.gameOverButtons[index])
+    end
+    love.graphics.pop()
+    return summary
 end
 
 local function layoutTitleButtons(app, items, width, height)

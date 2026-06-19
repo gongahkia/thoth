@@ -57,6 +57,11 @@ jobs:
           SDL_AUDIODRIVER: dummy
         run: make pause-smoke
 
+      - name: Run game-over smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make gameover-smoke
+
       - name: Run render3d smoke
         env:
           SDL_AUDIODRIVER: dummy
