@@ -74,3 +74,23 @@ fps-min=60
 ```
 
 Result: the 20x20 tile grid plus 34 OGA billboards met the Phase 0 Day 4 60 FPS floor after a 2s startup warmup and a 3s measurement window.
+
+## Simulation Verification
+
+Date: 2026-06-20
+
+Command:
+
+```sh
+timeout 10s love spike --verify-sim
+```
+
+Output:
+
+```text
+sim-verify-start ticks=180
+sim-verify-ticks=180
+sim-verify-match=true
+```
+
+Result: the spike scene advanced a live `src.game.simulation` instance one command per render frame for 180 ticks. Its final serialized snapshot matched the headless baseline snapshot for the same command stream.

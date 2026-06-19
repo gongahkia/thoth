@@ -27,6 +27,13 @@ local verifyFpsElapsed = 0
 local verifyFpsMin = math.huge
 local verifyFpsWarmup = 2
 local verifyFpsDuration = 3
+local verifySim = false
+local simVerifyTick = 0
+local simVerifyTicks = 180
+local simVerifyLive
+local simVerifyExpectedSnapshot
+local simVerifySerialize
+local simCommands
 
 local function vert(x, y, z, u, v)
     v = v or 0.5
@@ -138,6 +145,29 @@ local function stepCamera(dt)
     faceSpriteToCamera()
 end
 
+local function loadSimulationVerifier()
+    local Serialize = require("src.core.serialize")
+    local Simulation = require("src.game.simulation")
+    simCommands = {
+        Simulation.commands.move("east"),
+        Simulation.commands.move("east"),
+        Simulation.commands.useItem("torch"),
+        Simulation.commands.selectHero(2),
+        Simulation.commands.move("east"),
+        Simulation.commands.move("east"),
+        Simulation.commands.move("east"),
+        Simulation.commands.retreat(),
+    }
+    local baseline = Simulation.new(20260618)
+    for tick = 1, simVerifyTicks do
+        baseline:queue(simCommands[((tick - 1) % #simCommands) + 1])
+        baseline:step()
+    end
+    simVerifyLive = Simulation.new(20260618)
+    simVerifyExpectedSnapshot = Serialize.encode(baseline:snapshot())
+    simVerifySerialize = Serialize
+end
+
 local function addBillboard(image, x, y, width, height)
     local billboard = g3d.newModel(billboardVerts(width, height), image, {x, y, 0})
     billboard:makeNormals()
@@ -168,7 +198,13 @@ function love.load()
             verifyBillboard = true
         elseif launchArg == "--verify-fps" then
             verifyFps = true
+        elseif launchArg == "--verify-sim" then
+            verifySim = true
         end
+    end
+    if verifySim then
+        loadSimulationVerifier()
+        print("sim-verify-start ticks=" .. simVerifyTicks)
     end
     if verifyBillboard then
         love.filesystem.setIdentity("thoth-spike")
@@ -200,6 +236,18 @@ function love.update(dt)
         return
     end
     stepCamera(dt)
+    if verifySim then
+        simVerifyTick = simVerifyTick + 1
+        simVerifyLive:queue(simCommands[((simVerifyTick - 1) % #simCommands) + 1])
+        simVerifyLive:step()
+        if simVerifyTick >= simVerifyTicks then
+            local actual = simVerifySerialize.encode(simVerifyLive:snapshot())
+            local matched = actual == simVerifyExpectedSnapshot
+            print("sim-verify-ticks=" .. simVerifyTick)
+            print("sim-verify-match=" .. tostring(matched))
+            love.event.quit(matched and 0 or 1)
+        end
+    end
     if verifyFps then
         verifyFpsElapsed = verifyFpsElapsed + dt
         if verifyFpsElapsed >= verifyFpsWarmup then
