@@ -85,7 +85,6 @@ Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
 
 Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render layer. Keep `simulation.lua` untouched.
 
-- [ ] 1.1 Inventory all `Render.*` public methods used outside `render.lua` (`grep -r "Render\." src/`) — produce interface spec (2h)
 - [ ] 1.2 Stub new `src/app/render3d.lua` exposing same interface, returning placeholders (4h)
 - [ ] 1.3 Port `Render.load()` — engine init, asset preload (4h)
 - [ ] 1.4 Port world tile rendering: convert iso tile draw to 3D quad mesh per tile (16h)
