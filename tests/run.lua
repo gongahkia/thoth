@@ -503,6 +503,36 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(68)
+    sim:endExpedition(true)
+    sim.estate.gold = 100
+    local hero = sim:heroAtRank(1)
+    hero.stress = 70
+    runQueued(sim, Simulation.commands.recoverHero(hero.id, "quiet_rest"))
+    expect(hero.stress == 48 and hero.recovering == 1 and hero.recoveryActivity == "quiet_rest" and sim.estate.gold == 82, "activity recovery should spend activity cost and mark activity")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded:heroById(hero.id).recoveryActivity == "quiet_rest", "activity recovery should survive snapshot")
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(hero.recovering == 0 and hero.recoveryActivity == nil, "activity should clear when hero returns")
+    expect(not sim:recoverHero(hero.id, "missing_activity"), "invalid activity should fail")
+end
+
+tests[#tests + 1] = function()
+    local activity = Defs.estateActivities.ash_vigil
+    local oldChance = activity.sideEffectChance
+    activity.sideEffectChance = 100
+    local sim = Simulation.new(69)
+    sim:endExpedition(true)
+    sim.estate.gold = 100
+    local hero = sim:heroAtRank(1)
+    hero.quirks = { "iron_nerves", "quick_reflexes" }
+    runQueued(sim, Simulation.commands.recoverHero(hero.id, "ash_vigil"))
+    runQueued(sim, Simulation.commands.advanceWeek())
+    activity.sideEffectChance = oldChance
+    expect(#hero.quirks == 3, "activity side effect should resolve on return week")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(55)
     sim:endExpedition(true)
     local week = sim.estate.week
@@ -737,6 +767,7 @@ tests[#tests + 1] = function()
     sim.estate.gold = 200
     sim.estate.heirlooms = 10
     local hero = sim:heroAtRank(1)
+    hero.stress = 40
     sim:contractDisease(hero, "salt_cough")
     local app = {
         ui = {
@@ -745,6 +776,7 @@ tests[#tests + 1] = function()
                 { x = 30, y = 0, w = 20, h = 20, action = "treatDisease", heroId = hero.id, diseaseKey = "salt_cough" },
                 { x = 60, y = 0, w = 20, h = 20, action = "equipTrinket", heroId = hero.id, trinketKey = "ember_pin", slot = 1 },
                 { x = 90, y = 0, w = 20, h = 20, action = "lockQuirk", heroId = hero.id, quirkKey = "iron_nerves" },
+                { x = 120, y = 0, w = 20, h = 20, action = "recoverHero", heroId = hero.id, activityKey = "quiet_rest" },
             },
         },
     }
@@ -760,6 +792,9 @@ tests[#tests + 1] = function()
     Input.mousepressed(sim, app, 95, 5, 1)
     sim:step()
     expect(hero.lockedQuirks.iron_nerves == true, "estate lock button should lock positive quirk")
+    Input.mousepressed(sim, app, 125, 5, 1)
+    sim:step()
+    expect(hero.recoveryActivity == "quiet_rest", "estate recover button should pass activity key")
 end
 
 tests[#tests + 1] = function()

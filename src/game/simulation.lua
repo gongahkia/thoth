@@ -84,6 +84,7 @@ local function newHero(id, classKey, name, quirks)
         deathblowResist = 67,
         deathblowChecks = 0,
         recovering = 0,
+        recoveryActivity = nil,
         guard = 0,
         skills = copyList(class.skills),
         skillLevels = skillLevels,
@@ -228,8 +229,8 @@ function Simulation.commands.selectHero(heroRank)
     return { type = "selectHero", heroRank = heroRank }
 end
 
-function Simulation.commands.recoverHero(heroId)
-    return { type = "recoverHero", heroId = heroId }
+function Simulation.commands.recoverHero(heroId, activityKey)
+    return { type = "recoverHero", heroId = heroId, activityKey = activityKey }
 end
 
 function Simulation.commands.advanceWeek()
@@ -334,7 +335,7 @@ function Simulation:apply(command)
         return self:selectHero(command.heroRank)
     end
     if command.type == "recoverHero" then
-        return self:recoverHero(command.heroId)
+        return self:recoverHero(command.heroId, command.activityKey)
     end
     if command.type == "advanceWeek" then
         return self:advanceWeek()
@@ -842,6 +843,7 @@ function Simulation:advanceWeek()
         if hero.recovering and hero.recovering > 0 then
             hero.recovering = hero.recovering - 1
             if hero.recovering == 0 then
+                self:resolveRecoveryActivity(hero)
                 self:pushLog(hero.name .. " returned")
             end
         end
@@ -1236,21 +1238,53 @@ function Simulation:treatDisease(heroId, diseaseKey)
     return true
 end
 
-function Simulation:recoverHero(heroId)
+function Simulation:recoverHero(heroId, activityKey)
     if self.mode ~= "estate" then
         return false
     end
     local hero = self:heroById(heroId)
+    local activity = activityKey and Defs.estateActivity(activityKey) or nil
+    if activityKey and not activity then
+        return false
+    end
     local def = Defs.estateBuilding("infirmary")
-    local cost = math.max(0, def.recoverCost - self:buildingLevel("infirmary") * def.discountPerLevel)
+    local cost = activity and activity.cost or math.max(0, def.recoverCost - self:buildingLevel("infirmary") * def.discountPerLevel)
     if not hero or not hero.alive or (hero.recovering or 0) > 0 or self.estate.gold < cost then
         return false
     end
     self.estate.gold = self.estate.gold - cost
-    self:healStress(hero, 30)
-    hero.recovering = 1
+    self:healStress(hero, activity and activity.stressHeal or 30)
+    hero.recovering = activity and (activity.weeks or 1) or 1
+    hero.recoveryActivity = activityKey
     self:pushLog(hero.name .. " recovered")
     return true
+end
+
+function Simulation:resolveRecoveryActivity(hero)
+    local activity = hero and hero.recoveryActivity and Defs.estateActivity(hero.recoveryActivity) or nil
+    if not activity then
+        return false
+    end
+    hero.recoveryActivity = nil
+    local chance = activity.sideEffectChance or 0
+    if chance <= 0 or self:roll(1, 100) > chance then
+        return false
+    end
+    if activity.sideEffect == "positive_quirk" then
+        return self:gainQuirk(hero, "positive")
+    end
+    if activity.sideEffect == "gold_swing" then
+        local swing = activity.goldSwing or 0
+        if self:roll(1, 100) <= 50 then
+            self.estate.gold = math.max(0, self.estate.gold - swing)
+            self:pushLog(hero.name .. " lost coin at " .. activity.name)
+        else
+            self.estate.gold = self.estate.gold + swing
+            self:pushLog(hero.name .. " won coin at " .. activity.name)
+        end
+        return true
+    end
+    return false
 end
 
 function Simulation:currentRoomKey()
@@ -2216,6 +2250,7 @@ function Simulation:partyState()
                 alive = hero.alive,
                 deathsDoor = hero.deathsDoor,
                 recovering = hero.recovering,
+                recoveryActivity = hero.recoveryActivity,
                 statuses = copyList(hero.statuses),
                 quirks = copyList(hero.quirks),
                 lockedQuirks = copyMap(hero.lockedQuirks),
@@ -2359,6 +2394,7 @@ function Simulation:snapshot()
             deathblowResist = hero.deathblowResist,
             deathblowChecks = hero.deathblowChecks,
             recovering = hero.recovering,
+            recoveryActivity = hero.recoveryActivity,
             guard = hero.guard,
             skills = copyList(hero.skills),
             skillLevels = copyMap(hero.skillLevels),
@@ -2528,6 +2564,7 @@ function Simulation.fromSnapshot(snapshot)
         hero.deathblowResist = value.deathblowResist or hero.deathblowResist
         hero.deathblowChecks = value.deathblowChecks or 0
         hero.recovering = value.recovering or 0
+        hero.recoveryActivity = value.recoveryActivity
         hero.guard = value.guard or 0
         hero.skills = copyList(value.skills or hero.skills)
         hero.skillLevels = copyMap(value.skillLevels or hero.skillLevels)

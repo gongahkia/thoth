@@ -686,6 +686,13 @@ Registry.estateBuildings = {
 }
 Registry.estateBuildingOrder = { "stagecoach", "guild", "forge", "infirmary" }
 
+Registry.estateActivities = {
+    quiet_rest = { name = "Quiet Rest", short = "rest", cost = 18, stressHeal = 22, weeks = 1 },
+    ash_vigil = { name = "Ash Vigil", short = "vigil", cost = 26, stressHeal = 34, weeks = 1, sideEffect = "positive_quirk", sideEffectChance = 30 },
+    chance_table = { name = "Chance Table", short = "cards", cost = 20, stressHeal = 28, weeks = 1, sideEffect = "gold_swing", sideEffectChance = 50, goldSwing = 20 },
+}
+Registry.estateActivityOrder = { "quiet_rest", "ash_vigil", "chance_table" }
+
 Registry.townEvents = {
     supply_cache = { name = "Supply Cache", provisions = { torch = 1, ration = 2 } },
     memorial_bell = { name = "Memorial Bell", stressHeal = 5 },

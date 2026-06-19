@@ -35,6 +35,8 @@ local Defs = {
     campSkillOrder = Registry.campSkillOrder,
     estateBuildings = Registry.estateBuildings,
     estateBuildingOrder = Registry.estateBuildingOrder,
+    estateActivities = Registry.estateActivities,
+    estateActivityOrder = Registry.estateActivityOrder,
     townEvents = Registry.townEvents,
     townEventOrder = Registry.townEventOrder,
 }
@@ -105,6 +107,10 @@ end
 
 function Defs.estateBuilding(id)
     return Defs.estateBuildings[id]
+end
+
+function Defs.estateActivity(id)
+    return Defs.estateActivities[id]
 end
 
 function Defs.townEvent(id)

@@ -40,6 +40,7 @@ checkOrder("location", Defs.locationOrder, Defs.locations)
 checkOrder("mission", Defs.missionOrder, Defs.missions)
 checkOrder("camp skill", Defs.campSkillOrder, Defs.campSkills)
 checkOrder("estate building", Defs.estateBuildingOrder, Defs.estateBuildings)
+checkOrder("estate activity", Defs.estateActivityOrder, Defs.estateActivities)
 checkOrder("town event", Defs.townEventOrder, Defs.townEvents)
 
 for key, tile in pairs(Defs.tiles) do
@@ -72,6 +73,11 @@ end
 
 for key, disease in pairs(Defs.diseases) do
     expect(disease.name and disease.name ~= "", "disease missing name " .. key)
+end
+
+for key, activity in pairs(Defs.estateActivities) do
+    expect(activity.name and activity.cost and activity.stressHeal and activity.weeks, "estate activity missing data " .. key)
+    expect(activity.cost >= 0 and activity.stressHeal > 0 and activity.weeks >= 1, "estate activity bad values " .. key)
 end
 
 for key, class in pairs(Defs.heroClasses) do
