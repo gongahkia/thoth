@@ -1807,6 +1807,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(79)
+    sim:endExpedition(true)
+    sim.estate.trinkets.kiln_token = 1
+    local tooltip = table.concat(Render.trinketTooltip(sim, "ember_pin"), "\n")
+    expect(tooltip:find("Ember Pin", 1, true), "trinket tooltip should include trinket name")
+    expect(tooltip:find("Vow of Cinders", 1, true), "trinket tooltip should include matching set name")
+    expect(tooltip:find("2pc", 1, true) and tooltip:find("4pc", 1, true), "trinket tooltip should include set bonus tiers")
+    expect(tooltip:find("owned", 1, true) and tooltip:find("equipped", 1, true), "trinket tooltip should include owned and equipped counts")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(52)
     sim:endExpedition(true)
     local app = {
@@ -1853,7 +1864,7 @@ tests[#tests + 1] = function()
             estateActionButtons = {
                 { x = 0, y = 0, w = 20, h = 20, action = "upgradeGear", heroId = hero.id, kind = "weapon" },
                 { x = 30, y = 0, w = 20, h = 20, action = "treatDisease", heroId = hero.id, diseaseKey = "salt_cough" },
-                { x = 60, y = 0, w = 20, h = 20, action = "equipTrinket", heroId = hero.id, trinketKey = "ember_pin", slot = 1 },
+                { x = 60, y = 0, w = 20, h = 20, action = "equipTrinket", heroId = hero.id, trinketKey = "ember_pin", slot = 1, tooltipKey = "ember_pin" },
                 { x = 90, y = 0, w = 20, h = 20, action = "lockQuirk", heroId = hero.id, quirkKey = "iron_nerves" },
                 { x = 120, y = 0, w = 20, h = 20, action = "recoverHero", heroId = hero.id, activityKey = "quiet_rest" },
                 { x = 150, y = 0, w = 20, h = 20, action = "sellTrinket", trinketKey = "cracked_lens" },
@@ -1870,6 +1881,7 @@ tests[#tests + 1] = function()
     Input.mousepressed(sim, app, 65, 5, 1)
     sim:step()
     expect(hero.trinkets[1] == "ember_pin", "estate trinket button should equip trinket")
+    expect(app.trinketTooltipKey == "ember_pin", "estate trinket click should select tooltip target")
     Input.mousepressed(sim, app, 95, 5, 1)
     sim:step()
     expect(hero.lockedQuirks.iron_nerves == true, "estate lock button should lock positive quirk")

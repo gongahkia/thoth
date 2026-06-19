@@ -50,6 +50,64 @@ local function compactStacks(stacks)
     return table.concat(parts, " ")
 end
 
+local function statMapText(map, skip)
+    local keys = {}
+    for key in pairs(map or {}) do
+        if not (skip and skip[key]) then
+            keys[#keys + 1] = key
+        end
+    end
+    table.sort(keys)
+    local parts = {}
+    for _, key in ipairs(keys) do
+        parts[#parts + 1] = key .. " " .. tostring(map[key])
+    end
+    return #parts > 0 and table.concat(parts, ", ") or "-"
+end
+
+local function rosterHasTrinket(sim, trinketKey)
+    for _, hero in ipairs((sim and sim.estate and sim.estate.roster) or {}) do
+        for _, equipped in ipairs(hero.trinkets or {}) do
+            if equipped == trinketKey then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function ownedSetPieces(sim, setDef)
+    local count = 0
+    for _, trinketKey in ipairs((setDef and setDef.pieces) or {}) do
+        if ((sim.estate.trinkets or {})[trinketKey] or 0) > 0 or rosterHasTrinket(sim, trinketKey) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function Render.trinketTooltip(sim, trinketKey)
+    local trinket = Defs.trinket(trinketKey)
+    if not trinket then
+        return {}
+    end
+    local lines = { trinket.name .. " value " .. tostring(trinket.value or 0), "stats: " .. statMapText(trinket, { name = true, short = true, value = true }) }
+    local equippedCounts = sim and sim.trinketSetCounts and sim:trinketSetCounts() or {}
+    for _, setKey in ipairs(Defs.trinketSetOrder or {}) do
+        local setDef = Defs.trinketSet(setKey)
+        if setDef then
+            for _, piece in ipairs(setDef.pieces or {}) do
+                if piece == trinketKey then
+                    lines[#lines + 1] = "set: " .. setDef.name .. " owned " .. ownedSetPieces(sim, setDef) .. "/4 equipped " .. tostring(equippedCounts[setKey] or 0) .. "/4"
+                    lines[#lines + 1] = "2pc " .. statMapText(setDef.twoPiece) .. " / 4pc " .. statMapText(setDef.fourPiece) .. " / cost " .. statMapText(setDef.cost)
+                    break
+                end
+            end
+        end
+    end
+    return lines
+end
+
 local function clamp01(value)
     return clamp(value or 0, 0, 1)
 end
@@ -882,6 +940,32 @@ local function firstOpenTrinketSlot(hero)
     return nil
 end
 
+local function firstVisibleTrinket(sim, hero)
+    for _, key in ipairs((hero and hero.trinkets) or {}) do
+        if key then
+            return key
+        end
+    end
+    for _, key in ipairs(Defs.trinketOrder) do
+        if ((sim.estate.trinkets or {})[key] or 0) > 0 then
+            return key
+        end
+    end
+    return nil
+end
+
+local function activeTrinketTooltipKey(app, sim, hero)
+    if love and love.mouse then
+        local mx, my = love.mouse.getPosition()
+        for _, hitbox in ipairs((app.ui and app.ui.estateActionButtons) or {}) do
+            if hitbox.tooltipKey and mx >= hitbox.x and mx <= hitbox.x + hitbox.w and my >= hitbox.y and my <= hitbox.y + hitbox.h then
+                return hitbox.tooltipKey
+            end
+        end
+    end
+    return app.trinketTooltipKey or firstVisibleTrinket(sim, hero)
+end
+
 local function selectedEstateHero(sim, app)
     local selected = app.estateHeroId and sim:heroById(app.estateHeroId)
     if selected and selected.alive then
@@ -1055,7 +1139,7 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
         local key = hero.trinkets and hero.trinkets[slot]
         local trinket = key and Defs.trinket(key)
         local label = key and ((trinket and (trinket.short or trinket.name)) or key) or ("slot " .. slot)
-        addEstateAction(app, label, x + (slot - 1) * 82, trinketY + 22, 76, { action = "unequipTrinket", heroId = hero.id, slot = slot, enabled = key ~= false and key ~= nil })
+        addEstateAction(app, label, x + (slot - 1) * 82, trinketY + 22, 76, { action = "unequipTrinket", heroId = hero.id, slot = slot, tooltipKey = key, enabled = key ~= false and key ~= nil })
     end
     local openSlot = firstOpenTrinketSlot(hero)
     local trinketIndex = 0
@@ -1066,8 +1150,18 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
             local trinket = Defs.trinket(key)
             local bx = x + ((trinketIndex - 1) % 3) * 82
             local by = trinketY + 56 + math.floor((trinketIndex - 1) / 3) * 34
-            addEstateAction(app, (trinket.short or key) .. ":" .. count, bx, by, 50, { action = "equipTrinket", heroId = hero.id, trinketKey = key, slot = openSlot, enabled = openSlot ~= nil })
-            addEstateAction(app, "$" .. (trinket.value or 0), bx + 52, by, 24, { action = "sellTrinket", trinketKey = key, enabled = true })
+            addEstateAction(app, (trinket.short or key) .. ":" .. count, bx, by, 50, { action = "equipTrinket", heroId = hero.id, trinketKey = key, slot = openSlot, tooltipKey = key, enabled = openSlot ~= nil })
+            addEstateAction(app, "$" .. (trinket.value or 0), bx + 52, by, 24, { action = "sellTrinket", trinketKey = key, tooltipKey = key, enabled = true })
+        end
+    end
+    local tooltipKey = activeTrinketTooltipKey(app, sim, hero)
+    if tooltipKey then
+        local tooltipLines = Render.trinketTooltip(sim, tooltipKey)
+        love.graphics.setColor(0.82, 0.78, 0.56, 1)
+        love.graphics.print("Set Bonus", x, trinketY + 92)
+        love.graphics.setColor(0.68, 0.72, 0.66, 1)
+        for index = 1, math.min(3, #tooltipLines) do
+            love.graphics.printf(tooltipLines[index], x, trinketY + 108 + (index - 1) * 16, w)
         end
     end
     local treatY = trinketY + 126

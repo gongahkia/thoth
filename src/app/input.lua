@@ -294,6 +294,9 @@ function Input.mousepressed(sim, app, x, y, button)
     end
     for _, hitbox in ipairs((app.ui and app.ui.estateActionButtons) or {}) do
         if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            if hitbox.tooltipKey then
+                app.trinketTooltipKey = hitbox.tooltipKey
+            end
             if hitbox.action == "upgradeSkill" then
                 sim:queue(Simulation.commands.upgradeSkill(hitbox.heroId, hitbox.skillKey))
             elseif hitbox.action == "upgradeGear" then

@@ -367,6 +367,7 @@ local function printEstateSmoke(state)
     local buildingButtons = 0
     local gearButtons = 0
     local trinketButtons = 0
+    local trinketTooltips = 0
     for _, hitbox in ipairs((state.ui and state.ui.estateActionButtons) or {}) do
         if hitbox.action == "upgradeBuilding" then
             buildingButtons = buildingButtons + 1
@@ -375,11 +376,15 @@ local function printEstateSmoke(state)
         elseif hitbox.action == "equipTrinket" or hitbox.action == "unequipTrinket" then
             trinketButtons = trinketButtons + 1
         end
+        if hitbox.tooltipKey then
+            trinketTooltips = trinketTooltips + 1
+        end
     end
     print("estate-smoke-mode=" .. tostring(sim and sim.mode))
     print("estate-smoke-buildings=" .. tostring(buildingButtons))
     print("estate-smoke-gear-actions=" .. tostring(gearButtons))
     print("estate-smoke-trinket-actions=" .. tostring(trinketButtons))
+    print("estate-smoke-trinket-tooltips=" .. tostring(trinketTooltips))
     print("estate-smoke-roster=" .. tostring(#((state.ui and state.ui.rosterButtons) or {})))
     print("estate-smoke-party-slots=" .. tostring(#((state.ui and state.ui.partyRankSlots) or {})))
     print("estate-smoke-missions=" .. tostring(#((state.ui and state.ui.missionButtons) or {})))
