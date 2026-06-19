@@ -529,6 +529,7 @@ expect(Defs.classLoreBank("class_origins") and Defs.barkBank("recruit_barks") an
 for _, classKey in ipairs(Defs.heroClassOrder) do
     expect(Defs.classLoreFor(classKey) and Defs.recruitBarksFor(classKey), "class lore/barks missing " .. classKey)
 end
+expect(Defs.classLoreFor("merchant").origin:find("debt", 1, true), "merchant class lore missing")
 for _, key in ipairs(Defs.graveyardEpitaphOrder) do
     expect(#Defs.graveyardEpitaphsFor(key) >= 2, "graveyard epitaphs missing " .. key)
 end
