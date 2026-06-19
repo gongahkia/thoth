@@ -36,6 +36,20 @@ local function argValue(args, target, fallback)
     return fallback
 end
 
+local function percentile(values, fraction)
+    if #values == 0 then
+        return 0
+    end
+    local sorted = {}
+    for index, value in ipairs(values) do
+        sorted[index] = value
+    end
+    table.sort(sorted)
+    local rank = math.ceil(#sorted * fraction)
+    rank = math.max(1, math.min(#sorted, rank))
+    return sorted[rank]
+end
+
 local function capturePreviewIfNeeded(state)
     if not (state and state.previewCapture and not state.previewCaptured and love and love.graphics) then
         return false
@@ -1137,6 +1151,7 @@ local function printPolishSmoke(state)
 end
 
 function love.load(args)
+    local loadStartedAt = love.timer.getTime()
     love.graphics.setDefaultFilter("nearest", "nearest")
     if hasArg(args, "--sprite-import") then
         app = { importMode = true }
@@ -1150,6 +1165,7 @@ function love.load(args)
     end
     sim = Simulation.new(20260618)
     local renderBenchmark = hasArg(args, "--render-benchmark")
+    local loadBenchmark = hasArg(args, "--load-benchmark")
     local titleSmoke = hasArg(args, "--title-smoke")
     local settingsSmoke = hasArg(args, "--settings-smoke")
     local estateSmoke = hasArg(args, "--estate-smoke")
@@ -1213,7 +1229,7 @@ function love.load(args)
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
         paused = false,
-        uiState = (titleSmoke and "title") or (polishSmoke and "title") or (settingsSmoke and "settings") or (gameOverSmoke and "gameover") or (creditsSmoke and "credits") or ((smoke or renderBenchmark or renderSmoke) and "game" or "title"),
+        uiState = (titleSmoke and "title") or (polishSmoke and "title") or (settingsSmoke and "settings") or (gameOverSmoke and "gameover") or (creditsSmoke and "credits") or ((smoke or renderBenchmark or renderSmoke or loadBenchmark) and "game" or "title"),
         titleMenuIndex = 1,
         titleTime = 0,
         viewRotation = 0,
@@ -1226,6 +1242,7 @@ function love.load(args)
         smoke = smoke,
         smokeFrames = 0,
         renderBenchmark = renderBenchmark,
+        loadBenchmark = loadBenchmark,
         renderSmoke = renderSmoke,
         previewCapture = previewCapture,
         accessibilityExport = accessibilityExport,
@@ -1252,6 +1269,10 @@ function love.load(args)
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
         renderBenchmarkMaxMs = 0,
+        renderBenchmarkFrameTotalMs = 0,
+        renderBenchmarkFrameMaxMs = 0,
+        renderBenchmarkDrawSamples = {},
+        renderBenchmarkFrameSamples = {},
         lastCueStatus = sim.status,
         lastAudioEventId = sim.eventSerial or 0,
         lastVisualEventId = sim.eventSerial or 0,
@@ -1281,6 +1302,13 @@ function love.load(args)
     end
     Achievements.update(sim, app)
     Render.load()
+    if loadBenchmark then
+        print("benchmark=load")
+        print("renderer=" .. tostring(app.renderer))
+        print("mode=" .. tostring(sim and sim.mode))
+        print(string.format("load_ms=%.6f", (love.timer.getTime() - loadStartedAt) * 1000))
+        love.event.quit(0)
+    end
     if accessibilityExport then
         local ok, err = Accessibility.write(accessibilityExport, sim, app)
         print(ok and ("accessibility-export=" .. accessibilityExport) or ("accessibility-export-error=" .. tostring(err)))
@@ -1291,6 +1319,9 @@ end
 function love.update(dt)
     if app and app.importMode then
         return
+    end
+    if app.renderBenchmark and not app.renderBenchmarkDone then
+        app.renderBenchmarkFrameStartedAt = love.timer.getTime()
     end
     app.titleTime = (app.settings and app.settings.reducedMotion) and 0 or ((app.titleTime or 0) + dt)
     Audio.updateForState(app.audio, dt, app, sim)
@@ -1408,10 +1439,16 @@ function love.draw()
     printToastSmoke(app)
     capturePreviewIfNeeded(app)
     if app.renderBenchmark and not app.renderBenchmarkDone then
-        local elapsedMs = (love.timer.getTime() - started) * 1000
+        local finishedAt = love.timer.getTime()
+        local elapsedMs = (finishedAt - started) * 1000
+        local frameMs = (finishedAt - (app.renderBenchmarkFrameStartedAt or started)) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1
         app.renderBenchmarkTotalMs = app.renderBenchmarkTotalMs + elapsedMs
         app.renderBenchmarkMaxMs = math.max(app.renderBenchmarkMaxMs, elapsedMs)
+        app.renderBenchmarkFrameTotalMs = app.renderBenchmarkFrameTotalMs + frameMs
+        app.renderBenchmarkFrameMaxMs = math.max(app.renderBenchmarkFrameMaxMs, frameMs)
+        app.renderBenchmarkDrawSamples[#app.renderBenchmarkDrawSamples + 1] = elapsedMs
+        app.renderBenchmarkFrameSamples[#app.renderBenchmarkFrameSamples + 1] = frameMs
         if app.renderBenchmarkCount >= app.renderBenchmarkFrames then
             app.renderBenchmarkDone = true
             print("benchmark=render")
@@ -1420,6 +1457,10 @@ function love.draw()
             print("frames=" .. app.renderBenchmarkCount)
             print(string.format("avg_draw_ms=%.6f", app.renderBenchmarkTotalMs / app.renderBenchmarkCount))
             print(string.format("max_draw_ms=%.6f", app.renderBenchmarkMaxMs))
+            print(string.format("p99_draw_ms=%.6f", percentile(app.renderBenchmarkDrawSamples, 0.99)))
+            print(string.format("avg_frame_ms=%.6f", app.renderBenchmarkFrameTotalMs / app.renderBenchmarkCount))
+            print(string.format("max_frame_ms=%.6f", app.renderBenchmarkFrameMaxMs))
+            print(string.format("p99_frame_ms=%.6f", percentile(app.renderBenchmarkFrameSamples, 0.99)))
             love.event.quit(0)
         end
     end
@@ -1584,7 +1625,7 @@ function love.mousemoved(x, y)
 end
 
 function love.quit()
-    if app and (app.smoke or app.renderBenchmark) then
+    if app and (app.smoke or app.renderBenchmark or app.loadBenchmark) then
         return false
     end
     if app and not app.quitConfirmed and midExpedition() then

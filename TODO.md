@@ -148,7 +148,6 @@ Goal: Balatro-feel polish on every interaction. Audio mix. Final accessibility p
 - [ ] 7.2 Combat juice pass: hit pause, screen shake (toggleable), damage numbers, crit feedback (80h)
 - [ ] 7.3 Audio mix pass: layer ambient + music + SFX, sidechain duck on critical events (40h)
 - [ ] 7.5 Localization scaffolding: extract all strings to `src/game/data/i18n/en.lua`; add `i18n.t(key)` calls in render layer (80h)
-- [ ] 7.8 Performance final pass: cold-boot time <3s, expedition load <1s, frame time <16ms 99th percentile (80h)
 - [ ] 7.15 Tag commit `phase7-polish-complete` (0.5h)
 
 **Phase 7 exit criteria:** Balatro-feel polish bar met (subjective; verify via 5 external playtesters' "feel" ratings). No accessibility regressions. Perf budget hit.
