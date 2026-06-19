@@ -413,6 +413,36 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(56)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_gather"))
+    sim:resolveCurio(8, 1, 0, "lost_page")
+    expect(not sim.expedition.objectiveComplete and sim.expedition.loot:count("archive_page") == 1, "one gathered item should not complete gather mission")
+    sim:resolveCurio(16, -1, 0, "lost_page")
+    expect(sim.expedition.objectiveComplete and sim.expedition.loot:count("archive_page") == 2, "gather mission should complete after objective items")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(57)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_valves"))
+    expect(sim.expedition.supplies:count("valve_key") == 2, "activate mission should grant quest provisions")
+    sim:resolveCurio(6, 5, 0, "tide_valve")
+    expect(not sim.expedition.objectiveComplete and sim.expedition.questActivations == 1, "one activation should not complete activate mission")
+    sim:resolveCurio(18, 5, 0, "tide_valve")
+    expect(sim.expedition.objectiveComplete and sim.expedition.supplies:count("valve_key") == 0, "activate mission should consume provisions and complete")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(58)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("ember_wards"))
+    sim.expedition.supplies:consume("ember_oil", sim.expedition.supplies:count("ember_oil"))
+    expect(not sim:resolveCurio(14, -3, 0, "ember_ward"), "activate curio should fail without quest item")
+    expect(not sim.expedition.curiosUsed["0:14:-3"], "failed activation should not mark curio used")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(27)
     sim.expedition.loot:add("coin", 20)
     runQueued(sim, Simulation.commands.endExpedition(true))

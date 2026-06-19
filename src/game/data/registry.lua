@@ -21,6 +21,9 @@ Registry.tiles = {
     brine_lockbox = { name = "Brine Lockbox", walkable = true, curio = "brine_lockbox", color = { 84, 124, 118 } },
     ash_vent = { name = "Ash Vent", walkable = true, curio = "ash_vent", color = { 138, 72, 48 } },
     ember_reliquary = { name = "Ember Reliquary", walkable = true, curio = "ember_reliquary", color = { 168, 96, 40 } },
+    lost_page = { name = "Lost Page", walkable = true, curio = "lost_page", color = { 172, 154, 104 } },
+    tide_valve = { name = "Tide Valve", walkable = true, curio = "tide_valve", color = { 84, 150, 154 } },
+    ember_ward = { name = "Ember Ward", walkable = true, curio = "ember_ward", color = { 180, 96, 58 } },
     boss_sigil = { name = "Regent Sigil", walkable = true, encounter = "regent", color = { 128, 54, 74 } },
     tide_sigil = { name = "Tide Sigil", walkable = true, encounter = "matron", color = { 44, 116, 132 } },
     ember_sigil = { name = "Ember Sigil", walkable = true, encounter = "prioress", color = { 160, 74, 42 } },
@@ -39,10 +42,14 @@ Registry.items = {
     relic = { name = "Relic", stack = 99 },
     coin = { name = "Coin", stack = 999 },
     heirloom = { name = "Heirloom", stack = 99 },
+    archive_page = { name = "Archive Page", stack = 4 },
+    valve_key = { name = "Valve Key", stack = 4 },
+    ember_oil = { name = "Ember Oil", stack = 4 },
 }
 
 Registry.itemOrder = {
-    "torch", "ration", "bandage", "laudanum", "skeleton_key", "salve", "ward_charm", "relic", "coin", "heirloom",
+    "torch", "ration", "bandage", "laudanum", "skeleton_key", "salve", "ward_charm",
+    "archive_page", "valve_key", "ember_oil", "relic", "coin", "heirloom",
 }
 Registry.inventoryPanelOrder = Registry.itemOrder
 
@@ -407,10 +414,14 @@ Registry.curios = {
     brine_lockbox = { name = "Brine Lockbox", item = "skeleton_key", loot = { coin = 65, heirloom = 1 }, stress = 2 },
     ash_vent = { name = "Ash Vent", item = "salve", damage = 5, stress = 4 },
     ember_reliquary = { name = "Ember Reliquary", item = "ward_charm", loot = { relic = 1, coin = 55 }, stress = -4 },
+    lost_page = { name = "Lost Page", questGather = { item = "archive_page", count = 1 }, stress = 2 },
+    tide_valve = { name = "Tide Valve", questActivate = true, item = "valve_key", stress = -2 },
+    ember_ward = { name = "Ember Ward", questActivate = true, item = "ember_oil", stress = 3 },
     cold_camp = { name = "Cold Camp", camp = true },
 }
 Registry.curioOrder = {
-    "relic_cache", "whispering_idol", "wire_snare", "salt_font", "brine_lockbox", "ash_vent", "ember_reliquary", "cold_camp",
+    "relic_cache", "whispering_idol", "wire_snare", "salt_font", "brine_lockbox", "ash_vent", "ember_reliquary",
+    "lost_page", "tide_valve", "ember_ward", "cold_camp",
 }
 
 Registry.encounters = {
@@ -465,7 +476,9 @@ Registry.locations = {
                 { x = -2, y = 2, z = 0, tile = "exit_gate" },
                 { x = 4, y = 0, z = 0, tile = "wire_snare" },
                 { x = 8, y = 6, z = 0, tile = "camp_marker" },
+                { x = 8, y = 1, z = 0, tile = "lost_page" },
                 { x = 16, y = 0, z = 0, tile = "relic_cache" },
+                { x = 16, y = -1, z = 0, tile = "lost_page" },
                 { x = 16, y = 6, z = 0, tile = "whispering_idol" },
                 { x = 24, y = 0, z = 0, tile = "boss_sigil" },
             },
@@ -508,8 +521,10 @@ Registry.locations = {
                 { x = 0, y = 0, z = 0, tile = "salt_floor" },
                 { x = -2, y = 2, z = 0, tile = "exit_gate" },
                 { x = 6, y = 4, z = 0, tile = "salt_font" },
+                { x = 6, y = 5, z = 0, tile = "tide_valve" },
                 { x = 12, y = 0, z = 0, tile = "brine_lockbox" },
                 { x = 6, y = 10, z = 0, tile = "camp_marker" },
+                { x = 18, y = 5, z = 0, tile = "tide_valve" },
                 { x = 18, y = 10, z = 0, tile = "tide_sigil" },
             },
         },
@@ -549,8 +564,10 @@ Registry.locations = {
                 { x = 0, y = 0, z = 0, tile = "ember_floor" },
                 { x = -2, y = 2, z = 0, tile = "exit_gate" },
                 { x = 8, y = 0, z = 0, tile = "ash_vent" },
+                { x = 14, y = -3, z = 0, tile = "ember_ward" },
                 { x = 14, y = 4, z = 0, tile = "ember_reliquary" },
                 { x = 20, y = 4, z = 0, tile = "camp_marker" },
+                { x = 20, y = 3, z = 0, tile = "ember_ward" },
                 { x = 20, y = -8, z = 0, tile = "ember_sigil" },
             },
         },
@@ -578,6 +595,13 @@ Registry.missions = {
         objectiveEncounters = 2,
         reward = { gold = 110, heirlooms = 2 },
     },
+    archive_gather = {
+        name = "Recover Torn Folios",
+        location = "buried_archive",
+        kind = "gather",
+        objectiveItems = { archive_page = 2 },
+        reward = { gold = 120, heirlooms = 2 },
+    },
     archive_regent = {
         name = "Silence the Vault Regent",
         location = "buried_archive",
@@ -597,6 +621,14 @@ Registry.missions = {
         kind = "boss",
         reward = { gold = 185, heirlooms = 4, trinket = "oath_ring" },
     },
+    cistern_valves = {
+        name = "Open the Tide Valves",
+        location = "salt_cistern",
+        kind = "activate",
+        objectiveActivations = 2,
+        questProvision = { { item = "valve_key", count = 2 } },
+        reward = { gold = 130, heirlooms = 3 },
+    },
     ember_cleansing = {
         name = "Quench the Ember Warrens",
         location = "ember_warrens",
@@ -610,10 +642,19 @@ Registry.missions = {
         kind = "boss",
         reward = { gold = 195, heirlooms = 5, trinket = "ember_pin" },
     },
+    ember_wards = {
+        name = "Anoint the Ember Wards",
+        location = "ember_warrens",
+        kind = "activate",
+        objectiveActivations = 2,
+        questProvision = { { item = "ember_oil", count = 2 } },
+        reward = { gold = 135, heirlooms = 3 },
+    },
 }
 Registry.missionOrder = {
-    "archive_scout", "archive_cleansing", "archive_regent",
-    "cistern_survey", "cistern_bell", "ember_cleansing", "ember_prioress",
+    "archive_scout", "archive_cleansing", "archive_gather", "archive_regent",
+    "cistern_survey", "cistern_valves", "cistern_bell",
+    "ember_cleansing", "ember_wards", "ember_prioress",
 }
 
 Registry.campSkills = {

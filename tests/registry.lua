@@ -123,6 +123,9 @@ for key, curio in pairs(Defs.curios) do
     if curio.item then
         expect(Defs.item(curio.item), "curio item missing " .. curio.item)
     end
+    if curio.questGather then
+        expect(Defs.item(curio.questGather.item), "curio quest gather missing item " .. curio.questGather.item)
+    end
     for item in pairs(curio.loot or {}) do
         expect(Defs.item(item), "curio loot missing item " .. item)
     end
@@ -154,7 +157,13 @@ end
 
 for key, mission in pairs(Defs.missions) do
     expect(mission.name and Defs.location(mission.location), "mission missing location " .. key)
-    expect(mission.kind == "scout" or mission.kind == "cleanse" or mission.kind == "boss", "mission bad kind " .. key)
+    expect(mission.kind == "scout" or mission.kind == "cleanse" or mission.kind == "boss" or mission.kind == "gather" or mission.kind == "activate", "mission bad kind " .. key)
+    for item in pairs(mission.objectiveItems or {}) do
+        expect(Defs.item(item), "mission objective missing item " .. item)
+    end
+    for _, stack in ipairs(mission.questProvision or {}) do
+        expect(Defs.item(stack.item) and stack.count > 0, "mission quest provision invalid " .. tostring(stack.item))
+    end
     if mission.reward and mission.reward.trinket then
         expect(Defs.trinket(mission.reward.trinket), "mission reward missing trinket " .. mission.reward.trinket)
     end

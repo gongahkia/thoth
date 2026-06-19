@@ -675,6 +675,9 @@ function Simulation:startExpedition(locationKey)
     for _, stack in ipairs((self.estate.provisionCart and self.estate.provisionCart:stacks()) or {}) do
         supplies:add(stack.item, stack.count)
     end
+    for _, stack in ipairs(mission.questProvision or {}) do
+        supplies:add(stack.item, stack.count)
+    end
     self.estate.provisionCart = Inventory.new()
     self.expedition = {
         active = true,
@@ -684,6 +687,7 @@ function Simulation:startExpedition(locationKey)
         supplies = supplies,
         loot = Inventory.new(),
         packSlots = 12,
+        questActivations = 0,
         visitedRooms = {},
         scoutedRooms = {},
         clearedEncounters = {},
@@ -1124,6 +1128,17 @@ function Simulation:updateObjective()
         self.expedition.objectiveComplete = self:clearedEncounterCount() >= (mission.objectiveEncounters or 1)
     elseif mission.kind == "boss" then
         self.expedition.objectiveComplete = self.expedition.bossDefeated == true
+    elseif mission.kind == "gather" then
+        local complete = true
+        for item, count in pairs(mission.objectiveItems or {}) do
+            if self.expedition.loot:count(item) < count then
+                complete = false
+                break
+            end
+        end
+        self.expedition.objectiveComplete = complete
+    elseif mission.kind == "activate" then
+        self.expedition.objectiveComplete = (self.expedition.questActivations or 0) >= (mission.objectiveActivations or 1)
     end
     return self.expedition.objectiveComplete
 end
@@ -1293,12 +1308,35 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
     if curio.camp then
         return self:camp()
     end
+    if curio.questActivate then
+        if curio.item and not self.expedition.supplies:consume(curio.item, 1) then
+            self:pushLog("missing " .. Defs.item(curio.item).name)
+            return false
+        end
+        self.expedition.questActivations = (self.expedition.questActivations or 0) + 1
+        self.expedition.curiosUsed[key] = true
+        self.world:setTile(x, y, z, { id = self.world:floorTile(), data = 0 })
+        local hero = self:heroAtRank(self.player.selectedHero) or self:heroAtRank(1)
+        if curio.stress then
+            if curio.stress < 0 then
+                self:healStress(hero, -curio.stress)
+            else
+                self:addStress(hero, curio.stress)
+            end
+        end
+        self:updateObjective()
+        self:pushLog(curio.name .. " activated")
+        return true
+    end
     local usedItem = false
     if not (options and options.forceNoItem) and curio.item and self.expedition.supplies:consume(curio.item, 1) then
         usedItem = true
     end
     for item, count in pairs(curio.loot or {}) do
         self:addLoot(item, usedItem and count or math.max(1, math.floor(count / 2)))
+    end
+    if curio.questGather then
+        self:addLoot(curio.questGather.item, curio.questGather.count or 1)
     end
     local hero = self:heroAtRank(self.player.selectedHero) or self:heroAtRank(1)
     if curio.damage and not usedItem then
@@ -1316,6 +1354,7 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
     end
     self.expedition.curiosUsed[key] = true
     self.world:setTile(x, y, z, { id = self.world:floorTile(), data = 0 })
+    self:updateObjective()
     self:pushLog(curio.name .. " resolved")
     return true
 end
@@ -2063,10 +2102,19 @@ function Simulation:missionProgressText()
         return "estate"
     end
     local mission = Defs.mission(self.expedition.mission) or Defs.mission("archive_scout")
-    local target = mission.objectiveRooms or mission.objectiveEncounters or 1
+    local target = mission.objectiveRooms or mission.objectiveEncounters or mission.objectiveActivations or 1
     local progress = mission.kind == "cleanse" and self:clearedEncounterCount() or self.expedition.roomsScouted
     if mission.kind == "boss" then
         progress = self.expedition.bossDefeated and 1 or 0
+    elseif mission.kind == "gather" then
+        progress = 0
+        target = 0
+        for item, count in pairs(mission.objectiveItems or {}) do
+            progress = progress + math.min(count, self.expedition.loot:count(item))
+            target = target + count
+        end
+    elseif mission.kind == "activate" then
+        progress = self.expedition.questActivations or 0
     end
     return mission.kind .. " " .. progress .. "/" .. target
         .. "  light " .. self.expedition.torch
@@ -2171,6 +2219,7 @@ function Simulation:snapshot()
             supplies = self.expedition.supplies:stacks(),
             loot = self.expedition.loot:stacks(),
             packSlots = self.expedition.packSlots,
+            questActivations = self.expedition.questActivations,
             visitedRooms = copyMap(self.expedition.visitedRooms),
             scoutedRooms = copyMap(self.expedition.scoutedRooms),
             clearedEncounters = copyMap(self.expedition.clearedEncounters),
@@ -2316,6 +2365,7 @@ function Simulation.fromSnapshot(snapshot)
             supplies = inventoryFromStacks(exp.supplies),
             loot = inventoryFromStacks(exp.loot),
             packSlots = exp.packSlots or 12,
+            questActivations = exp.questActivations or 0,
             visitedRooms = copyMap(exp.visitedRooms),
             scoutedRooms = copyMap(exp.scoutedRooms),
             clearedEncounters = copyMap(exp.clearedEncounters),
