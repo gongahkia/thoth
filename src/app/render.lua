@@ -525,6 +525,11 @@ function Render.drawEstatePanel(sim, app)
         end
     end
     love.graphics.printf(#trinkets > 0 and table.concat(trinkets, "  ") or "no trinkets", x + 10, y + 100, 312)
+    local missions = {}
+    for _, key in ipairs(Defs.missionOrder) do
+        missions[#missions + 1] = Defs.mission(key).kind
+    end
+    love.graphics.printf("missions " .. table.concat(missions, " / "), x + 10, y + 118, 312)
     drawHeroRows(sim, app, x + 10, y + 128, 312)
 end
 

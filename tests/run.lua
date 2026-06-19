@@ -316,7 +316,36 @@ tests[#tests + 1] = function()
     sim.player.facing = "south"
     runQueued(sim, Simulation.commands.interact())
     expect(sim.mode == "estate", "exit should end completed expedition")
-    expect(sim.estate.gold == 200, "completed expedition should transfer coin")
+    expect(sim.estate.gold == 280, "completed expedition should transfer loot and mission reward")
+    expect(sim.estate.heirlooms == 1, "completed expedition should pay mission heirloom reward")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(42)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_cleansing"))
+    expect(sim.expedition.mission == "archive_cleansing", "start expedition should accept mission key")
+    expect(not sim.expedition.objectiveComplete, "cleanse mission should start incomplete")
+    sim:startCombat("entry", "8:0")
+    sim:finishCombat(true)
+    expect(not sim.expedition.objectiveComplete, "one cleared encounter should not complete cleanse mission")
+    sim:startCombat("stacks", "16:0")
+    sim:finishCombat(true)
+    expect(sim.expedition.objectiveComplete, "two cleared encounters should complete cleanse mission")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(43)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_regent"))
+    sim:startCombat("regent", "24:0")
+    sim:finishCombat(true)
+    expect(sim.expedition.objectiveComplete and sim.expedition.bossDefeated, "boss mission should complete on regent victory")
+    sim.player.x = -2
+    sim.player.y = 1
+    sim.player.facing = "south"
+    runQueued(sim, Simulation.commands.interact())
+    expect(sim.estate.trinkets.quiet_bell >= 1 and sim.estate.gold >= 320, "boss mission should pay reward")
 end
 
 tests[#tests + 1] = function()

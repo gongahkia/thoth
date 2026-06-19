@@ -560,11 +560,26 @@ function Simulation:selectHero(heroRank)
     return false
 end
 
+function Simulation:missionForKey(key)
+    if Defs.mission(key) then
+        return key, Defs.mission(key)
+    end
+    for _, missionKey in ipairs(Defs.missionOrder) do
+        local mission = Defs.mission(missionKey)
+        if mission.location == key then
+            return missionKey, mission
+        end
+    end
+    local fallback = Defs.missionOrder[1]
+    return fallback, Defs.mission(fallback)
+end
+
 function Simulation:startExpedition(locationKey)
     if self.expedition and self.expedition.active then
         return false
     end
-    local location = Defs.location(locationKey or "buried_archive")
+    local missionKey, mission = self:missionForKey(locationKey or "archive_scout")
+    local location = Defs.location(mission.location)
     if not location then
         return false
     end
@@ -578,7 +593,8 @@ function Simulation:startExpedition(locationKey)
     self.combat = nil
     self.expedition = {
         active = true,
-        location = locationKey or "buried_archive",
+        mission = missionKey,
+        location = mission.location,
         torch = 75,
         supplies = Inventory.new({
             { item = "torch", count = 4 },
@@ -602,7 +618,7 @@ function Simulation:startExpedition(locationKey)
         log = {},
     }
     self:discoverCurrentRoom()
-    self:pushLog("entered " .. location.name)
+    self:pushLog("entered " .. mission.name)
     return true
 end
 
@@ -613,9 +629,14 @@ function Simulation:endExpedition(retreat)
     local success = self.expedition.objectiveComplete and not retreat
     local coin = self.expedition.loot:count("coin")
     local heirloom = self.expedition.loot:count("heirloom")
+    local mission = Defs.mission(self.expedition.mission) or Defs.mission("archive_scout")
+    local reward = mission.reward or {}
     if success then
-        self.estate.gold = self.estate.gold + coin
-        self.estate.heirlooms = self.estate.heirlooms + heirloom + self.expedition.loot:count("relic")
+        self.estate.gold = self.estate.gold + coin + (reward.gold or 0)
+        self.estate.heirlooms = self.estate.heirlooms + heirloom + self.expedition.loot:count("relic") + (reward.heirlooms or 0)
+        if reward.trinket then
+            self.estate.trinkets[reward.trinket] = (self.estate.trinkets[reward.trinket] or 0) + 1
+        end
         for rank = 1, 4 do
             local hero = self:heroAtRank(rank)
             if hero and hero.alive then
@@ -865,13 +886,35 @@ function Simulation:discoverCurrentRoom()
     if roomKey and not self.expedition.visitedRooms[roomKey] then
         self.expedition.visitedRooms[roomKey] = true
         self.expedition.roomsScouted = self.expedition.roomsScouted + 1
-        local location = Defs.location(self.expedition.location)
-        if self.expedition.roomsScouted >= location.objectiveRooms then
-            self.expedition.objectiveComplete = true
-        end
+        self:updateObjective()
         self:scoutFromRoom(roomKey)
     end
     return roomKey
+end
+
+function Simulation:clearedEncounterCount()
+    local count = 0
+    if self.expedition then
+        for _ in pairs(self.expedition.clearedEncounters or {}) do
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function Simulation:updateObjective()
+    if not self.expedition then
+        return false
+    end
+    local mission = Defs.mission(self.expedition.mission) or Defs.mission("archive_scout")
+    if mission.kind == "scout" then
+        self.expedition.objectiveComplete = self.expedition.roomsScouted >= (mission.objectiveRooms or Defs.location(mission.location).objectiveRooms)
+    elseif mission.kind == "cleanse" then
+        self.expedition.objectiveComplete = self:clearedEncounterCount() >= (mission.objectiveEncounters or 1)
+    elseif mission.kind == "boss" then
+        self.expedition.objectiveComplete = self.expedition.bossDefeated == true
+    end
+    return self.expedition.objectiveComplete
 end
 
 function Simulation:scoutFromRoom(roomKey)
@@ -1501,10 +1544,10 @@ function Simulation:finishCombat(victory)
             end
             if self.combat.encounter == "regent" then
                 self.expedition.bossDefeated = true
-                self.expedition.objectiveComplete = true
                 self.world:setTile(24, 0, 0, { id = "archive_floor", data = 0 })
                 self.estate.trinkets.quiet_bell = (self.estate.trinkets.quiet_bell or 0) + 1
             end
+            self:updateObjective()
         end
         self.mode = "expedition"
         self:pushLog("combat won")
@@ -1775,8 +1818,13 @@ function Simulation:missionProgressText()
     if not self.expedition then
         return "estate"
     end
-    local location = Defs.location(self.expedition.location)
-    return "rooms " .. self.expedition.roomsScouted .. "/" .. location.objectiveRooms
+    local mission = Defs.mission(self.expedition.mission) or Defs.mission("archive_scout")
+    local target = mission.objectiveRooms or mission.objectiveEncounters or 1
+    local progress = mission.kind == "cleanse" and self:clearedEncounterCount() or self.expedition.roomsScouted
+    if mission.kind == "boss" then
+        progress = self.expedition.bossDefeated and 1 or 0
+    end
+    return mission.kind .. " " .. progress .. "/" .. target
         .. "  light " .. self.expedition.torch
         .. "  loot " .. self.expedition.loot:count("coin") .. "c"
 end
@@ -1792,11 +1840,12 @@ function Simulation:objectiveChecklist()
             },
         }
     end
+    local mission = Defs.mission(self.expedition.mission) or Defs.mission("archive_scout")
     return {
         {
             title = "Expedition",
             items = {
-                { label = "scout", done = self.expedition.roomsScouted >= 3, next = "Scout three archive rooms" },
+                { label = mission.kind, done = self.expedition.objectiveComplete, next = mission.name },
                 { label = "camp", done = self.expedition.campUsed, next = "Camp at the cold camp if stress climbs" },
                 { label = "regent", done = self.expedition.bossDefeated, next = "Defeat the Vault Regent or return after scouting" },
                 { label = "exit", done = not self.expedition.active, next = "Face the exit gate and press space" },
@@ -1870,6 +1919,7 @@ function Simulation:snapshot()
     if self.expedition then
         expedition = {
             active = self.expedition.active,
+            mission = self.expedition.mission,
             location = self.expedition.location,
             torch = self.expedition.torch,
             supplies = self.expedition.supplies:stacks(),
@@ -2008,6 +2058,7 @@ function Simulation.fromSnapshot(snapshot)
     if exp then
         self.expedition = {
             active = exp.active == true,
+            mission = exp.mission or "archive_scout",
             location = exp.location or "buried_archive",
             torch = exp.torch or 0,
             supplies = inventoryFromStacks(exp.supplies),

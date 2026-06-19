@@ -35,6 +35,7 @@ checkOrder("affliction", Defs.afflictionOrder, Defs.afflictions)
 checkOrder("curio", Defs.curioOrder, Defs.curios)
 checkOrder("encounter", Defs.encounterOrder, Defs.encounters)
 checkOrder("location", Defs.locationOrder, Defs.locations)
+checkOrder("mission", Defs.missionOrder, Defs.missions)
 checkOrder("camp skill", Defs.campSkillOrder, Defs.campSkills)
 checkOrder("estate building", Defs.estateBuildingOrder, Defs.estateBuildings)
 
@@ -130,6 +131,14 @@ for key, location in pairs(Defs.locations) do
     expect(location.name and location.start and location.objectiveRooms > 0, "location missing data " .. key)
     for _, encounterKey in pairs(location.encounters or {}) do
         expect(Defs.encounter(encounterKey), "location missing encounter " .. encounterKey)
+    end
+end
+
+for key, mission in pairs(Defs.missions) do
+    expect(mission.name and Defs.location(mission.location), "mission missing location " .. key)
+    expect(mission.kind == "scout" or mission.kind == "cleanse" or mission.kind == "boss", "mission bad kind " .. key)
+    if mission.reward and mission.reward.trinket then
+        expect(Defs.trinket(mission.reward.trinket), "mission reward missing trinket " .. mission.reward.trinket)
     end
 end
 

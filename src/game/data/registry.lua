@@ -262,6 +262,30 @@ Registry.locations = {
 }
 Registry.locationOrder = { "buried_archive" }
 
+Registry.missions = {
+    archive_scout = {
+        name = "Scout the Buried Archive",
+        location = "buried_archive",
+        kind = "scout",
+        objectiveRooms = 3,
+        reward = { gold = 80, heirlooms = 1 },
+    },
+    archive_cleansing = {
+        name = "Cull the Index Dead",
+        location = "buried_archive",
+        kind = "cleanse",
+        objectiveEncounters = 2,
+        reward = { gold = 110, heirlooms = 2 },
+    },
+    archive_regent = {
+        name = "Silence the Vault Regent",
+        location = "buried_archive",
+        kind = "boss",
+        reward = { gold = 170, heirlooms = 4, trinket = "quiet_bell" },
+    },
+}
+Registry.missionOrder = { "archive_scout", "archive_cleansing", "archive_regent" }
+
 Registry.campSkills = {
     bind_wounds = { name = "Bind Wounds", cost = 2, target = "ally", heal = 5, stressHeal = 3 },
     watch_order = { name = "Watch Order", cost = 2, target = "party", torch = 20, stressHeal = 2, preventAmbush = true },

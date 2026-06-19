@@ -27,6 +27,8 @@ local Defs = {
     encounterOrder = Registry.encounterOrder,
     locations = Registry.locations,
     locationOrder = Registry.locationOrder,
+    missions = Registry.missions,
+    missionOrder = Registry.missionOrder,
     campSkills = Registry.campSkills,
     campSkillOrder = Registry.campSkillOrder,
     estateBuildings = Registry.estateBuildings,
@@ -83,6 +85,10 @@ end
 
 function Defs.location(id)
     return Defs.locations[id]
+end
+
+function Defs.mission(id)
+    return Defs.missions[id]
 end
 
 function Defs.campSkill(id)
