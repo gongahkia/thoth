@@ -18,6 +18,10 @@ local snapIndex = 1
 local snapYaws = {0, math.pi / 2, math.pi, math.pi * 3 / 2}
 local snapSpeed = 6
 local twoPi = math.pi * 2
+local verifyBillboard = false
+local verifySnap = 1
+local verifyCapture = false
+local verifyPendingName
 
 local function vert(x, y, z, u, v)
     v = v or 0.5
@@ -33,6 +37,24 @@ local function quad(out, a, b, c, d)
     out[#out + 1] = d
 end
 
+local function textureU(index, cells)
+    return (index + 0.5) / cells
+end
+
+local function tileU(x, y)
+    local mid = gridSize / 2
+    if x == gridSize - 1 and y == mid then
+        return textureU(2, 6)
+    elseif x == mid and y == gridSize - 1 then
+        return textureU(3, 6)
+    elseif x == 0 and y == mid then
+        return textureU(4, 6)
+    elseif x == mid and y == 0 then
+        return textureU(5, 6)
+    end
+    return ((x + y) % 2 == 0) and textureU(0, 6) or textureU(1, 6)
+end
+
 local function tileVerts()
     local out = {}
     local half = gridSize / 2
@@ -42,7 +64,7 @@ local function tileVerts()
             local right = left + 0.96
             local top = y - half
             local bottom = top + 0.96
-            local u = ((x + y) % 2 == 0) and 0.25 or 0.75
+            local u = tileU(x, y)
             quad(out,
                 vert(left, top, 0, u),
                 vert(right, top, 0, u),
@@ -56,17 +78,21 @@ end
 local function spriteVerts()
     local out = {}
     quad(out,
-        vert(-0.55, 0, 0, 0, 0.25),
-        vert(0.55, 0, 0, 0.25, 0.25),
-        vert(0.55, 0, 1.1, 0.25, 0),
-        vert(-0.55, 0, 1.1, 0, 0))
+        vert(-1.5, 0, 0, 0, 0.25),
+        vert(1.5, 0, 0, 0.25, 0.25),
+        vert(1.5, 0, 3, 0.25, 0),
+        vert(-1.5, 0, 3, 0, 0))
     return out
 end
 
 local function gridTexture()
-    local data = love.image.newImageData(2, 1)
+    local data = love.image.newImageData(6, 1)
     data:setPixel(0, 0, 0.34, 0.37, 0.42, 1)
     data:setPixel(1, 0, 0.48, 0.50, 0.55, 1)
+    data:setPixel(2, 0, 0.82, 0.18, 0.18, 1)
+    data:setPixel(3, 0, 0.20, 0.68, 0.28, 1)
+    data:setPixel(4, 0, 0.20, 0.34, 0.82, 1)
+    data:setPixel(5, 0, 0.86, 0.78, 0.22, 1)
     local image = love.graphics.newImage(data)
     image:setFilter("nearest", "nearest")
     return image
@@ -107,6 +133,15 @@ local function stepCamera(dt)
 end
 
 function love.load()
+    for _, launchArg in ipairs(arg or {}) do
+        if launchArg == "--verify-billboard" then
+            verifyBillboard = true
+        end
+    end
+    if verifyBillboard then
+        love.filesystem.setIdentity("thoth-spike")
+        print("verify-output=" .. love.filesystem.getSaveDirectory())
+    end
     love.window.setTitle("Thoth g3d tile grid spike")
     grid = g3d.newModel(tileVerts(), gridTexture())
     grid:makeNormals()
@@ -116,7 +151,23 @@ function love.load()
     faceSpriteToCamera()
 end
 
+local function setSnap(index)
+    snapIndex = index
+    targetYaw = baseYaw + snapYaws[snapIndex]
+    cameraYaw = targetYaw
+    applyIsoCamera()
+    faceSpriteToCamera()
+end
+
 function love.update(dt)
+    if verifyBillboard then
+        if not verifyCapture then
+            setSnap(verifySnap)
+            verifyPendingName = "billboard-snap-" .. verifySnap .. ".png"
+            verifyCapture = true
+        end
+        return
+    end
     stepCamera(dt)
     if love.keyboard.isDown("escape") then
         love.event.push("quit")
@@ -138,6 +189,19 @@ function love.draw()
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.print("q/e rotate snap " .. snapIndex .. "/4 OGA billboard", 16, 16)
     love.graphics.setDepthMode("lequal", true)
+    if verifyPendingName then
+        local name = verifyPendingName
+        verifyPendingName = nil
+        love.graphics.captureScreenshot(function(data)
+            data:encode("png", name)
+            print("captured " .. name)
+            verifySnap = verifySnap + 1
+            verifyCapture = false
+            if verifySnap > #snapYaws then
+                love.event.push("quit")
+            end
+        end)
+    end
 end
 
 function love.resize(width, height)

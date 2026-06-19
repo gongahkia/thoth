@@ -32,3 +32,27 @@ Rationale:
 - [Inference] `g3d` is the lower-risk first spike because the README demo and API match the needed proof with less setup.
 
 This does not lock the Phase 1 production renderer. Phase 0 can still switch if `g3d` misses the perf, camera, or billboard exit criteria.
+
+## Billboard Verification
+
+Date: 2026-06-20
+
+Command:
+
+```sh
+timeout 12s love spike --verify-billboard
+```
+
+Output:
+
+```text
+verify-output=/Users/gongahkia/Library/Application Support/LOVE/thoth-spike
+captured billboard-snap-1.png
+captured billboard-snap-2.png
+captured billboard-snap-3.png
+captured billboard-snap-4.png
+```
+
+Result: visually inspected all four captures. The colored axis tiles rotate between snap states, and the OGA sprite remains upright and front-facing in snaps 1/4 through 4/4.
+
+[Inference] The current yaw-cancel billboard math is correct for the four Phase 0 snap positions.
