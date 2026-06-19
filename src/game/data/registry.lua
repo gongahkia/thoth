@@ -361,11 +361,11 @@ Registry.enemySkills = {
     drowned_hymn = { name = "Drowned Hymn", target = "party", stress = 3 },
     kiln_bite = { name = "Kiln Bite", target = "hero", targetRanks = { 1, 2 }, damage = { 4, 6 }, stress = 1 },
     soot_cloud = { name = "Soot Cloud", target = "hero", targetRanks = { 2, 3, 4 }, damage = { 1, 3 }, stress = 5, status = { kind = "daze", amount = 1, turns = 1 } },
-    furnace_liturgy = { name = "Furnace Liturgy", target = "party", stress = 5 },
+    kiln_liturgy = { name = "Kiln Liturgy", target = "party", stress = 5 },
 }
 Registry.enemySkillOrder = {
     "rusted_chop", "ink_splatter", "needle_dictation", "gutter_hook", "censer_wail", "regent_sentence",
-    "brine_spit", "hook_chain", "drowned_hymn", "kiln_bite", "soot_cloud", "furnace_liturgy",
+    "brine_spit", "hook_chain", "drowned_hymn", "kiln_bite", "soot_cloud", "kiln_liturgy",
 }
 
 Registry.enemies = {
@@ -380,7 +380,7 @@ Registry.enemies = {
     bell_diver = { name = "Bell Diver", maxHp = 28, speed = 2, damage = { 5, 8 }, stress = 6, boss = true, skills = { "hook_chain", "drowned_hymn" } },
     ash_husk = { name = "Ash Husk", maxHp = 13, speed = 4, damage = { 3, 5 }, stress = 3, skills = { "kiln_bite", "soot_cloud" } },
     kiln_imp = { name = "Kiln Imp", maxHp = 9, speed = 7, damage = { 2, 4 }, stress = 5, skills = { "soot_cloud", "kiln_bite" } },
-    cinder_prioress = { name = "Cinder Prioress", maxHp = 31, speed = 5, damage = { 4, 7 }, stress = 8, boss = true, skills = { "furnace_liturgy", "soot_cloud" } },
+    cinder_prioress = { name = "Cinder Prioress", maxHp = 31, speed = 5, damage = { 4, 7 }, stress = 8, boss = true, skills = { "kiln_liturgy", "soot_cloud" } },
 }
 Registry.enemyOrder = {
     "hollow_guard", "ink_wretch", "bone_scribe", "gutter_thing", "pale_censer", "vault_regent",
