@@ -599,6 +599,7 @@ for _, classKey in ipairs(Defs.heroClassOrder) do
     local bark = originBarks[classKey]
     expect(bark and bark.arrival and bark.firstDeath and bark.factionShift, "origin bark missing " .. classKey)
 end
+expect(originBarks.merchant.arrival:find("ledger", 1, true) and originBarks.merchant.firstDeath:find("account", 1, true), "merchant origin bark missing")
 local dreadRules = Defs.dreadRule("dread_rules_v1")
 for _, key in ipairs({ "greedy_extract", "hero_death", "abandoned_mission", "repair_mission", "vigil", "enclave_compact" }) do
     expect(type(dreadRules[key]) == "number", "dread rule missing " .. key)
