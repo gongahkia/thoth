@@ -68,6 +68,13 @@ local function play(app, cue)
     Audio.play(app.audio, cue)
 end
 
+local function activeRender(app)
+    if app and (app.renderer == "render3d" or (app.worldView and app.worldView.mode == "render3d")) then
+        return require("src.app.render3d")
+    end
+    return require("src.app.render")
+end
+
 function Input.update(sim, app, dt)
     app.moveCooldown = math.max(0, (app.moveCooldown or 0) - dt)
     if app.moveCooldown > 0 or sim.mode ~= "expedition" then
@@ -286,7 +293,7 @@ function Input.mousepressed(sim, app, x, y, button)
         end
     end
     if app.worldView and sim.mode == "expedition" then
-        local wx, wy = require("src.app.render").screenToWorld(app.worldView, x, y)
+        local wx, wy = activeRender(app).screenToWorld(app.worldView, x, y)
         local dx = wx - sim.player.x
         local dy = wy - sim.player.y
         if math.abs(dx) + math.abs(dy) == 1 then

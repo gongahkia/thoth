@@ -1685,6 +1685,9 @@ tests[#tests + 1] = function()
     sx, sy = Render.projectIso(view, 10, -1)
     wx, wy = Render.screenToWorld(view, sx, sy)
     expect(wx == 10 and wy == -1, "rotated iso projection should round trip")
+    sx, sy = Render3D.projectIso(view, 10, -1)
+    wx, wy = Render3D.screenToWorld(view, sx, sy)
+    expect(wx == 10 and wy == -1, "render3d rotated projection should round trip")
 end
 
 tests[#tests + 1] = function()

@@ -85,7 +85,6 @@ Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
 
 Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render layer. Keep `simulation.lua` untouched.
 
-- [ ] 1.10 Wire rotation snaps to player input (replace existing `app.viewRotation` placeholder in `main.lua:91`) (4h)
 - [ ] 1.11 Update `tests/run.lua` to run headless against new render layer (16h)
 - [ ] 1.12 Update `make render-smoke` target to verify new render layer (4h)
 - [ ] 1.13 Update `benchmarks/rpg_expedition.lua` to measure new render perf (4h)

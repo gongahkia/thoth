@@ -620,8 +620,10 @@ end
 function Render3D.drawWorld(sim, app)
     app.worldView = app.worldView or {}
     app.worldView.mode = "render3d-placeholder"
-    app.worldView.centerX = 0
-    app.worldView.centerY = 0
+    local screenWidth = love and love.graphics and love.graphics.getWidth() or 0
+    local screenHeight = love and love.graphics and love.graphics.getHeight() or 0
+    app.worldView.centerX = screenWidth / 2
+    app.worldView.centerY = screenHeight / 2
     app.worldView.halfW = 32
     app.worldView.halfH = 16
     app.worldView.originX = sim and sim.player and sim.player.x or 0
