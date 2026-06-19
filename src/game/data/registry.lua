@@ -448,7 +448,7 @@ Registry.enemies = {
     drowned_lantern = { name = "Drowned Lantern", maxHp = 10, speed = 4, damage = { 1, 3 }, stress = 8, skills = { "lantern_drown", "drowned_hymn" } },
     ember_mote = { name = "Ember Mote", maxHp = 10, speed = 8, damage = { 2, 4 }, stress = 5, skills = { "ember_surge", "soot_cloud" } },
     coal_monk = { name = "Coal Monk", maxHp = 18, speed = 2, damage = { 5, 7 }, stress = 2, skills = { "coal_spike", "kiln_liturgy" } },
-    index_skitter = { name = "Index Skitter", maxHp = 9, speed = 8, damage = { 1, 3 }, stress = 4, skills = { "index_glare", "alarm_scrape" } },
+    index_skitter = { name = "Index Skitter", maxHp = 9, speed = 6, damage = { 1, 3 }, stress = 4, skills = { "index_glare", "alarm_scrape" } },
     marginal_choir = { name = "Marginal Choir", maxHp = 11, speed = 5, damage = { 1, 2 }, stress = 8, skills = { "margin_chant", "ink_splatter" } },
     folio_bulwark = { name = "Folio Bulwark", maxHp = 22, speed = 1, damage = { 4, 6 }, stress = 1, skills = { "iron_margin", "rusted_chop" } },
     chain_cataloguer = { name = "Chain Cataloguer", maxHp = 15, speed = 5, damage = { 2, 5 }, stress = 3, skills = { "catalogue_chain", "needle_dictation" } },

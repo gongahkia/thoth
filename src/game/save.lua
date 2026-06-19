@@ -4,7 +4,7 @@ local Simulation = require("src.game.simulation")
 local Save = {}
 
 function Save.toText(simulation)
-    return "THOTH_LUA_SAVE 2\n" .. Serialize.encode(simulation:snapshot()) .. "\n"
+    return "THOTH_LUA_SAVE 3\n" .. Serialize.encode(simulation:snapshot()) .. "\n"
 end
 
 function Save.fromText(text)
@@ -12,7 +12,8 @@ function Save.fromText(text)
     if not version then
         return nil, "bad save header"
     end
-    if tonumber(version) ~= 2 then
+    local numericVersion = tonumber(version)
+    if numericVersion ~= 2 and numericVersion ~= 3 then
         return nil, "unsupported save version " .. tostring(version)
     end
     local snapshot, err = Serialize.decode(body)

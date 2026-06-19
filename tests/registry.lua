@@ -28,6 +28,7 @@ checkOrder("item", Defs.itemOrder, Defs.items)
 checkOrder("trinket", Defs.trinketOrder, Defs.trinkets)
 checkOrder("quirk", Defs.quirkOrder, Defs.quirks)
 checkOrder("disease", Defs.diseaseOrder, Defs.diseases)
+checkOrder("injury", Defs.injuryOrder, Defs.injuries)
 checkOrder("hero class", Defs.heroClassOrder, Defs.heroClasses)
 checkOrder("skill", Defs.skillOrder, Defs.skills)
 checkOrder("enemy skill", Defs.enemySkillOrder, Defs.enemySkills)
@@ -76,6 +77,10 @@ for key, disease in pairs(Defs.diseases) do
     expect(disease.name and disease.name ~= "", "disease missing name " .. key)
 end
 
+for key, injury in pairs(Defs.injuries) do
+    expect(injury.name and injury.name ~= "", "injury missing name " .. key)
+end
+
 for key, activity in pairs(Defs.estateActivities) do
     expect(activity.name and activity.cost and activity.stressHeal and activity.weeks, "estate activity missing data " .. key)
     expect(activity.cost >= 0 and activity.stressHeal > 0 and activity.weeks >= 1, "estate activity bad values " .. key)
@@ -112,8 +117,14 @@ for key, enemy in pairs(Defs.enemies) do
     for _, skillKey in ipairs(enemy.skills) do
         expect(Defs.enemySkill(skillKey), "enemy references missing skill " .. skillKey)
     end
+    for _, part in ipairs(enemy.parts or {}) do
+        expect(part.key and part.name and part.hp > 0, "enemy part missing data " .. key)
+        for _, skillKey in ipairs(part.skillLocks or {}) do
+            expect(Defs.enemySkill(skillKey), "enemy part references missing skill " .. skillKey)
+        end
+    end
 end
-expect(#Defs.enemyOrder >= 18, "enemy roster should include expanded enemy types")
+expect(#Defs.enemyOrder >= 26, "enemy roster should include expanded enemy types")
 
 for key, skill in pairs(Defs.enemySkills) do
     expect(skill.name and (skill.target == "hero" or skill.target == "party"), "enemy skill missing target " .. key)
@@ -154,6 +165,9 @@ for key, location in pairs(Defs.locations) do
     expect(Defs.tile(location.layout.floorTile), "location missing floor tile " .. key)
     expect(Defs.tile(location.layout.wallTile), "location missing wall tile " .. key)
     expect(Defs.tile(location.layout.corridorTile), "location missing corridor tile " .. key)
+    if location.layout.generator then
+        expect(location.layout.roles and location.layout.grammar and location.layout.templates, "generated location missing grammar data " .. key)
+    end
     if location.layout.obstacleTile then
         expect(Defs.tile(location.layout.obstacleTile), "location missing obstacle tile " .. key)
     end
@@ -166,6 +180,9 @@ for key, location in pairs(Defs.locations) do
     end
     for _, encounterKey in pairs(location.encounters or {}) do
         expect(Defs.encounter(encounterKey), "location missing encounter " .. encounterKey)
+    end
+    for _, threat in ipairs(location.layout.threats or {}) do
+        expect(threat.key and threat.roomRole and Defs.encounter(threat.encounter), "location bad threat " .. key)
     end
 end
 

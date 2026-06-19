@@ -33,6 +33,23 @@ local function contains(list, value)
     return false
 end
 
+local function reachableRooms(world, start)
+    local seen = { [start] = true }
+    local queue = { start }
+    local index = 1
+    while queue[index] do
+        local roomKey = queue[index]
+        index = index + 1
+        for _, adjacent in ipairs(world:connectedRooms(roomKey)) do
+            if not seen[adjacent] then
+                seen[adjacent] = true
+                queue[#queue + 1] = adjacent
+            end
+        end
+    end
+    return seen
+end
+
 local function reachEntryCombat(sim)
     for _ = 1, 5 do
         runQueued(sim, Simulation.commands.move("east"))
@@ -60,6 +77,17 @@ tests[#tests + 1] = function()
     expect(world:chunkRevision(0, 0, 0) == baseRevision + 1, "override should bump chunk revision")
     local loaded = World.fromSnapshot(world:snapshot())
     expect(loaded:getTile(4, 0, 0).id == "archive_floor", "world snapshot lost override")
+end
+
+tests[#tests + 1] = function()
+    local scout = World.new(101, "buried_archive", { tiles = {}, layoutId = "archive_scout" })
+    local cleanse = World.new(101, "buried_archive", { tiles = {}, layoutId = "archive_cleansing" })
+    expect(scout:layout().generated and scout:layout().generatedLayoutId == World.fromSnapshot(scout:snapshot()):layout().generatedLayoutId, "archive layout should generate deterministically")
+    expect(cleanse:encounterForRoom("16:6") == "undercroft" and scout:encounterForRoom("16:6") == nil, "mission grammar should vary archive encounter anchors")
+    local seen = reachableRooms(cleanse, "0:0")
+    expect(seen["24:0"] and seen["16:0"] and seen["0:8"] and seen["8:6"], "generated archive required rooms should be reachable")
+    expect(contains(cleanse:connectedRooms("8:0"), "16:0") and contains(cleanse:connectedRooms("8:0"), "8:6"), "generated archive should include a loop and optional branch")
+    expect(#cleanse:threatsInRect(-999, 999, -999, 999, 0) >= 2, "generated archive should expose visible threats")
 end
 
 tests[#tests + 1] = function()
@@ -375,7 +403,7 @@ tests[#tests + 1] = function()
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
     expect(sim:startCombat("archive_branch", "0:8"), "archive branch encounter should start")
-    expect(sim.combat.enemies[1].kind == "parchment_swarm" and sim.combat.enemies[2].kind == "hollow_guard", "archive branch should use new enemies")
+    expect(sim.combat.enemies[1].kind == "parchment_swarm" and sim.combat.enemies[2].kind == "folio_bulwark", "archive branch should use archive role enemies")
     sim = Simulation.new(87)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("cistern_survey"))
@@ -386,6 +414,65 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.startExpedition("ember_cleansing"))
     expect(sim:startCombat("ember_branch", "8:-8"), "ember branch encounter should start")
     expect(sim.combat.enemies[1].kind == "ember_mote", "ember branch should use new enemy")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(94)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    sim.player.x = 15
+    sim.player.y = 5
+    sim.player.facing = "east"
+    runQueued(sim, Simulation.commands.interact())
+    expect(sim.mode == "combat" and sim.combat.encounter == "archive_elite" and sim.combat.visible, "visible archive threat should start elite combat")
+    expect(sim.combat.threatKey == "archive_lectern", "visible archive threat should preserve threat key")
+    sim:finishCombat(true)
+    expect(sim.expedition.clearedEncounters.archive_lectern, "visible archive threat should clear by threat key")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(2)
+    local roomKey = sim:currentRoomKey()
+    sim.expedition.torch = 0
+    sim.expedition.noise = 12
+    sim.expedition.threatState[roomKey] = "stalked"
+    expect(sim:tryStartPressureEncounter(roomKey), "low light and noise should trigger deterministic archive pressure")
+    expect(sim.mode == "combat" and sim.combat.encounter == "archive_ambush" and sim.combat.pressure and sim.combat.ambush, "pressure encounter should start ambush combat")
+    local noisy = Simulation.new(7)
+    noisy.expedition.torch = 0
+    noisy.expedition.noise = 12
+    noisy.expedition.threatState.ghost = "stalked"
+    expect(noisy:tryStartPressureEncounter("ghost"), "unscouted pressure should be dangerous")
+    local scouted = Simulation.new(7)
+    scouted.expedition.torch = 0
+    scouted.expedition.noise = 12
+    scouted.expedition.threatState.ghost = "stalked"
+    scouted.expedition.scoutedRooms.ghost = true
+    expect(not scouted:tryStartPressureEncounter("ghost"), "scouting should reduce deterministic ambush pressure")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(95)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim:startCombat("archive_elite", "weakpoint_test"), "archive elite should start")
+    local enemy = sim:enemyAtRank(1)
+    enemy.parts[1].hp = 1
+    expect(enemy.parts[1].key == "open_codex", "elite should expose weak point data")
+    runQueued(sim, Simulation.commands.combatSkill("razor_lunge", 1, "enemy", "open_codex"))
+    expect(enemy.parts[1].disabled and sim:enemySkillLocked(enemy, "lectern_cant"), "weak point hit should disable mapped skill")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(96)
+    local hero = sim:heroAtRank(1)
+    sim:resolveCurio(4, 0, 0, "wire_snare", { forceNoItem = true })
+    expect(sim:hasInjury(hero), "trap should apply expedition injury")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded:hasInjury(loaded:heroById(hero.id)), "injury should survive snapshot")
+    sim.expedition.supplies:add("bandage", 1)
+    runQueued(sim, Simulation.commands.useItem("bandage", 1))
+    expect(not sim:hasInjury(hero), "bandage should clear one injury")
 end
 
 tests[#tests + 1] = function()
@@ -898,8 +985,18 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.move("east"))
     runQueued(sim, Simulation.commands.useItem("torch"))
     local text = Save.toText(sim)
+    expect(text:match("^THOTH_LUA_SAVE 3"), "save writer should use v3 header")
     local loaded = assert(Save.fromText(text))
     expect(sameSnapshot(sim, loaded), "save round trip should preserve snapshot")
+    local oldSnapshot = sim:snapshot()
+    oldSnapshot.version = 2
+    oldSnapshot.expedition.threatState = nil
+    oldSnapshot.expedition.noise = nil
+    oldSnapshot.expedition.ambushRolls = nil
+    oldSnapshot.expedition.generatedLayoutId = nil
+    oldSnapshot.world.layoutId = nil
+    local oldLoaded = assert(Save.fromText("THOTH_LUA_SAVE 2\n" .. Serialize.encode(oldSnapshot) .. "\n"))
+    expect(oldLoaded.expedition.threatState and oldLoaded.expedition.noise == 0 and oldLoaded.world.layoutId == oldLoaded.expedition.mission, "v2 save should load pressure defaults")
     local old, err = Save.fromText("THOTH_LUA_SAVE 1\n{}\n")
     expect(old == nil and tostring(err):find("unsupported save version"), "legacy save should fail explicitly")
 end

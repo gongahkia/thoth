@@ -177,7 +177,7 @@ function Input.mousepressed(sim, app, x, y, button)
     for _, hitbox in ipairs((app.ui and app.ui.enemyButtons) or {}) do
         if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
             if app.pendingSkillKey and app.pendingTargetSide == "enemy" then
-                sim:queue(Simulation.commands.combatSkill(app.pendingSkillKey, hitbox.rank, "enemy"))
+                sim:queue(Simulation.commands.combatSkill(app.pendingSkillKey, hitbox.rank, "enemy", hitbox.partKey))
                 app.status = "target enemy " .. hitbox.rank
                 app.pendingSkillKey = nil
                 app.pendingTargetSide = nil

@@ -1655,6 +1655,8 @@ function Simulation:recoverHero(heroId, activityKey)
     end
     self.estate.gold = self.estate.gold - cost
     self:healStress(hero, activity and activity.stressHeal or 30)
+    while self:clearInjury(hero) do
+    end
     hero.recovering = activity and (activity.weeks or 1) or 1
     hero.recoveryActivity = activityKey
     self:pushLog(hero.name .. " recovered")
@@ -2007,6 +2009,7 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
     local hero = self:heroAtRank(self.player.selectedHero) or self:heroAtRank(1)
     if curio.damage and not usedItem then
         self:damageHero(hero, curio.damage)
+        self:addRandomInjury(hero, curioKey)
         if curioKey == "ash_vent" or curioKey == "wire_snare" then
             self:maybeContractDisease(hero, curioKey)
         end
@@ -2045,6 +2048,7 @@ function Simulation:camp()
         if hero and hero.alive then
             self:healHero(hero, 4)
             self:healStress(hero, 8)
+            self:clearInjury(hero)
         end
     end
     self:pushLog("camped")
@@ -2132,10 +2136,12 @@ function Simulation:useItem(item, heroRank)
         self:healStress(hero, 1)
     elseif item == "bandage" then
         self:clearStatus(hero, "bleed")
+        self:clearInjury(hero)
     elseif item == "laudanum" then
         self:healStress(hero, 12)
     elseif item == "salve" then
         self:healHero(hero, 5)
+        self:clearInjury(hero)
     elseif item == "ward_charm" then
         hero.virtue = hero.virtue or "focused"
     else
@@ -2180,6 +2186,9 @@ function Simulation:startCombat(encounterKey, roomKey, options)
         active = nil,
         fallenTrinkets = {},
         ambush = options.ambush == true,
+        visible = options.visible == true,
+        pressure = options.pressure == true,
+        threatKey = options.threatKey,
         log = {},
     }
     if self.combat.ambush and self.expedition then
@@ -2693,7 +2702,7 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
     for _, target in ipairs(targets) do
         local unit = target.unit or target
         if skill.damage and targetSide == "enemy" then
-            local damage = self:roll(skill.damage[1], skill.damage[2]) + damageBonus
+            local damage = math.max(0, self:roll(skill.damage[1], skill.damage[2]) + damageBonus)
             if target.partKey then
                 self:damageEnemyPart(unit, target.partKey, damage)
             else
@@ -2802,9 +2811,21 @@ function Simulation:objectsInRect(minX, maxX, minY, maxY, z)
             }
         end
     end
-    local location = Defs.location(self.expedition.location)
+    for _, threat in ipairs(self.world:threatsInRect(minX, maxX, minY, maxY, z or 0)) do
+        if not self.expedition.clearedEncounters[threat.key] then
+            result[#result + 1] = {
+                type = threat.rare and "alpha" or "threat",
+                x = threat.x,
+                y = threat.y,
+                z = threat.z or 0,
+                encounter = threat.encounter,
+                threatKey = threat.key,
+                roomKey = threat.roomKey,
+            }
+        end
+    end
     for _, room in ipairs(self.world:roomCenters()) do
-        local encounter = location.encounters[room.key]
+        local encounter = self.world:encounterForRoom(room.key)
         if encounter and not self.expedition.clearedEncounters[room.key]
             and room.x >= minX and room.x <= maxX and room.y >= minY and room.y <= maxY
         then
@@ -3031,6 +3052,10 @@ function Simulation:snapshot()
             roomsScouted = self.expedition.roomsScouted,
             stepsSinceMeal = self.expedition.stepsSinceMeal,
             hungerChecks = self.expedition.hungerChecks,
+            threatState = copyMap(self.expedition.threatState),
+            noise = self.expedition.noise or 0,
+            ambushRolls = self.expedition.ambushRolls or 0,
+            generatedLayoutId = self.expedition.generatedLayoutId,
             campUsed = self.expedition.campUsed,
             camping = self.expedition.camping and {
                 respite = self.expedition.camping.respite,
@@ -3059,11 +3084,14 @@ function Simulation:snapshot()
             active = self.combat.active and copyMap(self.combat.active) or nil,
             fallenTrinkets = copyList(self.combat.fallenTrinkets),
             ambush = self.combat.ambush == true,
+            visible = self.combat.visible == true,
+            pressure = self.combat.pressure == true,
+            threatKey = self.combat.threatKey,
             log = copyList(self.combat.log),
         }
     end
     return {
-        version = 2,
+        version = 3,
         seed = self.seed,
         tick = self.tick,
         rollIndex = self.rollIndex,
@@ -3112,7 +3140,7 @@ function Simulation:snapshot()
 end
 
 function Simulation.fromSnapshot(snapshot)
-    if snapshot.version and snapshot.version ~= 2 then
+    if snapshot.version and snapshot.version ~= 2 and snapshot.version ~= 3 then
         return nil, "unsupported simulation snapshot version"
     end
     local self = setmetatable({
@@ -3235,6 +3263,10 @@ function Simulation.fromSnapshot(snapshot)
             roomsScouted = exp.roomsScouted or 0,
             stepsSinceMeal = exp.stepsSinceMeal or 0,
             hungerChecks = exp.hungerChecks or 0,
+            threatState = copyMap(exp.threatState),
+            noise = exp.noise or 0,
+            ambushRolls = exp.ambushRolls or 0,
+            generatedLayoutId = exp.generatedLayoutId,
             campUsed = exp.campUsed == true,
             camping = exp.camping and {
                 respite = exp.camping.respite or 0,
@@ -3245,6 +3277,10 @@ function Simulation.fromSnapshot(snapshot)
             bossDefeated = exp.bossDefeated == true,
             log = copyList(exp.log or {}),
         }
+        if self.world and not self.world.layoutId then
+            self.world.layoutId = self.expedition.mission
+            self.world.generatedLayout = nil
+        end
     end
     local combat = snapshot.combat
     if combat then
@@ -3259,6 +3295,9 @@ function Simulation.fromSnapshot(snapshot)
             active = combat.active and copyMap(combat.active) or nil,
             fallenTrinkets = copyList(combat.fallenTrinkets),
             ambush = combat.ambush == true,
+            visible = combat.visible == true,
+            pressure = combat.pressure == true,
+            threatKey = combat.threatKey,
             log = copyList(combat.log or {}),
         }
         for _, enemy in ipairs(combat.enemies or {}) do

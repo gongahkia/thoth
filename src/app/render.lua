@@ -451,6 +451,10 @@ end
 local function drawObject(object, screenX, screenY)
     if object.type == "encounter" then
         drawIsoBlock(screenX, screenY, { 126, 46, 54 }, isoBlockH)
+    elseif object.type == "threat" then
+        drawIsoBlock(screenX, screenY, { 112, 34, 86 }, isoBlockH + 4)
+    elseif object.type == "alpha" then
+        drawIsoBlock(screenX, screenY, { 176, 24, 32 }, isoBlockH + 10)
     elseif object.type == "boss" then
         drawIsoBlock(screenX, screenY, { 150, 40, 68 }, isoBlockH + 8)
     elseif object.type == "exit" then
@@ -1253,6 +1257,22 @@ function Render.drawCombatOverlay(sim, app)
         if enemy then
             love.graphics.printf(enemy.hp .. "hp", ex + 4, y + 66, 74, "center")
             app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { x = ex, y = y + 38, w = 82, h = 58, rank = rank, side = "enemy" }
+            for index, part in ipairs(enemy.parts or {}) do
+                if index <= 2 then
+                    local pw = 38
+                    local px = ex + 2 + (index - 1) * 40
+                    local py = y + 98
+                    love.graphics.setColor(part.disabled and 0.11 or 0.26, part.disabled and 0.1 or 0.13, part.disabled and 0.1 or 0.16, 1)
+                    love.graphics.rectangle("fill", px, py, pw, 16)
+                    love.graphics.setColor(part.disabled and 0.28 or 0.72, part.disabled and 0.24 or 0.38, part.disabled and 0.24 or 0.42, 1)
+                    love.graphics.rectangle("line", px, py, pw, 16)
+                    love.graphics.setColor(part.disabled and 0.42 or 0.96, part.disabled and 0.4 or 0.82, part.disabled and 0.4 or 0.82, 1)
+                    love.graphics.printf(string.sub(part.name or part.key, 1, 4) .. " " .. tostring(part.hp or 0), px + 1, py + 3, pw - 2, "center")
+                    if not part.disabled then
+                        app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { x = px, y = py, w = pw, h = 16, rank = rank, side = "enemy", partKey = part.key }
+                    end
+                end
+            end
         end
     end
     local skillY = y + 116

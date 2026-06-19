@@ -51,7 +51,7 @@ function World.new(seed, locationKey, overrides)
         locationKey = "buried_archive"
     end
     local layoutId = nil
-    if type(overrides) == "table" and overrides.layoutId then
+    if type(overrides) == "table" and (overrides.layoutId or overrides.tiles) then
         layoutId = overrides.layoutId
         overrides = overrides.tiles or {}
     end
