@@ -1691,6 +1691,33 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local oldLove = love
+    love = nil
+    local state = Render3D.load()
+    expect(state.headless and state.g3d == nil, "render3d load should support headless mode")
+    local sim = Simulation.new(91)
+    local app = {
+        viewRotation = 3,
+        ui = {
+            skillButtons = { { stale = true } },
+            heroButtons = {},
+            enemyButtons = {},
+            itemButtons = {},
+            missionButtons = {},
+            recruitButtons = {},
+            provisionButtons = {},
+            estateActionButtons = {},
+            rosterButtons = {},
+        },
+    }
+    Render3D.draw(sim, app)
+    expect(app.worldView.mode == "render3d-placeholder", "render3d headless draw should leave placeholder worldView")
+    expect(app.worldView.rotation == 3, "render3d headless draw should preserve rotation metadata")
+    expect(#app.ui.skillButtons == 0, "render3d headless draw should still clear stale hitboxes")
+    love = oldLove
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(90)
     reachEntryCombat(sim)
     local hero = sim:activeHero()

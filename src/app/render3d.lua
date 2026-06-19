@@ -1537,10 +1537,12 @@ function Render3D.drawEstatePanel(sim, app)
 end
 
 function Render3D.draw(sim, app)
-    if love and love.graphics then
-        love.graphics.clear(0.055, 0.058, 0.065, 1)
-    end
     Render3D.prepareUi(app)
+    if not (love and love.graphics) then
+        Render3D.drawWorld(sim, app)
+        return
+    end
+    love.graphics.clear(0.055, 0.058, 0.065, 1)
     Render3D.drawWorld(sim, app)
     love.graphics.push("all")
     love.graphics.setDepthMode()
