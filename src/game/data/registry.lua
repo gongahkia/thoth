@@ -157,6 +157,47 @@ Registry.trinketOrder = {
     "wax_seal_remand", "copper_folio_hook", "filtered_tooth", "cinder_lens",
 }
 
+Registry.trinketSets = {
+    set_page_keepers_vow = {
+        name = "Page-Keeper's Vow",
+        pieces = { "wax_seal_remand", "copper_folio_hook", "quiet_bell", "scribe_wax" },
+        twoPiece = { scoutBonus = 6 },
+        fourPiece = { weakPointDamage = 2 },
+        cost = { stressTaken = 1 },
+    },
+    set_salt_born_compact = {
+        name = "Salt-Born Compact",
+        pieces = { "filtered_tooth", "tide_needle", "oath_ring", "chirurgic_thread" },
+        twoPiece = { blightResist = 12 },
+        fourPiece = { moveResist = 10 },
+        cost = { speed = -1 },
+    },
+    set_vow_of_cinders = {
+        name = "Vow of Cinders",
+        pieces = { "cinder_lens", "ember_pin", "kiln_token", "cracked_lens" },
+        twoPiece = { heatResist = 1 },
+        fourPiece = { burnDamage = 2 },
+        cost = { injuryVulnerability = 5 },
+    },
+    set_lamplighters_token = {
+        name = "Lamplighter's Token",
+        pieces = { "ember_pin", "tide_needle", "quiet_bell", "chirurgic_thread" },
+        twoPiece = { torchEfficiency = 5 },
+        fourPiece = { ambushResist = 12 },
+        cost = { stressTaken = 1 },
+    },
+    set_debt_clerks_seal = {
+        name = "Debt-Clerk's Seal",
+        pieces = { "scribe_wax", "wax_seal_remand", "oath_ring", "filtered_tooth" },
+        twoPiece = { rewardBonus = 20 },
+        fourPiece = { payLater = 1 },
+        cost = { stressTaken = 2 },
+    },
+}
+Registry.trinketSetOrder = {
+    "set_page_keepers_vow", "set_salt_born_compact", "set_vow_of_cinders", "set_lamplighters_token", "set_debt_clerks_seal",
+}
+
 Registry.quirks = {
     iron_nerves = { name = "Iron Nerves", kind = "positive", stressTaken = -1 },
     quick_reflexes = { name = "Quick Reflexes", kind = "positive", speed = 1 },
@@ -174,12 +215,17 @@ Registry.quirks = {
     candle_shy = { name = "Candle Shy", kind = "negative", resolve = -5 },
     old_wound = { name = "Old Wound", kind = "negative", maxHp = -3 },
     restless = { name = "Restless", kind = "negative", stressTaken = 1, speed = 1 },
+    quirk_salt_marked = { name = "Salt-Marked", kind = "positive", blightResist = 16, stressTaken = 1 },
+    quirk_stamp_shy = { name = "Stamp-Shy", kind = "positive", noiseDiscount = 1, curioRefusal = 10 },
+    quirk_vigil_held = { name = "Vigil-Held", kind = "positive", stressRecoveryBonus = 4, torchWaste = 5 },
+    quirk_bound_by_page = { name = "Bound-By-Page", kind = "negative", custodianSkillBonus = 1, emberPanicChance = 8 },
 }
 Registry.quirkOrder = {
     "iron_nerves", "quick_reflexes", "steady_hand", "field_reader",
     "hard_skinned", "night_eyes", "steady_pulse", "gallows_humor",
     "gloomy", "brittle", "faint_pulse", "soft_voice",
     "shaky_hands", "candle_shy", "old_wound", "restless",
+    "quirk_salt_marked", "quirk_stamp_shy", "quirk_vigil_held", "quirk_bound_by_page",
 }
 
 Registry.diseases = {
@@ -1307,7 +1353,7 @@ Registry.missions = {
         resolveLevel = 3,
         objectiveEncounters = 1,
         wardenEncounter = "archive_reeve",
-        factionTradeoff = "custodians",
+        factionTradeoff = "faction_custodians",
         reward = { gold = 165, heirlooms = 4, trinket = "wax_seal_remand" },
     },
     archive_witness_confession = {
@@ -1559,7 +1605,7 @@ Registry.missions = {
         resolveLevel = 5,
         objectiveEncounters = 1,
         wardenEncounter = "ember_vicar",
-        factionCost = "ember_penitents",
+        factionCost = "faction_ember_penitents",
         reward = { gold = 165, heirlooms = 4, trinket = "cinder_lens" },
     },
     warrens_burn_false_vow = {
@@ -1625,8 +1671,11 @@ Registry.campSkills = {
     watch_order = { name = "Watch Order", cost = 2, target = "party", torch = 20, stressHeal = 2, preventAmbush = true },
     bitter_tonic = { name = "Bitter Tonic", cost = 1, target = "ally", clearStatuses = { "bleed", "blight" }, stressHeal = 1 },
     last_rites = { name = "Last Rites", cost = 3, target = "party", stressHeal = 5 },
+    camp_witness_vigil = { name = "Witness Vigil", cost = 2, target = "party", stressHeal = 2, itemCost = { torch = 1, ration = 1 }, dread = -1 },
+    camp_salt_wash = { name = "Salt Wash", cost = 1, target = "ally", itemCost = { torch = 1 }, clearDisease = true, stressHeal = 1 },
+    camp_ember_quench = { name = "Ember Quench", cost = 1, target = "party", itemCost = { ember_oil = 1 }, clearHeatFatigue = true, stressHeal = 1 },
 }
-Registry.campSkillOrder = { "bind_wounds", "watch_order", "bitter_tonic", "last_rites" }
+Registry.campSkillOrder = { "bind_wounds", "watch_order", "bitter_tonic", "last_rites", "camp_witness_vigil", "camp_salt_wash", "camp_ember_quench" }
 
 Registry.estateBuildings = {
     stagecoach = { name = "Stagecoach", maxLevel = 3, heirloomCost = 2, rosterLimit = 6, rosterPerLevel = 2, recruitSlots = 3, slotsPerLevel = 1, recruitCost = 20, discountPerLevel = 3 },
@@ -1652,8 +1701,147 @@ Registry.townEvents = {
     archivist_tithe = { name = "Archivist Tithe", heirlooms = 1, gold = -10 },
     old_maps = { name = "Old Maps", provisions = { skeleton_key = 1, ward_charm = 1 } },
     candle_vigil = { name = "Candle Vigil", stressHeal = 8, provisions = { torch = 1 } },
+    survey_quota = { name = "Survey Quota", dread = 1, nextMissionNoise = 1 },
+    enclave_petition = { name = "Enclave Petition", dread = -1, faction = { enclave_meter = 1 }, openMission = "archive_remand_scribe" },
+    archive_tithe_v2 = { name = "Archive Tithe", heirlooms = -1, dread = -2, faction = { faction_custodians = -1 } },
+    salt_rationing = { name = "Salt Rationing", provisionCostMultiplier = 2, faction = { faction_cistern_keepers = 1 } },
+    ash_vigil_demand = { name = "Ash Vigil Demand", recoveryCostMultiplier = 2, dread = -1, faction = { faction_ember_penitents = 1 } },
+    audit_notice = { name = "Audit Notice", nextMissionNoise = 2, completionDread = -1, faction = { faction_custodians = 1 } },
+    lamplighter_strike = { name = "Lamplighter Strike", torchDelay = 15, dread = 1, faction = { faction_lamplighters = 2 } },
+    drowned_banns = { name = "Drowned Banns", openMission = "cistern_tov_child", faction = { faction_cistern_keepers = -1, enclave_meter = 1 } },
+    pyre_demand = { name = "Pyre Demand", openMission = "warrens_douse_vicar", faction = { faction_ember_penitents = 2 } },
+    estate_reckoning = { name = "Estate Reckoning", stress = 3, reckoning = true },
+    enclave_compact_signed = { name = "Enclave Compact Signed", dread = -3, faction = { enclave_meter = 2 } },
 }
-Registry.townEventOrder = { "supply_cache", "memorial_bell", "levy_notice", "clear_roads", "bad_omens", "archivist_tithe", "old_maps", "candle_vigil" }
+Registry.townEventOrder = {
+    "supply_cache", "memorial_bell", "levy_notice", "clear_roads", "bad_omens", "archivist_tithe", "old_maps", "candle_vigil",
+    "survey_quota", "enclave_petition", "archive_tithe_v2", "salt_rationing", "ash_vigil_demand", "audit_notice",
+    "lamplighter_strike", "drowned_banns", "pyre_demand", "estate_reckoning", "enclave_compact_signed",
+}
+
+Registry.estateCopy = {
+    survey_office_copy = {
+        title = "Survey Office",
+        body = "Paid salvage, mapped risk, signed consequence.",
+        brief = "Choose work the Estate can survive paying for.",
+    },
+}
+Registry.estateCopyOrder = { "survey_office_copy" }
+
+Registry.classLore = {
+    warden = { origin = "Gate debt made discipline useful before it made it honorable." },
+    duelist = { origin = "The Duelist sells clean violence to people who cannot afford clean records." },
+    mender = { origin = "The Mender learned that rescue is triage with witnesses." },
+    arcanist = { origin = "The Arcanist reads heat, ink, and fear as the same grammar." },
+    harrier = { origin = "The Harrier came from routes where speed counted as mercy." },
+    chirurgeon = { origin = "The Chirurgeon keeps bodies useful longer than hope does." },
+    exile = { origin = "The Exile knows every border is a receipt." },
+    lamplighter = { origin = "The Lamplighter was paid to make darkness legible, not safe." },
+}
+Registry.classLoreOrder = { "warden", "duelist", "mender", "arcanist", "harrier", "chirurgeon", "exile", "lamplighter" }
+Registry.classLoreBanks = {
+    class_origins = { classes = Registry.classLoreOrder },
+}
+Registry.classLoreBankOrder = { "class_origins" }
+
+Registry.recruitBarks = {
+    warden = { "Hold the line. Count the cost after.", "The Stack breaks ranks before bones." },
+    duelist = { "Point me at the signature that needs cutting.", "Ink stains less than blood, but pays worse." },
+    mender = { "Bring them back breathing; clean comes later.", "The Stack teaches what pain refuses to say." },
+    arcanist = { "Every seal has a temperature.", "A page can scream without a mouth." },
+    harrier = { "Fast routes still leave tracks.", "I can find the way out if we keep light." },
+    chirurgeon = { "Open wounds tell useful truths.", "The Estate pays for survival, not comfort." },
+    exile = { "I know what locked doors call justice.", "A bad bargain is still a map." },
+    lamplighter = { "I sell distance from the dark.", "No flame is free here." },
+}
+Registry.recruitBarkOrder = Registry.classLoreOrder
+Registry.barkBanks = {
+    recruit_barks = { classes = Registry.recruitBarkOrder },
+}
+Registry.barkBankOrder = { "recruit_barks" }
+
+Registry.graveyardEpitaphs = {
+    buried_archive = { "Filed under courage; indexed by debt.", "The Stack kept the name and returned the tools." },
+    salt_cistern = { "The cistern closed softly over the witness.", "Pressure wrote the last line." },
+    ember_warrens = { "Ash took the breath; glass kept the shape.", "The vow burned longer than the body." },
+    estate = { "The road home ended one door short.", "Paid in full, recorded without mercy." },
+}
+Registry.graveyardEpitaphOrder = { "buried_archive", "salt_cistern", "ember_warrens", "estate" }
+Registry.epitaphBanks = {
+    zone_epitaphs = { zones = Registry.graveyardEpitaphOrder },
+}
+Registry.epitaphBankOrder = { "zone_epitaphs" }
+
+Registry.estateFixtures = {
+    fixture_surveyor = { name = "The Surveyor", role = "contract_giver", barks = { "Routes are numbers until you enter them.", "Choose the debt with the least teeth." } },
+    fixture_foreman_ott = { name = "Foreman Ott", role = "lamplighter_chief", barks = { "Crews are thin; do not waste flame.", "A bright road still invoices somebody." } },
+    fixture_chirurgeon_vell = { name = "Chirurgeon Major Vell", role = "infirmary_head", barks = { "Disease lies slower than fear.", "Bring injuries early or bring epitaphs late." } },
+    fixture_clerk_of_debts = { name = "Clerk of Debts", role = "paymaster", barks = { "Payment clarifies motive.", "Every rescue produces paperwork." } },
+    fixture_stage_master = { name = "Stage Master", role = "recruiter", barks = { "Fresh names, old hunger.", "The coach brings choices, not absolution." } },
+    fixture_vault_keeper = { name = "Vault Keeper", role = "appraiser", barks = { "Relics remember hands poorly.", "Value is what survives inspection." } },
+}
+Registry.estateFixtureOrder = {
+    "fixture_surveyor", "fixture_foreman_ott", "fixture_chirurgeon_vell",
+    "fixture_clerk_of_debts", "fixture_stage_master", "fixture_vault_keeper",
+}
+
+Registry.enclaveLeaders = {
+    enclave_ilse = { name = "Page-Keeper Ilse", zone = "buried_archive", branch = "mission_unlock", barks = { "Repair the record, or steal from it. Both are counted." } },
+    enclave_cael = { name = "Bound Scribe Cael", zone = "buried_archive", branch = "custodian_risk", barks = { "The Custodians forgive nothing filed correctly." } },
+    enclave_tov = { name = "Valve-Mother Tov", zone = "salt_cistern", branch = "route_bargain", barks = { "Open water for us and we open routes for you." } },
+    enclave_sett = { name = "Pressure Father Sett", zone = "salt_cistern", branch = "shortcut_barter", barks = { "Shortcuts are debts with better shoes." } },
+    enclave_mira = { name = "Ash Vicar Mira", zone = "ember_warrens", branch = "purge_or_free", barks = { "Douse the vow or feed it. Do not pretend neutrality." } },
+    enclave_aron = { name = "Glass-Burnt Aron", zone = "ember_warrens", branch = "douse_kilns", barks = { "The kilns taught us to whisper without skin." } },
+}
+Registry.enclaveLeaderOrder = { "enclave_ilse", "enclave_cael", "enclave_tov", "enclave_sett", "enclave_mira", "enclave_aron" }
+
+Registry.factions = {
+    enclave_meter = { name = "Survivor Enclave", states = { { id = "hostile", max = -2 }, { id = "neutral", max = 1 }, { id = "indebted" } } },
+    faction_custodians = { name = "Custodians", states = { { id = "neutral", max = 1 }, { id = "audit_alert", max = 3 }, { id = "hostile" } } },
+    faction_cistern_keepers = { name = "Cistern Keepers", states = { { id = "neutral", max = 1 }, { id = "flood_held", max = 3 }, { id = "embargo" } } },
+    faction_ember_penitents = { name = "Ember Penitents", states = { { id = "neutral", max = 1 }, { id = "vigil_called", max = 3 }, { id = "pyre_open" } } },
+    faction_lamplighters = { name = "Lamplighter Crews", states = { { id = "full_torch", max = -1 }, { id = "neutral", max = 1 }, { id = "strike" } } },
+}
+Registry.factionOrder = { "enclave_meter", "faction_custodians", "faction_cistern_keepers", "faction_ember_penitents", "faction_lamplighters" }
+
+Registry.factionHazards = {
+    faction_hazards_v1 = {
+        torch_delay = { faction = "faction_lamplighters", state = "strike", torch = -15 },
+        heat_fatigue_rise = { faction = "faction_ember_penitents", state = "pyre_open", heatFatigue = 1 },
+        enclave_embargo = { faction = "faction_cistern_keepers", state = "embargo", packSlots = -1 },
+    },
+}
+Registry.factionHazardOrder = { "faction_hazards_v1" }
+
+Registry.dreadRules = {
+    dread_rules_v1 = {
+        greedy_extract = 1,
+        hero_death = 2,
+        abandoned_mission = 1,
+        repair_mission = -1,
+        vigil = -1,
+        enclave_compact = -3,
+    },
+}
+Registry.dreadRuleOrder = { "dread_rules_v1" }
+
+Registry.campaignTimers = {
+    twin_timer_v1 = { weekCap = 14, dreadCap = 18, eitherCapEnds = true },
+    week_cap_default = { weekCap = 14, endConditions = { "estate_seal", "repair_compact", "extraction_collapse", "quiet_failure" } },
+}
+Registry.campaignTimerOrder = { "twin_timer_v1", "week_cap_default" }
+
+Registry.endingRoutes = {
+    estate_seal = { name = "Estate Seal", trigger = "all_bosses" },
+    repair_compact = { name = "Repair Compact", trigger = "three_repairs" },
+    extraction_collapse = { name = "Extraction Collapse", trigger = "dread_cap" },
+    quiet_failure = { name = "Quiet Failure", trigger = "week_or_death_cap" },
+}
+Registry.endingRouteOrder = { "estate_seal", "repair_compact", "extraction_collapse", "quiet_failure" }
+Registry.endingRouters = {
+    ending_router = { routes = Registry.endingRouteOrder },
+}
+Registry.endingRouterOrder = { "ending_router" }
 
 Registry.narration = {
     mission_start = {

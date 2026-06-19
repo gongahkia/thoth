@@ -936,6 +936,96 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(117)
+    expect(sim.estate.campaign.weekLimit == 14 and sim.estate.campaign.dreadLimit == 18, "campaign should use twin timer caps")
+    expect(sim:factionState("faction_custodians") == "neutral" and sim:factionState("enclave_meter") == "neutral", "campaign should seed faction meters")
+    sim:endExpedition(true)
+    sim.estate.heirlooms = 3
+    sim.estate.campaign.dread = 5
+    sim:applyTownEvent("archive_tithe_v2")
+    expect(sim.estate.heirlooms == 2 and sim.estate.campaign.dread == 3, "archive tithe should trade heirloom for dread reduction")
+    sim:applyTownEvent("pyre_demand")
+    expect(contains(sim.estate.missionBoard, "warrens_douse_vicar") and sim:factionState("faction_ember_penitents") == "vigil_called", "pyre demand should open warrens douse and raise faction tension")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(118)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_false_index"))
+    sim:resolveCurio(8, 2, 0, "false_index")
+    sim:endExpedition(false)
+    expect(sim.estate.campaign.flags.repairMissions >= 1 and (sim.estate.campaign.factions.enclave_meter.value or 0) > 0, "repair mission should record repair flag and enclave favor")
+    runQueued(sim, Simulation.commands.startExpedition("archive_names"))
+    sim:resolveCurio(0, 10, 0, "sealed_name")
+    sim:resolveCurio(16, 1, 0, "sealed_name")
+    sim:endExpedition(false)
+    expect(sim.estate.campaign.flags.extractMissions >= 1 and sim.estate.campaign.flags.greedyExtracts >= 1, "extract mission should record extraction flags")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.estate.campaign.flags.extractMissions == sim.estate.campaign.flags.extractMissions and loaded:factionState("faction_custodians") == sim:factionState("faction_custodians"), "campaign flags and factions should survive snapshot")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(119)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("ember_vow_kilns"))
+    sim.estate.campaign.dread = 4
+    expect(sim:camp(), "camp should start for ritual test")
+    local torch = sim.expedition.supplies:count("torch")
+    local ration = sim.expedition.supplies:count("ration")
+    expect(sim:campSkill("camp_witness_vigil"), "witness vigil should run with supplies")
+    expect(sim.estate.campaign.dread == 3 and sim.expedition.supplies:count("torch") == torch - 1 and sim.expedition.supplies:count("ration") == ration - 1, "witness vigil should spend supplies and lower dread")
+    local hero = sim:heroAtRank(1)
+    sim:contractDisease(hero, "brine_rot")
+    expect(sim:campSkill("camp_salt_wash", 1) and #hero.diseases == 0, "salt wash should clear one disease")
+    sim.expedition.heatFatigue = 3
+    expect(sim:campSkill("camp_ember_quench") and sim.expedition.heatFatigue == 0 and not sim.expedition.camping, "ember quench should clear heat and spend final respite")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(120)
+    sim:endExpedition(true)
+    local hero = sim:heroAtRank(1)
+    runQueued(sim, Simulation.commands.equipTrinket(hero.id, "ember_pin", 1))
+    runQueued(sim, Simulation.commands.equipTrinket(hero.id, "cracked_lens", 2))
+    expect(sim:heroModifier(hero, "heatResist") == 1 and sim:heroModifier(hero, "injuryVulnerability") == 5, "two-piece cinder set should activate with cost")
+    sim.estate.gold = 100
+    sim:applyTownEvent("salt_rationing")
+    runQueued(sim, Simulation.commands.buyProvision("torch", 1))
+    expect(sim.estate.gold == 90, "salt rationing should double provision cost")
+    sim.estate.gold = 100
+    hero.stress = 60
+    sim:applyTownEvent("ash_vigil_demand")
+    runQueued(sim, Simulation.commands.recoverHero(hero.id))
+    expect(sim.estate.gold == 50, "ash vigil demand should double recovery cost")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(121)
+    sim:endExpedition(true)
+    sim:adjustFaction("faction_lamplighters", 3)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim.expedition.torch == 60, "lamplighter strike should delay torch")
+    sim:endExpedition(true)
+    sim:adjustFaction("faction_ember_penitents", 4)
+    runQueued(sim, Simulation.commands.startExpedition("ember_vow_kilns"))
+    expect(sim.expedition.heatFatigue == 1, "pyre-open ember faction should add heat fatigue")
+    sim:endExpedition(true)
+    sim.estate.week = 10
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim.expedition.latePressure == 2 and sim.expedition.noise >= 2, "late-week pressure should raise mission noise")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(122)
+    sim:endExpedition(true)
+    sim.estate.campaign.flags.repairMissions = 3
+    expect(sim:resolveEndingRoute("victory") == "repair_compact", "repair-heavy victory should route to repair compact")
+    sim.estate.campaign.dread = sim.estate.campaign.dreadLimit
+    sim:evaluateCampaignState()
+    expect(sim.estate.campaign.lost and sim.estate.campaign.endingRoute == "extraction_collapse", "dread cap should route to extraction collapse")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(56)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("archive_gather"))

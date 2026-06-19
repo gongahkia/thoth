@@ -10,6 +10,8 @@ local Defs = {
     heroClassOrder = Registry.heroClassOrder,
     trinkets = Registry.trinkets,
     trinketOrder = Registry.trinketOrder,
+    trinketSets = Registry.trinketSets,
+    trinketSetOrder = Registry.trinketSetOrder,
     quirks = Registry.quirks,
     quirkOrder = Registry.quirkOrder,
     diseases = Registry.diseases,
@@ -42,6 +44,36 @@ local Defs = {
     estateActivityOrder = Registry.estateActivityOrder,
     townEvents = Registry.townEvents,
     townEventOrder = Registry.townEventOrder,
+    estateCopy = Registry.estateCopy,
+    estateCopyOrder = Registry.estateCopyOrder,
+    classLore = Registry.classLore,
+    classLoreOrder = Registry.classLoreOrder,
+    classLoreBanks = Registry.classLoreBanks,
+    classLoreBankOrder = Registry.classLoreBankOrder,
+    recruitBarks = Registry.recruitBarks,
+    recruitBarkOrder = Registry.recruitBarkOrder,
+    barkBanks = Registry.barkBanks,
+    barkBankOrder = Registry.barkBankOrder,
+    graveyardEpitaphs = Registry.graveyardEpitaphs,
+    graveyardEpitaphOrder = Registry.graveyardEpitaphOrder,
+    epitaphBanks = Registry.epitaphBanks,
+    epitaphBankOrder = Registry.epitaphBankOrder,
+    estateFixtures = Registry.estateFixtures,
+    estateFixtureOrder = Registry.estateFixtureOrder,
+    enclaveLeaders = Registry.enclaveLeaders,
+    enclaveLeaderOrder = Registry.enclaveLeaderOrder,
+    factions = Registry.factions,
+    factionOrder = Registry.factionOrder,
+    factionHazards = Registry.factionHazards,
+    factionHazardOrder = Registry.factionHazardOrder,
+    dreadRules = Registry.dreadRules,
+    dreadRuleOrder = Registry.dreadRuleOrder,
+    campaignTimers = Registry.campaignTimers,
+    campaignTimerOrder = Registry.campaignTimerOrder,
+    endingRoutes = Registry.endingRoutes,
+    endingRouteOrder = Registry.endingRouteOrder,
+    endingRouters = Registry.endingRouters,
+    endingRouterOrder = Registry.endingRouterOrder,
     narration = Registry.narration,
     narrationOrder = Registry.narrationOrder,
 }
@@ -60,6 +92,10 @@ end
 
 function Defs.trinket(id)
     return Defs.trinkets[id]
+end
+
+function Defs.trinketSet(id)
+    return Defs.trinketSets[id]
 end
 
 function Defs.quirk(id)
@@ -124,6 +160,66 @@ end
 
 function Defs.townEvent(id)
     return Defs.townEvents[id]
+end
+
+function Defs.estateCopyFor(id)
+    return Defs.estateCopy[id]
+end
+
+function Defs.classLoreFor(id)
+    return Defs.classLore[id]
+end
+
+function Defs.classLoreBank(id)
+    return Defs.classLoreBanks[id]
+end
+
+function Defs.recruitBarksFor(id)
+    return Defs.recruitBarks[id]
+end
+
+function Defs.barkBank(id)
+    return Defs.barkBanks[id]
+end
+
+function Defs.graveyardEpitaphsFor(id)
+    return Defs.graveyardEpitaphs[id]
+end
+
+function Defs.epitaphBank(id)
+    return Defs.epitaphBanks[id]
+end
+
+function Defs.estateFixture(id)
+    return Defs.estateFixtures[id]
+end
+
+function Defs.enclaveLeader(id)
+    return Defs.enclaveLeaders[id]
+end
+
+function Defs.faction(id)
+    return Defs.factions[id]
+end
+
+function Defs.factionHazard(id)
+    return Defs.factionHazards[id]
+end
+
+function Defs.dreadRule(id)
+    return Defs.dreadRules[id]
+end
+
+function Defs.campaignTimer(id)
+    return Defs.campaignTimers[id]
+end
+
+function Defs.endingRoute(id)
+    return Defs.endingRoutes[id]
+end
+
+function Defs.endingRouter(id)
+    return Defs.endingRouters[id]
 end
 
 function Defs.narrationFor(id)

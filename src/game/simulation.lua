@@ -50,6 +50,18 @@ local function copyMap(values)
     return result
 end
 
+local function copyNestedMap(values)
+    local result = {}
+    for key, value in pairs(values or {}) do
+        if type(value) == "table" then
+            result[key] = copyNestedMap(value)
+        else
+            result[key] = value
+        end
+    end
+    return result
+end
+
 local function contains(list, value)
     for _, entry in ipairs(list or {}) do
         if entry == value then
@@ -196,8 +208,33 @@ local function inventoryFromStacks(stacks)
     return Inventory.new(stacks or {})
 end
 
+local function defaultFactions()
+    local result = {}
+    for _, factionKey in ipairs(Defs.factionOrder or {}) do
+        result[factionKey] = { value = 0, state = "neutral" }
+    end
+    return result
+end
+
 local function newCampaign()
-    return { renown = 0, dread = 0, completedMissions = {}, locationProgress = {}, bossKills = {}, victory = false, finalSeal = false, lost = false, lossReason = nil, weekLimit = 48, deathLimit = 8, dreadLimit = 18 }
+    local timer = Defs.campaignTimer("twin_timer_v1") or {}
+    return {
+        renown = 0,
+        dread = 0,
+        completedMissions = {},
+        locationProgress = {},
+        bossKills = {},
+        victory = false,
+        finalSeal = false,
+        lost = false,
+        lossReason = nil,
+        weekLimit = timer.weekCap or 14,
+        deathLimit = 8,
+        dreadLimit = timer.dreadCap or 18,
+        factions = defaultFactions(),
+        flags = { repairMissions = 0, extractMissions = 0, greedyExtracts = 0 },
+        endingRoute = nil,
+    }
 end
 
 function Simulation.new(seed)
@@ -534,6 +571,63 @@ function Simulation:buildingLevel(buildingKey)
     return (self.estate.upgrades and self.estate.upgrades[buildingKey]) or 0
 end
 
+function Simulation:heroHasSetPiece(hero, setDef)
+    for _, trinketKey in ipairs(hero.trinkets or {}) do
+        if trinketKey and contains(setDef.pieces or {}, trinketKey) then
+            return true
+        end
+    end
+    return false
+end
+
+function Simulation:trinketSetCounts()
+    local counts = {}
+    for _, setKey in ipairs(Defs.trinketSetOrder or {}) do
+        counts[setKey] = 0
+    end
+    for _, hero in ipairs(self:livingParty()) do
+        for _, trinketKey in ipairs(hero.trinkets or {}) do
+            if trinketKey then
+                for _, setKey in ipairs(Defs.trinketSetOrder or {}) do
+                    local setDef = Defs.trinketSet(setKey)
+                    if setDef and contains(setDef.pieces or {}, trinketKey) then
+                        counts[setKey] = (counts[setKey] or 0) + 1
+                    end
+                end
+            end
+        end
+    end
+    return counts
+end
+
+function Simulation:trinketSetModifier(hero, key)
+    if not hero then
+        return 0
+    end
+    local counts = self:trinketSetCounts()
+    local total = 0
+    for _, setKey in ipairs(Defs.trinketSetOrder or {}) do
+        local setDef = Defs.trinketSet(setKey)
+        local count = counts[setKey] or 0
+        if setDef and count >= 2 and self:heroHasSetPiece(hero, setDef) then
+            total = total + ((setDef.twoPiece and setDef.twoPiece[key]) or 0)
+            total = total + ((setDef.cost and setDef.cost[key]) or 0)
+            if count >= 4 then
+                total = total + ((setDef.fourPiece and setDef.fourPiece[key]) or 0)
+            end
+        end
+    end
+    return total
+end
+
+function Simulation:partyModifierMax(key)
+    local best = 0
+    for _, hero in ipairs(self:livingParty()) do
+        best = math.max(best, self:heroModifier(hero, key))
+    end
+    return best
+end
+
 function Simulation:heroModifier(hero, key)
     local total = 0
     for _, quirkKey in ipairs(hero.quirks or {}) do
@@ -554,6 +648,10 @@ function Simulation:heroModifier(hero, key)
             total = total + ((injury and injury[key]) or 0)
         end
     end
+    if key == "damageBonus" and contains(hero.quirks, "quirk_bound_by_page") and self.expedition and self.expedition.location == "buried_archive" then
+        total = total + (Defs.quirk("quirk_bound_by_page").custodianSkillBonus or 0)
+    end
+    total = total + self:trinketSetModifier(hero, key)
     return total
 end
 
@@ -758,6 +856,7 @@ function Simulation:damageHero(hero, amount)
         }
         self:recordFallenTrinkets(hero)
         self:compactParty()
+        self:adjustDread((Defs.dreadRule("dread_rules_v1") or {}).hero_death or 0)
         self:evaluateCampaignState()
         self:pushLog(hero.name .. " fell", { event = "hero_death", actor = hero.name, side = "ally" })
         self:narrate("death", hero.name)
@@ -892,6 +991,80 @@ function Simulation:missionForKey(key)
     return fallback, Defs.mission(fallback)
 end
 
+function Simulation:ensureCampaignState()
+    self.estate.campaign = self.estate.campaign or newCampaign()
+    local campaign = self.estate.campaign
+    local timer = Defs.campaignTimer("twin_timer_v1") or {}
+    campaign.completedMissions = campaign.completedMissions or {}
+    campaign.locationProgress = campaign.locationProgress or {}
+    campaign.bossKills = campaign.bossKills or {}
+    campaign.flags = campaign.flags or { repairMissions = 0, extractMissions = 0, greedyExtracts = 0 }
+    campaign.flags.repairMissions = campaign.flags.repairMissions or 0
+    campaign.flags.extractMissions = campaign.flags.extractMissions or 0
+    campaign.flags.greedyExtracts = campaign.flags.greedyExtracts or 0
+    campaign.factions = campaign.factions or {}
+    for _, factionKey in ipairs(Defs.factionOrder or {}) do
+        campaign.factions[factionKey] = campaign.factions[factionKey] or { value = 0, state = "neutral" }
+    end
+    campaign.weekLimit = campaign.weekLimit or timer.weekCap or 14
+    campaign.dreadLimit = campaign.dreadLimit or timer.dreadCap or 18
+    campaign.deathLimit = campaign.deathLimit or 8
+    return campaign
+end
+
+function Simulation:factionState(factionKey)
+    local campaign = self:ensureCampaignState()
+    local entry = campaign.factions[factionKey]
+    local def = Defs.faction(factionKey)
+    if not entry or not def then
+        return nil
+    end
+    local value = entry.value or 0
+    for _, state in ipairs(def.states or {}) do
+        if not state.max or value <= state.max then
+            entry.state = state.id
+            return entry.state
+        end
+    end
+    entry.state = ((def.states or {})[#(def.states or {})] or {}).id or "neutral"
+    return entry.state
+end
+
+function Simulation:adjustFaction(factionKey, amount)
+    if not Defs.faction(factionKey) or not amount or amount == 0 then
+        return false
+    end
+    local campaign = self:ensureCampaignState()
+    local entry = campaign.factions[factionKey] or { value = 0, state = "neutral" }
+    entry.value = clamp((entry.value or 0) + amount, -4, 5)
+    campaign.factions[factionKey] = entry
+    self:factionState(factionKey)
+    return true
+end
+
+function Simulation:missionHasTag(mission, tag)
+    return contains((mission and mission.tags) or {}, tag)
+end
+
+function Simulation:lateWeekPressure()
+    local week = self.estate and (self.estate.week or 1) or 1
+    if week <= 8 then
+        return 0
+    end
+    return math.min(4, week - 8)
+end
+
+function Simulation:resolveEndingRoute(reason)
+    local campaign = self:ensureCampaignState()
+    if reason == "victory" then
+        return (campaign.flags.repairMissions or 0) >= 3 and "repair_compact" or "estate_seal"
+    end
+    if reason == "dread" then
+        return "extraction_collapse"
+    end
+    return "quiet_failure"
+end
+
 function Simulation:missionBoardSlots()
     return 4
 end
@@ -980,6 +1153,60 @@ function Simulation:applyMissionLevelPenalty(mission)
     return true
 end
 
+function Simulation:applyFactionHazards(mission)
+    if not self.expedition then
+        return false
+    end
+    local applied = false
+    local hazards = Defs.factionHazard("faction_hazards_v1")
+    for _, hazard in pairs(hazards or {}) do
+        if self:factionState(hazard.faction) == hazard.state then
+            if hazard.torch then
+                self.expedition.torch = clamp((self.expedition.torch or 0) + hazard.torch, 0, 100)
+                applied = true
+            end
+            if hazard.heatFatigue and mission and mission.location == "ember_warrens" then
+                self.expedition.heatFatigue = (self.expedition.heatFatigue or 0) + hazard.heatFatigue
+                applied = true
+            end
+            if hazard.packSlots then
+                self.expedition.packSlots = math.max(6, (self.expedition.packSlots or 12) + hazard.packSlots)
+                applied = true
+            end
+        end
+    end
+    return applied
+end
+
+function Simulation:applyStartOfMissionPressure(mission)
+    if not self.expedition then
+        return false
+    end
+    local applied = false
+    local event = Defs.townEvent(self.estate.currentEvent)
+    if event and event.nextMissionNoise and self:missionHasTag(mission, "survey") then
+        self:addNoise(event.nextMissionNoise)
+        applied = true
+    end
+    local late = self:lateWeekPressure()
+    if late > 0 then
+        self.expedition.latePressure = late
+        self:addNoise(late)
+        applied = true
+    end
+    if mission.location == "ember_warrens" then
+        for rank = 1, 4 do
+            local hero = self:heroAtRank(rank)
+            local quirk = Defs.quirk("quirk_bound_by_page")
+            if hero and contains(hero.quirks, "quirk_bound_by_page") and self:roll(1, 100) <= (quirk.emberPanicChance or 0) then
+                hero.affliction = hero.affliction or "panic"
+                applied = true
+            end
+        end
+    end
+    return applied
+end
+
 function Simulation:startExpedition(locationKey)
     if self.expedition and self.expedition.active then
         return false
@@ -1041,9 +1268,11 @@ function Simulation:startExpedition(locationKey)
         bossDefeated = false,
         log = {},
     }
+    self:applyFactionHazards(mission)
     if mission.noisePressure then
         self:addNoise(mission.noisePressure)
     end
+    self:applyStartOfMissionPressure(mission)
     self:applyMissionLevelPenalty(mission)
     self:discoverCurrentRoom()
     self:pushLog("entered " .. mission.name)
@@ -1061,7 +1290,7 @@ function Simulation:endExpedition(retreat)
     local mission = Defs.mission(self.expedition.mission) or Defs.mission("archive_scout")
     local reward = mission.reward or {}
     if success then
-        self.estate.gold = self.estate.gold + coin + (reward.gold or 0)
+        self.estate.gold = self.estate.gold + coin + (reward.gold or 0) + self:partyModifierMax("rewardBonus")
         self.estate.heirlooms = self.estate.heirlooms + heirloom + self.expedition.loot:count("relic") + (reward.heirlooms or 0)
         if reward.trinket then
             self.estate.trinkets[reward.trinket] = (self.estate.trinkets[reward.trinket] or 0) + 1
@@ -1103,10 +1332,10 @@ function Simulation:endExpedition(retreat)
 end
 
 function Simulation:recordMissionOutcome(mission, success, retreat)
-    self.estate.campaign = self.estate.campaign or newCampaign()
-    local campaign = self.estate.campaign
+    local campaign = self:ensureCampaignState()
     local locationKey = mission and mission.location or (self.expedition and self.expedition.location) or "buried_archive"
     local missionKey = self.expedition and self.expedition.mission or (mission and mission.name) or locationKey
+    local dreadRules = Defs.dreadRule("dread_rules_v1") or {}
     if success then
         local progress = mission.kind == "boss" and 2 or 1
         campaign.renown = (campaign.renown or 0) + progress
@@ -1117,13 +1346,35 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
         if mission.dreadTradeoff then
             campaign.dread = (campaign.dread or 0) + mission.dreadTradeoff
         end
+        if self:missionHasTag(mission, "repair") then
+            campaign.flags.repairMissions = (campaign.flags.repairMissions or 0) + 1
+            campaign.dread = math.max(0, (campaign.dread or 0) + (dreadRules.repair_mission or 0))
+            self:adjustFaction("enclave_meter", 1)
+        end
+        if self:missionHasTag(mission, "extract") then
+            campaign.flags.extractMissions = (campaign.flags.extractMissions or 0) + 1
+            if not self:missionHasTag(mission, "repair") then
+                campaign.flags.greedyExtracts = (campaign.flags.greedyExtracts or 0) + 1
+            end
+        end
+        if locationKey == "buried_archive" then
+            self:adjustFaction("faction_custodians", self:missionHasTag(mission, "repair") and -1 or 1)
+        elseif locationKey == "salt_cistern" then
+            self:adjustFaction("faction_cistern_keepers", self:missionHasTag(mission, "repair") and -1 or 1)
+        elseif locationKey == "ember_warrens" then
+            self:adjustFaction("faction_ember_penitents", self:missionHasTag(mission, "repair") and -1 or 1)
+        end
+        local event = Defs.townEvent(self.estate.currentEvent)
+        if event and event.completionDread then
+            campaign.dread = math.max(0, (campaign.dread or 0) + event.completionDread)
+        end
         campaign.completedMissions[missionKey] = true
         campaign.locationProgress[locationKey] = (campaign.locationProgress[locationKey] or 0) + progress
         if mission.kind == "boss" then
             campaign.bossKills[locationKey] = true
         end
     else
-        campaign.dread = (campaign.dread or 0) + (retreat and 1 or 2)
+        campaign.dread = (campaign.dread or 0) + (retreat and (dreadRules.abandoned_mission or 1) or 2)
     end
     local defeated = 0
     for _, key in ipairs(Defs.locationOrder) do
@@ -1134,6 +1385,7 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
     campaign.victory = defeated >= #Defs.locationOrder
     if campaign.victory and not campaign.finalSeal then
         campaign.finalSeal = true
+        campaign.endingRoute = self:resolveEndingRoute("victory")
         self.estate.heirlooms = self.estate.heirlooms + 3
         self.estate.trinkets.scribe_wax = (self.estate.trinkets.scribe_wax or 0) + 1
         self:pushLog("campaign sealed")
@@ -1145,11 +1397,11 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
 end
 
 function Simulation:evaluateCampaignState()
-    self.estate.campaign = self.estate.campaign or newCampaign()
-    local campaign = self.estate.campaign
+    local campaign = self:ensureCampaignState()
     if campaign.victory then
         campaign.lost = false
         campaign.lossReason = nil
+        campaign.endingRoute = campaign.endingRoute or self:resolveEndingRoute("victory")
         return false
     end
     if campaign.lost then
@@ -1166,6 +1418,7 @@ function Simulation:evaluateCampaignState()
         campaign.lossReason = "dread"
     end
     if campaign.lost then
+        campaign.endingRoute = self:resolveEndingRoute(campaign.lossReason)
         self:pushLog("campaign collapsed: " .. campaign.lossReason)
         self:narrate("collapse", campaign.lossReason or "lost")
     end
@@ -1197,16 +1450,20 @@ end
 
 function Simulation:applyCampaignPressure()
     local dread = self.estate.campaign and (self.estate.campaign.dread or 0) or 0
-    if dread < 6 then
+    local late = self:lateWeekPressure()
+    if dread < 6 and late <= 0 then
         return false
     end
-    local stress = math.max(2, math.floor(dread / 6))
+    local stress = (dread >= 6 and math.max(2, math.floor(dread / 6)) or 0) + late
+    if stress <= 0 then
+        return false
+    end
     for _, hero in ipairs(self.estate.roster) do
         if hero.alive and (hero.recovering or 0) <= 0 then
             self:addStress(hero, stress)
         end
     end
-    self:pushLog("dread weighs on the estate")
+    self:pushLog(late > 0 and "late weeks tighten" or "dread weighs on the estate")
     return true
 end
 
@@ -1215,7 +1472,20 @@ function Simulation:rollTownEvent()
     if not order or #order == 0 then
         return false
     end
-    local eventKey = order[(Rng.hash(self.seed + 4409, self.estate.week or 1, #self.estate.eventHistory + 1, 0) % #order) + 1]
+    local campaign = self:ensureCampaignState()
+    if (campaign.flags.repairMissions or 0) >= 3 and not campaign.flags.enclaveCompactSigned then
+        campaign.flags.enclaveCompactSigned = true
+        return self:applyTownEvent("enclave_compact_signed")
+    end
+    if (campaign.dread or 0) >= (campaign.dreadLimit or 18) - 2 and not campaign.flags.estateReckoning then
+        campaign.flags.estateReckoning = true
+        return self:applyTownEvent("estate_reckoning")
+    end
+    local randomOrder = {}
+    for index = 1, math.min(8, #order) do
+        randomOrder[#randomOrder + 1] = order[index]
+    end
+    local eventKey = randomOrder[(Rng.hash(self.seed + 4409, self.estate.week or 1, #self.estate.eventHistory + 1, 0) % #randomOrder) + 1]
     return self:applyTownEvent(eventKey)
 end
 
@@ -1231,6 +1501,15 @@ function Simulation:applyTownEvent(eventKey)
     end
     if event.heirlooms then
         self.estate.heirlooms = math.max(0, self.estate.heirlooms + event.heirlooms)
+    end
+    if event.dread then
+        self:adjustDread(event.dread)
+    end
+    for factionKey, amount in pairs(event.faction or {}) do
+        self:adjustFaction(factionKey, amount)
+    end
+    if event.openMission then
+        appendUnique(self.estate.missionBoard, event.openMission)
     end
     for item, count in pairs(event.provisions or {}) do
         self.estate.provisionCart:add(item, count)
@@ -1415,7 +1694,10 @@ function Simulation:buyProvision(item, count)
     if not def or not def.provision then
         return false
     end
-    local cost = (def.cost or 0) * count
+    local event = Defs.townEvent(self.estate.currentEvent)
+    local multiplier = (event and event.provisionCostMultiplier) or 1
+    local surcharge = (event and event.torchDelay and item == "torch") and event.torchDelay or 0
+    local cost = ((def.cost or 0) * multiplier + surcharge) * count
     if self.estate.gold < cost then
         return false
     end
@@ -1665,12 +1947,14 @@ function Simulation:recoverHero(heroId, activityKey)
         return false
     end
     local def = Defs.estateBuilding("infirmary")
-    local cost = activity and activity.cost or math.max(0, def.recoverCost - self:buildingLevel("infirmary") * def.discountPerLevel)
+    local event = Defs.townEvent(self.estate.currentEvent)
+    local multiplier = (event and event.recoveryCostMultiplier) or 1
+    local cost = (activity and activity.cost or math.max(0, def.recoverCost - self:buildingLevel("infirmary") * def.discountPerLevel)) * multiplier
     if not hero or not hero.alive or (hero.recovering or 0) > 0 or self.estate.gold < cost then
         return false
     end
     self.estate.gold = self.estate.gold - cost
-    self:healStress(hero, activity and activity.stressHeal or 30)
+    self:healStress(hero, (activity and activity.stressHeal or 30) + self:heroModifier(hero, "stressRecoveryBonus"))
     while self:clearInjury(hero) do
     end
     hero.recovering = activity and (activity.weeks or 1) or 1
@@ -1846,7 +2130,8 @@ function Simulation:addNoise(amount)
     if not self.expedition then
         return false
     end
-    self.expedition.noise = clamp((self.expedition.noise or 0) + (amount or 1), 0, 12)
+    local discount = self:partyModifierMax("noiseDiscount")
+    self.expedition.noise = clamp((self.expedition.noise or 0) + math.max(0, (amount or 1) - discount), 0, 12)
     return true
 end
 
@@ -2106,6 +2391,11 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
         self:narrate("curio", curioKey)
         return true
     end
+    local hero = self:heroAtRank(self.player.selectedHero) or self:heroAtRank(1)
+    if self:heroModifier(hero, "curioRefusal") > 0 and not (options and options.ignoreRefusal) and self:roll(1, 100) <= self:heroModifier(hero, "curioRefusal") then
+        self:pushLog(hero.name .. " refused the curio")
+        return false
+    end
     local usedItem = false
     if not (options and options.forceNoItem) and curio.item and self.expedition.supplies:consume(curio.item, 1) then
         usedItem = true
@@ -2116,7 +2406,6 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
     if curio.questGather then
         self:addLoot(curio.questGather.item, curio.questGather.count or 1)
     end
-    local hero = self:heroAtRank(self.player.selectedHero) or self:heroAtRank(1)
     if curio.damage and not usedItem then
         self:damageHero(hero, curio.damage)
         self:addRandomInjury(hero, curioKey)
@@ -2209,6 +2498,14 @@ function Simulation:campSkill(skillKey, heroRank)
     if #targets == 0 then
         return false
     end
+    for item, count in pairs(skill.itemCost or {}) do
+        if self.expedition.supplies:count(item) < count then
+            return false
+        end
+    end
+    for item, count in pairs(skill.itemCost or {}) do
+        self.expedition.supplies:consume(item, count)
+    end
     camping.respite = camping.respite - (skill.cost or 0)
     camping.usedSkills[skillKey] = true
     for _, target in ipairs(targets) do
@@ -2221,6 +2518,16 @@ function Simulation:campSkill(skillKey, heroRank)
         for _, statusKey in ipairs(skill.clearStatuses or {}) do
             self:clearStatus(target, statusKey)
         end
+        if skill.clearDisease and #(target.diseases or {}) > 0 then
+            table.remove(target.diseases, 1)
+            target.hp = math.min(target.hp, self:maxHp(target))
+        end
+    end
+    if skill.dread then
+        self:adjustDread(skill.dread)
+    end
+    if skill.clearHeatFatigue and self.expedition then
+        self.expedition.heatFatigue = 0
     end
     if skill.torch then
         self.expedition.torch = clamp(self.expedition.torch + skill.torch, 0, 100)
@@ -2255,7 +2562,8 @@ function Simulation:useItem(item, heroRank)
     end
     local hero = self:heroAtRank(heroRank or self.player.selectedHero) or self:heroAtRank(1)
     if item == "torch" then
-        self.expedition.torch = clamp(self.expedition.torch + 25, 0, 100)
+        local torchGain = 25 + self:partyModifierMax("torchEfficiency") - self:heroModifier(hero, "torchWaste")
+        self.expedition.torch = clamp(self.expedition.torch + torchGain, 0, 100)
     elseif item == "ration" then
         self:healHero(hero, 2)
         self:healStress(hero, 1)
@@ -2697,6 +3005,10 @@ function Simulation:enemyTurn(enemy)
     if self.expedition and self.expedition.torch < 30 then
         damageBonus = damageBonus + 1
         stressBonus = stressBonus + 2
+    end
+    if self.expedition and (self.expedition.latePressure or 0) > 0 then
+        damageBonus = damageBonus + math.floor((self.expedition.latePressure or 0) / 2)
+        stressBonus = stressBonus + (self.expedition.latePressure or 0)
     end
     if skill.noise then
         self:addNoise(skill.noise)
@@ -3267,6 +3579,7 @@ function Simulation:snapshot()
             noise = self.expedition.noise or 0,
             ambushRolls = self.expedition.ambushRolls or 0,
             heatFatigue = self.expedition.heatFatigue or 0,
+            latePressure = self.expedition.latePressure or 0,
             corridorVisits = copyMap(self.expedition.corridorVisits),
             currentCorridor = self.expedition.currentCorridor,
             generatedLayoutId = self.expedition.generatedLayoutId,
@@ -3335,9 +3648,12 @@ function Simulation:snapshot()
                 finalSeal = self.estate.campaign and self.estate.campaign.finalSeal == true,
                 lost = self.estate.campaign and self.estate.campaign.lost == true,
                 lossReason = self.estate.campaign and self.estate.campaign.lossReason or nil,
-                weekLimit = self.estate.campaign and self.estate.campaign.weekLimit or 48,
+                weekLimit = self.estate.campaign and self.estate.campaign.weekLimit or ((Defs.campaignTimer("twin_timer_v1") or {}).weekCap or 14),
                 deathLimit = self.estate.campaign and self.estate.campaign.deathLimit or 8,
                 dreadLimit = self.estate.campaign and self.estate.campaign.dreadLimit or 18,
+                factions = copyNestedMap(self.estate.campaign and self.estate.campaign.factions),
+                flags = copyNestedMap(self.estate.campaign and self.estate.campaign.flags),
+                endingRoute = self.estate.campaign and self.estate.campaign.endingRoute or nil,
             },
             recruits = recruits,
             missionBoard = copyList(self.estate.missionBoard),
@@ -3407,10 +3723,14 @@ function Simulation.fromSnapshot(snapshot)
         finalSeal = campaign.finalSeal == true,
         lost = campaign.lost == true,
         lossReason = campaign.lossReason,
-        weekLimit = campaign.weekLimit or 48,
+        weekLimit = campaign.weekLimit or ((Defs.campaignTimer("twin_timer_v1") or {}).weekCap or 14),
         deathLimit = campaign.deathLimit or 8,
         dreadLimit = campaign.dreadLimit or 18,
+        factions = copyNestedMap(campaign.factions),
+        flags = copyNestedMap(campaign.flags),
+        endingRoute = campaign.endingRoute,
     }
+    self:ensureCampaignState()
     self.estate.recruits = {}
     for _, recruit in ipairs((snapshot.estate and snapshot.estate.recruits) or {}) do
         self.estate.recruits[#self.estate.recruits + 1] = {
@@ -3481,6 +3801,7 @@ function Simulation.fromSnapshot(snapshot)
             noise = exp.noise or 0,
             ambushRolls = exp.ambushRolls or 0,
             heatFatigue = exp.heatFatigue or 0,
+            latePressure = exp.latePressure or 0,
             corridorVisits = copyMap(exp.corridorVisits),
             currentCorridor = exp.currentCorridor,
             generatedLayoutId = exp.generatedLayoutId,

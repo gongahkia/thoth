@@ -53,6 +53,7 @@ end
 
 checkOrder("item", Defs.itemOrder, Defs.items)
 checkOrder("trinket", Defs.trinketOrder, Defs.trinkets)
+checkOrder("trinket set", Defs.trinketSetOrder, Defs.trinketSets)
 checkOrder("quirk", Defs.quirkOrder, Defs.quirks)
 checkOrder("disease", Defs.diseaseOrder, Defs.diseases)
 checkOrder("injury", Defs.injuryOrder, Defs.injuries)
@@ -70,6 +71,14 @@ checkOrder("camp skill", Defs.campSkillOrder, Defs.campSkills)
 checkOrder("estate building", Defs.estateBuildingOrder, Defs.estateBuildings)
 checkOrder("estate activity", Defs.estateActivityOrder, Defs.estateActivities)
 checkOrder("town event", Defs.townEventOrder, Defs.townEvents)
+checkOrder("estate copy", Defs.estateCopyOrder, Defs.estateCopy)
+checkOrder("class lore", Defs.classLoreOrder, Defs.classLore)
+checkOrder("fixture", Defs.estateFixtureOrder, Defs.estateFixtures)
+checkOrder("enclave leader", Defs.enclaveLeaderOrder, Defs.enclaveLeaders)
+checkOrder("faction", Defs.factionOrder, Defs.factions)
+checkOrder("dread rule", Defs.dreadRuleOrder, Defs.dreadRules)
+checkOrder("campaign timer", Defs.campaignTimerOrder, Defs.campaignTimers)
+checkOrder("ending route", Defs.endingRouteOrder, Defs.endingRoutes)
 
 for key, tile in pairs(Defs.tiles) do
     expect(tile.name and tile.name ~= "", "tile missing name " .. key)
@@ -105,9 +114,19 @@ for key, trinket in pairs(Defs.trinkets) do
     expect(trinket.name and trinket.name ~= "", "trinket missing name " .. key)
     expect(type(trinket.value) == "number" and trinket.value > 0, "trinket missing value " .. key)
 end
+for key, set in pairs(Defs.trinketSets) do
+    expect(set.name and #set.pieces == 4, "trinket set missing pieces " .. key)
+    for _, trinketKey in ipairs(set.pieces) do
+        expect(Defs.trinket(trinketKey), "trinket set piece missing " .. key .. "/" .. trinketKey)
+    end
+    expect(set.twoPiece and set.fourPiece and set.cost, "trinket set effects missing " .. key)
+end
 
 for key, quirk in pairs(Defs.quirks) do
     expect(quirk.name and (quirk.kind == "positive" or quirk.kind == "negative"), "quirk missing data " .. key)
+end
+for _, key in ipairs({ "quirk_salt_marked", "quirk_stamp_shy", "quirk_vigil_held", "quirk_bound_by_page" }) do
+    expect(Defs.quirk(key), "estate quirk missing " .. key)
 end
 
 for key, disease in pairs(Defs.diseases) do
@@ -406,6 +425,12 @@ end
 for key, skill in pairs(Defs.campSkills) do
     expect(skill.name and skill.cost >= 0, "camp skill missing data " .. key)
     expect(skill.target == "ally" or skill.target == "party", "camp skill bad target " .. key)
+    for item in pairs(skill.itemCost or {}) do
+        expect(Defs.item(item), "camp skill item cost missing item " .. item)
+    end
+end
+for _, key in ipairs({ "camp_witness_vigil", "camp_salt_wash", "camp_ember_quench" }) do
+    expect(Defs.campSkill(key), "estate camp ritual missing " .. key)
 end
 
 for key, building in pairs(Defs.estateBuildings) do
@@ -420,6 +445,48 @@ for key, event in pairs(Defs.townEvents) do
     if event.heirlooms then
         expect(type(event.heirlooms) == "number", "town event bad heirlooms " .. key)
     end
+    if event.openMission then
+        expect(Defs.mission(event.openMission), "town event open mission missing " .. key)
+    end
+    for factionKey in pairs(event.faction or {}) do
+        expect(Defs.faction(factionKey), "town event faction missing " .. key .. "/" .. factionKey)
+    end
+end
+for _, key in ipairs({
+    "survey_quota", "enclave_petition", "archive_tithe_v2", "salt_rationing", "ash_vigil_demand",
+    "audit_notice", "lamplighter_strike", "drowned_banns", "pyre_demand", "estate_reckoning", "enclave_compact_signed",
+}) do
+    expect(Defs.townEvent(key), "estate town event missing " .. key)
+end
+
+expect(Defs.estateCopyFor("survey_office_copy"), "survey office copy missing")
+expect(Defs.classLoreBank("class_origins") and Defs.barkBank("recruit_barks") and Defs.epitaphBank("zone_epitaphs"), "estate lore bank ids missing")
+for _, classKey in ipairs(Defs.heroClassOrder) do
+    expect(Defs.classLoreFor(classKey) and Defs.recruitBarksFor(classKey), "class lore/barks missing " .. classKey)
+end
+for _, key in ipairs(Defs.graveyardEpitaphOrder) do
+    expect(#Defs.graveyardEpitaphsFor(key) >= 2, "graveyard epitaphs missing " .. key)
+end
+for _, key in ipairs(Defs.estateFixtureOrder) do
+    local fixture = Defs.estateFixture(key)
+    expect(fixture and #fixture.barks >= 2, "estate fixture barks missing " .. key)
+end
+for _, key in ipairs(Defs.enclaveLeaderOrder) do
+    local leader = Defs.enclaveLeader(key)
+    expect(leader and Defs.location(leader.zone) and #leader.barks >= 1, "enclave leader bad data " .. key)
+end
+for _, key in ipairs(Defs.factionOrder) do
+    local faction = Defs.faction(key)
+    expect(faction and #faction.states >= 3, "faction states missing " .. key)
+end
+local dreadRules = Defs.dreadRule("dread_rules_v1")
+for _, key in ipairs({ "greedy_extract", "hero_death", "abandoned_mission", "repair_mission", "vigil", "enclave_compact" }) do
+    expect(type(dreadRules[key]) == "number", "dread rule missing " .. key)
+end
+expect(Defs.campaignTimer("twin_timer_v1").weekCap == 14 and Defs.campaignTimer("twin_timer_v1").dreadCap == 18, "twin timer caps missing")
+expect(Defs.endingRouter("ending_router") and #Defs.endingRouter("ending_router").routes == 4, "ending router missing")
+for _, key in ipairs({ "estate_seal", "repair_compact", "extraction_collapse", "quiet_failure" }) do
+    expect(Defs.endingRoute(key), "ending route missing " .. key)
 end
 
 for _, key in ipairs(Defs.narrationOrder) do
