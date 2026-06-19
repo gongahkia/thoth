@@ -14,6 +14,17 @@ local function cloneTile(value)
     return { id = value.id, data = value.data or 0 }
 end
 
+local function deepCopy(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local result = {}
+    for key, entry in pairs(value) do
+        result[key] = deepCopy(entry)
+    end
+    return result
+end
+
 local function inRoom(x, y, room)
     return math.abs(x - room.x) <= room.w and math.abs(y - room.y) <= room.h
 end
@@ -39,7 +50,12 @@ function World.new(seed, locationKey, overrides)
         overrides = locationKey
         locationKey = "buried_archive"
     end
-    return setmetatable({ seed = seed or 1, location = locationKey or "buried_archive", overrides = overrides or {}, chunks = {}, chunkRevisions = {} }, World)
+    local layoutId = nil
+    if type(overrides) == "table" and overrides.layoutId then
+        layoutId = overrides.layoutId
+        overrides = overrides.tiles or {}
+    end
+    return setmetatable({ seed = seed or 1, location = locationKey or "buried_archive", layoutId = layoutId, overrides = overrides or {}, chunks = {}, chunkRevisions = {}, generatedLayout = nil }, World)
 end
 
 function World.floorDiv(value, divisor)
@@ -56,7 +72,59 @@ end
 
 function World:layout()
     local location = Defs.location(self.location) or Defs.location("buried_archive")
-    return location.layout
+    local layout = location.layout
+    if layout and layout.generator == "mission_grammar" then
+        return self:missionGrammarLayout(location)
+    end
+    return layout
+end
+
+function World:missionGrammarLayout(location)
+    if self.generatedLayout then
+        return self.generatedLayout
+    end
+    local base = deepCopy(location.layout)
+    local roles = base.roles or {}
+    local layoutId = self.layoutId or "archive_scout"
+    local variant = Rng.hash(self.seed + 4201, #layoutId, 0, 0) % 3
+    base.generated = true
+    base.generatedLayoutId = (base.grammar and base.grammar.id or "mission_grammar") .. ":" .. layoutId .. ":" .. tostring(variant)
+    base.encounters = {
+        [roles.lock_gate or "8:0"] = "entry",
+        [roles.scout_branch or "0:8"] = "archive_branch",
+        [roles.reward_dead_end or "16:0"] = "stacks",
+        [roles.boss_gate or location.bossRoom or "24:0"] = "regent",
+    }
+    if layoutId == "archive_cleansing" then
+        base.encounters[roles.risky_shortcut or "16:6"] = "undercroft"
+    end
+    for _, corridor in ipairs(base.corridors or {}) do
+        local a = tostring(corridor.ax) .. ":" .. tostring(corridor.ay)
+        local b = tostring(corridor.bx) .. ":" .. tostring(corridor.by)
+        if (a == (roles.camp_fallback or "8:6") and b == (roles.risky_shortcut or "16:6"))
+            or (b == (roles.camp_fallback or "8:6") and a == (roles.risky_shortcut or "16:6"))
+        then
+            corridor.role = "shortcut"
+        elseif b == (roles.boss_gate or "24:0") or a == (roles.boss_gate or "24:0") then
+            corridor.role = "boss_gate"
+        else
+            corridor.role = corridor.role or "path"
+        end
+    end
+    local threats = {}
+    for _, threat in ipairs(base.threats or {}) do
+        local roomKey = roles[threat.roomRole or ""] or threat.roomKey
+        local include = not threat.rare or (Rng.hash(self.seed + 4301, #layoutId, threat.x or 0, threat.y or 0) % 100) < 45
+        if roomKey and include then
+            local entry = deepCopy(threat)
+            entry.roomKey = roomKey
+            entry.z = entry.z or 0
+            threats[#threats + 1] = entry
+        end
+    end
+    base.threats = threats
+    self.generatedLayout = base
+    return base
 end
 
 function World:floorTile()
@@ -105,6 +173,27 @@ function World:connectedRooms(roomKey)
     return result
 end
 
+function World:corridorAt(x, y)
+    for _, corridor in ipairs(self:layout().corridors or {}) do
+        if inCorridor(x, y, corridor) then
+            return corridor
+        end
+    end
+    return nil
+end
+
+function World:encounterForRoom(roomKey)
+    if not roomKey then
+        return nil
+    end
+    local layout = self:layout()
+    if layout.encounters then
+        return layout.encounters[roomKey]
+    end
+    local location = Defs.location(self.location) or Defs.location("buried_archive")
+    return location.encounters and location.encounters[roomKey] or nil
+end
+
 function World:specialAt(x, y, z)
     for _, special in ipairs(self:layout().specials or {}) do
         if special.x == x and special.y == y and (special.z or 0) == (z or 0) then
@@ -124,6 +213,33 @@ function World:specialsInRect(minX, maxX, minY, maxY, z)
                 z = special.z or 0,
                 tile = special.tile,
                 roomKey = special.roomKey,
+            }
+        end
+    end
+    return result
+end
+
+function World:threatAt(x, y, z)
+    for _, threat in ipairs(self:layout().threats or {}) do
+        if threat.x == x and threat.y == y and (threat.z or 0) == (z or 0) then
+            return threat
+        end
+    end
+    return nil
+end
+
+function World:threatsInRect(minX, maxX, minY, maxY, z)
+    local result = {}
+    for _, threat in ipairs(self:layout().threats or {}) do
+        if threat.x >= minX and threat.x <= maxX and threat.y >= minY and threat.y <= maxY and (threat.z or 0) == (z or 0) then
+            result[#result + 1] = {
+                key = threat.key,
+                x = threat.x,
+                y = threat.y,
+                z = threat.z or 0,
+                roomKey = threat.roomKey,
+                encounter = threat.encounter,
+                rare = threat.rare == true,
             }
         end
     end
@@ -240,7 +356,7 @@ function World:snapshot()
     table.sort(chunks, function(a, b)
         return a.key < b.key
     end)
-    return { seed = self.seed, location = self.location, chunks = chunks, tiles = tiles }
+    return { seed = self.seed, location = self.location, layoutId = self.layoutId, chunks = chunks, tiles = tiles }
 end
 
 function World.fromSnapshot(snapshot)
@@ -248,7 +364,7 @@ function World.fromSnapshot(snapshot)
     for _, value in ipairs(snapshot.tiles or {}) do
         overrides[value.key] = tile(value.id, value.data)
     end
-    local world = World.new(snapshot.seed, snapshot.location or "buried_archive", overrides)
+    local world = World.new(snapshot.seed, snapshot.location or "buried_archive", { tiles = overrides, layoutId = snapshot.layoutId })
     for _, chunk in ipairs(snapshot.chunks or {}) do
         local key = chunk.key or World.chunkKey(chunk.cx, chunk.cy, chunk.z or 0)
         world.chunks[key] = world:generateChunk(chunk.cx, chunk.cy, chunk.z or 0)

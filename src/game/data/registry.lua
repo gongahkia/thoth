@@ -101,6 +101,14 @@ Registry.diseases = {
 }
 Registry.diseaseOrder = { "salt_cough", "brine_rot", "ember_fever", "glass_eye", "paper_lung", "drowned_chill", "ash_tremor" }
 
+Registry.injuries = {
+    torn_shoulder = { name = "Torn Shoulder", damageBonus = -1, speed = -1 },
+    cracked_ribs = { name = "Cracked Ribs", maxHp = -2, stressTaken = 1 },
+    lamp_burn = { name = "Lamp Burn", healBonus = -1, stressTaken = 1 },
+    split_brow = { name = "Split Brow", resolve = -4, damageTaken = 1 },
+}
+Registry.injuryOrder = { "torn_shoulder", "cracked_ribs", "lamp_burn", "split_brow" }
+
 Registry.heroClasses = {
     warden = {
         name = "Warden",
@@ -391,11 +399,22 @@ Registry.enemySkills = {
     lantern_drown = { name = "Lantern Drown", target = "party", stress = 4 },
     ember_surge = { name = "Ember Surge", target = "hero", targetRanks = { 1, 2, 3 }, damage = { 3, 5 }, stress = 4, status = { kind = "blight", amount = 1, turns = 2 } },
     coal_spike = { name = "Coal Spike", target = "hero", targetRanks = { 1, 2 }, damage = { 5, 7 }, stress = 1 },
+    index_glare = { name = "Index Glare", target = "hero", targetRanks = { 1, 2, 3, 4 }, damage = { 1, 3 }, stress = 7, status = { kind = "marked", turns = 2 } },
+    alarm_scrape = { name = "Alarm Scrape", target = "party", stress = 3, noise = 2 },
+    margin_chant = { name = "Margin Chant", target = "party", stress = 5 },
+    iron_margin = { name = "Iron Margin", target = "hero", targetRanks = { 1, 2 }, damage = { 4, 6 }, stress = 1 },
+    catalogue_chain = { name = "Catalogue Chain", target = "hero", targetRanks = { 2, 3, 4 }, damage = { 2, 5 }, stress = 2, move = -1, status = { kind = "daze", amount = 1, turns = 1 }, injuryChance = 24 },
+    mite_bite = { name = "Mite Bite", target = "hero", targetRanks = { 1, 2, 3, 4 }, damage = { 1, 3 }, stress = 2, status = { kind = "bleed", amount = 1, turns = 2 } },
+    lectern_cant = { name = "Lectern Cant", target = "party", stress = 6 },
+    red_catalogue = { name = "Red Catalogue", target = "hero", targetRanks = { 1, 2 }, damage = { 6, 9 }, stress = 5, markBonus = 3, injuryChance = 35 },
+    writ_shelter = { name = "Writ Shelter", target = "party", stress = 2 },
 }
 Registry.enemySkillOrder = {
     "rusted_chop", "ink_splatter", "needle_dictation", "gutter_hook", "censer_wail", "regent_sentence",
     "brine_spit", "hook_chain", "drowned_hymn", "kiln_bite", "soot_cloud", "kiln_liturgy",
     "page_swarm", "marrow_shear", "brine_net", "lantern_drown", "ember_surge", "coal_spike",
+    "index_glare", "alarm_scrape", "margin_chant", "iron_margin", "catalogue_chain", "mite_bite",
+    "lectern_cant", "red_catalogue", "writ_shelter",
 }
 
 Registry.enemies = {
@@ -404,7 +423,19 @@ Registry.enemies = {
     bone_scribe = { name = "Bone Scribe", maxHp = 12, speed = 4, damage = { 2, 4 }, stress = 4, skills = { "needle_dictation", "ink_splatter" } },
     gutter_thing = { name = "Gutter Thing", maxHp = 14, speed = 5, damage = { 3, 6 }, stress = 2, skills = { "gutter_hook", "rusted_chop" } },
     pale_censer = { name = "Pale Censer", maxHp = 9, speed = 3, damage = { 1, 2 }, stress = 8, skills = { "censer_wail", "ink_splatter" } },
-    vault_regent = { name = "Vault Regent", maxHp = 34, speed = 4, damage = { 5, 8 }, stress = 7, boss = true, skills = { "regent_sentence", "censer_wail" } },
+    vault_regent = {
+        name = "Vault Regent",
+        maxHp = 34,
+        speed = 4,
+        damage = { 5, 8 },
+        stress = 7,
+        boss = true,
+        skills = { "regent_sentence", "censer_wail" },
+        parts = {
+            { key = "edict_crown", name = "Edict Crown", hp = 10, skillLocks = { "regent_sentence" }, exposeDamage = 4 },
+            { key = "choir_chain", name = "Choir Chain", hp = 8, skillLocks = { "censer_wail" }, stressPenalty = 2 },
+        },
+    },
     drowned_acolyte = { name = "Drowned Acolyte", maxHp = 11, speed = 5, damage = { 2, 4 }, stress = 5, skills = { "brine_spit", "drowned_hymn" } },
     brine_stalker = { name = "Brine Stalker", maxHp = 17, speed = 4, damage = { 3, 6 }, stress = 2, skills = { "hook_chain", "brine_spit" } },
     bell_diver = { name = "Bell Diver", maxHp = 28, speed = 2, damage = { 5, 8 }, stress = 6, boss = true, skills = { "hook_chain", "drowned_hymn" } },
@@ -417,11 +448,46 @@ Registry.enemies = {
     drowned_lantern = { name = "Drowned Lantern", maxHp = 10, speed = 4, damage = { 1, 3 }, stress = 8, skills = { "lantern_drown", "drowned_hymn" } },
     ember_mote = { name = "Ember Mote", maxHp = 10, speed = 8, damage = { 2, 4 }, stress = 5, skills = { "ember_surge", "soot_cloud" } },
     coal_monk = { name = "Coal Monk", maxHp = 18, speed = 2, damage = { 5, 7 }, stress = 2, skills = { "coal_spike", "kiln_liturgy" } },
+    index_skitter = { name = "Index Skitter", maxHp = 9, speed = 8, damage = { 1, 3 }, stress = 4, skills = { "index_glare", "alarm_scrape" } },
+    marginal_choir = { name = "Marginal Choir", maxHp = 11, speed = 5, damage = { 1, 2 }, stress = 8, skills = { "margin_chant", "ink_splatter" } },
+    folio_bulwark = { name = "Folio Bulwark", maxHp = 22, speed = 1, damage = { 4, 6 }, stress = 1, skills = { "iron_margin", "rusted_chop" } },
+    chain_cataloguer = { name = "Chain Cataloguer", maxHp = 15, speed = 5, damage = { 2, 5 }, stress = 3, skills = { "catalogue_chain", "needle_dictation" } },
+    paper_mites = { name = "Paper Mites", maxHp = 7, speed = 9, damage = { 1, 3 }, stress = 3, skills = { "mite_bite", "page_swarm" } },
+    ossuary_lectern = {
+        name = "Ossuary Lectern",
+        maxHp = 24,
+        speed = 3,
+        damage = { 3, 6 },
+        stress = 7,
+        elite = true,
+        skills = { "lectern_cant", "needle_dictation" },
+        parts = {
+            { key = "open_codex", name = "Open Codex", hp = 7, skillLocks = { "lectern_cant" }, stressPenalty = 2 },
+            { key = "bone_clasp", name = "Bone Clasp", hp = 8, skillLocks = { "needle_dictation" }, exposeDamage = 3 },
+        },
+    },
+    regent_clerk = { name = "Regent Clerk", maxHp = 13, speed = 4, damage = { 2, 4 }, stress = 6, skills = { "writ_shelter", "margin_chant" } },
+    red_indexer = {
+        name = "Red Indexer",
+        maxHp = 28,
+        speed = 6,
+        damage = { 5, 8 },
+        stress = 6,
+        elite = true,
+        alpha = true,
+        skills = { "red_catalogue", "index_glare", "alarm_scrape" },
+        parts = {
+            { key = "lamp_eye", name = "Lamp Eye", hp = 8, skillLocks = { "index_glare" }, stressPenalty = 2 },
+            { key = "knife_hand", name = "Knife Hand", hp = 9, skillLocks = { "red_catalogue" }, exposeDamage = 5 },
+        },
+    },
 }
 Registry.enemyOrder = {
     "hollow_guard", "ink_wretch", "bone_scribe", "gutter_thing", "pale_censer", "vault_regent",
     "drowned_acolyte", "brine_stalker", "bell_diver", "ash_husk", "kiln_imp", "cinder_prioress",
     "parchment_swarm", "marrow_bailiff", "salt_eel", "drowned_lantern", "ember_mote", "coal_monk",
+    "index_skitter", "marginal_choir", "folio_bulwark", "chain_cataloguer", "paper_mites",
+    "ossuary_lectern", "regent_clerk", "red_indexer",
 }
 
 Registry.afflictions = {
@@ -458,12 +524,15 @@ Registry.curioOrder = {
 }
 
 Registry.encounters = {
-    entry = { "hollow_guard", "ink_wretch" },
-    archive_branch = { "parchment_swarm", "hollow_guard", "bone_scribe" },
-    stacks = { "bone_scribe", "ink_wretch", "pale_censer" },
-    undercroft = { "gutter_thing", "marrow_bailiff", "bone_scribe" },
-    regent = { "vault_regent", "pale_censer" },
-    regent_crowned = { "vault_regent", "bone_scribe", "pale_censer" },
+    entry = { "hollow_guard", "index_skitter" },
+    archive_branch = { "parchment_swarm", "folio_bulwark", "bone_scribe" },
+    stacks = { "bone_scribe", "marginal_choir", "pale_censer" },
+    undercroft = { "chain_cataloguer", "marrow_bailiff", "bone_scribe" },
+    archive_ambush = { "paper_mites", "index_skitter", "ink_wretch" },
+    archive_elite = { "ossuary_lectern", "regent_clerk" },
+    archive_alpha = { "red_indexer", "paper_mites" },
+    regent = { "vault_regent", "regent_clerk" },
+    regent_crowned = { "vault_regent", "regent_clerk", "marginal_choir" },
     cistern_entry = { "drowned_acolyte", "brine_stalker" },
     cistern_branch = { "salt_eel", "drowned_acolyte", "brine_stalker" },
     cistern_depths = { "brine_stalker", "drowned_lantern", "pale_censer" },
@@ -476,7 +545,7 @@ Registry.encounters = {
     prioress_ember = { "cinder_prioress", "kiln_imp", "ash_husk" },
 }
 Registry.encounterOrder = {
-    "entry", "archive_branch", "stacks", "undercroft", "regent", "regent_crowned",
+    "entry", "archive_branch", "stacks", "undercroft", "archive_ambush", "archive_elite", "archive_alpha", "regent", "regent_crowned",
     "cistern_entry", "cistern_branch", "cistern_depths", "matron", "matron_toll",
     "ember_entry", "ember_branch", "ember_altar", "prioress", "prioress_ember",
 }
@@ -496,11 +565,40 @@ Registry.locations = {
             { item = "salve", count = 1 },
         },
         layout = {
+            generator = "mission_grammar",
             floorTile = "archive_floor",
             wallTile = "archive_wall",
             corridorTile = "corridor",
             obstacleTile = "black_water",
             obstacleModulo = 71,
+            roles = {
+                entrance = "0:0",
+                scout_branch = "0:8",
+                lock_gate = "8:0",
+                camp_fallback = "8:6",
+                reward_dead_end = "16:0",
+                risky_shortcut = "16:6",
+                boss_gate = "24:0",
+                alpha_roost = "24:6",
+            },
+            grammar = {
+                id = "archive_mission_v1",
+                path = { "entrance", "lock_gate", "reward_dead_end", "boss_gate" },
+                branch = { "entrance", "scout_branch" },
+                loop = { "lock_gate", "camp_fallback", "risky_shortcut", "alpha_roost", "boss_gate" },
+                softGate = { keyRoom = "reward_dead_end", lockRoom = "boss_gate", item = "archive_page" },
+                fallback = "camp_fallback",
+            },
+            templates = {
+                roomHalfSize = 3,
+                corridorKind = "orthogonal",
+                shortcutRole = "shortcut",
+            },
+            threats = {
+                { key = "archive_sentinel", roomRole = "lock_gate", encounter = "entry", x = 8, y = -1 },
+                { key = "archive_lectern", roomRole = "risky_shortcut", encounter = "archive_elite", x = 16, y = 5 },
+                { key = "red_indexer", roomRole = "alpha_roost", encounter = "archive_alpha", x = 24, y = 5, rare = true },
+            },
             rooms = {
                 { key = "0:0", x = 0, y = 0, w = 3, h = 3 },
                 { key = "0:8", x = 0, y = 8, w = 3, h = 3 },

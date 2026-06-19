@@ -2,28 +2,37 @@
 
 Combat cutscenes are transient render events. They do not enter save or replay snapshots.
 
-| Event | Animation | Use |
-| --- | --- | --- |
-| `combat_start` | `intro` | normal encounter starts |
-| `boss_start` | `boss_intro` | boss encounter starts |
-| `ambush_start` | `ambush` | camp or surprise combat starts |
-| `hero_skill` | `strike` | hero uses a skill |
-| `enemy_skill` | `strike` | normal enemy uses a skill |
-| `boss_skill` | `boss_strike` | boss uses a skill |
-| `combat_win` | `victory` | normal encounter won |
-| `boss_win` | `boss_victory` | boss encounter won |
-| `combat_loss` | `defeat` | party loses normal encounter |
-| `boss_loss` | `boss_defeat` | party loses boss encounter |
-| `retreat` | `retreat` | party escapes combat |
-| `retreat_blocked` | `blocked` | retreat attempt is blocked |
-| `death_door` | `death_door` | hero reaches death's door |
-| `death_save` | `death_save` | hero survives a deathblow check |
-| `hero_death` | `hero_death` | hero dies |
-| `resolve_virtue` | `resolve_virtue` | hero resolves positively |
-| `resolve_affliction` | `resolve_affliction` | hero resolves negatively |
-| `stress_break` | `stress_break` | stress causes collapse damage |
-| `affliction_act` | `affliction_act` | afflicted hero acts out |
-| `falter` | `falter` | dazed actor loses a turn |
-| `hero_hold` | `hero_hold` | hero passes a turn |
+Each mapped event expands into a render-only scene profile:
+
+- `mood`: palette/atmosphere family.
+- `focus`: which side or actor receives stage emphasis.
+- `beat`: animation grammar for figures and impact shapes.
+- `camera`: local shake/lift/sink behavior inside the cutscene panel.
+
+| Event | Animation | Mood | Beat | Use |
+| --- | --- | --- | --- | --- |
+| `combat_start` | `intro` | `threat` | `arrival` | normal encounter starts |
+| `boss_start` | `boss_intro` | `boss` | `reveal` | boss encounter starts |
+| `ambush_start` | `ambush` | `panic` | `snap` | camp or surprise combat starts |
+| `hero_skill` | `strike` | `action` | `strike` | hero uses a skill |
+| `enemy_skill` | `strike` | `action` | `strike` | normal enemy uses a skill |
+| `boss_skill` | `boss_strike` | `boss` | `smite` | boss uses a skill |
+| `combat_win` | `victory` | `resolve` | `triumph` | normal encounter won |
+| `boss_win` | `boss_victory` | `seal` | `triumph` | boss encounter won |
+| `combat_loss` | `defeat` | `doom` | `collapse` | party loses normal encounter |
+| `boss_loss` | `boss_defeat` | `doom` | `collapse` | party loses boss encounter |
+| `retreat` | `retreat` | `flight` | `exit` | party escapes combat |
+| `retreat_blocked` | `blocked` | `panic` | `block` | retreat attempt is blocked |
+| `death_door` | `death_door` | `threshold` | `threshold` | hero reaches death's door |
+| `death_save` | `death_save` | `resolve` | `revive` | hero survives a deathblow check |
+| `hero_death` | `hero_death` | `doom` | `fall` | hero dies |
+| `resolve_virtue` | `resolve_virtue` | `virtue` | `resolve` | hero resolves positively |
+| `resolve_affliction` | `resolve_affliction` | `affliction` | `fracture` | hero resolves negatively |
+| `stress_break` | `stress_break` | `affliction` | `break` | stress causes collapse damage |
+| `affliction_act` | `affliction_act` | `affliction` | `lash` | afflicted hero acts out |
+| `falter` | `falter` | `dazed` | `stagger` | dazed actor loses a turn |
+| `hero_hold` | `hero_hold` | `guard` | `hold` | hero passes a turn |
+| fallback `campaign sealed` | `campaign_victory` | `seal` | `seal` | final campaign win |
+| fallback death/danger text | `danger` | `doom` | `omen` | legacy danger log text |
 
 Fallback text parsing exists for older status strings and tests, but new gameplay events should emit metadata through `Simulation:pushLog(message, meta)`.

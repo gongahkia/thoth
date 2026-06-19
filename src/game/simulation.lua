@@ -143,13 +143,39 @@ end
 
 local function newEnemy(id, kind, rank)
     local def = Defs.enemy(kind)
-    return { id = id, kind = kind, rank = rank, hp = def.maxHp, stress = 0, statuses = {}, guard = 0 }
+    local parts = {}
+    for _, part in ipairs(def.parts or {}) do
+        parts[#parts + 1] = {
+            key = part.key,
+            name = part.name,
+            hp = part.hp,
+            maxHp = part.hp,
+            disabled = false,
+            skillLocks = copyList(part.skillLocks),
+            stressPenalty = part.stressPenalty or 0,
+            exposeDamage = part.exposeDamage or 0,
+        }
+    end
+    return { id = id, kind = kind, rank = rank, hp = def.maxHp, stress = 0, statuses = {}, guard = 0, parts = parts }
 end
 
 local function cloneEnemy(enemy)
     local statuses = {}
     for _, status in ipairs(enemy.statuses or {}) do
         statuses[#statuses + 1] = { kind = status.kind, amount = status.amount or 0, turns = status.turns or 0 }
+    end
+    local parts = {}
+    for _, part in ipairs(enemy.parts or {}) do
+        parts[#parts + 1] = {
+            key = part.key,
+            name = part.name,
+            hp = part.hp,
+            maxHp = part.maxHp,
+            disabled = part.disabled == true,
+            skillLocks = copyList(part.skillLocks),
+            stressPenalty = part.stressPenalty or 0,
+            exposeDamage = part.exposeDamage or 0,
+        }
     end
     return {
         id = enemy.id,
@@ -159,6 +185,7 @@ local function cloneEnemy(enemy)
         stress = enemy.stress or 0,
         statuses = statuses,
         guard = enemy.guard or 0,
+        parts = parts,
     }
 end
 
@@ -253,8 +280,8 @@ function Simulation.commands.useItem(item, heroRank)
     return { type = "useItem", item = item, heroRank = heroRank }
 end
 
-function Simulation.commands.combatSkill(skillKey, targetRank, targetSide)
-    return { type = "combatSkill", skillKey = skillKey, targetRank = targetRank, targetSide = targetSide }
+function Simulation.commands.combatSkill(skillKey, targetRank, targetSide, targetPart)
+    return { type = "combatSkill", skillKey = skillKey, targetRank = targetRank, targetSide = targetSide, targetPart = targetPart }
 end
 
 function Simulation.commands.passTurn()
@@ -375,7 +402,7 @@ function Simulation:apply(command)
         return self:useItem(command.item, command.heroRank)
     end
     if command.type == "combatSkill" then
-        return self:combatSkill(command.skillKey, command.targetRank, command.targetSide)
+        return self:combatSkill(command.skillKey, command.targetRank, command.targetSide, command.targetPart)
     end
     if command.type == "passTurn" then
         return self:passTurn()
@@ -517,7 +544,65 @@ function Simulation:heroModifier(hero, key)
         local trinket = trinketKey and Defs.trinket(trinketKey)
         total = total + ((trinket and trinket[key]) or 0)
     end
+    for _, status in ipairs(hero.statuses or {}) do
+        if status.kind == "injury" then
+            local injury = Defs.injury(status.injury)
+            total = total + ((injury and injury[key]) or 0)
+        end
+    end
     return total
+end
+
+function Simulation:hasInjury(hero, injuryKey)
+    for _, status in ipairs((hero and hero.statuses) or {}) do
+        if status.kind == "injury" and (not injuryKey or status.injury == injuryKey) then
+            return true
+        end
+    end
+    return false
+end
+
+function Simulation:addInjury(hero, injuryKey)
+    if not hero or not hero.alive or not Defs.injury(injuryKey) or self:hasInjury(hero, injuryKey) then
+        return false
+    end
+    hero.statuses = hero.statuses or {}
+    hero.statuses[#hero.statuses + 1] = { kind = "injury", injury = injuryKey, turns = 0 }
+    hero.hp = math.min(hero.hp, self:maxHp(hero))
+    self:pushLog(hero.name .. " suffered " .. Defs.injury(injuryKey).name, { event = "danger", actor = hero.name, side = "ally" })
+    return true
+end
+
+function Simulation:addRandomInjury(hero, sourceKey)
+    if not hero or not hero.alive or #Defs.injuryOrder == 0 then
+        return false
+    end
+    local index = (Rng.hash(self.seed + 4703, self.tick, hero.id, #(sourceKey or "")) % #Defs.injuryOrder) + 1
+    for offset = 0, #Defs.injuryOrder - 1 do
+        local injuryKey = Defs.injuryOrder[((index + offset - 1) % #Defs.injuryOrder) + 1]
+        if self:addInjury(hero, injuryKey) then
+            return true
+        end
+    end
+    return false
+end
+
+function Simulation:clearInjury(hero, injuryKey)
+    if not hero then
+        return false
+    end
+    local kept = {}
+    local cleared = false
+    for _, status in ipairs(hero.statuses or {}) do
+        if status.kind == "injury" and (not injuryKey or status.injury == injuryKey) and not cleared then
+            cleared = true
+        else
+            kept[#kept + 1] = status
+        end
+    end
+    hero.statuses = kept
+    hero.hp = math.min(hero.hp, self:maxHp(hero))
+    return cleared
 end
 
 function Simulation:quirksByKind(kind)
@@ -908,7 +993,7 @@ function Simulation:startExpedition(locationKey)
         self:pushLog(refusingHero.name .. " refused " .. (mission.difficulty or "mission"))
         return false
     end
-    self.world = World.new(self.seed, mission.location)
+    self.world = World.new(self.seed, mission.location, { tiles = {}, layoutId = missionKey })
     self.player.x = location.start.x
     self.player.y = location.start.y
     self.player.z = location.start.z or 0
@@ -940,6 +1025,10 @@ function Simulation:startExpedition(locationKey)
         roomsScouted = 0,
         stepsSinceMeal = 0,
         hungerChecks = 0,
+        threatState = {},
+        noise = 0,
+        ambushRolls = 0,
+        generatedLayoutId = self.world:layout().generatedLayoutId,
         campUsed = false,
         objectiveComplete = false,
         bossDefeated = false,
@@ -1735,12 +1824,60 @@ function Simulation:checkDarkness()
     return true
 end
 
+function Simulation:addNoise(amount)
+    if not self.expedition then
+        return false
+    end
+    self.expedition.noise = clamp((self.expedition.noise or 0) + (amount or 1), 0, 12)
+    return true
+end
+
+function Simulation:tryStartPressureEncounter(roomKey)
+    if self.mode ~= "expedition" or not self.expedition or self.expedition.location ~= "buried_archive" then
+        return false
+    end
+    if roomKey and self.expedition.clearedEncounters[roomKey] then
+        return false
+    end
+    local threshold = 0
+    local torch = self.expedition.torch or 0
+    local noise = self.expedition.noise or 0
+    if torch < 35 then
+        threshold = threshold + 20
+    elseif torch < 55 then
+        threshold = threshold + 7
+    end
+    if noise >= 3 then
+        threshold = threshold + noise * 4
+    end
+    if roomKey and not self.expedition.scoutedRooms[roomKey] then
+        threshold = threshold + 8
+    elseif roomKey then
+        threshold = threshold - 8
+    end
+    if roomKey and self.expedition.threatState and self.expedition.threatState[roomKey] == "stalked" then
+        threshold = threshold + 12
+    end
+    if threshold <= 0 then
+        return false
+    end
+    self.expedition.ambushRolls = (self.expedition.ambushRolls or 0) + 1
+    if self:roll(1, 100) > threshold then
+        return false
+    end
+    self.expedition.noise = math.max(0, noise - 2)
+    local key = "pressure:" .. tostring(roomKey or (self.player.x .. ":" .. self.player.y)) .. ":" .. tostring(self.expedition.ambushRolls)
+    self:pushLog("archive pressure broke")
+    return self:startCombat("archive_ambush", key, { ambush = true, pressure = true })
+end
+
 function Simulation:checkTileHazard(x, y, z)
     if not self.expedition then
         return false
     end
     local tileDef = Defs.tile(self.world:getTile(x, y, z).id)
     if tileDef.curio and Defs.curio(tileDef.curio) and Defs.curio(tileDef.curio).damage then
+        self:addNoise(2)
         return self:resolveCurio(x, y, z, tileDef.curio, { forceNoItem = true })
     end
     return false
@@ -1767,9 +1904,16 @@ function Simulation:move(direction)
     self:checkHunger()
     self:checkDarkness()
     self:checkTileHazard(x, y, self.player.z)
+    local corridor = self.world:corridorAt(x, y)
+    if corridor and corridor.role == "shortcut" then
+        self:addNoise(2)
+    end
     local roomKey = self:discoverCurrentRoom()
     self:pushLog("moved " .. direction)
-    self:tryStartRoomEncounter(roomKey)
+    if self:tryStartRoomEncounter(roomKey) then
+        return true
+    end
+    self:tryStartPressureEncounter(roomKey)
     return true
 end
 
@@ -1777,8 +1921,7 @@ function Simulation:tryStartRoomEncounter(roomKey)
     if not self.expedition or not roomKey then
         return false
     end
-    local location = Defs.location(self.expedition.location)
-    local encounterKey = location.encounters[roomKey]
+    local encounterKey = self.world:encounterForRoom(roomKey)
     if encounterKey and not self.expedition.clearedEncounters[roomKey] then
         return self:startCombat(encounterKey, roomKey)
     end
@@ -1802,6 +1945,14 @@ function Simulation:interact()
     end
     if tileDef.curio then
         return self:resolveCurio(x, y, z, tileDef.curio)
+    end
+    local threat = self.world:threatAt(x, y, z)
+    if threat and not self.expedition.clearedEncounters[threat.key] then
+        if threat.roomKey then
+            self.expedition.threatState[threat.roomKey] = "engaged"
+        end
+        self:addNoise(1)
+        return self:startCombat(threat.encounter, threat.key, { visible = true, threatKey = threat.key })
     end
     if tileDef.encounter then
         return self:startCombat(tileDef.encounter, self:currentRoomKey() or (x .. ":" .. y))
@@ -2139,6 +2290,52 @@ function Simulation:hasStatus(unit, kind)
     return false
 end
 
+function Simulation:enemyPart(enemy, partKey)
+    if not enemy or not partKey then
+        return nil
+    end
+    for _, part in ipairs(enemy.parts or {}) do
+        if part.key == partKey then
+            return part
+        end
+    end
+    return nil
+end
+
+function Simulation:enemySkillLocked(enemy, skillKey)
+    for _, part in ipairs((enemy and enemy.parts) or {}) do
+        if part.disabled and contains(part.skillLocks, skillKey) then
+            return true
+        end
+    end
+    return false
+end
+
+function Simulation:enemyStressPenalty(enemy)
+    local penalty = 0
+    for _, part in ipairs((enemy and enemy.parts) or {}) do
+        if part.disabled then
+            penalty = penalty + (part.stressPenalty or 0)
+        end
+    end
+    return penalty
+end
+
+function Simulation:damageEnemyPart(enemy, partKey, amount)
+    local part = self:enemyPart(enemy, partKey)
+    if not part or part.disabled then
+        return false
+    end
+    part.hp = math.max(0, (part.hp or 0) - math.max(0, amount or 0))
+    if part.hp > 0 then
+        return true
+    end
+    part.disabled = true
+    enemy.hp = math.max(0, enemy.hp - (part.exposeDamage or 0))
+    self:pushLog((Defs.enemy(enemy.kind).name) .. " lost " .. (part.name or part.key), { event = "danger", actor = Defs.enemy(enemy.kind).name, side = "enemy" })
+    return true
+end
+
 function Simulation:enemyTargetsForSkill(skill, consumeGuard)
     local targets = {}
     if skill.target == "party" then
@@ -2192,7 +2389,7 @@ function Simulation:chooseEnemySkill(enemy)
     local legal = {}
     for _, skillKey in ipairs(enemyDef.skills or {}) do
         local skill = Defs.enemySkill(skillKey)
-        if skill and #self:enemyTargetsForSkill(skill, false) > 0 then
+        if skill and not self:enemySkillLocked(enemy, skillKey) and #self:enemyTargetsForSkill(skill, false) > 0 then
             legal[#legal + 1] = skillKey
         end
     end
@@ -2224,18 +2421,26 @@ function Simulation:applyStatuses(unit, side)
     local skip = false
     local kept = {}
     for _, status in ipairs(unit.statuses or {}) do
-        if status.kind == "bleed" or status.kind == "blight" then
+        if status.kind == "injury" then
+            kept[#kept + 1] = status
+        elseif status.kind == "bleed" or status.kind == "blight" then
             if side == "hero" then
                 self:damageHero(unit, status.amount or 1)
             else
                 unit.hp = math.max(0, unit.hp - (status.amount or 1))
             end
-        elseif status.kind == "daze" then
-            skip = true
-        end
-        status.turns = (status.turns or 0) - 1
-        if status.turns > 0 then
-            kept[#kept + 1] = status
+            status.turns = (status.turns or 0) - 1
+            if status.turns > 0 then
+                kept[#kept + 1] = status
+            end
+        else
+            if status.kind == "daze" then
+                skip = true
+            end
+            status.turns = (status.turns or 0) - 1
+            if status.turns > 0 then
+                kept[#kept + 1] = status
+            end
         end
     end
     unit.statuses = kept
@@ -2302,9 +2507,13 @@ function Simulation:enemyTurn(enemy)
     end
     local damageBonus = 0
     local stressBonus = 0
+    local stressPenalty = self:enemyStressPenalty(enemy)
     if self.expedition and self.expedition.torch < 30 then
         damageBonus = damageBonus + 1
         stressBonus = stressBonus + 2
+    end
+    if skill.noise then
+        self:addNoise(skill.noise)
     end
     for _, target in ipairs(targets) do
         local damage = 0
@@ -2316,7 +2525,7 @@ function Simulation:enemyTurn(enemy)
             self:damageHero(target, damage)
         end
         if skill.stress then
-            self:addStress(target, skill.stress + stressBonus)
+            self:addStress(target, math.max(0, skill.stress + stressBonus - stressPenalty))
         end
         if skill.status and target.alive then
             target.statuses = target.statuses or {}
@@ -2324,6 +2533,9 @@ function Simulation:enemyTurn(enemy)
             if skill.status.kind == "blight" then
                 self:maybeContractDisease(target, skillKey)
             end
+        end
+        if skill.injuryChance and target.alive and self:roll(1, 100) <= skill.injuryChance then
+            self:addRandomInjury(target, skillKey)
         end
         if skill.move and target.alive then
             local rank = self:heroRank(target.id)
@@ -2411,7 +2623,7 @@ function Simulation:firstLegalEnemyRank(skill)
     return nil
 end
 
-function Simulation:combatSkill(skillKey, targetRank, targetSide)
+function Simulation:combatSkill(skillKey, targetRank, targetSide, targetPart)
     if self.mode ~= "combat" or not self.combat then
         return false
     end
@@ -2440,7 +2652,10 @@ function Simulation:combatSkill(skillKey, targetRank, targetSide)
         if not enemy then
             return false
         end
-        targets[#targets + 1] = enemy
+        if targetPart and not self:enemyPart(enemy, targetPart) then
+            return false
+        end
+        targets[#targets + 1] = targetPart and { unit = enemy, partKey = targetPart } or enemy
     elseif skill.target == "ally" then
         targetRank = tonumber(targetRank) or heroRank
         if not contains(skill.targetRanks, targetRank) then
@@ -2476,21 +2691,31 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
         damageBonus = damageBonus + ((Defs.virtue(hero.virtue) or {}).damageBonus or 0)
     end
     for _, target in ipairs(targets) do
+        local unit = target.unit or target
         if skill.damage and targetSide == "enemy" then
-            target.hp = math.max(0, target.hp - self:roll(skill.damage[1], skill.damage[2]) - damageBonus)
+            local damage = self:roll(skill.damage[1], skill.damage[2]) + damageBonus
+            if target.partKey then
+                self:damageEnemyPart(unit, target.partKey, damage)
+            else
+                unit.hp = math.max(0, unit.hp - damage)
+            end
         end
         if skill.stressDamage and targetSide == "enemy" then
-            target.hp = math.max(0, target.hp - skill.stressDamage)
-            target.stress = (target.stress or 0) + skill.stressDamage
+            if target.partKey then
+                self:damageEnemyPart(unit, target.partKey, skill.stressDamage)
+            else
+                unit.hp = math.max(0, unit.hp - skill.stressDamage)
+                unit.stress = (unit.stress or 0) + skill.stressDamage
+            end
         end
         if skill.heal then
-            self:healHero(target, self:roll(skill.heal[1], skill.heal[2]) + (skillLevel - 1))
+            self:healHero(unit, self:roll(skill.heal[1], skill.heal[2]) + (skillLevel - 1))
         end
         if skill.stressHeal then
-            self:healStress(target, skill.stressHeal + math.floor((skillLevel - 1) / 2))
+            self:healStress(unit, skill.stressHeal + math.floor((skillLevel - 1) / 2))
         end
-        if skill.status and targetSide == "enemy" and target.hp > 0 then
-            target.statuses[#target.statuses + 1] = copyMap(skill.status)
+        if skill.status and targetSide == "enemy" and not target.partKey and unit.hp > 0 then
+            unit.statuses[#unit.statuses + 1] = copyMap(skill.status)
         end
     end
     if skill.guard then
