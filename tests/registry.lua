@@ -176,7 +176,7 @@ do
     expect(Defs.weakPointRule("part_disable_log").includeDisabledSkill, "part disable log rule missing")
     expect(Defs.weakPointRule("weak_point_chain").disabledParts == 2, "weak point chain rule missing")
     expect(Defs.supportRule("part_repair_skill").heal == 4, "part repair skill rule missing")
-    expect(Defs.rewardRule("alpha_reward").coin == 45, "alpha reward rule missing")
+    expect(Defs.rewardRule("alpha_reward").coin == 45 and Defs.rewardRule("merchant_cut").packDreadTier == 2, "reward rules missing")
     expect(Defs.recoveryRule("survivor_trinket_debt").trinkets == 1, "survivor trinket debt rule missing")
     expect(Defs.alphaRule("alpha_stalk_corridor").state == "stalked", "alpha stalk corridor rule missing")
     expect(Defs.ambushRule("camp_ambush_noise").encounter == "archive_ambush", "camp ambush noise rule missing")

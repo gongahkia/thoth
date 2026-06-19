@@ -692,6 +692,15 @@ function Simulation:partyModifierMax(key)
     return best
 end
 
+function Simulation:partyHasClass(classKey)
+    for _, hero in ipairs(self:livingParty()) do
+        if hero.class == classKey then
+            return true
+        end
+    end
+    return false
+end
+
 function Simulation:heroModifier(hero, key)
     local total = 0
     local quirks = Defs.quirks
@@ -1486,6 +1495,7 @@ function Simulation:startExpedition(locationKey)
         log = {},
     }
     self:applyFactionHazards(mission)
+    self:applyMerchantCutPackBonus()
     if mission.noisePressure then
         self:addNoise(mission.noisePressure)
     end
@@ -2575,6 +2585,47 @@ function Simulation:adjustDread(amount)
     self.estate.campaign.dread = math.max(0, (self.estate.campaign.dread or 0) + amount)
     self:evaluateCampaignState()
     return true
+end
+
+function Simulation:dreadTier()
+    local campaign = self:ensureCampaignState()
+    local cap = math.max(1, campaign.dreadLimit or 18)
+    return clamp(math.floor(((campaign.dread or 0) / cap) * 4), 0, 4)
+end
+
+function Simulation:applyMerchantCutPackBonus()
+    if not self.expedition or self.expedition.merchantCutPackApplied or not self:partyHasClass("merchant") then
+        return false
+    end
+    local rule = Defs.rewardRule("merchant_cut") or {}
+    if self:dreadTier() < (rule.packDreadTier or 2) then
+        return false
+    end
+    self.expedition.packSlots = (self.expedition.packSlots or 12) + (rule.packSlots or 1)
+    self.expedition.merchantCutPackApplied = true
+    return true
+end
+
+function Simulation:grantMerchantCutRoomLoot()
+    if not self.expedition or self.expedition.merchantCutLootClaimed or not self:partyHasClass("merchant") then
+        return false
+    end
+    local rule = Defs.rewardRule("merchant_cut") or {}
+    if self:dreadTier() < (rule.lootDreadTier or 4) then
+        return false
+    end
+    local granted = false
+    if rule.bonusCoin then
+        granted = self:addLoot("coin", rule.bonusCoin) or granted
+    end
+    if rule.bonusRelic then
+        granted = self:addLoot("relic", rule.bonusRelic) or granted
+    end
+    if granted then
+        self.expedition.merchantCutLootClaimed = true
+        self:pushLog("merchant cut claimed")
+    end
+    return granted
 end
 
 function Simulation:corridorKey(corridor)
@@ -3812,6 +3863,9 @@ function Simulation:finishCombat(victory)
             self.expedition.clearedEncounters[self.combat.roomKey or self.combat.encounter] = true
             self:addLoot("coin", bossWon and 120 or 35)
             self:addLoot("heirloom", bossWon and 2 or 1)
+            if not bossWon then
+                self:grantMerchantCutRoomLoot()
+            end
             if alphaWon then
                 local reward = Defs.rewardRule("alpha_reward") or {}
                 self:addLoot("coin", reward.coin or 45)
@@ -4349,6 +4403,8 @@ function Simulation:snapshot()
             supplies = self.expedition.supplies:stacks(),
             loot = self.expedition.loot:stacks(),
             packSlots = self.expedition.packSlots,
+            merchantCutPackApplied = self.expedition.merchantCutPackApplied == true,
+            merchantCutLootClaimed = self.expedition.merchantCutLootClaimed == true,
             questActivations = self.expedition.questActivations,
             visitedRooms = copyMap(self.expedition.visitedRooms),
             scoutedRooms = copyMap(self.expedition.scoutedRooms),
@@ -4581,6 +4637,8 @@ function Simulation.fromSnapshot(snapshot)
             supplies = inventoryFromStacks(exp.supplies),
             loot = inventoryFromStacks(exp.loot),
             packSlots = exp.packSlots or 12,
+            merchantCutPackApplied = exp.merchantCutPackApplied == true,
+            merchantCutLootClaimed = exp.merchantCutLootClaimed == true,
             questActivations = exp.questActivations or 0,
             visitedRooms = copyMap(exp.visitedRooms),
             scoutedRooms = copyMap(exp.scoutedRooms),

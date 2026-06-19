@@ -2509,8 +2509,9 @@ Registry.supportRuleOrder = { "part_repair_skill" }
 
 Registry.rewardRules = {
     alpha_reward = { coin = 45, heirloom = 1 },
+    merchant_cut = { packDreadTier = 2, lootDreadTier = 4, packSlots = 1, bonusCoin = 25, bonusRelic = 1 },
 }
-Registry.rewardRuleOrder = { "alpha_reward" }
+Registry.rewardRuleOrder = { "alpha_reward", "merchant_cut" }
 
 Registry.recoveryRules = {
     survivor_trinket_debt = { trinkets = 1, dread = 1 },

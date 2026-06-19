@@ -1375,6 +1375,32 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(221)
+    sim:endExpedition(true)
+    sim:heroAtRank(1).class = "merchant"
+    sim.estate.campaign.dread = 9
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim.expedition.packSlots == 13 and sim.expedition.merchantCutPackApplied, "merchant cut should add pack slot at dread tier two")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.expedition.packSlots == 13 and loaded.expedition.merchantCutPackApplied, "merchant pack cut should survive snapshot")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(222)
+    sim:endExpedition(true)
+    sim:heroAtRank(1).class = "merchant"
+    sim.estate.campaign.dreadLimit = 20
+    sim.estate.campaign.dread = 20
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim:startCombat("entry", "merchant_cut_1"), "merchant cut test combat should start")
+    sim:finishCombat(true)
+    expect(sim.expedition.loot:count("coin") == 60 and sim.expedition.loot:count("relic") == 1 and sim.expedition.merchantCutLootClaimed, "merchant cut should add one room-loot bonus")
+    expect(sim:startCombat("entry", "merchant_cut_2"), "merchant cut repeat combat should start")
+    sim:finishCombat(true)
+    expect(sim.expedition.loot:count("coin") == 95 and sim.expedition.loot:count("relic") == 1, "merchant cut should only pay once per expedition")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(26)
     sim.expedition.roomsScouted = 3
     sim.expedition.objectiveComplete = true
