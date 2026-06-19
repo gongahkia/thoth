@@ -198,6 +198,9 @@ for key, event in pairs(Defs.townEvents) do
     for item in pairs(event.provisions or {}) do
         expect(Defs.item(item), "town event provision missing item " .. item)
     end
+    if event.heirlooms then
+        expect(type(event.heirlooms) == "number", "town event bad heirlooms " .. key)
+    end
 end
 
 print("registry checks passed")

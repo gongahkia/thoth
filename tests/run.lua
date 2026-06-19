@@ -677,6 +677,11 @@ tests[#tests + 1] = function()
     expect(sim.estate.gold == gold + 30 and sim.estate.currentEvent == "clear_roads", "town event should apply gold effect")
     sim:applyTownEvent("supply_cache")
     expect(sim.estate.provisionCart:count("torch") > 0, "town event should add provisions")
+    local heirlooms = sim.estate.heirlooms
+    sim:applyTownEvent("archivist_tithe")
+    expect(sim.estate.heirlooms == heirlooms + 1, "town event should apply heirloom effect")
+    sim:applyTownEvent("old_maps")
+    expect(sim.estate.provisionCart:count("ward_charm") == 1, "town event should add rare provisions")
 end
 
 tests[#tests + 1] = function()
@@ -933,9 +938,10 @@ tests[#tests + 1] = function()
     Input.mousepressed(sim, app, 5, 5, 1)
     sim:step()
     expect(#sim.estate.roster == 5, "recruit button should queue recruitment")
+    local torches = sim.estate.provisionCart:count("torch")
     Input.mousepressed(sim, app, 35, 5, 1)
     sim:step()
-    expect(sim.estate.provisionCart:count("torch") == 1, "provision button should buy item")
+    expect(sim.estate.provisionCart:count("torch") == torches + 1, "provision button should buy item")
 end
 
 tests[#tests + 1] = function()

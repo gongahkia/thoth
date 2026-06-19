@@ -59,8 +59,11 @@ Registry.trinkets = {
     chirurgic_thread = { name = "Chirurgic Thread", short = "thread", value = 40, healBonus = 2 },
     oath_ring = { name = "Oath Ring", short = "ring", value = 55, maxHp = 3, speed = -1 },
     quiet_bell = { name = "Quiet Bell", short = "bell", value = 60, resolve = 8, damageTaken = 1 },
+    scribe_wax = { name = "Scribe Wax", short = "wax", value = 45, stressTaken = -1, resolve = -2 },
+    tide_needle = { name = "Tide Needle", short = "needle", value = 50, speed = 1, maxHp = -1 },
+    kiln_token = { name = "Kiln Token", short = "token", value = 50, damageBonus = 1, stressTaken = 1 },
 }
-Registry.trinketOrder = { "ember_pin", "cracked_lens", "chirurgic_thread", "oath_ring", "quiet_bell" }
+Registry.trinketOrder = { "ember_pin", "cracked_lens", "chirurgic_thread", "oath_ring", "quiet_bell", "scribe_wax", "tide_needle", "kiln_token" }
 
 Registry.quirks = {
     iron_nerves = { name = "Iron Nerves", kind = "positive", stressTaken = -1 },
@@ -92,8 +95,11 @@ Registry.diseases = {
     brine_rot = { name = "Brine Rot", maxHp = -3, healBonus = -1 },
     ember_fever = { name = "Ember Fever", damageTaken = 1, resolve = -5 },
     glass_eye = { name = "Glass Eye", damageBonus = 1, stressTaken = 1 },
+    paper_lung = { name = "Paper Lung", resolve = -4, stressTaken = 1 },
+    drowned_chill = { name = "Drowned Chill", speed = -2, maxHp = -1 },
+    ash_tremor = { name = "Ash Tremor", healBonus = -2, damageTaken = 1 },
 }
-Registry.diseaseOrder = { "salt_cough", "brine_rot", "ember_fever", "glass_eye" }
+Registry.diseaseOrder = { "salt_cough", "brine_rot", "ember_fever", "glass_eye", "paper_lung", "drowned_chill", "ash_tremor" }
 
 Registry.heroClasses = {
     warden = {
@@ -743,7 +749,10 @@ Registry.townEvents = {
     levy_notice = { name = "Levy Notice", gold = -20 },
     clear_roads = { name = "Clear Roads", gold = 30 },
     bad_omens = { name = "Bad Omens", stress = 4 },
+    archivist_tithe = { name = "Archivist Tithe", heirlooms = 1, gold = -10 },
+    old_maps = { name = "Old Maps", provisions = { skeleton_key = 1, ward_charm = 1 } },
+    candle_vigil = { name = "Candle Vigil", stressHeal = 8, provisions = { torch = 1 } },
 }
-Registry.townEventOrder = { "supply_cache", "memorial_bell", "levy_notice", "clear_roads", "bad_omens" }
+Registry.townEventOrder = { "supply_cache", "memorial_bell", "levy_notice", "clear_roads", "bad_omens", "archivist_tithe", "old_maps", "candle_vigil" }
 
 return Registry

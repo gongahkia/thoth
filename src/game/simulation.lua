@@ -1067,6 +1067,9 @@ function Simulation:applyTownEvent(eventKey)
     if event.gold then
         self.estate.gold = math.max(0, self.estate.gold + event.gold)
     end
+    if event.heirlooms then
+        self.estate.heirlooms = math.max(0, self.estate.heirlooms + event.heirlooms)
+    end
     for item, count in pairs(event.provisions or {}) do
         self.estate.provisionCart:add(item, count)
     end
