@@ -7,9 +7,12 @@ local Render = {}
 local atlas
 local quads = {}
 local tileSize = 32
-local chunkTileSize = 32
-local chunkPixelSize = tileSize * chunkTileSize
-local tileCanvasCache = { world = nil, chunks = {}, supported = nil }
+local isoTileW = 64
+local isoTileH = 32
+local isoBlockH = 18
+local renderChunkTileSize = 16
+local isoTerrainCache = { world = nil, chunks = {}, supported = nil }
+local isoTileOrders = {}
 local buildCardDefs = {}
 
 local spriteNames = {
@@ -79,6 +82,13 @@ local function color(rgb, alpha)
     return (rgb[1] or 255) / 255, (rgb[2] or 255) / 255, (rgb[3] or 255) / 255, (alpha or 255) / 255
 end
 
+local function shaded(rgb, amount, alpha)
+    return math.min(1, ((rgb[1] or 255) * amount) / 255),
+        math.min(1, ((rgb[2] or 255) * amount) / 255),
+        math.min(1, ((rgb[3] or 255) * amount) / 255),
+        alpha or 1
+end
+
 local function panel(x, y, w, h, alpha)
     love.graphics.setColor(0.06, 0.07, 0.08, alpha or 0.82)
     love.graphics.rectangle("fill", x, y, w, h)
@@ -123,6 +133,48 @@ function Render.prepareUi(app)
     clearList(app.ui.hotbarClears)
 end
 
+function Render.rotateDelta(dx, dy, rotation)
+    rotation = (rotation or 0) % 4
+    if rotation == 1 then
+        return -dy, dx
+    end
+    if rotation == 2 then
+        return -dx, -dy
+    end
+    if rotation == 3 then
+        return dy, -dx
+    end
+    return dx, dy
+end
+
+function Render.unrotateDelta(rx, ry, rotation)
+    rotation = (rotation or 0) % 4
+    if rotation == 1 then
+        return ry, -rx
+    end
+    if rotation == 2 then
+        return -rx, -ry
+    end
+    if rotation == 3 then
+        return -ry, rx
+    end
+    return rx, ry
+end
+
+function Render.projectIso(view, x, y)
+    local rx, ry = Render.rotateDelta(x - view.originX, y - view.originY, view.rotation)
+    return view.centerX + (rx - ry) * view.halfW, view.centerY + (rx + ry) * view.halfH
+end
+
+function Render.screenToWorld(view, x, y)
+    local sx = x - view.centerX
+    local sy = y - view.centerY
+    local rx = (sx / view.halfW + sy / view.halfH) / 2
+    local ry = (sy / view.halfH - sx / view.halfW) / 2
+    local dx, dy = Render.unrotateDelta(rx, ry, view.rotation)
+    return math.floor(view.originX + dx + 0.5), math.floor(view.originY + dy + 0.5)
+end
+
 local function drawSprite(name, x, y)
     if atlas and quads[name] then
         love.graphics.setColor(1, 1, 1, 1)
@@ -132,13 +184,10 @@ local function drawSprite(name, x, y)
     return false
 end
 
-local function resetTileCanvasCache()
-    tileCanvasCache.world = nil
-    tileCanvasCache.chunks = {}
-end
-
 function Render.load()
-    resetTileCanvasCache()
+    isoTerrainCache.world = nil
+    isoTerrainCache.chunks = {}
+    isoTileOrders = {}
     rebuildBuildCardDefs()
     if love.filesystem.getInfo("assets/sprites/thoth_atlas.png") then
         atlas = love.graphics.newImage("assets/sprites/thoth_atlas.png")
@@ -152,62 +201,6 @@ function Render.load()
             end
         end
     end
-end
-
-local function canUseTileCanvas()
-    if tileCanvasCache.supported == nil then
-        tileCanvasCache.supported = pcall(love.graphics.newCanvas, 1, 1)
-    end
-    return tileCanvasCache.supported
-end
-
-local function tileCacheKey(cx, cy, z)
-    return tostring(z or 0) .. ":" .. cx .. ":" .. cy
-end
-
-local function drawTileToCanvas(world, x, y, z, screenX, screenY)
-    local tile = world:peekTile(x, y, z or 0)
-    if drawSprite(tile.id, screenX, screenY) then
-        return
-    end
-    love.graphics.setColor(color(Defs.tile(tile.id).color))
-    love.graphics.rectangle("fill", screenX, screenY, tileSize, tileSize)
-end
-
-local function buildTileChunkCanvas(world, cx, cy, z)
-    local canvas = love.graphics.newCanvas(chunkPixelSize, chunkPixelSize)
-    love.graphics.push("all")
-    love.graphics.setCanvas(canvas)
-    love.graphics.clear(0, 0, 0, 0)
-    for localY = 0, chunkTileSize - 1 do
-        for localX = 0, chunkTileSize - 1 do
-            drawTileToCanvas(
-                world,
-                cx * chunkTileSize + localX,
-                cy * chunkTileSize + localY,
-                z,
-                localX * tileSize,
-                localY * tileSize)
-        end
-    end
-    love.graphics.setCanvas()
-    love.graphics.pop()
-    return canvas
-end
-
-local function tileChunkCanvas(world, cx, cy, z)
-    if tileCanvasCache.world ~= world then
-        tileCanvasCache.world = world
-        tileCanvasCache.chunks = {}
-    end
-    local key = tileCacheKey(cx, cy, z)
-    local revision = world:chunkRevision(cx, cy, z)
-    local entry = tileCanvasCache.chunks[key]
-    if not entry or entry.revision ~= revision then
-        entry = { canvas = buildTileChunkCanvas(world, cx, cy, z), revision = revision }
-        tileCanvasCache.chunks[key] = entry
-    end
-    return entry.canvas
 end
 
 function Render.drawTile(sim, x, y, z, screenX, screenY)
@@ -231,61 +224,290 @@ function Render.drawMachine(machine, screenX, screenY)
     love.graphics.rectangle("fill", screenX + 4, screenY + 4, tileSize - 8, tileSize - 8)
 end
 
-function Render.drawWorld(sim, app)
-    local width, height = love.graphics.getDimensions()
-    local px = sim.player.x * tileSize
-    local py = sim.player.y * tileSize
-    local offsetX = math.floor(width / 2 - px - tileSize / 2)
-    local offsetY = math.floor(height / 2 - py - tileSize / 2)
-    app.worldView = app.worldView or {}
-    app.worldView.offsetX = offsetX
-    app.worldView.offsetY = offsetY
-    app.worldView.tileSize = tileSize
-    local radiusX = math.ceil(width / tileSize / 2) + 2
-    local radiusY = math.ceil(height / tileSize / 2) + 2
-    local minX = sim.player.x - radiusX
-    local maxX = sim.player.x + radiusX
-    local minY = sim.player.y - radiusY
-    local maxY = sim.player.y + radiusY
-    if canUseTileCanvas() then
-        local minChunkX = World.floorDiv(minX, chunkTileSize)
-        local maxChunkX = World.floorDiv(maxX, chunkTileSize)
-        local minChunkY = World.floorDiv(minY, chunkTileSize)
-        local maxChunkY = World.floorDiv(maxY, chunkTileSize)
-        local visibleChunks = {}
-        for cy = minChunkY, maxChunkY do
-            for cx = minChunkX, maxChunkX do
-                visibleChunks[tileCacheKey(cx, cy, sim.player.z)] = true
-                local canvas = tileChunkCanvas(sim.world, cx, cy, sim.player.z)
-                love.graphics.setColor(1, 1, 1, 1)
-                love.graphics.draw(canvas, offsetX + cx * chunkPixelSize, offsetY + cy * chunkPixelSize)
+local function drawIsoDiamond(cx, cy, rgb, alpha)
+    local halfW = isoTileW / 2
+    local halfH = isoTileH / 2
+    love.graphics.setColor(color(rgb, alpha or 255))
+    love.graphics.polygon("fill", cx, cy - halfH, cx + halfW, cy, cx, cy + halfH, cx - halfW, cy)
+    love.graphics.setColor(0, 0, 0, 0.18)
+    love.graphics.polygon("line", cx, cy - halfH, cx + halfW, cy, cx, cy + halfH, cx - halfW, cy)
+end
+
+local function drawIsoBlock(cx, cy, rgb, height)
+    local halfW = isoTileW / 2
+    local halfH = isoTileH / 2
+    local topY = cy - height
+    love.graphics.setColor(shaded(rgb, 0.54, 1))
+    love.graphics.polygon("fill", cx - halfW, topY, cx, topY + halfH, cx, cy + halfH, cx - halfW, cy)
+    love.graphics.setColor(shaded(rgb, 0.42, 1))
+    love.graphics.polygon("fill", cx + halfW, topY, cx, topY + halfH, cx, cy + halfH, cx + halfW, cy)
+    love.graphics.setColor(shaded(rgb, 0.9, 1))
+    love.graphics.polygon("fill", cx, topY - halfH, cx + halfW, topY, cx, topY + halfH, cx - halfW, topY)
+    love.graphics.setColor(0, 0, 0, 0.22)
+    love.graphics.polygon("line", cx, topY - halfH, cx + halfW, topY, cx, topY + halfH, cx - halfW, topY)
+end
+
+local function drawIsoTile(world, x, y, z, screenX, screenY)
+    local tile = world:peekTile(x, y, z or 0)
+    local tileDef = Defs.tile(tile.id)
+    drawIsoDiamond(screenX, screenY, tileDef.color)
+    if tile.id == "tree" then
+        love.graphics.setColor(0.33, 0.2, 0.12, 1)
+        love.graphics.rectangle("fill", screenX - 4, screenY - 24, 8, 18)
+        love.graphics.setColor(0.16, 0.38, 0.18, 1)
+        love.graphics.circle("fill", screenX, screenY - 34, 17)
+        love.graphics.setColor(0.08, 0.18, 0.08, 0.7)
+        love.graphics.circle("line", screenX, screenY - 34, 17)
+    elseif tileDef.resource then
+        drawIsoDiamond(screenX, screenY - 7, { 126, 120, 138 }, 220)
+    elseif tile.id == "stairs_down" or tile.id == "stairs_up" then
+        drawIsoDiamond(screenX, screenY - 5, { 44, 38, 34 }, 230)
+    end
+end
+
+local function canUseIsoTerrainCanvas()
+    if isoTerrainCache.supported == nil then
+        isoTerrainCache.supported = pcall(love.graphics.newCanvas, 1, 1)
+    end
+    return isoTerrainCache.supported
+end
+
+local function isoTerrainCacheKey(cx, cy, z, rotation)
+    return tostring(z or 0) .. ":" .. tostring(rotation or 0) .. ":" .. cx .. ":" .. cy
+end
+
+local function isoTerrainRevision(world, cx, cy, z)
+    local worldCx = World.floorDiv(cx * renderChunkTileSize, World.chunkSize)
+    local worldCy = World.floorDiv(cy * renderChunkTileSize, World.chunkSize)
+    return world:chunkRevision(worldCx, worldCy, z or 0)
+end
+
+local function isoTileOrder(rotation)
+    rotation = (rotation or 0) % 4
+    if not isoTileOrders[rotation] then
+        local tiles = {}
+        for localY = 0, renderChunkTileSize - 1 do
+            for localX = 0, renderChunkTileSize - 1 do
+                local rx, ry = Render.rotateDelta(localX, localY, rotation)
+                tiles[#tiles + 1] = { x = localX, y = localY, rx = rx, ry = ry }
             end
         end
-        for key in pairs(tileCanvasCache.chunks) do
-            if not visibleChunks[key] then
-                tileCanvasCache.chunks[key] = nil
+        table.sort(tiles, function(a, b)
+            local ad = a.rx + a.ry
+            local bd = b.rx + b.ry
+            if ad == bd then
+                return a.rx < b.rx
+            end
+            return ad < bd
+        end)
+        isoTileOrders[rotation] = tiles
+    end
+    return isoTileOrders[rotation]
+end
+
+local function buildIsoTerrainChunk(world, cx, cy, z, rotation)
+    local halfW = isoTileW / 2
+    local halfH = isoTileH / 2
+    local topPad = 60
+    local minX, minY = math.huge, math.huge
+    local maxX, maxY = -math.huge, -math.huge
+    for localY = 0, renderChunkTileSize - 1 do
+        for localX = 0, renderChunkTileSize - 1 do
+            local rx, ry = Render.rotateDelta(localX, localY, rotation)
+            local sx = (rx - ry) * halfW
+            local sy = (rx + ry) * halfH
+            minX = math.min(minX, sx - halfW)
+            maxX = math.max(maxX, sx + halfW)
+            minY = math.min(minY, sy - halfH - topPad)
+            maxY = math.max(maxY, sy + halfH)
+        end
+    end
+    minX = math.floor(minX)
+    minY = math.floor(minY)
+    local canvas = love.graphics.newCanvas(math.ceil(maxX - minX + 2), math.ceil(maxY - minY + 2))
+    love.graphics.push("all")
+    love.graphics.setCanvas(canvas)
+    love.graphics.clear(0, 0, 0, 0)
+    for _, tileEntry in ipairs(isoTileOrder(rotation)) do
+        local localX = tileEntry.x
+        local localY = tileEntry.y
+        local worldX = cx * renderChunkTileSize + localX
+        local worldY = cy * renderChunkTileSize + localY
+        local rx, ry = tileEntry.rx, tileEntry.ry
+        drawIsoTile(world, worldX, worldY, z, (rx - ry) * halfW - minX, (rx + ry) * halfH - minY)
+    end
+    love.graphics.setCanvas()
+    love.graphics.pop()
+    return { canvas = canvas, offsetX = minX, offsetY = minY }
+end
+
+local function isoTerrainChunk(world, cx, cy, z, rotation)
+    if isoTerrainCache.world ~= world then
+        isoTerrainCache.world = world
+        isoTerrainCache.chunks = {}
+    end
+    rotation = (rotation or 0) % 4
+    local key = isoTerrainCacheKey(cx, cy, z, rotation)
+    local revision = isoTerrainRevision(world, cx, cy, z)
+    local entry = isoTerrainCache.chunks[key]
+    if not entry or entry.revision ~= revision then
+        if (isoTerrainCache.buildsThisFrame or 0) >= (isoTerrainCache.buildLimit or 1) then
+            return key, nil
+        end
+        isoTerrainCache.buildsThisFrame = (isoTerrainCache.buildsThisFrame or 0) + 1
+        local built = buildIsoTerrainChunk(world, cx, cy, z, rotation)
+        entry = { canvas = built.canvas, offsetX = built.offsetX, offsetY = built.offsetY, revision = revision }
+        isoTerrainCache.chunks[key] = entry
+    end
+    return key, entry
+end
+
+local function drawIsoTerrainChunkLive(world, cx, cy, z, rotation, baseScreenX, baseScreenY)
+    local halfW = isoTileW / 2
+    local halfH = isoTileH / 2
+    for _, tileEntry in ipairs(isoTileOrder(rotation)) do
+        local worldX = cx * renderChunkTileSize + tileEntry.x
+        local worldY = cy * renderChunkTileSize + tileEntry.y
+        drawIsoTile(
+            world,
+            worldX,
+            worldY,
+            z,
+            baseScreenX + (tileEntry.rx - tileEntry.ry) * halfW,
+            baseScreenY + (tileEntry.rx + tileEntry.ry) * halfH)
+    end
+end
+
+function Render.drawIsoMachine(machine, screenX, screenY)
+    drawIsoBlock(screenX, screenY, machineColors[machine.kind] or { 190, 190, 190 }, isoBlockH)
+    if machine.carriedItem then
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.circle("fill", screenX, screenY - isoBlockH - 8, 4)
+    end
+end
+
+function Render.drawWorld(sim, app)
+    local width, height = love.graphics.getDimensions()
+    local rightDockW = 316
+    local topHudH = 76
+    local bottomTrayH = 128
+    local centerX = math.floor((width - rightDockW) / 2)
+    local centerY = math.floor((topHudH + height - bottomTrayH) / 2)
+    local rotation = (app.viewRotation or 0) % 4
+    app.worldView = app.worldView or {}
+    app.worldView.mode = "iso"
+    app.worldView.centerX = centerX
+    app.worldView.centerY = centerY
+    app.worldView.halfW = isoTileW / 2
+    app.worldView.halfH = isoTileH / 2
+    app.worldView.originX = sim.player.x
+    app.worldView.originY = sim.player.y
+    app.worldView.rotation = rotation
+    local radius = math.ceil(width / isoTileW / 2 + height / isoTileH / 2) + 4
+    local minX = sim.player.x - radius
+    local maxX = sim.player.x + radius
+    local minY = sim.player.y - radius
+    local maxY = sim.player.y + radius
+    if canUseIsoTerrainCanvas() then
+        isoTerrainCache.buildsThisFrame = 0
+        isoTerrainCache.buildLimit = 1
+        local visibleChunkKeys = {}
+        local chunks = {}
+        local minChunkX = World.floorDiv(minX, renderChunkTileSize)
+        local maxChunkX = World.floorDiv(maxX, renderChunkTileSize)
+        local minChunkY = World.floorDiv(minY, renderChunkTileSize)
+        local maxChunkY = World.floorDiv(maxY, renderChunkTileSize)
+        for cy = minChunkY, maxChunkY do
+            for cx = minChunkX, maxChunkX do
+                local baseX = cx * renderChunkTileSize
+                local baseY = cy * renderChunkTileSize
+                local screenX, screenY = Render.projectIso(app.worldView, baseX, baseY)
+                if screenX >= -renderChunkTileSize * isoTileW and screenX <= width + renderChunkTileSize * isoTileW
+                    and screenY >= -renderChunkTileSize * isoTileH and screenY <= height + renderChunkTileSize * isoTileH
+                then
+                    local key, entry = isoTerrainChunk(sim.world, cx, cy, sim.player.z, rotation)
+                    visibleChunkKeys[key] = true
+                    chunks[#chunks + 1] = {
+                        entry = entry,
+                        cx = cx,
+                        cy = cy,
+                        baseX = screenX,
+                        baseY = screenY,
+                        x = entry and screenX + entry.offsetX or screenX,
+                        y = entry and screenY + entry.offsetY or screenY,
+                    }
+                end
+            end
+        end
+        table.sort(chunks, function(a, b)
+            if a.y == b.y then
+                return a.x < b.x
+            end
+            return a.y < b.y
+        end)
+        love.graphics.setColor(1, 1, 1, 1)
+        for _, chunk in ipairs(chunks) do
+            if chunk.entry then
+                love.graphics.draw(chunk.entry.canvas, chunk.x, chunk.y)
+            else
+                drawIsoTerrainChunkLive(sim.world, chunk.cx, chunk.cy, sim.player.z, rotation, chunk.baseX, chunk.baseY)
+            end
+        end
+        for key in pairs(isoTerrainCache.chunks) do
+            if not visibleChunkKeys[key] then
+                isoTerrainCache.chunks[key] = nil
             end
         end
     else
-        for y = minY, maxY do
-            for x = minX, maxX do
-                Render.drawTile(sim, x, y, sim.player.z, offsetX + x * tileSize, offsetY + y * tileSize)
+        for sum = -radius * 2, radius * 2 do
+            for rx = -radius, radius do
+                local ry = sum - rx
+                if ry >= -radius and ry <= radius then
+                    local dx, dy = Render.unrotateDelta(rx, ry, rotation)
+                    local x = sim.player.x + dx
+                    local y = sim.player.y + dy
+                    local screenX = centerX + (rx - ry) * isoTileW / 2
+                    local screenY = centerY + (rx + ry) * isoTileH / 2
+                    if screenX >= -isoTileW and screenX <= width + isoTileW
+                        and screenY >= topHudH - isoTileH and screenY <= height + isoTileH
+                    then
+                        drawIsoTile(sim.world, x, y, sim.player.z, screenX, screenY)
+                    end
+                end
             end
         end
     end
+    local visibleMachines = {}
     for _, machine in ipairs(sim:machinesInRect(minX, maxX, minY, maxY, sim.player.z)) do
-        Render.drawMachine(machine, offsetX + machine.x * tileSize, offsetY + machine.y * tileSize)
+        local screenX, screenY = Render.projectIso(app.worldView, machine.x, machine.y)
+        if screenX >= -isoTileW and screenX <= width + isoTileW
+            and screenY >= topHudH - isoTileH and screenY <= height + isoTileH
+        then
+            visibleMachines[#visibleMachines + 1] = { machine = machine, x = screenX, y = screenY }
+        end
     end
-    local sx = offsetX + sim.player.x * tileSize
-    local sy = offsetY + sim.player.y * tileSize
-    drawSprite("player", sx, sy)
+    table.sort(visibleMachines, function(a, b)
+        if a.y == b.y then
+            return a.machine.id < b.machine.id
+        end
+        return a.y < b.y
+    end)
+    for _, entry in ipairs(visibleMachines) do
+        Render.drawIsoMachine(entry.machine, entry.x, entry.y)
+    end
     love.graphics.setColor(0.1, 0.12, 0.14, 1)
-    love.graphics.circle("fill", sx + 16, sy + 16, 11)
+    love.graphics.ellipse("fill", centerX, centerY + 5, 13, 7)
     love.graphics.setColor(0.92, 0.84, 0.62, 1)
-    love.graphics.circle("fill", sx + 16, sy + 16, 7)
+    love.graphics.circle("fill", centerX, centerY - 10, 10)
     local fx, fy = Grid.front(sim.player.x, sim.player.y, sim.player.facing)
+    local highlightX, highlightY = Render.projectIso(app.worldView, fx, fy)
     love.graphics.setColor(1, 1, 1, 0.2)
-    love.graphics.rectangle("fill", offsetX + fx * tileSize, offsetY + fy * tileSize, tileSize, tileSize)
+    love.graphics.polygon(
+        "fill",
+        highlightX, highlightY - isoTileH / 2,
+        highlightX + isoTileW / 2, highlightY,
+        highlightX, highlightY + isoTileH / 2,
+        highlightX - isoTileW / 2, highlightY)
 end
 
 local function stacksText(inventory)
@@ -652,7 +874,10 @@ function Render.drawHud(sim, app)
     local width = love.graphics.getWidth()
     panel(0, 0, width, 76, 0.86)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    local header = "Thoth  tick " .. sim.tick .. "  pos " .. sim.player.x .. "," .. sim.player.y .. "," .. sim.player.z .. "  face " .. sim.player.facing
+    local header = "Thoth  tick " .. sim.tick
+        .. "  pos " .. sim.player.x .. "," .. sim.player.y .. "," .. sim.player.z
+        .. "  face " .. sim.player.facing
+        .. "  view " .. ((app.viewRotation or 0) * 90) .. "deg"
     love.graphics.print(header, 16, 10)
     love.graphics.printf("status " .. tostring(app.status), width - 276, 10, 260, "right")
     love.graphics.printf("next " .. sim:nextStepText(), 16, 30, width - 320)

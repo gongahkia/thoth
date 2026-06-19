@@ -5,14 +5,14 @@ local Audio = require("src.app.audio")
 local Input = {}
 
 local movementOrder = {
-    { "w", "north" },
-    { "up", "north" },
-    { "d", "east" },
-    { "right", "east" },
-    { "s", "south" },
-    { "down", "south" },
-    { "a", "west" },
-    { "left", "west" },
+    { "w", "up" },
+    { "up", "up" },
+    { "d", "right" },
+    { "right", "right" },
+    { "s", "down" },
+    { "down", "down" },
+    { "a", "left" },
+    { "left", "left" },
 }
 
 local movementKeys = {}
@@ -32,6 +32,21 @@ local craftKeys = {
     t = "fast_belt",
 }
 
+local screenDirectionIndexes = {
+    up = 0,
+    right = 1,
+    down = 2,
+    left = 3,
+}
+
+local worldDirections = { "north", "east", "south", "west" }
+
+local function worldDirectionForScreen(app, screenDirection)
+    local index = screenDirectionIndexes[screenDirection] or 0
+    local rotation = app and app.viewRotation or 0
+    return worldDirections[((index + rotation) % 4) + 1]
+end
+
 local function movementStatus(sim, direction)
     local x, y = Grid.front(sim.player.x, sim.player.y, direction)
     local z = sim.player.z or 0
@@ -43,9 +58,15 @@ local function movementStatus(sim, direction)
     return "blocked " .. direction .. " @ " .. x .. "," .. y .. "," .. z
 end
 
-local function queueMove(sim, app, direction)
+local function queueMove(sim, app, screenDirection)
+    local direction = worldDirectionForScreen(app, screenDirection)
     sim:queue(Simulation.commands.move(direction))
     app.status = movementStatus(sim, direction)
+end
+
+local function rotateView(app, delta)
+    app.viewRotation = ((app.viewRotation or 0) + delta) % 4
+    app.status = "view rotated " .. (app.viewRotation * 90) .. "deg"
 end
 
 function Input.update(sim, app, dt)
@@ -54,9 +75,9 @@ function Input.update(sim, app, dt)
         return
     end
     for _, entry in ipairs(movementOrder) do
-        local key, direction = entry[1], entry[2]
+        local key, screenDirection = entry[1], entry[2]
         if love.keyboard.isDown(key) then
-            queueMove(sim, app, direction)
+            queueMove(sim, app, screenDirection)
             app.moveCooldown = 0.12
             return
         end
@@ -66,6 +87,16 @@ end
 function Input.keypressed(sim, app, key)
     if movementKeys[key] then
         queueMove(sim, app, movementKeys[key])
+        return
+    end
+    if key == "[" then
+        rotateView(app, -1)
+        Audio.play(app.audio, "tick")
+        return
+    end
+    if key == "]" then
+        rotateView(app, 1)
+        Audio.play(app.audio, "tick")
         return
     end
     if key == "space" then
@@ -192,8 +223,30 @@ function Input.mousepressed(sim, app, x, y, button)
         end
     end
     if app.worldView then
-        local wx = math.floor((x - app.worldView.offsetX) / app.worldView.tileSize)
-        local wy = math.floor((y - app.worldView.offsetY) / app.worldView.tileSize)
+        local wx
+        local wy
+        if app.worldView.mode == "iso" then
+            local sx = x - app.worldView.centerX
+            local sy = y - app.worldView.centerY
+            local rx = (sx / app.worldView.halfW + sy / app.worldView.halfH) / 2
+            local ry = (sy / app.worldView.halfH - sx / app.worldView.halfW) / 2
+            local rotation = (app.worldView.rotation or 0) % 4
+            local dx, dy
+            if rotation == 1 then
+                dx, dy = ry, -rx
+            elseif rotation == 2 then
+                dx, dy = -rx, -ry
+            elseif rotation == 3 then
+                dx, dy = -ry, rx
+            else
+                dx, dy = rx, ry
+            end
+            wx = math.floor(app.worldView.originX + dx + 0.5)
+            wy = math.floor(app.worldView.originY + dy + 0.5)
+        else
+            wx = math.floor((x - app.worldView.offsetX) / app.worldView.tileSize)
+            wy = math.floor((y - app.worldView.offsetY) / app.worldView.tileSize)
+        end
         local machine = sim:machineAt(wx, wy, sim.player.z)
         app.selectedMachineId = machine and machine.id or nil
         app.status = machine and ("selected " .. machine.kind) or "cleared selection"

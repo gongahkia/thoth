@@ -49,6 +49,7 @@ function love.load(args)
         camera = { x = 0, y = 0, zoom = 2 },
         paused = false,
         buildDirection = "east",
+        viewRotation = 0,
         status = "ready",
         audio = Audio.load(),
         moveCooldown = 0,

@@ -198,6 +198,57 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(43)
+    local app = { moveCooldown = 0, status = "ready", viewRotation = 1 }
+    sim.world:setTile(1, 0, 0, { id = "grass", data = 0 })
+    Input.keypressed(sim, app, "w")
+    sim:step()
+    expect(sim.player.x == 1 and sim.player.y == 0, "rotated view should map screen-up to east")
+    Input.keypressed(sim, app, "]")
+    expect(app.viewRotation == 2, "right bracket should rotate view clockwise")
+    Input.keypressed(sim, app, "[")
+    expect(app.viewRotation == 1, "left bracket should rotate view counterclockwise")
+end
+
+tests[#tests + 1] = function()
+    local view = {
+        mode = "iso",
+        centerX = 200,
+        centerY = 120,
+        halfW = 32,
+        halfH = 16,
+        originX = 5,
+        originY = -2,
+        rotation = 3,
+    }
+    local x, y = 7, -1
+    local sx, sy = Render.projectIso(view, x, y)
+    local wx, wy = Render.screenToWorld(view, sx, sy)
+    expect(wx == x and wy == y, "isometric project/unproject should round-trip")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(44)
+    local machine = sim:addMachine("chest", 1, 0, "south")
+    local app = {
+        status = "ready",
+        worldView = {
+            mode = "iso",
+            centerX = 200,
+            centerY = 120,
+            halfW = 32,
+            halfH = 16,
+            originX = 0,
+            originY = 0,
+            rotation = 1,
+        },
+    }
+    local sx, sy = Render.projectIso(app.worldView, 1, 0)
+    Input.mousepressed(sim, app, sx, sy, 1)
+    expect(app.selectedMachineId == machine.id, "isometric mouse pick should select rotated machines")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(42)
     local west = sim:addMachine("chest", -1, 0, "south")
     local east = sim:addMachine("chest", 33, 0, "south")
