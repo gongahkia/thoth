@@ -10,7 +10,15 @@ local gridSize = 20
 local viewSize = 26
 local cameraDistance = 28
 local cameraPitch = math.rad(30)
-local cameraYaw = math.rad(45)
+local baseYaw = math.rad(45)
+local cameraYaw = baseYaw
+local targetYaw = baseYaw
+local snapIndex = 1
+local snapYaws = {0, math.pi / 2, math.pi, math.pi * 3 / 2}
+local snapTimer = 0
+local snapDelay = 1.6
+local snapSpeed = 6
+local twoPi = math.pi * 2
 
 local function vert(x, y, z, u)
     local v = 0.5
@@ -64,6 +72,18 @@ local function applyIsoCamera()
     g3d.camera.updateOrthographicMatrix(viewSize)
 end
 
+local function snapCamera(delta)
+    snapIndex = ((snapIndex - 1 + delta) % #snapYaws) + 1
+    targetYaw = baseYaw + snapYaws[snapIndex]
+end
+
+local function stepCamera(dt)
+    local diff = ((targetYaw - cameraYaw + math.pi) % twoPi) - math.pi
+    local step = math.min(1, dt * snapSpeed)
+    cameraYaw = cameraYaw + diff * step
+    applyIsoCamera()
+end
+
 function love.load()
     love.window.setTitle("Thoth g3d tile grid spike")
     grid = g3d.newModel(tileVerts(), texture())
@@ -71,7 +91,13 @@ function love.load()
     applyIsoCamera()
 end
 
-function love.update()
+function love.update(dt)
+    snapTimer = snapTimer + dt
+    if snapTimer >= snapDelay then
+        snapTimer = snapTimer - snapDelay
+        snapCamera(1)
+    end
+    stepCamera(dt)
     if love.keyboard.isDown("escape") then
         love.event.push("quit")
     end
@@ -81,7 +107,7 @@ function love.draw()
     grid:draw()
     love.graphics.setDepthMode()
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print("g3d 20x20 tile grid iso 30/45", 16, 16)
+    love.graphics.print("g3d 20x20 grid snap " .. snapIndex .. "/4", 16, 16)
     love.graphics.setDepthMode("lequal", true)
 end
 
