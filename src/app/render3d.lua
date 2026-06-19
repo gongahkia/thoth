@@ -14,6 +14,8 @@ local cameraDistance = 26
 local cameraViewSize = 24
 local baseYaw = math.rad(45)
 local visibleRadius = 10
+local atlasColumns = 8
+local atlasRows = 5
 
 local function clearList(list)
     for i = #list, 1, -1 do
@@ -179,6 +181,10 @@ local function tileVertex(x, y, z, u)
     return {x, y, z, u, 0.5, 0, 0, 1, 1, 1, 1, 1}
 end
 
+local function billboardVertex(x, y, z, u, v)
+    return {x, y, z, u, v, 0, 0, 1, 1, 1, 1, 1}
+end
+
 local function pushTileQuad(vertices, x, y, z, u)
     local gap = 0.03
     local left = x + gap
@@ -223,6 +229,58 @@ local function applyCamera(sim, app)
     local z = targetZ + math.sin(cameraPitch) * cameraDistance
     state.g3d.camera.lookAt(x, y, z, targetX, targetY, targetZ)
     state.g3d.camera.updateOrthographicMatrix(cameraViewSize)
+    return yaw
+end
+
+local function atlasFrameUv(frame)
+    local index = (frame or 0) % (atlasColumns * atlasRows)
+    local col = index % atlasColumns
+    local row = math.floor(index / atlasColumns)
+    local u0 = col / atlasColumns
+    local u1 = (col + 1) / atlasColumns
+    local v0 = row / atlasRows
+    local v1 = (row + 1) / atlasRows
+    return u0, v0, u1, v1
+end
+
+local function billboardVerts(width, height, frame)
+    local u0, v0, u1, v1 = atlasFrameUv(frame)
+    local halfWidth = width / 2
+    return {
+        billboardVertex(-halfWidth, 0, 0, u0, v1),
+        billboardVertex(halfWidth, 0, 0, u1, v1),
+        billboardVertex(halfWidth, 0, height, u1, v0),
+        billboardVertex(-halfWidth, 0, 0, u0, v1),
+        billboardVertex(halfWidth, 0, height, u1, v0),
+        billboardVertex(-halfWidth, 0, height, u0, v0),
+    }
+end
+
+local function newBillboard(width, height, frame, x, y, z, yaw)
+    local texture = state.assets.spriteAtlas or state.assets.white
+    local model = state.g3d.newModel(billboardVerts(width, height, frame), texture, {x, y, z or 0})
+    model:makeNormals()
+    model:setRotation(0, 0, math.pi / 2 - yaw)
+    return model
+end
+
+local function drawHeroBillboards(sim, yaw)
+    if not (state.g3d and (state.assets.spriteAtlas or state.assets.white) and sim.partyState) then
+        return
+    end
+    local offsets = {
+        {-1.1, -0.65},
+        {-0.35, -0.95},
+        {0.35, -0.95},
+        {1.1, -0.65},
+    }
+    for _, hero in ipairs(sim:partyState()) do
+        if hero.alive ~= false and hero.rank and offsets[hero.rank] then
+            local offset = offsets[hero.rank]
+            local model = newBillboard(0.85, 1.1, 24 + hero.rank, sim.player.x + 0.5 + offset[1], sim.player.y + 0.5 + offset[2], sim.player.z or 0, yaw)
+            model:draw()
+        end
+    end
 end
 
 function Render3D.drawWorld(sim, app)
@@ -239,9 +297,10 @@ function Render3D.drawWorld(sim, app)
         return
     end
     app.worldView.mode = "render3d"
-    applyCamera(sim, app)
+    local yaw = applyCamera(sim, app)
     local model = buildWorldTileModel(sim)
     model:draw()
+    drawHeroBillboards(sim, yaw)
 end
 
 function Render3D.drawHud()
