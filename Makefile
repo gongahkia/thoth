@@ -3,7 +3,7 @@
 LOVE ?= love
 LUAJIT ?= luajit
 PACKAGE := dist/thoth.love
-PACKAGE_INPUTS := main.lua conf.lua src assets TODO.md docs
+PACKAGE_INPUTS := main.lua conf.lua src assets vendor/g3d/g3d vendor/g3d/LICENSE TODO.md docs
 
 run:
 	$(LOVE) .

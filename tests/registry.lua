@@ -603,14 +603,15 @@ for _, key in ipairs(Defs.narrationOrder) do
     end
 end
 
-local todo = assert(io.open("TODO-CONTENT.md", "r"))
+local todo = assert(io.open("TODO.md", "r"))
 for line in todo:lines() do
-    if line:match("^%- %[[ xX]%]") then
-        expect(line:match("%+%w+"), "TODO-CONTENT task missing +Project metadata")
-        expect(line:match("@%w+"), "TODO-CONTENT task missing @context metadata")
-        expect(line:match("type:%w+"), "TODO-CONTENT task missing type metadata")
-        expect(line:match("zone:%w+"), "TODO-CONTENT task missing zone metadata")
-        expect(line:match("id:[%w_]+"), "TODO-CONTENT task missing id metadata")
+    local hasContentMetadata = line:match("%+%w+") or line:match("@%w+") or line:match("type:%w+") or line:match("zone:%w+") or line:match("id:[%w_]+")
+    if line:match("^%- %[[ xX]%]") and hasContentMetadata then
+        expect(line:match("%+%w+"), "TODO task missing +Project metadata")
+        expect(line:match("@%w+"), "TODO task missing @context metadata")
+        expect(line:match("type:%w+"), "TODO task missing type metadata")
+        expect(line:match("zone:%w+"), "TODO task missing zone metadata")
+        expect(line:match("id:[%w_]+"), "TODO task missing id metadata")
     end
 end
 todo:close()

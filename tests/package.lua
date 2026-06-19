@@ -22,6 +22,7 @@ local required = {
     "TODO.md",
     "src/game/simulation.lua",
     "src/game/data/registry.lua",
+    "vendor/g3d/g3d/init.lua",
     "assets/sprites/thoth_atlas.png",
     "assets/audio/mine.wav",
     "docs/market-audit.md",
@@ -35,7 +36,7 @@ for _, path in ipairs(required) do
 end
 
 for path in pairs(entries) do
-    if path:find("^assets/previews/") or path:find("^assets/replays/") then
+    if path:find("^assets/previews/") or path:find("^assets/replays/") or path:find("^vendor/g3d/%.git") then
         io.stderr:write("excluded package entry present: ", path, "\n")
         os.exit(1)
     end
