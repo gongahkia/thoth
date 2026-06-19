@@ -36,7 +36,13 @@ assert(manifest.classes and manifest.classes.warden and manifest.classes.warden.
 assert(manifest.enemies and manifest.enemies.hollow_guard and manifest.enemies.hollow_guard.group == "skl1", "missing enemy sprite mapping")
 assert(manifest.framesByName and manifest.framesByName["group.gsd1.fr1"] == 0, "missing named sprite frame")
 
-for _, name in ipairs({ "mine", "place", "craft", "invalid", "save", "load", "tick", "produce" }) do
+for _, name in ipairs({
+    "mine", "place", "craft", "invalid", "save", "load", "tick", "produce",
+    "hit_slash", "hit_blunt", "hit_burn", "hit_affliction", "hit_stress",
+    "footstep_stone", "footstep_wet", "footstep_ash",
+    "ui_click", "ui_confirm", "ui_back", "ui_error",
+    "dialogue_chirp_low", "dialogue_chirp_high",
+}) do
     local wav = exists("assets/audio/" .. name .. ".wav")
     assert(wav and wav:sub(1, 4) == "RIFF" and wav:sub(9, 12) == "WAVE", "bad wav: " .. name)
 end
@@ -44,6 +50,14 @@ end
 assert(Audio.cueForStatus("combat: regent") == "combat", "combat cue missing")
 assert(Audio.cueForStatus("mission complete") == "victory", "victory cue missing")
 assert(Audio.cueForStatus("hunger gnawed") == "danger", "danger cue missing")
+assert(Audio.cueForSkill("razor_lunge") == "hit_slash", "slash skill cue missing")
+assert(Audio.cueForSkill("white_flare") == "hit_burn", "burn skill cue missing")
+assert(Audio.cueForSkill("brine_spit", true) == "hit_affliction", "affliction skill cue missing")
+assert(Audio.cueForSkill("censer_wail", true) == "hit_stress", "stress skill cue missing")
+assert(Audio.footstepCueForTile("archive_floor") == "footstep_stone", "stone footstep cue missing")
+assert(Audio.footstepCueForTile("salt_floor") == "footstep_wet", "wet footstep cue missing")
+assert(Audio.footstepCueForTile("ember_floor") == "footstep_ash", "ash footstep cue missing")
+assert(Audio.cueForEvent({ event = "move", tile = "black_water" }) == "footstep_wet", "move event cue missing")
 assert(MusicTracks.tracks and MusicTracks.tracks.estate and MusicTracks.tracks.combat_boss, "missing music manifest tracks")
 assert(MusicTracks.contexts.expedition_tense == "expedition_tense", "missing tense music context")
 assert(MusicTracks.tracks.victory_sting.loop == false and MusicTracks.tracks.death_sting.loop == false, "music stings should not loop")

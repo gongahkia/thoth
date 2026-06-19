@@ -2555,7 +2555,8 @@ function Simulation:move(direction)
     self:applyCorridorRole(corridor)
     local roomKey = self:discoverCurrentRoom()
     self:updateThreatBehaviors()
-    self:pushLog("moved " .. direction)
+    local tile = self.world:getTile(self.player.x, self.player.y, self.player.z)
+    self:pushLog("moved " .. direction, { event = "move", direction = direction, tile = tile and tile.id })
     if self:tryStartRoomEncounter(roomKey) then
         return true
     end
@@ -3426,7 +3427,7 @@ function Simulation:enemyTurn(enemy)
         end
     end
     self:repairDisabledPart(enemy)
-    self:pushLog(def.name .. " used " .. skill.name, { event = def.boss and "boss_skill" or "enemy_skill", actor = def.name, skill = skill.name, side = "enemy", boss = def.boss == true })
+    self:pushLog(def.name .. " used " .. skill.name, { event = def.boss and "boss_skill" or "enemy_skill", actor = def.name, skill = skill.name, skillKey = skillKey, side = "enemy", boss = def.boss == true })
     return true
 end
 
@@ -3654,7 +3655,7 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
     if skill.torch and self.expedition then
         self.expedition.torch = clamp(self.expedition.torch + skill.torch, 0, 100)
     end
-    self:pushLog(hero.name .. " used " .. skill.name, { event = "hero_skill", actor = hero.name, skill = skill.name, side = "ally" })
+    self:pushLog(hero.name .. " used " .. skill.name, { event = "hero_skill", actor = hero.name, skill = skill.name, skillKey = skillKey, side = "ally" })
     return true
 end
 

@@ -5,11 +5,11 @@ local cues = {
     mine = "assets/audio/mine.wav",
     place = "assets/audio/place.wav",
     craft = "assets/audio/craft.wav",
-    invalid = "assets/audio/invalid.wav",
-    save = "assets/audio/save.wav",
-    load = "assets/audio/load.wav",
+    invalid = "assets/audio/ui_error.wav",
+    save = "assets/audio/ui_confirm.wav",
+    load = "assets/audio/ui_back.wav",
     produce = "assets/audio/produce.wav",
-    tick = "assets/audio/tick.wav",
+    tick = "assets/audio/ui_click.wav",
     camp = "assets/audio/craft.wav",
     combat = "assets/audio/place.wav",
     danger = "assets/audio/invalid.wav",
@@ -19,6 +19,20 @@ local cues = {
     recovery = "assets/audio/load.wav",
     travel = "assets/audio/tick.wav",
     victory = "assets/audio/save.wav",
+    hit_slash = "assets/audio/hit_slash.wav",
+    hit_blunt = "assets/audio/hit_blunt.wav",
+    hit_burn = "assets/audio/hit_burn.wav",
+    hit_affliction = "assets/audio/hit_affliction.wav",
+    hit_stress = "assets/audio/hit_stress.wav",
+    footstep_stone = "assets/audio/footstep_stone.wav",
+    footstep_wet = "assets/audio/footstep_wet.wav",
+    footstep_ash = "assets/audio/footstep_ash.wav",
+    ui_click = "assets/audio/ui_click.wav",
+    ui_confirm = "assets/audio/ui_confirm.wav",
+    ui_back = "assets/audio/ui_back.wav",
+    ui_error = "assets/audio/ui_error.wav",
+    dialogue_chirp_low = "assets/audio/dialogue_chirp_low.wav",
+    dialogue_chirp_high = "assets/audio/dialogue_chirp_high.wav",
 }
 
 local defaultMusicManifest = {
@@ -32,6 +46,9 @@ local statusCues = {
     { "mission complete", "victory" },
     { "combat won", "victory" },
     { "combat:", "combat" },
+    { "document:", "dialogue_chirp_low" },
+    { "event:", "dialogue_chirp_low" },
+    { ":", "dialogue_chirp_high" },
     { "ambush", "danger" },
     { "collapsed", "danger" },
     { "death", "danger" },
@@ -348,6 +365,83 @@ function Audio.updateForState(bank, dt, app, sim)
     Audio.setMusicContext(bank, context)
     Audio.updateMusic(bank, dt)
     return context
+end
+
+local function textHas(text, values)
+    for _, value in ipairs(values) do
+        if text:find(value, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+function Audio.footstepCueForTile(tileId)
+    local id = string.lower(tostring(tileId or ""))
+    if textHas(id, { "salt", "brine", "tide", "water", "sluice", "pearl", "drown" }) then
+        return "footstep_wet"
+    end
+    if textHas(id, { "ember", "ash", "kiln", "furnace", "coal", "cinder", "halo", "vitrified" }) then
+        return "footstep_ash"
+    end
+    return "footstep_stone"
+end
+
+function Audio.damageCueForSkill(skill)
+    if not skill then
+        return nil
+    end
+    local text = string.lower(tostring(skill.name or ""))
+    local status = skill.status and skill.status.kind
+    if skill.heal or skill.stressHeal then
+        return "dialogue_chirp_high"
+    end
+    if (skill.stress or skill.stressDamage) and not skill.damage then
+        return "hit_stress"
+    end
+    if status == "bleed" or textHas(text, { "cut", "chop", "saw", "bite", "shear", "lunge", "hook", "slash", "sweep" }) then
+        return "hit_slash"
+    end
+    if textHas(text, { "ember", "kiln", "coal", "cinder", "flare", "burn", "immolate", "cauter", "furnace", "glass" }) then
+        return "hit_burn"
+    end
+    if status == "blight" or skill.disease or textHas(text, { "ink", "brine", "acid", "vial", "soot", "ash", "drown", "salt", "pearl", "cyst" }) then
+        return "hit_affliction"
+    end
+    if skill.damage or skill.stressDamage then
+        return "hit_blunt"
+    end
+    if skill.stress then
+        return "hit_stress"
+    end
+    return nil
+end
+
+function Audio.cueForSkill(skillKey, enemySkill)
+    local skill = enemySkill and Defs.enemySkill(skillKey) or Defs.skill(skillKey)
+    return Audio.damageCueForSkill(skill)
+end
+
+function Audio.cueForEvent(event)
+    if not event then
+        return nil
+    end
+    if event.event == "move" then
+        return Audio.footstepCueForTile(event.tile)
+    end
+    if event.event == "hero_skill" then
+        return Audio.cueForSkill(event.skillKey, false)
+    end
+    if event.event == "enemy_skill" or event.event == "boss_skill" then
+        return Audio.cueForSkill(event.skillKey, true)
+    end
+    if event.event == "enemy_support" then
+        return "hit_stress"
+    end
+    if event.event == "falter" or event.event == "resolve_affliction" or event.event == "resolve_virtue" then
+        return "dialogue_chirp_low"
+    end
+    return nil
 end
 
 function Audio.cueForStatus(message)

@@ -25,6 +25,7 @@ local required = {
     "vendor/g3d/g3d/init.lua",
     "assets/sprites/oga_700_sprites.png",
     "assets/audio/mine.wav",
+    "assets/audio/hit_slash.wav",
     "assets/music/tracks.lua",
     "docs/market-audit.md",
     "docs/asset-licenses.md",

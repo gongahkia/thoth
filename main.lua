@@ -99,11 +99,14 @@ local function cueColor(cue)
     if cue == "victory" then
         return { 0.82, 0.66, 0.28 }
     end
-    if cue == "combat" then
+    if cue == "combat" or tostring(cue):find("^hit_", 1, false) then
         return { 0.7, 0.24, 0.24 }
     end
     if cue == "loot" then
         return { 0.38, 0.72, 0.46 }
+    end
+    if tostring(cue):find("^footstep_", 1, false) then
+        return { 0.52, 0.55, 0.5 }
     end
     return { 0.42, 0.54, 0.76 }
 end
@@ -118,15 +121,29 @@ local function startNextCutscene(state)
     end
 end
 
-local function playStatusCue(state, simulation)
-    if simulation.status == state.lastCueStatus then
-        return
+local function playSimulationAudio(state, simulation)
+    state.lastAudioEventId = state.lastAudioEventId or (simulation.eventSerial or 0)
+    local playedCue
+    for _, event in ipairs(simulation.events or {}) do
+        if event.id > state.lastAudioEventId then
+            local cue = Audio.cueForEvent(event) or Audio.cueForStatus(event.message)
+            if cue then
+                Audio.play(state.audio, cue)
+                playedCue = cue
+            end
+            state.lastCueStatus = event.message
+            state.lastAudioEventId = event.id
+        end
     end
-    state.lastCueStatus = simulation.status
-    local cue = Audio.cueForStatus(simulation.status)
-    if cue then
-        Audio.play(state.audio, cue)
-        state.eventFlash = { cue = cue, color = cueColor(cue), t = 0.45 }
+    if not playedCue and simulation.status ~= state.lastCueStatus then
+        state.lastCueStatus = simulation.status
+        playedCue = Audio.cueForStatus(simulation.status)
+        if playedCue then
+            Audio.play(state.audio, playedCue)
+        end
+    end
+    if playedCue then
+        state.eventFlash = { cue = playedCue, color = cueColor(playedCue), t = 0.45 }
     end
 end
 
@@ -149,6 +166,7 @@ local function resetVisualState(state, simulation)
     accumulator = 0
     state.moveCooldown = 0
     state.lastCueStatus = simulation.status
+    state.lastAudioEventId = simulation.eventSerial or 0
     state.lastVisualEventId = simulation.eventSerial or 0
     state.cutscene = nil
     state.cutsceneQueue = {}
@@ -1138,6 +1156,7 @@ function love.load(args)
         renderBenchmarkTotalMs = 0,
         renderBenchmarkMaxMs = 0,
         lastCueStatus = sim.status,
+        lastAudioEventId = sim.eventSerial or 0,
         lastVisualEventId = sim.eventSerial or 0,
         cutsceneQueue = {},
     }
@@ -1214,7 +1233,7 @@ function love.update(dt)
     local steps = 0
     while not app.paused and accumulator >= fixedDt and steps < maxSteps do
         sim:step()
-        playStatusCue(app, sim)
+        playSimulationAudio(app, sim)
         queueCutscenes(app, sim)
         if syncGameOverState(app) then
             break
