@@ -493,7 +493,8 @@ function Simulation:narrate(kind, salt)
         return false
     end
     local index = (Rng.hash(self.seed + 9901, self.tick, self.rollIndex, #(salt or kind)) % #lines) + 1
-    self.narration = lines[index]
+    local line = lines[index]
+    self.narration = type(line) == "table" and line.text or line
     return true
 end
 

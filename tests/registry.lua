@@ -24,6 +24,33 @@ local function rankList(value, label)
     end
 end
 
+local function listHas(list, value)
+    for _, item in ipairs(list) do
+        if item == value then
+            return true
+        end
+    end
+    return false
+end
+
+local rules = Defs.contentRules
+expect(type(rules) == "table", "content rules missing")
+for _, key in ipairs({ "global", "buried_archive", "salt_cistern", "ember_warrens", "estate", "encounter", "narration" }) do
+    expect(type(rules.namingPrefixes[key]) == "string" and rules.namingPrefixes[key] ~= "", "naming prefix missing " .. key)
+end
+for _, key in ipairs({ "salvage", "medicine", "light", "key", "ritual_reagent" }) do
+    expect(rules.itemTaxonomy[key] and rules.itemTaxonomy[key].role, "item taxonomy missing " .. key)
+end
+for _, key in ipairs({ "scout", "guard", "caster", "trapper", "swarm", "elite", "support", "alpha", "boss" }) do
+    expect(rules.enemyRoleTaxonomy[key] and rules.enemyRoleTaxonomy[key].role, "enemy role taxonomy missing " .. key)
+end
+for _, key in ipairs({ "survey", "extract", "repair", "seal", "rescue", "cleanse", "activate", "boss" }) do
+    expect(rules.missionTagTaxonomy[key] and rules.missionTagTaxonomy[key].role, "mission tag taxonomy missing " .. key)
+end
+for _, key in ipairs({ "safe_use", "greedy_use", "repair_use", "leave_alone" }) do
+    expect(rules.curioOutcomeTaxonomy[key] and rules.curioOutcomeTaxonomy[key].role, "curio outcome taxonomy missing " .. key)
+end
+
 checkOrder("item", Defs.itemOrder, Defs.items)
 checkOrder("trinket", Defs.trinketOrder, Defs.trinkets)
 checkOrder("quirk", Defs.quirkOrder, Defs.quirks)
@@ -59,9 +86,19 @@ end
 for key, item in pairs(Defs.items) do
     expect(item.name and item.name ~= "", "item missing name " .. key)
     expect(type(item.stack) == "number" and item.stack > 0, "item bad stack " .. key)
+    if item.taxonomy then
+        expect(rules.itemTaxonomy[item.taxonomy], "item taxonomy unknown " .. key)
+    end
     if item.provision then
         expect(type(item.cost) == "number" and item.cost > 0, "provision missing cost " .. key)
     end
+end
+for _, taxonomy in ipairs({ "salvage", "medicine", "light", "key", "ritual_reagent" }) do
+    local covered = false
+    for _, item in pairs(Defs.items) do
+        covered = covered or item.taxonomy == taxonomy
+    end
+    expect(covered, "item taxonomy unused " .. taxonomy)
 end
 
 for key, trinket in pairs(Defs.trinkets) do
@@ -112,6 +149,10 @@ end
 
 for key, enemy in pairs(Defs.enemies) do
     expect(enemy.name and enemy.maxHp > 0 and enemy.speed >= 0, "enemy missing stats " .. key)
+    expect(type(enemy.roles) == "table" and #enemy.roles > 0, "enemy missing roles " .. key)
+    for _, role in ipairs(enemy.roles) do
+        expect(rules.enemyRoleTaxonomy[role], "enemy role unknown " .. key .. "/" .. role)
+    end
     expect(enemy.damage and enemy.damage[1] <= enemy.damage[2], "enemy bad damage " .. key)
     expect(type(enemy.skills) == "table" and #enemy.skills > 0, "enemy missing skills " .. key)
     for _, skillKey in ipairs(enemy.skills) do
@@ -125,6 +166,13 @@ for key, enemy in pairs(Defs.enemies) do
     end
 end
 expect(#Defs.enemyOrder >= 26, "enemy roster should include expanded enemy types")
+for _, role in ipairs({ "scout", "guard", "caster", "trapper", "swarm", "elite", "support", "alpha", "boss" }) do
+    local covered = false
+    for _, enemy in pairs(Defs.enemies) do
+        covered = covered or listHas(enemy.roles or {}, role)
+    end
+    expect(covered, "enemy role unused " .. role)
+end
 
 for key, skill in pairs(Defs.enemySkills) do
     expect(skill.name and (skill.target == "hero" or skill.target == "party"), "enemy skill missing target " .. key)
@@ -141,6 +189,10 @@ end
 
 for key, curio in pairs(Defs.curios) do
     expect(curio.name and curio.name ~= "", "curio missing name " .. key)
+    expect(type(curio.outcomes) == "table" and #curio.outcomes > 0, "curio missing outcomes " .. key)
+    for _, outcome in ipairs(curio.outcomes) do
+        expect(rules.curioOutcomeTaxonomy[outcome], "curio outcome unknown " .. key .. "/" .. outcome)
+    end
     if curio.item then
         expect(Defs.item(curio.item), "curio item missing " .. curio.item)
     end
@@ -150,6 +202,13 @@ for key, curio in pairs(Defs.curios) do
     for item in pairs(curio.loot or {}) do
         expect(Defs.item(item), "curio loot missing item " .. item)
     end
+end
+for _, outcome in ipairs({ "safe_use", "greedy_use", "repair_use", "leave_alone" }) do
+    local covered = false
+    for _, curio in pairs(Defs.curios) do
+        covered = covered or listHas(curio.outcomes or {}, outcome)
+    end
+    expect(covered, "curio outcome unused " .. outcome)
 end
 
 for key, encounter in pairs(Defs.encounters) do
@@ -189,6 +248,10 @@ end
 for key, mission in pairs(Defs.missions) do
     expect(mission.name and Defs.location(mission.location), "mission missing location " .. key)
     expect(mission.kind == "scout" or mission.kind == "cleanse" or mission.kind == "boss" or mission.kind == "gather" or mission.kind == "activate", "mission bad kind " .. key)
+    expect(type(mission.tags) == "table" and #mission.tags > 0, "mission missing tags " .. key)
+    for _, tag in ipairs(mission.tags) do
+        expect(rules.missionTagTaxonomy[tag], "mission tag unknown " .. key .. "/" .. tag)
+    end
     expect(mission.difficulty == "apprentice" or mission.difficulty == "veteran" or mission.difficulty == "champion", "mission bad difficulty " .. key)
     expect(mission.resolveLevel == 1 or mission.resolveLevel == 3 or mission.resolveLevel == 5, "mission bad resolve level " .. key)
     for item in pairs(mission.objectiveItems or {}) do
@@ -229,6 +292,11 @@ end
 for _, key in ipairs(Defs.narrationOrder) do
     local lines = Defs.narrationFor(key)
     expect(lines and #lines >= 2, "narration missing lines " .. key)
+    for index, line in ipairs(lines) do
+        expect(type(line) == "table" and line.id and line.text, "narration line missing id/text " .. key)
+        expect(line.id:match("^nar_"), "narration id missing prefix " .. key .. "/" .. tostring(index))
+        expect(line.text ~= "", "narration line empty " .. key .. "/" .. tostring(index))
+    end
 end
 
 print("registry checks passed")
