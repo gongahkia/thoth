@@ -169,6 +169,9 @@ function Render3D.load()
     end
     state.g3d = g3dOrErr
     state.assets.white = newSolidImage(1, 1, 1, 1)
+    state.assets.enemy = newSolidImage(0.68, 0.16, 0.18, 1)
+    state.assets.alpha = newSolidImage(0.58, 0.12, 0.46, 1)
+    state.assets.boss = newSolidImage(0.82, 0.22, 0.12, 1)
     state.assets.tilePalette = buildTilePalette()
     state.assets.spriteAtlas = loadImage("assets/sprites/thoth_atlas.png")
     state.g3d.camera.updateProjectionMatrix()
@@ -256,8 +259,8 @@ local function billboardVerts(width, height, frame)
     }
 end
 
-local function newBillboard(width, height, frame, x, y, z, yaw)
-    local texture = state.assets.spriteAtlas or state.assets.white
+local function newBillboard(width, height, frame, x, y, z, yaw, texture)
+    texture = texture or state.assets.spriteAtlas or state.assets.white
     local model = state.g3d.newModel(billboardVerts(width, height, frame), texture, {x, y, z or 0})
     model:makeNormals()
     model:setRotation(0, 0, math.pi / 2 - yaw)
@@ -283,6 +286,111 @@ local function drawHeroBillboards(sim, yaw)
     end
 end
 
+local function enemyFrame(objectType)
+    if objectType == "boss" then
+        return 36
+    end
+    if objectType == "alpha" then
+        return 35
+    end
+    if objectType == "encounter" then
+        return 34
+    end
+    return 33
+end
+
+local function hasRole(def, role)
+    for _, candidate in ipairs(def.roles or {}) do
+        if candidate == role then
+            return true
+        end
+    end
+    return false
+end
+
+local function combatEnemyType(enemy)
+    local def = Defs.enemy(enemy and enemy.kind) or {}
+    if def.boss or hasRole(def, "boss") then
+        return "boss"
+    end
+    if def.alpha or hasRole(def, "alpha") then
+        return "alpha"
+    end
+    return "threat"
+end
+
+local function enemyTexture(objectType)
+    if objectType == "boss" then
+        return state.assets.boss or state.assets.enemy
+    end
+    if objectType == "alpha" then
+        return state.assets.alpha or state.assets.enemy
+    end
+    return state.assets.enemy or state.assets.white
+end
+
+local function enemySize(objectType)
+    if objectType == "boss" then
+        return 1.2, 1.45
+    end
+    if objectType == "alpha" then
+        return 1.08, 1.3
+    end
+    return 0.95, 1.15
+end
+
+local function drawCombatEnemyBillboards(sim, yaw)
+    if not (sim.combat and sim.combat.enemies) then
+        return false
+    end
+    local offsets = {
+        {-1.35, 1.7},
+        {-0.45, 2.0},
+        {0.45, 2.0},
+        {1.35, 1.7},
+    }
+    for _, enemy in ipairs(sim.combat.enemies) do
+        if enemy.hp > 0 and enemy.rank and offsets[enemy.rank] then
+            local offset = offsets[enemy.rank]
+            local objectType = combatEnemyType(enemy)
+            local width, height = enemySize(objectType)
+            local model = newBillboard(width, height, enemyFrame(objectType), sim.player.x + 0.5 + offset[1], sim.player.y + 0.5 + offset[2], sim.player.z or 0, yaw, enemyTexture(objectType))
+            model:draw()
+        end
+    end
+    return true
+end
+
+local function isEnemyObject(object)
+    return object.type == "threat" or object.type == "alpha" or object.type == "encounter" or object.type == "boss"
+end
+
+local function drawWorldEnemyBillboards(sim, yaw)
+    if not sim.objectsInRect then
+        return
+    end
+    local minX = sim.player.x - visibleRadius
+    local maxX = sim.player.x + visibleRadius
+    local minY = sim.player.y - visibleRadius
+    local maxY = sim.player.y + visibleRadius
+    for _, object in ipairs(sim:objectsInRect(minX, maxX, minY, maxY, sim.player.z or 0)) do
+        if isEnemyObject(object) then
+            local width, height = enemySize(object.type)
+            local model = newBillboard(width, height, enemyFrame(object.type), object.x + 0.5, object.y + 0.5, object.z or 0, yaw, enemyTexture(object.type))
+            model:draw()
+        end
+    end
+end
+
+local function drawEnemyBillboards(sim, yaw)
+    if not (state.g3d and (state.assets.spriteAtlas or state.assets.white)) then
+        return
+    end
+    if not drawCombatEnemyBillboards(sim, yaw) then
+        drawWorldEnemyBillboards(sim, yaw)
+    end
+end
+
 function Render3D.drawWorld(sim, app)
     app.worldView = app.worldView or {}
     app.worldView.mode = "render3d-placeholder"
@@ -301,6 +409,7 @@ function Render3D.drawWorld(sim, app)
     local model = buildWorldTileModel(sim)
     model:draw()
     drawHeroBillboards(sim, yaw)
+    drawEnemyBillboards(sim, yaw)
 end
 
 function Render3D.drawHud()
