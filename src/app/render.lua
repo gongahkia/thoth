@@ -1,5 +1,6 @@
 local Defs = require("src.game.defs")
 local Settings = require("src.app.settings")
+local Credits = require("src.app.credits")
 
 local Render = {}
 local state = {
@@ -123,18 +124,6 @@ local function readText(path)
     local text = file:read("*a")
     file:close()
     return text
-end
-
-local function trim(value)
-    return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
-end
-
-local function stripBackticks(value)
-    value = trim(value)
-    if value:sub(1, 1) == "`" and value:sub(-1) == "`" then
-        return value:sub(2, -2)
-    end
-    return value
 end
 
 local function statMapText(map, skip)
@@ -1302,39 +1291,12 @@ function Render.drawGameOver(sim, app)
     return summary
 end
 
-local function markdownCells(line)
-    if not line:match("^|") then
-        return nil
-    end
-    local cells = {}
-    for cell in line:gmatch("|([^|]*)") do
-        cells[#cells + 1] = stripBackticks(cell)
-    end
-    return cells
-end
-
 function Render.creditsData()
-    local rows = {}
-    local text = readText("docs/asset-licenses.md") or ""
-    for line in text:gmatch("[^\r\n]+") do
-        local cells = markdownCells(line)
-        if cells and cells[1] and cells[1] ~= "File" and not cells[1]:find("%-%-%-", 1, false) then
-            rows[#rows + 1] = { file = cells[1], source = cells[2], author = cells[3], license = cells[4], notes = cells[5] }
-        end
-    end
-    return {
-        project = "Thoth",
-        assets = rows,
-        libraries = {
-            { name = "g3d", source = "vendor/g3d/LICENSE", author = "groverburger", license = "MIT" },
-            { name = "LOVE", source = "https://love2d.org", author = "LOVE Development Team", license = "zlib/libpng" },
-        },
-        music = {},
-    }
+    return Credits.data(readText("docs/asset-licenses.md") or "")
 end
 
 local function creditsLineCount(data)
-    return 6 + #data.assets * 3 + #data.libraries * 2 + math.max(1, #data.music)
+    return 2 + #((data and data.lines) or {})
 end
 
 local function layoutCreditsButtons(app, width, height)
@@ -1369,22 +1331,15 @@ function Render.drawCredits(app)
         end
         y = y + 24
     end
-    line("Asset Attributions", 82, { 0.9, 0.92, 0.86, 1 })
-    for _, asset in ipairs(data.assets) do
-        line(asset.file .. " / " .. asset.license .. " / " .. asset.author, 96, { 0.76, 0.78, 0.72, 1 })
-        line(asset.source or "-", 110, { 0.56, 0.64, 0.58, 1 })
-        line(asset.notes or "", 110, { 0.5, 0.54, 0.5, 1 })
-    end
-    y = y + 8
-    line("Libraries", 82, { 0.9, 0.92, 0.86, 1 })
-    for _, lib in ipairs(data.libraries) do
-        line(lib.name .. " / " .. lib.license .. " / " .. lib.author, 96, { 0.76, 0.78, 0.72, 1 })
-        line(lib.source, 110, { 0.56, 0.64, 0.58, 1 })
-    end
-    y = y + 8
-    line("Music", 82, { 0.9, 0.92, 0.86, 1 })
-    if #data.music == 0 then
-        line("No external music tracks packaged.", 96, { 0.62, 0.66, 0.58, 1 })
+    local colors = {
+        heading = { 0.9, 0.92, 0.86, 1 },
+        entry = { 0.76, 0.78, 0.72, 1 },
+        source = { 0.56, 0.64, 0.58, 1 },
+        note = { 0.5, 0.54, 0.5, 1 },
+        spacer = { 0.5, 0.54, 0.5, 1 },
+    }
+    for _, entry in ipairs(data.lines or {}) do
+        line(entry.text or "", 82 + (entry.indent or 0), colors[entry.kind] or colors.note)
     end
     local button = app.ui.creditsButtons[1]
     love.graphics.setColor(0.1, 0.12, 0.11, 1)
