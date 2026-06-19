@@ -27,6 +27,11 @@ jobs:
           SDL_AUDIODRIVER: dummy
         run: make title-smoke
 
+      - name: Run settings smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make settings-smoke
+
       - name: Run render3d smoke
         env:
           SDL_AUDIODRIVER: dummy

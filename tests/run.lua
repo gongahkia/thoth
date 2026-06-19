@@ -6,6 +6,7 @@ local Save = require("src.game.save")
 local Replay = require("src.game.replay")
 local Input = require("src.app.input")
 local Render = require("src.app.render")
+local Settings = require("src.app.settings")
 local World = require("src.game.world")
 local Defs = require("src.game.defs")
 
@@ -455,7 +456,7 @@ end
 tests[#tests + 1] = function()
     local oldLove = love
     local sim = Simulation.new(14)
-    local app = { moveCooldown = 0, viewRotation = 1, status = "ready" }
+    local app = { moveCooldown = 0, viewRotation = 1, status = "ready", settings = Settings.defaults() }
     love = { keyboard = { isDown = function() return false end } }
     Input.keypressed(sim, app, "w")
     Input.update(sim, app, 0.2)
@@ -463,6 +464,12 @@ tests[#tests + 1] = function()
     expect(sim.player.x == 1 and sim.player.y == 0, "rotated screen up should map east")
     Input.keypressed(sim, app, "]")
     expect(app.viewRotation == 2, "right bracket should rotate view")
+    Settings.bindKey(app.settings, "moveUp", "i")
+    Input.keypressed(sim, app, "i")
+    expect(app.moveIntent == "up", "remapped move key should queue screen direction")
+    Settings.bindKey(app.settings, "interact", "e")
+    Input.keypressed(sim, app, "e")
+    expect(sim.commandQueue[#sim.commandQueue].type == "interact", "remapped interact key should queue interact")
     love = oldLove
 end
 
@@ -1953,6 +1960,23 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local settings = Settings.defaults()
+    expect(settings.masterVolume == 1 and settings.sfxVolume == 1, "settings defaults should expose audio volumes")
+    Settings.adjust(settings, "masterVolume", -4)
+    expect(settings.masterVolume > 0.59 and settings.masterVolume < 0.61, "settings slider should step and clamp")
+    Settings.toggle(settings, "highContrast")
+    expect(settings.highContrast == true, "settings toggle should flip accessibility flags")
+    Settings.cycle(settings, "colorblindMode", 1)
+    expect(settings.colorblindMode == "deuteranopia", "settings cycle should advance colorblind mode")
+    local ok = Settings.bindKey(settings, "moveUp", "i")
+    expect(ok and Settings.keyForAction(settings, "moveUp") == "i", "settings should bind movement key")
+    local duplicate = Settings.bindKey(settings, "moveDown", "i")
+    expect(not duplicate, "settings should reject duplicate keybind")
+    local reserved = Settings.bindKey(settings, "moveDown", "escape")
+    expect(not reserved, "settings should reserve escape during capture")
+end
+
+tests[#tests + 1] = function()
     local disabled = Render.titleMenuItems({ canContinue = false })
     expect(#disabled == 4, "title should expose four menu items")
     expect(disabled[1].action == "new" and disabled[1].enabled, "title should expose new game")
@@ -1963,8 +1987,17 @@ tests[#tests + 1] = function()
     local app = { canContinue = true, ui = { titleButtons = { { stale = true } } } }
     Render.drawTitle(Simulation.new(76), app)
     expect(#app.ui.titleButtons == 4 and app.ui.titleButtons[2].action == "continue", "title draw should populate title hitboxes")
-    Render.drawSettingsShell(app)
-    expect(#app.ui.settingsButtons == 1 and app.ui.settingsButtons[1].action == "back", "settings shell should populate back hitbox")
+    app.settings = Settings.defaults()
+    Render.drawSettings(app)
+    local hasBack = false
+    local hasBind = false
+    local hasAdjust = false
+    for _, hitbox in ipairs(app.ui.settingsButtons) do
+        hasBack = hasBack or hitbox.action == "back"
+        hasBind = hasBind or hitbox.action == "bind"
+        hasAdjust = hasAdjust or hitbox.action == "slider" or hitbox.action == "adjust"
+    end
+    expect(hasBack and hasBind and hasAdjust, "settings draw should populate back, bind, and slider hitboxes")
 end
 
 tests[#tests + 1] = function()

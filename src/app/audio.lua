@@ -59,9 +59,23 @@ function Audio.load()
     return bank
 end
 
+function Audio.applySettings(bank, settings)
+    if not bank then
+        return
+    end
+    bank.__settings = settings
+    local volume = ((settings and settings.masterVolume) or 1) * ((settings and settings.sfxVolume) or 1)
+    for key, source in pairs(bank) do
+        if key ~= "__settings" and source and source.setVolume then
+            source:setVolume(volume)
+        end
+    end
+end
+
 function Audio.play(bank, key)
     local source = bank and bank[key]
     if source then
+        Audio.applySettings(bank, bank.__settings)
         source:stop()
         source:play()
     end

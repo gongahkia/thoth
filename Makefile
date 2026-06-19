@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
+.PHONY: run smoke title-smoke settings-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -21,6 +21,20 @@ title-smoke:
 	fi; \
 	grep -q "title-smoke-state=title" $$tmp; \
 	grep -q "title-smoke-buttons=new,continue,settings,quit" $$tmp; \
+	rm -f $$tmp
+
+settings-smoke:
+	@set -e; \
+	tmp=$$(mktemp); \
+	if command -v xvfb-run >/dev/null 2>&1; then \
+		xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --settings-smoke | tee $$tmp; \
+	else \
+		$(LOVE) . --settings-smoke | tee $$tmp; \
+	fi; \
+	grep -q "settings-smoke-state=settings" $$tmp; \
+	grep -q "settings-smoke-adjust=true" $$tmp; \
+	grep -q "settings-smoke-bind=true" $$tmp; \
+	grep -q "settings-smoke-toggle=true" $$tmp; \
 	rm -f $$tmp
 
 render-smoke:

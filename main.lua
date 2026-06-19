@@ -5,6 +5,7 @@ local Input = require("src.app.input")
 local Render = require("src.app.render")
 local Audio = require("src.app.audio")
 local Save = require("src.game.save")
+local Settings = require("src.app.settings")
 
 local sim
 local app
@@ -211,7 +212,98 @@ local function mouseTitle(state, x, y)
 end
 
 local function keySettings(state, key)
-    if key == "escape" or key == "backspace" or key == "return" or key == "kpenter" then
+    if state.captureBinding then
+        if key == "escape" then
+            state.captureBinding = nil
+            state.settingsStatus = "binding canceled"
+            Audio.play(state.audio, "invalid")
+            return
+        end
+        local ok, err = Settings.bindKey(state.settings, state.captureBinding, key)
+        state.settingsStatus = ok and ("bound " .. state.captureBinding .. " to " .. key) or tostring(err)
+        state.captureBinding = nil
+        Audio.play(state.audio, ok and "save" or "invalid")
+        return
+    end
+    local controls = Settings.controls()
+    state.settingsFocus = math.max(1, math.min(state.settingsFocus or 1, #controls))
+    if key == "up" or key == "w" then
+        state.settingsFocus = ((state.settingsFocus - 2) % #controls) + 1
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "down" or key == "s" then
+        state.settingsFocus = (state.settingsFocus % #controls) + 1
+        Audio.play(state.audio, "tick")
+        return
+    end
+    local control = controls[state.settingsFocus]
+    if key == "left" or key == "a" then
+        if control.kind == "slider" then
+            Settings.adjust(state.settings, control.setting, -1)
+        elseif control.kind == "cycle" then
+            Settings.cycle(state.settings, control.setting, -1)
+        end
+        Audio.applySettings(state.audio, state.settings)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "right" or key == "d" then
+        if control.kind == "slider" then
+            Settings.adjust(state.settings, control.setting, 1)
+        elseif control.kind == "cycle" then
+            Settings.cycle(state.settings, control.setting, 1)
+        end
+        Audio.applySettings(state.audio, state.settings)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "space" or key == "return" or key == "kpenter" then
+        if control.kind == "toggle" then
+            Settings.toggle(state.settings, control.setting)
+            Audio.play(state.audio, "tick")
+        elseif control.kind == "cycle" then
+            Settings.cycle(state.settings, control.setting, 1)
+            Audio.play(state.audio, "tick")
+        elseif control.kind == "slider" then
+            Settings.adjust(state.settings, control.setting, 1)
+            Audio.applySettings(state.audio, state.settings)
+            Audio.play(state.audio, "tick")
+        elseif control.kind == "bind" then
+            state.captureBinding = control.binding
+            state.settingsStatus = "press key for " .. control.binding
+            Audio.play(state.audio, "tick")
+        elseif control.kind == "back" then
+            state.uiState = state.settingsReturnState or "title"
+            Audio.play(state.audio, "tick")
+        end
+        return
+    end
+    if key == "escape" or key == "backspace" then
+        state.uiState = state.settingsReturnState or "title"
+        Audio.play(state.audio, "tick")
+    end
+end
+
+local function activateSettingsHitbox(state, hitbox)
+    if hitbox.index then
+        state.settingsFocus = hitbox.index
+    end
+    if hitbox.action == "adjust" then
+        Settings.adjust(state.settings, hitbox.setting, hitbox.delta or 1)
+        Audio.applySettings(state.audio, state.settings)
+        Audio.play(state.audio, "tick")
+    elseif hitbox.action == "toggle" then
+        Settings.toggle(state.settings, hitbox.setting)
+        Audio.play(state.audio, "tick")
+    elseif hitbox.action == "cycle" then
+        Settings.cycle(state.settings, hitbox.setting, hitbox.delta or 1)
+        Audio.play(state.audio, "tick")
+    elseif hitbox.action == "bind" then
+        state.captureBinding = hitbox.binding
+        state.settingsStatus = "press key for " .. tostring(hitbox.binding)
+        Audio.play(state.audio, "tick")
+    elseif hitbox.action == "back" then
         state.uiState = state.settingsReturnState or "title"
         Audio.play(state.audio, "tick")
     end
@@ -220,8 +312,7 @@ end
 local function mouseSettings(state, x, y)
     for _, hitbox in ipairs((state.ui and state.ui.settingsButtons) or {}) do
         if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
-            state.uiState = state.settingsReturnState or "title"
-            Audio.play(state.audio, "tick")
+            activateSettingsHitbox(state, hitbox)
             return true
         end
     end
@@ -252,12 +343,29 @@ local function printTitleSmoke(state)
     print("title-smoke-continue=" .. tostring(state.canContinue == true))
 end
 
+local function printSettingsSmoke(state)
+    if not state.settingsSmoke or state.settingsSmokePrinted then
+        return
+    end
+    state.settingsSmokePrinted = true
+    local actions = {}
+    for _, hitbox in ipairs((state.ui and state.ui.settingsButtons) or {}) do
+        actions[hitbox.action] = true
+    end
+    print("settings-smoke-state=" .. tostring(state.uiState))
+    print("settings-smoke-controls=" .. tostring(#Settings.controls()))
+    print("settings-smoke-adjust=" .. tostring(actions.adjust == true))
+    print("settings-smoke-bind=" .. tostring(actions.bind == true))
+    print("settings-smoke-toggle=" .. tostring(actions.toggle == true))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
     local renderBenchmark = hasArg(args, "--render-benchmark")
     local titleSmoke = hasArg(args, "--title-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke
+    local settingsSmoke = hasArg(args, "--settings-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
@@ -266,12 +374,14 @@ function love.load(args)
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
         paused = false,
-        uiState = (titleSmoke and "title") or ((smoke or renderBenchmark or renderSmoke) and "game" or "title"),
+        uiState = (titleSmoke and "title") or (settingsSmoke and "settings") or ((smoke or renderBenchmark or renderSmoke) and "game" or "title"),
         titleMenuIndex = 1,
         titleTime = 0,
         viewRotation = 0,
         renderer = "render3d",
         status = "ready",
+        settings = Settings.defaults(),
+        settingsFocus = 1,
         audio = Audio.load(),
         moveCooldown = 0,
         smoke = smoke,
@@ -279,6 +389,7 @@ function love.load(args)
         renderBenchmark = renderBenchmark,
         renderSmoke = renderSmoke,
         titleSmoke = titleSmoke,
+        settingsSmoke = settingsSmoke,
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -288,6 +399,7 @@ function love.load(args)
         cutsceneQueue = {},
     }
     refreshContinueState(app)
+    Audio.applySettings(app.audio, app.settings)
     Render.load()
 end
 
@@ -339,7 +451,8 @@ function love.draw()
         return
     end
     if app.uiState == "settings" then
-        Render.drawSettingsShell(app)
+        Render.drawSettings(app)
+        printSettingsSmoke(app)
         return
     end
     local started = app.renderBenchmark and love.timer.getTime() or nil

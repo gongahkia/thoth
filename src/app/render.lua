@@ -1,4 +1,5 @@
 local Defs = require("src.game.defs")
+local Settings = require("src.app.settings")
 
 local Render = {}
 local state = {
@@ -732,10 +733,52 @@ function Render.drawTitle(sim, app)
     return items
 end
 
-function Render.drawSettingsShell(app)
+local function drawSliderControl(app, control, x, y, w, active)
+    love.graphics.setColor(0.68, 0.72, 0.68, 1)
+    love.graphics.printf(Settings.valueText(app.settings, control), x + w - 70, y + 2, 64, "right")
+    local barX = x + 180
+    local barW = w - 280
+    local value = clamp01(app.settings[control.setting] or 0)
+    love.graphics.setColor(0.11, 0.13, 0.13, 1)
+    love.graphics.rectangle("fill", barX, y + 8, barW, 10)
+    love.graphics.setColor(active and 0.82 or 0.42, active and 0.68 or 0.5, active and 0.34 or 0.36, 1)
+    love.graphics.rectangle("fill", barX, y + 8, barW * value, 10)
+    app.ui.settingsButtons[#app.ui.settingsButtons + 1] = { x = barX - 34, y = y - 4, w = 28, h = 28, action = "adjust", setting = control.setting, delta = -1, index = control.index }
+    app.ui.settingsButtons[#app.ui.settingsButtons + 1] = { x = barX + barW + 8, y = y - 4, w = 28, h = 28, action = "adjust", setting = control.setting, delta = 1, index = control.index }
+    love.graphics.setColor(0.22, 0.25, 0.23, 1)
+    love.graphics.rectangle("line", barX - 34, y - 4, 28, 28)
+    love.graphics.rectangle("line", barX + barW + 8, y - 4, 28, 28)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.printf("-", barX - 34, y + 3, 28, "center")
+    love.graphics.printf("+", barX + barW + 8, y + 3, 28, "center")
+end
+
+local function drawButtonControl(app, control, x, y, w, active)
+    local action = control.kind == "toggle" and "toggle" or (control.kind == "cycle" and "cycle" or "bind")
+    local button = { x = x + 180, y = y - 5, w = math.min(220, w - 220), h = 30, action = action, setting = control.setting, binding = control.binding, delta = 1, index = control.index }
+    app.ui.settingsButtons[#app.ui.settingsButtons + 1] = button
+    love.graphics.setColor(active and 0.18 or 0.1, active and 0.22 or 0.12, active and 0.2 or 0.12, 1)
+    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(active and 0.74 or 0.34, active and 0.66 or 0.38, active and 0.36 or 0.32, 1)
+    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(0.92, 0.94, 0.88, 1)
+    local value = Settings.valueText(app.settings, control)
+    if app.captureBinding == control.binding then
+        value = "press key"
+    end
+    love.graphics.printf(value, button.x + 8, button.y + 8, button.w - 16, "center")
+end
+
+function Render.drawSettings(app)
     Render.prepareUi(app)
-    app.ui.settingsButtons[#app.ui.settingsButtons + 1] = { x = 64, y = 610, w = 180, h = 42, action = "back" }
     if not (love and love.graphics) then
+        for index, control in ipairs(Settings.controls()) do
+            if control.kind == "back" then
+                app.ui.settingsButtons[#app.ui.settingsButtons + 1] = { x = 64, y = 610, w = 180, h = 42, action = "back", index = index }
+            else
+                app.ui.settingsButtons[#app.ui.settingsButtons + 1] = { x = 64, y = 80 + index * 34, w = 320, h = 28, action = control.kind, setting = control.setting, binding = control.binding, index = index }
+            end
+        end
         return
     end
     local width, height = love.graphics.getDimensions()
@@ -745,23 +788,38 @@ function Render.drawSettingsShell(app)
     panel(48, 48, width - 96, height - 96, 0.94)
     love.graphics.setColor(0.92, 0.9, 0.8, 1)
     love.graphics.print("Settings", 72, 72)
-    love.graphics.setColor(0.72, 0.78, 0.76, 1)
-    love.graphics.print("Audio", 72, 126)
-    love.graphics.print("master volume", 72, 158)
-    love.graphics.rectangle("line", 220, 154, 260, 14)
-    love.graphics.rectangle("fill", 220, 154, 190, 14)
-    love.graphics.print("Input", 72, 222)
-    love.graphics.print("move / interact / pause bindings", 72, 254)
-    love.graphics.print("Accessibility", 72, 318)
-    love.graphics.print("contrast / motion / subtitle settings", 72, 350)
-    local button = app.ui.settingsButtons[1]
-    button.y = height - 92
-    love.graphics.setColor(0.12, 0.15, 0.14, 1)
-    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
-    love.graphics.setColor(0.46, 0.54, 0.46, 1)
-    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
-    love.graphics.setColor(0.92, 0.94, 0.88, 1)
-    love.graphics.printf("Back", button.x + 8, button.y + 12, button.w - 16, "center")
+    local controls = Settings.controls()
+    app.settingsFocus = clamp(app.settingsFocus or 1, 1, #controls)
+    local rowX = 72
+    local rowW = width - 144
+    local rowY = 126
+    for index, control in ipairs(controls) do
+        control.index = index
+        local y = rowY + (index - 1) * 34
+        if y > height - 126 then
+            break
+        end
+        local active = app.settingsFocus == index
+        love.graphics.setColor(active and 0.16 or 0.08, active and 0.18 or 0.09, active and 0.15 or 0.09, active and 0.9 or 0.55)
+        love.graphics.rectangle("fill", rowX - 8, y - 8, rowW + 16, 30)
+        love.graphics.setColor(active and 0.92 or 0.72, active and 0.9 or 0.76, active and 0.8 or 0.7, 1)
+        love.graphics.printf(control.label, rowX, y, 170, "left")
+        if control.kind == "slider" then
+            drawSliderControl(app, control, rowX, y, rowW, active)
+        elseif control.kind == "toggle" or control.kind == "cycle" or control.kind == "bind" then
+            drawButtonControl(app, control, rowX, y, rowW, active)
+        elseif control.kind == "back" then
+            app.ui.settingsButtons[#app.ui.settingsButtons + 1] = { x = rowX + 180, y = y - 5, w = 180, h = 30, action = "back", index = index }
+            love.graphics.setColor(active and 0.18 or 0.1, active and 0.22 or 0.12, active and 0.2 or 0.12, 1)
+            love.graphics.rectangle("fill", rowX + 180, y - 5, 180, 30)
+            love.graphics.setColor(active and 0.74 or 0.34, active and 0.66 or 0.38, active and 0.36 or 0.32, 1)
+            love.graphics.rectangle("line", rowX + 180, y - 5, 180, 30)
+            love.graphics.setColor(0.92, 0.94, 0.88, 1)
+            love.graphics.printf("Back", rowX + 188, y + 3, 164, "center")
+        end
+    end
+    love.graphics.setColor(0.58, 0.62, 0.58, 1)
+    love.graphics.printf(app.settingsStatus or "", 72, height - 82, width - 144, "left")
     love.graphics.pop()
 end
 

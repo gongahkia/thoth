@@ -1,5 +1,6 @@
 local Simulation = require("src.game.simulation")
 local Audio = require("src.app.audio")
+local Settings = require("src.app.settings")
 
 local Input = {}
 
@@ -23,6 +24,18 @@ end
 
 local screenDirectionIndexes = { up = 0, right = 1, down = 2, left = 3 }
 local worldDirections = { "north", "east", "south", "west" }
+local boundMovementOrder = {
+    { "moveUp", "up" },
+    { "moveRight", "right" },
+    { "moveDown", "down" },
+    { "moveLeft", "left" },
+}
+local screenDirectionActions = {
+    up = "moveUp",
+    right = "moveRight",
+    down = "moveDown",
+    left = "moveLeft",
+}
 
 local function worldDirectionForScreen(app, screenDirection)
     local index = screenDirectionIndexes[screenDirection] or 0
@@ -30,17 +43,22 @@ local function worldDirectionForScreen(app, screenDirection)
     return worldDirections[((index + rotation) % 4) + 1]
 end
 
-local function isScreenDirectionDown(screenDirection)
+local function isScreenDirectionDown(screenDirection, app)
     for _, key in ipairs(movementDirectionKeys[screenDirection] or {}) do
         if love.keyboard.isDown(key) then
             return true
         end
     end
+    local action = screenDirectionActions[screenDirection]
+    local bound = action and Settings.keyForAction(app and app.settings, action)
+    if bound and love.keyboard.isDown(bound) then
+        return true
+    end
     return false
 end
 
 local function heldScreenDirection(app)
-    if app.activeMoveDirection and isScreenDirectionDown(app.activeMoveDirection) then
+    if app.activeMoveDirection and isScreenDirectionDown(app.activeMoveDirection, app) then
         return app.activeMoveDirection
     end
     for _, entry in ipairs(movementOrder) do
@@ -48,6 +66,13 @@ local function heldScreenDirection(app)
         if love.keyboard.isDown(key) then
             app.activeMoveDirection = screenDirection
             return screenDirection
+        end
+    end
+    for _, entry in ipairs(boundMovementOrder) do
+        local key = Settings.keyForAction(app and app.settings, entry[1])
+        if key and love.keyboard.isDown(key) then
+            app.activeMoveDirection = entry[2]
+            return entry[2]
         end
     end
     app.activeMoveDirection = nil
@@ -66,6 +91,15 @@ end
 
 local function play(app, cue)
     Audio.play(app.audio, cue)
+end
+
+local function boundMovementDirection(app, key)
+    for _, entry in ipairs(boundMovementOrder) do
+        if Settings.isAction(app and app.settings, key, entry[1]) then
+            return entry[2]
+        end
+    end
+    return nil
 end
 
 local function activeRender(app)
@@ -91,8 +125,9 @@ function Input.update(sim, app, dt)
 end
 
 function Input.keypressed(sim, app, key)
-    if movementKeys[key] then
-        requestMove(app, movementKeys[key])
+    local screenDirection = movementKeys[key] or boundMovementDirection(app, key)
+    if screenDirection then
+        requestMove(app, screenDirection)
         return
     end
     if key == "[" then
@@ -105,7 +140,7 @@ function Input.keypressed(sim, app, key)
         play(app, "tick")
         return
     end
-    if key == "space" then
+    if Settings.isAction(app and app.settings, key, "interact", "space") then
         if sim.mode == "estate" then
             sim:queue(Simulation.commands.startExpedition("buried_archive"))
             app.status = "start expedition"
@@ -171,8 +206,8 @@ function Input.keypressed(sim, app, key)
 end
 
 function Input.keyreleased(sim, app, key)
-    local screenDirection = movementKeys[key]
-    if screenDirection and app.activeMoveDirection == screenDirection and not isScreenDirectionDown(screenDirection) then
+    local screenDirection = movementKeys[key] or boundMovementDirection(app, key)
+    if screenDirection and app.activeMoveDirection == screenDirection and not isScreenDirectionDown(screenDirection, app) then
         app.activeMoveDirection = nil
     end
 end
