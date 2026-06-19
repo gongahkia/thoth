@@ -1,4 +1,10 @@
 local Render3D = {}
+local state = {
+    loaded = false,
+    headless = false,
+    g3d = nil,
+    assets = {},
+}
 
 local function clearList(list)
     for i = #list, 1, -1 do
@@ -93,8 +99,46 @@ function Render3D.screenToWorld(view, x, y)
     return math.floor(view.originX + dx + 0.5), math.floor(view.originY + dy + 0.5)
 end
 
+local function newSolidImage(r, g, b, a)
+    local data = love.image.newImageData(1, 1)
+    data:setPixel(0, 0, r, g, b, a or 1)
+    local image = love.graphics.newImage(data)
+    image:setFilter("nearest", "nearest")
+    return image
+end
+
+local function loadImage(path)
+    if not love.filesystem.getInfo(path, "file") then
+        return nil
+    end
+    local image = love.graphics.newImage(path)
+    image:setFilter("nearest", "nearest")
+    return image
+end
+
 function Render3D.load()
-    Render3D.loaded = true
+    state.loaded = true
+    state.headless = not (love and love.graphics)
+    state.assets = {}
+    state.g3d = nil
+    state.loadError = nil
+    if state.headless then
+        Render3D.state = state
+        return state
+    end
+    local ok, g3dOrErr = pcall(require, "vendor.g3d.g3d")
+    if not ok then
+        state.loadError = g3dOrErr
+        Render3D.state = state
+        return state
+    end
+    state.g3d = g3dOrErr
+    state.assets.white = newSolidImage(1, 1, 1, 1)
+    state.assets.spriteAtlas = loadImage("assets/sprites/thoth_atlas.png")
+    state.g3d.camera.updateProjectionMatrix()
+    state.g3d.camera.updateViewMatrix()
+    Render3D.state = state
+    return state
 end
 
 function Render3D.drawWorld(sim, app)
