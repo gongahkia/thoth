@@ -6,7 +6,7 @@ package.path = table.concat({
 
 local g3d = require("g3d")
 local grid
-local sprite
+local billboards = {}
 local gridSize = 20
 local viewSize = 26
 local cameraDistance = 28
@@ -75,13 +75,14 @@ local function tileVerts()
     return out
 end
 
-local function spriteVerts()
+local function billboardVerts(width, height)
+    local halfWidth = width / 2
     local out = {}
     quad(out,
-        vert(-1.5, 0, 0, 0, 0.25),
-        vert(1.5, 0, 0, 0.25, 0.25),
-        vert(1.5, 0, 3, 0.25, 0),
-        vert(-1.5, 0, 3, 0, 0))
+        vert(-halfWidth, 0, 0, 0, 0.25),
+        vert(halfWidth, 0, 0, 0.25, 0.25),
+        vert(halfWidth, 0, height, 0.25, 0),
+        vert(-halfWidth, 0, height, 0, 0))
     return out
 end
 
@@ -114,8 +115,8 @@ local function applyIsoCamera()
 end
 
 local function faceSpriteToCamera()
-    if sprite then
-        sprite:setRotation(0, 0, math.pi / 2 - cameraYaw)
+    for _, billboard in ipairs(billboards) do
+        billboard:setRotation(0, 0, math.pi / 2 - cameraYaw)
     end
 end
 
@@ -132,6 +133,30 @@ local function stepCamera(dt)
     faceSpriteToCamera()
 end
 
+local function addBillboard(image, x, y, width, height)
+    local billboard = g3d.newModel(billboardVerts(width, height), image, {x, y, 0})
+    billboard:makeNormals()
+    billboards[#billboards + 1] = billboard
+end
+
+local function loadBillboards()
+    local image = spriteTexture()
+    local heroPositions = {
+        {-1.2, -1.2},
+        {1.2, -1.2},
+        {-1.2, 1.2},
+        {1.2, 1.2},
+    }
+    for _, pos in ipairs(heroPositions) do
+        addBillboard(image, pos[1], pos[2], 2.4, 2.4)
+    end
+    for i = 1, 30 do
+        local ring = 4 + (i % 5)
+        local angle = (i - 1) / 30 * twoPi
+        addBillboard(image, math.cos(angle) * ring, math.sin(angle) * ring, 1.7, 1.7)
+    end
+end
+
 function love.load()
     for _, launchArg in ipairs(arg or {}) do
         if launchArg == "--verify-billboard" then
@@ -145,8 +170,7 @@ function love.load()
     love.window.setTitle("Thoth g3d tile grid spike")
     grid = g3d.newModel(tileVerts(), gridTexture())
     grid:makeNormals()
-    sprite = g3d.newModel(spriteVerts(), spriteTexture(), {0, 0, 0})
-    sprite:makeNormals()
+    loadBillboards()
     applyIsoCamera()
     faceSpriteToCamera()
 end
@@ -184,10 +208,12 @@ end
 
 function love.draw()
     grid:draw()
-    sprite:draw()
+    for _, billboard in ipairs(billboards) do
+        billboard:draw()
+    end
     love.graphics.setDepthMode()
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print("q/e rotate snap " .. snapIndex .. "/4 OGA billboard", 16, 16)
+    love.graphics.print("q/e rotate snap " .. snapIndex .. "/4 34 billboards", 16, 16)
     love.graphics.setDepthMode("lequal", true)
     if verifyPendingName then
         local name = verifyPendingName
