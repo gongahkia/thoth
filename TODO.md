@@ -74,7 +74,6 @@ Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
 ### Day 3 — Billboard sprite spike (~4h)
 
 ### Day 4 — Perf + integration spike (~4h)
-- [ ] 0.4.4 Verify `Save.write` / `Save.read` (`src/game/save.lua`) still works with new app state. Roundtrip test (1h)
 
 ### Day 5 — Decision + writeup (~4h)
 - [ ] 0.5.1 If all 4 days passed: commit spike branch, write `docs/engine-spike.md` with: chosen lib, perf numbers, integration approach for Phase 1 (2h)

@@ -94,3 +94,22 @@ sim-verify-match=true
 ```
 
 Result: the spike scene advanced a live `src.game.simulation` instance one command per render frame for 180 ticks. Its final serialized snapshot matched the headless baseline snapshot for the same command stream.
+
+## Save Roundtrip Verification
+
+Date: 2026-06-20
+
+Command:
+
+```sh
+timeout 10s love spike --verify-save
+```
+
+Output:
+
+```text
+save-roundtrip-path=/Users/gongahkia/Library/Application Support/LOVE/thoth-spike/spike-save-roundtrip.thoth
+save-roundtrip-match=true
+```
+
+Result: `Save.write` and `Save.read` roundtripped a stepped simulation through LOVE filesystem state, then removed the temporary save file.

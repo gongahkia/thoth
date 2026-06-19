@@ -34,6 +34,8 @@ local simVerifyLive
 local simVerifyExpectedSnapshot
 local simVerifySerialize
 local simCommands
+local verifySave = false
+local verifySaveRan = false
 
 local function vert(x, y, z, u, v)
     v = v or 0.5
@@ -168,6 +170,43 @@ local function loadSimulationVerifier()
     simVerifySerialize = Serialize
 end
 
+local function runSaveVerifier()
+    local Serialize = require("src.core.serialize")
+    local Simulation = require("src.game.simulation")
+    local Save = require("src.game.save")
+    local sim = Simulation.new(20260619)
+    local commands = {
+        Simulation.commands.move("east"),
+        Simulation.commands.useItem("torch"),
+        Simulation.commands.selectHero(2),
+        Simulation.commands.move("east"),
+        Simulation.commands.retreat(),
+    }
+    for tick = 1, 40 do
+        sim:queue(commands[((tick - 1) % #commands) + 1])
+        sim:step()
+    end
+    love.filesystem.setIdentity("thoth-spike")
+    local path = "spike-save-roundtrip.thoth"
+    local ok, writeErr = Save.write(sim, path)
+    if not ok then
+        print("save-write-error=" .. tostring(writeErr))
+        love.event.quit(1)
+        return
+    end
+    local loaded, readErr = Save.read(path)
+    if not loaded then
+        print("save-read-error=" .. tostring(readErr))
+        love.event.quit(1)
+        return
+    end
+    local matched = Serialize.encode(sim:snapshot()) == Serialize.encode(loaded:snapshot())
+    print("save-roundtrip-path=" .. love.filesystem.getSaveDirectory() .. "/" .. path)
+    print("save-roundtrip-match=" .. tostring(matched))
+    love.filesystem.remove(path)
+    love.event.quit(matched and 0 or 1)
+end
+
 local function addBillboard(image, x, y, width, height)
     local billboard = g3d.newModel(billboardVerts(width, height), image, {x, y, 0})
     billboard:makeNormals()
@@ -200,6 +239,8 @@ function love.load()
             verifyFps = true
         elseif launchArg == "--verify-sim" then
             verifySim = true
+        elseif launchArg == "--verify-save" then
+            verifySave = true
         end
     end
     if verifySim then
@@ -236,6 +277,11 @@ function love.update(dt)
         return
     end
     stepCamera(dt)
+    if verifySave and not verifySaveRan then
+        verifySaveRan = true
+        runSaveVerifier()
+        return
+    end
     if verifySim then
         simVerifyTick = simVerifyTick + 1
         simVerifyLive:queue(simCommands[((simVerifyTick - 1) % #simCommands) + 1])
