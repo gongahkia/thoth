@@ -639,9 +639,9 @@ end
 local classNameToKey = {
     Warden = "warden",
     Duelist = "duelist",
-    Mender = "mender",
+    Apothecary = "mender",
     Arcanist = "arcanist",
-    Harrier = "harrier",
+    Thief = "harrier",
     Chirurgeon = "chirurgeon",
     Exile = "exile",
     Lamplighter = "lamplighter",

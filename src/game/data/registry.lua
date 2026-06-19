@@ -1783,9 +1783,9 @@ Registry.estateCopyOrder = { "survey_office_copy" }
 Registry.classLore = {
     warden = { origin = "Gate debt made discipline useful before it made it honorable." },
     duelist = { origin = "The Duelist sells clean violence to people who cannot afford clean records." },
-    mender = { origin = "The Mender learned that rescue is triage with witnesses." },
+    mender = { origin = "The Apothecary learned that rescue is triage with witnesses." },
     arcanist = { origin = "The Arcanist reads heat, ink, and fear as the same grammar." },
-    harrier = { origin = "The Harrier came from routes where speed counted as mercy." },
+    harrier = { origin = "The Thief came from routes where speed counted as mercy." },
     chirurgeon = { origin = "The Chirurgeon keeps bodies useful longer than hope does." },
     exile = { origin = "The Exile knows every border is a receipt." },
     lamplighter = { origin = "The Lamplighter was paid to make darkness legible, not safe." },
@@ -2121,9 +2121,9 @@ Registry.originBarks = {
     origin_barks_v1 = {
         warden = { arrival = "A Warden arrives already braced.", firstDeath = "The line held until it had a name-shaped gap.", factionShift = "Discipline notices political weather." },
         duelist = { arrival = "A Duelist measures exits before greetings.", firstDeath = "The riposte came too late.", factionShift = "A Duelist favors the side with cleaner odds." },
-        mender = { arrival = "A Mender counts wounds before coins.", firstDeath = "The bandage outlived the hand.", factionShift = "A Mender hears policy as triage." },
+        mender = { arrival = "An Apothecary counts wounds before coins.", firstDeath = "The bandage outlived the hand.", factionShift = "An Apothecary hears policy as triage." },
         arcanist = { arrival = "An Arcanist listens for rules under dust.", firstDeath = "The formula broke at the pulse.", factionShift = "An Arcanist tracks faction pressure like weather." },
-        harrier = { arrival = "A Harrier arrives where the road thins.", firstDeath = "The route kept moving without its scout.", factionShift = "A Harrier trusts whoever keeps paths open." },
+        harrier = { arrival = "A Thief arrives where the road thins.", firstDeath = "The route kept moving without its scout.", factionShift = "A Thief trusts whoever keeps paths open." },
         chirurgeon = { arrival = "A Chirurgeon inventories pain by habit.", firstDeath = "The diagnosis ended before the bleeding did.", factionShift = "A Chirurgeon knows debt by its symptoms." },
         exile = { arrival = "An Exile treats welcome as a temporary error.", firstDeath = "The outcast still earned a stone.", factionShift = "An Exile expects every faction to turn." },
         lamplighter = { arrival = "A Lamplighter checks the wick before the oath.", firstDeath = "The flame recorded the absence.", factionShift = "A Lamplighter counts politics in fuel." },

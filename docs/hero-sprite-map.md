@@ -12,9 +12,9 @@ Class-fit notes are [Inference] from class skills/lore plus the visible front-fr
 |---|---|---|---|---|---|
 | `warden` | Warden | Shielded frontliner | `gsd1_*` | `knt1_*` | [Inference] `gsd1` reads as the clearest shield guard; `knt1` is the cleaner knight fallback. |
 | `duelist` | Duelist | Light melee blade | `ftr1_*` | `thf3_*` | [Inference] `ftr1` gives a readable blade-first fighter; `thf3` fits a faster rogue-like variant. |
-| `mender` | Mender | Field healer/medic | `wmg3_*` | `mnt1_*` | [Inference] `wmg3` gives the clearest light-robed support silhouette; `mnt1` works if the class should read less magical. |
+| `mender` | Apothecary | Field healer/medic | `wmg3_*` | `mnt1_*` | [Inference] `wmg3` gives the clearest light-robed support silhouette; `mnt1` works if the class should read less magical. |
 | `arcanist` | Arcanist | Staff/arcane caster | `amg3_*` | `bmg3_*` | [Inference] `amg3` has the strongest wizard staff read; `bmg3` is the colder-color caster fallback. |
-| `harrier` | Harrier | Ranged scout | `wnv1_*` | `thf1_*` | [Inference] `wnv1` is the best ranger/scout read available in the pack; `thf1` works if speed matters more than ranged read. |
+| `harrier` | Thief | Ranged scout | `wnv1_*` | `thf1_*` | [Inference] `wnv1` is the best ranger/scout read available in the pack; `thf1` works if speed matters more than ranged read. |
 | `chirurgeon` | Chirurgeon | Hooded physician/alchemist | `wmg4_*` | `smr1_*` | [Inference] `wmg4` gives a hooded clinical support read; `smr1` works for a vial/staff alchemist read. |
 | `exile` | Exile | Rough outcast/bruiser | `mst4_*` | `trk1_*` | [Inference] `mst4` reads as an outsider/bandit; `trk1` is the heavier exile fallback. |
 | `lamplighter` | Lamplighter | Staff and light source | `smr3_*` | `amg1_*` | [Inference] `smr3` has the strongest staff/light silhouette; `amg1` keeps the same staff role with a warmer palette. |
