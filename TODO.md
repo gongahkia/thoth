@@ -101,7 +101,6 @@ Goal: build every missing player-facing screen. Game must boot from title → lo
 
 Goal: replace `assets/sprites/thoth_atlas.png` (single 128×80 placeholder) with cohesive OGA pack + CC0 3D world geometry.
 
-- [ ] 3.6 Survey CC0 3D dungeon model packs (KayKit, Quaternius, Kenney) (4h)
 - [ ] 3.7 Pick primary 3D model pack; document license (2h)
 - [ ] 3.8 Build 3D model import pipeline (.gltf/.obj loader for chosen 3D lib) (16h)
 - [ ] 3.9 Build tile→model mapping (which model used for each tile type in `Registry.tileOrder`) (8h)
