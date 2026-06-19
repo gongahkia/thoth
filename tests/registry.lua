@@ -85,6 +85,12 @@ checkOrder("document", Defs.documentOrder, Defs.documents)
 checkOrder("document bank", Defs.documentBankOrder, Defs.documentBanks)
 checkOrder("document drop rule", Defs.documentDropRuleOrder, Defs.documentDropRules)
 checkOrder("fixture document bark", Defs.fixtureDocumentBarkOrder, Defs.fixtureDocumentBarks)
+checkOrder("glossary term", Defs.glossaryTermOrder, Defs.glossaryTerms)
+checkOrder("panel copy", Defs.panelCopyOrder, Defs.panelCopy)
+checkOrder("fixture visit bark", Defs.fixtureVisitBarkOrder, Defs.fixtureVisitBarks)
+checkOrder("enclave leader bark", Defs.enclaveLeaderBarkOrder, Defs.enclaveLeaderBarks)
+checkOrder("warden voice", Defs.wardenVoiceOrder, Defs.wardenVoices)
+checkOrder("origin bark", Defs.originBarkOrder, Defs.originBarks)
 checkOrder("threat behavior", Defs.threatBehaviorOrder, Defs.threatBehaviors)
 checkOrder("alpha rule", Defs.alphaRuleOrder, Defs.alphaRules)
 checkOrder("scout tooltip", Defs.scoutTooltipOrder, Defs.scoutTooltips)
@@ -211,6 +217,7 @@ for key, enemy in pairs(Defs.enemies) do
         expect(rules.enemyRoleTaxonomy[role], "enemy role unknown " .. key .. "/" .. role)
     end
     expect(enemy.damage and enemy.damage[1] <= enemy.damage[2], "enemy bad damage " .. key)
+    expect(enemy.bestiary and enemy.bestiary.behaviorHint and enemy.bestiary.weakPointHint, "enemy bestiary copy missing " .. key)
     expect(type(enemy.skills) == "table" and #enemy.skills > 0, "enemy missing skills " .. key)
     for _, skillKey in ipairs(enemy.skills) do
         expect(Defs.enemySkill(skillKey), "enemy references missing skill " .. skillKey)
@@ -247,6 +254,7 @@ end
 for key, curio in pairs(Defs.curios) do
     expect(curio.name and curio.name ~= "", "curio missing name " .. key)
     expect(type(curio.outcomes) == "table" and #curio.outcomes > 0, "curio missing outcomes " .. key)
+    expect(curio.copy and curio.copy.observe and curio.copy.safe_use and curio.copy.greedy_use and curio.copy.repair_use and curio.copy.result, "curio copy missing " .. key)
     for _, outcome in ipairs(curio.outcomes) do
         expect(rules.curioOutcomeTaxonomy[outcome], "curio outcome unknown " .. key .. "/" .. outcome)
     end
@@ -450,6 +458,7 @@ for key, mission in pairs(Defs.missions) do
     for _, stack in ipairs(mission.questProvision or {}) do
         expect(Defs.item(stack.item) and stack.count > 0, "mission quest provision invalid " .. tostring(stack.item))
     end
+    expect(mission.intro and mission.intro.brief and mission.intro.sting, "mission intro missing " .. key)
     if mission.reward and mission.reward.trinket then
         expect(Defs.trinket(mission.reward.trinket), "mission reward missing trinket " .. mission.reward.trinket)
     end

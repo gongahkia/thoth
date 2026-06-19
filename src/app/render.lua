@@ -848,12 +848,19 @@ function Render.drawSidePanel(sim, app)
     love.graphics.print("Voice", x + 10, detailY + 126)
     love.graphics.setColor(0.68, 0.72, 0.68, 1)
     love.graphics.printf(sim.narration or "-", x + 10, detailY + 146, 272)
+    if sim.documentPopup then
+        love.graphics.setColor(0.9, 0.82, 0.58, 1)
+        love.graphics.print("Document", x + 10, detailY + 166)
+        love.graphics.setColor(0.68, 0.72, 0.68, 1)
+        love.graphics.printf(sim.documentPopup.title .. ": " .. sim.documentPopup.text, x + 10, detailY + 184, 272)
+    end
+    local logY = sim.documentPopup and (detailY + 244) or (detailY + 198)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Log", x + 10, detailY + 198)
+    love.graphics.print("Log", x + 10, logY)
     love.graphics.setColor(0.72, 0.76, 0.72, 1)
     local log = sim.expedition and sim.expedition.log or sim.log
     for i = math.max(1, #log - 5), #log do
-        love.graphics.print(log[i], x + 10, detailY + 202 + (i - math.max(1, #log - 5) + 1) * 18)
+        love.graphics.print(log[i], x + 10, logY + 4 + (i - math.max(1, #log - 5) + 1) * 18)
     end
 end
 
@@ -1351,6 +1358,10 @@ function Render.drawEstatePanel(sim, app)
     local campaignStatus = campaign.lost and ("lost " .. (campaign.lossReason or "")) or (campaign.victory and "victory" or ("bosses " .. bosses .. "/" .. #Defs.locationOrder))
     love.graphics.print("renown " .. (campaign.renown or 0) .. "  dread " .. (campaign.dread or 0) .. "  " .. campaignStatus, x + 390, y + 34)
     drawJournalPanel(sim, x + 390, y + 58, 320)
+    local timerCopy = sim:panelCopy("timer_panel_copy")
+    local factionCopy = sim:panelCopy("faction_panel_copy")
+    love.graphics.setColor(0.62, 0.66, 0.58, 1)
+    love.graphics.printf((timerCopy and timerCopy.body or "") .. " " .. (factionCopy and factionCopy.body or ""), x + 390, y + 128, 320)
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
     love.graphics.print("roster " .. sim:livingRosterCount() .. "/" .. sim:rosterLimit() .. "  recruits " .. #sim.estate.recruits, x + 10, y + 58)
     if sim.estate.currentEvent then
