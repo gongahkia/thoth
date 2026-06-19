@@ -7,7 +7,10 @@ package.path = table.concat({
 local g3d = require("g3d")
 local grid
 local gridSize = 20
-local viewSize = 24
+local viewSize = 26
+local cameraDistance = 28
+local cameraPitch = math.rad(30)
+local cameraYaw = math.rad(45)
 
 local function vert(x, y, z, u)
     local v = 0.5
@@ -52,12 +55,20 @@ local function texture()
     return image
 end
 
+local function applyIsoCamera()
+    local horizontal = math.cos(cameraPitch) * cameraDistance
+    local x = math.cos(cameraYaw) * horizontal
+    local y = -math.sin(cameraYaw) * horizontal
+    local z = math.sin(cameraPitch) * cameraDistance
+    g3d.camera.lookAt(x, y, z, 0, 0, 0)
+    g3d.camera.updateOrthographicMatrix(viewSize)
+end
+
 function love.load()
     love.window.setTitle("Thoth g3d tile grid spike")
     grid = g3d.newModel(tileVerts(), texture())
     grid:makeNormals()
-    g3d.camera.lookAt(12, -18, 14, 0, 0, 0)
-    g3d.camera.updateOrthographicMatrix(viewSize)
+    applyIsoCamera()
 end
 
 function love.update()
@@ -70,11 +81,11 @@ function love.draw()
     grid:draw()
     love.graphics.setDepthMode()
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print("g3d 20x20 tile grid", 16, 16)
+    love.graphics.print("g3d 20x20 tile grid iso 30/45", 16, 16)
     love.graphics.setDepthMode("lequal", true)
 end
 
 function love.resize(width, height)
     g3d.camera.resize(width, height)
-    g3d.camera.updateOrthographicMatrix(viewSize)
+    applyIsoCamera()
 end
