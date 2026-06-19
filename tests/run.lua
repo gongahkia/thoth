@@ -224,6 +224,35 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(75)
+    sim:endExpedition(true)
+    local hero = sim:heroAtRank(1)
+    runQueued(sim, Simulation.commands.equipTrinket(hero.id, "ember_pin", 1))
+    sim:startCombat("entry", "8:0")
+    hero.deathsDoor = true
+    hero.deathblowResist = 0
+    sim:damageHero(hero, hero.hp + 1)
+    expect(hero.trinkets[1] == false and sim.combat.fallenTrinkets[1] == "ember_pin", "combat death should move trinket into fallen spoils")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.combat.fallenTrinkets[1] == "ember_pin", "fallen trinkets should survive snapshot")
+    sim:finishCombat(true)
+    expect(sim.estate.trinkets.ember_pin == 1, "combat victory should recover fallen trinket")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(76)
+    sim:endExpedition(true)
+    local hero = sim:heroAtRank(1)
+    runQueued(sim, Simulation.commands.equipTrinket(hero.id, "ember_pin", 1))
+    sim:startCombat("entry", "8:0")
+    hero.deathsDoor = true
+    hero.deathblowResist = 0
+    sim:damageHero(hero, hero.hp + 1)
+    sim:finishCombat(false)
+    expect((sim.estate.trinkets.ember_pin or 0) == 0, "combat loss should not recover fallen trinket")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(37)
     local rations = sim.expedition.supplies:count("ration")
     for _ = 1, 6 do

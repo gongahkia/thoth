@@ -615,6 +615,7 @@ function Simulation:damageHero(hero, amount)
             class = hero.class,
             tick = self.tick,
         }
+        self:recordFallenTrinkets(hero)
         self:compactParty()
         self:pushLog(hero.name .. " fell")
     elseif hero.hp <= 0 then
@@ -649,6 +650,22 @@ function Simulation:addStress(hero, amount)
         self:pushLog(hero.name .. " breaks under the dark")
     end
     return true
+end
+
+function Simulation:recordFallenTrinkets(hero)
+    if not hero or not self.combat then
+        return false
+    end
+    local moved = false
+    self.combat.fallenTrinkets = self.combat.fallenTrinkets or {}
+    for slot, trinketKey in ipairs(hero.trinkets or {}) do
+        if trinketKey then
+            self.combat.fallenTrinkets[#self.combat.fallenTrinkets + 1] = trinketKey
+            hero.trinkets[slot] = false
+            moved = true
+        end
+    end
+    return moved
 end
 
 function Simulation:healStress(hero, amount)
@@ -1813,6 +1830,7 @@ function Simulation:startCombat(encounterKey, roomKey)
         turnQueue = {},
         turnIndex = 1,
         active = nil,
+        fallenTrinkets = {},
         log = {},
     }
     self:pushLog("combat: " .. encounterKey)
@@ -2109,6 +2127,9 @@ function Simulation:finishCombat(victory)
         return false
     end
     if victory then
+        for _, trinketKey in ipairs(self.combat.fallenTrinkets or {}) do
+            self.estate.trinkets[trinketKey] = ((self.estate.trinkets or {})[trinketKey] or 0) + 1
+        end
         if self.expedition then
             self.expedition.clearedEncounters[self.combat.roomKey or self.combat.encounter] = true
             self:addLoot("coin", self.combat.encounter == "regent" and 120 or 35)
@@ -2571,6 +2592,7 @@ function Simulation:snapshot()
             turnQueue = copyList(self.combat.turnQueue),
             turnIndex = self.combat.turnIndex,
             active = self.combat.active and copyMap(self.combat.active) or nil,
+            fallenTrinkets = copyList(self.combat.fallenTrinkets),
             log = copyList(self.combat.log),
         }
     end
@@ -2747,6 +2769,7 @@ function Simulation.fromSnapshot(snapshot)
             turnQueue = copyList(combat.turnQueue),
             turnIndex = combat.turnIndex or 1,
             active = combat.active and copyMap(combat.active) or nil,
+            fallenTrinkets = copyList(combat.fallenTrinkets),
             log = copyList(combat.log or {}),
         }
         for _, enemy in ipairs(combat.enemies or {}) do
