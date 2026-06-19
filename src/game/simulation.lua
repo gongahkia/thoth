@@ -73,6 +73,15 @@ local function contains(list, value)
     return false
 end
 
+local function hasValue(list)
+    for _, entry in ipairs(list or {}) do
+        if entry then
+            return true
+        end
+    end
+    return false
+end
+
 local function clamp(value, minValue, maxValue)
     return math.max(minValue, math.min(maxValue, value))
 end
@@ -628,14 +637,16 @@ end
 
 function Simulation:trinketSetCounts()
     local counts = {}
-    for _, setKey in ipairs(Defs.trinketSetOrder or {}) do
+    local setOrder = Defs.trinketSetOrder or {}
+    local sets = Defs.trinketSets
+    for _, setKey in ipairs(setOrder) do
         counts[setKey] = 0
     end
     for _, hero in ipairs(self:livingParty()) do
         for _, trinketKey in ipairs(hero.trinkets or {}) do
             if trinketKey then
-                for _, setKey in ipairs(Defs.trinketSetOrder or {}) do
-                    local setDef = Defs.trinketSet(setKey)
+                for _, setKey in ipairs(setOrder) do
+                    local setDef = sets[setKey]
                     if setDef and contains(setDef.pieces or {}, trinketKey) then
                         counts[setKey] = (counts[setKey] or 0) + 1
                     end
@@ -647,13 +658,14 @@ function Simulation:trinketSetCounts()
 end
 
 function Simulation:trinketSetModifier(hero, key)
-    if not hero then
+    if not hero or not hasValue(hero.trinkets) then
         return 0
     end
     local counts = self:trinketSetCounts()
     local total = 0
+    local sets = Defs.trinketSets
     for _, setKey in ipairs(Defs.trinketSetOrder or {}) do
-        local setDef = Defs.trinketSet(setKey)
+        local setDef = sets[setKey]
         local count = counts[setKey] or 0
         if setDef and count >= 2 and self:heroHasSetPiece(hero, setDef) then
             total = total + ((setDef.twoPiece and setDef.twoPiece[key]) or 0)
@@ -676,26 +688,30 @@ end
 
 function Simulation:heroModifier(hero, key)
     local total = 0
+    local quirks = Defs.quirks
+    local diseases = Defs.diseases
+    local trinkets = Defs.trinkets
+    local injuries = Defs.injuries
     for _, quirkKey in ipairs(hero.quirks or {}) do
-        local quirk = Defs.quirk(quirkKey)
+        local quirk = quirks[quirkKey]
         total = total + ((quirk and quirk[key]) or 0)
     end
     for _, diseaseKey in ipairs(hero.diseases or {}) do
-        local disease = Defs.disease(diseaseKey)
+        local disease = diseases[diseaseKey]
         total = total + ((disease and disease[key]) or 0)
     end
     for _, trinketKey in ipairs(hero.trinkets or {}) do
-        local trinket = trinketKey and Defs.trinket(trinketKey)
+        local trinket = trinketKey and trinkets[trinketKey]
         total = total + ((trinket and trinket[key]) or 0)
     end
     for _, status in ipairs(hero.statuses or {}) do
         if status.kind == "injury" then
-            local injury = Defs.injury(status.injury)
+            local injury = injuries[status.injury]
             total = total + ((injury and injury[key]) or 0)
         end
     end
     if key == "damageBonus" and contains(hero.quirks, "quirk_bound_by_page") and self.expedition and self.expedition.location == "buried_archive" then
-        total = total + (Defs.quirk("quirk_bound_by_page").custodianSkillBonus or 0)
+        total = total + ((quirks.quirk_bound_by_page and quirks.quirk_bound_by_page.custodianSkillBonus) or 0)
     end
     total = total + self:trinketSetModifier(hero, key)
     return total
@@ -856,7 +872,7 @@ function Simulation:moveHeroRank(fromRank, delta)
 end
 
 function Simulation:classDef(hero)
-    return Defs.heroClass(hero.class)
+    return Defs.heroClasses[hero.class]
 end
 
 function Simulation:maxHp(hero)
@@ -3035,7 +3051,8 @@ function Simulation:actorSpeed(actor)
         return hero and self:heroSpeed(hero) or 0
     end
     local enemy = self.combat.enemies[actor.id]
-    return enemy and Defs.enemy(enemy.kind).speed or 0
+    local enemyDef = enemy and Defs.enemies[enemy.kind]
+    return enemyDef and enemyDef.speed or 0
 end
 
 function Simulation:buildTurnQueue()
