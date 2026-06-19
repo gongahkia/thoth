@@ -11,3 +11,9 @@ Learned:
 Risk introduced:
 
 - `tests/assets.lua` now depends on `git ls-files assets`; it verifies tracked assets in a checkout, but requires `git` in the test environment.
+
+## 2026-06-20 Phase 7 CI Check
+
+- Latest remote `Thoth Lua CI` run: success, run `27834182764`, branch `main`, commit `f8cb13e`.
+- Local `phase1-engine-port` has no remote branch/run; current verification for local commits is `make check` pass.
+- Risk: phase-completion tags created locally need a push before GitHub Actions can verify those exact refs.
