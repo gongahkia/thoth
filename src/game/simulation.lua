@@ -675,6 +675,7 @@ function Simulation:startExpedition(locationKey)
         torch = 75,
         supplies = supplies,
         loot = Inventory.new(),
+        packSlots = 12,
         visitedRooms = {},
         scoutedRooms = {},
         clearedEncounters = {},
@@ -730,6 +731,25 @@ function Simulation:endExpedition(retreat)
     self.expedition.active = false
     self:refillRecruits()
     return true
+end
+
+function Simulation:lootSlotsUsed()
+    if not self.expedition then
+        return 0
+    end
+    return #self.expedition.loot:stacks()
+end
+
+function Simulation:addLoot(item, count)
+    if not self.expedition or not Defs.item(item) or (count or 0) <= 0 then
+        return false
+    end
+    local capacity = self.expedition.packSlots or 12
+    if self.expedition.loot:count(item) <= 0 and self:lootSlotsUsed() >= capacity then
+        self:pushLog("pack full")
+        return false
+    end
+    return self.expedition.loot:add(item, count)
 end
 
 function Simulation:awardXp(hero, amount)
@@ -1252,7 +1272,7 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
         usedItem = true
     end
     for item, count in pairs(curio.loot or {}) do
-        self.expedition.loot:add(item, usedItem and count or math.max(1, math.floor(count / 2)))
+        self:addLoot(item, usedItem and count or math.max(1, math.floor(count / 2)))
     end
     local hero = self:heroAtRank(self.player.selectedHero) or self:heroAtRank(1)
     if curio.damage and not usedItem then
@@ -1719,8 +1739,8 @@ function Simulation:finishCombat(victory)
     if victory then
         if self.expedition then
             self.expedition.clearedEncounters[self.combat.roomKey or self.combat.encounter] = true
-            self.expedition.loot:add("coin", self.combat.encounter == "regent" and 120 or 35)
-            self.expedition.loot:add("heirloom", self.combat.encounter == "regent" and 2 or 1)
+            self:addLoot("coin", self.combat.encounter == "regent" and 120 or 35)
+            self:addLoot("heirloom", self.combat.encounter == "regent" and 2 or 1)
             for rank = 1, 4 do
                 local hero = self:heroAtRank(rank)
                 if hero and hero.alive then
@@ -2023,6 +2043,7 @@ function Simulation:missionProgressText()
     end
     return mission.kind .. " " .. progress .. "/" .. target
         .. "  light " .. self.expedition.torch
+        .. "  pack " .. self:lootSlotsUsed() .. "/" .. (self.expedition.packSlots or 12)
         .. "  loot " .. self.expedition.loot:count("coin") .. "c"
 end
 
@@ -2122,6 +2143,7 @@ function Simulation:snapshot()
             torch = self.expedition.torch,
             supplies = self.expedition.supplies:stacks(),
             loot = self.expedition.loot:stacks(),
+            packSlots = self.expedition.packSlots,
             visitedRooms = copyMap(self.expedition.visitedRooms),
             scoutedRooms = copyMap(self.expedition.scoutedRooms),
             clearedEncounters = copyMap(self.expedition.clearedEncounters),
@@ -2264,6 +2286,7 @@ function Simulation.fromSnapshot(snapshot)
             torch = exp.torch or 0,
             supplies = inventoryFromStacks(exp.supplies),
             loot = inventoryFromStacks(exp.loot),
+            packSlots = exp.packSlots or 12,
             visitedRooms = copyMap(exp.visitedRooms),
             scoutedRooms = copyMap(exp.scoutedRooms),
             clearedEncounters = copyMap(exp.clearedEncounters),

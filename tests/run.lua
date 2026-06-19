@@ -362,6 +362,15 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(54)
+    sim.expedition.packSlots = 1
+    expect(sim:addLoot("coin", 10), "first loot stack should fit")
+    expect(sim:addLoot("coin", 5), "existing loot stack should ignore slot limit")
+    expect(not sim:addLoot("heirloom", 1), "new loot stack should fail when pack is full")
+    expect(sim.expedition.loot:count("coin") == 15 and sim.expedition.loot:count("heirloom") == 0, "pack full should preserve loot counts")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(26)
     sim.expedition.roomsScouted = 3
     sim.expedition.objectiveComplete = true
