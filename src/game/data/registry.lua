@@ -1364,6 +1364,15 @@ Registry.missions = {
         resolveLevel = 1,
         objectiveItems = { sealed_name = 2 },
         extractionChoice = true,
+        progressLabel = "sealed names recovered",
+        objectiveLabel = "recover",
+        objectiveNext = "Recover 2 sealed names from the intake branch and leave before the names are priced.",
+        campHint = "Camp after the first name if stress or cargo risk starts climbing.",
+        regentHint = "Ignore the Regent; this run is extraction, not command.",
+        intro = {
+            brief = "Recover two sealed names before the Archive sells them back as evidence.",
+            sting = "A name is a debt with a pulse still attached.",
+        },
         reward = { gold = 125, heirlooms = 2, trinket = "wax_seal_remand" },
     },
     archive_false_index = {
@@ -1376,6 +1385,15 @@ Registry.missions = {
         objectiveActivations = 1,
         questProvision = { { item = "false_index_writ", count = 1 } },
         dreadTradeoff = 1,
+        progressLabel = "false index burned",
+        objectiveLabel = "burn",
+        objectiveNext = "Use the False Index Writ at the false index, then leave before the correction spreads.",
+        campHint = "Camp before the rite if dread or stress is already near collapse.",
+        regentHint = "Do not open the sealed gate; the false index is the target.",
+        intro = {
+            brief = "Carry the writ to the false index and burn one branch of fraudulent record.",
+            sting = "Correction is still violence when the Archive owns the ink.",
+        },
         reward = { gold = 115, heirlooms = 3 },
     },
     archive_page_bearer = {
@@ -1387,6 +1405,15 @@ Registry.missions = {
         resolveLevel = 3,
         objectiveItems = { page_bearer = 1 },
         fragileCargo = "page_bearer",
+        progressLabel = "page-bearer escorted",
+        objectiveLabel = "escort",
+        objectiveNext = "Escort the Page-Bearer out with the cargo intact.",
+        campHint = "Camp before the long return if the escort has drawn pressure.",
+        regentHint = "Leave the Regent sealed; the living page is the win condition.",
+        intro = {
+            brief = "Escort the Page-Bearer before the Archive files the witness as property.",
+            sting = "A witness carried alive is harder to edit.",
+        },
         reward = { gold = 150, heirlooms = 3 },
     },
     archive_intake_map = {
@@ -1398,6 +1425,15 @@ Registry.missions = {
         resolveLevel = 1,
         objectiveRooms = 4,
         noBossGate = true,
+        progressLabel = "intake rooms mapped",
+        objectiveLabel = "map",
+        objectiveNext = "Scout 4 intake rooms and return with the branch layout.",
+        campHint = "Camp only if the intake loop costs more stress than torchlight.",
+        regentHint = "The boss gate is sealed off for this mapping run.",
+        intro = {
+            brief = "Map four intake rooms so the Estate can name where the Archive starts charging.",
+            sting = "A clean map is the first lie every expedition needs.",
+        },
         reward = { gold = 95, heirlooms = 2 },
     },
     archive_audit_page_bearer = {
