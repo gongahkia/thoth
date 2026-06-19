@@ -291,6 +291,49 @@ do
     expect(redRegent and redRegent.boss and redRegent.parts[1].skillLocks[1] == "red_stress_clause", "regent in red weak point missing")
 end
 
+do
+    local cistern = Defs.location("salt_cistern")
+    expect(cistern.layout.grammar.id == "cistern_grammar_v1", "cistern grammar missing")
+    for _, key in ipairs({ "pump_forest_tier", "drowned_market_tier", "deep_sluice_tier" }) do
+        expect(cistern.tiers[key], "cistern tier missing " .. key)
+    end
+    for _, key in ipairs({
+        "pump_forest", "brine_intake", "drowned_market", "sluice_chapel",
+        "cyst_chamber", "filter_shrine", "bell_diver_gate",
+    }) do
+        expect(cistern.layout.roomTemplates[key], "cistern room template missing " .. key)
+    end
+    for _, key in ipairs({ "pressure_walk", "maintenance_siphon", "undertow_walk" }) do
+        expect(cistern.layout.corridorRoles[key], "cistern corridor role missing " .. key)
+    end
+    local threatKeys = {}
+    for _, threat in ipairs(cistern.layout.threats) do
+        threatKeys[threat.key] = true
+    end
+    expect(threatKeys.depth_bailiff and threatKeys.pearl_choir, "cistern visible alpha threats missing")
+    for _, key in ipairs({
+        "cistern_low_reservoir", "cistern_salt_register", "cistern_gatekeepers",
+        "cistern_silence_choir", "cistern_drain_market", "cistern_tov_child",
+        "cistern_flood_bailiff", "cistern_open_deep_sluice",
+    }) do
+        expect(Defs.mission(key), "cistern v2 mission missing " .. key)
+    end
+    for _, key in ipairs({
+        "valve_thrall", "brine_midwife", "sluice_eel", "salt_choir", "pearl_cyst",
+        "depth_bailiff", "pearl_choir", "halocline_tender", "drowned_pilgrim",
+        "reed_mouth_diver", "silt_mother", "cyst_burst",
+    }) do
+        expect(Defs.enemy(key), "cistern v2 enemy missing " .. key)
+    end
+    for _, key in ipairs({ "shutoff_shrine", "silted_cradle", "pressure_bell", "brine_reliquary" }) do
+        expect(Defs.curio(key), "cistern v2 curio missing " .. key)
+    end
+    expect(Defs.trinket("filtered_tooth"), "cistern trinket missing")
+    expect(Defs.narrationFor("cistern_voice_v2"), "cistern narration missing")
+    local floodToll = Defs.enemy("bell_diver_flood_toll")
+    expect(floodToll and floodToll.boss and floodToll.parts[1].key == "bell_lung", "bell diver flood-toll weak point missing")
+end
+
 for key, mission in pairs(Defs.missions) do
     expect(mission.name and Defs.location(mission.location), "mission missing location " .. key)
     expect(mission.kind == "scout" or mission.kind == "cleanse" or mission.kind == "boss" or mission.kind == "gather" or mission.kind == "activate", "mission bad kind " .. key)

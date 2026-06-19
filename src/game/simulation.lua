@@ -156,7 +156,7 @@ local function newEnemy(id, kind, rank)
             exposeDamage = part.exposeDamage or 0,
         }
     end
-    return { id = id, kind = kind, rank = rank, hp = def.maxHp, stress = 0, statuses = {}, guard = 0, parts = parts }
+    return { id = id, kind = kind, rank = rank, hp = def.maxHp, stress = 0, statuses = {}, guard = 0, parts = parts, resurrected = false, deathSpawned = false }
 end
 
 local function cloneEnemy(enemy)
@@ -186,6 +186,8 @@ local function cloneEnemy(enemy)
         statuses = statuses,
         guard = enemy.guard or 0,
         parts = parts,
+        resurrected = enemy.resurrected == true,
+        deathSpawned = enemy.deathSpawned == true,
     }
 end
 
@@ -1110,6 +1112,9 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
         if mission.dreadBonus then
             campaign.dread = (campaign.dread or 0) + mission.dreadBonus
         end
+        if mission.dreadTradeoff then
+            campaign.dread = (campaign.dread or 0) + mission.dreadTradeoff
+        end
         campaign.completedMissions[missionKey] = true
         campaign.locationProgress[locationKey] = (campaign.locationProgress[locationKey] or 0) + progress
         if mission.kind == "boss" then
@@ -1891,6 +1896,22 @@ function Simulation:applyCorridorRole(corridor)
         self:pushLog(role .. " raised noise")
         return true
     end
+    if roleDef.floodAfterActivations and (self.expedition.questActivations or 0) >= roleDef.floodAfterActivations then
+        self:addNoise(roleDef.noise or 1)
+        self:pushLog(role .. " flooded")
+        return true
+    end
+    if roleDef.diseaseRisk then
+        local hero = self:heroAtRank(self.player.selectedHero) or self:heroAtRank(1)
+        self:contractDisease(hero, roleDef.diseaseRisk)
+        self:pushLog(role .. " carried disease")
+        return true
+    end
+    if roleDef.rankPullLowTorch and (self.expedition.torch or 0) < (roleDef.torchThreshold or 35) then
+        self:moveHeroRank(1, 1)
+        self:pushLog(role .. " pulled ranks")
+        return true
+    end
     if roleDef.torchCost then
         self:decayTorch(roleDef.torchCost)
         self:pushLog(role .. " cost torch")
@@ -2059,6 +2080,9 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
                 self:addStress(hero, curio.stress)
             end
         end
+        if curio.partyStressHeal then
+            self:healPartyStress(curio.partyStressHeal)
+        end
         if curio.dread then
             self:adjustDread(curio.dread)
         end
@@ -2085,12 +2109,21 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
             self:maybeContractDisease(hero, curioKey)
         end
     end
+    if curio.disease and not usedItem then
+        self:contractDisease(hero, curio.disease)
+    end
     if curio.stress then
         if curio.stress < 0 then
             self:healStress(hero, -curio.stress)
         else
             self:addStress(hero, usedItem and math.floor(curio.stress / 2) or curio.stress)
         end
+    end
+    if curio.partyStressHeal and usedItem then
+        self:healPartyStress(curio.partyStressHeal)
+    end
+    if curio.noise and not usedItem then
+        self:addNoise(curio.noise)
     end
     if curio.dread and (curio.dread > 0 or usedItem) then
         self:adjustDread(curio.dread)
@@ -2417,6 +2450,30 @@ function Simulation:enemyProtectorFor(enemy)
     return nil
 end
 
+function Simulation:afterEnemyDamaged(enemy)
+    if not enemy or enemy.hp > 0 then
+        return false
+    end
+    local def = Defs.enemy(enemy.kind)
+    if not def then
+        return false
+    end
+    if def.resurrectOnce and not enemy.resurrected then
+        enemy.resurrected = true
+        enemy.hp = math.max(1, math.floor((def.maxHp or 2) / 2))
+        self:pushLog(def.name .. " rose again", { event = "danger", actor = def.name, side = "enemy" })
+        return true
+    end
+    if def.deathSpawn and not enemy.deathSpawned then
+        enemy.deathSpawned = true
+        local spawned = newEnemy(#self.combat.enemies + 1, def.deathSpawn, enemy.rank or (#self.combat.enemies + 1))
+        self.combat.enemies[#self.combat.enemies + 1] = spawned
+        self:pushLog(def.name .. " burst", { event = "danger", actor = def.name, side = "enemy" })
+        return true
+    end
+    return false
+end
+
 function Simulation:damageEnemyPart(enemy, partKey, amount)
     local part = self:enemyPart(enemy, partKey)
     if not part or part.disabled then
@@ -2630,6 +2687,9 @@ function Simulation:enemyTurn(enemy)
                 self:maybeContractDisease(target, skillKey)
             end
         end
+        if skill.disease and target.alive then
+            self:contractDisease(target, skill.disease)
+        end
         if skill.injuryChance and target.alive and self:roll(1, 100) <= skill.injuryChance then
             self:addRandomInjury(target, skillKey)
         end
@@ -2644,6 +2704,14 @@ function Simulation:enemyTurn(enemy)
         for _, ally in ipairs(self.combat.enemies or {}) do
             if ally ~= enemy and ally.hp > 0 and math.abs((ally.rank or 0) - (enemy.rank or 0)) <= 1 then
                 ally.stress = math.max(0, (ally.stress or 0) - def.supportStressRestore)
+            end
+        end
+    end
+    if def.supportHeal then
+        for _, ally in ipairs(self.combat.enemies or {}) do
+            local allyDef = Defs.enemy(ally.kind)
+            if ally ~= enemy and ally.hp > 0 and allyDef and math.abs((ally.rank or 0) - (enemy.rank or 0)) <= 1 then
+                ally.hp = math.min(allyDef.maxHp, ally.hp + def.supportHeal)
             end
         end
     end
@@ -2804,6 +2872,7 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
                 self:damageEnemyPart(unit, target.partKey, damage)
             else
                 unit.hp = math.max(0, unit.hp - damage)
+                self:afterEnemyDamaged(unit)
             end
         end
         if skill.stressDamage and targetSide == "enemy" then
@@ -2812,6 +2881,7 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
             else
                 unit.hp = math.max(0, unit.hp - skill.stressDamage)
                 unit.stress = (unit.stress or 0) + skill.stressDamage
+                self:afterEnemyDamaged(unit)
             end
         end
         if skill.heal then

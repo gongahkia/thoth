@@ -2,48 +2,6 @@
 
 Loose Markdown backlog. Task lines keep todo-ish metadata for search/filter use.
 
-## Salt Cistern
-
-- [ ] (A) Add cistern layout grammar with pump hub, valve loop, drowned shortcut, and sluice boss gate +SaltCistern @worldgen type:layout zone:salt_cistern id:cistern_grammar_v1
-- [ ] (A) Add cistern room template called pump_forest with column cover and long sightline +SaltCistern @worldgen type:room zone:salt_cistern id:pump_forest
-- [ ] (A) Add cistern room template called brine_intake with water hazard and visible alpha anchor +SaltCistern @worldgen type:room zone:salt_cistern id:brine_intake
-- [ ] (B) Add cistern room template called drowned_market with survivor trace and reward curio +SaltCistern @worldgen type:room zone:salt_cistern id:drowned_market
-- [ ] (B) Add cistern corridor role called pressure_walk that may flood after valve use +SaltCistern @simulation type:corridor zone:salt_cistern id:pressure_walk
-- [ ] (B) Add cistern corridor role called maintenance_siphon that shortcuts at disease risk +SaltCistern @simulation type:corridor zone:salt_cistern id:maintenance_siphon
-- [ ] (A) Add mission Bleed the Low Reservoir with valve activations and rising ambush odds +SaltCistern @registry type:mission zone:salt_cistern id:cistern_low_reservoir
-- [ ] (A) Add mission Recover the Salt Register with gather objective behind flood route +SaltCistern @registry type:mission zone:salt_cistern id:cistern_salt_register
-- [ ] (B) Add mission Spare the Gatekeepers with noncombat repair objective +SaltCistern @registry type:mission zone:salt_cistern id:cistern_gatekeepers
-- [ ] (A) Add enemy Valve Thrall as armor guard that punishes front ranks +SaltCistern @registry type:enemy zone:salt_cistern id:valve_thrall
-- [ ] (A) Add enemy Brine Midwife as stress caster and disease vector +SaltCistern @registry type:enemy zone:salt_cistern id:brine_midwife
-- [ ] (A) Add enemy Sluice Eel as scout/pursuer that prefers marked back ranks +SaltCistern @registry type:enemy zone:salt_cistern id:sluice_eel
-- [ ] (B) Add enemy Salt Choir as support that heals or buffs drowned units +SaltCistern @registry type:enemy zone:salt_cistern id:salt_choir
-- [ ] (B) Add enemy Pearl Cyst as trapper that dazes and creates injury chance +SaltCistern @registry type:enemy zone:salt_cistern id:pearl_cyst
-- [ ] (B) Add enemy Depth Bailiff as rare alpha guarding shortcuts +SaltCistern @registry type:enemy zone:salt_cistern id:depth_bailiff
-- [ ] (A) Add boss variant Bell Diver Flood-Toll with weak point Bell Lung +SaltCistern @combat type:boss_variant zone:salt_cistern id:bell_diver_flood_toll
-- [ ] (B) Add curio Shutoff Shrine with valve_key safe use and party stress heal +SaltCistern @registry type:curio zone:salt_cistern id:shutoff_shrine
-- [ ] (B) Add curio Silted Cradle with salve safe use and brine_rot failure +SaltCistern @registry type:curio zone:salt_cistern id:silted_cradle
-- [ ] (C) Add trinket Filtered Tooth for blight resist and speed penalty +SaltCistern @registry type:trinket zone:salt_cistern id:filtered_tooth
-- [ ] (A) Add narration bank for valves, rising water, drowned bargains, and flood retreat +SaltCistern @narration type:voice zone:salt_cistern id:cistern_voice_v2
-- [ ] (A) Add cistern sub-tier definitions for pump_forest_tier, drowned_market_tier, and deep_sluice_tier +SaltCistern @worldgen type:tier zone:salt_cistern id:cistern_tiers_v1
-- [ ] (A) Add cistern room template called sluice_chapel with stand-on-pressure puzzle and visible alpha +SaltCistern @worldgen type:room zone:salt_cistern id:sluice_chapel
-- [ ] (A) Add cistern room template called cyst_chamber as Tier II mini-boss arena with rising water +SaltCistern @worldgen type:room zone:salt_cistern id:cyst_chamber
-- [ ] (B) Add cistern room template called filter_shrine with disease-cure curio and faction cost +SaltCistern @worldgen type:room zone:salt_cistern id:filter_shrine
-- [ ] (B) Add cistern room template called bell_diver_gate as Tier III boss antechamber +SaltCistern @worldgen type:room zone:salt_cistern id:bell_diver_gate
-- [ ] (B) Add cistern corridor role called undertow_walk that pulls heroes one rank back if torch is low +SaltCistern @simulation type:corridor zone:salt_cistern id:undertow_walk
-- [ ] (A) Add mini-boss warden Pearl Choir as visible alpha that re-floods drained rooms unless silenced +SaltCistern @combat type:warden zone:salt_cistern id:pearl_choir
-- [ ] (A) Add enemy Halocline Tender as caster that swaps party ranks via current +SaltCistern @registry type:enemy zone:salt_cistern id:halocline_tender
-- [ ] (A) Add enemy Drowned Pilgrim as armor guard that resurrects once at half HP +SaltCistern @registry type:enemy zone:salt_cistern id:drowned_pilgrim
-- [ ] (B) Add enemy Reed-Mouth Diver as scout/pursuer that flees to call_help under pressure +SaltCistern @registry type:enemy zone:salt_cistern id:reed_mouth_diver
-- [ ] (B) Add enemy Silt Mother as trapper that creates brine_rot risk on hit +SaltCistern @registry type:enemy zone:salt_cistern id:silt_mother
-- [ ] (B) Add enemy Cyst Burst as swarm spawned by Pearl Cyst on death +SaltCistern @registry type:enemy zone:salt_cistern id:cyst_burst
-- [ ] (A) Add mission Silence the Pearl Choir with mini-boss objective and enclave petition tradeoff +SaltCistern @registry type:mission zone:salt_cistern id:cistern_silence_choir
-- [ ] (A) Add mission Drain the Drowned Market with timed valve sequence and enclave evacuation +SaltCistern @registry type:mission zone:salt_cistern id:cistern_drain_market
-- [ ] (B) Add mission Recover the Tov Child with rescue objective and enclave reward +SaltCistern @registry type:mission zone:salt_cistern id:cistern_tov_child
-- [ ] (B) Add mission Flood the Bailiff Walk with hazard-deployment objective and dread cost +SaltCistern @registry type:mission zone:salt_cistern id:cistern_flood_bailiff
-- [ ] (B) Add mission Open the Deep Sluice with key-assembly objective and Tier III unlock +SaltCistern @registry type:mission zone:salt_cistern id:cistern_open_deep_sluice
-- [ ] (B) Add curio Pressure Bell with valve_key safe use and noise spike on greedy use +SaltCistern @registry type:curio zone:salt_cistern id:pressure_bell
-- [ ] (C) Add curio Brine Reliquary with salve repair use and enclave favor reward +SaltCistern @registry type:curio zone:salt_cistern id:brine_reliquary
-
 ## Ember Warrens
 
 - [ ] (A) Add warrens layout grammar with kiln nave, ash bypass, fuel branch, penitent loop, and furnace boss gate +EmberWarrens @worldgen type:layout zone:ember_warrens id:ember_grammar_v1

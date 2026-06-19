@@ -170,6 +170,71 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local choir = World.new(106, "salt_cistern", { tiles = {}, layoutId = "cistern_silence_choir" })
+    local sluice = World.new(106, "salt_cistern", { tiles = {}, layoutId = "cistern_open_deep_sluice" })
+    expect(choir:layout().generatedLayoutId == World.fromSnapshot(choir:snapshot()):layout().generatedLayoutId, "cistern mission layout should snapshot deterministically")
+    expect(choir:encounterForRoom("6:10") == "cistern_choir" and choir:encounterForRoom("18:10") == nil, "pearl choir mission should replace boss gate")
+    expect(sluice:encounterForRoom("18:10") == "matron" and sluice:encounterForRoom("18:4") == "cistern_bailiff", "deep sluice mission should place bailiff and boss gate")
+    expect(choir:layout().roomTemplateByRole.pump_hub == "pump_forest", "cistern layout should expose room template roles")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(107)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_low_reservoir"))
+    sim.expedition.questActivations = 1
+    local noise = sim.expedition.noise
+    sim:applyCorridorRole(sim.world:corridorAt(1, 0))
+    expect(sim.expedition.noise == noise + 2, "pressure walk should flood after valve use")
+    local hero = sim:heroAtRank(1)
+    sim.expedition.currentCorridor = nil
+    sim:applyCorridorRole(sim.world:corridorAt(6, 6))
+    expect(contains(hero.diseases, "brine_rot"), "maintenance siphon should risk brine rot")
+    local firstHero = sim.party[1]
+    sim.expedition.torch = 0
+    sim.expedition.currentCorridor = nil
+    sim:applyCorridorRole(sim.world:corridorAt(18, 6))
+    expect(sim.party[1] ~= firstHero, "undertow walk should pull front rank at low torch")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(108)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_low_reservoir"))
+    expect(sim.expedition.supplies:count("valve_key") == 2 and sim.expedition.noise == 2, "low reservoir should grant keys and pressure")
+    sim:resolveCurio(6, 5, 0, "tide_valve")
+    sim:resolveCurio(18, 5, 0, "tide_valve")
+    expect(sim.expedition.objectiveComplete, "low reservoir should complete after two valves")
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_open_deep_sluice"))
+    sim:resolveCurio(6, 11, 0, "deep_sluice_key")
+    sim:resolveCurio(18, 9, 0, "deep_sluice_key")
+    expect(sim.expedition.objectiveComplete, "deep sluice should complete after key assembly")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(109)
+    sim:endExpedition(true)
+    sim.estate.campaign.dread = 4
+    runQueued(sim, Simulation.commands.startExpedition("cistern_bell"))
+    expect(sim:startCombat("matron", "18:10"), "cistern boss variant combat should start")
+    expect(sim.combat.encounter == "matron_toll" and sim.combat.enemies[1].kind == "bell_diver_flood_toll", "high dread should select bell diver flood-toll")
+    expect(sim.combat.enemies[1].parts[1].key == "bell_lung", "bell diver variant should expose Bell Lung")
+    sim:finishCombat(true)
+    sim:startCombat("cistern_cyst", "cyst_spawn_test")
+    local cyst = sim.combat.enemies[1]
+    cyst.hp = 0
+    sim:afterEnemyDamaged(cyst)
+    expect(sim.combat.enemies[#sim.combat.enemies].kind == "cyst_burst", "pearl cyst should spawn cyst burst on death")
+    sim:finishCombat(true)
+    sim:startCombat("cistern_bailiff", "pilgrim_rise_test")
+    local pilgrim = sim.combat.enemies[2]
+    pilgrim.hp = 0
+    sim:afterEnemyDamaged(pilgrim)
+    expect(pilgrim.resurrected and pilgrim.hp > 0, "drowned pilgrim should resurrect once")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(47)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("cistern_survey"))

@@ -76,7 +76,46 @@ function World:layout()
     if layout and layout.generator == "mission_grammar" then
         return self:missionGrammarLayout(location)
     end
+    if layout and layout.grammar and self.layoutId then
+        return self:staticMissionLayout(location)
+    end
     return layout
+end
+
+function World:staticMissionLayout(location)
+    if self.generatedLayout then
+        return self.generatedLayout
+    end
+    local base = deepCopy(location.layout)
+    local layoutId = self.layoutId or ""
+    base.generated = true
+    base.generatedLayoutId = (base.grammar and base.grammar.id or "static_layout") .. ":" .. layoutId
+    base.roomTemplateByRole = {}
+    for templateKey, template in pairs(base.roomTemplates or {}) do
+        if template.role then
+            base.roomTemplateByRole[template.role] = templateKey
+        end
+    end
+    base.encounters = deepCopy(location.encounters or {})
+    if layoutId == "cistern_silence_choir" then
+        base.encounters["6:10"] = "cistern_choir"
+        base.encounters["18:10"] = nil
+    elseif layoutId == "cistern_drain_market" then
+        base.encounters["12:10"] = "cistern_market"
+        base.encounters["6:10"] = "cistern_cyst"
+    elseif layoutId == "cistern_flood_bailiff" then
+        base.encounters["18:4"] = "cistern_bailiff"
+    elseif layoutId == "cistern_open_deep_sluice" then
+        base.encounters["18:4"] = "cistern_bailiff"
+        base.encounters["18:10"] = "matron"
+    end
+    for _, corridor in ipairs(base.corridors or {}) do
+        local a = tostring(corridor.ax) .. ":" .. tostring(corridor.ay)
+        local b = tostring(corridor.bx) .. ":" .. tostring(corridor.by)
+        corridor.key = a < b and (a .. ">" .. b) or (b .. ">" .. a)
+    end
+    self.generatedLayout = base
+    return base
 end
 
 function World:missionGrammarLayout(location)
