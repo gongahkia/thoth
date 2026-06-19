@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke keyboard-smoke controller-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke keyboard-smoke controller-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -150,6 +150,20 @@ credits-smoke:
 	grep -q "credits-smoke-assets=1" $$tmp; \
 	grep -q "credits-smoke-libraries=2" $$tmp; \
 	grep -q "credits-smoke-back=1" $$tmp; \
+	rm -f $$tmp
+
+journal-smoke:
+	@set -e; \
+	tmp=$$(mktemp); \
+	if command -v xvfb-run >/dev/null 2>&1; then \
+		xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --journal-smoke | tee $$tmp; \
+	else \
+		$(LOVE) . --journal-smoke | tee $$tmp; \
+	fi; \
+	grep -q "journal-smoke-state=journal" $$tmp; \
+	grep -q "journal-smoke-documents=1" $$tmp; \
+	grep -q "journal-smoke-epitaphs=1" $$tmp; \
+	grep -q "journal-smoke-buttons=" $$tmp; \
 	rm -f $$tmp
 
 keyboard-smoke:

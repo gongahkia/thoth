@@ -610,6 +610,57 @@ local function mouseCredits(state, x, y)
     return false
 end
 
+local function openJournal(state, returnState)
+    state.journalReturnState = returnState or "game"
+    state.uiState = "journal"
+    state.journalTab = state.journalTab or "documents"
+    state.journalIndex = state.journalIndex or 1
+    state.status = "journal"
+end
+
+local function keyJournal(state, key)
+    local summary = Render.journalSummary(sim)
+    local items = state.journalTab == "epitaphs" and summary.epitaphs or summary.documents
+    if key == "left" or key == "a" or key == "right" or key == "d" then
+        state.journalTab = state.journalTab == "documents" and "epitaphs" or "documents"
+        state.journalIndex = 1
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "up" or key == "w" then
+        state.journalIndex = math.max(1, (state.journalIndex or 1) - 1)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "down" or key == "s" then
+        state.journalIndex = math.min(math.max(1, #items), (state.journalIndex or 1) + 1)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "escape" or key == "backspace" or key == "return" or key == "kpenter" then
+        state.uiState = state.journalReturnState or "game"
+        Audio.play(state.audio, "tick")
+    end
+end
+
+local function mouseJournal(state, x, y)
+    for _, hitbox in ipairs((state.ui and state.ui.journalButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            if hitbox.action == "tab" then
+                state.journalTab = hitbox.tab
+                state.journalIndex = 1
+            elseif hitbox.action == "select" then
+                state.journalIndex = hitbox.selection
+            elseif hitbox.action == "back" then
+                state.uiState = state.journalReturnState or "game"
+            end
+            Audio.play(state.audio, "tick")
+            return true
+        end
+    end
+    return false
+end
+
 local function printRenderSmoke(state)
     if not state.renderSmoke or state.renderSmokePrinted then
         return
@@ -810,6 +861,18 @@ local function printControllerSmoke(state)
     print("controller-smoke-axis=" .. tostring(Input.gamepadAxisKey("leftx", 0.8, axisState)))
 end
 
+local function printJournalSmoke(state)
+    if not state.journalSmoke or state.journalSmokePrinted then
+        return
+    end
+    state.journalSmokePrinted = true
+    local summary = Render.journalSummary(sim)
+    print("journal-smoke-state=" .. tostring(state.uiState))
+    print("journal-smoke-documents=" .. tostring(#summary.documents))
+    print("journal-smoke-epitaphs=" .. tostring(#summary.epitaphs))
+    print("journal-smoke-buttons=" .. tostring(#((state.ui and state.ui.journalButtons) or {})))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -826,7 +889,8 @@ function love.load(args)
     local confirmSmoke = hasArg(args, "--confirm-smoke")
     local keyboardSmoke = hasArg(args, "--keyboard-smoke")
     local controllerSmoke = hasArg(args, "--controller-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke
+    local journalSmoke = hasArg(args, "--journal-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
@@ -855,6 +919,13 @@ function love.load(args)
         sim.estate.campaign.dreadLimit = 2
         sim.estate.campaign.dread = 2
         sim:evaluateCampaignState()
+    end
+    if journalSmoke then
+        sim:collectDocument("archive_writ_01", "smoke")
+        local hero = sim:heroAtRank(1)
+        hero.deathsDoor = true
+        hero.deathblowResist = 0
+        sim:damageHero(hero, hero.hp + 1)
     end
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
@@ -885,6 +956,7 @@ function love.load(args)
         confirmSmoke = confirmSmoke,
         keyboardSmoke = keyboardSmoke,
         controllerSmoke = controllerSmoke,
+        journalSmoke = journalSmoke,
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -904,6 +976,9 @@ function love.load(args)
     if confirmSmoke then
         openPause(app)
         openConfirm(app, "Quit to Title", "Abandon this expedition and return to title?", "quitTitle")
+    end
+    if journalSmoke then
+        openJournal(app, "game")
     end
     Render.load()
 end
@@ -984,6 +1059,11 @@ function love.draw()
         printCreditsSmoke(app)
         return
     end
+    if app.uiState == "journal" then
+        Render.drawJournal(sim, app)
+        printJournalSmoke(app)
+        return
+    end
     local started = app.renderBenchmark and love.timer.getTime() or nil
     Render.draw(sim, app)
     printRenderSmoke(app)
@@ -1031,6 +1111,10 @@ local function handleKey(key)
         keyCredits(app, key)
         return
     end
+    if app.uiState == "journal" then
+        keyJournal(app, key)
+        return
+    end
     if app.confirmDialog then
         keyConfirm(app, key)
         return
@@ -1044,6 +1128,11 @@ local function handleKey(key)
             return
         end
         openPause(app)
+        Audio.play(app.audio, "tick")
+        return
+    end
+    if key == "j" then
+        openJournal(app, "game")
         Audio.play(app.audio, "tick")
         return
     end
@@ -1114,6 +1203,10 @@ function love.mousepressed(x, y, button)
     end
     if button == 1 and app.uiState == "credits" then
         mouseCredits(app, x, y)
+        return
+    end
+    if button == 1 and app.uiState == "journal" then
+        mouseJournal(app, x, y)
         return
     end
     if button == 1 and app.confirmDialog then

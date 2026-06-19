@@ -589,6 +589,9 @@ function Input.mousepressed(sim, app, x, y, button)
                 app.rosterFilter = hitbox.filter
             elseif hitbox.action == "rosterSort" then
                 app.rosterSort = hitbox.sort
+            elseif hitbox.action == "openJournal" then
+                app.journalReturnState = "game"
+                app.uiState = "journal"
             end
             app.status = hitbox.action
             play(app, "craft")

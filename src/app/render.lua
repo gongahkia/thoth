@@ -248,6 +248,7 @@ function Render.prepareUi(app)
     app.ui.confirmButtons = app.ui.confirmButtons or {}
     app.ui.gameOverButtons = app.ui.gameOverButtons or {}
     app.ui.creditsButtons = app.ui.creditsButtons or {}
+    app.ui.journalButtons = app.ui.journalButtons or {}
     app.ui.titleButtons = app.ui.titleButtons or {}
     app.ui.settingsButtons = app.ui.settingsButtons or {}
     clearList(app.ui.skillButtons)
@@ -267,6 +268,7 @@ function Render.prepareUi(app)
     clearList(app.ui.confirmButtons)
     clearList(app.ui.gameOverButtons)
     clearList(app.ui.creditsButtons)
+    clearList(app.ui.journalButtons)
     clearList(app.ui.titleButtons)
     clearList(app.ui.settingsButtons)
 end
@@ -1261,6 +1263,115 @@ function Render.drawCredits(app)
     love.graphics.printf("scroll " .. tostring(app.creditsScroll) .. "/" .. tostring(maxScroll), width - 260, height - 72, 180, "right")
     love.graphics.pop()
     return data
+end
+
+function Render.journalSummary(sim)
+    local documents = {}
+    for _, entry in ipairs(sim and sim.journalEntries and sim:journalEntries() or {}) do
+        local document = Defs.document(entry.key) or {}
+        documents[#documents + 1] = {
+            key = entry.key,
+            title = entry.title,
+            typeName = entry.typeName,
+            location = entry.location,
+            abstract = entry.abstract,
+            text = document.text or "",
+        }
+    end
+    local epitaphs = {}
+    for index, death in ipairs((sim and sim.estate and sim.estate.graveyard) or {}) do
+        local location = death.location or "estate"
+        local lines = Defs.graveyardEpitaphsFor(location) or Defs.graveyardEpitaphsFor("estate") or {}
+        local line = lines[((death.id or index) - 1) % math.max(1, #lines) + 1] or "recorded without epitaph"
+        local class = Defs.heroClass(death.class) or {}
+        epitaphs[#epitaphs + 1] = {
+            name = death.name or "fallen",
+            className = class.name or death.class or "hero",
+            location = location,
+            epitaph = line,
+        }
+    end
+    return { documents = documents, epitaphs = epitaphs }
+end
+
+local function layoutJournalButtons(app, summary, width, height)
+    app.ui.journalButtons[#app.ui.journalButtons + 1] = { x = 84, y = 118, w = 150, h = 34, action = "tab", tab = "documents", enabled = true, index = 1 }
+    app.ui.journalButtons[#app.ui.journalButtons + 1] = { x = 246, y = 118, w = 150, h = 34, action = "tab", tab = "epitaphs", enabled = true, index = 2 }
+    local tab = app.journalTab or "documents"
+    local items = tab == "epitaphs" and summary.epitaphs or summary.documents
+    local listX = 84
+    local listY = 174
+    local rowH = 42
+    for index = 1, math.min(#items, 10) do
+        app.ui.journalButtons[#app.ui.journalButtons + 1] = { x = listX, y = listY + (index - 1) * rowH, w = 340, h = rowH - 6, action = "select", selection = index, enabled = true, index = index + 2 }
+    end
+    app.ui.journalButtons[#app.ui.journalButtons + 1] = { x = 84, y = height - 86, w = 150, h = 42, action = "back", enabled = true, index = #app.ui.journalButtons + 1 }
+end
+
+local function drawJournalButton(app, button, label, active)
+    love.graphics.setColor(active and 0.18 or 0.09, active and 0.15 or 0.09, active and 0.22 or 0.12, 1)
+    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(active and 0.64 or 0.34, active and 0.48 or 0.34, active and 0.82 or 0.44, 1)
+    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(0.92, 0.9, 0.94, 1)
+    love.graphics.printf(label, button.x + 8, button.y + 10, button.w - 16, "center")
+end
+
+function Render.drawJournal(sim, app)
+    Render.prepareUi(app)
+    local summary = Render.journalSummary(sim)
+    app.journalTab = app.journalTab or "documents"
+    local items = app.journalTab == "epitaphs" and summary.epitaphs or summary.documents
+    app.journalIndex = clamp(app.journalIndex or 1, 1, math.max(1, #items))
+    layoutJournalButtons(app, summary, 1280, 720)
+    if not (love and love.graphics) then
+        return summary
+    end
+    love.graphics.clear(0.035, 0.038, 0.042, 1)
+    local width, height = love.graphics.getDimensions()
+    clearList(app.ui.journalButtons)
+    layoutJournalButtons(app, summary, width, height)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    panel(56, 52, width - 112, height - 124, 0.96)
+    love.graphics.setColor(0.92, 0.9, 0.94, 1)
+    love.graphics.printf("Journal", 84, 82, width - 168, "left", 0, 1.5, 1.5)
+    drawJournalButton(app, app.ui.journalButtons[1], "Documents", app.journalTab == "documents")
+    drawJournalButton(app, app.ui.journalButtons[2], "Epitaphs", app.journalTab == "epitaphs")
+    for index, item in ipairs(items) do
+        if index > 10 then
+            break
+        end
+        local button = app.ui.journalButtons[index + 2]
+        local active = app.journalIndex == index
+        local label = app.journalTab == "epitaphs" and (item.name .. " / " .. item.className) or (item.title .. " / " .. item.typeName)
+        drawJournalButton(app, button, label, active)
+    end
+    local detailX = 456
+    local detailY = 172
+    local detailW = width - detailX - 96
+    local selected = items[app.journalIndex]
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    if selected and app.journalTab == "documents" then
+        love.graphics.print(selected.title, detailX, detailY)
+        love.graphics.setColor(0.66, 0.72, 0.68, 1)
+        love.graphics.print(selected.typeName .. " / " .. selected.location, detailX, detailY + 28)
+        love.graphics.printf(selected.abstract, detailX, detailY + 68, detailW)
+        love.graphics.printf(selected.text, detailX, detailY + 124, detailW)
+    elseif selected then
+        love.graphics.print(selected.name, detailX, detailY)
+        love.graphics.setColor(0.66, 0.72, 0.68, 1)
+        love.graphics.print(selected.className .. " / " .. selected.location, detailX, detailY + 28)
+        love.graphics.printf(selected.epitaph, detailX, detailY + 68, detailW)
+    else
+        love.graphics.printf(app.journalTab == "epitaphs" and "no epitaphs" or "no documents", detailX, detailY, detailW)
+    end
+    local back = app.ui.journalButtons[#app.ui.journalButtons]
+    drawJournalButton(app, back, "Back", false)
+    love.graphics.setColor(0.58, 0.62, 0.58, 1)
+    love.graphics.printf("documents " .. #summary.documents .. " / epitaphs " .. #summary.epitaphs, width - 360, height - 72, 280, "right")
+    love.graphics.pop()
+    return summary
 end
 
 local function layoutTitleButtons(app, items, width, height)
@@ -2349,6 +2460,7 @@ function Render.drawEstatePanel(sim, app)
     local campaignStatus = campaign.lost and ("lost " .. (campaign.lossReason or "")) or (campaign.victory and "victory" or ("bosses " .. bosses .. "/" .. #Defs.locationOrder))
     love.graphics.print("renown " .. (campaign.renown or 0) .. "  dread " .. (campaign.dread or 0) .. "  " .. campaignStatus, x + 390, y + 34)
     drawJournalPanel(sim, x + 390, y + 58, 320)
+    addEstateAction(app, "journal", x + 622, y + 56, 88, { action = "openJournal", enabled = true })
     local timerCopy = sim:panelCopy("timer_panel_copy")
     local factionCopy = sim:panelCopy("faction_panel_copy")
     love.graphics.setColor(0.62, 0.66, 0.58, 1)
