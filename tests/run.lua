@@ -1946,6 +1946,11 @@ tests[#tests + 1] = function()
     expect(#app.ui.missionButtons == 0 and #app.ui.recruitButtons == 0 and #app.ui.provisionButtons == 0, "prepareUi should clear estate hitboxes")
     expect(#app.ui.estateActionButtons == 0, "prepareUi should clear estate action hitboxes")
     expect(#app.ui.rosterButtons == 0, "prepareUi should clear roster hitboxes")
+    app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
+    app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }
+    Render3D.prepareUi(app)
+    expect(app.ui.skillButtons == oldSkills and app.ui.enemyButtons == oldEnemies, "render3d prepareUi should reuse hitbox arrays")
+    expect(#app.ui.skillButtons == 0 and #app.ui.enemyButtons == 0, "render3d prepareUi should clear reused combat hitboxes")
 end
 
 for index, test in ipairs(tests) do

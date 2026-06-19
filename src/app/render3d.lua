@@ -31,6 +31,24 @@ local function clearList(list)
     end
 end
 
+local function panel(x, y, w, h, alpha)
+    love.graphics.setColor(0.055, 0.06, 0.07, alpha or 0.88)
+    love.graphics.rectangle("fill", x, y, w, h)
+    love.graphics.setColor(0.22, 0.24, 0.24, 0.9)
+    love.graphics.rectangle("line", x, y, w, h)
+end
+
+local function compactStacks(stacks)
+    local parts = {}
+    for _, stack in ipairs(stacks or {}) do
+        local item = Defs.item(stack.item)
+        if item then
+            parts[#parts + 1] = (item.short or string.sub(stack.item, 1, 1)) .. tostring(stack.count or 0)
+        end
+    end
+    return table.concat(parts, " ")
+end
+
 local function clamp01(value)
     return clamp(value or 0, 0, 1)
 end
@@ -623,10 +641,315 @@ function Render3D.drawWorld(sim, app)
     drawEnemyBillboards(sim, yaw, profile)
 end
 
-function Render3D.drawHud()
+local function checklistText(group)
+    local parts = { group.title }
+    for _, item in ipairs(group.items) do
+        parts[#parts + 1] = (item.done and "[x]" or "[ ]") .. item.label
+    end
+    return table.concat(parts, " ")
 end
 
-function Render3D.drawSidePanel()
+local function drawHeroRows(sim, app, x, y, w)
+    for _, hero in ipairs(sim:partyState()) do
+        local rowY = y + (hero.rank - 1) * 42
+        local active = hero.rank == sim.player.selectedHero
+        love.graphics.setColor(active and 0.2 or 0.12, active and 0.24 or 0.14, active and 0.18 or 0.13, 1)
+        love.graphics.rectangle("fill", x, rowY, w, 36)
+        love.graphics.setColor(active and 0.82 or 0.32, active and 0.72 or 0.34, active and 0.34 or 0.28, 1)
+        love.graphics.rectangle("line", x, rowY, w, 36)
+        love.graphics.setColor(0.94, 0.96, 0.9, 1)
+        love.graphics.print(hero.rank .. " " .. hero.name .. " / " .. hero.class .. " L" .. (hero.level or 1), x + 6, rowY + 4)
+        love.graphics.setColor(0.74, 0.82, 0.74, 1)
+        love.graphics.print("hp " .. hero.hp .. "/" .. hero.maxHp .. "  stress " .. hero.stress, x + 6, rowY + 19)
+        if hero.deathsDoor then
+            love.graphics.setColor(0.94, 0.34, 0.28, 1)
+            love.graphics.print("door", x + w - 54, rowY + 19)
+        elseif hero.affliction then
+            love.graphics.setColor(0.9, 0.46, 0.42, 1)
+            love.graphics.print(hero.affliction, x + w - 74, rowY + 19)
+        elseif hero.virtue then
+            love.graphics.setColor(0.56, 0.82, 0.66, 1)
+            love.graphics.print(hero.virtue, x + w - 64, rowY + 19)
+        elseif hero.diseases and #hero.diseases > 0 then
+            love.graphics.setColor(0.68, 0.72, 0.46, 1)
+            love.graphics.print("ill", x + w - 34, rowY + 19)
+        end
+        app.ui.heroButtons[#app.ui.heroButtons + 1] = { x = x, y = rowY, w = w, h = 36, rank = hero.rank }
+    end
+end
+
+local function stacksText(inventory)
+    local parts = {}
+    if not inventory then
+        return "-"
+    end
+    for _, stack in ipairs(inventory:stacks()) do
+        parts[#parts + 1] = stack.item .. ":" .. stack.count
+    end
+    return #parts > 0 and table.concat(parts, "  ") or "-"
+end
+
+local function firstOpenTrinketSlot(hero)
+    for slot = 1, 2 do
+        if not hero.trinkets or not hero.trinkets[slot] then
+            return slot
+        end
+    end
+    return nil
+end
+
+local function selectedEstateHero(sim, app)
+    local selected = app.estateHeroId and sim:heroById(app.estateHeroId)
+    if selected and selected.alive then
+        return selected
+    end
+    return sim:heroAtRank(sim.player.selectedHero) or sim:heroAtRank(1) or sim.estate.roster[1]
+end
+
+local rosterFilters = {
+    { key = "all", label = "all" },
+    { key = "party", label = "party" },
+    { key = "recovering", label = "rest" },
+    { key = "stressed", label = "stress" },
+}
+
+local rosterSorts = {
+    { key = "rank", label = "rank" },
+    { key = "level", label = "lvl" },
+    { key = "stress", label = "str" },
+    { key = "name", label = "name" },
+}
+
+local function addEstateAction(app, label, x, y, w, action)
+    love.graphics.setColor(action.enabled and 0.15 or 0.09, action.enabled and 0.18 or 0.09, action.enabled and 0.16 or 0.09, 1)
+    love.graphics.rectangle("fill", x, y, w, 28)
+    love.graphics.setColor(action.enabled and 0.48 or 0.25, action.enabled and 0.54 or 0.25, action.enabled and 0.38 or 0.25, 1)
+    love.graphics.rectangle("line", x, y, w, 28)
+    love.graphics.setColor(action.enabled and 0.86 or 0.42, action.enabled and 0.88 or 0.42, action.enabled and 0.8 or 0.42, 1)
+    love.graphics.printf(label, x + 4, y + 7, w - 8, "center")
+    if action.enabled then
+        action.x = x
+        action.y = y
+        action.w = w
+        action.h = 28
+        app.ui.estateActionButtons[#app.ui.estateActionButtons + 1] = action
+    end
+end
+
+local function rosterVisible(sim, hero, filter)
+    if filter == "party" then
+        return sim:heroRank(hero.id) ~= nil
+    end
+    if filter == "recovering" then
+        return (hero.recovering or 0) > 0
+    end
+    if filter == "stressed" then
+        return (hero.stress or 0) >= 50
+    end
+    return hero.alive ~= false
+end
+
+local function rosterEntries(sim, app)
+    local filter = app.rosterFilter or "all"
+    local sort = app.rosterSort or "rank"
+    local heroes = {}
+    for _, hero in ipairs(sim.estate.roster) do
+        if rosterVisible(sim, hero, filter) then
+            heroes[#heroes + 1] = hero
+        end
+    end
+    table.sort(heroes, function(a, b)
+        if sort == "level" then
+            if (a.level or 1) ~= (b.level or 1) then
+                return (a.level or 1) > (b.level or 1)
+            end
+        elseif sort == "stress" then
+            if (a.stress or 0) ~= (b.stress or 0) then
+                return (a.stress or 0) > (b.stress or 0)
+            end
+        elseif sort == "name" then
+            if a.name ~= b.name then
+                return a.name < b.name
+            end
+        else
+            local ar = sim:heroRank(a.id) or 99
+            local br = sim:heroRank(b.id) or 99
+            if ar ~= br then
+                return ar < br
+            end
+        end
+        return (a.id or 0) < (b.id or 0)
+    end)
+    return heroes
+end
+
+local function drawRosterBrowser(sim, app, x, y, w, h)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Roster", x, y)
+    local filter = app.rosterFilter or "all"
+    local sort = app.rosterSort or "rank"
+    for index, option in ipairs(rosterFilters) do
+        addEstateAction(app, option.label, x + (index - 1) * 58, y + 20, 54, { action = "rosterFilter", filter = option.key, enabled = filter ~= option.key })
+    end
+    for index, option in ipairs(rosterSorts) do
+        addEstateAction(app, option.label, x + (index - 1) * 58, y + 52, 54, { action = "rosterSort", sort = option.key, enabled = sort ~= option.key })
+    end
+    local selected = selectedEstateHero(sim, app)
+    for index, hero in ipairs(rosterEntries(sim, app)) do
+        local rowY = y + 86 + (index - 1) * 30
+        if rowY + 28 > y + h then
+            break
+        end
+        local active = selected and selected.id == hero.id
+        local class = Defs.heroClass(hero.class)
+        local rank = sim:heroRank(hero.id)
+        local suffix = (rank and (" R" .. rank) or "") .. " S" .. (hero.stress or 0)
+        love.graphics.setColor(active and 0.2 or 0.11, active and 0.23 or 0.13, active and 0.18 or 0.13, 1)
+        love.graphics.rectangle("fill", x, rowY, w, 28)
+        love.graphics.setColor(active and 0.72 or 0.32, active and 0.62 or 0.34, active and 0.32 or 0.28, 1)
+        love.graphics.rectangle("line", x, rowY, w, 28)
+        love.graphics.setColor(hero.alive and 0.9 or 0.48, hero.alive and 0.92 or 0.44, hero.alive and 0.86 or 0.42, 1)
+        love.graphics.printf(hero.name .. " / " .. class.name .. " L" .. (hero.level or 1) .. suffix, x + 4, rowY + 6, w - 8, "left")
+        app.ui.rosterButtons[#app.ui.rosterButtons + 1] = { x = x, y = rowY, w = w, h = 28, heroId = hero.id }
+    end
+    return selected
+end
+
+local function drawSelectedEstateHero(sim, app, hero, x, y, w)
+    if not hero then
+        return
+    end
+    local class = Defs.heroClass(hero.class)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print(hero.name .. " / " .. class.name, x, y)
+    love.graphics.setColor(0.74, 0.78, 0.72, 1)
+    love.graphics.printf("hp " .. hero.hp .. "/" .. sim:maxHp(hero) .. " stress " .. hero.stress .. " weapon " .. (hero.weapon or 0) .. " armor " .. (hero.armor or 0), x, y + 18, w)
+    local nextXp = (hero.level or 1) < 5 and ((hero.level or 1) * 2) or nil
+    love.graphics.printf("rank " .. (sim:heroRank(hero.id) or "-") .. " resolve " .. sim:heroResolve(hero) .. " xp " .. (hero.xp or 0) .. (nextXp and ("/" .. nextXp) or " max"), x, y + 36, w)
+    local actionY = y + 62
+    for index, skillKey in ipairs(hero.skills or {}) do
+        addEstateAction(app, "train " .. index, x + ((index - 1) % 3) * 82, actionY + math.floor((index - 1) / 3) * 34, 76, { action = "upgradeSkill", heroId = hero.id, skillKey = skillKey, enabled = true })
+    end
+    addEstateAction(app, "weapon", x, actionY + 40, 76, { action = "upgradeGear", heroId = hero.id, kind = "weapon", enabled = true })
+    addEstateAction(app, "armor", x + 82, actionY + 40, 76, { action = "upgradeGear", heroId = hero.id, kind = "armor", enabled = true })
+    addEstateAction(app, "dismiss", x + 164, actionY + 40, 76, { action = "dismissHero", heroId = hero.id, enabled = not sim:heroRank(hero.id) and sim:livingRosterCount() > 4 and (hero.recovering or 0) <= 0 })
+    for index, activityKey in ipairs(Defs.estateActivityOrder) do
+        local activity = Defs.estateActivity(activityKey)
+        addEstateAction(app, (activity.short or activity.name) .. " " .. activity.cost, x + ((index - 1) % 3) * 82, actionY + 74 + math.floor((index - 1) / 3) * 34, 76, { action = "recoverHero", heroId = hero.id, activityKey = activityKey, enabled = (hero.recovering or 0) <= 0 })
+    end
+    local trinketY = actionY + 118
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Trinkets", x, trinketY)
+    for slot = 1, 2 do
+        local key = hero.trinkets and hero.trinkets[slot]
+        addEstateAction(app, key and ("slot " .. slot .. " -" ) or ("slot " .. slot), x + (slot - 1) * 82, trinketY + 22, 76, { action = "unequipTrinket", heroId = hero.id, slot = slot, enabled = key ~= false and key ~= nil })
+    end
+    local openSlot = firstOpenTrinketSlot(hero)
+    local trinketIndex = 0
+    for _, key in ipairs(Defs.trinketOrder) do
+        local count = (sim.estate.trinkets or {})[key] or 0
+        if count > 0 then
+            trinketIndex = trinketIndex + 1
+            local trinket = Defs.trinket(key)
+            local bx = x + ((trinketIndex - 1) % 3) * 82
+            local by = trinketY + 56 + math.floor((trinketIndex - 1) / 3) * 34
+            addEstateAction(app, (trinket.short or key) .. ":" .. count, bx, by, 50, { action = "equipTrinket", heroId = hero.id, trinketKey = key, slot = openSlot, enabled = openSlot ~= nil })
+            addEstateAction(app, "$" .. (trinket.value or 0), bx + 52, by, 24, { action = "sellTrinket", trinketKey = key, enabled = true })
+        end
+    end
+    local treatY = trinketY + 126
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Treatment", x, treatY)
+    local index = 0
+    for _, key in ipairs(hero.quirks or {}) do
+        local quirk = Defs.quirk(key)
+        if quirk and quirk.kind == "negative" then
+            addEstateAction(app, key, x + (index % 3) * 82, treatY + 22 + math.floor(index / 3) * 34, 76, { action = "treatQuirk", heroId = hero.id, quirkKey = key, enabled = true })
+            index = index + 1
+        elseif quirk and quirk.kind == "positive" then
+            local locked = hero.lockedQuirks and hero.lockedQuirks[key]
+            addEstateAction(app, (locked and "*" or "+") .. key, x + (index % 3) * 82, treatY + 22 + math.floor(index / 3) * 34, 76, { action = "lockQuirk", heroId = hero.id, quirkKey = key, enabled = not locked })
+            index = index + 1
+        end
+    end
+    for _, key in ipairs(hero.diseases or {}) do
+        addEstateAction(app, key, x + (index % 3) * 82, treatY + 22 + math.floor(index / 3) * 34, 76, { action = "treatDisease", heroId = hero.id, diseaseKey = key, enabled = true })
+        index = index + 1
+    end
+    local rankY = treatY + 90
+    for rank = 1, 4 do
+        addEstateAction(app, "rank " .. rank, x + (rank - 1) * 62, rankY, 56, { action = "assignParty", heroId = hero.id, rank = rank, enabled = true })
+    end
+end
+
+local function drawJournalPanel(sim, x, y, w)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Journal", x, y)
+    love.graphics.setColor(0.7, 0.74, 0.68, 1)
+    local entries = sim:journalEntries()
+    if #entries == 0 then
+        love.graphics.print("no documents", x, y + 20)
+        return
+    end
+    local first = math.max(1, #entries - 2)
+    for index = first, #entries do
+        local entry = entries[index]
+        love.graphics.printf(entry.title .. " - " .. entry.abstract, x, y + 20 + (index - first) * 18, w)
+    end
+end
+
+function Render3D.drawHud(sim, app)
+    local width = love.graphics.getWidth()
+    panel(0, 0, width, 76, 0.9)
+    if app.eventFlash then
+        local color = app.eventFlash.color or { 0.42, 0.54, 0.76 }
+        love.graphics.setColor(color[1], color[2], color[3], math.min(0.5, app.eventFlash.t or 0))
+        love.graphics.rectangle("fill", 0, 74, width, 2)
+    end
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Thoth  tick " .. sim.tick .. "  " .. sim.mode .. "  pos " .. sim.player.x .. "," .. sim.player.y .. "  view " .. ((app.viewRotation or 0) * 90), 16, 10)
+    love.graphics.printf("status " .. tostring(app.status or sim.status), width - 286, 10, 270, "right")
+    love.graphics.printf("next " .. sim:nextStepText(), 16, 32, width - 320)
+    local checklist = sim:objectiveChecklist()[1]
+    love.graphics.printf(checklistText(checklist), 16, 54, width - 32)
+    love.graphics.printf(sim:missionProgressText(), width - 286, 54, 270, "right")
+end
+
+function Render3D.drawSidePanel(sim, app)
+    local width, height = love.graphics.getDimensions()
+    local x = width - 306
+    local y = 88
+    panel(x, y, 292, height - 104, 0.88)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Party", x + 10, y + 10)
+    drawHeroRows(sim, app, x + 10, y + 34, 272)
+    local detailY = y + 214
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Supplies", x + 10, detailY)
+    love.graphics.setColor(0.75, 0.78, 0.72, 1)
+    love.graphics.printf(sim.expedition and stacksText(sim.expedition.supplies) or "-", x + 10, detailY + 20, 272)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Loot", x + 10, detailY + 74)
+    love.graphics.setColor(0.75, 0.78, 0.72, 1)
+    love.graphics.printf(sim.expedition and stacksText(sim.expedition.loot) or ("gold:" .. sim.estate.gold .. " heirlooms:" .. sim.estate.heirlooms), x + 10, detailY + 94, 272)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Voice", x + 10, detailY + 126)
+    love.graphics.setColor(0.68, 0.72, 0.68, 1)
+    love.graphics.printf(sim.narration or "-", x + 10, detailY + 146, 272)
+    if sim.documentPopup then
+        love.graphics.setColor(0.9, 0.82, 0.58, 1)
+        love.graphics.print("Document", x + 10, detailY + 166)
+        love.graphics.setColor(0.68, 0.72, 0.68, 1)
+        love.graphics.printf(sim.documentPopup.title .. ": " .. sim.documentPopup.text, x + 10, detailY + 184, 272)
+    end
+    local logY = sim.documentPopup and (detailY + 244) or (detailY + 198)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Log", x + 10, logY)
+    love.graphics.setColor(0.72, 0.76, 0.72, 1)
+    local log = sim.expedition and sim.expedition.log or sim.log
+    for i = math.max(1, #log - 5), #log do
+        love.graphics.print(log[i], x + 10, logY + 4 + (i - math.max(1, #log - 5) + 1) * 18)
+    end
 end
 
 local function sceneDanger(scene)
@@ -1010,13 +1333,205 @@ function Render3D.drawCombatStage(sim, app)
     love.graphics.pop()
 end
 
-function Render3D.drawCombatOverlay()
+function Render3D.drawCombatOverlay(sim, app)
+    if sim.mode ~= "combat" or not sim.combat then
+        return
+    end
+    local width, height = love.graphics.getDimensions()
+    local x = 28
+    local y = height - 206
+    local w = width - 370
+    panel(x, y, w, 186, 0.93)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Combat  round " .. sim.combat.round, x + 10, y + 8)
+    local active = sim:activeHero()
+    love.graphics.print(active and (active.name .. " acts") or "enemy turn", x + 170, y + 8)
+    for rank = 1, 4 do
+        local hero = sim:heroAtRank(rank)
+        local hx = x + 18 + (rank - 1) * 92
+        love.graphics.setColor(0.14, 0.18, 0.15, 1)
+        love.graphics.rectangle("fill", hx, y + 38, 82, 58)
+        love.graphics.setColor(0.42, 0.52, 0.38, 1)
+        love.graphics.rectangle("line", hx, y + 38, 82, 58)
+        love.graphics.setColor(0.9, 0.92, 0.86, 1)
+        love.graphics.printf(hero and hero.name or "-", hx + 4, y + 44, 74, "center")
+        if hero then
+            love.graphics.printf(hero.hp .. "hp " .. hero.stress .. "s", hx + 4, y + 66, 74, "center")
+            app.ui.heroButtons[#app.ui.heroButtons + 1] = { x = hx, y = y + 38, w = 82, h = 58, rank = rank, side = "ally" }
+        end
+    end
+    for rank = 1, 4 do
+        local enemy = sim:enemyAtRank(rank)
+        local ex = x + w - 386 + (rank - 1) * 92
+        love.graphics.setColor(0.2, 0.11, 0.12, 1)
+        love.graphics.rectangle("fill", ex, y + 38, 82, 58)
+        love.graphics.setColor(0.58, 0.28, 0.28, 1)
+        love.graphics.rectangle("line", ex, y + 38, 82, 58)
+        love.graphics.setColor(0.94, 0.86, 0.82, 1)
+        love.graphics.printf(enemy and Defs.enemy(enemy.kind).name or "-", ex + 4, y + 44, 74, "center")
+        if enemy then
+            love.graphics.printf(enemy.hp .. "hp", ex + 4, y + 66, 74, "center")
+            app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { x = ex, y = y + 38, w = 82, h = 58, rank = rank, side = "enemy" }
+            for index, part in ipairs(enemy.parts or {}) do
+                if index <= 2 then
+                    local pw = 38
+                    local px = ex + 2 + (index - 1) * 40
+                    local py = y + 98
+                    love.graphics.setColor(part.disabled and 0.11 or 0.26, part.disabled and 0.1 or 0.13, part.disabled and 0.1 or 0.16, 1)
+                    love.graphics.rectangle("fill", px, py, pw, 16)
+                    love.graphics.setColor(part.disabled and 0.28 or 0.72, part.disabled and 0.24 or 0.38, part.disabled and 0.24 or 0.42, 1)
+                    love.graphics.rectangle("line", px, py, pw, 16)
+                    love.graphics.setColor(part.disabled and 0.42 or 0.96, part.disabled and 0.4 or 0.82, part.disabled and 0.4 or 0.82, 1)
+                    love.graphics.printf(string.sub(part.name or part.key, 1, 4) .. " " .. tostring(part.hp or 0), px + 1, py + 3, pw - 2, "center")
+                    if not part.disabled then
+                        app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { x = px, y = py, w = pw, h = 16, rank = rank, side = "enemy", partKey = part.key }
+                    end
+                end
+            end
+        end
+    end
+    local skillY = y + 116
+    for _, skill in ipairs(sim:availableSkills()) do
+        local sx = x + 12 + (skill.index - 1) * 150
+        love.graphics.setColor(skill.usable and 0.18 or 0.1, skill.usable and 0.22 or 0.1, skill.usable and 0.2 or 0.1, 1)
+        love.graphics.rectangle("fill", sx, skillY, 140, 42)
+        love.graphics.setColor(skill.usable and 0.74 or 0.34, skill.usable and 0.66 or 0.34, skill.usable and 0.36 or 0.32, 1)
+        love.graphics.rectangle("line", sx, skillY, 140, 42)
+        love.graphics.setColor(skill.usable and 0.94 or 0.46, skill.usable and 0.96 or 0.46, skill.usable and 0.9 or 0.46, 1)
+        love.graphics.printf(skill.index .. " " .. skill.name, sx + 6, skillY + 8, 128, "center")
+        if skill.usable then
+            local def = Defs.skill(skill.key)
+            app.ui.skillButtons[#app.ui.skillButtons + 1] = { x = sx, y = skillY, w = 140, h = 42, skillKey = skill.key, targetSide = def.target == "ally" and "ally" or (def.target == "enemy" and "enemy" or nil), immediate = def.target == "self" or def.target == "party" }
+        end
+    end
 end
 
-function Render3D.drawCampOverlay()
+function Render3D.drawCampOverlay(sim)
+    if not (sim.expedition and sim.expedition.camping) then
+        return
+    end
+    local width, height = love.graphics.getDimensions()
+    local x = 28
+    local y = height - 164
+    local w = width - 370
+    panel(x, y, w, 144, 0.93)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Camp  respite " .. sim.expedition.camping.respite, x + 10, y + 8)
+    local skillY = y + 44
+    for _, skill in ipairs(sim:availableCampSkills()) do
+        local sx = x + 12 + (skill.index - 1) * 150
+        love.graphics.setColor(skill.usable and 0.18 or 0.1, skill.usable and 0.22 or 0.1, skill.usable and 0.2 or 0.1, 1)
+        love.graphics.rectangle("fill", sx, skillY, 140, 54)
+        love.graphics.setColor(skill.usable and 0.74 or 0.34, skill.usable and 0.66 or 0.34, skill.usable and 0.36 or 0.32, 1)
+        love.graphics.rectangle("line", sx, skillY, 140, 54)
+        love.graphics.setColor(skill.usable and 0.94 or 0.46, skill.usable and 0.96 or 0.46, skill.usable and 0.9 or 0.46, 1)
+        love.graphics.printf(skill.index .. " " .. skill.name, sx + 6, skillY + 8, 128, "center")
+        love.graphics.printf("cost " .. skill.cost, sx + 6, skillY + 30, 128, "center")
+    end
 end
 
-function Render3D.drawEstatePanel()
+function Render3D.drawEstatePanel(sim, app)
+    if app.panel ~= "estate" and sim.mode ~= "estate" then
+        return
+    end
+    local x = 24
+    local y = 92
+    panel(x, y, 720, 610, 0.92)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Estate", x + 10, y + 10)
+    love.graphics.print("week " .. (sim.estate.week or 1) .. "  gold " .. sim.estate.gold .. "  heirlooms " .. sim.estate.heirlooms, x + 10, y + 34)
+    local campaign = sim.estate.campaign or {}
+    local bosses = 0
+    for _, key in ipairs(Defs.locationOrder) do
+        if campaign.bossKills and campaign.bossKills[key] then
+            bosses = bosses + 1
+        end
+    end
+    local campaignStatus = campaign.lost and ("lost " .. (campaign.lossReason or "")) or (campaign.victory and "victory" or ("bosses " .. bosses .. "/" .. #Defs.locationOrder))
+    love.graphics.print("renown " .. (campaign.renown or 0) .. "  dread " .. (campaign.dread or 0) .. "  " .. campaignStatus, x + 390, y + 34)
+    drawJournalPanel(sim, x + 390, y + 58, 320)
+    local timerCopy = sim:panelCopy("timer_panel_copy")
+    local factionCopy = sim:panelCopy("faction_panel_copy")
+    love.graphics.setColor(0.62, 0.66, 0.58, 1)
+    love.graphics.printf((timerCopy and timerCopy.body or "") .. " " .. (factionCopy and factionCopy.body or ""), x + 390, y + 128, 320)
+    love.graphics.setColor(0.74, 0.78, 0.72, 1)
+    love.graphics.print("roster " .. sim:livingRosterCount() .. "/" .. sim:rosterLimit() .. "  recruits " .. #sim.estate.recruits, x + 10, y + 58)
+    if sim.estate.currentEvent then
+        love.graphics.print("event " .. Defs.townEvent(sim.estate.currentEvent).name, x + 220, y + 58)
+    end
+    local upgrades = {}
+    for _, key in ipairs(Defs.estateBuildingOrder) do
+        upgrades[#upgrades + 1] = key .. ":" .. sim:buildingLevel(key)
+    end
+    love.graphics.printf(table.concat(upgrades, "  "), x + 10, y + 78, 312)
+    local trinkets = {}
+    for _, key in ipairs(Defs.trinketOrder) do
+        local count = (sim.estate.trinkets or {})[key] or 0
+        if count > 0 then
+            trinkets[#trinkets + 1] = key .. ":" .. count
+        end
+    end
+    love.graphics.printf(#trinkets > 0 and table.concat(trinkets, "  ") or "no trinkets", x + 10, y + 100, 312)
+    love.graphics.print("Market", x + 10, y + 122)
+    for index, offer in ipairs(sim.estate.trinketStock or {}) do
+        local trinket = Defs.trinket(offer.trinket)
+        addEstateAction(app, (trinket.short or offer.trinket) .. " " .. offer.price, x + 70 + (index - 1) * 112, y + 116, 104, { action = "buyTrinket", stockIndex = index, enabled = sim.estate.gold >= (offer.price or 0) })
+    end
+    love.graphics.printf("cart " .. stacksText(sim.estate.provisionCart), x + 10, y + 146, 400)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Missions", x + 10, y + 174)
+    for index, key in ipairs(sim:availableMissionKeys()) do
+        local mission = Defs.mission(key)
+        local bx = x + 10 + ((index - 1) % 2) * 205
+        local by = y + 196 + math.floor((index - 1) / 2) * 44
+        love.graphics.setColor(0.13, 0.16, 0.15, 1)
+        love.graphics.rectangle("fill", bx, by, 196, 38)
+        love.graphics.setColor(0.42, 0.48, 0.36, 1)
+        love.graphics.rectangle("line", bx, by, 196, 38)
+        love.graphics.setColor(0.86, 0.88, 0.8, 1)
+        love.graphics.printf((mission.difficulty or "mission") .. " " .. mission.kind, bx + 4, by + 5, 188, "center")
+        local location = Defs.location(mission.location)
+        love.graphics.setColor(0.58, 0.62, 0.55, 1)
+        love.graphics.printf("kit " .. compactStacks(location and location.provisions), bx + 4, by + 21, 188, "center")
+        app.ui.missionButtons[#app.ui.missionButtons + 1] = { x = bx, y = by, w = 196, h = 38, missionKey = key }
+    end
+    local recruitY = y + 380
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Recruits", x + 10, recruitY)
+    for index, recruit in ipairs(sim.estate.recruits or {}) do
+        local bx = x + 10 + ((index - 1) % 3) * 136
+        local by = recruitY + 24 + math.floor((index - 1) / 3) * 34
+        love.graphics.setColor(0.13, 0.14, 0.16, 1)
+        love.graphics.rectangle("fill", bx, by, 128, 28)
+        love.graphics.setColor(0.38, 0.42, 0.52, 1)
+        love.graphics.rectangle("line", bx, by, 128, 28)
+        love.graphics.setColor(0.86, 0.88, 0.8, 1)
+        love.graphics.printf(recruit.name .. " " .. Defs.heroClass(recruit.class).name, bx + 4, by + 7, 120, "center")
+        app.ui.recruitButtons[#app.ui.recruitButtons + 1] = { x = bx, y = by, w = 128, h = 28, recruitIndex = index }
+    end
+    local provisionY = y + 472
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Provisions", x + 10, provisionY)
+    local provisionItems = {}
+    for _, itemKey in ipairs(Defs.itemOrder) do
+        if Defs.item(itemKey).provision then
+            provisionItems[#provisionItems + 1] = itemKey
+        end
+    end
+    for index, itemKey in ipairs(provisionItems) do
+        local item = Defs.item(itemKey)
+        local bx = x + 10 + ((index - 1) % 3) * 136
+        local by = provisionY + 24 + math.floor((index - 1) / 3) * 34
+        love.graphics.setColor(0.14, 0.13, 0.12, 1)
+        love.graphics.rectangle("fill", bx, by, 128, 28)
+        love.graphics.setColor(0.48, 0.42, 0.32, 1)
+        love.graphics.rectangle("line", bx, by, 128, 28)
+        love.graphics.setColor(0.86, 0.88, 0.8, 1)
+        love.graphics.printf(item.name .. " " .. item.cost .. "g", bx + 4, by + 7, 120, "center")
+        app.ui.provisionButtons[#app.ui.provisionButtons + 1] = { x = bx, y = by, w = 128, h = 28, item = itemKey, tooltip = sim:itemTooltip(itemKey) }
+    end
+    local selected = drawRosterBrowser(sim, app, x + 446, y + 10, 252, 254)
+    drawSelectedEstateHero(sim, app, selected, x + 446, y + 286, 252)
 end
 
 function Render3D.draw(sim, app)
@@ -1025,8 +1540,16 @@ function Render3D.draw(sim, app)
     end
     Render3D.prepareUi(app)
     Render3D.drawWorld(sim, app)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    Render3D.drawHud(sim, app)
+    Render3D.drawSidePanel(sim, app)
     Render3D.drawCombatStage(sim, app)
+    Render3D.drawCombatOverlay(sim, app)
+    Render3D.drawCampOverlay(sim)
+    Render3D.drawEstatePanel(sim, app)
     Render3D.drawCutscene(sim, app)
+    love.graphics.pop()
 end
 
 return Render3D
