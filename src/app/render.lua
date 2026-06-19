@@ -293,6 +293,7 @@ local cutsceneProfiles = {
     victory = { mood = "resolve", focus = "party", beat = "triumph", camera = "lift", caption = "Victory", duration = 0.86, intensity = 0.8, accent = { 0.86, 0.68, 0.24 } },
     boss_victory = { mood = "seal", focus = "party", beat = "triumph", camera = "lift", caption = "Boss Felled", duration = 1.2, intensity = 1.05, accent = { 0.92, 0.74, 0.18 } },
     campaign_victory = { mood = "seal", focus = "party", beat = "seal", camera = "lift", caption = "Campaign Sealed", duration = 1.25, intensity = 1.1, accent = { 0.72, 0.82, 0.42 } },
+    merchant_unlock = { mood = "ledger", focus = "actor", beat = "arrival", camera = "push", caption = "Merchant Unlocked", duration = 1.05, intensity = 0.9, accent = { 0.66, 0.58, 0.34 } },
     defeat = { mood = "doom", focus = "enemy", beat = "collapse", camera = "sink", caption = "Defeat", duration = 0.95, intensity = 1.0, accent = { 0.78, 0.08, 0.06 } },
     boss_defeat = { mood = "doom", focus = "boss", beat = "collapse", camera = "sink", caption = "Annihilation", duration = 1.2, intensity = 1.22, accent = { 0.82, 0.04, 0.04 } },
     retreat = { mood = "flight", focus = "party", beat = "exit", camera = "pull", caption = "Retreat", duration = 0.78, intensity = 0.7, accent = { 0.46, 0.58, 0.48 } },
@@ -396,6 +397,9 @@ function Render.cutsceneForEvent(event, sim)
     local eventKind = event.event
     if eventKind == "combat_start" then
         return scene("intro", text, { side = "enemy", duration = 0.9, encounter = event.encounter, enemies = event.enemies, caption = encounterCaption(event, "Encounter") })
+    end
+    if eventKind == "merchant_unlock" then
+        return scene("merchant_unlock", text, { side = "ally", actor = event.actor, caption = "Merchant Unlocked" })
     end
     if eventKind == "boss_start" then
         return scene("boss_intro", text, { side = "enemy", duration = 1.15, encounter = event.encounter, enemies = event.enemies, boss = true, caption = encounterCaption(event, "Boss Encounter") })

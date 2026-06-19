@@ -519,7 +519,7 @@ for key, event in pairs(Defs.townEvents) do
 end
 for _, key in ipairs({
     "survey_quota", "enclave_petition", "archive_tithe_v2", "salt_rationing", "ash_vigil_demand",
-    "audit_notice", "lamplighter_strike", "drowned_banns", "pyre_demand", "estate_reckoning", "enclave_compact_signed",
+    "audit_notice", "lamplighter_strike", "drowned_banns", "pyre_demand", "estate_reckoning", "enclave_compact_signed", "merchant_ledger_offer",
 }) do
     expect(Defs.townEvent(key), "estate town event missing " .. key)
 end

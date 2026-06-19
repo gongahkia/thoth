@@ -1544,6 +1544,9 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.interact())
     expect(sim.estate.trinkets.quiet_bell >= 1 and sim.estate.gold >= 320, "boss mission should pay reward")
     expect(sim.estate.campaign.bossKills.buried_archive and sim.estate.campaign.locationProgress.buried_archive == 2, "boss mission should mark location boss progress")
+    expect(sim.estate.currentEvent == "merchant_ledger_offer" and sim.estate.campaign.flags.merchant_ledger_accepted, "regent return should trigger merchant ledger event")
+    expect(sim:classUnlocked("merchant") and sim.estate.recruits[1].class == "merchant", "merchant ledger should unlock and seed recruit")
+    expect(sim.events[#sim.events].event == "merchant_unlock", "merchant ledger should emit cutscene event")
     expect(sim.narration ~= "", "boss return should keep narration")
 end
 
@@ -2045,8 +2048,10 @@ tests[#tests + 1] = function()
     sim.estate.campaign.bossKills.salt_cistern = true
     expect(hasClass("lamplighter"), "cistern boss kill should unlock lamplighter")
     expect(not hasClass("merchant"), "merchant should stay locked until its unlock event")
+    sim.estate.campaign.flags.merchant_ledger_accepted = true
+    expect(hasClass("merchant"), "merchant ledger flag should unlock merchant")
     local loaded = Simulation.fromSnapshot(sim:snapshot())
-    expect(contains(loaded:unlockedClassKeys(), "lamplighter"), "class gates should survive snapshot through campaign state")
+    expect(contains(loaded:unlockedClassKeys(), "lamplighter") and contains(loaded:unlockedClassKeys(), "merchant"), "class gates should survive snapshot through campaign state")
 end
 
 tests[#tests + 1] = function()
@@ -2358,6 +2363,7 @@ tests[#tests + 1] = function()
     expect(bossSkillCutscene.kind == "boss_strike", "boss skill should map to boss strike")
     expect(bossSkillCutscene.mood == "boss" and bossSkillCutscene.beat == "smite" and bossSkillCutscene.caption == "Sentence", "boss strike should carry boss scene metadata")
     expect(Render.cutsceneForEvent({ message = "combat won", event = "boss_win", boss = true, enemies = { "Vault Regent" } }, sim).kind == "boss_victory", "boss win should map to boss victory")
+    expect(Render.cutsceneForEvent({ message = "event: Ledger Offer", event = "merchant_unlock", actor = "Ledger Offer" }, sim).kind == "merchant_unlock", "merchant unlock should map to merchant cutscene")
     expect(Render.cutsceneForEvent({ message = "party lost", event = "boss_loss", boss = true, enemies = { "Vault Regent" } }, sim).kind == "boss_defeat", "boss loss should map to boss defeat")
     expect(Render.cutsceneForEvent({ message = "retreated", event = "retreat" }, sim).kind == "retreat", "retreat should map to retreat cutscene")
     expect(Render.cutsceneForEvent({ message = "ambush blocks retreat", event = "retreat_blocked" }, sim).kind == "blocked", "blocked retreat should map to blocked cutscene")
@@ -2392,6 +2398,7 @@ tests[#tests + 1] = function()
         { event = "boss_skill", message = "Vault Regent used Sentence", kind = "boss_strike", mood = "boss", beat = "smite", actor = "Vault Regent", skill = "Sentence", boss = true },
         { event = "combat_win", message = "combat won", kind = "victory", mood = "resolve", beat = "triumph" },
         { event = "boss_win", message = "boss won", kind = "boss_victory", mood = "seal", beat = "triumph", boss = true },
+        { event = "merchant_unlock", message = "event: Ledger Offer", kind = "merchant_unlock", mood = "ledger", beat = "arrival", actor = "Ledger Offer" },
         { event = "combat_loss", message = "party lost", kind = "defeat", mood = "doom", beat = "collapse" },
         { event = "boss_loss", message = "boss loss", kind = "boss_defeat", mood = "doom", beat = "collapse", boss = true },
         { event = "retreat", message = "retreated", kind = "retreat", mood = "flight", beat = "exit" },

@@ -118,9 +118,9 @@ Event design for implementation:
 - Event key: `merchant_ledger_offer`
 - Unlock flag: `merchant_ledger_accepted`
 - Class rule target: `merchant = { eventFlag = "merchant_ledger_accepted", reason = "Defeat the Vault Regent, then accept the ledger." }`
-- When the gate predicate is true and the unlock flag is absent, queue an Estate return event before recruit refill.
-- Accepting the event sets the unlock flag, injects one Merchant recruit into the stagecoach, then allows normal recruit generation to include `merchant`.
-- Declining should keep the event available on later Estate returns; no permanent missable class unlock.
+- When the gate predicate is true and the unlock flag is absent, the next Estate town-event roll becomes `merchant_ledger_offer`.
+- Applying the event sets the unlock flag, injects one Merchant recruit into the stagecoach, then allows normal recruit generation to include `merchant`.
+- The event emits `merchant_unlock` cutscene metadata.
 
 ## Writing Hooks
 

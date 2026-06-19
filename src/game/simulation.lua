@@ -134,6 +134,14 @@ local function recruitCandidate(seed, serial, classes)
     return { class = classKey, name = name, quirks = { positive, negative } }
 end
 
+local function merchantLedgerGateOpen(campaign)
+    if not campaign or not campaign.flags or campaign.flags.merchant_ledger_accepted then
+        return false
+    end
+    return (campaign.completedMissions and campaign.completedMissions.archive_regent == true)
+        or (campaign.bossKills and campaign.bossKills.buried_archive == true)
+end
+
 local function trinketOffer(seed, week, index)
     local order = Defs.trinketOrder
     local trinketKey = order[(Rng.hash(seed + 6101, week or 1, index or 1, 0) % #order) + 1]
@@ -1317,6 +1325,9 @@ function Simulation:classUnlocked(classKey)
     if rule.location and rule.progress then
         return ((campaign.locationProgress and campaign.locationProgress[rule.location]) or 0) >= rule.progress
     end
+    if rule.eventFlag then
+        return campaign.flags and campaign.flags[rule.eventFlag] == true
+    end
     return false
 end
 
@@ -1691,6 +1702,9 @@ function Simulation:rollTownEvent()
         return false
     end
     local campaign = self:ensureCampaignState()
+    if merchantLedgerGateOpen(campaign) then
+        return self:applyTownEvent("merchant_ledger_offer")
+    end
     if (campaign.flags.repairMissions or 0) >= 3 and not campaign.flags.enclaveCompactSigned then
         campaign.flags.enclaveCompactSigned = true
         return self:applyTownEvent("enclave_compact_signed")
@@ -1732,6 +1746,9 @@ function Simulation:applyTownEvent(eventKey)
     for item, count in pairs(event.provisions or {}) do
         self.estate.provisionCart:add(item, count)
     end
+    if event.merchantUnlock then
+        self:unlockMerchantLedger()
+    end
     if event.stressHeal then
         for _, hero in ipairs(self.estate.roster) do
             if hero.alive then
@@ -1746,7 +1763,22 @@ function Simulation:applyTownEvent(eventKey)
             end
         end
     end
-    self:pushLog("event: " .. event.name)
+    local meta = event.cutsceneEvent and { event = event.cutsceneEvent, actor = event.name, side = "ally" } or nil
+    self:pushLog("event: " .. event.name, meta)
+    return true
+end
+
+function Simulation:unlockMerchantLedger()
+    local campaign = self:ensureCampaignState()
+    if campaign.flags.merchant_ledger_accepted then
+        return false
+    end
+    campaign.flags.merchant_ledger_accepted = true
+    self.estate.recruits = self.estate.recruits or {}
+    table.insert(self.estate.recruits, 1, { class = "merchant", name = heroNames.merchant, quirks = copyList(defaultQuirks.merchant) })
+    while #self.estate.recruits > self:recruitSlots() do
+        table.remove(self.estate.recruits)
+    end
     return true
 end
 

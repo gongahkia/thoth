@@ -342,7 +342,7 @@ Registry.classUnlocks = {
     chirurgeon = { bossKill = "buried_archive", reason = "Defeat the Vault Regent." },
     exile = { location = "salt_cistern", progress = 1, reason = "Complete any Salt Cistern expedition." },
     lamplighter = { bossKill = "salt_cistern", reason = "Defeat the Bell Diver." },
-    merchant = { reason = "Locked until the Merchant unlock event is implemented." },
+    merchant = { eventFlag = "merchant_ledger_accepted", reason = "Defeat the Vault Regent, then accept the ledger." },
 }
 Registry.classUnlockOrder = Registry.heroClassOrder
 
@@ -2176,11 +2176,12 @@ Registry.townEvents = {
     pyre_demand = { name = "Pyre Demand", summary = "Ember penitents demand one kiln be doused publicly before the Prioress names more fuel.", effect = "opens vicar route", openMission = "warrens_douse_vicar", faction = { faction_ember_penitents = 2 } },
     estate_reckoning = { name = "Estate Reckoning", summary = "The Estate counts weeks, deaths, and sealed doors, then lets the sum reach the roster.", effect = "+3 party stress", stress = 3, reckoning = true },
     enclave_compact_signed = { name = "Enclave Compact Signed", summary = "Three repairs become leverage; survivor enclaves sign a compact the Estate cannot ignore.", effect = "-3 dread, enclave +2", dread = -3, faction = { enclave_meter = 2 } },
+    merchant_ledger_offer = { name = "Ledger Offer", summary = "After the Regent falls, a sealed ledger arrives already balanced against the Estate.", effect = "unlocks Merchant", merchantUnlock = true, cutsceneEvent = "merchant_unlock" },
 }
 Registry.townEventOrder = {
     "supply_cache", "memorial_bell", "levy_notice", "clear_roads", "bad_omens", "archivist_tithe", "old_maps", "candle_vigil",
     "survey_quota", "enclave_petition", "archive_tithe_v2", "salt_rationing", "ash_vigil_demand", "audit_notice",
-    "lamplighter_strike", "drowned_banns", "pyre_demand", "estate_reckoning", "enclave_compact_signed",
+    "lamplighter_strike", "drowned_banns", "pyre_demand", "estate_reckoning", "enclave_compact_signed", "merchant_ledger_offer",
 }
 
 Registry.estateCopy = {
