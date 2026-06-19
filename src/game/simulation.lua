@@ -142,7 +142,7 @@ local function inventoryFromStacks(stacks)
 end
 
 local function newCampaign()
-    return { renown = 0, dread = 0, completedMissions = {}, locationProgress = {}, bossKills = {}, victory = false }
+    return { renown = 0, dread = 0, completedMissions = {}, locationProgress = {}, bossKills = {}, victory = false, lost = false, lossReason = nil, weekLimit = 48, deathLimit = 8, dreadLimit = 18 }
 end
 
 function Simulation.new(seed)
@@ -617,6 +617,7 @@ function Simulation:damageHero(hero, amount)
         }
         self:recordFallenTrinkets(hero)
         self:compactParty()
+        self:evaluateCampaignState()
         self:pushLog(hero.name .. " fell")
     elseif hero.hp <= 0 then
         hero.hp = 0
@@ -784,6 +785,9 @@ function Simulation:startExpedition(locationKey)
     if self.expedition and self.expedition.active then
         return false
     end
+    if self.estate.campaign and self.estate.campaign.lost then
+        return false
+    end
     local missionKey, mission = self:missionForKey(locationKey or "archive_scout")
     local location = Defs.location(mission.location)
     if not location then
@@ -917,7 +921,35 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
         end
     end
     campaign.victory = defeated >= #Defs.locationOrder
+    self:evaluateCampaignState()
     return true
+end
+
+function Simulation:evaluateCampaignState()
+    self.estate.campaign = self.estate.campaign or newCampaign()
+    local campaign = self.estate.campaign
+    if campaign.victory then
+        campaign.lost = false
+        campaign.lossReason = nil
+        return false
+    end
+    if campaign.lost then
+        return true
+    end
+    if #self.estate.graveyard >= (campaign.deathLimit or 8) then
+        campaign.lost = true
+        campaign.lossReason = "deaths"
+    elseif (self.estate.week or 1) > (campaign.weekLimit or 48) then
+        campaign.lost = true
+        campaign.lossReason = "weeks"
+    elseif (campaign.dread or 0) >= (campaign.dreadLimit or 18) then
+        campaign.lost = true
+        campaign.lossReason = "dread"
+    end
+    if campaign.lost then
+        self:pushLog("campaign collapsed: " .. campaign.lossReason)
+    end
+    return campaign.lost == true
 end
 
 function Simulation:advanceWeek()
@@ -938,6 +970,7 @@ function Simulation:advanceWeek()
     self:refillRecruits()
     self:refillTrinketMarket(true)
     self:rollTownEvent()
+    self:evaluateCampaignState()
     return true
 end
 
@@ -2662,6 +2695,11 @@ function Simulation:snapshot()
                 locationProgress = copyMap(self.estate.campaign and self.estate.campaign.locationProgress),
                 bossKills = copyMap(self.estate.campaign and self.estate.campaign.bossKills),
                 victory = self.estate.campaign and self.estate.campaign.victory == true,
+                lost = self.estate.campaign and self.estate.campaign.lost == true,
+                lossReason = self.estate.campaign and self.estate.campaign.lossReason or nil,
+                weekLimit = self.estate.campaign and self.estate.campaign.weekLimit or 48,
+                deathLimit = self.estate.campaign and self.estate.campaign.deathLimit or 8,
+                dreadLimit = self.estate.campaign and self.estate.campaign.dreadLimit or 18,
             },
             recruits = recruits,
             nextHeroId = self.estate.nextHeroId,
@@ -2723,6 +2761,11 @@ function Simulation.fromSnapshot(snapshot)
         locationProgress = copyMap(campaign.locationProgress),
         bossKills = copyMap(campaign.bossKills),
         victory = campaign.victory == true,
+        lost = campaign.lost == true,
+        lossReason = campaign.lossReason,
+        weekLimit = campaign.weekLimit or 48,
+        deathLimit = campaign.deathLimit or 8,
+        dreadLimit = campaign.dreadLimit or 18,
     }
     self.estate.recruits = {}
     for _, recruit in ipairs((snapshot.estate and snapshot.estate.recruits) or {}) do

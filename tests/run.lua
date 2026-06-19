@@ -496,6 +496,48 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(79)
+    sim:endExpedition(true)
+    sim.estate.campaign.deathLimit = 1
+    local hero = sim:heroAtRank(1)
+    hero.deathsDoor = true
+    hero.deathblowResist = 0
+    sim:damageHero(hero, hero.hp + 1)
+    expect(sim.estate.campaign.lost and sim.estate.campaign.lossReason == "deaths", "death limit should collapse campaign")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.estate.campaign.lost and loaded.estate.campaign.lossReason == "deaths", "campaign loss should survive snapshot")
+    expect(not sim:startExpedition("archive_scout"), "collapsed campaign should block new expeditions")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(80)
+    sim:endExpedition(true)
+    sim.estate.campaign.weekLimit = sim.estate.week
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(sim.estate.campaign.lost and sim.estate.campaign.lossReason == "weeks", "week limit should collapse campaign")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(81)
+    sim:endExpedition(true)
+    sim.estate.campaign.dreadLimit = 2
+    sim.estate.campaign.dread = 2
+    sim:evaluateCampaignState()
+    expect(sim.estate.campaign.lost and sim.estate.campaign.lossReason == "dread", "dread limit should collapse campaign")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(82)
+    sim:endExpedition(true)
+    sim.estate.campaign.victory = true
+    sim.estate.campaign.deathLimit = 0
+    sim.estate.campaign.weekLimit = 0
+    sim.estate.campaign.dreadLimit = 0
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(sim.estate.campaign.victory and not sim.estate.campaign.lost, "victory should disable collapse limits")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(56)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("archive_gather"))

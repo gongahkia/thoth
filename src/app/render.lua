@@ -659,7 +659,8 @@ function Render.drawEstatePanel(sim, app)
             bosses = bosses + 1
         end
     end
-    love.graphics.print("renown " .. (campaign.renown or 0) .. "  dread " .. (campaign.dread or 0) .. "  bosses " .. bosses .. "/" .. #Defs.locationOrder, x + 390, y + 34)
+    local campaignStatus = campaign.lost and ("lost " .. (campaign.lossReason or "")) or (campaign.victory and "victory" or ("bosses " .. bosses .. "/" .. #Defs.locationOrder))
+    love.graphics.print("renown " .. (campaign.renown or 0) .. "  dread " .. (campaign.dread or 0) .. "  " .. campaignStatus, x + 390, y + 34)
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
     love.graphics.print("roster " .. sim:livingRosterCount() .. "/" .. sim:rosterLimit() .. "  recruits " .. #sim.estate.recruits, x + 10, y + 58)
     if sim.estate.currentEvent then
