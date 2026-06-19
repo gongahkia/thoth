@@ -208,6 +208,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(83)
+    sim.expedition.torch = 55
+    sim:startCombat("entry", "camp", { ambush = true })
+    expect(sim.mode == "combat" and sim.combat.ambush and sim.expedition.torch == 0, "camp ambush should start combat at zero light")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.combat.ambush, "combat ambush flag should survive snapshot")
+    expect(not sim:retreat() and sim.mode == "combat", "camp ambush should block retreat")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(19)
     local hero = sim:heroAtRank(1)
     hero.stress = 99

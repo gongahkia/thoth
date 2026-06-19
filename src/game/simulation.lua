@@ -1841,7 +1841,7 @@ function Simulation:finishCamp()
     self.expedition.camping = nil
     if not camping.ambushPrevented and self:roll(1, 100) <= 25 then
         self:pushLog("camp ambush")
-        return self:startCombat("entry", "camp")
+        return self:startCombat("entry", "camp", { ambush = true })
     end
     self:pushLog("camp ended")
     return true
@@ -1883,11 +1883,12 @@ function Simulation:clearStatus(unit, kind)
     unit.statuses = kept
 end
 
-function Simulation:startCombat(encounterKey, roomKey)
+function Simulation:startCombat(encounterKey, roomKey, options)
     local encounter = Defs.encounter(encounterKey)
     if not encounter then
         return false
     end
+    options = options or {}
     local enemies = {}
     for index, kind in ipairs(encounter) do
         enemies[#enemies + 1] = newEnemy(index, kind, index)
@@ -1902,8 +1903,12 @@ function Simulation:startCombat(encounterKey, roomKey)
         turnIndex = 1,
         active = nil,
         fallenTrinkets = {},
+        ambush = options.ambush == true,
         log = {},
     }
+    if self.combat.ambush and self.expedition then
+        self.expedition.torch = 0
+    end
     self:pushLog("combat: " .. encounterKey)
     self:advanceCombat()
     return true
@@ -2357,6 +2362,10 @@ end
 
 function Simulation:retreat()
     if self.mode == "combat" then
+        if self.combat and self.combat.ambush then
+            self:pushLog("ambush blocks retreat")
+            return false
+        end
         for rank = 1, 4 do
             local hero = self:heroAtRank(rank)
             if hero and hero.alive then
@@ -2664,6 +2673,7 @@ function Simulation:snapshot()
             turnIndex = self.combat.turnIndex,
             active = self.combat.active and copyMap(self.combat.active) or nil,
             fallenTrinkets = copyList(self.combat.fallenTrinkets),
+            ambush = self.combat.ambush == true,
             log = copyList(self.combat.log),
         }
     end
@@ -2851,6 +2861,7 @@ function Simulation.fromSnapshot(snapshot)
             turnIndex = combat.turnIndex or 1,
             active = combat.active and copyMap(combat.active) or nil,
             fallenTrinkets = copyList(combat.fallenTrinkets),
+            ambush = combat.ambush == true,
             log = copyList(combat.log or {}),
         }
         for _, enemy in ipairs(combat.enemies or {}) do
