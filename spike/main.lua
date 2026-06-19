@@ -89,6 +89,12 @@ local function applyIsoCamera()
     g3d.camera.updateOrthographicMatrix(viewSize)
 end
 
+local function faceSpriteToCamera()
+    if sprite then
+        sprite:setRotation(0, 0, math.pi / 2 - cameraYaw)
+    end
+end
+
 local function snapCamera(delta)
     snapIndex = ((snapIndex - 1 + delta) % #snapYaws) + 1
     targetYaw = baseYaw + snapYaws[snapIndex]
@@ -99,6 +105,7 @@ local function stepCamera(dt)
     local step = math.min(1, dt * snapSpeed)
     cameraYaw = cameraYaw + diff * step
     applyIsoCamera()
+    faceSpriteToCamera()
 end
 
 function love.load()
@@ -108,6 +115,7 @@ function love.load()
     sprite = g3d.newModel(spriteVerts(), spriteTexture(), {0, 0, 0})
     sprite:makeNormals()
     applyIsoCamera()
+    faceSpriteToCamera()
 end
 
 function love.update(dt)
@@ -130,7 +138,7 @@ function love.draw()
     sprite:draw()
     love.graphics.setDepthMode()
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print("q/e rotate snap " .. snapIndex .. "/4 quad", 16, 16)
+    love.graphics.print("q/e rotate snap " .. snapIndex .. "/4 billboard", 16, 16)
     love.graphics.setDepthMode("lequal", true)
 end
 

@@ -72,7 +72,6 @@ Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
 ### Day 2 — 3D world spike (~4h)
 
 ### Day 3 — Billboard sprite spike (~4h)
-- [ ] 0.3.2 Make quad always face camera (billboard math: cancel yaw) (1h)
 - [ ] 0.3.3 Load any OGA character PNG, texture the billboard (1h)
 - [ ] 0.3.4 Verify sprite stays upright + camera-facing across all 4 rotation snaps (1h)
 
