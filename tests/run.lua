@@ -2509,6 +2509,25 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(92)
+    reachEntryCombat(sim)
+    local hero = sim:activeHero()
+    local enemy = sim:enemyAtRank(1)
+    enemy.statuses = enemy.statuses or {}
+    enemy.statuses[#enemy.statuses + 1] = { kind = "marked", turns = 2 }
+    local skillKey = hero.skills[1]
+    sim:applySkill(hero, sim:heroRank(hero.id), skillKey, Defs.skill(skillKey), { enemy }, "enemy")
+    local event = sim.events[#sim.events]
+    expect(event.event == "hero_skill" and type(event.impacts) == "table" and #event.impacts > 0, "hero skill should emit structured impact metadata")
+    expect(event.impacts[1].side == "enemy" and event.impacts[1].rank == enemy.rank and event.impacts[1].amount > 0, "impact metadata should locate enemy damage")
+    expect(event.crit == true and event.impacts[1].crit == true, "marked direct hit should emit crit feedback metadata")
+    local scene = Render.cutsceneForEvent(event, sim)
+    expect(scene and scene.crit == true and scene.damage == event.impacts[1].amount, "combat cutscene should carry crit damage feedback")
+    expect(Render.damageNumberLabel(event.impacts[1]):find("CRIT", 1, true), "damage number label should expose crit text")
+    expect(Render.drawDamageNumbers(sim, { damageNumbers = event.impacts }) == #event.impacts, "damage numbers should render headless summary count")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(79)
     sim:endExpedition(true)
     sim.estate.trinkets.kiln_token = 1
@@ -2698,10 +2717,13 @@ end
 tests[#tests + 1] = function()
     local settings = Settings.defaults()
     expect(settings.masterVolume == 1 and settings.sfxVolume == 1, "settings defaults should expose audio volumes")
+    expect(settings.screenShake == true, "settings defaults should enable screen shake")
     Settings.adjust(settings, "masterVolume", -4)
     expect(settings.masterVolume > 0.59 and settings.masterVolume < 0.61, "settings slider should step and clamp")
     Settings.toggle(settings, "highContrast")
     expect(settings.highContrast == true, "settings toggle should flip accessibility flags")
+    Settings.toggle(settings, "screenShake")
+    expect(settings.screenShake == false and not Render.screenShakeEnabled(settings), "screen shake toggle should disable shake")
     Settings.cycle(settings, "colorblindMode", 1)
     expect(settings.colorblindMode == "deuteranopia", "settings cycle should advance colorblind mode")
     settings.fontScale = 1.4
@@ -2711,7 +2733,7 @@ tests[#tests + 1] = function()
     local app = { settings = settings, eventFlash = { cue = "hit_slash", status = "Mara hit" } }
     expect(Render.audioSubtitle(app) == "slash hit: Mara hit", "subtitles should expose audio cue and status")
     local export = Accessibility.text(Simulation.new(84), app)
-    expect(export:find("Thoth accessibility export", 1, true) and export:find("high_contrast=true", 1, true), "accessibility export should expose screen-reader text")
+    expect(export:find("Thoth accessibility export", 1, true) and export:find("high_contrast=true", 1, true) and export:find("screen_shake=false", 1, true), "accessibility export should expose screen-reader text")
     expect(export:find("party:", 1, true) and export:find("controls:", 1, true), "accessibility export should expose party and controls")
     settings.subtitles = false
     expect(Render.audioSubtitle(app) == nil, "subtitles should respect setting")
@@ -2726,7 +2748,7 @@ tests[#tests + 1] = function()
     local settingsText = Settings.toText(settings)
     expect(settingsText:match("^THOTH_LUA_SETTINGS 1"), "settings should write separate v1 header")
     local loadedSettings = assert(Settings.fromText(settingsText))
-    expect(loadedSettings.masterVolume == settings.masterVolume and loadedSettings.highContrast and loadedSettings.colorblindMode == "deuteranopia", "settings text round trip should preserve values")
+    expect(loadedSettings.masterVolume == settings.masterVolume and loadedSettings.highContrast and loadedSettings.colorblindMode == "deuteranopia" and loadedSettings.screenShake == false, "settings text round trip should preserve values")
     expect(Settings.keyForAction(loadedSettings, "moveUp") == "i", "settings text round trip should preserve keybinds")
     local clampedSettings = assert(Settings.fromText("THOTH_LUA_SETTINGS 1\n{[\"fontScale\"]=9,[\"masterVolume\"]=-4,[\"colorblindMode\"]=\"bad\",[\"keybinds\"]={[\"moveUp\"]=\"escape\",[\"moveDown\"]=\"j\"}}\n"))
     expect(clampedSettings.fontScale == 1.4 and clampedSettings.masterVolume == 0 and clampedSettings.colorblindMode == "off", "settings loader should clamp values")

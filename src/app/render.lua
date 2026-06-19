@@ -84,6 +84,11 @@ function Render.reducedMotion(appOrSettings)
     return settings and settings.reducedMotion == true
 end
 
+function Render.screenShakeEnabled(appOrSettings)
+    local settings = accessibilitySettings(appOrSettings)
+    return not (settings and (settings.reducedMotion == true or settings.screenShake == false))
+end
+
 function Render.accessibleColor(settings, color)
     settings = accessibilitySettings(settings)
     local r = color[1] or 1
@@ -383,6 +388,26 @@ local function eventCaption(event, fallback)
     return value and tostring(value) or fallback
 end
 
+local function eventImpactTotal(event)
+    local total = 0
+    for _, impact in ipairs((event and event.impacts) or {}) do
+        total = total + math.max(0, tonumber(impact.amount) or 0)
+    end
+    return total
+end
+
+local function eventHasCrit(event)
+    if event and event.crit == true then
+        return true
+    end
+    for _, impact in ipairs((event and event.impacts) or {}) do
+        if impact.crit == true then
+            return true
+        end
+    end
+    return false
+end
+
 local function encounterCaption(event, fallback)
     local enemies = event and event.enemies
     return enemies and enemies[1] and tostring(enemies[1]) or fallback
@@ -408,10 +433,10 @@ function Render.cutsceneForEvent(event, sim)
         return scene("ambush", text, { side = "enemy", duration = 1.0, encounter = event.encounter, enemies = event.enemies, caption = encounterCaption(event, "Ambush") })
     end
     if eventKind == "hero_skill" then
-        return scene("strike", text, { side = "ally", duration = 0.72, actor = event.actor, skill = event.skill, caption = eventCaption(event, "Skill") })
+        return scene("strike", text, { side = "ally", duration = 0.72, actor = event.actor, skill = event.skill, caption = eventCaption(event, "Skill"), damage = eventImpactTotal(event), crit = eventHasCrit(event) })
     end
     if eventKind == "enemy_skill" or eventKind == "boss_skill" then
-        return scene(eventKind == "boss_skill" and "boss_strike" or "strike", text, { side = "enemy", duration = eventKind == "boss_skill" and 0.95 or 0.72, actor = event.actor, skill = event.skill, boss = event.boss, caption = eventCaption(event, eventKind == "boss_skill" and "Boss Skill" or "Enemy Skill") })
+        return scene(eventKind == "boss_skill" and "boss_strike" or "strike", text, { side = "enemy", duration = eventKind == "boss_skill" and 0.95 or 0.72, actor = event.actor, skill = event.skill, boss = event.boss, caption = eventCaption(event, eventKind == "boss_skill" and "Boss Skill" or "Enemy Skill"), damage = eventImpactTotal(event), crit = eventHasCrit(event) })
     end
     if eventKind == "combat_win" or eventKind == "boss_win" then
         return scene(eventKind == "boss_win" and "boss_victory" or "victory", text, { side = "ally", duration = eventKind == "boss_win" and 1.2 or 0.86, encounter = event.encounter, enemies = event.enemies, boss = event.boss, caption = eventKind == "boss_win" and "Boss Felled" or "Victory" })
@@ -2332,8 +2357,11 @@ local function drawCutsceneHud(scene, x, y, w, progress)
     end
 end
 
-local function cutsceneShake(scene, progress)
+local function cutsceneShake(scene, progress, app)
     if not scene then
+        return 0, 0
+    end
+    if not Render.screenShakeEnabled(app) then
         return 0, 0
     end
     local pulse = math.sin(progress * math.pi)
@@ -2352,6 +2380,19 @@ local function cutsceneShake(scene, progress)
         return 0, -phase(progress, 0.1, 1) * 4 * intensity
     end
     return 0, 0
+end
+
+local function combatShakeOffset(app)
+    if not Render.screenShakeEnabled(app) then
+        return 0, 0
+    end
+    local remaining = app and app.combatShake or 0
+    if remaining <= 0 then
+        return 0, 0
+    end
+    local magnitude = app.combatShakeMagnitude or 4
+    local pulse = math.min(1, remaining / 0.24)
+    return math.sin(remaining * 85) * magnitude * pulse, math.cos(remaining * 63) * magnitude * 0.65 * pulse
 end
 
 local function drawSceneWall(x, y, w, h, pulse, scene)
@@ -2511,6 +2552,14 @@ local function drawImpact(scene, x, y, w, h, progress)
         if kind == "boss_strike" then
             love.graphics.circle("line", cx, y + h * 0.4, 36 + pulse * 60)
         end
+        if scene.crit then
+            love.graphics.setColor(1, 0.9, 0.42, 0.92 * pulse)
+            love.graphics.printf("CRIT", cx - 70, y + h * 0.14, 140, "center")
+        end
+        if (scene.damage or 0) > 0 then
+            love.graphics.setColor(0.96, 0.88, 0.62, 0.86 * pulse)
+            love.graphics.printf("-" .. tostring(scene.damage), cx - 70, y + h * 0.62, 140, "center")
+        end
         love.graphics.setLineWidth(1)
     elseif kind == "victory" or kind == "boss_victory" or kind == "campaign_victory" then
         love.graphics.setColor(accent[1], accent[2], accent[3], 0.7 * smooth(progress))
@@ -2575,7 +2624,7 @@ function Render.drawCutscene(sim, app)
     local pulse = math.sin(progress * math.pi)
     local intro = (currentScene.kind == "intro" or currentScene.kind == "boss_intro" or currentScene.kind == "ambush") and (1 - smooth(progress)) or 0
     local lunge = (currentScene.kind == "strike" or currentScene.kind == "boss_strike") and pulse or 0
-    local shakeX, shakeY = cutsceneShake(currentScene, progress)
+    local shakeX, shakeY = cutsceneShake(currentScene, progress, app)
     love.graphics.push("all")
     love.graphics.setDepthMode()
     love.graphics.translate(shakeX, shakeY)
@@ -2594,6 +2643,63 @@ function Render.drawCutscene(sim, app)
     setSceneColor(currentScene, 0.92, 1.05)
     love.graphics.rectangle("line", x, y, w, h)
     love.graphics.pop()
+end
+
+function Render.damageNumberLabel(number)
+    local kind = number and number.kind or "hp"
+    local amount = tostring(number and number.amount or 0)
+    local prefix = kind == "heal" and "+" or "-"
+    local label = prefix .. amount
+    if kind == "stress" then
+        label = label .. " stress"
+    end
+    if number and number.crit then
+        label = label .. " CRIT"
+    end
+    return label
+end
+
+local function damageNumberAnchor(sim, number)
+    local width = love.graphics.getWidth()
+    local x = 28
+    local w = math.max(360, width - 370)
+    local y = 92
+    local h = 238
+    local floorY = y + h - 42
+    local rank = clamp(tonumber(number and number.rank) or 1, 1, 4)
+    if number and number.side == "ally" then
+        return x + 92 + (rank - 1) * 56, floorY - 94
+    end
+    local enemy = sim and sim.combat and sim:enemyAtRank(rank) or nil
+    local def = enemy and Defs.enemy(enemy.kind) or nil
+    local spacing = def and def.boss and 72 or 56
+    return x + w - 96 - (rank - 1) * spacing, floorY - 94
+end
+
+function Render.drawDamageNumbers(sim, app)
+    local numbers = app and app.damageNumbers
+    if not numbers or #numbers == 0 then
+        return 0
+    end
+    if not (love and love.graphics) then
+        return #numbers
+    end
+    for _, number in ipairs(numbers) do
+        local life = math.max(0.001, number.duration or 0.65)
+        local progress = 1 - clamp01((number.t or 0) / life)
+        local x, y = damageNumberAnchor(sim, number)
+        y = y - progress * 28
+        local alpha = clamp01((number.t or 0) / math.min(0.25, life))
+        if number.kind == "stress" then
+            love.graphics.setColor(0.72, 0.46, 0.86, alpha)
+        elseif number.crit then
+            love.graphics.setColor(1, 0.9, 0.36, alpha)
+        else
+            love.graphics.setColor(0.95, 0.78, 0.58, alpha)
+        end
+        love.graphics.printf(Render.damageNumberLabel(number), x - 58, y, 116, "center")
+    end
+    return #numbers
 end
 
 function Render.drawCombatStage(sim, app)
@@ -2883,6 +2989,8 @@ function Render.draw(sim, app)
     love.graphics.clear(0.055, 0.058, 0.065, 1)
     Render.drawWorld(sim, app)
     love.graphics.push("all")
+    local shakeX, shakeY = combatShakeOffset(app)
+    love.graphics.translate(shakeX, shakeY)
     love.graphics.setDepthMode()
     Render.drawHud(sim, app)
     Render.drawSidePanel(sim, app)
@@ -2893,6 +3001,7 @@ function Render.draw(sim, app)
     Render.drawCurioResult(app)
     Render.drawCurioModal(app)
     Render.drawCutscene(sim, app)
+    Render.drawDamageNumbers(sim, app)
     Render.drawKeyboardFocus(app)
     Render.drawTutorial(app)
     Render.drawPauseMenu(app)

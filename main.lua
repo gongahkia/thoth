@@ -186,6 +186,62 @@ local function playSimulationAudio(state, simulation)
     end
 end
 
+local function queueCombatJuice(state, simulation)
+    state.lastJuiceEventId = state.lastJuiceEventId or (simulation.eventSerial or 0)
+    state.damageNumbers = state.damageNumbers or {}
+    for _, event in ipairs(simulation.events or {}) do
+        if event.id > state.lastJuiceEventId then
+            local impacts = type(event.impacts) == "table" and event.impacts or {}
+            local strongest = 0
+            local hasImpact = false
+            local crit = event.crit == true
+            for _, impact in ipairs(impacts) do
+                local amount = tonumber(impact.amount) or 0
+                if amount > 0 then
+                    hasImpact = true
+                    crit = crit or impact.crit == true
+                    strongest = math.max(strongest, amount)
+                    state.damageNumbers[#state.damageNumbers + 1] = {
+                        side = impact.side,
+                        rank = impact.rank,
+                        amount = amount,
+                        kind = impact.kind or "hp",
+                        crit = impact.crit == true,
+                        t = crit and 0.82 or 0.65,
+                        duration = crit and 0.82 or 0.65,
+                    }
+                end
+            end
+            if hasImpact and not (state.settings and state.settings.reducedMotion) then
+                state.combatHitPause = math.max(state.combatHitPause or 0, crit and 0.12 or 0.075)
+                state.combatShake = math.max(state.combatShake or 0, crit and 0.24 or 0.16)
+                state.combatShakeMagnitude = math.max(state.combatShakeMagnitude or 0, crit and 8 or math.min(7, 3 + strongest * 0.35))
+            end
+            state.lastJuiceEventId = event.id
+        end
+    end
+end
+
+local function advanceCombatJuice(state, dt)
+    if not state then
+        return false
+    end
+    local hitPaused = (state.combatHitPause or 0) > 0
+    state.combatHitPause = math.max(0, (state.combatHitPause or 0) - (dt or 0))
+    state.combatShake = math.max(0, (state.combatShake or 0) - (dt or 0))
+    if state.combatShake <= 0 then
+        state.combatShakeMagnitude = 0
+    end
+    for index = #(state.damageNumbers or {}), 1, -1 do
+        local number = state.damageNumbers[index]
+        number.t = (number.t or 0) - (dt or 0)
+        if number.t <= 0 then
+            table.remove(state.damageNumbers, index)
+        end
+    end
+    return hitPaused
+end
+
 local function queueCutscenes(state, simulation)
     state.lastVisualEventId = state.lastVisualEventId or (simulation.eventSerial or 0)
     state.cutsceneQueue = state.cutsceneQueue or {}
@@ -216,6 +272,11 @@ local function resetVisualState(state, simulation)
     state.cutscene = nil
     state.cutsceneQueue = {}
     state.eventFlash = nil
+    state.lastJuiceEventId = simulation.eventSerial or 0
+    state.damageNumbers = {}
+    state.combatHitPause = 0
+    state.combatShake = 0
+    state.combatShakeMagnitude = 0
     state.pendingSkillKey = nil
     state.pendingTargetSide = nil
 end
@@ -1276,6 +1337,11 @@ function love.load(args)
         lastCueStatus = sim.status,
         lastAudioEventId = sim.eventSerial or 0,
         lastVisualEventId = sim.eventSerial or 0,
+        lastJuiceEventId = sim.eventSerial or 0,
+        damageNumbers = {},
+        combatHitPause = 0,
+        combatShake = 0,
+        combatShakeMagnitude = 0,
         cutsceneQueue = {},
     }
     refreshContinueState(app)
@@ -1334,6 +1400,7 @@ function love.update(dt)
             app.uiPulse = nil
         end
     end
+    local hitPaused = advanceCombatJuice(app, dt)
     if app.uiState ~= "game" then
         if app.smoke then
             app.smokeFrames = app.smokeFrames + 1
@@ -1346,11 +1413,13 @@ function love.update(dt)
     if syncGameOverState(app) then
         return
     end
-    if not app.paused then
+    if not app.paused and not hitPaused then
         Input.update(sim, app, dt)
     end
     Achievements.update(sim, app)
-    Render.advanceCutscene(app, dt)
+    if not hitPaused then
+        Render.advanceCutscene(app, dt)
+    end
     startNextCutscene(app)
     if app.eventFlash then
         app.eventFlash.t = math.max(0, app.eventFlash.t - dt)
@@ -1367,9 +1436,10 @@ function love.update(dt)
     accumulator = math.min(accumulator + dt, 0.25)
     local maxSteps = love.keyboard.isDown("lshift", "rshift") and 6 or 3
     local steps = 0
-    while not app.paused and accumulator >= fixedDt and steps < maxSteps do
+    while not app.paused and not hitPaused and accumulator >= fixedDt and steps < maxSteps do
         sim:step()
         playSimulationAudio(app, sim)
+        queueCombatJuice(app, sim)
         queueCutscenes(app, sim)
         if syncGameOverState(app) then
             break

@@ -3844,7 +3844,9 @@ function Simulation:enemyTurn(enemy)
     if skill.heatFatigue and self.expedition then
         self.expedition.heatFatigue = (self.expedition.heatFatigue or 0) + skill.heatFatigue
     end
+    local impacts = {}
     for _, target in ipairs(targets) do
+        local targetRank = self:heroRank(target.id)
         local damage = 0
         if skill.damage then
             damage = self:roll(skill.damage[1], skill.damage[2]) + damageBonus
@@ -3852,9 +3854,16 @@ function Simulation:enemyTurn(enemy)
                 damage = damage + skill.markBonus
             end
             self:damageHero(target, damage)
+            if damage > 0 then
+                impacts[#impacts + 1] = { side = "ally", rank = targetRank, amount = damage, kind = "hp" }
+            end
         end
         if skill.stress then
-            self:addStress(target, math.max(0, skill.stress + stressBonus - stressPenalty))
+            local stress = math.max(0, skill.stress + stressBonus - stressPenalty)
+            self:addStress(target, stress)
+            if stress > 0 and target.alive then
+                impacts[#impacts + 1] = { side = "ally", rank = targetRank, amount = stress, kind = "stress" }
+            end
         end
         if skill.status and target.alive then
             target.statuses = target.statuses or {}
@@ -3892,7 +3901,7 @@ function Simulation:enemyTurn(enemy)
         end
     end
     self:repairDisabledPart(enemy)
-    self:pushLog(def.name .. " used " .. skill.name, { event = def.boss and "boss_skill" or "enemy_skill", actor = def.name, skill = skill.name, skillKey = skillKey, side = "enemy", boss = def.boss == true })
+    self:pushLog(def.name .. " used " .. skill.name, { event = def.boss and "boss_skill" or "enemy_skill", actor = def.name, skill = skill.name, skillKey = skillKey, side = "enemy", boss = def.boss == true, impacts = impacts })
     return true
 end
 
@@ -4073,6 +4082,7 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
     if hero.virtue then
         damageBonus = damageBonus + ((Defs.virtue(hero.virtue) or {}).damageBonus or 0)
     end
+    local impacts = {}
     for _, target in ipairs(targets) do
         local unit = target.unit or target
         if skill.damage and targetSide == "enemy" then
@@ -4091,6 +4101,7 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
                 damage = damage - (enemyDef.armor or 0)
             end
             damage = math.max(0, damage)
+            local crit = marked and damage > 0
             if target.partKey then
                 self:damageEnemyPart(unit, target.partKey, damage)
             else
@@ -4104,6 +4115,9 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
                     self:damageHero(hero, enemyDef.reflectDamage)
                 end
             end
+            if damage > 0 then
+                impacts[#impacts + 1] = { side = "enemy", rank = unit.rank, amount = damage, kind = "hp", crit = crit, partKey = target.partKey }
+            end
         end
         if skill.stressDamage and targetSide == "enemy" then
             if target.partKey then
@@ -4116,6 +4130,9 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
                 if enemyDef and enemyDef.reflectStressDamage then
                     self:addStress(hero, skill.stressDamage)
                 end
+            end
+            if skill.stressDamage > 0 then
+                impacts[#impacts + 1] = { side = "enemy", rank = unit.rank, amount = skill.stressDamage, kind = "stress", partKey = target.partKey }
             end
         end
         if skill.heal then
@@ -4140,7 +4157,11 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
     if skill.torch and self.expedition then
         self.expedition.torch = clamp(self.expedition.torch + skill.torch, 0, 100)
     end
-    self:pushLog(hero.name .. " used " .. skill.name, { event = "hero_skill", actor = hero.name, skill = skill.name, skillKey = skillKey, side = "ally" })
+    local crit = false
+    for _, impact in ipairs(impacts) do
+        crit = crit or impact.crit == true
+    end
+    self:pushLog(hero.name .. " used " .. skill.name, { event = "hero_skill", actor = hero.name, skill = skill.name, skillKey = skillKey, side = "ally", impacts = impacts, crit = crit })
     return true
 end
 

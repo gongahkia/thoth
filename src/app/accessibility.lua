@@ -13,6 +13,7 @@ local function settingText(settings)
         "colorblind=" .. tostring(settings.colorblindMode or "off"),
         "font_scale=" .. tostring(settings.fontScale or 1),
         "reduced_motion=" .. tostring(settings.reducedMotion == true),
+        "screen_shake=" .. tostring(settings.screenShake ~= false),
         "subtitles=" .. tostring(settings.subtitles ~= false),
     }, ", ")
 end
