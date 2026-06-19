@@ -42,6 +42,27 @@ local fixtures = {
             expect(sim.combat == nil, "retreat replay should clear combat")
         end,
     },
+    {
+        name = "estate_to_camp",
+        seed = 103,
+        finalTick = 9,
+        frames = {
+            { tick = 0, command = Simulation.commands.endExpedition(true) },
+            { tick = 1, command = Simulation.commands.buyProvision("torch", 2) },
+            { tick = 2, command = Simulation.commands.recruitHero(1) },
+            { tick = 3, command = Simulation.commands.assignParty(5, 4) },
+            { tick = 4, command = Simulation.commands.startExpedition("archive_cleansing") },
+            { tick = 5, command = Simulation.commands.camp() },
+            { tick = 6, command = Simulation.commands.campSkill("watch_order") },
+            { tick = 7, command = Simulation.commands.campSkill("bind_wounds", 4) },
+        },
+        validate = function(sim)
+            expect(sim.expedition.mission == "archive_cleansing", "mission replay should start selected mission")
+            expect(sim.expedition.supplies:count("torch") == 6, "provision replay should merge cart")
+            expect(#sim.estate.roster == 5 and sim.party[4] == 5, "recruit replay should assign new hero")
+            expect(sim.expedition.campUsed and sim.expedition.camping == nil, "camp replay should spend all respite")
+        end,
+    },
 }
 
 for _, fixture in ipairs(fixtures) do
