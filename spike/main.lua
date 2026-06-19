@@ -5,10 +5,12 @@ package.path = table.concat({
 }, ";")
 
 local g3d = require("g3d")
-local cube
-local angle = 0
+local grid
+local gridSize = 20
+local viewSize = 24
 
-local function vert(x, y, z, u, v)
+local function vert(x, y, z, u)
+    local v = 0.5
     return {x, y, z, u, v, 0, 0, 1, 1, 1, 1, 1}
 end
 
@@ -21,59 +23,58 @@ local function quad(out, a, b, c, d)
     out[#out + 1] = d
 end
 
-local function cubeVerts()
-    local s = 0.5
-    local p = {
-        lbf = vert(-s, -s, -s, 0, 0),
-        rbf = vert(s, -s, -s, 1, 0),
-        rff = vert(s, s, -s, 1, 1),
-        lff = vert(-s, s, -s, 0, 1),
-        lbt = vert(-s, -s, s, 0, 0),
-        rbt = vert(s, -s, s, 1, 0),
-        rft = vert(s, s, s, 1, 1),
-        lft = vert(-s, s, s, 0, 1),
-    }
+local function tileVerts()
     local out = {}
-    quad(out, p.lbf, p.rbf, p.rff, p.lff)
-    quad(out, p.lbt, p.lft, p.rft, p.rbt)
-    quad(out, p.lbf, p.lff, p.lft, p.lbt)
-    quad(out, p.rbf, p.rbt, p.rft, p.rff)
-    quad(out, p.lff, p.rff, p.rft, p.lft)
-    quad(out, p.lbf, p.lbt, p.rbt, p.rbf)
+    local half = gridSize / 2
+    for y = 0, gridSize - 1 do
+        for x = 0, gridSize - 1 do
+            local left = x - half
+            local right = left + 0.96
+            local top = y - half
+            local bottom = top + 0.96
+            local u = ((x + y) % 2 == 0) and 0.25 or 0.75
+            quad(out,
+                vert(left, top, 0, u),
+                vert(right, top, 0, u),
+                vert(right, bottom, 0, u),
+                vert(left, bottom, 0, u))
+        end
+    end
     return out
 end
 
 local function texture()
-    local data = love.image.newImageData(1, 1)
-    data:setPixel(0, 0, 0.7, 0.8, 0.95, 1)
-    return love.graphics.newImage(data)
+    local data = love.image.newImageData(2, 1)
+    data:setPixel(0, 0, 0.34, 0.37, 0.42, 1)
+    data:setPixel(1, 0, 0.48, 0.50, 0.55, 1)
+    local image = love.graphics.newImage(data)
+    image:setFilter("nearest", "nearest")
+    return image
 end
 
 function love.load()
-    love.window.setTitle("Thoth g3d cube spike")
-    cube = g3d.newModel(cubeVerts(), texture())
-    cube:makeNormals()
-    g3d.camera.lookAt(4, -6, 4, 0, 0, 0)
-    g3d.camera.updateOrthographicMatrix(4)
+    love.window.setTitle("Thoth g3d tile grid spike")
+    grid = g3d.newModel(tileVerts(), texture())
+    grid:makeNormals()
+    g3d.camera.lookAt(12, -18, 14, 0, 0, 0)
+    g3d.camera.updateOrthographicMatrix(viewSize)
 end
 
-function love.update(dt)
-    angle = angle + dt * 0.7
-    cube:setRotation(0, 0, angle)
+function love.update()
     if love.keyboard.isDown("escape") then
         love.event.push("quit")
     end
 end
 
 function love.draw()
-    cube:draw()
+    grid:draw()
     love.graphics.setDepthMode()
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print("g3d cube spike", 16, 16)
+    love.graphics.print("g3d 20x20 tile grid", 16, 16)
     love.graphics.setDepthMode("lequal", true)
 end
 
 function love.resize(width, height)
     g3d.camera.resize(width, height)
-    g3d.camera.updateOrthographicMatrix(4)
+    g3d.camera.updateOrthographicMatrix(viewSize)
 end

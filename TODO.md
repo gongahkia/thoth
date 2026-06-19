@@ -70,7 +70,6 @@ Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
 ### Day 1 — Library bake-off setup (~4h)
 
 ### Day 2 — 3D world spike (~4h)
-- [ ] 0.2.1 Render 20×20 flat tile grid as 3D quads/cubes (1h)
 - [ ] 0.2.2 Add orthographic camera at iso angle (30° pitch, 45° yaw equivalent) (1h)
 - [ ] 0.2.3 Implement 90° camera rotation snap (4 yaw positions: 0°, 90°, 180°, 270°) with smooth interpolation (1h)
 - [ ] 0.2.4 Add player input: press `q`/`e` to rotate world. Verify rotation feels right (1h)
