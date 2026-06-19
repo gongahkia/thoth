@@ -462,6 +462,31 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local cases = {
+        { "ember_cleansing", "Ember Warrens", "ember rooms quenched 0/2", "Win 2 Warrens fights" },
+        { "ember_wards", "Ember Wards", "ember wards anointed 0/2", "Spend 2 Ember Oil" },
+        { "ember_vow_kilns", "Vow Kilns", "vow kilns doused 0/2", "Spend 2 Ember Oil at vow kilns" },
+        { "ember_ash_names", "Ash Names", "ash names carried 0/2", "Carry out 2 Ash Names" },
+        { "ember_warm_dead", "Warm Dead", "warm dead spared 0/1", "Spend the False Vow Writ" },
+        { "warrens_douse_vicar", "Kiln Vicar", "kiln vicar doused 0/1", "Defeat the Kiln Vicar" },
+        { "warrens_burn_false_vow", "False Vow", "false vow burned 0/1", "lower dread" },
+        { "warrens_warm_ledger", "Warm Ledger", "warm ledger recovered 0/1", "Recover the Warm Ledger" },
+        { "warrens_aron_boy", "Aron Boy", "Aron boy carried 0/1", "Carry out the Aron Boy" },
+        { "warrens_open_furnace", "White Furnace Keys", "white furnace keys recovered 0/2", "Recover 2 White Furnace Keys" },
+    }
+    local sim = Simulation.new(135)
+    sim:endExpedition(true)
+    for _, case in ipairs(cases) do
+        local key, introNeedle, progressNeedle, objectiveNeedle = case[1], case[2], case[3], case[4]
+        runQueued(sim, Simulation.commands.startExpedition(key))
+        expect(sim:missionIntro(key).brief:find(introNeedle, 1, true), key .. " intro should be mission-specific")
+        expect(sim:missionProgressText():find(progressNeedle, 1, true), key .. " should expose polished progress text")
+        expect(sim:objectiveChecklist()[1].items[1].next:find(objectiveNeedle, 1, true), key .. " should expose next-step copy")
+        sim:endExpedition(true)
+    end
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(113)
     sim:endExpedition(true)
     sim.estate.campaign.dread = 0

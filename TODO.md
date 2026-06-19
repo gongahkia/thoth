@@ -122,7 +122,6 @@ Goal: full playthrough of Buried Archive Tier I (3 missions) end-to-end, with 4 
 
 Goal: fill out Buried Archive (12 missions), Salt Cistern (10 missions), Ember Warrens (9 missions) with hand-tuned polish.
 
-- [ ] 5.6 Ember Warrens Tier I–III content polish: 9 missions (`ember_*` and `warrens_*`) (200h)
 - [ ] 5.7 Ember Warrens boss fight polish (`ember_prioress`) (40h)
 - [ ] 5.8 Class unlock progression UX: clear gating from Buried Archive → Cistern → Warrens classes (16h)
 - [ ] 5.9 Faction state pressure tuning: dread/faction interactions across all 32 missions (60h)
