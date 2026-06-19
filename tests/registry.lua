@@ -556,16 +556,17 @@ end
 for key, documentType in pairs(Defs.documentTypes) do
     expect(documentType.name and (documentType.location == "global" or Defs.location(documentType.location)), "document type bad data " .. key)
 end
-expect(#Defs.documentTypeOrder == 5 and Defs.documentRegistry("document_registry_v1"), "document registry missing")
+expect(#Defs.documentTypeOrder == 6 and Defs.documentRegistry("document_registry_v1"), "document registry missing")
 for key, document in pairs(Defs.documents) do
     expect(document.title and document.abstract and document.text, "document missing copy " .. key)
     expect(#document.text >= 120 and document.text ~= document.abstract, "document body copy too thin " .. key)
     expect(Defs.documentType(document.type), "document type missing " .. key)
     expect(Defs.location(document.location), "document location missing " .. key)
 end
-expect(#Defs.documentOrder == 27, "document bank should expose 27 documents")
+expect(#Defs.documentOrder == 30, "document bank should expose 30 documents")
 for key, bank in pairs(Defs.documentBanks) do
-    expect(Defs.location(bank.location) and #bank.documents == 9, "document bank bad data " .. key)
+    local expectedCount = key == "merchant_documents_v1" and 3 or 9
+    expect(Defs.location(bank.location) and #bank.documents == expectedCount, "document bank bad data " .. key)
     for _, documentKey in ipairs(bank.documents) do
         expect(Defs.document(documentKey), "document bank missing document " .. documentKey)
     end
@@ -573,6 +574,7 @@ end
 expect(Defs.documentBank("archive_documents_v1").documents[1] == "archive_writ_01", "archive document bank missing")
 expect(Defs.documentBank("cistern_documents_v1").documents[1] == "cistern_valve_01", "cistern document bank missing")
 expect(Defs.documentBank("warrens_documents_v1").documents[1] == "warrens_confession_01", "warrens document bank missing")
+expect(Defs.documentBank("merchant_documents_v1").documents[1] == "merchant_ledger_01", "merchant document bank missing")
 local dropRule = Defs.documentDropRule("document_drop_rules")
 expect(dropRule.curio and dropRule.roomLoot and dropRule.warden and dropRule.bankByLocation.buried_archive == "archive_documents_v1", "document drop rule missing")
 local fixtureBarks = Defs.fixtureDocumentBark("fixture_document_barks")
@@ -591,7 +593,9 @@ for _, key in ipairs(Defs.endingRouteOrder) do
 end
 expect(Defs.fixtureVisitBark("fixture_visit_barks").greeting and Defs.fixtureVisitBark("fixture_visit_barks").farewell, "fixture visit barks missing")
 expect(Defs.fixtureVisitBark("fixture_visit_barks").greeting ~= Defs.fixtureVisitBark("fixture_visit_barks").farewell, "fixture visit greeting/farewell should differ")
-expect(Defs.enclaveLeaderBark("enclave_leader_barks").low and Defs.enclaveLeaderBark("enclave_leader_barks").high, "enclave leader barks missing")
+local enclaveBarks = Defs.enclaveLeaderBark("enclave_leader_barks")
+expect(enclaveBarks.low and enclaveBarks.high, "enclave leader barks missing")
+expect(enclaveBarks.merchant and enclaveBarks.merchant.faction_custodians:find("Merchant", 1, true), "merchant faction barks missing")
 local wardenVoice = Defs.wardenVoice("warden_voice_v1")
 for _, key in ipairs({ "codex_reeve", "pearl_choir", "kiln_vicar" }) do
     expect(wardenVoice[key] and wardenVoice[key].intro and wardenVoice[key].defeat, "warden voice missing " .. key)

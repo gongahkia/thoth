@@ -132,7 +132,6 @@ Goal: fill out Buried Archive (12 missions), Salt Cistern (10 missions), Ember W
 
 Goal: ship 9th class. Late-game design choice: introduce dissonance at the point players have made peace with the institutional tone.
 
-- [ ] 6.13 Write Merchant-specific document fragments + faction text (16h)
 - [ ] 6.14 Balance pass: 10 playthroughs with Merchant in party at various tiers (80h)
 - [ ] 6.15 Balance pass: 10 playthroughs without Merchant — verify game still tuned for 8-class roster (60h)
 - [ ] 6.16 Add Merchant-specific interactions with enclave leaders (Merchant as faction-broker NPC reactions) (32h)

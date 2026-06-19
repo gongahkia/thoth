@@ -2365,8 +2365,9 @@ Registry.documentTypes = {
     penitent_confession = { name = "Penitent Confession", location = "ember_warrens" },
     intake_colophon = { name = "Intake Colophon", location = "buried_archive" },
     survivor_page = { name = "Survivor Page", location = "global" },
+    ledger_fragment = { name = "Ledger Fragment", location = "buried_archive" },
 }
-Registry.documentTypeOrder = { "writ_fragment", "valve_schematic", "penitent_confession", "intake_colophon", "survivor_page" }
+Registry.documentTypeOrder = { "writ_fragment", "valve_schematic", "penitent_confession", "intake_colophon", "survivor_page", "ledger_fragment" }
 Registry.documentRegistries = {
     document_registry_v1 = { types = Registry.documentTypeOrder },
 }
@@ -2382,6 +2383,9 @@ Registry.documents = {
     archive_colophon_01 = { type = "intake_colophon", location = "buried_archive", title = "Intake Colophon I", abstract = "The intake desk counted hunger as consent.", text = "This volume was copied beside the bread gate. Each signature was taken after ration bell and before water bell, when the hand shakes enough to look voluntary on the page." },
     archive_colophon_02 = { type = "intake_colophon", location = "buried_archive", title = "Intake Colophon II", abstract = "The old map omits rooms that owed too much.", text = "The floor plan excludes chambers under fiscal review. Staff are reminded that omitted rooms are not hidden; they are unresolved, and unresolved space may not be searched without fee." },
     archive_colophon_03 = { type = "intake_colophon", location = "buried_archive", title = "Intake Colophon III", abstract = "The Regent's seal repeats on erased pages.", text = "Twenty-seven scraped pages bear the same seal pressure beneath the wash. The name removed from each page varies, but the authorizing hand is identical and was never countersigned." },
+    merchant_ledger_01 = { type = "ledger_fragment", location = "buried_archive", title = "Merchant Ledger I", abstract = "A rescue column prices living bodies below proof.", text = "Four survivors are valued below two stamped writs because writs travel cleanly and mouths require rations. The margin notes that mercy remains permissible when it improves witness quality." },
+    merchant_ledger_02 = { type = "ledger_fragment", location = "buried_archive", title = "Merchant Ledger II", abstract = "Faction standing is converted into recoverable debt.", text = "Custodian favor is listed as collateral, enclave trust as spoilage, lamplighter patience as transport cost. The exchange rate changes whenever grief becomes organized enough to bargain." },
+    merchant_ledger_03 = { type = "ledger_fragment", location = "buried_archive", title = "Merchant Ledger III", abstract = "The Estate's losses are filed as future leverage.", text = "Each failed route receives a remainder value: names for pressure, graves for warning, tools for resale, silence for policy. The account calls this waste only when no faction can be made to pay." },
 
     cistern_valve_01 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic I", abstract = "A relief valve drains into worker bunks.", text = "The relief line diverts overflow through bunkhouse C before it reaches the noble pump. Fatalities are expected only during pressure correction and should be logged as sleep losses." },
     cistern_valve_02 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic II", abstract = "A drowned market line is labeled expendable.", text = "Market channel six may be sacrificed to protect export tanks. Merchants objected until the tariff office confirmed drowned stalls still owed rent for the full quarter." },
@@ -2405,7 +2409,7 @@ Registry.documents = {
 }
 Registry.documentOrder = {
     "archive_writ_01", "archive_writ_02", "archive_writ_03", "archive_writ_04", "archive_writ_05", "archive_writ_06",
-    "archive_colophon_01", "archive_colophon_02", "archive_colophon_03",
+    "archive_colophon_01", "archive_colophon_02", "archive_colophon_03", "merchant_ledger_01", "merchant_ledger_02", "merchant_ledger_03",
     "cistern_valve_01", "cistern_valve_02", "cistern_valve_03", "cistern_valve_04", "cistern_valve_05", "cistern_valve_06",
     "cistern_survivor_01", "cistern_survivor_02", "cistern_survivor_03",
     "warrens_confession_01", "warrens_confession_02", "warrens_confession_03", "warrens_confession_04", "warrens_confession_05", "warrens_confession_06",
@@ -2425,8 +2429,12 @@ Registry.documentBanks = {
         location = "ember_warrens",
         documents = { "warrens_confession_01", "warrens_confession_02", "warrens_confession_03", "warrens_confession_04", "warrens_confession_05", "warrens_confession_06", "warrens_survivor_01", "warrens_survivor_02", "warrens_survivor_03" },
     },
+    merchant_documents_v1 = {
+        location = "buried_archive",
+        documents = { "merchant_ledger_01", "merchant_ledger_02", "merchant_ledger_03" },
+    },
 }
-Registry.documentBankOrder = { "archive_documents_v1", "cistern_documents_v1", "warrens_documents_v1" }
+Registry.documentBankOrder = { "archive_documents_v1", "cistern_documents_v1", "warrens_documents_v1", "merchant_documents_v1" }
 
 Registry.documentDropRules = {
     document_drop_rules = {
@@ -2449,6 +2457,7 @@ Registry.fixtureDocumentBarks = {
         valve_schematic = { fixture = "fixture_foreman_ott", text = "Ott taps the valve lines and counts missing crews." },
         penitent_confession = { fixture = "fixture_chirurgeon_vell", text = "Vell files the confession beside burn treatments." },
         survivor_page = { fixture = "fixture_stage_master", text = "The Stage Master asks which names still need seats." },
+        ledger_fragment = { fixture = "fixture_clerk_of_debts", text = "The Clerk weighs the ledger fragment and smiles without warmth." },
     },
 }
 Registry.fixtureDocumentBarkOrder = { "fixture_document_barks" }
@@ -2569,6 +2578,13 @@ Registry.enclaveLeaderBarks = {
         low = "Your name is still negotiable.",
         tense = "The enclave counts favors faster than weeks.",
         high = "One more debt and the route closes.",
+        merchant = {
+            enclave_meter = "The Merchant calls survivor trust liquidity; Ilse calls it names still breathing.",
+            faction_custodians = "Custodians respect the Merchant's numbers until the invoice names them.",
+            faction_cistern_keepers = "Cistern Keepers hear tariff in every Merchant promise.",
+            faction_ember_penitents = "Ember Penitents ask whether the Merchant can price pain without worshiping it.",
+            faction_lamplighters = "Lamplighters distrust any route quote that omits oil, bodies, and blame.",
+        },
     },
 }
 Registry.enclaveLeaderBarkOrder = { "enclave_leader_barks" }
