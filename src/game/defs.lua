@@ -9,6 +9,8 @@ local Defs = {
     inventoryPanelOrder = Registry.inventoryPanelOrder,
     heroClasses = Registry.heroClasses,
     heroClassOrder = Registry.heroClassOrder,
+    classUnlocks = Registry.classUnlocks,
+    classUnlockOrder = Registry.classUnlockOrder,
     trinkets = Registry.trinkets,
     trinketOrder = Registry.trinketOrder,
     trinketSets = Registry.trinketSets,
@@ -135,6 +137,10 @@ end
 
 function Defs.heroClass(id)
     return Defs.heroClasses[id]
+end
+
+function Defs.classUnlock(id)
+    return Defs.classUnlocks[id]
 end
 
 function Defs.trinket(id)

@@ -326,6 +326,17 @@ Registry.heroClasses = {
     },
 }
 Registry.heroClassOrder = { "warden", "duelist", "mender", "arcanist", "harrier", "chirurgeon", "exile", "lamplighter" }
+Registry.classUnlocks = {
+    warden = { default = true, reason = "Available at Estate start." },
+    duelist = { default = true, reason = "Available at Estate start." },
+    mender = { default = true, reason = "Available at Estate start." },
+    harrier = { default = true, reason = "Available at Estate start." },
+    arcanist = { location = "buried_archive", progress = 1, reason = "Complete any Buried Archive expedition." },
+    chirurgeon = { bossKill = "buried_archive", reason = "Defeat the Vault Regent." },
+    exile = { location = "salt_cistern", progress = 1, reason = "Complete any Salt Cistern expedition." },
+    lamplighter = { bossKill = "salt_cistern", reason = "Defeat the Bell Diver." },
+}
+Registry.classUnlockOrder = Registry.heroClassOrder
 
 Registry.skills = {
     shield_crack = {

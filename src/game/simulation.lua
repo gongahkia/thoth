@@ -121,8 +121,8 @@ local function newHero(id, classKey, name, quirks)
     }
 end
 
-local function recruitCandidate(seed, serial)
-    local classes = Defs.heroClassOrder
+local function recruitCandidate(seed, serial, classes)
+    classes = classes or Defs.heroClassOrder
     local positives = { "iron_nerves", "quick_reflexes", "steady_hand", "field_reader" }
     local negatives = { "gloomy", "brittle", "faint_pulse", "soft_voice" }
     local classKey = classes[(Rng.hash(seed + 2101, serial, 1, 0) % #classes) + 1]
@@ -1187,6 +1187,46 @@ function Simulation:availableMissionKeys()
     return self.estate.missionBoard
 end
 
+function Simulation:classUnlocked(classKey)
+    local rule = Defs.classUnlock(classKey) or {}
+    if rule.default then
+        return true
+    end
+    local campaign = self.estate.campaign or {}
+    if rule.bossKill then
+        return campaign.bossKills and campaign.bossKills[rule.bossKill] == true
+    end
+    if rule.location and rule.progress then
+        return ((campaign.locationProgress and campaign.locationProgress[rule.location]) or 0) >= rule.progress
+    end
+    return false
+end
+
+function Simulation:classUnlockStatus()
+    local result = {}
+    for _, classKey in ipairs(Defs.classUnlockOrder or Defs.heroClassOrder) do
+        local class = Defs.heroClass(classKey) or {}
+        local rule = Defs.classUnlock(classKey) or {}
+        result[#result + 1] = {
+            class = classKey,
+            name = class.name or classKey,
+            unlocked = self:classUnlocked(classKey),
+            reason = rule.reason or "Locked.",
+        }
+    end
+    return result
+end
+
+function Simulation:unlockedClassKeys()
+    local result = {}
+    for _, status in ipairs(self:classUnlockStatus()) do
+        if status.unlocked then
+            result[#result + 1] = status.class
+        end
+    end
+    return #result > 0 and result or { "warden" }
+end
+
 function Simulation:missionLevelPenalty(mission)
     local target = mission.resolveLevel or 1
     local penalty = 0
@@ -1767,9 +1807,21 @@ end
 
 function Simulation:refillRecruits()
     self.estate.recruits = self.estate.recruits or {}
+    local classes = self:unlockedClassKeys()
+    local unlocked = {}
+    for _, classKey in ipairs(classes) do
+        unlocked[classKey] = true
+    end
+    local kept = {}
+    for _, recruit in ipairs(self.estate.recruits) do
+        if unlocked[recruit.class] then
+            kept[#kept + 1] = recruit
+        end
+    end
+    self.estate.recruits = kept
     while #self.estate.recruits < self:recruitSlots() do
         local serial = self.estate.recruitSerial or 1
-        self.estate.recruits[#self.estate.recruits + 1] = recruitCandidate(self.seed, serial)
+        self.estate.recruits[#self.estate.recruits + 1] = recruitCandidate(self.seed, serial, classes)
         self.estate.recruitSerial = serial + 1
     end
 end

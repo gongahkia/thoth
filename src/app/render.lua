@@ -926,6 +926,24 @@ function Render.expeditionHudSummary(sim)
     }
 end
 
+function Render.classUnlockSummary(sim)
+    local statuses = sim and sim.classUnlockStatus and sim:classUnlockStatus() or {}
+    local unlocked = 0
+    local nextLocked = nil
+    for _, status in ipairs(statuses) do
+        if status.unlocked then
+            unlocked = unlocked + 1
+        elseif not nextLocked then
+            nextLocked = status
+        end
+    end
+    local line = "classes " .. tostring(unlocked) .. "/" .. tostring(#statuses)
+    if nextLocked then
+        line = line .. " next " .. nextLocked.name .. ": " .. nextLocked.reason
+    end
+    return { unlocked = unlocked, total = #statuses, next = nextLocked, line = line, statuses = statuses }
+end
+
 local function combatActorLabel(sim, actor)
     if not actor then
         return "-"
@@ -2803,6 +2821,8 @@ function Render.drawEstatePanel(sim, app)
     local recruitY = y + 452
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Recruits", x + 10, recruitY)
+    love.graphics.setColor(0.58, 0.62, 0.55, 1)
+    love.graphics.printf(Render.classUnlockSummary(sim).line, x + 92, recruitY, 328, "right")
     for index, recruit in ipairs(sim.estate.recruits or {}) do
         local bx = x + 10 + ((index - 1) % 3) * 136
         local by = recruitY + 24 + math.floor((index - 1) / 3) * 34

@@ -1885,6 +1885,32 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(136)
+    sim:endExpedition(true)
+    local function hasClass(key)
+        return contains(sim:unlockedClassKeys(), key)
+    end
+    expect(hasClass("warden") and hasClass("duelist") and hasClass("mender") and hasClass("harrier"), "starter classes should be unlocked")
+    expect(not hasClass("arcanist") and not hasClass("chirurgeon") and not hasClass("exile") and not hasClass("lamplighter"), "advanced classes should start locked")
+    sim.estate.recruits = { { class = "lamplighter", name = "Locked", quirks = {} } }
+    sim:refillRecruits()
+    for _, recruit in ipairs(sim.estate.recruits) do
+        expect(hasClass(recruit.class), "recruit pool should prune locked classes")
+    end
+    expect(Render.classUnlockSummary(sim).line:find("Arcanist", 1, true), "class unlock summary should expose next locked class")
+    sim.estate.campaign.locationProgress.buried_archive = 1
+    expect(hasClass("arcanist") and Render.classUnlockSummary(sim).line:find("Chirurgeon", 1, true), "archive progress should unlock arcanist and show next gate")
+    sim.estate.campaign.bossKills.buried_archive = true
+    expect(hasClass("chirurgeon"), "archive boss kill should unlock chirurgeon")
+    sim.estate.campaign.locationProgress.salt_cistern = 1
+    expect(hasClass("exile"), "cistern progress should unlock exile")
+    sim.estate.campaign.bossKills.salt_cistern = true
+    expect(hasClass("lamplighter"), "cistern boss kill should unlock lamplighter")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(contains(loaded:unlockedClassKeys(), "lamplighter"), "class gates should survive snapshot through campaign state")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(72)
     sim:endExpedition(true)
     for _, hero in ipairs(sim.estate.roster) do
