@@ -147,7 +147,6 @@ Goal: Balatro-feel polish on every interaction. Audio mix. Final accessibility p
 - [ ] 7.1 Micro-animation pass on every UI element (hover, press, success, error) — Balatro reference (120h)
 - [ ] 7.2 Combat juice pass: hit pause, screen shake (toggleable), damage numbers, crit feedback (80h)
 - [ ] 7.3 Audio mix pass: layer ambient + music + SFX, sidechain duck on critical events (40h)
-- [ ] 7.4 Voice barks: short text-to-speech or sampled stings for class arrivals, deaths, crits (40h opt., skip if cost-prohibitive)
 - [ ] 7.5 Localization scaffolding: extract all strings to `src/game/data/i18n/en.lua`; add `i18n.t(key)` calls in render layer (80h)
 - [ ] 7.8 Performance final pass: cold-boot time <3s, expedition load <1s, frame time <16ms 99th percentile (80h)
 - [ ] 7.12 Replay viewer UI: load replay from `Replay.write` output, view it as cutscene (40h opt.)
