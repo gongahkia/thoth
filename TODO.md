@@ -93,7 +93,6 @@ Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render
 
 Goal: build every missing player-facing screen. Game must boot from title → load campaign → play → quit gracefully.
 
-- [ ] 2.1 Design pass: sketch all 10 screens on paper (title, new game, estate, party, equipment, trinkets, expedition HUD, pause, settings, game over, credits) (8h)
 - [ ] 2.2 Build title screen: animated background, new game / continue / settings / quit (16h)
 - [ ] 2.3 Build settings screen: volume sliders, keybind remap, accessibility toggles (40h)
 - [ ] 2.4 Build estate hub screen: building list, hero roster, expedition launch (40h)
