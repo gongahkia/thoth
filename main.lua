@@ -6,6 +6,8 @@ local Render = require("src.app.render")
 local Audio = require("src.app.audio")
 local Accessibility = require("src.app.accessibility")
 local Save = require("src.game.save")
+local Replay = require("src.game.replay")
+local ReplayViewer = require("src.app.replay_viewer")
 local Settings = require("src.app.settings")
 local Achievements = require("src.app.achievements")
 local SpritePipeline = require("src.app.sprite_pipeline")
@@ -237,6 +239,12 @@ local function refreshContinueState(state)
     state.saveStatus = describeSave(loaded)
 end
 
+local function refreshReplayState(state)
+    local data = Replay.read("replay.thoth")
+    state.canReplay = data ~= nil
+    state.replayStatus = data and Replay.summary(data) or "no replay"
+end
+
 local function enterGame(state, simulation, status)
     sim = simulation
     state.uiState = "game"
@@ -298,6 +306,24 @@ local function activateTitleAction(state, action)
             state.canContinue = false
             state.saveStatus = "load failed: " .. tostring(err)
             state.titleStatus = state.saveStatus
+            Audio.play(state.audio, "invalid")
+        end
+        return
+    end
+    if action == "replay" then
+        local viewer, err = ReplayViewer.load("replay.thoth")
+        if viewer then
+            enterGame(state, viewer.sim, viewer.status)
+            state.replayViewer = true
+            state.replayData = viewer.data
+            state.cutscene = nil
+            state.cutsceneQueue = viewer.cutscenes
+            startNextCutscene(state)
+            Audio.play(state.audio, "load")
+        else
+            state.canReplay = false
+            state.replayStatus = "replay failed: " .. tostring(err)
+            state.titleStatus = state.replayStatus
             Audio.play(state.audio, "invalid")
         end
         return
@@ -891,6 +917,7 @@ local function printTitleSmoke(state)
     print("title-smoke-state=" .. tostring(state.uiState))
     print("title-smoke-buttons=" .. table.concat(actions, ","))
     print("title-smoke-continue=" .. tostring(state.canContinue == true))
+    print("title-smoke-replay=" .. tostring(state.canReplay == true))
 end
 
 local function printSettingsSmoke(state)
@@ -1231,6 +1258,7 @@ function love.load(args)
         cutsceneQueue = {},
     }
     refreshContinueState(app)
+    refreshReplayState(app)
     Audio.applySettings(app.audio, app.settings)
     Audio.setMusicContext(app.audio, Audio.contextForState(app, sim), 0)
     Audio.updateMusic(app.audio, 0)

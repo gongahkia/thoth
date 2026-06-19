@@ -20,7 +20,7 @@ title-smoke:
 		$(LOVE) . --title-smoke | tee $$tmp; \
 	fi; \
 	grep -q "title-smoke-state=title" $$tmp; \
-	grep -q "title-smoke-buttons=new,continue,settings,credits,quit" $$tmp; \
+	grep -q "title-smoke-buttons=new,continue,replay,settings,credits,quit" $$tmp; \
 	rm -f $$tmp
 
 settings-smoke:

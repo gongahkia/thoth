@@ -6,6 +6,7 @@ local Save = require("src.game.save")
 local Replay = require("src.game.replay")
 local Input = require("src.app.input")
 local Render = require("src.app.render")
+local ReplayViewer = require("src.app.replay_viewer")
 local Audio = require("src.app.audio")
 local Accessibility = require("src.app.accessibility")
 local Credits = require("src.app.credits")
@@ -2284,6 +2285,21 @@ tests[#tests + 1] = function()
     local text = Replay.toText(30, frames, 4)
     local decoded = assert(Replay.fromText(text))
     expect(decoded.version == 2 and decoded.finalTick == 4, "replay v2 should decode")
+    local path = "test-replay.thoth.tmp"
+    os.remove(path)
+    expect(Replay.write(path, decoded), "replay should write file")
+    local readBack = assert(Replay.read(path))
+    os.remove(path)
+    expect(readBack.seed == 30 and readBack.finalTick == 4, "replay should read file")
+    local viewer = ReplayViewer.fromData(decoded)
+    expect(viewer.sim.tick == 4 and viewer.status:find("replay seed 30", 1, true), "replay viewer should load final sim")
+    local combatFrames = {}
+    for tick = 0, 4 do
+        combatFrames[#combatFrames + 1] = { tick = tick, command = Simulation.commands.move("east") }
+    end
+    local combatReplay = assert(Replay.fromText(Replay.toText(102, combatFrames, 7)))
+    local combatViewer = ReplayViewer.fromData(combatReplay)
+    expect(#combatViewer.cutscenes > 0 and combatViewer.cutscenes[1].kind == "intro", "replay viewer should queue cutscene events")
 end
 
 tests[#tests + 1] = function()
@@ -2725,15 +2741,16 @@ end
 
 tests[#tests + 1] = function()
     local disabled = Render.titleMenuItems({ canContinue = false })
-    expect(#disabled == 5, "title should expose five menu items")
+    expect(#disabled == 6, "title should expose six menu items")
     expect(disabled[1].action == "new" and disabled[1].enabled, "title should expose new game")
     expect(disabled[2].action == "continue" and not disabled[2].enabled, "title continue should disable without save")
-    expect(disabled[3].action == "settings" and disabled[4].action == "credits" and disabled[5].action == "quit", "title should expose settings, credits, and quit")
-    local enabled = Render.titleMenuItems({ canContinue = true })
-    expect(enabled[2].enabled, "title continue should enable with save")
-    local app = { canContinue = true, ui = { titleButtons = { { stale = true } } } }
+    expect(disabled[3].action == "replay" and not disabled[3].enabled, "title replay should disable without replay")
+    expect(disabled[4].action == "settings" and disabled[5].action == "credits" and disabled[6].action == "quit", "title should expose settings, credits, and quit")
+    local enabled = Render.titleMenuItems({ canContinue = true, canReplay = true })
+    expect(enabled[2].enabled and enabled[3].enabled, "title continue and replay should enable with files")
+    local app = { canContinue = true, canReplay = true, ui = { titleButtons = { { stale = true } } } }
     Render.drawTitle(Simulation.new(76), app)
-    expect(#app.ui.titleButtons == 5 and app.ui.titleButtons[2].action == "continue" and app.ui.titleButtons[4].action == "credits", "title draw should populate title hitboxes")
+    expect(#app.ui.titleButtons == 6 and app.ui.titleButtons[2].action == "continue" and app.ui.titleButtons[3].action == "replay" and app.ui.titleButtons[5].action == "credits", "title draw should populate title hitboxes")
     local pauseItems = Render.pauseMenuItems()
     expect(#pauseItems == 4 and pauseItems[1].action == "resume" and pauseItems[4].action == "quitTitle", "pause should expose resume, save, settings, quit")
     app.paused = true

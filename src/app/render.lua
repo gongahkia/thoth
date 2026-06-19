@@ -913,9 +913,11 @@ end
 
 function Render.titleMenuItems(app)
     local canContinue = app and app.canContinue == true
+    local canReplay = app and app.canReplay == true
     return {
         { action = "new", label = "New Game", enabled = true },
         { action = "continue", label = "Continue", enabled = canContinue },
+        { action = "replay", label = "Replay", enabled = canReplay },
         { action = "settings", label = "Settings", enabled = true },
         { action = "credits", label = "Credits", enabled = true },
         { action = "quit", label = "Quit", enabled = true },
