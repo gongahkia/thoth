@@ -245,6 +245,7 @@ function Render.prepareUi(app)
     app.ui.campSkillButtons = app.ui.campSkillButtons or {}
     app.ui.campHeroButtons = app.ui.campHeroButtons or {}
     app.ui.pauseButtons = app.ui.pauseButtons or {}
+    app.ui.confirmButtons = app.ui.confirmButtons or {}
     app.ui.gameOverButtons = app.ui.gameOverButtons or {}
     app.ui.creditsButtons = app.ui.creditsButtons or {}
     app.ui.titleButtons = app.ui.titleButtons or {}
@@ -263,6 +264,7 @@ function Render.prepareUi(app)
     clearList(app.ui.campSkillButtons)
     clearList(app.ui.campHeroButtons)
     clearList(app.ui.pauseButtons)
+    clearList(app.ui.confirmButtons)
     clearList(app.ui.gameOverButtons)
     clearList(app.ui.creditsButtons)
     clearList(app.ui.titleButtons)
@@ -955,6 +957,57 @@ function Render.drawPauseMenu(app)
     end
     love.graphics.setColor(0.58, 0.62, 0.58, 1)
     love.graphics.printf(app.pauseStatus or "", x + 20, y + h - 30, w - 40, "center")
+end
+
+local confirmActions = {
+    { action = "cancel", label = "Cancel", enabled = true },
+    { action = "confirm", label = "Confirm", enabled = true },
+}
+
+function Render.confirmMenuItems()
+    return confirmActions
+end
+
+local function layoutConfirmButtons(app, x, y, w)
+    app.confirmMenuIndex = clamp(app.confirmMenuIndex or 1, 1, #confirmActions)
+    for index, item in ipairs(confirmActions) do
+        app.ui.confirmButtons[#app.ui.confirmButtons + 1] = { x = x + 28 + (index - 1) * 144, y = y + 118, w = 128, h = 38, action = item.action, enabled = item.enabled, index = index }
+    end
+end
+
+function Render.drawConfirmDialog(app)
+    if not (app and app.confirmDialog) then
+        return
+    end
+    Render.prepareUi(app)
+    local w, h = 340, 184
+    layoutConfirmButtons(app, (1280 - w) / 2, (720 - h) / 2, w)
+    if not (love and love.graphics) then
+        return app.confirmDialog
+    end
+    local width, height = love.graphics.getDimensions()
+    clearList(app.ui.confirmButtons)
+    love.graphics.setColor(0.01, 0.012, 0.014, 0.64)
+    love.graphics.rectangle("fill", 0, 0, width, height)
+    local x = (width - w) / 2
+    local y = (height - h) / 2
+    layoutConfirmButtons(app, x, y, w)
+    panel(x, y, w, h, 0.98)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.printf(app.confirmDialog.title or "Confirm", x + 18, y + 22, w - 36, "center")
+    love.graphics.setColor(0.66, 0.7, 0.64, 1)
+    love.graphics.printf(app.confirmDialog.body or "", x + 24, y + 58, w - 48, "center")
+    for index, item in ipairs(confirmActions) do
+        local button = app.ui.confirmButtons[index]
+        local active = (app.confirmMenuIndex or 1) == index
+        love.graphics.setColor(active and 0.18 or 0.1, active and 0.2 or 0.11, active and 0.16 or 0.1, 1)
+        love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+        love.graphics.setColor(active and 0.78 or 0.34, active and 0.62 or 0.36, active and 0.32 or 0.3, 1)
+        love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+        love.graphics.setColor(0.92, 0.94, 0.88, 1)
+        love.graphics.printf((active and "> " or "") .. item.label, button.x + 8, button.y + 12, button.w - 16, "center")
+    end
+    return app.confirmDialog
 end
 
 local gameOverActions = {
@@ -2393,6 +2446,7 @@ function Render.draw(sim, app)
     Render.drawCurioModal(app)
     Render.drawCutscene(sim, app)
     Render.drawPauseMenu(app)
+    Render.drawConfirmDialog(app)
     love.graphics.pop()
 end
 

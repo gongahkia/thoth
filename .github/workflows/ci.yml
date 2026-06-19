@@ -57,6 +57,11 @@ jobs:
           SDL_AUDIODRIVER: dummy
         run: make pause-smoke
 
+      - name: Run confirm smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make confirm-smoke
+
       - name: Run game-over smoke
         env:
           SDL_AUDIODRIVER: dummy

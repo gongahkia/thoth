@@ -336,11 +336,26 @@ local function openPause(state)
     state.pauseStatus = "paused"
 end
 
+local function midExpedition()
+    return sim and sim.expedition and sim.expedition.active == true
+end
+
+local function openConfirm(state, title, body, confirmAction)
+    state.confirmDialog = { title = title, body = body, confirmAction = confirmAction }
+    state.confirmMenuIndex = 1
+end
+
+local function closeConfirm(state)
+    state.confirmDialog = nil
+    state.confirmMenuIndex = nil
+end
+
 local function quitToTitle(state)
     sim = Simulation.new(20260618)
     state.paused = false
     state.uiState = "title"
     state.pauseStatus = nil
+    closeConfirm(state)
     resetVisualState(state, sim)
     refreshContinueState(state)
 end
@@ -365,6 +380,11 @@ local function activatePauseAction(state, action)
         return
     end
     if action == "quitTitle" then
+        if midExpedition() then
+            openConfirm(state, "Quit to Title", "Abandon this expedition and return to title?", "quitTitle")
+            Audio.play(state.audio, "invalid")
+            return
+        end
         quitToTitle(state)
     end
 end
@@ -400,6 +420,60 @@ local function mousePause(state, x, y)
             state.pauseMenuIndex = hitbox.index
             activatePauseAction(state, hitbox.action)
             Audio.play(state.audio, "tick")
+            return true
+        end
+    end
+    return false
+end
+
+local function activateConfirmAction(state, action)
+    if action == "cancel" then
+        closeConfirm(state)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    local confirmAction = state.confirmDialog and state.confirmDialog.confirmAction
+    closeConfirm(state)
+    if confirmAction == "quitTitle" then
+        quitToTitle(state)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if confirmAction == "quitApp" then
+        state.quitConfirmed = true
+        if love and love.event then
+            love.event.quit(0)
+        end
+    end
+end
+
+local function keyConfirm(state, key)
+    local items = Render.confirmMenuItems()
+    if key == "left" or key == "a" or key == "up" or key == "w" then
+        state.confirmMenuIndex = ((state.confirmMenuIndex or 1) - 2) % #items + 1
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "right" or key == "d" or key == "down" or key == "s" then
+        state.confirmMenuIndex = ((state.confirmMenuIndex or 1) % #items) + 1
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "return" or key == "kpenter" or key == "space" then
+        local item = items[state.confirmMenuIndex or 1]
+        activateConfirmAction(state, item.action)
+        return
+    end
+    if key == "escape" or key == "backspace" then
+        activateConfirmAction(state, "cancel")
+    end
+end
+
+local function mouseConfirm(state, x, y)
+    for _, hitbox in ipairs((state.ui and state.ui.confirmButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            state.confirmMenuIndex = hitbox.index
+            activateConfirmAction(state, hitbox.action)
             return true
         end
     end
@@ -667,6 +741,20 @@ local function printPauseSmoke(state)
     print("pause-smoke-buttons=" .. tostring(#((state.ui and state.ui.pauseButtons) or {})))
 end
 
+local function printConfirmSmoke(state)
+    if not state.confirmSmoke or state.confirmSmokePrinted then
+        return
+    end
+    state.confirmSmokePrinted = true
+    local actions = {}
+    for _, hitbox in ipairs((state.ui and state.ui.confirmButtons) or {}) do
+        actions[#actions + 1] = hitbox.action
+    end
+    print("confirm-smoke-open=" .. tostring(state.confirmDialog ~= nil))
+    print("confirm-smoke-paused=" .. tostring(state.paused))
+    print("confirm-smoke-buttons=" .. table.concat(actions, ","))
+end
+
 local function printGameOverSmoke(state)
     if not state.gameOverSmoke or state.gameOverSmokePrinted then
         return
@@ -710,7 +798,8 @@ function love.load(args)
     local pauseSmoke = hasArg(args, "--pause-smoke")
     local gameOverSmoke = hasArg(args, "--gameover-smoke")
     local creditsSmoke = hasArg(args, "--credits-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke
+    local confirmSmoke = hasArg(args, "--confirm-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
@@ -762,6 +851,7 @@ function love.load(args)
         pauseSmoke = pauseSmoke,
         gameOverSmoke = gameOverSmoke,
         creditsSmoke = creditsSmoke,
+        confirmSmoke = confirmSmoke,
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -777,6 +867,10 @@ function love.load(args)
     end
     if pauseSmoke then
         openPause(app)
+    end
+    if confirmSmoke then
+        openPause(app)
+        openConfirm(app, "Quit to Title", "Abandon this expedition and return to title?", "quitTitle")
     end
     Render.load()
 end
@@ -865,6 +959,7 @@ function love.draw()
     printCurioSmoke(app)
     printCampSmoke(app)
     printPauseSmoke(app)
+    printConfirmSmoke(app)
     if app.renderBenchmark then
         local elapsedMs = (love.timer.getTime() - started) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1
@@ -897,6 +992,10 @@ function love.keypressed(key)
     end
     if app.uiState == "credits" then
         keyCredits(app, key)
+        return
+    end
+    if app.confirmDialog then
+        keyConfirm(app, key)
         return
     end
     if app.paused then
@@ -959,6 +1058,10 @@ function love.mousepressed(x, y, button)
         mouseCredits(app, x, y)
         return
     end
+    if button == 1 and app.confirmDialog then
+        mouseConfirm(app, x, y)
+        return
+    end
     if button == 1 and app.paused then
         mousePause(app, x, y)
         return
@@ -977,4 +1080,18 @@ function love.wheelmoved(_, y)
     if app.uiState == "credits" then
         app.creditsScroll = math.max(0, (app.creditsScroll or 0) - y)
     end
+end
+
+function love.quit()
+    if app and app.smoke then
+        return false
+    end
+    if app and not app.quitConfirmed and midExpedition() then
+        if not app.confirmDialog then
+            openPause(app)
+            openConfirm(app, "Quit Game", "Abandon this expedition and quit?", "quitApp")
+        end
+        return true
+    end
+    return false
 end

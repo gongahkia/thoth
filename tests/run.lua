@@ -2076,6 +2076,11 @@ tests[#tests + 1] = function()
     Render.drawPauseMenu(app)
     expect(#app.ui.pauseButtons == 4 and app.ui.pauseButtons[3].action == "settings", "pause draw should populate pause hitboxes")
     expect(app.pauseMenuIndex == 4, "pause draw should clamp focus")
+    app.confirmDialog = { title = "Quit", body = "Confirm", confirmAction = "quitTitle" }
+    app.confirmMenuIndex = 99
+    Render.drawConfirmDialog(app)
+    expect(#app.ui.confirmButtons == 2 and app.ui.confirmButtons[2].action == "confirm", "confirm draw should populate confirm hitboxes")
+    expect(app.confirmMenuIndex == 2, "confirm draw should clamp focus")
     local ended = Simulation.new(81)
     ended:endExpedition(true)
     ended.estate.campaign.dreadLimit = 2
@@ -2120,6 +2125,7 @@ tests[#tests + 1] = function()
             campSkillButtons = { { stale = true } },
             campHeroButtons = { { stale = true } },
             pauseButtons = { { stale = true } },
+            confirmButtons = { { stale = true } },
             gameOverButtons = { { stale = true } },
             creditsButtons = { { stale = true } },
             titleButtons = { { stale = true } },
@@ -2140,7 +2146,7 @@ tests[#tests + 1] = function()
     expect(#app.ui.partyRankSlots == 0, "prepareUi should clear party rank slots")
     expect(#app.ui.curioButtons == 0, "prepareUi should clear curio buttons")
     expect(#app.ui.campSkillButtons == 0 and #app.ui.campHeroButtons == 0, "prepareUi should clear camp buttons")
-    expect(#app.ui.pauseButtons == 0 and #app.ui.gameOverButtons == 0 and #app.ui.creditsButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
+    expect(#app.ui.pauseButtons == 0 and #app.ui.confirmButtons == 0 and #app.ui.gameOverButtons == 0 and #app.ui.creditsButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
     app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
     app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }
     Render.prepareUi(app)

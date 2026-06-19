@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke gameover-smoke credits-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -107,6 +107,19 @@ pause-smoke:
 	fi; \
 	grep -q "pause-smoke-paused=true" $$tmp; \
 	grep -q "pause-smoke-buttons=4" $$tmp; \
+	rm -f $$tmp
+
+confirm-smoke:
+	@set -e; \
+	tmp=$$(mktemp); \
+	if command -v xvfb-run >/dev/null 2>&1; then \
+		xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --confirm-smoke | tee $$tmp; \
+	else \
+		$(LOVE) . --confirm-smoke | tee $$tmp; \
+	fi; \
+	grep -q "confirm-smoke-open=true" $$tmp; \
+	grep -q "confirm-smoke-paused=true" $$tmp; \
+	grep -q "confirm-smoke-buttons=cancel,confirm" $$tmp; \
 	rm -f $$tmp
 
 gameover-smoke:

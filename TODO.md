@@ -93,7 +93,6 @@ Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render
 
 Goal: build every missing player-facing screen. Game must boot from title → load campaign → play → quit gracefully.
 
-- [ ] 2.15 Add quit-confirmation dialog if mid-expedition (4h)
 - [ ] 2.16 Wire keyboard-only navigation across all UI (tab order, enter to select, esc to back) (24h)
 - [ ] 2.17 Add controller support enable in `conf.lua:9` (`t.modules.joystick = true`); map gamepad to UI nav + game input (40h)
 - [ ] 2.18 Build journal screen: found documents (`Registry.documents`), epitaphs (`Registry.graveyardEpitaphs`) (16h)
