@@ -564,6 +564,39 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(52)
+    sim:endExpedition(true)
+    local app = {
+        ui = {
+            missionButtons = { { x = 0, y = 0, w = 20, h = 20, missionKey = "ember_cleansing" } },
+            recruitButtons = {},
+            provisionButtons = {},
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    sim:step()
+    expect(sim.expedition.mission == "ember_cleansing" and sim.expedition.location == "ember_warrens", "mission button should start selected mission")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(53)
+    sim:endExpedition(true)
+    local app = {
+        ui = {
+            missionButtons = {},
+            recruitButtons = { { x = 0, y = 0, w = 20, h = 20, recruitIndex = 1 } },
+            provisionButtons = { { x = 30, y = 0, w = 20, h = 20, item = "torch" } },
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    sim:step()
+    expect(#sim.estate.roster == 5, "recruit button should queue recruitment")
+    Input.mousepressed(sim, app, 35, 5, 1)
+    sim:step()
+    expect(sim.estate.provisionCart:count("torch") == 1, "provision button should buy item")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(51)
     reachEntryCombat(sim)
     local enemy = sim:enemyAtRank(2)
@@ -589,6 +622,9 @@ tests[#tests + 1] = function()
             heroButtons = { { stale = true } },
             enemyButtons = { { stale = true } },
             itemButtons = { { stale = true } },
+            missionButtons = { { stale = true } },
+            recruitButtons = { { stale = true } },
+            provisionButtons = { { stale = true } },
         },
     }
     local oldSkills = app.ui.skillButtons
@@ -596,7 +632,8 @@ tests[#tests + 1] = function()
     Render.prepareUi(app)
     expect(app.ui.skillButtons == oldSkills, "prepareUi should reuse hitbox arrays")
     expect(app.ui.enemyButtons == oldEnemies, "prepareUi should reuse enemy hitbox array")
-    expect(#app.ui.skillButtons == 0 and #app.ui.heroButtons == 0 and #app.ui.enemyButtons == 0 and #app.ui.itemButtons == 0, "prepareUi should clear hitboxes")
+    expect(#app.ui.skillButtons == 0 and #app.ui.heroButtons == 0 and #app.ui.enemyButtons == 0 and #app.ui.itemButtons == 0, "prepareUi should clear combat hitboxes")
+    expect(#app.ui.missionButtons == 0 and #app.ui.recruitButtons == 0 and #app.ui.provisionButtons == 0, "prepareUi should clear estate hitboxes")
 end
 
 for index, test in ipairs(tests) do

@@ -217,6 +217,30 @@ function Input.mousepressed(sim, app, x, y, button)
             return
         end
     end
+    for _, hitbox in ipairs((app.ui and app.ui.missionButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            sim:queue(Simulation.commands.startExpedition(hitbox.missionKey))
+            app.status = "mission " .. hitbox.missionKey
+            play(app, "save")
+            return
+        end
+    end
+    for _, hitbox in ipairs((app.ui and app.ui.recruitButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            sim:queue(Simulation.commands.recruitHero(hitbox.recruitIndex))
+            app.status = "recruit " .. hitbox.recruitIndex
+            play(app, "craft")
+            return
+        end
+    end
+    for _, hitbox in ipairs((app.ui and app.ui.provisionButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            sim:queue(Simulation.commands.buyProvision(hitbox.item, 1))
+            app.status = "buy " .. hitbox.item
+            play(app, "produce")
+            return
+        end
+    end
     if app.worldView and sim.mode == "expedition" then
         local wx, wy = require("src.app.render").screenToWorld(app.worldView, x, y)
         local dx = wx - sim.player.x

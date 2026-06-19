@@ -50,10 +50,16 @@ function Render.prepareUi(app)
     app.ui.heroButtons = app.ui.heroButtons or {}
     app.ui.enemyButtons = app.ui.enemyButtons or {}
     app.ui.itemButtons = app.ui.itemButtons or {}
+    app.ui.missionButtons = app.ui.missionButtons or {}
+    app.ui.recruitButtons = app.ui.recruitButtons or {}
+    app.ui.provisionButtons = app.ui.provisionButtons or {}
     clearList(app.ui.skillButtons)
     clearList(app.ui.heroButtons)
     clearList(app.ui.enemyButtons)
     clearList(app.ui.itemButtons)
+    clearList(app.ui.missionButtons)
+    clearList(app.ui.recruitButtons)
+    clearList(app.ui.provisionButtons)
 end
 
 function Render.rotateDelta(dx, dy, rotation)
@@ -514,7 +520,7 @@ function Render.drawEstatePanel(sim, app)
     end
     local x = 24
     local y = 92
-    panel(x, y, 332, 326, 0.92)
+    panel(x, y, 430, 520, 0.92)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Estate", x + 10, y + 10)
     love.graphics.print("gold " .. sim.estate.gold .. "  heirlooms " .. sim.estate.heirlooms, x + 10, y + 34)
@@ -533,13 +539,51 @@ function Render.drawEstatePanel(sim, app)
         end
     end
     love.graphics.printf(#trinkets > 0 and table.concat(trinkets, "  ") or "no trinkets", x + 10, y + 100, 312)
-    local missions = {}
-    for _, key in ipairs(Defs.missionOrder) do
-        missions[#missions + 1] = Defs.mission(key).kind
+    love.graphics.printf("cart " .. stacksText(sim.estate.provisionCart), x + 10, y + 118, 400)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Missions", x + 10, y + 146)
+    for index, key in ipairs(Defs.missionOrder) do
+        local mission = Defs.mission(key)
+        local bx = x + 10 + ((index - 1) % 2) * 205
+        local by = y + 168 + math.floor((index - 1) / 2) * 34
+        love.graphics.setColor(0.13, 0.16, 0.15, 1)
+        love.graphics.rectangle("fill", bx, by, 196, 28)
+        love.graphics.setColor(0.42, 0.48, 0.36, 1)
+        love.graphics.rectangle("line", bx, by, 196, 28)
+        love.graphics.setColor(0.86, 0.88, 0.8, 1)
+        love.graphics.printf(mission.kind .. " / " .. mission.location, bx + 4, by + 7, 188, "center")
+        app.ui.missionButtons[#app.ui.missionButtons + 1] = { x = bx, y = by, w = 196, h = 28, missionKey = key }
     end
-    love.graphics.printf("missions " .. table.concat(missions, " / "), x + 10, y + 118, 312)
-    love.graphics.printf("cart " .. stacksText(sim.estate.provisionCart), x + 10, y + 136, 312)
-    drawHeroRows(sim, app, x + 10, y + 160, 312)
+    local recruitY = y + 300
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Recruits", x + 10, recruitY)
+    for index, recruit in ipairs(sim.estate.recruits or {}) do
+        local bx = x + 10 + ((index - 1) % 3) * 136
+        local by = recruitY + 24 + math.floor((index - 1) / 3) * 34
+        love.graphics.setColor(0.13, 0.14, 0.16, 1)
+        love.graphics.rectangle("fill", bx, by, 128, 28)
+        love.graphics.setColor(0.38, 0.42, 0.52, 1)
+        love.graphics.rectangle("line", bx, by, 128, 28)
+        love.graphics.setColor(0.86, 0.88, 0.8, 1)
+        love.graphics.printf(recruit.name .. " " .. Defs.heroClass(recruit.class).name, bx + 4, by + 7, 120, "center")
+        app.ui.recruitButtons[#app.ui.recruitButtons + 1] = { x = bx, y = by, w = 128, h = 28, recruitIndex = index }
+    end
+    local provisionY = y + 392
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Provisions", x + 10, provisionY)
+    local provisionItems = { "torch", "ration", "bandage", "laudanum", "skeleton_key", "salve" }
+    for index, itemKey in ipairs(provisionItems) do
+        local item = Defs.item(itemKey)
+        local bx = x + 10 + ((index - 1) % 3) * 136
+        local by = provisionY + 24 + math.floor((index - 1) / 3) * 34
+        love.graphics.setColor(0.14, 0.13, 0.12, 1)
+        love.graphics.rectangle("fill", bx, by, 128, 28)
+        love.graphics.setColor(0.48, 0.42, 0.32, 1)
+        love.graphics.rectangle("line", bx, by, 128, 28)
+        love.graphics.setColor(0.86, 0.88, 0.8, 1)
+        love.graphics.printf(item.name .. " " .. item.cost .. "g", bx + 4, by + 7, 120, "center")
+        app.ui.provisionButtons[#app.ui.provisionButtons + 1] = { x = bx, y = by, w = 128, h = 28, item = itemKey }
+    end
 end
 
 function Render.draw(sim, app)
