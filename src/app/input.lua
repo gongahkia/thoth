@@ -1,5 +1,6 @@
 local Simulation = require("src.game.simulation")
 local Audio = require("src.app.audio")
+local Render = require("src.app.render")
 local Settings = require("src.app.settings")
 
 local Input = {}
@@ -119,6 +120,11 @@ end
 
 local function play(app, cue)
     Audio.play(app.audio, cue)
+    if cue == "invalid" or cue == "ui_error" then
+        Render.markUiFeedback(app, "error")
+    elseif cue == "save" or cue == "load" or cue == "craft" or cue == "place" or cue == "produce" or cue == "ui_confirm" then
+        Render.markUiFeedback(app, "success")
+    end
 end
 
 local function focusables(app)

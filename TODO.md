@@ -144,7 +144,6 @@ Goal: ship 9th class. Late-game design choice: introduce dissonance at the point
 
 Goal: Balatro-feel polish on every interaction. Audio mix. Final accessibility pass.
 
-- [ ] 7.1 Micro-animation pass on every UI element (hover, press, success, error) — Balatro reference (120h)
 - [ ] 7.5 Localization scaffolding: extract all strings to `src/game/data/i18n/en.lua`; add `i18n.t(key)` calls in render layer (80h)
 - [ ] 7.15 Tag commit `phase7-polish-complete` (0.5h)
 

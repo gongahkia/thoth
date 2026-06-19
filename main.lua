@@ -183,7 +183,25 @@ local function playSimulationAudio(state, simulation)
         end
     end
     if playedCue then
-        state.eventFlash = { cue = playedCue, color = cueColor(playedCue), status = state.lastCueStatus, t = 0.45 }
+            state.eventFlash = { cue = playedCue, color = cueColor(playedCue), status = state.lastCueStatus, t = 0.45 }
+    end
+end
+
+local function uiFeedbackKind(cue)
+    if cue == "invalid" or cue == "ui_error" then
+        return "error"
+    end
+    if cue == "save" or cue == "load" or cue == "craft" or cue == "place" or cue == "produce" or cue == "ui_confirm" then
+        return "success"
+    end
+    return nil
+end
+
+local function playUi(state, cue)
+    Audio.play(state.audio, cue)
+    local kind = uiFeedbackKind(cue)
+    if kind then
+        Render.markUiFeedback(state, kind)
     end
 end
 
@@ -382,7 +400,7 @@ local function activateTitleAction(state, action)
             state.canContinue = false
             state.saveStatus = "load failed: " .. tostring(err)
             state.titleStatus = state.saveStatus
-            Audio.play(state.audio, "invalid")
+            playUi(state, "invalid")
         end
         return
     end
@@ -395,12 +413,12 @@ local function activateTitleAction(state, action)
             state.cutscene = nil
             state.cutsceneQueue = viewer.cutscenes
             startNextCutscene(state)
-            Audio.play(state.audio, "load")
+            playUi(state, "load")
         else
             state.canReplay = false
             state.replayStatus = "replay failed: " .. tostring(err)
             state.titleStatus = state.replayStatus
-            Audio.play(state.audio, "invalid")
+            playUi(state, "invalid")
         end
         return
     end
@@ -436,7 +454,7 @@ local function keyTitle(state, key)
         local item = selectedTitleItem(state)
         if item and item.enabled then
             activateTitleAction(state, item.action)
-            Audio.play(state.audio, item.action == "quit" and "invalid" or "tick")
+            playUi(state, item.action == "quit" and "invalid" or "tick")
         end
         return
     end
@@ -451,7 +469,7 @@ local function mouseTitle(state, x, y)
             if hitbox.enabled then
                 state.titleMenuIndex = hitbox.index
                 activateTitleAction(state, hitbox.action)
-                Audio.play(state.audio, hitbox.action == "quit" and "invalid" or "tick")
+                playUi(state, hitbox.action == "quit" and "invalid" or "tick")
             end
             return true
         end
@@ -464,7 +482,7 @@ local function keySettings(state, key)
         if key == "escape" then
             state.captureBinding = nil
             state.settingsStatus = "binding canceled"
-            Audio.play(state.audio, "invalid")
+            playUi(state, "invalid")
             return
         end
         local ok, err = Settings.bindKey(state.settings, state.captureBinding, key)
@@ -473,7 +491,7 @@ local function keySettings(state, key)
             persistSettings(state)
         end
         state.captureBinding = nil
-        Audio.play(state.audio, ok and "save" or "invalid")
+        playUi(state, ok and "save" or "invalid")
         return
     end
     local controls = Settings.controls()
@@ -630,7 +648,7 @@ local function activatePauseAction(state, action)
         local ok, err = Save.write(sim, "save.thoth")
         state.pauseStatus = ok and "saved" or ("save failed: " .. tostring(err))
         refreshContinueState(state)
-        Audio.play(state.audio, ok and "save" or "invalid")
+        playUi(state, ok and "save" or "invalid")
         return
     end
     if action == "settings" then
@@ -642,7 +660,7 @@ local function activatePauseAction(state, action)
     if action == "quitTitle" then
         if midExpedition() then
             openConfirm(state, "Quit to Title", "Abandon this expedition and return to title?", "quitTitle")
-            Audio.play(state.audio, "invalid")
+            playUi(state, "invalid")
             return
         end
         quitToTitle(state)
@@ -1589,7 +1607,7 @@ local function handleKey(key)
         local ok, err = Save.write(sim, "save.thoth")
         app.status = ok and "saved" or ("save failed: " .. tostring(err))
         refreshContinueState(app)
-        Audio.play(app.audio, ok and "save" or "invalid")
+        playUi(app, ok and "save" or "invalid")
         return
     end
     if key == "f9" then
@@ -1602,10 +1620,10 @@ local function handleKey(key)
             app.cutscene = nil
             app.cutsceneQueue = {}
             syncGameOverState(app)
-            Audio.play(app.audio, "load")
+            playUi(app, "load")
         else
             app.status = "load failed: " .. tostring(err)
-            Audio.play(app.audio, "invalid")
+            playUi(app, "invalid")
         end
         return
     end

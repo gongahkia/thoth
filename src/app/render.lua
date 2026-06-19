@@ -147,8 +147,35 @@ function Render.markUiPulse(app, hitbox, kind)
     if Render.reducedMotion(app) then
         return false
     end
-    app.uiPulse = { x = hitbox.x, y = hitbox.y, w = hitbox.w, h = hitbox.h, t = 0.22, kind = kind or "press" }
+    local pulseKind = kind or "press"
+    local duration = (pulseKind == "success" or pulseKind == "error") and 0.32 or 0.22
+    app.uiPulse = { x = hitbox.x, y = hitbox.y, w = hitbox.w, h = hitbox.h, t = duration, duration = duration, kind = pulseKind }
     return true
+end
+
+function Render.markUiFeedback(app, kind)
+    if not app or Render.reducedMotion(app) then
+        return false
+    end
+    local pulse = app.uiPulse
+    if pulse then
+        local duration = (kind == "success" or kind == "error") and 0.32 or (pulse.duration or 0.22)
+        pulse.kind = kind or pulse.kind or "press"
+        pulse.duration = duration
+        pulse.t = duration
+        return true
+    end
+    local hot = app.uiHot
+    local hitbox = hot and app.ui and app.ui[hot.group] and app.ui[hot.group][hot.index]
+    if hitbox then
+        return Render.markUiPulse(app, hitbox, kind)
+    end
+    local focus = app.keyboardFocus
+    hitbox = focus and app.ui and app.ui[focus.group] and app.ui[focus.group][focus.index]
+    if hitbox then
+        return Render.markUiPulse(app, hitbox, kind)
+    end
+    return false
 end
 
 local function panel(x, y, w, h, alpha)
@@ -1254,9 +1281,14 @@ function Render.drawUiMicroAnimations(app)
     end
     local pulse = app and app.uiPulse
     if pulse and not Render.reducedMotion(app) then
-        local ratio = clamp((pulse.t or 0) / 0.22, 0, 1)
+        local ratio = clamp((pulse.t or 0) / (pulse.duration or 0.22), 0, 1)
         local pad = (1 - ratio) * 10
-        local color = pulse.kind == "error" and { 0.9, 0.18, 0.16 } or { 0.95, 0.82, 0.28 }
+        local color = { 0.95, 0.82, 0.28 }
+        if pulse.kind == "error" then
+            color = { 0.9, 0.18, 0.16 }
+        elseif pulse.kind == "success" then
+            color = { 0.34, 0.78, 0.42 }
+        end
         color = Render.accessibleColor(app.settings, color)
         love.graphics.setColor(color[1], color[2], color[3], 0.24 * ratio)
         love.graphics.rectangle("fill", pulse.x - pad, pulse.y - pad, pulse.w + pad * 2, pulse.h + pad * 2)

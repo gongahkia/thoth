@@ -778,6 +778,9 @@ tests[#tests + 1] = function()
     expect(Render.markUiPulse(app, hitbox, "press"), "ui pulse should mark button interaction")
     app.uiHot = { group = group, index = index }
     expect(Render.drawUiMicroAnimations(app) == 2, "micro animation renderer should report hover and pulse")
+    expect(Render.markUiFeedback(app, "success") and app.uiPulse.kind == "success" and app.uiPulse.duration == 0.32, "ui feedback should promote pulse to success state")
+    app.uiPulse = nil
+    expect(Render.markUiFeedback(app, "error") and app.uiPulse.kind == "error", "ui feedback should target hotbox for error state")
 end
 
 tests[#tests + 1] = function()
