@@ -241,6 +241,28 @@ function Input.mousepressed(sim, app, x, y, button)
             return
         end
     end
+    for _, hitbox in ipairs((app.ui and app.ui.estateActionButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            if hitbox.action == "upgradeSkill" then
+                sim:queue(Simulation.commands.upgradeSkill(hitbox.heroId, hitbox.skillKey))
+            elseif hitbox.action == "upgradeGear" then
+                sim:queue(Simulation.commands.upgradeGear(hitbox.heroId, hitbox.kind))
+            elseif hitbox.action == "equipTrinket" then
+                sim:queue(Simulation.commands.equipTrinket(hitbox.heroId, hitbox.trinketKey, hitbox.slot))
+            elseif hitbox.action == "recoverHero" then
+                sim:queue(Simulation.commands.recoverHero(hitbox.heroId))
+            elseif hitbox.action == "treatQuirk" then
+                sim:queue(Simulation.commands.treatQuirk(hitbox.heroId, hitbox.quirkKey))
+            elseif hitbox.action == "treatDisease" then
+                sim:queue(Simulation.commands.treatDisease(hitbox.heroId, hitbox.diseaseKey))
+            elseif hitbox.action == "assignParty" then
+                sim:queue(Simulation.commands.assignParty(hitbox.heroId, hitbox.rank))
+            end
+            app.status = hitbox.action
+            play(app, "craft")
+            return
+        end
+    end
     if app.worldView and sim.mode == "expedition" then
         local wx, wy = require("src.app.render").screenToWorld(app.worldView, x, y)
         local dx = wx - sim.player.x

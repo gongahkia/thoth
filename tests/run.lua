@@ -646,6 +646,33 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(59)
+    sim:endExpedition(true)
+    sim.estate.gold = 200
+    sim.estate.heirlooms = 10
+    local hero = sim:heroAtRank(1)
+    sim:contractDisease(hero, "salt_cough")
+    local app = {
+        ui = {
+            estateActionButtons = {
+                { x = 0, y = 0, w = 20, h = 20, action = "upgradeGear", heroId = hero.id, kind = "weapon" },
+                { x = 30, y = 0, w = 20, h = 20, action = "treatDisease", heroId = hero.id, diseaseKey = "salt_cough" },
+                { x = 60, y = 0, w = 20, h = 20, action = "equipTrinket", heroId = hero.id, trinketKey = "ember_pin", slot = 1 },
+            },
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    sim:step()
+    expect(hero.weapon == 1, "estate gear button should upgrade weapon")
+    Input.mousepressed(sim, app, 35, 5, 1)
+    sim:step()
+    expect(#hero.diseases == 0, "estate disease button should treat disease")
+    Input.mousepressed(sim, app, 65, 5, 1)
+    sim:step()
+    expect(hero.trinkets[1] == "ember_pin", "estate trinket button should equip trinket")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(51)
     reachEntryCombat(sim)
     local enemy = sim:enemyAtRank(2)
@@ -674,6 +701,7 @@ tests[#tests + 1] = function()
             missionButtons = { { stale = true } },
             recruitButtons = { { stale = true } },
             provisionButtons = { { stale = true } },
+            estateActionButtons = { { stale = true } },
         },
     }
     local oldSkills = app.ui.skillButtons
@@ -683,6 +711,7 @@ tests[#tests + 1] = function()
     expect(app.ui.enemyButtons == oldEnemies, "prepareUi should reuse enemy hitbox array")
     expect(#app.ui.skillButtons == 0 and #app.ui.heroButtons == 0 and #app.ui.enemyButtons == 0 and #app.ui.itemButtons == 0, "prepareUi should clear combat hitboxes")
     expect(#app.ui.missionButtons == 0 and #app.ui.recruitButtons == 0 and #app.ui.provisionButtons == 0, "prepareUi should clear estate hitboxes")
+    expect(#app.ui.estateActionButtons == 0, "prepareUi should clear estate action hitboxes")
 end
 
 for index, test in ipairs(tests) do
