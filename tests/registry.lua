@@ -79,6 +79,12 @@ checkOrder("faction", Defs.factionOrder, Defs.factions)
 checkOrder("dread rule", Defs.dreadRuleOrder, Defs.dreadRules)
 checkOrder("campaign timer", Defs.campaignTimerOrder, Defs.campaignTimers)
 checkOrder("ending route", Defs.endingRouteOrder, Defs.endingRoutes)
+checkOrder("document type", Defs.documentTypeOrder, Defs.documentTypes)
+checkOrder("document registry", Defs.documentRegistryOrder, Defs.documentRegistries)
+checkOrder("document", Defs.documentOrder, Defs.documents)
+checkOrder("document bank", Defs.documentBankOrder, Defs.documentBanks)
+checkOrder("document drop rule", Defs.documentDropRuleOrder, Defs.documentDropRules)
+checkOrder("fixture document bark", Defs.fixtureDocumentBarkOrder, Defs.fixtureDocumentBarks)
 checkOrder("threat behavior", Defs.threatBehaviorOrder, Defs.threatBehaviors)
 checkOrder("alpha rule", Defs.alphaRuleOrder, Defs.alphaRules)
 checkOrder("scout tooltip", Defs.scoutTooltipOrder, Defs.scoutTooltips)
@@ -510,6 +516,32 @@ end
 for _, key in ipairs(Defs.factionOrder) do
     local faction = Defs.faction(key)
     expect(faction and #faction.states >= 3, "faction states missing " .. key)
+end
+for key, documentType in pairs(Defs.documentTypes) do
+    expect(documentType.name and (documentType.location == "global" or Defs.location(documentType.location)), "document type bad data " .. key)
+end
+expect(#Defs.documentTypeOrder == 5 and Defs.documentRegistry("document_registry_v1"), "document registry missing")
+for key, document in pairs(Defs.documents) do
+    expect(document.title and document.abstract and document.text, "document missing copy " .. key)
+    expect(Defs.documentType(document.type), "document type missing " .. key)
+    expect(Defs.location(document.location), "document location missing " .. key)
+end
+expect(#Defs.documentOrder == 27, "document bank should expose 27 documents")
+for key, bank in pairs(Defs.documentBanks) do
+    expect(Defs.location(bank.location) and #bank.documents == 9, "document bank bad data " .. key)
+    for _, documentKey in ipairs(bank.documents) do
+        expect(Defs.document(documentKey), "document bank missing document " .. documentKey)
+    end
+end
+expect(Defs.documentBank("archive_documents_v1").documents[1] == "archive_writ_01", "archive document bank missing")
+expect(Defs.documentBank("cistern_documents_v1").documents[1] == "cistern_valve_01", "cistern document bank missing")
+expect(Defs.documentBank("warrens_documents_v1").documents[1] == "warrens_confession_01", "warrens document bank missing")
+local dropRule = Defs.documentDropRule("document_drop_rules")
+expect(dropRule.curio and dropRule.roomLoot and dropRule.warden and dropRule.bankByLocation.buried_archive == "archive_documents_v1", "document drop rule missing")
+local fixtureBarks = Defs.fixtureDocumentBark("fixture_document_barks")
+for _, typeKey in ipairs(Defs.documentTypeOrder) do
+    local bark = fixtureBarks[typeKey]
+    expect(bark and Defs.estateFixture(bark.fixture) and bark.text ~= "", "fixture document bark missing " .. typeKey)
 end
 local dreadRules = Defs.dreadRule("dread_rules_v1")
 for _, key in ipairs({ "greedy_extract", "hero_death", "abandoned_mission", "repair_mission", "vigil", "enclave_compact" }) do

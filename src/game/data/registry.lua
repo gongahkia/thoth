@@ -1848,6 +1848,100 @@ Registry.endingRouters = {
 }
 Registry.endingRouterOrder = { "ending_router" }
 
+Registry.documentTypes = {
+    writ_fragment = { name = "Writ Fragment", location = "buried_archive" },
+    valve_schematic = { name = "Valve Schematic", location = "salt_cistern" },
+    penitent_confession = { name = "Penitent Confession", location = "ember_warrens" },
+    intake_colophon = { name = "Intake Colophon", location = "buried_archive" },
+    survivor_page = { name = "Survivor Page", location = "global" },
+}
+Registry.documentTypeOrder = { "writ_fragment", "valve_schematic", "penitent_confession", "intake_colophon", "survivor_page" }
+Registry.documentRegistries = {
+    document_registry_v1 = { types = Registry.documentTypeOrder },
+}
+Registry.documentRegistryOrder = { "document_registry_v1" }
+
+Registry.documents = {
+    archive_writ_01 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment I", abstract = "A custody order names debt as inheritance.", text = "The first seal makes debt hereditary before guilt is considered." },
+    archive_writ_02 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment II", abstract = "A margin clause sells silence as safety.", text = "Silence is accepted as payment when witnesses are scarce." },
+    archive_writ_03 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment III", abstract = "A sealed appeal was filed under a dead name.", text = "The appellant is recorded as deceased before the hearing." },
+    archive_writ_04 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment IV", abstract = "A bailiff route bypasses the public ledger.", text = "The shortcut exists for removals that must look like audits." },
+    archive_writ_05 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment V", abstract = "A confession drawer cross-indexes living children.", text = "Witness drawers sort families by future usefulness." },
+    archive_writ_06 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment VI", abstract = "A red amendment authorizes punitive memory.", text = "The red ink marks what must be remembered by force." },
+    archive_colophon_01 = { type = "intake_colophon", location = "buried_archive", title = "Intake Colophon I", abstract = "The intake desk counted hunger as consent.", text = "The ledger accepts a hungry signature as clean consent." },
+    archive_colophon_02 = { type = "intake_colophon", location = "buried_archive", title = "Intake Colophon II", abstract = "The old map omits rooms that owed too much.", text = "The map is accurate only where the Estate is innocent." },
+    archive_colophon_03 = { type = "intake_colophon", location = "buried_archive", title = "Intake Colophon III", abstract = "The Regent's seal repeats on erased pages.", text = "The same seal appears where records were scraped blank." },
+
+    cistern_valve_01 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic I", abstract = "A relief valve drains into worker bunks.", text = "Pressure safety was routed through the sleeping quarter." },
+    cistern_valve_02 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic II", abstract = "A drowned market line is labeled expendable.", text = "The market can flood without touching noble pumps." },
+    cistern_valve_03 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic III", abstract = "The choir chamber amplifies pressure pulses.", text = "Pearl song is a pressure instrument, not a miracle." },
+    cistern_valve_04 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic IV", abstract = "A maintenance siphon hides toll accounting.", text = "Each bypassed lock increments a private debt counter." },
+    cistern_valve_05 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic V", abstract = "A shutoff shrine can starve the lower sluice.", text = "Closing the shrine saves pumps and abandons sleepers." },
+    cistern_valve_06 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic VI", abstract = "The Bell Diver gate was built to fail inward.", text = "The gate collapses toward those sent to repair it." },
+    cistern_survivor_01 = { type = "survivor_page", location = "salt_cistern", title = "Survivor Page I", abstract = "Tov's first rescue list omits her own child.", text = "She wrote every name except the one she could not save." },
+    cistern_survivor_02 = { type = "survivor_page", location = "salt_cistern", title = "Survivor Page II", abstract = "A pump gang traded maps for dry sleep.", text = "They sold a route upstairs and bought one night above water." },
+    cistern_survivor_03 = { type = "survivor_page", location = "salt_cistern", title = "Survivor Page III", abstract = "A keeper warns that clean water remembers owners.", text = "Clean water keeps the taste of whoever priced it." },
+
+    warrens_confession_01 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession I", abstract = "A friar admits the first kiln was voluntary.", text = "The first vow entered flame freely; the second was pushed." },
+    warrens_confession_02 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession II", abstract = "A glass penitent names heat as doctrine.", text = "Pain became doctrine once it produced obedient light." },
+    warrens_confession_03 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession III", abstract = "A warm ledger records mercy as fuel loss.", text = "Every spared body is counted as wasted coal." },
+    warrens_confession_04 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession IV", abstract = "A false vow bought time for an escape.", text = "The lie held long enough for three names to run." },
+    warrens_confession_05 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession V", abstract = "A halo vent was tuned to punish doubt.", text = "The vent blooms when voices fall out of sequence." },
+    warrens_confession_06 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession VI", abstract = "The Prioress keeps ash names in sermon order.", text = "Her sermons are roll calls for those already burned." },
+    warrens_survivor_01 = { type = "survivor_page", location = "ember_warrens", title = "Survivor Page IV", abstract = "Aron marks exits by skinless touch.", text = "He counts the doorframes by heat and scar." },
+    warrens_survivor_02 = { type = "survivor_page", location = "ember_warrens", title = "Survivor Page V", abstract = "A nurse hid salve under clinker dust.", text = "The salve survived because everyone feared the dust." },
+    warrens_survivor_03 = { type = "survivor_page", location = "ember_warrens", title = "Survivor Page VI", abstract = "A doused kiln still invoices the living.", text = "Cold ash does not cancel the names pledged to it." },
+}
+Registry.documentOrder = {
+    "archive_writ_01", "archive_writ_02", "archive_writ_03", "archive_writ_04", "archive_writ_05", "archive_writ_06",
+    "archive_colophon_01", "archive_colophon_02", "archive_colophon_03",
+    "cistern_valve_01", "cistern_valve_02", "cistern_valve_03", "cistern_valve_04", "cistern_valve_05", "cistern_valve_06",
+    "cistern_survivor_01", "cistern_survivor_02", "cistern_survivor_03",
+    "warrens_confession_01", "warrens_confession_02", "warrens_confession_03", "warrens_confession_04", "warrens_confession_05", "warrens_confession_06",
+    "warrens_survivor_01", "warrens_survivor_02", "warrens_survivor_03",
+}
+
+Registry.documentBanks = {
+    archive_documents_v1 = {
+        location = "buried_archive",
+        documents = { "archive_writ_01", "archive_writ_02", "archive_writ_03", "archive_writ_04", "archive_writ_05", "archive_writ_06", "archive_colophon_01", "archive_colophon_02", "archive_colophon_03" },
+    },
+    cistern_documents_v1 = {
+        location = "salt_cistern",
+        documents = { "cistern_valve_01", "cistern_valve_02", "cistern_valve_03", "cistern_valve_04", "cistern_valve_05", "cistern_valve_06", "cistern_survivor_01", "cistern_survivor_02", "cistern_survivor_03" },
+    },
+    warrens_documents_v1 = {
+        location = "ember_warrens",
+        documents = { "warrens_confession_01", "warrens_confession_02", "warrens_confession_03", "warrens_confession_04", "warrens_confession_05", "warrens_confession_06", "warrens_survivor_01", "warrens_survivor_02", "warrens_survivor_03" },
+    },
+}
+Registry.documentBankOrder = { "archive_documents_v1", "cistern_documents_v1", "warrens_documents_v1" }
+
+Registry.documentDropRules = {
+    document_drop_rules = {
+        curio = true,
+        roomLoot = true,
+        warden = true,
+        bankByLocation = {
+            buried_archive = "archive_documents_v1",
+            salt_cistern = "cistern_documents_v1",
+            ember_warrens = "warrens_documents_v1",
+        },
+    },
+}
+Registry.documentDropRuleOrder = { "document_drop_rules" }
+
+Registry.fixtureDocumentBarks = {
+    fixture_document_barks = {
+        writ_fragment = { fixture = "fixture_clerk_of_debts", text = "The clerk reads the writ and lowers his voice." },
+        intake_colophon = { fixture = "fixture_surveyor", text = "The Surveyor marks an omitted room without surprise." },
+        valve_schematic = { fixture = "fixture_foreman_ott", text = "Ott taps the valve lines and counts missing crews." },
+        penitent_confession = { fixture = "fixture_chirurgeon_vell", text = "Vell files the confession beside burn treatments." },
+        survivor_page = { fixture = "fixture_stage_master", text = "The Stage Master asks which names still need seats." },
+    },
+}
+Registry.fixtureDocumentBarkOrder = { "fixture_document_barks" }
+
 Registry.threatBehaviors = {
     visible_threat_behaviors = {
         idle = { noise = 0 },

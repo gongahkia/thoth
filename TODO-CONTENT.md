@@ -2,16 +2,6 @@
 
 Loose Markdown backlog. Task lines keep todo-ish metadata for search/filter use.
 
-## Found Documents And Lore Fragments
-
-- [ ] (A) Add document registry with types writ_fragment, valve_schematic, penitent_confession, intake_colophon, and survivor_page +Narrative @registry type:document_registry zone:global id:document_registry_v1
-- [ ] (A) Add Estate journal panel that lists collected documents with one-line abstracts +Narrative @ui type:panel zone:estate id:journal_panel_v1
-- [ ] (B) Add document drop rules for curios, room loot, and mini-boss wardens +Narrative @simulation type:document_drop zone:global id:document_drop_rules
-- [ ] (B) Add archive document bank with six writ fragments and three intake colophons +Narrative @narration type:document zone:buried_archive id:archive_documents_v1
-- [ ] (B) Add cistern document bank with six valve schematics and three survivor pages +Narrative @narration type:document zone:salt_cistern id:cistern_documents_v1
-- [ ] (B) Add warrens document bank with six penitent confessions and three survivor pages +Narrative @narration type:document zone:ember_warrens id:warrens_documents_v1
-- [ ] (C) Add Estate fixture commentary lines triggered when a related document is found +Narrative @narration type:bark zone:estate id:fixture_document_barks
-
 ## Narrative And UI Text
 
 - [ ] (A) Add mission intro text field with one-line operational brief and one-line moral sting +Narrative @registry type:mission_copy zone:global id:mission_intro

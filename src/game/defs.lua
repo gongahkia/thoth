@@ -74,6 +74,18 @@ local Defs = {
     endingRouteOrder = Registry.endingRouteOrder,
     endingRouters = Registry.endingRouters,
     endingRouterOrder = Registry.endingRouterOrder,
+    documentTypes = Registry.documentTypes,
+    documentTypeOrder = Registry.documentTypeOrder,
+    documentRegistries = Registry.documentRegistries,
+    documentRegistryOrder = Registry.documentRegistryOrder,
+    documents = Registry.documents,
+    documentOrder = Registry.documentOrder,
+    documentBanks = Registry.documentBanks,
+    documentBankOrder = Registry.documentBankOrder,
+    documentDropRules = Registry.documentDropRules,
+    documentDropRuleOrder = Registry.documentDropRuleOrder,
+    fixtureDocumentBarks = Registry.fixtureDocumentBarks,
+    fixtureDocumentBarkOrder = Registry.fixtureDocumentBarkOrder,
     threatBehaviors = Registry.threatBehaviors,
     threatBehaviorOrder = Registry.threatBehaviorOrder,
     alphaRules = Registry.alphaRules,
@@ -242,6 +254,30 @@ end
 
 function Defs.endingRouter(id)
     return Defs.endingRouters[id]
+end
+
+function Defs.documentType(id)
+    return Defs.documentTypes[id]
+end
+
+function Defs.documentRegistry(id)
+    return Defs.documentRegistries[id]
+end
+
+function Defs.document(id)
+    return Defs.documents[id]
+end
+
+function Defs.documentBank(id)
+    return Defs.documentBanks[id]
+end
+
+function Defs.documentDropRule(id)
+    return Defs.documentDropRules[id]
+end
+
+function Defs.fixtureDocumentBark(id)
+    return Defs.fixtureDocumentBarks[id]
 end
 
 function Defs.threatBehavior(id)

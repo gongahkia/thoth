@@ -811,6 +811,22 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
     end
 end
 
+local function drawJournalPanel(sim, x, y, w)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Journal", x, y)
+    love.graphics.setColor(0.7, 0.74, 0.68, 1)
+    local entries = sim:journalEntries()
+    if #entries == 0 then
+        love.graphics.print("no documents", x, y + 20)
+        return
+    end
+    local first = math.max(1, #entries - 2)
+    for index = first, #entries do
+        local entry = entries[index]
+        love.graphics.printf(entry.title .. " - " .. entry.abstract, x, y + 20 + (index - first) * 18, w)
+    end
+end
+
 function Render.drawSidePanel(sim, app)
     local width, height = love.graphics.getDimensions()
     local x = width - 306
@@ -1334,6 +1350,7 @@ function Render.drawEstatePanel(sim, app)
     end
     local campaignStatus = campaign.lost and ("lost " .. (campaign.lossReason or "")) or (campaign.victory and "victory" or ("bosses " .. bosses .. "/" .. #Defs.locationOrder))
     love.graphics.print("renown " .. (campaign.renown or 0) .. "  dread " .. (campaign.dread or 0) .. "  " .. campaignStatus, x + 390, y + 34)
+    drawJournalPanel(sim, x + 390, y + 58, 320)
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
     love.graphics.print("roster " .. sim:livingRosterCount() .. "/" .. sim:rosterLimit() .. "  recruits " .. #sim.estate.recruits, x + 10, y + 58)
     if sim.estate.currentEvent then

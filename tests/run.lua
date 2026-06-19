@@ -859,6 +859,20 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(122)
+    sim.player.x = 15
+    sim.player.y = 0
+    sim.player.facing = "east"
+    runQueued(sim, Simulation.commands.interact())
+    expect(sim:hasDocument("archive_writ_01"), "curio document drop should collect first archive writ")
+    local journal = sim:journalEntries()
+    expect(journal[1].key == "archive_writ_01" and journal[1].abstract ~= "", "journal should list collected document abstracts")
+    expect(sim.status:find("clerk", 1, true) ~= nil or sim.status:find("Clerk", 1, true) ~= nil, "document collection should trigger fixture bark")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded:hasDocument("archive_writ_01") and loaded:journalEntries()[1].key == "archive_writ_01", "journal should survive snapshot")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(23)
     local hero = sim:heroAtRank(2)
     hero.hp = hero.hp - 5
@@ -913,6 +927,28 @@ tests[#tests + 1] = function()
     expect(sim.mode == "expedition", "victory should return to expedition")
     expect(sim.expedition.clearedEncounters["8:0"], "victory should clear room encounter")
     expect(sim.expedition.loot:count("coin") > 0, "victory should grant loot")
+    expect(sim:hasDocument("archive_writ_01"), "room loot victory should drop an archive document")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(123)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_silence_reeve"))
+    expect(sim:startCombat("archive_reeve", "8:6"), "archive warden combat should start")
+    sim:finishCombat(true)
+    expect(sim:hasDocument("archive_writ_01"), "archive warden should drop archive document")
+    sim = Simulation.new(124)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_silence_choir"))
+    expect(sim:startCombat("cistern_choir", "6:10"), "cistern warden combat should start")
+    sim:finishCombat(true)
+    expect(sim:hasDocument("cistern_valve_01"), "cistern warden should drop valve schematic")
+    sim = Simulation.new(125)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("warrens_douse_vicar"))
+    expect(sim:startCombat("ember_vicar", "8:-8"), "warrens warden combat should start")
+    sim:finishCombat(true)
+    expect(sim:hasDocument("warrens_confession_01"), "warrens warden should drop penitent confession")
 end
 
 tests[#tests + 1] = function()

@@ -144,6 +144,16 @@ local function combatHasBoss(combat)
     return false
 end
 
+local function combatHasWarden(combat)
+    for _, enemy in ipairs((combat and combat.enemies) or {}) do
+        local def = Defs.enemy(enemy.kind)
+        if def and def.warden then
+            return true
+        end
+    end
+    return false
+end
+
 local function combatEnemyNames(combat)
     local names = {}
     for _, enemy in ipairs((combat and combat.enemies) or {}) do
@@ -267,6 +277,8 @@ function Simulation.new(seed)
             dismissed = {},
             missionBoard = {},
             recruits = {},
+            documents = {},
+            documentLog = {},
             nextHeroId = 5,
             recruitSerial = 1,
         },
@@ -1561,6 +1573,95 @@ function Simulation:addLoot(item, count)
     return self.expedition.loot:add(item, count)
 end
 
+function Simulation:hasDocument(documentKey)
+    return self.estate and self.estate.documents and self.estate.documents[documentKey] == true
+end
+
+function Simulation:documentBankForLocation(locationKey)
+    local rule = Defs.documentDropRule("document_drop_rules") or {}
+    local bankKey = rule.bankByLocation and rule.bankByLocation[locationKey]
+    return bankKey and Defs.documentBank(bankKey) or nil
+end
+
+function Simulation:collectDocument(documentKey, source)
+    local document = Defs.document(documentKey)
+    if not document or self:hasDocument(documentKey) then
+        return false
+    end
+    self.estate.documents = self.estate.documents or {}
+    self.estate.documentLog = self.estate.documentLog or {}
+    self.estate.documents[documentKey] = true
+    appendUnique(self.estate.documentLog, documentKey)
+    self:pushLog("document: " .. document.title)
+    local bark = (Defs.fixtureDocumentBark("fixture_document_barks") or {})[document.type]
+    if bark then
+        local fixture = Defs.estateFixture(bark.fixture)
+        self:pushLog((fixture and fixture.name or "Estate") .. ": " .. bark.text)
+    end
+    return true
+end
+
+function Simulation:collectDocumentFromLocation(locationKey, source)
+    local bank = self:documentBankForLocation(locationKey)
+    if not bank then
+        return false
+    end
+    for _, documentKey in ipairs(bank.documents or {}) do
+        if not self:hasDocument(documentKey) then
+            return self:collectDocument(documentKey, source)
+        end
+    end
+    return false
+end
+
+function Simulation:dropDocument(source)
+    if not self.expedition then
+        return false
+    end
+    local rule = Defs.documentDropRule("document_drop_rules") or {}
+    if source == "curio" and not rule.curio then
+        return false
+    end
+    if source == "room_loot" and not rule.roomLoot then
+        return false
+    end
+    if source == "warden" and not rule.warden then
+        return false
+    end
+    return self:collectDocumentFromLocation(self.expedition.location, source)
+end
+
+function Simulation:journalEntries()
+    local result = {}
+    local seen = {}
+    local function add(documentKey)
+        if seen[documentKey] or not self:hasDocument(documentKey) then
+            return
+        end
+        local document = Defs.document(documentKey)
+        if not document then
+            return
+        end
+        seen[documentKey] = true
+        local documentType = Defs.documentType(document.type)
+        result[#result + 1] = {
+            key = documentKey,
+            title = document.title,
+            type = document.type,
+            typeName = documentType and documentType.name or document.type,
+            location = document.location,
+            abstract = document.abstract,
+        }
+    end
+    for _, documentKey in ipairs((self.estate and self.estate.documentLog) or {}) do
+        add(documentKey)
+    end
+    for _, documentKey in ipairs(Defs.documentOrder) do
+        add(documentKey)
+    end
+    return result
+end
+
 function Simulation:awardXp(hero, amount)
     if not hero or not hero.alive then
         return false
@@ -2485,6 +2586,7 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
         self:updateObjective()
         self:pushLog(curio.name .. " activated")
         self:narrate("curio", curioKey)
+        self:dropDocument("curio")
         return true
     end
     local hero = self:heroAtRank(self.player.selectedHero) or self:heroAtRank(1)
@@ -2536,6 +2638,7 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
     self:updateObjective()
     self:pushLog(curio.name .. " resolved")
     self:narrate("curio", curioKey)
+    self:dropDocument("curio")
     return true
 end
 
@@ -3250,6 +3353,7 @@ function Simulation:finishCombat(victory)
         return false
     end
     local bossActive = combatHasBoss(self.combat)
+    local wardenActive = combatHasWarden(self.combat)
     local outcomeEncounter = self.combat.encounter
     if victory then
         local bossWon = false
@@ -3281,6 +3385,7 @@ function Simulation:finishCombat(victory)
             if bossMission and bossMission.location == "buried_archive" then
                 self.estate.trinkets.quiet_bell = (self.estate.trinkets.quiet_bell or 0) + 1
             end
+            self:dropDocument(wardenActive and "warden" or "room_loot")
             self:clearEncounterSpecial(baseEncounter)
             self:updateObjective()
         end
@@ -3851,6 +3956,8 @@ function Simulation:snapshot()
             trinketStock = trinketStock,
             provisionCart = self.estate.provisionCart:stacks(),
             upgrades = copyMap(self.estate.upgrades),
+            documents = copyMap(self.estate.documents),
+            documentLog = copyList(self.estate.documentLog),
             campaign = {
                 renown = self.estate.campaign and self.estate.campaign.renown or 0,
                 dread = self.estate.campaign and self.estate.campaign.dread or 0,
@@ -3893,7 +4000,7 @@ function Simulation.fromSnapshot(snapshot)
         mode = snapshot.mode or "estate",
         world = World.fromSnapshot(snapshot.world or { seed = snapshot.seed or 1, tiles = {} }),
         player = copyMap(snapshot.player or { x = 0, y = 0, z = 0, facing = "east", selectedHero = 1 }),
-        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {}, dismissed = {}, trinkets = {}, trinketStock = {}, provisionCart = Inventory.new(), upgrades = {}, campaign = newCampaign(), missionBoard = {}, recruits = {}, nextHeroId = 1, recruitSerial = 1 },
+        estate = { gold = 0, heirlooms = 0, roster = {}, graveyard = {}, dismissed = {}, trinkets = {}, trinketStock = {}, provisionCart = Inventory.new(), upgrades = {}, campaign = newCampaign(), missionBoard = {}, recruits = {}, documents = {}, documentLog = {}, nextHeroId = 1, recruitSerial = 1 },
         party = copyList(snapshot.party or {}),
         expedition = nil,
         combat = nil,
@@ -3912,6 +4019,8 @@ function Simulation.fromSnapshot(snapshot)
     self.estate.graveyard = copyList((snapshot.estate and snapshot.estate.graveyard) or {})
     self.estate.dismissed = copyList((snapshot.estate and snapshot.estate.dismissed) or {})
     self.estate.trinkets = copyMap((snapshot.estate and snapshot.estate.trinkets) or {})
+    self.estate.documents = copyMap((snapshot.estate and snapshot.estate.documents) or {})
+    self.estate.documentLog = copyList((snapshot.estate and snapshot.estate.documentLog) or {})
     self.estate.trinketStock = {}
     if snapshot.estate and snapshot.estate.trinketStock then
         for _, offer in ipairs(snapshot.estate.trinketStock) do
