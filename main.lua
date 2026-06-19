@@ -25,6 +25,34 @@ local function setupRenderBenchmark(state)
     state.player.y = 3
 end
 
+local function cueColor(cue)
+    if cue == "danger" then
+        return { 0.85, 0.18, 0.16 }
+    end
+    if cue == "victory" then
+        return { 0.82, 0.66, 0.28 }
+    end
+    if cue == "combat" then
+        return { 0.7, 0.24, 0.24 }
+    end
+    if cue == "loot" then
+        return { 0.38, 0.72, 0.46 }
+    end
+    return { 0.42, 0.54, 0.76 }
+end
+
+local function playStatusCue(state, simulation)
+    if simulation.status == state.lastCueStatus then
+        return
+    end
+    state.lastCueStatus = simulation.status
+    local cue = Audio.cueForStatus(simulation.status)
+    if cue then
+        Audio.play(state.audio, cue)
+        state.eventFlash = { cue = cue, color = cueColor(cue), t = 0.45 }
+    end
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -46,17 +74,25 @@ function love.load(args)
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
         renderBenchmarkMaxMs = 0,
+        lastCueStatus = sim.status,
     }
     Render.load()
 end
 
 function love.update(dt)
     Input.update(sim, app, dt)
+    if app.eventFlash then
+        app.eventFlash.t = math.max(0, app.eventFlash.t - dt)
+        if app.eventFlash.t <= 0 then
+            app.eventFlash = nil
+        end
+    end
     accumulator = math.min(accumulator + dt, 0.25)
     local maxSteps = love.keyboard.isDown("lshift", "rshift") and 6 or 3
     local steps = 0
     while not app.paused and accumulator >= fixedDt and steps < maxSteps do
         sim:step()
+        playStatusCue(app, sim)
         accumulator = accumulator - fixedDt
         steps = steps + 1
     end

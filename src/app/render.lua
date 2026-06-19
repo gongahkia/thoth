@@ -373,6 +373,11 @@ end
 function Render.drawHud(sim, app)
     local width = love.graphics.getWidth()
     panel(0, 0, width, 76, 0.9)
+    if app.eventFlash then
+        local color = app.eventFlash.color or { 0.42, 0.54, 0.76 }
+        love.graphics.setColor(color[1], color[2], color[3], math.min(0.5, app.eventFlash.t or 0))
+        love.graphics.rectangle("fill", 0, 74, width, 2)
+    end
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Thoth  tick " .. sim.tick .. "  " .. sim.mode .. "  pos " .. sim.player.x .. "," .. sim.player.y .. "  view " .. ((app.viewRotation or 0) * 90), 16, 10)
     love.graphics.printf("status " .. tostring(app.status or sim.status), width - 286, 10, 270, "right")

@@ -26,7 +26,4 @@
 - Bumped save/replay headers to v2 and made old versions fail explicitly.
 - Replaced active tests and benchmark with RPG coverage.
 - Expanded replay coverage for estate, provisioning, mission, and camp commands.
-
-## Next
-
-- Add authored visual/audio cues for RPG actions when assets are available.
+- Added semantic audio cue routing and HUD event flash feedback over existing WAV assets.
