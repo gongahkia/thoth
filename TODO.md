@@ -109,7 +109,6 @@ Goal: replace `assets/sprites/thoth_atlas.png` (single 128×80 placeholder) with
 
 Goal: full playthrough of Buried Archive Tier I (3 missions) end-to-end, with 4 starter classes (Warden, Duelist, Apothecary, Thief).
 
-- [ ] 4.1 Implement renames in `registry.lua`: Mender→Apothecary, Harrier→Thief (display strings only, IDs unchanged) (4h)
 - [ ] 4.2 Update all class barks, lore text, mission text referencing old names (8h)
 - [ ] 4.3 Run full test suite (`make test`) — all green (1h)
 - [ ] 4.4 Build Buried Archive Tier I content polish pass: 3 missions (`archive_scout`, `archive_cleansing`, `archive_gather`) (40h)

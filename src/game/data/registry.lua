@@ -283,7 +283,7 @@ Registry.heroClasses = {
         skills = { "razor_lunge", "arterial_cut", "shadow_step" },
     },
     mender = {
-        name = "Mender",
+        name = "Apothecary",
         maxHp = 22,
         speed = 4,
         resolve = 56,
@@ -297,7 +297,7 @@ Registry.heroClasses = {
         skills = { "lantern_bolt", "hush", "ember_veil" },
     },
     harrier = {
-        name = "Harrier",
+        name = "Thief",
         maxHp = 19,
         speed = 6,
         resolve = 50,
