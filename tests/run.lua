@@ -7,6 +7,7 @@ local Replay = require("src.game.replay")
 local Input = require("src.app.input")
 local Render = require("src.app.render")
 local Audio = require("src.app.audio")
+local Accessibility = require("src.app.accessibility")
 local Credits = require("src.app.credits")
 local Settings = require("src.app.settings")
 local Achievements = require("src.app.achievements")
@@ -2693,6 +2694,9 @@ tests[#tests + 1] = function()
     expect(shifted[1] ~= 0.9 and shifted[2] ~= 0.1, "colorblind mode should transform cue colors")
     local app = { settings = settings, eventFlash = { cue = "hit_slash", status = "Mara hit" } }
     expect(Render.audioSubtitle(app) == "slash hit: Mara hit", "subtitles should expose audio cue and status")
+    local export = Accessibility.text(Simulation.new(84), app)
+    expect(export:find("Thoth accessibility export", 1, true) and export:find("high_contrast=true", 1, true), "accessibility export should expose screen-reader text")
+    expect(export:find("party:", 1, true) and export:find("controls:", 1, true), "accessibility export should expose party and controls")
     settings.subtitles = false
     expect(Render.audioSubtitle(app) == nil, "subtitles should respect setting")
     settings.reducedMotion = true

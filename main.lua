@@ -4,6 +4,7 @@ local Simulation = require("src.game.simulation")
 local Input = require("src.app.input")
 local Render = require("src.app.render")
 local Audio = require("src.app.audio")
+local Accessibility = require("src.app.accessibility")
 local Save = require("src.game.save")
 local Settings = require("src.app.settings")
 local Achievements = require("src.app.achievements")
@@ -1138,7 +1139,8 @@ function love.load(args)
     local tutorialSmoke = hasArg(args, "--tutorial-smoke")
     local toastSmoke = hasArg(args, "--toast-smoke")
     local polishSmoke = hasArg(args, "--polish-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke or tutorialSmoke or toastSmoke or polishSmoke
+    local accessibilityExport = argValue(args, "--accessibility-export", nil)
+    local smoke = hasArg(args, "--smoke") or accessibilityExport ~= nil or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke or tutorialSmoke or toastSmoke or polishSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local previewCapture = argValue(args, "--preview-capture", nil)
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
@@ -1199,6 +1201,7 @@ function love.load(args)
         renderBenchmark = renderBenchmark,
         renderSmoke = renderSmoke,
         previewCapture = previewCapture,
+        accessibilityExport = accessibilityExport,
         previewCaptured = false,
         titleSmoke = titleSmoke,
         settingsSmoke = settingsSmoke,
@@ -1250,6 +1253,11 @@ function love.load(args)
     end
     Achievements.update(sim, app)
     Render.load()
+    if accessibilityExport then
+        local ok, err = Accessibility.write(accessibilityExport, sim, app)
+        print(ok and ("accessibility-export=" .. accessibilityExport) or ("accessibility-export-error=" .. tostring(err)))
+        love.event.quit(ok and 0 or 1)
+    end
 end
 
 function love.update(dt)
