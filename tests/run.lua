@@ -503,11 +503,30 @@ end
 tests[#tests + 1] = function()
     local sim = Simulation.new(114)
     sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("ember_prioress"))
+    expect(sim:missionIntro("ember_prioress").brief:find("Cinder Prioress", 1, true), "prioress mission intro should be mission-specific")
+    expect(sim:missionProgressText():find("cinder prioress broken 0/1", 1, true), "prioress mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("Defeat the Cinder Prioress", 1, true), "prioress mission should expose next-step copy")
+    expect(sim:startCombat("prioress", "20:-8"), "ember boss combat should start")
+    local prioress = sim.combat.enemies[1]
+    expect(prioress.kind == "cinder_prioress" and prioress.bossPhase == "liturgy" and prioress.nextBossSkill == "kiln_liturgy", "prioress should open in liturgy phase")
+    expect(prioress.parts[1].hint:find("Kiln Liturgy", 1, true) and prioress.parts[2].hint:find("Soot Cloud", 1, true), "prioress weak points should expose skill-lock hints")
+    expect(table.concat(sim.log, "\n"):find("Liturgy Phase", 1, true) and sim.narration:find("remembers fire", 1, true), "prioress should announce phase dialogue")
+    sim:damageEnemyPart(prioress, "cinder_halo", 99)
+    expect(prioress.bossPhase == "veil" and prioress.nextBossSkill == "soot_cloud", "prioress should shift phase when a weak point breaks")
+    prioress.hp = 12
+    sim:applyBossPhase(prioress, false)
+    expect(prioress.bossPhase == "cinder", "prioress should enter low-hp cinder phase")
+    local loadedPrioress = Simulation.fromSnapshot(sim:snapshot())
+    expect(loadedPrioress.combat.enemies[1].bossPhase == "cinder" and loadedPrioress.combat.enemies[1].parts[1].hint:find("Kiln Liturgy", 1, true), "prioress phase and hints should survive snapshot")
+    sim:finishCombat(true)
+    sim:endExpedition(true)
     sim.estate.campaign.dread = 4
     runQueued(sim, Simulation.commands.startExpedition("ember_prioress"))
     expect(sim:startCombat("prioress", "20:-8"), "ember boss variant combat should start")
     expect(sim.combat.encounter == "prioress_ember" and sim.combat.enemies[1].kind == "cinder_prioress_glass", "high dread should select glass-crowned prioress")
     expect(sim.combat.enemies[1].parts[1].key == "halo_vent", "glass-crowned prioress should expose halo vent")
+    expect(sim.combat.enemies[1].bossPhase == "glass" and sim.combat.enemies[1].parts[1].hint:find("Glass Crown Liturgy", 1, true), "glass-crowned prioress should expose glass phase and weak-point hints")
 end
 
 tests[#tests + 1] = function()
