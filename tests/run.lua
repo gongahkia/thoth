@@ -52,8 +52,8 @@ tests[#tests + 1] = function()
     expect(world:getTile(0, 0, 0).id == "archive_floor", "origin should be archive floor")
     expect(world:getTile(3, 0, 0).id == "corridor", "corridor should pierce room edge")
     expect(world:getTile(-2, 2, 0).id == "exit_gate", "exit gate missing")
-    local connected = table.concat(world:connectedRooms("0:0"), ",")
-    expect(connected == "8:0", "room graph should expose corridor links")
+    local connected = world:connectedRooms("0:0")
+    expect(contains(connected, "8:0") and contains(connected, "0:8"), "room graph should expose corridor links")
     local baseRevision = world:chunkRevision(0, 0, 0)
     world:setTile(4, 0, 0, { id = "archive_floor", data = 0 })
     expect(world:getTile(4, 0, 0).id == "archive_floor", "override did not persist")
@@ -505,8 +505,22 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(85)
+    sim:endExpedition(true)
+    sim.estate.campaign.dread = 4
+    runQueued(sim, Simulation.commands.startExpedition("archive_regent"))
+    expect(sim:startCombat("regent", "24:0"), "variant boss combat should start")
+    expect(sim.combat.encounter == "regent_crowned" and sim.combat.baseEncounter == "regent", "high dread should select boss variant")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.combat.encounter == "regent_crowned" and loaded.combat.baseEncounter == "regent", "boss variant should survive snapshot")
+    sim:finishCombat(true)
+    expect(sim.expedition.objectiveComplete and sim.world:getTile(24, 0, 0).id == "archive_floor", "boss variant should complete and clear base sigil")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(66)
     sim:endExpedition(true)
+    local heirlooms = sim.estate.heirlooms
     for _, missionKey in ipairs({ "archive_regent", "cistern_bell", "ember_prioress" }) do
         sim:startExpedition(missionKey)
         sim.expedition.objectiveComplete = true
@@ -514,8 +528,9 @@ tests[#tests + 1] = function()
         sim:endExpedition(false)
     end
     expect(sim.estate.campaign.victory and sim.estate.campaign.renown == 6, "all boss wins should complete campaign arc")
+    expect(sim.estate.campaign.finalSeal and sim.estate.heirlooms >= heirlooms + 3 and sim.estate.trinkets.scribe_wax >= 1, "campaign victory should grant final seal reward")
     local loaded = Simulation.fromSnapshot(sim:snapshot())
-    expect(loaded.estate.campaign.victory and loaded.estate.campaign.bossKills.ember_warrens, "campaign snapshot should preserve boss wins")
+    expect(loaded.estate.campaign.victory and loaded.estate.campaign.finalSeal and loaded.estate.campaign.bossKills.ember_warrens, "campaign snapshot should preserve boss wins")
 end
 
 tests[#tests + 1] = function()

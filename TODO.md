@@ -21,7 +21,7 @@
 - Replaced simulation with deterministic estate, expedition, curio, camping, stress, resolve, and rank combat state.
 - Added estate roster recruitment/dismissal, rank assignment, provisioning, trinket market/equip/sale, quirks, upgrades, town events, and mission rewards.
 - Added enemy skill AI, Death's Door, hero statuses, hunger checks, low-light pressure, room scouting, camp respite skills, non-retreatable camp ambushes, mission objectives, and resolve-tier mission pressure.
-- Added multiple dungeon locations, location-specific enemies/bosses/curios/provision kits, gather/activate missions, diseases and treatment, combat target hitboxes, fallen-trinket recovery, estate mouse controls, exact roster controls, loot capacity, estate week cadence, campaign collapse limits, town events, selectable stress recovery activities, quirk growth/locking, virtue variety, and persistent campaign pressure.
+- Added multiple dungeon locations, branch rooms, location-specific enemies/bosses/boss variants/curios/provision kits, gather/activate missions, diseases and treatment, combat target hitboxes, fallen-trinket recovery, estate mouse controls, exact roster controls, loot capacity, estate week cadence, campaign collapse limits, town events, selectable stress recovery activities, quirk growth/locking, virtue variety, final campaign rewards, and persistent campaign pressure.
 - Preserved chunked `World` snapshots and isometric render projection/cache APIs.
 - Bumped save/replay headers to v2 and made old versions fail explicitly.
 - Replaced active tests and benchmark with RPG coverage.
@@ -29,5 +29,4 @@
 
 ## Next
 
-- Add more room layouts, boss variants, and endgame consequences.
 - Add authored visual/audio cues for RPG actions when assets are available.

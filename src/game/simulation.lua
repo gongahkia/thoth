@@ -148,7 +148,7 @@ local function inventoryFromStacks(stacks)
 end
 
 local function newCampaign()
-    return { renown = 0, dread = 0, completedMissions = {}, locationProgress = {}, bossKills = {}, victory = false, lost = false, lossReason = nil, weekLimit = 48, deathLimit = 8, dreadLimit = 18 }
+    return { renown = 0, dread = 0, completedMissions = {}, locationProgress = {}, bossKills = {}, victory = false, finalSeal = false, lost = false, lossReason = nil, weekLimit = 48, deathLimit = 8, dreadLimit = 18 }
 end
 
 function Simulation.new(seed)
@@ -978,6 +978,12 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
         end
     end
     campaign.victory = defeated >= #Defs.locationOrder
+    if campaign.victory and not campaign.finalSeal then
+        campaign.finalSeal = true
+        self.estate.heirlooms = self.estate.heirlooms + 3
+        self.estate.trinkets.scribe_wax = (self.estate.trinkets.scribe_wax or 0) + 1
+        self:pushLog("campaign sealed")
+    end
     self:refreshMissionBoard(true)
     self:evaluateCampaignState()
     return true
@@ -1946,6 +1952,8 @@ function Simulation:clearStatus(unit, kind)
 end
 
 function Simulation:startCombat(encounterKey, roomKey, options)
+    local baseEncounter = encounterKey
+    encounterKey, baseEncounter = self:resolveEncounterVariant(encounterKey)
     local encounter = Defs.encounter(encounterKey)
     if not encounter then
         return false
@@ -1958,6 +1966,7 @@ function Simulation:startCombat(encounterKey, roomKey, options)
     self.mode = "combat"
     self.combat = {
         encounter = encounterKey,
+        baseEncounter = baseEncounter,
         roomKey = roomKey,
         enemies = enemies,
         round = 0,
@@ -1974,6 +1983,28 @@ function Simulation:startCombat(encounterKey, roomKey, options)
     self:pushLog("combat: " .. encounterKey)
     self:advanceCombat()
     return true
+end
+
+function Simulation:resolveEncounterVariant(encounterKey)
+    local mission = self.expedition and Defs.mission(self.expedition.mission)
+    if not mission or mission.kind ~= "boss" or mission.bossEncounter ~= encounterKey then
+        return encounterKey, encounterKey
+    end
+    local dread = self.estate.campaign and (self.estate.campaign.dread or 0) or 0
+    if mission.bossVariantEncounter and dread >= (mission.variantDread or 4) then
+        return mission.bossVariantEncounter, encounterKey
+    end
+    return encounterKey, encounterKey
+end
+
+function Simulation:bossMissionForEncounter(encounterKey)
+    for _, missionKey in ipairs(Defs.missionOrder) do
+        local mission = Defs.mission(missionKey)
+        if mission and mission.kind == "boss" and (mission.bossEncounter == encounterKey or mission.bossVariantEncounter == encounterKey) then
+            return missionKey, mission
+        end
+    end
+    return nil, nil
 end
 
 function Simulation:enemyAtRank(rank)
@@ -2269,22 +2300,25 @@ function Simulation:finishCombat(victory)
             self.estate.trinkets[trinketKey] = ((self.estate.trinkets or {})[trinketKey] or 0) + 1
         end
         if self.expedition then
+            local baseEncounter = self.combat.baseEncounter or self.combat.encounter
+            local _, bossMission = self:bossMissionForEncounter(baseEncounter)
+            local bossWon = bossMission ~= nil
             self.expedition.clearedEncounters[self.combat.roomKey or self.combat.encounter] = true
-            self:addLoot("coin", self.combat.encounter == "regent" and 120 or 35)
-            self:addLoot("heirloom", self.combat.encounter == "regent" and 2 or 1)
+            self:addLoot("coin", bossWon and 120 or 35)
+            self:addLoot("heirloom", bossWon and 2 or 1)
             for rank = 1, 4 do
                 local hero = self:heroAtRank(rank)
                 if hero and hero.alive then
-                    self:awardXp(hero, self.combat.encounter == "regent" and 2 or 1)
+                    self:awardXp(hero, bossWon and 2 or 1)
                 end
             end
-            if self.combat.encounter == "regent" then
-                self.expedition.bossDefeated = true
-                self.estate.trinkets.quiet_bell = (self.estate.trinkets.quiet_bell or 0) + 1
-            elseif self.combat.encounter == "matron" or self.combat.encounter == "prioress" then
+            if bossWon then
                 self.expedition.bossDefeated = true
             end
-            self:clearEncounterSpecial(self.combat.encounter)
+            if bossMission and bossMission.location == "buried_archive" then
+                self.estate.trinkets.quiet_bell = (self.estate.trinkets.quiet_bell or 0) + 1
+            end
+            self:clearEncounterSpecial(baseEncounter)
             self:updateObjective()
         end
         self.mode = "expedition"
@@ -2728,6 +2762,7 @@ function Simulation:snapshot()
         end
         combat = {
             encounter = self.combat.encounter,
+            baseEncounter = self.combat.baseEncounter,
             roomKey = self.combat.roomKey,
             enemies = enemies,
             round = self.combat.round,
@@ -2767,6 +2802,7 @@ function Simulation:snapshot()
                 locationProgress = copyMap(self.estate.campaign and self.estate.campaign.locationProgress),
                 bossKills = copyMap(self.estate.campaign and self.estate.campaign.bossKills),
                 victory = self.estate.campaign and self.estate.campaign.victory == true,
+                finalSeal = self.estate.campaign and self.estate.campaign.finalSeal == true,
                 lost = self.estate.campaign and self.estate.campaign.lost == true,
                 lossReason = self.estate.campaign and self.estate.campaign.lossReason or nil,
                 weekLimit = self.estate.campaign and self.estate.campaign.weekLimit or 48,
@@ -2834,6 +2870,7 @@ function Simulation.fromSnapshot(snapshot)
         locationProgress = copyMap(campaign.locationProgress),
         bossKills = copyMap(campaign.bossKills),
         victory = campaign.victory == true,
+        finalSeal = campaign.finalSeal == true,
         lost = campaign.lost == true,
         lossReason = campaign.lossReason,
         weekLimit = campaign.weekLimit or 48,
@@ -2921,6 +2958,7 @@ function Simulation.fromSnapshot(snapshot)
     if combat then
         self.combat = {
             encounter = combat.encounter,
+            baseEncounter = combat.baseEncounter or combat.encounter,
             roomKey = combat.roomKey,
             enemies = {},
             round = combat.round or 0,

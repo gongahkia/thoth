@@ -149,7 +149,7 @@ end
 
 for key, location in pairs(Defs.locations) do
     expect(location.name and location.start and location.objectiveRooms > 0, "location missing data " .. key)
-    expect(location.layout and #location.layout.rooms > 0 and #location.layout.corridors > 0, "location missing layout " .. key)
+    expect(location.layout and #location.layout.rooms >= 7 and #location.layout.corridors > 0, "location missing layout " .. key)
     expect(Defs.tile(location.layout.floorTile), "location missing floor tile " .. key)
     expect(Defs.tile(location.layout.wallTile), "location missing wall tile " .. key)
     expect(Defs.tile(location.layout.corridorTile), "location missing corridor tile " .. key)
@@ -181,6 +181,11 @@ for key, mission in pairs(Defs.missions) do
     end
     if mission.reward and mission.reward.trinket then
         expect(Defs.trinket(mission.reward.trinket), "mission reward missing trinket " .. mission.reward.trinket)
+    end
+    if mission.kind == "boss" then
+        expect(Defs.encounter(mission.bossEncounter), "mission boss encounter missing " .. key)
+        expect(Defs.encounter(mission.bossVariantEncounter), "mission boss variant missing " .. key)
+        expect(type(mission.variantDread) == "number", "mission boss variant dread missing " .. key)
     end
 end
 

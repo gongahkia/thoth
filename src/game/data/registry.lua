@@ -448,16 +448,19 @@ Registry.encounters = {
     stacks = { "bone_scribe", "ink_wretch", "pale_censer" },
     undercroft = { "gutter_thing", "hollow_guard", "bone_scribe" },
     regent = { "vault_regent", "pale_censer" },
+    regent_crowned = { "vault_regent", "bone_scribe", "pale_censer" },
     cistern_entry = { "drowned_acolyte", "brine_stalker" },
     cistern_depths = { "brine_stalker", "drowned_acolyte", "pale_censer" },
     matron = { "bell_diver", "drowned_acolyte" },
+    matron_toll = { "bell_diver", "brine_stalker", "drowned_acolyte" },
     ember_entry = { "ash_husk", "kiln_imp" },
     ember_altar = { "kiln_imp", "ash_husk", "pale_censer" },
     prioress = { "cinder_prioress", "kiln_imp" },
+    prioress_ember = { "cinder_prioress", "kiln_imp", "ash_husk" },
 }
 Registry.encounterOrder = {
-    "entry", "stacks", "undercroft", "regent",
-    "cistern_entry", "cistern_depths", "matron", "ember_entry", "ember_altar", "prioress",
+    "entry", "stacks", "undercroft", "regent", "regent_crowned",
+    "cistern_entry", "cistern_depths", "matron", "matron_toll", "ember_entry", "ember_altar", "prioress", "prioress_ember",
 }
 
 Registry.locations = {
@@ -482,6 +485,7 @@ Registry.locations = {
             obstacleModulo = 71,
             rooms = {
                 { key = "0:0", x = 0, y = 0, w = 3, h = 3 },
+                { key = "0:8", x = 0, y = 8, w = 3, h = 3 },
                 { key = "8:0", x = 8, y = 0, w = 3, h = 3 },
                 { key = "16:0", x = 16, y = 0, w = 3, h = 3 },
                 { key = "24:0", x = 24, y = 0, w = 3, h = 3 },
@@ -491,6 +495,7 @@ Registry.locations = {
             },
             corridors = {
                 { ax = 0, ay = 0, bx = 8, by = 0 },
+                { ax = 0, ay = 0, bx = 0, by = 8 },
                 { ax = 8, ay = 0, bx = 16, by = 0 },
                 { ax = 16, ay = 0, bx = 24, by = 0 },
                 { ax = 8, ay = 0, bx = 8, by = 6 },
@@ -501,6 +506,7 @@ Registry.locations = {
             specials = {
                 { x = 0, y = 0, z = 0, tile = "archive_floor" },
                 { x = -2, y = 2, z = 0, tile = "exit_gate" },
+                { x = 0, y = 8, z = 0, tile = "relic_cache" },
                 { x = 4, y = 0, z = 0, tile = "wire_snare" },
                 { x = 8, y = 6, z = 0, tile = "camp_marker" },
                 { x = 8, y = 1, z = 0, tile = "lost_page" },
@@ -512,6 +518,7 @@ Registry.locations = {
         },
         encounters = {
             ["8:0"] = "entry",
+            ["0:8"] = "entry",
             ["16:0"] = "stacks",
             ["16:6"] = "undercroft",
             ["24:0"] = "regent",
@@ -543,6 +550,7 @@ Registry.locations = {
                 { key = "18:4", x = 18, y = 4, w = 3, h = 3 },
                 { key = "18:10", x = 18, y = 10, w = 3, h = 3 },
                 { key = "6:10", x = 6, y = 10, w = 3, h = 3 },
+                { key = "12:10", x = 12, y = 10, w = 3, h = 3 },
             },
             corridors = {
                 { ax = 0, ay = 0, bx = 6, by = 4 },
@@ -550,6 +558,8 @@ Registry.locations = {
                 { ax = 12, ay = 0, bx = 18, by = 4 },
                 { ax = 18, ay = 4, bx = 18, by = 10 },
                 { ax = 6, ay = 4, bx = 6, by = 10 },
+                { ax = 6, ay = 10, bx = 12, by = 10 },
+                { ax = 12, ay = 10, bx = 18, by = 10 },
                 { ax = 6, ay = 10, bx = 18, by = 10 },
             },
             specials = {
@@ -558,6 +568,7 @@ Registry.locations = {
                 { x = 6, y = 4, z = 0, tile = "salt_font" },
                 { x = 6, y = 5, z = 0, tile = "tide_valve" },
                 { x = 12, y = 0, z = 0, tile = "brine_lockbox" },
+                { x = 12, y = 10, z = 0, tile = "salt_font" },
                 { x = 6, y = 10, z = 0, tile = "camp_marker" },
                 { x = 18, y = 5, z = 0, tile = "tide_valve" },
                 { x = 18, y = 10, z = 0, tile = "tide_sigil" },
@@ -565,6 +576,7 @@ Registry.locations = {
         },
         encounters = {
             ["6:4"] = "cistern_entry",
+            ["12:10"] = "cistern_entry",
             ["18:4"] = "cistern_depths",
             ["18:10"] = "matron",
         },
@@ -591,6 +603,7 @@ Registry.locations = {
             rooms = {
                 { key = "0:0", x = 0, y = 0, w = 3, h = 3 },
                 { key = "8:0", x = 8, y = 0, w = 3, h = 3 },
+                { key = "8:-8", x = 8, y = -8, w = 3, h = 3 },
                 { key = "14:-4", x = 14, y = -4, w = 3, h = 3 },
                 { key = "20:-8", x = 20, y = -8, w = 3, h = 3 },
                 { key = "14:4", x = 14, y = 4, w = 3, h = 3 },
@@ -598,6 +611,8 @@ Registry.locations = {
             },
             corridors = {
                 { ax = 0, ay = 0, bx = 8, by = 0 },
+                { ax = 8, ay = 0, bx = 8, by = -8 },
+                { ax = 8, ay = -8, bx = 14, by = -4 },
                 { ax = 8, ay = 0, bx = 14, by = -4 },
                 { ax = 14, ay = -4, bx = 20, by = -8 },
                 { ax = 8, ay = 0, bx = 14, by = 4 },
@@ -606,6 +621,7 @@ Registry.locations = {
             specials = {
                 { x = 0, y = 0, z = 0, tile = "ember_floor" },
                 { x = -2, y = 2, z = 0, tile = "exit_gate" },
+                { x = 8, y = -8, z = 0, tile = "ember_reliquary" },
                 { x = 8, y = 0, z = 0, tile = "ash_vent" },
                 { x = 14, y = -3, z = 0, tile = "ember_ward" },
                 { x = 14, y = 4, z = 0, tile = "ember_reliquary" },
@@ -616,6 +632,7 @@ Registry.locations = {
         },
         encounters = {
             ["8:0"] = "ember_entry",
+            ["8:-8"] = "ember_entry",
             ["14:4"] = "ember_altar",
             ["20:-8"] = "prioress",
         },
@@ -657,6 +674,9 @@ Registry.missions = {
         kind = "boss",
         difficulty = "veteran",
         resolveLevel = 3,
+        bossEncounter = "regent",
+        bossVariantEncounter = "regent_crowned",
+        variantDread = 4,
         reward = { gold = 170, heirlooms = 4, trinket = "quiet_bell" },
     },
     cistern_survey = {
@@ -674,6 +694,9 @@ Registry.missions = {
         kind = "boss",
         difficulty = "veteran",
         resolveLevel = 3,
+        bossEncounter = "matron",
+        bossVariantEncounter = "matron_toll",
+        variantDread = 4,
         reward = { gold = 185, heirlooms = 4, trinket = "oath_ring" },
     },
     cistern_valves = {
@@ -701,6 +724,9 @@ Registry.missions = {
         kind = "boss",
         difficulty = "champion",
         resolveLevel = 5,
+        bossEncounter = "prioress",
+        bossVariantEncounter = "prioress_ember",
+        variantDread = 4,
         reward = { gold = 195, heirlooms = 5, trinket = "ember_pin" },
     },
     ember_wards = {
