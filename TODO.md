@@ -122,7 +122,6 @@ Goal: full playthrough of Buried Archive Tier I (3 missions) end-to-end, with 4 
 
 Goal: fill out Buried Archive (12 missions), Salt Cistern (10 missions), Ember Warrens (9 missions) with hand-tuned polish.
 
-- [ ] 5.2 Buried Archive Tier III content polish: 5 missions (`archive_audit_page_bearer`, `archive_silence_reeve`, `archive_witness_confession`, `archive_remand_scribe`, `archive_regent`) (120h)
 - [ ] 5.3 Buried Archive boss fight polish (`archive_regent`): weak-point readability, multi-phase, dialogue (40h)
 - [ ] 5.4 Salt Cistern Tier I–III content polish: 10 missions (`cistern_*` in `registry.lua:1682+`) (240h)
 - [ ] 5.5 Salt Cistern boss fight polish (`cistern_bell`) (40h)
