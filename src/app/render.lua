@@ -1,11 +1,16 @@
 local Defs = require("src.game.defs")
 local Grid = require("src.core.grid")
+local World = require("src.game.world")
 
 local Render = {}
 
 local atlas
 local quads = {}
 local tileSize = 32
+local chunkTileSize = 32
+local chunkPixelSize = tileSize * chunkTileSize
+local tileCanvasCache = { world = nil, chunks = {}, supported = nil }
+local buildCardDefs = {}
 
 local spriteNames = {
     "grass", "stone", "water", "tree", "stone", "iron_ore", "copper_ore", "coal_ore",
@@ -87,15 +92,54 @@ local function itemCode(item)
     return itemCodes[item] or itemName(item):sub(1, 4)
 end
 
+local function rebuildBuildCardDefs()
+    buildCardDefs = {}
+    for _, recipeKey in ipairs(Defs.buildRecipeOrder or Defs.recipeOrder) do
+        local recipe = Defs.recipe(recipeKey)
+        buildCardDefs[#buildCardDefs + 1] = {
+            recipeKey = recipeKey,
+            label = Defs.item(recipe.output.item).name .. " x" .. recipe.output.count,
+        }
+    end
+end
+
+local function clearList(list)
+    for i = #list, 1, -1 do
+        list[i] = nil
+    end
+end
+
+function Render.prepareUi(app)
+    app.ui = app.ui or {}
+    app.ui.machineButtons = app.ui.machineButtons or {}
+    app.ui.recipeCards = app.ui.recipeCards or {}
+    app.ui.inventoryCells = app.ui.inventoryCells or {}
+    app.ui.hotbarSlots = app.ui.hotbarSlots or {}
+    app.ui.hotbarClears = app.ui.hotbarClears or {}
+    clearList(app.ui.machineButtons)
+    clearList(app.ui.recipeCards)
+    clearList(app.ui.inventoryCells)
+    clearList(app.ui.hotbarSlots)
+    clearList(app.ui.hotbarClears)
+end
+
 local function drawSprite(name, x, y)
     if atlas and quads[name] then
+        love.graphics.setColor(1, 1, 1, 1)
         love.graphics.draw(atlas, quads[name], x, y, 0, 2, 2)
         return true
     end
     return false
 end
 
+local function resetTileCanvasCache()
+    tileCanvasCache.world = nil
+    tileCanvasCache.chunks = {}
+end
+
 function Render.load()
+    resetTileCanvasCache()
+    rebuildBuildCardDefs()
     if love.filesystem.getInfo("assets/sprites/thoth_atlas.png") then
         atlas = love.graphics.newImage("assets/sprites/thoth_atlas.png")
         local width, height = atlas:getDimensions()
@@ -110,8 +154,64 @@ function Render.load()
     end
 end
 
+local function canUseTileCanvas()
+    if tileCanvasCache.supported == nil then
+        tileCanvasCache.supported = pcall(love.graphics.newCanvas, 1, 1)
+    end
+    return tileCanvasCache.supported
+end
+
+local function tileCacheKey(cx, cy, z)
+    return tostring(z or 0) .. ":" .. cx .. ":" .. cy
+end
+
+local function drawTileToCanvas(world, x, y, z, screenX, screenY)
+    local tile = world:peekTile(x, y, z or 0)
+    if drawSprite(tile.id, screenX, screenY) then
+        return
+    end
+    love.graphics.setColor(color(Defs.tile(tile.id).color))
+    love.graphics.rectangle("fill", screenX, screenY, tileSize, tileSize)
+end
+
+local function buildTileChunkCanvas(world, cx, cy, z)
+    local canvas = love.graphics.newCanvas(chunkPixelSize, chunkPixelSize)
+    love.graphics.push("all")
+    love.graphics.setCanvas(canvas)
+    love.graphics.clear(0, 0, 0, 0)
+    for localY = 0, chunkTileSize - 1 do
+        for localX = 0, chunkTileSize - 1 do
+            drawTileToCanvas(
+                world,
+                cx * chunkTileSize + localX,
+                cy * chunkTileSize + localY,
+                z,
+                localX * tileSize,
+                localY * tileSize)
+        end
+    end
+    love.graphics.setCanvas()
+    love.graphics.pop()
+    return canvas
+end
+
+local function tileChunkCanvas(world, cx, cy, z)
+    if tileCanvasCache.world ~= world then
+        tileCanvasCache.world = world
+        tileCanvasCache.chunks = {}
+    end
+    local key = tileCacheKey(cx, cy, z)
+    local revision = world:chunkRevision(cx, cy, z)
+    local entry = tileCanvasCache.chunks[key]
+    if not entry or entry.revision ~= revision then
+        entry = { canvas = buildTileChunkCanvas(world, cx, cy, z), revision = revision }
+        tileCanvasCache.chunks[key] = entry
+    end
+    return entry.canvas
+end
+
 function Render.drawTile(sim, x, y, z, screenX, screenY)
-    local tile = sim.world:getTile(x, y, z or 0)
+    local tile = sim.world:peekTile(x, y, z or 0)
     if drawSprite(tile.id, screenX, screenY) then
         return
     end
@@ -137,18 +237,44 @@ function Render.drawWorld(sim, app)
     local py = sim.player.y * tileSize
     local offsetX = math.floor(width / 2 - px - tileSize / 2)
     local offsetY = math.floor(height / 2 - py - tileSize / 2)
-    app.worldView = { offsetX = offsetX, offsetY = offsetY, tileSize = tileSize }
+    app.worldView = app.worldView or {}
+    app.worldView.offsetX = offsetX
+    app.worldView.offsetY = offsetY
+    app.worldView.tileSize = tileSize
     local radiusX = math.ceil(width / tileSize / 2) + 2
     local radiusY = math.ceil(height / tileSize / 2) + 2
-    for y = sim.player.y - radiusY, sim.player.y + radiusY do
-        for x = sim.player.x - radiusX, sim.player.x + radiusX do
-            Render.drawTile(sim, x, y, sim.player.z, offsetX + x * tileSize, offsetY + y * tileSize)
+    local minX = sim.player.x - radiusX
+    local maxX = sim.player.x + radiusX
+    local minY = sim.player.y - radiusY
+    local maxY = sim.player.y + radiusY
+    if canUseTileCanvas() then
+        local minChunkX = World.floorDiv(minX, chunkTileSize)
+        local maxChunkX = World.floorDiv(maxX, chunkTileSize)
+        local minChunkY = World.floorDiv(minY, chunkTileSize)
+        local maxChunkY = World.floorDiv(maxY, chunkTileSize)
+        local visibleChunks = {}
+        for cy = minChunkY, maxChunkY do
+            for cx = minChunkX, maxChunkX do
+                visibleChunks[tileCacheKey(cx, cy, sim.player.z)] = true
+                local canvas = tileChunkCanvas(sim.world, cx, cy, sim.player.z)
+                love.graphics.setColor(1, 1, 1, 1)
+                love.graphics.draw(canvas, offsetX + cx * chunkPixelSize, offsetY + cy * chunkPixelSize)
+            end
+        end
+        for key in pairs(tileCanvasCache.chunks) do
+            if not visibleChunks[key] then
+                tileCanvasCache.chunks[key] = nil
+            end
+        end
+    else
+        for y = minY, maxY do
+            for x = minX, maxX do
+                Render.drawTile(sim, x, y, sim.player.z, offsetX + x * tileSize, offsetY + y * tileSize)
+            end
         end
     end
-    for _, machine in ipairs(sim.machines) do
-        if (machine.z or 0) == sim.player.z then
-            Render.drawMachine(machine, offsetX + machine.x * tileSize, offsetY + machine.y * tileSize)
-        end
+    for _, machine in ipairs(sim:machinesInRect(minX, maxX, minY, maxY, sim.player.z)) do
+        Render.drawMachine(machine, offsetX + machine.x * tileSize, offsetY + machine.y * tileSize)
     end
     local sx = offsetX + sim.player.x * tileSize
     local sy = offsetY + sim.player.y * tileSize
@@ -298,7 +424,6 @@ local function machineIoText(machine)
 end
 
 local function drawMachinePanel(sim, app)
-    app.ui.machineButtons = {}
     local machine, source = targetMachine(sim, app)
     if not machine then
         return
@@ -381,7 +506,6 @@ local function drawMachinePanel(sim, app)
 end
 
 local function drawRecipeCards(sim, app)
-    app.ui.recipeCards = {}
     local width, height = love.graphics.getDimensions()
     local panelW = 292
     local panelX = width - panelW - 12
@@ -393,8 +517,8 @@ local function drawRecipeCards(sim, app)
     panel(panelX, panelY, panelW, panelH, 0.84)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Build", panelX + 10, panelY + 8)
-    for index, recipeKey in ipairs(Defs.buildRecipeOrder or Defs.recipeOrder) do
-        local recipe = Defs.recipe(recipeKey)
+    for index, cardDef in ipairs(buildCardDefs) do
+        local recipeKey = cardDef.recipeKey
         local y = panelY + 32 + (index - 1) * (cardH + gap)
         if y + cardH > panelY + panelH - 10 then
             break
@@ -406,7 +530,7 @@ local function drawRecipeCards(sim, app)
         love.graphics.setColor(app.selectedRecipe == recipeKey and 1 or 0.2, 0.2, 0.2, 1)
         love.graphics.rectangle("line", panelX + 10, y, cardW, cardH)
         love.graphics.setColor(0.96, 0.96, 0.9, 1)
-        love.graphics.print(Defs.item(recipe.output.item).name .. " x" .. recipe.output.count, panelX + 18, y + 4)
+        love.graphics.print(cardDef.label, panelX + 18, y + 4)
         love.graphics.setColor(0.86, 0.88, 0.82, 1)
         love.graphics.printf(state .. "  " .. detail, panelX + 18, y + 21, cardW - 16)
         app.ui.recipeCards[#app.ui.recipeCards + 1] = {
@@ -421,9 +545,6 @@ local function drawRecipeCards(sim, app)
 end
 
 local function drawInventoryPanel(sim, app)
-    app.ui.inventoryCells = {}
-    app.ui.hotbarSlots = {}
-    app.ui.hotbarClears = {}
     local width, height = love.graphics.getDimensions()
     local visibleItems = {}
     for _, item in ipairs(Defs.inventoryPanelOrder or Defs.itemOrder) do
@@ -531,18 +652,20 @@ function Render.drawHud(sim, app)
     local width = love.graphics.getWidth()
     panel(0, 0, width, 76, 0.86)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Thoth  tick " .. sim.tick, 16, 10)
+    local header = "Thoth  tick " .. sim.tick .. "  pos " .. sim.player.x .. "," .. sim.player.y .. "," .. sim.player.z .. "  face " .. sim.player.facing
+    love.graphics.print(header, 16, 10)
     love.graphics.printf("status " .. tostring(app.status), width - 276, 10, 260, "right")
     love.graphics.printf("next " .. sim:nextStepText(), 16, 30, width - 320)
     local checklist = sim:objectiveChecklist()
     love.graphics.printf(checklistText(activeChecklist(checklist)), 16, 54, width - 32)
     local progress = sim:achievementProgress()
-    love.graphics.printf("ach " .. sim:unlockedAchievementCount() .. "/" .. #progress, width - 276, 54, 260, "right")
+    local fps = love.timer and love.timer.getFPS and love.timer.getFPS() or 0
+    love.graphics.printf("fps " .. fps .. "  ach " .. sim:unlockedAchievementCount() .. "/" .. #progress, width - 276, 54, 260, "right")
 end
 
 function Render.draw(sim, app)
     love.graphics.clear(0.07, 0.08, 0.08, 1)
-    app.ui = {}
+    Render.prepareUi(app)
     Render.drawWorld(sim, app)
     Render.drawHud(sim, app)
     drawTutorialPanel(sim)

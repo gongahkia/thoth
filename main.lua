@@ -20,9 +20,31 @@ local function hasArg(args, target)
     return false
 end
 
+local function addBenchmarkLine(state, y)
+    state.world:setTile(0, y, 0, { id = "iron_ore", data = 240 })
+    local miner = state:addMachine("burner_miner", 0, y, "east")
+    miner.inventory:add("coal", 240)
+    state:addMachine("belt", 1, y, "east")
+    state:addMachine("inserter", 2, y, "east")
+    local furnace = state:addMachine("furnace", 3, y, "east")
+    furnace.inventory:add("coal", 240)
+    state:addMachine("inserter", 4, y, "east")
+    state:addMachine("chest", 5, y, "south")
+end
+
+local function setupRenderBenchmark(state)
+    for line = 1, 18 do
+        addBenchmarkLine(state, (line - 9) * 3)
+    end
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
+    local renderBenchmark = hasArg(args, "--render-benchmark")
+    if renderBenchmark then
+        setupRenderBenchmark(sim)
+    end
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
         paused = false,
@@ -32,6 +54,11 @@ function love.load(args)
         moveCooldown = 0,
         smoke = hasArg(args, "--smoke"),
         smokeFrames = 0,
+        renderBenchmark = renderBenchmark,
+        renderBenchmarkFrames = 180,
+        renderBenchmarkCount = 0,
+        renderBenchmarkTotalMs = 0,
+        renderBenchmarkMaxMs = 0,
     }
     Render.load()
 end
@@ -39,7 +66,7 @@ end
 function love.update(dt)
     Input.update(sim, app, dt)
     accumulator = math.min(accumulator + dt, 0.25)
-    local maxSteps = love.keyboard.isDown("lshift", "rshift") and 4 or 1
+    local maxSteps = love.keyboard.isDown("lshift", "rshift") and 6 or 3
     local steps = 0
     while not app.paused and accumulator >= fixedDt and steps < maxSteps do
         sim:step()
@@ -58,7 +85,21 @@ function love.update(dt)
 end
 
 function love.draw()
+    local started = app.renderBenchmark and love.timer.getTime() or nil
     Render.draw(sim, app)
+    if app.renderBenchmark then
+        local elapsedMs = (love.timer.getTime() - started) * 1000
+        app.renderBenchmarkCount = app.renderBenchmarkCount + 1
+        app.renderBenchmarkTotalMs = app.renderBenchmarkTotalMs + elapsedMs
+        app.renderBenchmarkMaxMs = math.max(app.renderBenchmarkMaxMs, elapsedMs)
+        if app.renderBenchmarkCount >= app.renderBenchmarkFrames then
+            print("benchmark=render")
+            print("frames=" .. app.renderBenchmarkCount)
+            print(string.format("avg_draw_ms=%.6f", app.renderBenchmarkTotalMs / app.renderBenchmarkCount))
+            print(string.format("max_draw_ms=%.6f", app.renderBenchmarkMaxMs))
+            love.event.quit(0)
+        end
+    end
 end
 
 function love.keypressed(key)

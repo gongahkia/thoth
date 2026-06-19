@@ -1,4 +1,4 @@
-.PHONY: run smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled package-build package clean
+.PHONY: run smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -37,6 +37,13 @@ benchmark-smoke:
 
 benchmark-scaled:
 	THOTH_BENCH_TICKS=900 THOTH_BENCH_BURNER_LINES=48 THOTH_BENCH_POWERED_LINES=16 $(LUAJIT) benchmarks/mixed_factory.lua
+
+render-benchmark:
+	@if command -v xvfb-run >/dev/null 2>&1; then \
+		xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --render-benchmark; \
+	else \
+		$(LOVE) . --render-benchmark; \
+	fi
 
 package-build:
 	mkdir -p dist

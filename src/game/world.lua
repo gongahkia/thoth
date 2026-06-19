@@ -103,7 +103,7 @@ local function generatedLairAt(seed, x, y)
 end
 
 function World.new(seed, overrides)
-    return setmetatable({ seed = seed or 1, overrides = overrides or {}, chunks = {} }, World)
+    return setmetatable({ seed = seed or 1, overrides = overrides or {}, chunks = {}, chunkRevisions = {} }, World)
 end
 
 function World.floorDiv(value, divisor)
@@ -363,19 +363,32 @@ function World:generatedTile(x, y, z)
 end
 
 function World:getTile(x, y, z)
+    return cloneTile(self:peekTile(x, y, z))
+end
+
+function World:peekTile(x, y, z)
     local key = Grid.key(x, y, z or 0)
     local override = self.overrides[key]
     if override then
-        return cloneTile(override)
+        return override
     end
     local chunk = self:chunkForTile(x, y, z or 0)
     local localX = World.floorMod(x, World.chunkSize)
     local localY = World.floorMod(y, World.chunkSize)
-    return cloneTile(chunk.tiles[localY * World.chunkSize + localX + 1])
+    return chunk.tiles[localY * World.chunkSize + localX + 1]
 end
 
 function World:setTile(x, y, z, value)
-    self.overrides[Grid.key(x, y, z or 0)] = cloneTile(value)
+    z = z or 0
+    self.overrides[Grid.key(x, y, z)] = cloneTile(value)
+    local cx = World.floorDiv(x, World.chunkSize)
+    local cy = World.floorDiv(y, World.chunkSize)
+    local key = World.chunkKey(cx, cy, z)
+    self.chunkRevisions[key] = (self.chunkRevisions[key] or 0) + 1
+end
+
+function World:chunkRevision(cx, cy, z)
+    return self.chunkRevisions[World.chunkKey(cx, cy, z or 0)] or 0
 end
 
 function World:isWalkable(x, y, z)

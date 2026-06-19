@@ -4,6 +4,8 @@ local Serialize = require("src.core.serialize")
 local Simulation = require("src.game.simulation")
 local Save = require("src.game.save")
 local Replay = require("src.game.replay")
+local Input = require("src.app.input")
+local Render = require("src.app.render")
 local World = require("src.game.world")
 
 local function expect(value, message)
@@ -144,6 +146,22 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local world = World.new(41)
+    local baseChunk = world:chunkRevision(0, 0, 0)
+    local nextChunk = world:chunkRevision(1, 0, 0)
+    world:setTile(0, 0, 0, { id = "grass", data = 7 })
+    expect(world:chunkRevision(0, 0, 0) == baseChunk + 1, "setTile should bump changed chunk revision")
+    expect(world:chunkRevision(1, 0, 0) == nextChunk, "setTile should not bump unrelated chunk revision")
+    local clone = world:getTile(0, 0, 0)
+    clone.id = "water"
+    expect(world:getTile(0, 0, 0).id == "grass", "getTile should return a clone")
+    expect(world:peekTile(0, 0, 0).id == "grass", "peekTile should expose the current tile")
+    expect(world:peekTile(1, 0, 0).id == world:getTile(1, 0, 0).id, "peekTile should match generated tiles")
+    world:clearLoadedChunks()
+    expect(world:chunkRevision(0, 0, 0) == baseChunk + 1, "chunk clear should not dirty terrain revision")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(37)
     sim.world:setTile(1, 0, 0, { id = "water", data = 0 })
     sim.world:setTile(2, 0, 0, { id = "grass", data = 0 })
@@ -159,6 +177,54 @@ tests[#tests + 1] = function()
     loaded:queue(Simulation.commands.move("east"))
     loaded:step()
     expect(loaded.player.x == 2 and not loaded.player.inBoat, "leaving water should exit boat traversal")
+end
+
+tests[#tests + 1] = function()
+    local oldLove = love
+    local sim = Simulation.new(40)
+    local app = { moveCooldown = 0, status = "ready" }
+    sim.world:setTile(0, -1, 0, { id = "grass", data = 0 })
+    sim.world:setTile(1, -1, 0, { id = "grass", data = 0 })
+    love = { keyboard = { isDown = function(key) return key == "w" end } }
+    Input.update(sim, app, 0.2)
+    sim:step()
+    expect(sim.player.y == -1, "holding w should queue north movement")
+    expect(app.status:find("move north") == 1, "held movement should update status")
+    Input.keypressed(sim, app, "right")
+    sim:step()
+    expect(sim.player.x == 1, "right arrow should queue east movement")
+    expect(app.status:find("move east") == 1, "arrow movement should update status")
+    love = oldLove
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(42)
+    local west = sim:addMachine("chest", -1, 0, "south")
+    local east = sim:addMachine("chest", 33, 0, "south")
+    sim:addMachine("chest", 0, 33, "south")
+    sim:addMachine("chest", 0, 0, "south", -1)
+    local visible = sim:machinesInRect(-2, 34, -1, 1, 0)
+    expect(#visible == 2, "machinesInRect should include only machines in bounds and layer")
+    expect(visible[1].id == west.id and visible[2].id == east.id, "machinesInRect should preserve id ordering")
+end
+
+tests[#tests + 1] = function()
+    local app = {
+        ui = {
+            machineButtons = { { stale = true } },
+            recipeCards = { { stale = true } },
+            inventoryCells = { { stale = true } },
+            hotbarSlots = { { stale = true } },
+            hotbarClears = { { stale = true } },
+        },
+    }
+    local oldUi = app.ui
+    local oldCards = app.ui.recipeCards
+    Render.prepareUi(app)
+    expect(app.ui == oldUi, "prepareUi should reuse the ui table")
+    expect(app.ui.recipeCards == oldCards, "prepareUi should reuse hitbox arrays")
+    expect(#app.ui.machineButtons == 0 and #app.ui.recipeCards == 0, "prepareUi should clear stale hitboxes")
+    expect(#app.ui.inventoryCells == 0 and #app.ui.hotbarSlots == 0 and #app.ui.hotbarClears == 0, "prepareUi should clear all ui hitbox lists")
 end
 
 tests[#tests + 1] = function()

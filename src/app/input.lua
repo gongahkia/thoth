@@ -4,16 +4,21 @@ local Audio = require("src.app.audio")
 
 local Input = {}
 
-local movementKeys = {
-    w = "north",
-    up = "north",
-    d = "east",
-    right = "east",
-    s = "south",
-    down = "south",
-    a = "west",
-    left = "west",
+local movementOrder = {
+    { "w", "north" },
+    { "up", "north" },
+    { "d", "east" },
+    { "right", "east" },
+    { "s", "south" },
+    { "down", "south" },
+    { "a", "west" },
+    { "left", "west" },
 }
+
+local movementKeys = {}
+for _, entry in ipairs(movementOrder) do
+    movementKeys[entry[1]] = entry[2]
+end
 
 local craftKeys = {
     k = "workbench",
@@ -27,14 +32,31 @@ local craftKeys = {
     t = "fast_belt",
 }
 
+local function movementStatus(sim, direction)
+    local x, y = Grid.front(sim.player.x, sim.player.y, direction)
+    local z = sim.player.z or 0
+    local tile = sim.world:getTile(x, y, z)
+    local stairs = tile.id == "stairs_down" or tile.id == "stairs_up"
+    if sim:isWalkable(x, y, z) or (not sim:machineAt(x, y, z) and stairs) then
+        return "move " .. direction .. " -> " .. x .. "," .. y .. "," .. z
+    end
+    return "blocked " .. direction .. " @ " .. x .. "," .. y .. "," .. z
+end
+
+local function queueMove(sim, app, direction)
+    sim:queue(Simulation.commands.move(direction))
+    app.status = movementStatus(sim, direction)
+end
+
 function Input.update(sim, app, dt)
     app.moveCooldown = math.max(0, (app.moveCooldown or 0) - dt)
     if app.moveCooldown > 0 then
         return
     end
-    for key, direction in pairs(movementKeys) do
+    for _, entry in ipairs(movementOrder) do
+        local key, direction = entry[1], entry[2]
         if love.keyboard.isDown(key) then
-            sim:queue(Simulation.commands.move(direction))
+            queueMove(sim, app, direction)
             app.moveCooldown = 0.12
             return
         end
@@ -43,7 +65,7 @@ end
 
 function Input.keypressed(sim, app, key)
     if movementKeys[key] then
-        sim:queue(Simulation.commands.move(movementKeys[key]))
+        queueMove(sim, app, movementKeys[key])
         return
     end
     if key == "space" then

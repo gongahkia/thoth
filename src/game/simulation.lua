@@ -449,6 +449,7 @@ function Simulation.new(seed, startInTutorial)
         machineByCell = {},
         machineByIdIndex = {},
         machineIdsByKind = {},
+        machineIdsByChunk = {},
         nextMachineId = 1,
         entities = {},
         nextEntityId = 1,
@@ -682,13 +683,48 @@ function Simulation:rebuildMachineIndexes()
     self.machineByCell = {}
     self.machineByIdIndex = {}
     self.machineIdsByKind = {}
+    self.machineIdsByChunk = {}
     for _, machine in ipairs(self.machines) do
-        self.machineByCell[Grid.key(machine.x, machine.y, machine.z or 0)] = machine
+        local z = machine.z or 0
+        self.machineByCell[Grid.key(machine.x, machine.y, z)] = machine
         self.machineByIdIndex[machine.id] = machine
         local ids = self.machineIdsByKind[machine.kind] or {}
         ids[#ids + 1] = machine.id
         self.machineIdsByKind[machine.kind] = ids
+        local cx = World.floorDiv(machine.x, World.chunkSize)
+        local cy = World.floorDiv(machine.y, World.chunkSize)
+        local chunkKey = World.chunkKey(cx, cy, z)
+        local chunkIds = self.machineIdsByChunk[chunkKey] or {}
+        chunkIds[#chunkIds + 1] = machine.id
+        self.machineIdsByChunk[chunkKey] = chunkIds
     end
+end
+
+function Simulation:machinesInRect(minX, maxX, minY, maxY, z)
+    z = z or 0
+    local result = {}
+    local minChunkX = World.floorDiv(minX, World.chunkSize)
+    local maxChunkX = World.floorDiv(maxX, World.chunkSize)
+    local minChunkY = World.floorDiv(minY, World.chunkSize)
+    local maxChunkY = World.floorDiv(maxY, World.chunkSize)
+    for cy = minChunkY, maxChunkY do
+        for cx = minChunkX, maxChunkX do
+            for _, id in ipairs(self.machineIdsByChunk[World.chunkKey(cx, cy, z)] or {}) do
+                local machine = self:machineById(id)
+                if machine
+                    and machine.x >= minX and machine.x <= maxX
+                    and machine.y >= minY and machine.y <= maxY
+                    and (machine.z or 0) == z
+                then
+                    result[#result + 1] = machine
+                end
+            end
+        end
+    end
+    table.sort(result, function(a, b)
+        return a.id < b.id
+    end)
+    return result
 end
 
 function Simulation:hasMachine(kind)
