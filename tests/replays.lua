@@ -73,6 +73,26 @@ local fixtures = {
             expect(sim.expedition.campUsed and sim.expedition.camping == nil, "camp replay should spend all respite")
         end,
     },
+    {
+        name = "merchant_unlock_recruit",
+        seed = 104,
+        finalTick = 5,
+        frames = {
+            { tick = 0, command = Simulation.commands.endExpedition(true) },
+            { tick = 1, command = Simulation.commands.recruitHero(1) },
+            { tick = 2, command = Simulation.commands.assignParty(5, 4) },
+            { tick = 3, command = Simulation.commands.startExpedition("archive_scout") },
+        },
+        setup = function(sim)
+            sim.estate.campaign.completedMissions.archive_regent = true
+            sim.estate.campaign.bossKills.buried_archive = true
+        end,
+        validate = function(sim)
+            expect(sim.estate.campaign.flags.merchant_ledger_accepted, "merchant replay should unlock ledger")
+            expect(sim:heroById(5).class == "merchant" and sim.party[4] == 5, "merchant replay should recruit and assign merchant")
+            expect(sim.expedition and sim.expedition.mission == "archive_scout", "merchant replay should enter expedition")
+        end,
+    },
 }
 
 for _, fixture in ipairs(fixtures) do

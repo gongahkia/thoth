@@ -2282,6 +2282,43 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(141)
+    sim:endExpedition(true)
+    expect(sim:unlockMerchantLedger(), "merchant ledger should unlock for save test")
+    runQueued(sim, Simulation.commands.recruitHero(1))
+    runQueued(sim, Simulation.commands.assignParty(5, 4))
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:classUnlocked("merchant") and loaded:heroById(5).class == "merchant" and loaded.party[4] == 5, "merchant party should survive save load")
+    expect(sameSnapshot(sim, loaded), "merchant save round trip should preserve snapshot")
+end
+
+tests[#tests + 1] = function()
+    local function setupMerchantReplay(sim)
+        sim.estate.campaign.completedMissions.archive_regent = true
+        sim.estate.campaign.bossKills.buried_archive = true
+    end
+    local frames = {
+        { tick = 0, command = Simulation.commands.endExpedition(true) },
+        { tick = 1, command = Simulation.commands.recruitHero(1) },
+        { tick = 2, command = Simulation.commands.assignParty(5, 4) },
+        { tick = 3, command = Simulation.commands.startExpedition("archive_scout") },
+    }
+    local replay = Replay.run(142, frames, 5, setupMerchantReplay)
+    local direct = Simulation.new(142)
+    setupMerchantReplay(direct)
+    for tick = 0, 4 do
+        for _, frame in ipairs(frames) do
+            if frame.tick == tick then
+                direct:queue(frame.command)
+            end
+        end
+        direct:step()
+    end
+    expect(replay:heroById(5).class == "merchant" and replay.party[4] == 5, "merchant replay should recruit and assign merchant")
+    expect(sameSnapshot(replay, direct), "merchant replay should equal direct simulation")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(89)
     local before = sim.eventSerial or 0
     sim:pushLog("combat: test", { event = "combat_start" })

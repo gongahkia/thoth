@@ -134,7 +134,6 @@ Goal: ship 9th class. Late-game design choice: introduce dissonance at the point
 
 - [ ] 6.14 Balance pass: 10 playthroughs with Merchant in party at various tiers (80h)
 - [ ] 6.15 Balance pass: 10 playthroughs without Merchant — verify game still tuned for 8-class roster (60h)
-- [ ] 6.18 Test suite: Merchant skill tests, save-load with Merchant in party, deterministic replay (24h)
 - [ ] 6.19 Tag commit `phase6-merchant-complete` (0.5h)
 
 **Phase 6 exit criteria:** Merchant integrated, balanced, no regressions in 8-class playthroughs, save/replay deterministic.
