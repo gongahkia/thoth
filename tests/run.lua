@@ -2060,15 +2060,15 @@ end
 
 tests[#tests + 1] = function()
     local disabled = Render.titleMenuItems({ canContinue = false })
-    expect(#disabled == 4, "title should expose four menu items")
+    expect(#disabled == 5, "title should expose five menu items")
     expect(disabled[1].action == "new" and disabled[1].enabled, "title should expose new game")
     expect(disabled[2].action == "continue" and not disabled[2].enabled, "title continue should disable without save")
-    expect(disabled[3].action == "settings" and disabled[4].action == "quit", "title should expose settings and quit")
+    expect(disabled[3].action == "settings" and disabled[4].action == "credits" and disabled[5].action == "quit", "title should expose settings, credits, and quit")
     local enabled = Render.titleMenuItems({ canContinue = true })
     expect(enabled[2].enabled, "title continue should enable with save")
     local app = { canContinue = true, ui = { titleButtons = { { stale = true } } } }
     Render.drawTitle(Simulation.new(76), app)
-    expect(#app.ui.titleButtons == 4 and app.ui.titleButtons[2].action == "continue", "title draw should populate title hitboxes")
+    expect(#app.ui.titleButtons == 5 and app.ui.titleButtons[2].action == "continue" and app.ui.titleButtons[4].action == "credits", "title draw should populate title hitboxes")
     local pauseItems = Render.pauseMenuItems()
     expect(#pauseItems == 4 and pauseItems[1].action == "resume" and pauseItems[4].action == "quitTitle", "pause should expose resume, save, settings, quit")
     app.paused = true
@@ -2087,6 +2087,9 @@ tests[#tests + 1] = function()
     expect(gameOverSummary.dreadTier == 4 and #gameOverSummary.factions == 5, "game over summary should expose dread tier and factions")
     expect(#app.ui.gameOverButtons == 3 and app.ui.gameOverButtons[1].action == "restart", "game over draw should populate restart hitbox")
     expect(app.gameOverMenuIndex == 3, "game over draw should clamp focus")
+    local credits = Render.drawCredits(app)
+    expect(#credits.assets == 1 and credits.assets[1].license == "CC-BY 3.0", "credits should load asset license rows")
+    expect(#credits.libraries == 2 and #app.ui.creditsButtons == 1, "credits should expose libraries and back hitbox")
     app.settings = Settings.defaults()
     Render.drawSettings(app)
     local hasBack = false
@@ -2118,6 +2121,7 @@ tests[#tests + 1] = function()
             campHeroButtons = { { stale = true } },
             pauseButtons = { { stale = true } },
             gameOverButtons = { { stale = true } },
+            creditsButtons = { { stale = true } },
             titleButtons = { { stale = true } },
             settingsButtons = { { stale = true } },
         },
@@ -2136,7 +2140,7 @@ tests[#tests + 1] = function()
     expect(#app.ui.partyRankSlots == 0, "prepareUi should clear party rank slots")
     expect(#app.ui.curioButtons == 0, "prepareUi should clear curio buttons")
     expect(#app.ui.campSkillButtons == 0 and #app.ui.campHeroButtons == 0, "prepareUi should clear camp buttons")
-    expect(#app.ui.pauseButtons == 0 and #app.ui.gameOverButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
+    expect(#app.ui.pauseButtons == 0 and #app.ui.gameOverButtons == 0 and #app.ui.creditsButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
     app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
     app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }
     Render.prepareUi(app)

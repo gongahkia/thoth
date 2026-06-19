@@ -26,6 +26,7 @@ local required = {
     "assets/sprites/thoth_atlas.png",
     "assets/audio/mine.wav",
     "docs/market-audit.md",
+    "docs/asset-licenses.md",
 }
 
 for _, path in ipairs(required) do

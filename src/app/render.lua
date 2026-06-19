@@ -59,6 +59,31 @@ local function compactStacks(stacks)
     return table.concat(parts, " ")
 end
 
+local function readText(path)
+    if love and love.filesystem and love.filesystem.getInfo(path) then
+        return love.filesystem.read(path)
+    end
+    local file = io.open(path, "r")
+    if not file then
+        return nil
+    end
+    local text = file:read("*a")
+    file:close()
+    return text
+end
+
+local function trim(value)
+    return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+local function stripBackticks(value)
+    value = trim(value)
+    if value:sub(1, 1) == "`" and value:sub(-1) == "`" then
+        return value:sub(2, -2)
+    end
+    return value
+end
+
 local function statMapText(map, skip)
     local keys = {}
     for key in pairs(map or {}) do
@@ -221,6 +246,7 @@ function Render.prepareUi(app)
     app.ui.campHeroButtons = app.ui.campHeroButtons or {}
     app.ui.pauseButtons = app.ui.pauseButtons or {}
     app.ui.gameOverButtons = app.ui.gameOverButtons or {}
+    app.ui.creditsButtons = app.ui.creditsButtons or {}
     app.ui.titleButtons = app.ui.titleButtons or {}
     app.ui.settingsButtons = app.ui.settingsButtons or {}
     clearList(app.ui.skillButtons)
@@ -238,6 +264,7 @@ function Render.prepareUi(app)
     clearList(app.ui.campHeroButtons)
     clearList(app.ui.pauseButtons)
     clearList(app.ui.gameOverButtons)
+    clearList(app.ui.creditsButtons)
     clearList(app.ui.titleButtons)
     clearList(app.ui.settingsButtons)
 end
@@ -733,6 +760,7 @@ function Render.titleMenuItems(app)
         { action = "new", label = "New Game", enabled = true },
         { action = "continue", label = "Continue", enabled = canContinue },
         { action = "settings", label = "Settings", enabled = true },
+        { action = "credits", label = "Credits", enabled = true },
         { action = "quit", label = "Quit", enabled = true },
     }
 end
@@ -932,7 +960,7 @@ end
 local gameOverActions = {
     { action = "restart", label = "Restart", enabled = true },
     { action = "title", label = "Title", enabled = true },
-    { action = "credits", label = "Credits", enabled = false },
+    { action = "credits", label = "Credits", enabled = true },
 }
 
 local dreadTierNames = { [0] = "quiet", [1] = "uneasy", [2] = "strained", [3] = "breaking", [4] = "collapsed" }
@@ -1069,6 +1097,103 @@ function Render.drawGameOver(sim, app)
     end
     love.graphics.pop()
     return summary
+end
+
+local function markdownCells(line)
+    if not line:match("^|") then
+        return nil
+    end
+    local cells = {}
+    for cell in line:gmatch("|([^|]*)") do
+        cells[#cells + 1] = stripBackticks(cell)
+    end
+    return cells
+end
+
+function Render.creditsData()
+    local rows = {}
+    local text = readText("docs/asset-licenses.md") or ""
+    for line in text:gmatch("[^\r\n]+") do
+        local cells = markdownCells(line)
+        if cells and cells[1] and cells[1] ~= "File" and not cells[1]:find("%-%-%-", 1, false) then
+            rows[#rows + 1] = { file = cells[1], source = cells[2], author = cells[3], license = cells[4], notes = cells[5] }
+        end
+    end
+    return {
+        project = "Thoth",
+        assets = rows,
+        libraries = {
+            { name = "g3d", source = "vendor/g3d/LICENSE", author = "groverburger", license = "MIT" },
+            { name = "LOVE", source = "https://love2d.org", author = "LOVE Development Team", license = "zlib/libpng" },
+        },
+        music = {},
+    }
+end
+
+local function creditsLineCount(data)
+    return 6 + #data.assets * 3 + #data.libraries * 2 + math.max(1, #data.music)
+end
+
+local function layoutCreditsButtons(app, width, height)
+    app.ui.creditsButtons[#app.ui.creditsButtons + 1] = { x = 72, y = height - 86, w = 160, h = 42, action = "back", enabled = true, index = 1 }
+end
+
+function Render.drawCredits(app)
+    Render.prepareUi(app)
+    local data = Render.creditsData()
+    local maxScroll = math.max(0, creditsLineCount(data) - 15)
+    app.creditsScroll = clamp(app.creditsScroll or 0, 0, maxScroll)
+    layoutCreditsButtons(app, 1280, 720)
+    if not (love and love.graphics) then
+        return data
+    end
+    love.graphics.clear(0.035, 0.038, 0.042, 1)
+    local width, height = love.graphics.getDimensions()
+    clearList(app.ui.creditsButtons)
+    layoutCreditsButtons(app, width, height)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    panel(56, 52, width - 112, height - 124, 0.96)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.printf("Credits", 80, 82, width - 160, "left", 0, 1.5, 1.5)
+    love.graphics.setColor(0.68, 0.72, 0.66, 1)
+    love.graphics.print(data.project .. " / playable prototype", 82, 132)
+    local y = 178 - app.creditsScroll * 24
+    local function line(text, x, color)
+        if y > 142 and y < height - 112 then
+            love.graphics.setColor(color[1], color[2], color[3], color[4] or 1)
+            love.graphics.printf(text, x or 82, y, width - (x or 82) - 92)
+        end
+        y = y + 24
+    end
+    line("Asset Attributions", 82, { 0.9, 0.92, 0.86, 1 })
+    for _, asset in ipairs(data.assets) do
+        line(asset.file .. " / " .. asset.license .. " / " .. asset.author, 96, { 0.76, 0.78, 0.72, 1 })
+        line(asset.source or "-", 110, { 0.56, 0.64, 0.58, 1 })
+        line(asset.notes or "", 110, { 0.5, 0.54, 0.5, 1 })
+    end
+    y = y + 8
+    line("Libraries", 82, { 0.9, 0.92, 0.86, 1 })
+    for _, lib in ipairs(data.libraries) do
+        line(lib.name .. " / " .. lib.license .. " / " .. lib.author, 96, { 0.76, 0.78, 0.72, 1 })
+        line(lib.source, 110, { 0.56, 0.64, 0.58, 1 })
+    end
+    y = y + 8
+    line("Music", 82, { 0.9, 0.92, 0.86, 1 })
+    if #data.music == 0 then
+        line("No external music tracks packaged.", 96, { 0.62, 0.66, 0.58, 1 })
+    end
+    local button = app.ui.creditsButtons[1]
+    love.graphics.setColor(0.1, 0.12, 0.11, 1)
+    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(0.42, 0.48, 0.36, 1)
+    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(0.92, 0.94, 0.88, 1)
+    love.graphics.printf("Back", button.x + 8, button.y + 13, button.w - 16, "center")
+    love.graphics.setColor(0.58, 0.62, 0.58, 1)
+    love.graphics.printf("scroll " .. tostring(app.creditsScroll) .. "/" .. tostring(maxScroll), width - 260, height - 72, 180, "right")
+    love.graphics.pop()
+    return data
 end
 
 local function layoutTitleButtons(app, items, width, height)

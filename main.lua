@@ -173,6 +173,12 @@ local function activateTitleAction(state, action)
         state.titleStatus = "settings"
         return
     end
+    if action == "credits" then
+        state.creditsReturnState = "title"
+        state.uiState = "credits"
+        state.titleStatus = "credits"
+        return
+    end
     if action == "quit" then
         requestQuit(state)
     end
@@ -459,8 +465,11 @@ local function activateGameOverAction(state, action)
         Audio.play(state.audio, "tick")
         return
     end
-    state.gameOverStatus = "credits unavailable"
-    Audio.play(state.audio, "invalid")
+    if action == "credits" then
+        state.creditsReturnState = "gameover"
+        state.uiState = "credits"
+        Audio.play(state.audio, "tick")
+    end
 end
 
 local function keyGameOver(state, key)
@@ -492,10 +501,35 @@ local function mouseGameOver(state, x, y)
             state.gameOverMenuIndex = hitbox.index
             if hitbox.enabled then
                 activateGameOverAction(state, hitbox.action)
-            else
-                state.gameOverStatus = "credits unavailable"
-                Audio.play(state.audio, "invalid")
             end
+            return true
+        end
+    end
+    return false
+end
+
+local function keyCredits(state, key)
+    if key == "up" or key == "w" then
+        state.creditsScroll = math.max(0, (state.creditsScroll or 0) - 1)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "down" or key == "s" then
+        state.creditsScroll = (state.creditsScroll or 0) + 1
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "escape" or key == "backspace" or key == "return" or key == "kpenter" or key == "space" then
+        state.uiState = state.creditsReturnState or "title"
+        Audio.play(state.audio, "tick")
+    end
+end
+
+local function mouseCredits(state, x, y)
+    for _, hitbox in ipairs((state.ui and state.ui.creditsButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            state.uiState = state.creditsReturnState or "title"
+            Audio.play(state.audio, "tick")
             return true
         end
     end
@@ -651,6 +685,18 @@ local function printGameOverSmoke(state)
     print("gameover-smoke-buttons=" .. table.concat(actions, ","))
 end
 
+local function printCreditsSmoke(state)
+    if not state.creditsSmoke or state.creditsSmokePrinted then
+        return
+    end
+    state.creditsSmokePrinted = true
+    local data = Render.creditsData()
+    print("credits-smoke-state=" .. tostring(state.uiState))
+    print("credits-smoke-assets=" .. tostring(#data.assets))
+    print("credits-smoke-libraries=" .. tostring(#data.libraries))
+    print("credits-smoke-back=" .. tostring(#((state.ui and state.ui.creditsButtons) or {})))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -663,7 +709,8 @@ function love.load(args)
     local campSmoke = hasArg(args, "--camp-smoke")
     local pauseSmoke = hasArg(args, "--pause-smoke")
     local gameOverSmoke = hasArg(args, "--gameover-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke
+    local creditsSmoke = hasArg(args, "--credits-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
@@ -692,7 +739,7 @@ function love.load(args)
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
         paused = false,
-        uiState = (titleSmoke and "title") or (settingsSmoke and "settings") or (gameOverSmoke and "gameover") or ((smoke or renderBenchmark or renderSmoke) and "game" or "title"),
+        uiState = (titleSmoke and "title") or (settingsSmoke and "settings") or (gameOverSmoke and "gameover") or (creditsSmoke and "credits") or ((smoke or renderBenchmark or renderSmoke) and "game" or "title"),
         titleMenuIndex = 1,
         titleTime = 0,
         viewRotation = 0,
@@ -714,6 +761,7 @@ function love.load(args)
         campSmoke = campSmoke,
         pauseSmoke = pauseSmoke,
         gameOverSmoke = gameOverSmoke,
+        creditsSmoke = creditsSmoke,
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -804,6 +852,11 @@ function love.draw()
         printGameOverSmoke(app)
         return
     end
+    if app.uiState == "credits" then
+        Render.drawCredits(app)
+        printCreditsSmoke(app)
+        return
+    end
     local started = app.renderBenchmark and love.timer.getTime() or nil
     Render.draw(sim, app)
     printRenderSmoke(app)
@@ -840,6 +893,10 @@ function love.keypressed(key)
     end
     if app.uiState == "gameover" then
         keyGameOver(app, key)
+        return
+    end
+    if app.uiState == "credits" then
+        keyCredits(app, key)
         return
     end
     if app.paused then
@@ -898,6 +955,10 @@ function love.mousepressed(x, y, button)
         mouseGameOver(app, x, y)
         return
     end
+    if button == 1 and app.uiState == "credits" then
+        mouseCredits(app, x, y)
+        return
+    end
     if button == 1 and app.paused then
         mousePause(app, x, y)
         return
@@ -910,4 +971,10 @@ function love.mousereleased(x, y, button)
         return
     end
     Input.mousereleased(sim, app, x, y, button)
+end
+
+function love.wheelmoved(_, y)
+    if app.uiState == "credits" then
+        app.creditsScroll = math.max(0, (app.creditsScroll or 0) - y)
+    end
 end

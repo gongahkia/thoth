@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke gameover-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke gameover-smoke credits-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -20,7 +20,7 @@ title-smoke:
 		$(LOVE) . --title-smoke | tee $$tmp; \
 	fi; \
 	grep -q "title-smoke-state=title" $$tmp; \
-	grep -q "title-smoke-buttons=new,continue,settings,quit" $$tmp; \
+	grep -q "title-smoke-buttons=new,continue,settings,credits,quit" $$tmp; \
 	rm -f $$tmp
 
 settings-smoke:
@@ -123,6 +123,20 @@ gameover-smoke:
 	grep -q "gameover-smoke-dread-tier=4" $$tmp; \
 	grep -q "gameover-smoke-factions=5" $$tmp; \
 	grep -q "gameover-smoke-buttons=restart,title,credits" $$tmp; \
+	rm -f $$tmp
+
+credits-smoke:
+	@set -e; \
+	tmp=$$(mktemp); \
+	if command -v xvfb-run >/dev/null 2>&1; then \
+		xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --credits-smoke | tee $$tmp; \
+	else \
+		$(LOVE) . --credits-smoke | tee $$tmp; \
+	fi; \
+	grep -q "credits-smoke-state=credits" $$tmp; \
+	grep -q "credits-smoke-assets=1" $$tmp; \
+	grep -q "credits-smoke-libraries=2" $$tmp; \
+	grep -q "credits-smoke-back=1" $$tmp; \
 	rm -f $$tmp
 
 render-smoke:
