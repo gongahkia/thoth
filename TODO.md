@@ -132,7 +132,6 @@ Goal: fill out Buried Archive (12 missions), Salt Cistern (10 missions), Ember W
 
 Goal: ship 9th class. Late-game design choice: introduce dissonance at the point players have made peace with the institutional tone.
 
-- [ ] 6.8 Add Merchant recruit bark in `Registry.recruitBarks` (4h)
 - [ ] 6.9 Add Merchant graveyard epitaphs in `Registry.graveyardEpitaphs` (4h)
 - [ ] 6.10 Source Merchant billboard sprite (OGA or commission) (8h)
 - [ ] 6.11 Design Merchant unlock condition: post-Buried Archive Tier III completion (8h)
