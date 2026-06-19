@@ -13,6 +13,12 @@ return {
         gameover = "death_sting",
         credits = "credits",
     },
+    ambient = {
+        expedition = { track = "expedition_tense", volume = 0.18 },
+        expedition_tense = { track = "expedition_calm", volume = 0.16 },
+        combat = { track = "expedition_tense", volume = 0.22 },
+        boss = { track = "expedition_tense", volume = 0.26 },
+    },
     tracks = {
         estate = {
             title = "Old Money Estate",

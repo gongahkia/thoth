@@ -27,6 +27,7 @@ local keybindActions = {
 local controls = {
     { kind = "slider", setting = "masterVolume", label = "Master Volume", step = 0.1, min = 0, max = 1 },
     { kind = "slider", setting = "musicVolume", label = "Music Volume", step = 0.1, min = 0, max = 1 },
+    { kind = "slider", setting = "ambientVolume", label = "Ambient Volume", step = 0.1, min = 0, max = 1 },
     { kind = "slider", setting = "sfxVolume", label = "SFX Volume", step = 0.1, min = 0, max = 1 },
     { kind = "bind", binding = "moveUp", label = "Move Up" },
     { kind = "bind", binding = "moveDown", label = "Move Down" },
@@ -78,6 +79,7 @@ function Settings.defaults()
     return {
         masterVolume = 1,
         musicVolume = 0.8,
+        ambientVolume = 0.7,
         sfxVolume = 1,
         highContrast = false,
         colorblindMode = "off",

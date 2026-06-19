@@ -170,6 +170,7 @@ local function playSimulationAudio(state, simulation)
                 Audio.play(state.audio, cue)
                 playedCue = cue
             end
+            Audio.duckForEvent(state.audio, event)
             state.lastCueStatus = event.message
             state.lastAudioEventId = event.id
         end

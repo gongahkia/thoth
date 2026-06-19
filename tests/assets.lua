@@ -100,6 +100,7 @@ assert(Audio.footstepCueForTile("ember_floor") == "footstep_ash", "ash footstep 
 assert(Audio.cueForEvent({ event = "move", tile = "black_water" }) == "footstep_wet", "move event cue missing")
 assert(MusicTracks.tracks and MusicTracks.tracks.estate and MusicTracks.tracks.combat_boss, "missing music manifest tracks")
 assert(MusicTracks.contexts.expedition_tense == "expedition_tense", "missing tense music context")
+assert(MusicTracks.ambient and MusicTracks.ambient.combat.track == "expedition_tense", "missing combat ambient layer")
 assert(MusicTracks.tracks.victory_sting.loop == false and MusicTracks.tracks.death_sting.loop == false, "music stings should not loop")
 assertAssetLicenseCoverage()
 

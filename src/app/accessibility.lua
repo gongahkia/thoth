@@ -12,6 +12,7 @@ local function settingText(settings)
         "high_contrast=" .. tostring(settings.highContrast == true),
         "colorblind=" .. tostring(settings.colorblindMode or "off"),
         "font_scale=" .. tostring(settings.fontScale or 1),
+        "ambient_volume=" .. tostring(settings.ambientVolume or 0.7),
         "reduced_motion=" .. tostring(settings.reducedMotion == true),
         "screen_shake=" .. tostring(settings.screenShake ~= false),
         "subtitles=" .. tostring(settings.subtitles ~= false),

@@ -8,6 +8,8 @@ Runtime contract:
 - Default path root: `assets/music/`
 - Missing tracks are skipped at runtime
 - Download license certificates before committing raw music files
+- Context routing supports a primary music layer plus optional low-volume ambient layer
+- Critical combat events sidechain-duck both music layers behind SFX
 
 Planned filenames:
 

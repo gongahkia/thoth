@@ -37,5 +37,6 @@ Current contract:
 - Combat cues are routed from skill metadata.
 - Footstep cues are routed from tile IDs.
 - Dialogue chirps are routed from dialogue-like log messages.
+- Critical combat events duck music and ambient layers behind SFX.
 
 The old authored `.sfx` source format was removed with the C++/raylib reboot.

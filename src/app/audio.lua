@@ -38,6 +38,7 @@ local cues = {
 local defaultMusicManifest = {
     fadeSeconds = 1.6,
     contexts = {},
+    ambient = {},
     tracks = {},
 }
 
@@ -145,12 +146,28 @@ local function stopSource(source)
     end
 end
 
-local function musicBlend(music)
-    local fadeSeconds = music.fadeSeconds or 0
+local function layerBlend(fade, fadeSeconds)
     if fadeSeconds <= 0 then
         return 1
     end
-    return math.min(1, (music.fade or 0) / fadeSeconds)
+    return math.min(1, (fade or 0) / fadeSeconds)
+end
+
+local function musicBlend(music)
+    return layerBlend(music.fade or 0, music.fadeSeconds or 0)
+end
+
+local function ambientBlend(music)
+    return layerBlend(music.ambientFade or 0, music.ambientFadeSeconds or 0)
+end
+
+local function duckFactor(music)
+    if not music or (music.duckTimer or 0) <= 0 then
+        return 1
+    end
+    local duration = math.max(0.001, music.duckDuration or music.duckTimer or 0.001)
+    local pressure = math.min(1, (music.duckTimer or 0) / duration)
+    return math.max(0, 1 - (music.duckAmount or 0.35) * pressure)
 end
 
 local function applyMusicSettings(bank)
@@ -158,7 +175,8 @@ local function applyMusicSettings(bank)
     if not music then
         return
     end
-    local volume = sourceVolume(bank.__settings, "music")
+    local duck = duckFactor(music)
+    local volume = sourceVolume(bank.__settings, "music") * duck
     local blend = musicBlend(music)
     if music.next then
         setVolume(music.current and music.current.source, volume * (1 - blend))
@@ -168,14 +186,29 @@ local function applyMusicSettings(bank)
     else
         setVolume(music.current and music.current.source, volume)
     end
+    local ambientVolume = sourceVolume(bank.__settings, "ambient") * duck
+    local ambientCurrentVolume = music.ambientCurrentVolume or 1
+    local ambientNextVolume = music.ambientNextVolume or 1
+    local ambient = ambientBlend(music)
+    if music.ambientNext then
+        setVolume(music.ambientCurrent and music.ambientCurrent.source, ambientVolume * ambientCurrentVolume * (1 - ambient))
+        setVolume(music.ambientNext.source, ambientVolume * ambientNextVolume * ambient)
+    elseif music.ambientFadingOut then
+        setVolume(music.ambientCurrent and music.ambientCurrent.source, ambientVolume * ambientCurrentVolume * (1 - ambient))
+    else
+        setVolume(music.ambientCurrent and music.ambientCurrent.source, ambientVolume * ambientCurrentVolume)
+    end
 end
 
 local function loadMusicBank(manifest)
     local music = {
         manifest = manifest,
         tracks = {},
+        ambientTracks = {},
         fadeSeconds = manifest.fadeSeconds or 1.6,
+        ambientFadeSeconds = manifest.fadeSeconds or 1.6,
         fade = 0,
+        ambientFade = 0,
     }
     if not (love and love.audio and love.filesystem) then
         return music
@@ -187,6 +220,10 @@ local function loadMusicBank(manifest)
             setLooping(source, track.loop ~= false)
             setVolume(source, 0)
             music.tracks[key] = { key = key, source = source, loop = track.loop ~= false, meta = track }
+            local ambientSource = love.audio.newSource(path, track.sourceType or "stream")
+            setLooping(ambientSource, track.loop ~= false)
+            setVolume(ambientSource, 0)
+            music.ambientTracks[key] = { key = key, source = ambientSource, loop = track.loop ~= false, meta = track }
         end
     end
     return music
@@ -236,6 +273,64 @@ function Audio.musicTrackForContext(context, manifest)
     return contexts[context] or context
 end
 
+function Audio.ambientTrackForContext(context, manifest)
+    local config = manifest or defaultMusicManifest
+    local ambient = (config.ambient or {})[context]
+    if type(ambient) == "table" then
+        return ambient.track, ambient.volume or 1
+    end
+    if type(ambient) == "string" then
+        return ambient, 1
+    end
+    return nil, 0
+end
+
+function Audio.setAmbientContext(bank, context, fadeSeconds)
+    local music = bank and bank.__music
+    if not music then
+        return nil
+    end
+    local trackKey, volume = Audio.ambientTrackForContext(context, music.manifest)
+    local previousNext = music.ambientNext
+    if music.ambientContext == context and music.ambientTargetKey == trackKey and music.ambientNextVolume == volume then
+        return trackKey
+    end
+    music.ambientContext = context
+    music.ambientTargetKey = trackKey
+    music.ambientFade = 0
+    music.ambientFadeSeconds = fadeSeconds or (music.manifest and music.manifest.fadeSeconds) or music.ambientFadeSeconds or 1.6
+    music.ambientNext = trackKey and music.ambientTracks and music.ambientTracks[trackKey] or nil
+    music.ambientNextKey = music.ambientNext and trackKey or nil
+    music.ambientNextVolume = volume or 1
+    music.ambientFadingOut = music.ambientNext == nil and music.ambientCurrent ~= nil
+    if previousNext and previousNext ~= music.ambientCurrent and previousNext ~= music.ambientNext then
+        stopSource(previousNext.source)
+    end
+    if music.ambientNext == music.ambientCurrent then
+        music.ambientCurrentVolume = volume or music.ambientCurrentVolume or 1
+        music.ambientNext = nil
+        music.ambientNextKey = nil
+        music.ambientFadingOut = false
+        applyMusicSettings(bank)
+        return trackKey
+    end
+    if music.ambientNext then
+        setLooping(music.ambientNext.source, music.ambientNext.loop)
+        setVolume(music.ambientNext.source, 0)
+        rewindSource(music.ambientNext.source)
+        playSource(music.ambientNext.source)
+        if not music.ambientCurrent then
+            music.ambientCurrent = music.ambientNext
+            music.ambientCurrentKey = music.ambientNextKey
+            music.ambientCurrentVolume = music.ambientNextVolume
+            music.ambientNext = nil
+            music.ambientNextKey = nil
+        end
+    end
+    applyMusicSettings(bank)
+    return trackKey
+end
+
 function Audio.setMusicContext(bank, context, fadeSeconds)
     local music = bank and bank.__music
     if not music then
@@ -244,6 +339,7 @@ function Audio.setMusicContext(bank, context, fadeSeconds)
     local trackKey = Audio.musicTrackForContext(context, music.manifest)
     local previousNext = music.next
     if music.context == context and music.targetKey == trackKey then
+        Audio.setAmbientContext(bank, context, fadeSeconds)
         return trackKey
     end
     music.context = context
@@ -260,6 +356,7 @@ function Audio.setMusicContext(bank, context, fadeSeconds)
         music.next = nil
         music.nextKey = nil
         music.fadingOut = false
+        Audio.setAmbientContext(bank, context, fadeSeconds)
         applyMusicSettings(bank)
         return trackKey
     end
@@ -275,6 +372,7 @@ function Audio.setMusicContext(bank, context, fadeSeconds)
             music.nextKey = nil
         end
     end
+    Audio.setAmbientContext(bank, context, fadeSeconds)
     applyMusicSettings(bank)
     return trackKey
 end
@@ -284,6 +382,7 @@ function Audio.updateMusic(bank, dt)
     if not music then
         return
     end
+    music.duckTimer = math.max(0, (music.duckTimer or 0) - (dt or 0))
     if music.next or music.fadingOut then
         music.fade = math.min(music.fadeSeconds or 0, (music.fade or 0) + (dt or 0))
         applyMusicSettings(bank)
@@ -304,9 +403,72 @@ function Audio.updateMusic(bank, dt)
             end
             applyMusicSettings(bank)
         end
-    else
-        applyMusicSettings(bank)
     end
+    if music.ambientNext or music.ambientFadingOut then
+        music.ambientFade = math.min(music.ambientFadeSeconds or 0, (music.ambientFade or 0) + (dt or 0))
+        applyMusicSettings(bank)
+        if ambientBlend(music) >= 1 then
+            if music.ambientNext then
+                stopSource(music.ambientCurrent and music.ambientCurrent.source)
+                music.ambientCurrent = music.ambientNext
+                music.ambientCurrentKey = music.ambientNextKey
+                music.ambientCurrentVolume = music.ambientNextVolume
+                music.ambientNext = nil
+                music.ambientNextKey = nil
+                music.ambientFade = 0
+            elseif music.ambientFadingOut then
+                stopSource(music.ambientCurrent and music.ambientCurrent.source)
+                music.ambientCurrent = nil
+                music.ambientCurrentKey = nil
+                music.ambientFadingOut = false
+                music.ambientFade = 0
+            end
+            applyMusicSettings(bank)
+        end
+    end
+    applyMusicSettings(bank)
+end
+
+function Audio.duck(bank, amount, seconds)
+    local music = bank and bank.__music
+    if not music then
+        return false
+    end
+    if (music.duckTimer or 0) <= 0 then
+        music.duckAmount = amount or 0.35
+        music.duckDuration = seconds or 0.45
+        music.duckTimer = seconds or 0.45
+    else
+        music.duckAmount = math.max(music.duckAmount or 0, amount or 0.35)
+        music.duckDuration = math.max(music.duckDuration or 0, seconds or 0.45)
+        music.duckTimer = math.max(music.duckTimer or 0, seconds or 0.45)
+    end
+    applyMusicSettings(bank)
+    return true
+end
+
+local criticalEvents = {
+    boss_start = true,
+    boss_skill = true,
+    boss_loss = true,
+    combat_loss = true,
+    death_door = true,
+    death_save = true,
+    hero_death = true,
+    stress_break = true,
+}
+
+function Audio.duckForEvent(bank, event)
+    if not event then
+        return false
+    end
+    if event.crit == true then
+        return Audio.duck(bank, 0.45, 0.45)
+    end
+    if criticalEvents[event.event] then
+        return Audio.duck(bank, 0.35, 0.5)
+    end
+    return false
 end
 
 local function combatHasBoss(sim)

@@ -134,27 +134,43 @@ tests[#tests + 1] = function()
     end
     local estateSource = fakeSource()
     local combatSource = fakeSource()
+    local ambientSource = fakeSource()
     local bank = {
         __music = {
-            manifest = { fadeSeconds = 2, contexts = { estate = "estate", combat = "combat_normal" } },
+            manifest = {
+                fadeSeconds = 2,
+                contexts = { estate = "estate", combat = "combat_normal" },
+                ambient = { combat = { track = "expedition_tense", volume = 0.25 } },
+            },
             tracks = {
                 estate = { key = "estate", source = estateSource, loop = true },
                 combat_normal = { key = "combat_normal", source = combatSource, loop = true },
             },
+            ambientTracks = {
+                expedition_tense = { key = "expedition_tense", source = ambientSource, loop = true },
+            },
             fadeSeconds = 2,
+            ambientFadeSeconds = 2,
             fade = 0,
+            ambientFade = 0,
         },
     }
-    Audio.applySettings(bank, { masterVolume = 0.5, musicVolume = 0.8, sfxVolume = 1 })
+    Audio.applySettings(bank, { masterVolume = 0.5, musicVolume = 0.8, ambientVolume = 0.6, sfxVolume = 1 })
     expect(Audio.setMusicContext(bank, "estate", 0) == "estate", "music should resolve estate context")
     expect(estateSource.plays == 1 and estateSource.looping == true, "music should start first context")
     expect(math.abs(estateSource.volume - 0.4) < 0.001, "music should apply master/music volume")
     Audio.setMusicContext(bank, "combat", 2)
+    expect(ambientSource.plays == 1 and math.abs(ambientSource.volume - 0.075) < 0.001, "ambient layer should start at context mix volume")
     Audio.updateMusic(bank, 1)
     expect(math.abs(estateSource.volume - 0.2) < 0.001, "music should fade current track down")
     expect(math.abs(combatSource.volume - 0.2) < 0.001, "music should fade next track up")
     Audio.updateMusic(bank, 1)
     expect(estateSource.stops == 1 and math.abs(combatSource.volume - 0.4) < 0.001, "music should finish crossfade")
+    expect(math.abs(ambientSource.volume - 0.075) < 0.001, "ambient layer should stay below music volume")
+    expect(Audio.duckForEvent(bank, { crit = true }), "critical events should trigger music ducking")
+    expect(math.abs(combatSource.volume - 0.22) < 0.001 and math.abs(ambientSource.volume - 0.04125) < 0.001, "ducking should lower music and ambient layers")
+    Audio.updateMusic(bank, 0.45)
+    expect(math.abs(combatSource.volume - 0.4) < 0.001 and math.abs(ambientSource.volume - 0.075) < 0.001, "ducking should release after its timer")
     Audio.setMusicContext(bank, "estate", 2)
     Audio.setMusicContext(bank, "combat", 2)
     expect(estateSource.stops == 2, "music should stop superseded next track")
@@ -2716,7 +2732,7 @@ end
 
 tests[#tests + 1] = function()
     local settings = Settings.defaults()
-    expect(settings.masterVolume == 1 and settings.sfxVolume == 1, "settings defaults should expose audio volumes")
+    expect(settings.masterVolume == 1 and settings.sfxVolume == 1 and settings.ambientVolume == 0.7, "settings defaults should expose audio volumes")
     expect(settings.screenShake == true, "settings defaults should enable screen shake")
     Settings.adjust(settings, "masterVolume", -4)
     expect(settings.masterVolume > 0.59 and settings.masterVolume < 0.61, "settings slider should step and clamp")
@@ -2733,7 +2749,7 @@ tests[#tests + 1] = function()
     local app = { settings = settings, eventFlash = { cue = "hit_slash", status = "Mara hit" } }
     expect(Render.audioSubtitle(app) == "slash hit: Mara hit", "subtitles should expose audio cue and status")
     local export = Accessibility.text(Simulation.new(84), app)
-    expect(export:find("Thoth accessibility export", 1, true) and export:find("high_contrast=true", 1, true) and export:find("screen_shake=false", 1, true), "accessibility export should expose screen-reader text")
+    expect(export:find("Thoth accessibility export", 1, true) and export:find("high_contrast=true", 1, true) and export:find("ambient_volume=0.7", 1, true) and export:find("screen_shake=false", 1, true), "accessibility export should expose screen-reader text")
     expect(export:find("party:", 1, true) and export:find("controls:", 1, true), "accessibility export should expose party and controls")
     settings.subtitles = false
     expect(Render.audioSubtitle(app) == nil, "subtitles should respect setting")
@@ -2748,7 +2764,7 @@ tests[#tests + 1] = function()
     local settingsText = Settings.toText(settings)
     expect(settingsText:match("^THOTH_LUA_SETTINGS 1"), "settings should write separate v1 header")
     local loadedSettings = assert(Settings.fromText(settingsText))
-    expect(loadedSettings.masterVolume == settings.masterVolume and loadedSettings.highContrast and loadedSettings.colorblindMode == "deuteranopia" and loadedSettings.screenShake == false, "settings text round trip should preserve values")
+    expect(loadedSettings.masterVolume == settings.masterVolume and loadedSettings.ambientVolume == 0.7 and loadedSettings.highContrast and loadedSettings.colorblindMode == "deuteranopia" and loadedSettings.screenShake == false, "settings text round trip should preserve values")
     expect(Settings.keyForAction(loadedSettings, "moveUp") == "i", "settings text round trip should preserve keybinds")
     local clampedSettings = assert(Settings.fromText("THOTH_LUA_SETTINGS 1\n{[\"fontScale\"]=9,[\"masterVolume\"]=-4,[\"colorblindMode\"]=\"bad\",[\"keybinds\"]={[\"moveUp\"]=\"escape\",[\"moveDown\"]=\"j\"}}\n"))
     expect(clampedSettings.fontScale == 1.4 and clampedSettings.masterVolume == 0 and clampedSettings.colorblindMode == "off", "settings loader should clamp values")
