@@ -2658,7 +2658,7 @@ function Render.drawCombatOverlay(sim, app)
                     love.graphics.setColor(part.disabled and 0.42 or 0.96, part.disabled and 0.4 or 0.82, part.disabled and 0.4 or 0.82, 1)
                     love.graphics.printf(string.sub(part.name or part.key, 1, 4) .. " " .. tostring(part.hp or 0), px + 1, py + 3, pw - 2, "center")
                     if not part.disabled then
-                        app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { x = px, y = py, w = pw, h = 16, rank = rank, side = "enemy", partKey = part.key }
+                        app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { x = px, y = py, w = pw, h = 16, rank = rank, side = "enemy", partKey = part.key, hint = part.hint }
                     end
                 end
             end

@@ -638,8 +638,13 @@ Registry.enemies = {
         boss = true,
         skills = { "regent_sentence", "censer_wail" },
         parts = {
-            { key = "edict_crown", name = "Edict Crown", hp = 10, skillLocks = { "regent_sentence" }, exposeDamage = 4 },
-            { key = "choir_chain", name = "Choir Chain", hp = 8, skillLocks = { "censer_wail" }, stressPenalty = 2 },
+            { key = "edict_crown", name = "Edict Crown", hp = 10, skillLocks = { "regent_sentence" }, exposeDamage = 4, hint = "break to disable Regent Sentence" },
+            { key = "choir_chain", name = "Choir Chain", hp = 8, skillLocks = { "censer_wail" }, stressPenalty = 2, hint = "break to quiet Censer Wail" },
+        },
+        bossPhases = {
+            { key = "edict", name = "Edict Phase", opening = true, preferredSkill = "regent_sentence", dialogue = "The Regent reads the first sentence; the crown is the hinge." },
+            { key = "choir", name = "Choir Phase", disabledParts = 1, preferredSkill = "censer_wail", dialogue = "The chain answers when the crown cracks." },
+            { key = "remand", name = "Remand Phase", hpBelow = 0.45, preferredSkill = "regent_sentence", dialogue = "The Regent stamps the remand line in its own blood." },
         },
     },
     drowned_acolyte = { name = "Drowned Acolyte", roles = { "caster", "support" }, maxHp = 11, speed = 5, damage = { 2, 4 }, stress = 5, skills = { "brine_spit", "drowned_hymn" } },
@@ -807,8 +812,13 @@ Registry.enemies = {
         boss = true,
         skills = { "regent_sentence", "red_stress_clause", "red_catalogue" },
         parts = {
-            { key = "red_register", name = "Red Register", hp = 11, skillLocks = { "red_stress_clause" }, stressPenalty = 3 },
-            { key = "remand_crown", name = "Remand Crown", hp = 9, skillLocks = { "regent_sentence" }, exposeDamage = 5 },
+            { key = "red_register", name = "Red Register", hp = 11, skillLocks = { "red_stress_clause" }, stressPenalty = 3, hint = "break to disable Red Stress Clause" },
+            { key = "remand_crown", name = "Remand Crown", hp = 9, skillLocks = { "regent_sentence" }, exposeDamage = 5, hint = "break to disable Regent Sentence" },
+        },
+        bossPhases = {
+            { key = "red", name = "Red Phase", opening = true, preferredSkill = "red_stress_clause", dialogue = "The red register opens; every debt has found a throat." },
+            { key = "catalogue", name = "Catalogue Phase", disabledParts = 1, preferredSkill = "red_catalogue", dialogue = "The Regent abandons law and starts naming bodies." },
+            { key = "crown", name = "Crown Phase", hpBelow = 0.45, preferredSkill = "regent_sentence", dialogue = "The Remand Crown lowers until the room kneels." },
         },
     },
 }

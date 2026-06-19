@@ -1377,12 +1377,34 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(84)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_regent"))
+    expect(sim:startCombat("regent", "24:0"), "regent polish combat should start")
+    local enemy = sim.combat.enemies[1]
+    expect(enemy.bossPhase == "edict" and enemy.nextBossSkill == "regent_sentence", "regent should open in readable edict phase")
+    expect(enemy.parts[1].hint:find("Regent Sentence", 1, true) and enemy.parts[2].hint:find("Censer Wail", 1, true), "regent weak points should expose skill-lock hints")
+    local startLog = table.concat(sim.log, "\n")
+    expect(startLog:find("weak points", 1, true) and startLog:find("Edict Phase", 1, true), "regent start should announce weak points and phase")
+    expect(sim.narration:find("crown is the hinge", 1, true), "regent opening should set dialogue")
+    sim:damageEnemyPart(enemy, "edict_crown", 99)
+    expect(enemy.bossPhase == "choir" and enemy.nextBossSkill == "censer_wail", "regent should shift phase when a weak point breaks")
+    expect(sim.narration:find("chain answers", 1, true), "regent weak-point phase should set dialogue")
+    enemy.hp = 10
+    sim:applyBossPhase(enemy, false)
+    expect(enemy.bossPhase == "remand" and enemy.nextBossSkill == "regent_sentence", "regent should enter low-hp remand phase")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.combat.enemies[1].bossPhase == "remand" and loaded.combat.enemies[1].parts[1].hint:find("Regent Sentence", 1, true), "regent phase and weak-point hints should survive snapshot")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(85)
     sim:endExpedition(true)
     sim.estate.campaign.dread = 4
     runQueued(sim, Simulation.commands.startExpedition("archive_regent"))
     expect(sim:startCombat("regent", "24:0"), "variant boss combat should start")
     expect(sim.combat.encounter == "regent_crowned" and sim.combat.baseEncounter == "regent", "high dread should select boss variant")
+    expect(sim.combat.enemies[1].bossPhase == "red" and sim.combat.enemies[1].parts[1].hint:find("Red Stress Clause", 1, true), "high dread regent should expose red phase and weak-point hints")
     local loaded = Simulation.fromSnapshot(sim:snapshot())
     expect(loaded.combat.encounter == "regent_crowned" and loaded.combat.baseEncounter == "regent", "boss variant should survive snapshot")
     sim:finishCombat(true)

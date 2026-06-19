@@ -187,9 +187,10 @@ local function newEnemy(id, kind, rank)
             skillLocks = copyList(part.skillLocks),
             stressPenalty = part.stressPenalty or 0,
             exposeDamage = part.exposeDamage or 0,
+            hint = part.hint,
         }
     end
-    return { id = id, kind = kind, rank = rank, hp = def.maxHp, stress = 0, statuses = {}, guard = 0, parts = parts, resurrected = false, deathSpawned = false, deathFrontDamaged = false }
+    return { id = id, kind = kind, rank = rank, hp = def.maxHp, stress = 0, statuses = {}, guard = 0, parts = parts, resurrected = false, deathSpawned = false, deathFrontDamaged = false, bossPhase = nil, nextBossSkill = nil }
 end
 
 local function cloneEnemy(enemy)
@@ -208,6 +209,7 @@ local function cloneEnemy(enemy)
             skillLocks = copyList(part.skillLocks),
             stressPenalty = part.stressPenalty or 0,
             exposeDamage = part.exposeDamage or 0,
+            hint = part.hint,
         }
     end
     return {
@@ -223,6 +225,8 @@ local function cloneEnemy(enemy)
         deathSpawned = enemy.deathSpawned == true,
         deathFrontDamaged = enemy.deathFrontDamaged == true,
         weakPointChainTurns = enemy.weakPointChainTurns or 0,
+        bossPhase = enemy.bossPhase,
+        nextBossSkill = enemy.nextBossSkill,
     }
 end
 
@@ -2991,10 +2995,29 @@ function Simulation:startCombat(encounterKey, roomKey, options)
         self.expedition.torch = 0
     end
     local hasBoss = combatHasBoss(self.combat)
+    if hasBoss then
+        for _, enemy in ipairs(self.combat.enemies) do
+            local def = Defs.enemy(enemy.kind)
+            if def and def.boss then
+                self:announceBossWeakPoints(enemy)
+                self:applyBossPhase(enemy, true)
+            end
+        end
+    end
     self:pushLog("combat: " .. encounterKey, { event = self.combat.ambush and "ambush_start" or (hasBoss and "boss_start" or "combat_start"), encounter = encounterKey, boss = hasBoss, enemies = combatEnemyNames(self.combat) })
     self:narrate("combat_start", encounterKey)
     if combatHasWarden(self.combat) then
         self:narrate("warden_voice_v1", encounterKey)
+    end
+    if hasBoss then
+        for _, enemy in ipairs(self.combat.enemies) do
+            local def = Defs.enemy(enemy.kind)
+            for _, phase in ipairs((def and def.bossPhases) or {}) do
+                if phase.key == enemy.bossPhase and phase.dialogue then
+                    self.narration = phase.dialogue
+                end
+            end
+        end
     end
     self:advanceCombat()
     return true
@@ -3140,6 +3163,71 @@ function Simulation:disabledPartCount(enemy)
     return count
 end
 
+function Simulation:bossPhaseFor(enemy, opening)
+    local def = Defs.enemy(enemy and enemy.kind)
+    if not def or not def.bossPhases then
+        return nil
+    end
+    local selected = nil
+    for _, phase in ipairs(def.bossPhases) do
+        local matched = opening and phase.opening == true
+        if not matched and not phase.opening then
+            if phase.disabledParts and self:disabledPartCount(enemy) >= phase.disabledParts then
+                matched = true
+            end
+            if phase.hpBelow and (enemy.hp or 0) <= (def.maxHp or 1) * phase.hpBelow then
+                matched = true
+            end
+        end
+        if matched then
+            selected = phase
+        end
+    end
+    return selected
+end
+
+function Simulation:applyBossPhase(enemy, opening)
+    local phase = self:bossPhaseFor(enemy, opening)
+    if not phase or enemy.bossPhase == phase.key then
+        return false
+    end
+    local def = Defs.enemy(enemy.kind)
+    enemy.bossPhase = phase.key
+    enemy.nextBossSkill = phase.preferredSkill
+    if phase.dialogue then
+        self.narration = phase.dialogue
+    end
+    self:pushLog(def.name .. " entered " .. (phase.name or phase.key), {
+        event = "boss_phase",
+        actor = def.name,
+        phase = phase.key,
+        phaseName = phase.name,
+        dialogue = phase.dialogue,
+        boss = true,
+        side = "enemy",
+    })
+    return true
+end
+
+function Simulation:announceBossWeakPoints(enemy)
+    local def = Defs.enemy(enemy and enemy.kind)
+    if not def or not def.boss or #(enemy.parts or {}) == 0 then
+        return false
+    end
+    local parts = {}
+    for _, part in ipairs(enemy.parts or {}) do
+        parts[#parts + 1] = (part.name or part.key) .. " - " .. (part.hint or "break to weaken")
+    end
+    self:pushLog(def.name .. " weak points: " .. table.concat(parts, "; "), {
+        event = "boss_weak_points",
+        actor = def.name,
+        parts = parts,
+        boss = true,
+        side = "enemy",
+    })
+    return true
+end
+
 function Simulation:repairDisabledPart(support)
     if not self.combat or self.combat.partRepaired then
         return false
@@ -3241,6 +3329,7 @@ function Simulation:damageEnemyPart(enemy, partKey, amount)
         enemy.weakPointChainTurns = chainRule.dazeTurns or 1
         self:pushLog(enemyDef.name .. " procedure broke", { event = "falter", actor = enemyDef.name, side = "enemy" })
     end
+    self:applyBossPhase(enemy, false)
     return true
 end
 
@@ -3309,6 +3398,9 @@ function Simulation:chooseEnemySkill(enemy)
     end
     if #legal == 0 then
         return nil
+    end
+    if enemy.nextBossSkill and contains(legal, enemy.nextBossSkill) then
+        return enemy.nextBossSkill
     end
     if self.expedition and self.expedition.torch < 35 then
         for _, skillKey in ipairs(legal) do
@@ -3410,7 +3502,9 @@ end
 
 function Simulation:enemyTurn(enemy)
     local def = Defs.enemy(enemy.kind)
+    self:applyBossPhase(enemy, false)
     local skillKey = self:chooseEnemySkill(enemy)
+    enemy.nextBossSkill = nil
     local skill = skillKey and Defs.enemySkill(skillKey) or nil
     if not skill then
         return false
