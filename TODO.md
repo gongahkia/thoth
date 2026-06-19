@@ -122,7 +122,6 @@ Goal: full playthrough of Buried Archive Tier I (3 missions) end-to-end, with 4 
 
 Goal: fill out Buried Archive (12 missions), Salt Cistern (10 missions), Ember Warrens (9 missions) with hand-tuned polish.
 
-- [ ] 5.11 Document/lore fragment authoring: write text for all 50+ documents in `Registry.documents` (40h)
 - [ ] 5.12 NPC bark scripting: enclave leaders per zone (`Registry.enclaveLeaders`) (40h)
 - [ ] 5.13 Town event content polish (`Registry.townEventOrder`) (40h)
 - [ ] 5.14 Beta itch.io drop (24h)

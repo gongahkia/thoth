@@ -544,6 +544,7 @@ end
 expect(#Defs.documentTypeOrder == 5 and Defs.documentRegistry("document_registry_v1"), "document registry missing")
 for key, document in pairs(Defs.documents) do
     expect(document.title and document.abstract and document.text, "document missing copy " .. key)
+    expect(#document.text >= 120 and document.text ~= document.abstract, "document body copy too thin " .. key)
     expect(Defs.documentType(document.type), "document type missing " .. key)
     expect(Defs.location(document.location), "document location missing " .. key)
 end
