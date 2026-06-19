@@ -148,6 +148,7 @@ function Simulation.new(seed)
         estate = {
             gold = 150,
             heirlooms = 0,
+            week = 1,
             roster = roster,
             graveyard = {},
             trinkets = { ember_pin = 1, cracked_lens = 1, chirurgic_thread = 1 },
@@ -221,6 +222,10 @@ end
 
 function Simulation.commands.recoverHero(heroId)
     return { type = "recoverHero", heroId = heroId }
+end
+
+function Simulation.commands.advanceWeek()
+    return { type = "advanceWeek" }
 end
 
 function Simulation.commands.assignParty(heroId, rank)
@@ -318,6 +323,9 @@ function Simulation:apply(command)
     end
     if command.type == "recoverHero" then
         return self:recoverHero(command.heroId)
+    end
+    if command.type == "advanceWeek" then
+        return self:advanceWeek()
     end
     if command.type == "assignParty" then
         return self:assignParty(command.heroId, command.rank)
@@ -729,6 +737,24 @@ function Simulation:endExpedition(retreat)
     self.mode = "estate"
     self.combat = nil
     self.expedition.active = false
+    self:advanceWeek()
+    self:refillRecruits()
+    return true
+end
+
+function Simulation:advanceWeek()
+    if self.mode ~= "estate" then
+        return false
+    end
+    self.estate.week = (self.estate.week or 1) + 1
+    for _, hero in ipairs(self.estate.roster) do
+        if hero.recovering and hero.recovering > 0 then
+            hero.recovering = hero.recovering - 1
+            if hero.recovering == 0 then
+                self:pushLog(hero.name .. " returned")
+            end
+        end
+    end
     self:refillRecruits()
     return true
 end
@@ -1045,12 +1071,12 @@ function Simulation:recoverHero(heroId)
     local hero = self:heroById(heroId)
     local def = Defs.estateBuilding("infirmary")
     local cost = math.max(0, def.recoverCost - self:buildingLevel("infirmary") * def.discountPerLevel)
-    if not hero or not hero.alive or self.estate.gold < cost then
+    if not hero or not hero.alive or (hero.recovering or 0) > 0 or self.estate.gold < cost then
         return false
     end
     self.estate.gold = self.estate.gold - cost
     self:healStress(hero, 30)
-    hero.recovering = math.max(0, (hero.recovering or 0) - 1)
+    hero.recovering = 1
     self:pushLog(hero.name .. " recovered")
     return true
 end
@@ -1982,6 +2008,7 @@ function Simulation:partyState()
                 virtue = hero.virtue,
                 alive = hero.alive,
                 deathsDoor = hero.deathsDoor,
+                recovering = hero.recovering,
                 statuses = copyList(hero.statuses),
                 quirks = copyList(hero.quirks),
                 diseases = copyList(hero.diseases),
@@ -2190,6 +2217,7 @@ function Simulation:snapshot()
         estate = {
             gold = self.estate.gold,
             heirlooms = self.estate.heirlooms,
+            week = self.estate.week,
             roster = roster,
             graveyard = copyList(self.estate.graveyard),
             trinkets = copyMap(self.estate.trinkets),
@@ -2228,6 +2256,7 @@ function Simulation.fromSnapshot(snapshot)
     }, Simulation)
     self.estate.gold = (snapshot.estate and snapshot.estate.gold) or 0
     self.estate.heirlooms = (snapshot.estate and snapshot.estate.heirlooms) or 0
+    self.estate.week = (snapshot.estate and snapshot.estate.week) or 1
     self.estate.graveyard = copyList((snapshot.estate and snapshot.estate.graveyard) or {})
     self.estate.trinkets = copyMap((snapshot.estate and snapshot.estate.trinkets) or {})
     self.estate.provisionCart = inventoryFromStacks((snapshot.estate and snapshot.estate.provisionCart) or {})

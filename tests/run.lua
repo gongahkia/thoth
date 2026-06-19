@@ -429,7 +429,17 @@ tests[#tests + 1] = function()
     hero.stress = 40
     local gold = sim.estate.gold
     runQueued(sim, Simulation.commands.recoverHero(hero.id))
-    expect(hero.stress == 10 and sim.estate.gold == gold - 25, "estate recovery should spend gold and reduce stress")
+    expect(hero.stress == 10 and hero.recovering == 1 and sim.estate.gold == gold - 25, "estate recovery should spend gold and start cooldown")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(55)
+    sim:endExpedition(true)
+    local week = sim.estate.week
+    local hero = sim:heroAtRank(1)
+    hero.recovering = 1
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(sim.estate.week == week + 1 and hero.recovering == 0, "advance week should tick recovery")
 end
 
 tests[#tests + 1] = function()
