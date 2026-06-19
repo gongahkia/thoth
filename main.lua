@@ -143,13 +143,19 @@ local function playSimulationAudio(state, simulation)
         end
     end
     if playedCue then
-        state.eventFlash = { cue = playedCue, color = cueColor(playedCue), t = 0.45 }
+        state.eventFlash = { cue = playedCue, color = cueColor(playedCue), status = state.lastCueStatus, t = 0.45 }
     end
 end
 
 local function queueCutscenes(state, simulation)
     state.lastVisualEventId = state.lastVisualEventId or (simulation.eventSerial or 0)
     state.cutsceneQueue = state.cutsceneQueue or {}
+    if state.settings and state.settings.reducedMotion then
+        state.lastVisualEventId = simulation.eventSerial or state.lastVisualEventId
+        state.cutscene = nil
+        state.cutsceneQueue = {}
+        return
+    end
     for _, event in ipairs(simulation.events or {}) do
         if event.id > state.lastVisualEventId then
             local cutscene = Render.cutsceneForEvent(event, simulation)
@@ -1190,10 +1196,12 @@ function love.update(dt)
     if app and app.importMode then
         return
     end
-    app.titleTime = (app.titleTime or 0) + dt
+    app.titleTime = (app.settings and app.settings.reducedMotion) and 0 or ((app.titleTime or 0) + dt)
     Audio.updateForState(app.audio, dt, app, sim)
     Achievements.updateToasts(app, dt)
-    if app.uiPulse then
+    if app.uiPulse and app.settings and app.settings.reducedMotion then
+        app.uiPulse = nil
+    elseif app.uiPulse then
         app.uiPulse.t = (app.uiPulse.t or 0) - dt
         if app.uiPulse.t <= 0 then
             app.uiPulse = nil
@@ -1257,6 +1265,7 @@ function love.draw()
     if app and app.importMode then
         return
     end
+    Render.applyFont(app)
     if app.uiState == "title" then
         Render.drawTitle(sim, app)
         printTitleSmoke(app)

@@ -2290,6 +2290,16 @@ tests[#tests + 1] = function()
     expect(settings.highContrast == true, "settings toggle should flip accessibility flags")
     Settings.cycle(settings, "colorblindMode", 1)
     expect(settings.colorblindMode == "deuteranopia", "settings cycle should advance colorblind mode")
+    settings.fontScale = 1.4
+    expect(Render.fontScale(settings) == 1.4, "font scale should clamp through render")
+    local shifted = Render.accessibleColor(settings, { 0.9, 0.1, 0.1, 1 })
+    expect(shifted[1] ~= 0.9 and shifted[2] ~= 0.1, "colorblind mode should transform cue colors")
+    local app = { settings = settings, eventFlash = { cue = "hit_slash", status = "Mara hit" } }
+    expect(Render.audioSubtitle(app) == "slash hit: Mara hit", "subtitles should expose audio cue and status")
+    settings.subtitles = false
+    expect(Render.audioSubtitle(app) == nil, "subtitles should respect setting")
+    settings.reducedMotion = true
+    expect(not Render.markUiPulse(app, { x = 0, y = 0, w = 10, h = 10 }), "reduced motion should suppress pulse animations")
     local ok = Settings.bindKey(settings, "moveUp", "i")
     expect(ok and Settings.keyForAction(settings, "moveUp") == "i", "settings should bind movement key")
     local duplicate = Settings.bindKey(settings, "moveDown", "i")

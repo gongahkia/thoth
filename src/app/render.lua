@@ -8,6 +8,7 @@ local state = {
     headless = false,
     g3d = nil,
     assets = {},
+    fonts = {},
 }
 local cameraPitch = math.rad(30)
 local cameraDistance = 26
@@ -67,6 +68,62 @@ local function hitboxContains(hitbox, x, y)
     return hitbox and x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h
 end
 
+local function accessibilitySettings(appOrSettings)
+    if appOrSettings and appOrSettings.settings then
+        return appOrSettings.settings
+    end
+    return appOrSettings
+end
+
+function Render.fontScale(settings)
+    return clamp((settings and settings.fontScale) or 1, 0.8, 1.4)
+end
+
+function Render.reducedMotion(appOrSettings)
+    local settings = accessibilitySettings(appOrSettings)
+    return settings and settings.reducedMotion == true
+end
+
+function Render.accessibleColor(settings, color)
+    settings = accessibilitySettings(settings)
+    local r = color[1] or 1
+    local g = color[2] or 1
+    local b = color[3] or 1
+    local a = color[4] or 1
+    local mode = settings and settings.colorblindMode or "off"
+    if mode == "deuteranopia" then
+        r, g, b = r * 0.62 + g * 0.38, r * 0.7 + g * 0.3, b
+    elseif mode == "protanopia" then
+        r, g, b = r * 0.57 + g * 0.43, r * 0.56 + g * 0.44, b
+    elseif mode == "tritanopia" then
+        r, g, b = r, g * 0.68 + b * 0.32, g * 0.42 + b * 0.58
+    end
+    if settings and settings.highContrast then
+        r = clamp((r - 0.5) * 1.35 + 0.5, 0, 1)
+        g = clamp((g - 0.5) * 1.35 + 0.5, 0, 1)
+        b = clamp((b - 0.5) * 1.35 + 0.5, 0, 1)
+    end
+    return { clamp(r, 0, 1), clamp(g, 0, 1), clamp(b, 0, 1), a }
+end
+
+local function fontForScale(scale)
+    if not (love and love.graphics) then
+        return nil
+    end
+    local size = math.floor(12 * Render.fontScale({ fontScale = scale }) + 0.5)
+    state.fonts[size] = state.fonts[size] or love.graphics.newFont(size)
+    return state.fonts[size]
+end
+
+function Render.applyFont(appOrSettings)
+    if not (love and love.graphics) then
+        return nil
+    end
+    local font = fontForScale(Render.fontScale(accessibilitySettings(appOrSettings)))
+    love.graphics.setFont(font)
+    return font
+end
+
 function Render.hitboxAt(app, x, y)
     for _, group in ipairs(uiHitboxGroups) do
         for index, hitbox in ipairs((app and app.ui and app.ui[group]) or {}) do
@@ -80,6 +137,9 @@ end
 
 function Render.markUiPulse(app, hitbox, kind)
     if not (app and hitbox) then
+        return false
+    end
+    if Render.reducedMotion(app) then
         return false
     end
     app.uiPulse = { x = hitbox.x, y = hitbox.y, w = hitbox.w, h = hitbox.h, t = 0.22, kind = kind or "press" }
@@ -405,6 +465,11 @@ function Render.advanceCutscene(app, dt)
     if not (app and app.cutscene) then
         return
     end
+    if Render.reducedMotion(app) then
+        app.cutscene = nil
+        app.cutsceneQueue = {}
+        return
+    end
     local cutscene = app.cutscene
     cutscene.elapsed = (cutscene.elapsed or 0) + (dt or 0)
     if cutscene.elapsed >= (cutscene.duration or 0.75) then
@@ -493,6 +558,7 @@ function Render.load()
     state.loaded = true
     state.headless = not (love and love.graphics)
     state.assets = {}
+    state.fonts = {}
     state.g3d = nil
     state.loadError = nil
     if state.headless then
@@ -573,14 +639,15 @@ local function lightAt(sim, x, y, profile)
     return clamp(profile.ambient + falloff * (1 - profile.ambient), 0, 1)
 end
 
-local function litTileColor(rgb, light)
+local function litTileColor(rgb, light, settings)
     local r = clamp((rgb[1] / 255) * light * 1.08, 0, 1)
     local g = clamp((rgb[2] / 255) * light * (0.9 + light * 0.1), 0, 1)
     local b = clamp((rgb[3] / 255) * light * (0.78 + light * 0.22), 0, 1)
-    return r, g, b, 1
+    local color = Render.accessibleColor(settings, { r, g, b, 1 })
+    return color[1], color[2], color[3], color[4]
 end
 
-local function buildWorldTileModel(sim, profile)
+local function buildWorldTileModel(sim, profile, settings)
     local vertices = {}
     local z = sim.player.z or 0
     local minX = sim.player.x - visibleRadius
@@ -597,7 +664,7 @@ local function buildWorldTileModel(sim, profile)
             local tile = sim.world:peekTile(x, y, z)
             local rgb = Defs.tile(tile.id).color or { 255, 255, 255 }
             local light = lightAt(sim, x, y, profile)
-            data:setPixel(index - 1, 0, litTileColor(rgb, light))
+            data:setPixel(index - 1, 0, litTileColor(rgb, light, settings))
             local u = (index - 0.5) / (width * height)
             pushTileQuad(vertices, x, y, z, u)
         end
@@ -832,7 +899,7 @@ function Render.drawWorld(sim, app)
     local profile = lightProfile(sim)
     app.worldView.light = { torch = profile.torch, ambient = profile.ambient, radius = profile.radius }
     local yaw = applyCamera(sim, app)
-    local model = buildWorldTileModel(sim, profile)
+    local model = buildWorldTileModel(sim, profile, app and app.settings)
     love.graphics.setColor(1, 1, 1, 1)
     model:draw()
     drawHeroBillboards(sim, yaw, profile)
@@ -1119,7 +1186,7 @@ function Render.drawUiMicroAnimations(app)
     if focusBox then
         drawn = drawn + 1
     end
-    if app and app.uiPulse then
+    if app and app.uiPulse and not Render.reducedMotion(app) then
         drawn = drawn + 1
     end
     if not (love and love.graphics) then
@@ -1136,10 +1203,11 @@ function Render.drawUiMicroAnimations(app)
         love.graphics.rectangle("line", focusBox.x - 4, focusBox.y - 4, focusBox.w + 8, focusBox.h + 8)
     end
     local pulse = app and app.uiPulse
-    if pulse then
+    if pulse and not Render.reducedMotion(app) then
         local ratio = clamp((pulse.t or 0) / 0.22, 0, 1)
         local pad = (1 - ratio) * 10
         local color = pulse.kind == "error" and { 0.9, 0.18, 0.16 } or { 0.95, 0.82, 0.28 }
+        color = Render.accessibleColor(app.settings, color)
         love.graphics.setColor(color[1], color[2], color[3], 0.24 * ratio)
         love.graphics.rectangle("fill", pulse.x - pad, pulse.y - pad, pulse.w + pad * 2, pulse.h + pad * 2)
         love.graphics.setColor(color[1], color[2], color[3], 0.75 * ratio)
@@ -1596,7 +1664,7 @@ function Render.drawTitle(sim, app)
     love.graphics.setDepthMode()
     love.graphics.setColor(0.015, 0.017, 0.019, 0.68)
     love.graphics.rectangle("fill", 0, 0, width, height)
-    drawLedgerSweep(width, height, app.titleTime or 0)
+    drawLedgerSweep(width, height, Render.reducedMotion(app) and 0 or (app.titleTime or 0))
     love.graphics.setColor(0.92, 0.9, 0.8, 1)
     love.graphics.printf("THOTH", 64, math.max(86, height * 0.28), math.min(520, width - 128), "left", 0, 3.2, 3.2)
     love.graphics.setColor(0.62, 0.68, 0.62, 1)
@@ -2029,11 +2097,65 @@ local function drawJournalPanel(sim, x, y, w)
     end
 end
 
+local cueSubtitleLabels = {
+    camp = "camp",
+    combat = "combat",
+    danger = "danger",
+    dialogue_chirp_high = "dialogue",
+    dialogue_chirp_low = "dialogue",
+    estate = "estate",
+    footstep_ash = "footstep",
+    footstep_stone = "footstep",
+    footstep_wet = "footstep",
+    hit_affliction = "affliction hit",
+    hit_blunt = "blunt hit",
+    hit_burn = "burn hit",
+    hit_slash = "slash hit",
+    hit_stress = "stress hit",
+    loot = "loot",
+    provision = "provision",
+    recovery = "recovery",
+    travel = "travel",
+    victory = "victory",
+}
+
+function Render.audioSubtitle(app)
+    if not (app and app.settings and app.settings.subtitles and app.eventFlash) then
+        return nil
+    end
+    local cue = app.eventFlash.cue
+    local label = cueSubtitleLabels[cue] or tostring(cue or "audio"):gsub("_", " ")
+    local status = app.eventFlash.status or app.eventFlash.message
+    if status and status ~= "" then
+        return label .. ": " .. tostring(status)
+    end
+    return label
+end
+
+function Render.drawAudioSubtitle(app)
+    local text = Render.audioSubtitle(app)
+    if not text then
+        return nil
+    end
+    if not (love and love.graphics) then
+        return text
+    end
+    local width, height = love.graphics.getDimensions()
+    local w = math.min(width - 48, 560)
+    local x = (width - w) / 2
+    local y = height - 46
+    love.graphics.setColor(0.02, 0.024, 0.026, 0.86)
+    love.graphics.rectangle("fill", x, y, w, 30)
+    love.graphics.setColor(0.88, 0.9, 0.84, 1)
+    love.graphics.printf(text, x + 12, y + 8, w - 24, "center")
+    return text
+end
+
 function Render.drawHud(sim, app)
     local width = love.graphics.getWidth()
     panel(0, 0, width, 92, 0.9)
-    if app.eventFlash then
-        local color = app.eventFlash.color or { 0.42, 0.54, 0.76 }
+    if app.eventFlash and not Render.reducedMotion(app) then
+        local color = Render.accessibleColor(app.settings, app.eventFlash.color or { 0.42, 0.54, 0.76 })
         love.graphics.setColor(color[1], color[2], color[3], math.min(0.5, app.eventFlash.t or 0))
         love.graphics.rectangle("fill", 0, 90, width, 2)
     end
@@ -2741,6 +2863,7 @@ function Render.draw(sim, app)
     Render.drawPauseMenu(app)
     Render.drawConfirmDialog(app)
     Render.drawToasts(app)
+    Render.drawAudioSubtitle(app)
     Render.drawUiMicroAnimations(app)
     love.graphics.pop()
 end
