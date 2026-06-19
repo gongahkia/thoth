@@ -40,7 +40,7 @@ for _, path in ipairs(required) do
 end
 
 for path in pairs(entries) do
-    if path:find("^assets/previews/") or path:find("^assets/replays/") or path:find("^vendor/g3d/%.git") then
+    if path:find("^assets/previews/") or path:find("^assets/press/") or path:find("^assets/replays/") or path:find("^vendor/g3d/%.git") then
         io.stderr:write("excluded package entry present: ", path, "\n")
         os.exit(1)
     end

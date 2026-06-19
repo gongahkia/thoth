@@ -47,6 +47,7 @@ local function assertAssetLicenseCoverage()
         { "^assets/music/tracks%.lua$", "`assets/music/tracks.lua`" },
         { "^assets/previews/.*%.gif$", "`assets/previews/*.gif`" },
         { "^assets/previews/.*%.png$", "`assets/previews/*.png`" },
+        { "^assets/press/.*$", "`assets/press/*`" },
         { "^assets/sprites/README%.md$", "`assets/sprites/README.md`" },
         { "^assets/sprites/oga_700_sprites%.lua$", "`assets/sprites/oga_700_sprites.lua`" },
         { "^assets/sprites/oga_700_sprites%.png$", "`assets/sprites/oga_700_sprites.png`" },

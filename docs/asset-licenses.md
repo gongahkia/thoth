@@ -16,6 +16,7 @@
 | `assets/models/README.md` | Project-authored documentation | Thoth contributors | Original project documentation | Documents model import contract; no external model files are committed. |
 | `assets/previews/*.png` | Project-authored gameplay captures | Thoth contributors / embedded JPhilipp sprite art | Original project capture + CC-BY 3.0 embedded sprite art | Screenshots contain generated game UI plus the OGA `700 sprites` atlas; credit Philipp Lenssen and `outer-court.com`. |
 | `assets/previews/*.gif` | Project-authored gameplay capture | Thoth contributors / embedded JPhilipp sprite art | Original project capture + CC-BY 3.0 embedded sprite art | Animated preview contains generated game UI plus the OGA `700 sprites` atlas; credit Philipp Lenssen and `outer-court.com`. |
+| `assets/press/*` | Project-authored press/logo assets | Thoth contributors | Original project asset | Logo source and generated PNG exports for press kit and store-page use; no third-party art or AI-generated source material. |
 
 ## Phase 3 Primary Character Pack
 

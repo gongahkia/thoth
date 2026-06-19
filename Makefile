@@ -311,7 +311,7 @@ render-benchmark:
 package-build:
 	mkdir -p dist
 	rm -f $(PACKAGE)
-	zip -9 -r $(PACKAGE) $(PACKAGE_INPUTS) -x "assets/previews/*" "assets/replays/*"
+	zip -9 -r $(PACKAGE) $(PACKAGE_INPUTS) -x "assets/previews/*" "assets/press/*" "assets/replays/*"
 	zip -T $(PACKAGE)
 
 package: check
