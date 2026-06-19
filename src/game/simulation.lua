@@ -12,6 +12,10 @@ local heroNames = {
     duelist = "Vey",
     mender = "Orrin",
     arcanist = "Sel",
+    harrier = "Kest",
+    chirurgeon = "Vand",
+    exile = "Rook",
+    lamplighter = "Aster",
 }
 
 local recruitNames = {
@@ -24,6 +28,10 @@ local defaultQuirks = {
     duelist = { "quick_reflexes", "gloomy" },
     mender = { "field_reader", "soft_voice" },
     arcanist = { "steady_hand", "faint_pulse" },
+    harrier = { "quick_reflexes", "soft_voice" },
+    chirurgeon = { "field_reader", "brittle" },
+    exile = { "steady_hand", "gloomy" },
+    lamplighter = { "iron_nerves", "faint_pulse" },
 }
 
 local function copyList(values)
@@ -126,7 +134,8 @@ end
 
 function Simulation.new(seed)
     local roster = {}
-    for index, classKey in ipairs(Defs.heroClassOrder) do
+    for index = 1, 4 do
+        local classKey = Defs.heroClassOrder[index]
         roster[#roster + 1] = newHero(index, classKey)
     end
     local self = setmetatable({
