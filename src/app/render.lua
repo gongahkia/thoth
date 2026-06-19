@@ -147,6 +147,8 @@ function Render.prepareUi(app)
     app.ui.provisionButtons = app.ui.provisionButtons or {}
     app.ui.estateActionButtons = app.ui.estateActionButtons or {}
     app.ui.rosterButtons = app.ui.rosterButtons or {}
+    app.ui.titleButtons = app.ui.titleButtons or {}
+    app.ui.settingsButtons = app.ui.settingsButtons or {}
     clearList(app.ui.skillButtons)
     clearList(app.ui.heroButtons)
     clearList(app.ui.enemyButtons)
@@ -156,6 +158,8 @@ function Render.prepareUi(app)
     clearList(app.ui.provisionButtons)
     clearList(app.ui.estateActionButtons)
     clearList(app.ui.rosterButtons)
+    clearList(app.ui.titleButtons)
+    clearList(app.ui.settingsButtons)
 end
 
 local function eventCaption(event, fallback)
@@ -641,6 +645,124 @@ function Render.drawWorld(sim, app)
     model:draw()
     drawHeroBillboards(sim, yaw, profile)
     drawEnemyBillboards(sim, yaw, profile)
+end
+
+function Render.titleMenuItems(app)
+    local canContinue = app and app.canContinue == true
+    return {
+        { action = "new", label = "New Game", enabled = true },
+        { action = "continue", label = "Continue", enabled = canContinue },
+        { action = "settings", label = "Settings", enabled = true },
+        { action = "quit", label = "Quit", enabled = true },
+    }
+end
+
+local function layoutTitleButtons(app, items, width, height)
+    local buttonW = math.min(320, math.max(220, width - 88))
+    local x = math.max(44, width - buttonW - 96)
+    local y = math.max(206, height * 0.5 - 88)
+    for index, item in ipairs(items) do
+        app.ui.titleButtons[#app.ui.titleButtons + 1] = {
+            x = x,
+            y = y + (index - 1) * 52,
+            w = buttonW,
+            h = 42,
+            action = item.action,
+            enabled = item.enabled,
+            index = index,
+        }
+    end
+end
+
+local function drawLedgerSweep(width, height, t)
+    love.graphics.setColor(0.74, 0.62, 0.38, 0.08)
+    local offset = ((t or 0) * 28) % 88
+    for index = -1, 9 do
+        local y = index * 88 + offset
+        love.graphics.rectangle("fill", 0, y, width, 1)
+        love.graphics.rectangle("fill", 0, height - y, width, 1)
+    end
+    love.graphics.setColor(0.34, 0.42, 0.48, 0.06)
+    local xOffset = ((t or 0) * 18) % 140
+    for index = -1, 10 do
+        love.graphics.rectangle("fill", index * 140 + xOffset, 0, 1, height)
+    end
+end
+
+local function drawTitleButton(app, item, button)
+    local active = (app.titleMenuIndex or 1) == button.index
+    local enabled = item.enabled
+    love.graphics.setColor(active and 0.2 or 0.1, active and 0.24 or 0.12, active and 0.19 or 0.12, enabled and 0.94 or 0.55)
+    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(active and 0.82 or 0.36, active and 0.68 or 0.38, active and 0.34 or 0.28, enabled and 1 or 0.55)
+    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(enabled and 0.94 or 0.42, enabled and 0.94 or 0.42, enabled and 0.86 or 0.42, 1)
+    love.graphics.printf((active and "> " or "") .. item.label, button.x + 10, button.y + 12, button.w - 20, "left")
+end
+
+function Render.drawTitle(sim, app)
+    Render.prepareUi(app)
+    local items = Render.titleMenuItems(app)
+    layoutTitleButtons(app, items, 1280, 720)
+    if not (love and love.graphics) then
+        return items
+    end
+    love.graphics.clear(0.035, 0.038, 0.042, 1)
+    Render.drawWorld(sim, app)
+    local width, height = love.graphics.getDimensions()
+    clearList(app.ui.titleButtons)
+    layoutTitleButtons(app, items, width, height)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    love.graphics.setColor(0.015, 0.017, 0.019, 0.68)
+    love.graphics.rectangle("fill", 0, 0, width, height)
+    drawLedgerSweep(width, height, app.titleTime or 0)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.printf("THOTH", 64, math.max(86, height * 0.28), math.min(520, width - 128), "left", 0, 3.2, 3.2)
+    love.graphics.setColor(0.62, 0.68, 0.62, 1)
+    love.graphics.printf("account the dead", 70, math.max(164, height * 0.28 + 76), math.min(520, width - 128), "left")
+    for index, item in ipairs(items) do
+        drawTitleButton(app, item, app.ui.titleButtons[index])
+    end
+    love.graphics.setColor(0.58, 0.62, 0.58, 1)
+    local status = app.titleStatus or app.saveStatus or "ready"
+    love.graphics.printf(status, 64, height - 54, width - 128, "left")
+    love.graphics.printf("keyboard", 64, height - 32, width - 128, "right")
+    love.graphics.pop()
+    return items
+end
+
+function Render.drawSettingsShell(app)
+    Render.prepareUi(app)
+    app.ui.settingsButtons[#app.ui.settingsButtons + 1] = { x = 64, y = 610, w = 180, h = 42, action = "back" }
+    if not (love and love.graphics) then
+        return
+    end
+    local width, height = love.graphics.getDimensions()
+    love.graphics.clear(0.045, 0.048, 0.052, 1)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    panel(48, 48, width - 96, height - 96, 0.94)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.print("Settings", 72, 72)
+    love.graphics.setColor(0.72, 0.78, 0.76, 1)
+    love.graphics.print("Audio", 72, 126)
+    love.graphics.print("master volume", 72, 158)
+    love.graphics.rectangle("line", 220, 154, 260, 14)
+    love.graphics.rectangle("fill", 220, 154, 190, 14)
+    love.graphics.print("Input", 72, 222)
+    love.graphics.print("move / interact / pause bindings", 72, 254)
+    love.graphics.print("Accessibility", 72, 318)
+    love.graphics.print("contrast / motion / subtitle settings", 72, 350)
+    local button = app.ui.settingsButtons[1]
+    button.y = height - 92
+    love.graphics.setColor(0.12, 0.15, 0.14, 1)
+    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(0.46, 0.54, 0.46, 1)
+    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(0.92, 0.94, 0.88, 1)
+    love.graphics.printf("Back", button.x + 8, button.y + 12, button.w - 16, "center")
+    love.graphics.pop()
 end
 
 local function checklistText(group)

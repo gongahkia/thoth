@@ -22,6 +22,11 @@ jobs:
       - name: Run asset checks
         run: make check
 
+      - name: Run title smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make title-smoke
+
       - name: Run render3d smoke
         env:
           SDL_AUDIODRIVER: dummy

@@ -1953,6 +1953,21 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local disabled = Render.titleMenuItems({ canContinue = false })
+    expect(#disabled == 4, "title should expose four menu items")
+    expect(disabled[1].action == "new" and disabled[1].enabled, "title should expose new game")
+    expect(disabled[2].action == "continue" and not disabled[2].enabled, "title continue should disable without save")
+    expect(disabled[3].action == "settings" and disabled[4].action == "quit", "title should expose settings and quit")
+    local enabled = Render.titleMenuItems({ canContinue = true })
+    expect(enabled[2].enabled, "title continue should enable with save")
+    local app = { canContinue = true, ui = { titleButtons = { { stale = true } } } }
+    Render.drawTitle(Simulation.new(76), app)
+    expect(#app.ui.titleButtons == 4 and app.ui.titleButtons[2].action == "continue", "title draw should populate title hitboxes")
+    Render.drawSettingsShell(app)
+    expect(#app.ui.settingsButtons == 1 and app.ui.settingsButtons[1].action == "back", "settings shell should populate back hitbox")
+end
+
+tests[#tests + 1] = function()
     local app = {
         ui = {
             skillButtons = { { stale = true } },
@@ -1964,17 +1979,22 @@ tests[#tests + 1] = function()
             provisionButtons = { { stale = true } },
             estateActionButtons = { { stale = true } },
             rosterButtons = { { stale = true } },
+            titleButtons = { { stale = true } },
+            settingsButtons = { { stale = true } },
         },
     }
     local oldSkills = app.ui.skillButtons
     local oldEnemies = app.ui.enemyButtons
+    local oldTitle = app.ui.titleButtons
     Render.prepareUi(app)
     expect(app.ui.skillButtons == oldSkills, "prepareUi should reuse hitbox arrays")
     expect(app.ui.enemyButtons == oldEnemies, "prepareUi should reuse enemy hitbox array")
+    expect(app.ui.titleButtons == oldTitle, "prepareUi should reuse title hitbox array")
     expect(#app.ui.skillButtons == 0 and #app.ui.heroButtons == 0 and #app.ui.enemyButtons == 0 and #app.ui.itemButtons == 0, "prepareUi should clear combat hitboxes")
     expect(#app.ui.missionButtons == 0 and #app.ui.recruitButtons == 0 and #app.ui.provisionButtons == 0, "prepareUi should clear estate hitboxes")
     expect(#app.ui.estateActionButtons == 0, "prepareUi should clear estate action hitboxes")
     expect(#app.ui.rosterButtons == 0, "prepareUi should clear roster hitboxes")
+    expect(#app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
     app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
     app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }
     Render.prepareUi(app)
