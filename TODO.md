@@ -68,7 +68,6 @@ Kit subject to spike feedback. Balance pass after Phase 6 integration.
 Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
 
 ### Day 1 — Library bake-off setup (~4h)
-- [ ] 0.1.1 Clone `g3d` into `vendor/g3d/`, read README, run example scene (1h)
 - [ ] 0.1.2 Clone `3DreamEngine` into `vendor/3DreamEngine/`, read README, run example scene (1h)
 - [ ] 0.1.3 Pick one based on first impressions (simplicity vs features). Document choice rationale in `docs/engine-spike.md` (1h)
 - [ ] 0.1.4 Create `spike/` directory at repo root (gitignored) for throwaway test files (0.5h)

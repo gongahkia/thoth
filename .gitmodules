@@ -1,0 +1,3 @@
+[submodule "vendor/g3d"]
+	path = vendor/g3d
+	url = https://github.com/groverburger/g3d.git
