@@ -131,6 +131,14 @@ function Render.cutsceneForStatus(message, sim)
     return nil
 end
 
+function Render.idleCombatScene(sim)
+    if not (sim and sim.mode == "combat" and sim.combat) then
+        return nil
+    end
+    local active = sim:activeHero()
+    return { kind = "idle", title = active and (active.name .. " acts") or "enemy turn", side = "ally", duration = 1, elapsed = 0 }
+end
+
 function Render.advanceCutscene(app, dt)
     if not (app and app.cutscene) then
         return
@@ -849,6 +857,30 @@ function Render.drawCutscene(sim, app)
     love.graphics.rectangle("line", x, y, w, h)
 end
 
+function Render.drawCombatStage(sim, app)
+    if app and app.cutscene then
+        return
+    end
+    local scene = Render.idleCombatScene(sim)
+    if not scene then
+        return
+    end
+    local width = love.graphics.getWidth()
+    local x = 28
+    local w = math.max(360, width - 370)
+    local y = 92
+    local h = 238
+    drawSceneWall(x, y, w, h, 0.08, false)
+    drawHeroLine(sim, y + h - 42, x + 92, scene, 0, 0)
+    drawEnemyLine(sim, y + h - 42, x + w - 96, scene, 0, 0)
+    love.graphics.setColor(0.02, 0.025, 0.026, 0.62)
+    love.graphics.rectangle("fill", x, y + h - 34, w, 34)
+    love.graphics.setColor(0.82, 0.84, 0.76, 0.92)
+    love.graphics.printf(scene.title or "", x + 18, y + h - 25, w - 36, "center")
+    love.graphics.setColor(0.28, 0.34, 0.3, 0.9)
+    love.graphics.rectangle("line", x, y, w, h)
+end
+
 function Render.drawCombatOverlay(sim, app)
     if sim.mode ~= "combat" or not sim.combat then
         return
@@ -1035,6 +1067,7 @@ function Render.draw(sim, app)
     Render.drawWorld(sim, app)
     Render.drawHud(sim, app)
     Render.drawSidePanel(sim, app)
+    Render.drawCombatStage(sim, app)
     Render.drawCombatOverlay(sim, app)
     Render.drawCampOverlay(sim)
     Render.drawEstatePanel(sim, app)

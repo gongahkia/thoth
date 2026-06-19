@@ -966,6 +966,8 @@ tests[#tests + 1] = function()
     local enemyName = Defs.enemy(enemy.kind).name
     local enemyCutscene = Render.cutsceneForStatus(enemyName .. " used Rusted Chop", sim)
     expect(enemyCutscene and enemyCutscene.kind == "strike" and enemyCutscene.side == "enemy", "enemy skill should map to enemy strike cutscene")
+    local idle = Render.idleCombatScene(sim)
+    expect(idle and idle.kind == "idle" and idle.title == hero.name .. " acts", "combat should expose persistent idle stage scene")
     expect(Render.cutsceneForStatus("combat: entry", sim).kind == "intro", "combat start should map to intro cutscene")
     expect(Render.cutsceneForStatus("combat won", sim).kind == "victory", "combat win should map to victory cutscene")
     expect(Render.cutsceneForStatus("Moth fell", sim).kind == "danger", "death event should map to danger cutscene")
