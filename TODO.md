@@ -132,7 +132,6 @@ Goal: fill out Buried Archive (12 missions), Salt Cistern (10 missions), Ember W
 
 Goal: ship 9th class. Late-game design choice: introduce dissonance at the point players have made peace with the institutional tone.
 
-- [ ] 6.4 Implement Merchant 2 camp skills: `audit_books`, `cancel_debt` (16h)
 - [ ] 6.5 Implement Merchant passive: `merchant_cut` (dread-tier-gated loot bonus) (16h)
 - [ ] 6.6 Add Merchant lore in `Registry.classLoreBank` (registry.lua:~1770) (2h)
 - [ ] 6.7 Add Merchant class barks: arrival/firstDeath/factionShift (registry.lua:~2107) (2h)

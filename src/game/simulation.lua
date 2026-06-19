@@ -2983,6 +2983,39 @@ function Simulation:campTargets(skill, heroRank)
     return targets
 end
 
+function Simulation:campTrinketCount()
+    local count = 0
+    for _, hero in ipairs(self:livingParty()) do
+        for _, trinketKey in ipairs(hero.trinkets or {}) do
+            if trinketKey then
+                count = count + 1
+            end
+        end
+    end
+    for _, trinketKey in ipairs(Defs.trinketOrder or {}) do
+        count = count + ((self.estate.trinkets or {})[trinketKey] or 0)
+    end
+    return count
+end
+
+function Simulation:consumeCampTrinket()
+    for _, hero in ipairs(self:livingParty()) do
+        for slot, trinketKey in ipairs(hero.trinkets or {}) do
+            if trinketKey then
+                hero.trinkets[slot] = false
+                return trinketKey
+            end
+        end
+    end
+    for _, trinketKey in ipairs(Defs.trinketOrder or {}) do
+        if ((self.estate.trinkets or {})[trinketKey] or 0) > 0 then
+            self.estate.trinkets[trinketKey] = self.estate.trinkets[trinketKey] - 1
+            return trinketKey
+        end
+    end
+    return nil
+end
+
 function Simulation:campSkill(skillKey, heroRank)
     if self.mode ~= "expedition" or not self.expedition or not self.expedition.camping then
         return false
@@ -3004,8 +3037,14 @@ function Simulation:campSkill(skillKey, heroRank)
             return false
         end
     end
+    if skill.trinketCost and self:campTrinketCount() < skill.trinketCost then
+        return false
+    end
     for item, count in pairs(skill.itemCost or {}) do
         self.expedition.supplies:consume(item, count)
+    end
+    for _ = 1, skill.trinketCost or 0 do
+        self:consumeCampTrinket()
     end
     camping.respite = camping.respite - (skill.cost or 0)
     camping.usedSkills[skillKey] = true
@@ -3029,6 +3068,13 @@ function Simulation:campSkill(skillKey, heroRank)
     end
     if skill.clearHeatFatigue and self.expedition then
         self.expedition.heatFatigue = 0
+    end
+    for factionKey, cost in pairs(skill.factionCost or {}) do
+        local entry = self:ensureCampaignState().factions[factionKey]
+        local paid = math.min(cost, math.max(0, (entry and entry.value) or 0))
+        if paid > 0 then
+            self:adjustFaction(factionKey, -paid)
+        end
     end
     if skill.torch then
         self.expedition.torch = clamp(self.expedition.torch + skill.torch, 0, 100)

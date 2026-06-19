@@ -486,8 +486,14 @@ for key, skill in pairs(Defs.campSkills) do
     for item in pairs(skill.itemCost or {}) do
         expect(Defs.item(item), "camp skill item cost missing item " .. item)
     end
+    if skill.trinketCost then
+        expect(skill.trinketCost > 0, "camp skill bad trinket cost " .. key)
+    end
+    for factionKey in pairs(skill.factionCost or {}) do
+        expect(Defs.faction(factionKey), "camp skill faction cost missing faction " .. key .. "/" .. factionKey)
+    end
 end
-for _, key in ipairs({ "camp_witness_vigil", "camp_salt_wash", "camp_ember_quench" }) do
+for _, key in ipairs({ "camp_witness_vigil", "camp_salt_wash", "camp_ember_quench", "audit_books", "cancel_debt" }) do
     expect(Defs.campSkill(key), "estate camp ritual missing " .. key)
 end
 

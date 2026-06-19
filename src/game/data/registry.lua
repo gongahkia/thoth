@@ -2136,8 +2136,10 @@ Registry.campSkills = {
     camp_witness_vigil = { name = "Witness Vigil", cost = 2, target = "party", stressHeal = 2, itemCost = { torch = 1, ration = 1 }, dread = -1 },
     camp_salt_wash = { name = "Salt Wash", cost = 1, target = "ally", itemCost = { torch = 1 }, clearDisease = true, stressHeal = 1 },
     camp_ember_quench = { name = "Ember Quench", cost = 1, target = "party", itemCost = { ember_oil = 1 }, clearHeatFatigue = true, stressHeal = 1 },
+    audit_books = { name = "Audit Books", cost = 2, target = "party", stressHeal = 4, trinketCost = 1 },
+    cancel_debt = { name = "Cancel Debt", cost = 2, target = "ally", clearDisease = true, factionCost = { enclave_meter = 2 } },
 }
-Registry.campSkillOrder = { "bind_wounds", "watch_order", "bitter_tonic", "last_rites", "camp_witness_vigil", "camp_salt_wash", "camp_ember_quench" }
+Registry.campSkillOrder = { "bind_wounds", "watch_order", "bitter_tonic", "last_rites", "camp_witness_vigil", "camp_salt_wash", "camp_ember_quench", "audit_books", "cancel_debt" }
 
 Registry.estateBuildings = {
     stagecoach = { name = "Stagecoach", maxLevel = 3, heirloomCost = 2, rosterLimit = 6, rosterPerLevel = 2, recruitSlots = 3, slotsPerLevel = 1, recruitCost = 20, discountPerLevel = 3 },

@@ -1570,7 +1570,7 @@ tests[#tests + 1] = function()
     placeCampMarker(sim)
     sim:camp()
     local summary = Render.campHudSummary(sim, {})
-    expect(summary.active and #summary.skills == 7 and summary.partyCount == 4, "camp hud summary should expose skills and party")
+    expect(summary.active and #summary.skills == 9 and summary.partyCount == 4, "camp hud summary should expose skills and party")
     local app = {
         ui = {
             campSkillButtons = { { x = 0, y = 0, w = 20, h = 20, skillKey = "bind_wounds", target = "ally" } },
@@ -1739,6 +1739,35 @@ tests[#tests + 1] = function()
     expect(sim:campSkill("camp_salt_wash", 1) and #hero.diseases == 0, "salt wash should clear one disease")
     sim.expedition.heatFatigue = 3
     expect(sim:campSkill("camp_ember_quench") and sim.expedition.heatFatigue == 0 and not sim.expedition.camping, "ember quench should clear heat and spend final respite")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(219)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    placeCampMarker(sim)
+    expect(sim:camp(), "merchant camp test should enter camp")
+    for _, hero in ipairs(sim:livingParty()) do
+        hero.stress = 20
+    end
+    local hero = sim:heroAtRank(1)
+    hero.trinkets[1] = "ember_pin"
+    sim.estate.trinkets.ember_pin = 0
+    expect(sim:campSkill("audit_books"), "audit books should spend trinket")
+    expect(hero.trinkets[1] == false and sim:heroAtRank(2).stress == 16, "audit books should consume carried trinket and heal party stress")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(220)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    placeCampMarker(sim)
+    expect(sim:camp(), "cancel debt test should enter camp")
+    local hero = sim:heroAtRank(1)
+    hero.diseases = { "salt_cough" }
+    sim:adjustFaction("enclave_meter", 3)
+    expect(sim:campSkill("cancel_debt", 1), "cancel debt should run")
+    expect(#hero.diseases == 0 and sim.estate.campaign.factions.enclave_meter.value == 1, "cancel debt should cure disease and spend enclave standing")
 end
 
 tests[#tests + 1] = function()
