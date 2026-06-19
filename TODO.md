@@ -122,7 +122,6 @@ Goal: full playthrough of Buried Archive Tier I (3 missions) end-to-end, with 4 
 
 Goal: fill out Buried Archive (12 missions), Salt Cistern (10 missions), Ember Warrens (9 missions) with hand-tuned polish.
 
-- [ ] 5.13 Town event content polish (`Registry.townEventOrder`) (40h)
 - [ ] 5.14 Beta itch.io drop (24h)
 - [ ] 5.15 Collect 8 weeks of beta feedback (16h)
 - [ ] 5.16 Triage + fix top 50 bugs from beta (160h)

@@ -497,6 +497,7 @@ end
 
 for key, event in pairs(Defs.townEvents) do
     expect(event.name and event.name ~= "", "town event missing name " .. key)
+    expect(event.summary and #event.summary >= 40 and event.effect and event.effect ~= "", "town event missing polished copy " .. key)
     for item in pairs(event.provisions or {}) do
         expect(Defs.item(item), "town event provision missing item " .. item)
     end

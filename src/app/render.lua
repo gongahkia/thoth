@@ -2777,7 +2777,10 @@ function Render.drawEstatePanel(sim, app)
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
     love.graphics.print("roster " .. sim:livingRosterCount() .. "/" .. sim:rosterLimit() .. "  recruits " .. #sim.estate.recruits, x + 10, y + 58)
     if sim.estate.currentEvent then
-        love.graphics.print("event " .. Defs.townEvent(sim.estate.currentEvent).name, x + 220, y + 58)
+        local event = Defs.townEvent(sim.estate.currentEvent)
+        love.graphics.printf("event " .. event.name, x + 220, y + 58, 150)
+        love.graphics.setColor(0.62, 0.66, 0.58, 1)
+        love.graphics.printf(event.effect or event.summary or "", x + 220, y + 72, 150)
     end
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Buildings", x + 10, y + 82)
