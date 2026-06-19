@@ -4,7 +4,6 @@ This file tracks remaining work only. `TODO-CONTENT.md` is the detailed backlog 
 
 ## Immediate Priorities
 
-- [ ] Implement Buried Archive v2 content: 43 open tasks covering room templates, corridor roles, missions, enemies, weak points, boss variants, curios, trinkets, narration, tiers, and mini-boss warden work.
 - [ ] Implement Salt Cistern v2 content: 39 open tasks covering layout grammar, rooms, corridor roles, missions, enemies, boss variant, curios, trinket, narration, tiers, and mini-boss warden work.
 - [ ] Implement Ember Warrens v2 content: 39 open tasks covering layout grammar, rooms, corridor roles, missions, enemies, boss variant, curios, trinket, narration, tiers, and mini-boss warden work.
 - [ ] Implement Estate and Campaign expansion: 51 open tasks covering Estate fixtures, enclave leaders, faction meters, twin timer, dread rules, ending router, town events, trinket sets, quirks, and camp rituals.

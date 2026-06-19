@@ -91,6 +91,21 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local map = World.new(102, "buried_archive", { tiles = {}, layoutId = "archive_intake_map" })
+    local reeve = World.new(102, "buried_archive", { tiles = {}, layoutId = "archive_silence_reeve" })
+    local witness = World.new(102, "buried_archive", { tiles = {}, layoutId = "archive_witness_confession" })
+    expect(map:encounterForRoom("24:0") == nil, "intake map should omit boss gate encounter")
+    expect(reeve:encounterForRoom("8:6") == "archive_reeve" and reeve:encounterForRoom("24:0") == nil, "reeve mission should route to mini-boss without final boss")
+    expect(witness:encounterForRoom("8:6") == "archive_witness" and witness:encounterForRoom("24:6") == "archive_bailiff", "witness mission should place stand-and-survive fights")
+    expect(reeve:layout().roomTemplateByRole.entrance == "intake_desk", "archive layout should expose room template roles")
+    local roles = {}
+    for _, corridor in ipairs(reeve:layout().corridors) do
+        roles[corridor.role] = true
+    end
+    expect(roles.audit_lane and roles.shelf_crawl and roles.writ_run, "archive layout should assign v2 corridor roles")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(11)
     expect(sim.mode == "expedition", "new sim should start playable expedition")
     expect(#sim.estate.roster == 4, "default roster should have four heroes")
@@ -98,6 +113,50 @@ tests[#tests + 1] = function()
     expect(sim.estate.trinkets.ember_pin == 1, "estate should seed trinkets")
     expect(sim.expedition.supplies:count("torch") == 4, "default supplies missing torches")
     expect(sim.expedition.roomsScouted == 1, "starting room should be scouted")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(103)
+    local torch = sim.expedition.torch
+    runQueued(sim, Simulation.commands.move("south"))
+    expect(sim.expedition.torch <= torch - 7, "shelf crawl should spend torch on corridor entry")
+    local audit = sim.world:corridorAt(9, 0)
+    sim.expedition.currentCorridor = nil
+    sim:applyCorridorRole(audit)
+    local noise = sim.expedition.noise
+    sim.expedition.currentCorridor = nil
+    sim:applyCorridorRole(audit)
+    expect(sim.expedition.noise == noise + 2, "audit lane should add noise on backtracking")
+    local stress = sim:heroAtRank(1).stress
+    sim.expedition.currentCorridor = nil
+    sim:applyCorridorRole(sim.world:corridorAt(9, 6))
+    expect(sim:heroAtRank(1).stress > stress, "writ run should cost party stress")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(104)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_false_index"))
+    local dread = sim.estate.campaign.dread
+    expect(sim.expedition.supplies:count("false_index_writ") == 1, "false index mission should grant quest writ")
+    sim:resolveCurio(8, 2, 0, "false_index")
+    expect(sim.expedition.objectiveComplete and sim.estate.campaign.dread == dread + 1, "false index activation should complete with dread tradeoff")
+    sim:endExpedition(true)
+    sim.estate.campaign.dread = 3
+    runQueued(sim, Simulation.commands.startExpedition("archive_names"))
+    sim:resolveCurio(0, 10, 0, "sealed_name")
+    expect(not sim.expedition.objectiveComplete, "one sealed name should not complete gather mission")
+    sim:resolveCurio(16, 1, 0, "sealed_name")
+    expect(sim.expedition.objectiveComplete, "two sealed names should complete archive names mission")
+    local beforeRepair = sim.estate.campaign.dread
+    sim:resolveCurio(0, 9, 0, "name_press")
+    expect(sim.estate.campaign.dread == beforeRepair - 1, "name press repair should lower dread when salve is spent")
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_audit_page_bearer"))
+    expect(sim.expedition.noise == 3, "audit page-bearer mission should start with noise pressure")
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_misfiled_dead"))
+    expect(sim.expedition.packSlots == 10, "misfiled dead mission should apply carry-load pack pressure")
 end
 
 tests[#tests + 1] = function()
@@ -461,6 +520,18 @@ tests[#tests + 1] = function()
     expect(enemy.parts[1].key == "open_codex", "elite should expose weak point data")
     runQueued(sim, Simulation.commands.combatSkill("razor_lunge", 1, "enemy", "open_codex"))
     expect(enemy.parts[1].disabled and sim:enemySkillLocked(enemy, "lectern_cant"), "weak point hit should disable mapped skill")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(105)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_witness_confession"))
+    expect(sim:startCombat("archive_witness", "support_test"), "archive witness support combat should start")
+    local witness = sim.combat.enemies[1]
+    local ally = sim.combat.enemies[2]
+    ally.stress = 5
+    sim:enemyTurn(witness)
+    expect(ally.stress < 5, "pressed witness should restore adjacent enemy stress damage")
 end
 
 tests[#tests + 1] = function()

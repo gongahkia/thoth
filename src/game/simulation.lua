@@ -1017,7 +1017,7 @@ function Simulation:startExpedition(locationKey)
         torch = 75,
         supplies = supplies,
         loot = Inventory.new(),
-        packSlots = 12,
+        packSlots = math.max(6, 12 - (mission.carryLoad or 0)),
         questActivations = 0,
         visitedRooms = {},
         scoutedRooms = {},
@@ -1029,12 +1029,17 @@ function Simulation:startExpedition(locationKey)
         threatState = {},
         noise = 0,
         ambushRolls = 0,
+        corridorVisits = {},
+        currentCorridor = nil,
         generatedLayoutId = self.world:layout().generatedLayoutId,
         campUsed = false,
         objectiveComplete = false,
         bossDefeated = false,
         log = {},
     }
+    if mission.noisePressure then
+        self:addNoise(mission.noisePressure)
+    end
     self:applyMissionLevelPenalty(mission)
     self:discoverCurrentRoom()
     self:pushLog("entered " .. mission.name)
@@ -1102,6 +1107,9 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
         local progress = mission.kind == "boss" and 2 or 1
         campaign.renown = (campaign.renown or 0) + progress
         campaign.dread = math.max(0, (campaign.dread or 0) - 1)
+        if mission.dreadBonus then
+            campaign.dread = (campaign.dread or 0) + mission.dreadBonus
+        end
         campaign.completedMissions[missionKey] = true
         campaign.locationProgress[locationKey] = (campaign.locationProgress[locationKey] or 0) + progress
         if mission.kind == "boss" then
@@ -1835,6 +1843,67 @@ function Simulation:addNoise(amount)
     return true
 end
 
+function Simulation:adjustDread(amount)
+    if not self.estate or not self.estate.campaign or not amount or amount == 0 then
+        return false
+    end
+    self.estate.campaign.dread = math.max(0, (self.estate.campaign.dread or 0) + amount)
+    self:evaluateCampaignState()
+    return true
+end
+
+function Simulation:corridorKey(corridor)
+    if not corridor then
+        return nil
+    end
+    if corridor.key then
+        return corridor.key
+    end
+    local a = tostring(corridor.ax) .. ":" .. tostring(corridor.ay)
+    local b = tostring(corridor.bx) .. ":" .. tostring(corridor.by)
+    return a < b and (a .. ">" .. b) or (b .. ">" .. a)
+end
+
+function Simulation:applyCorridorRole(corridor)
+    if not self.expedition then
+        return false
+    end
+    if not corridor then
+        self.expedition.currentCorridor = nil
+        return false
+    end
+    local key = self:corridorKey(corridor)
+    if self.expedition.currentCorridor == key then
+        return false
+    end
+    self.expedition.currentCorridor = key
+    self.expedition.corridorVisits = self.expedition.corridorVisits or {}
+    local visits = self.expedition.corridorVisits[key] or 0
+    self.expedition.corridorVisits[key] = visits + 1
+    local location = Defs.location(self.expedition.location)
+    local role = corridor.role
+    local roleDef = location and location.layout and location.layout.corridorRoles and location.layout.corridorRoles[role] or nil
+    if not roleDef then
+        return false
+    end
+    if roleDef.noiseOnBacktrack and visits > 0 then
+        self:addNoise(roleDef.noiseOnBacktrack)
+        self:pushLog(role .. " raised noise")
+        return true
+    end
+    if roleDef.torchCost then
+        self:decayTorch(roleDef.torchCost)
+        self:pushLog(role .. " cost torch")
+        return true
+    end
+    if roleDef.stressCost then
+        self:stressParty(nil, roleDef.stressCost)
+        self:pushLog(role .. " cost nerve")
+        return true
+    end
+    return false
+end
+
 function Simulation:tryStartPressureEncounter(roomKey)
     if self.mode ~= "expedition" or not self.expedition or self.expedition.location ~= "buried_archive" then
         return false
@@ -1908,9 +1977,7 @@ function Simulation:move(direction)
     self:checkDarkness()
     self:checkTileHazard(x, y, self.player.z)
     local corridor = self.world:corridorAt(x, y)
-    if corridor and corridor.role == "shortcut" then
-        self:addNoise(2)
-    end
+    self:applyCorridorRole(corridor)
     local roomKey = self:discoverCurrentRoom()
     self:pushLog("moved " .. direction)
     if self:tryStartRoomEncounter(roomKey) then
@@ -1992,6 +2059,9 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
                 self:addStress(hero, curio.stress)
             end
         end
+        if curio.dread then
+            self:adjustDread(curio.dread)
+        end
         self:updateObjective()
         self:pushLog(curio.name .. " activated")
         self:narrate("curio", curioKey)
@@ -2021,6 +2091,9 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
         else
             self:addStress(hero, usedItem and math.floor(curio.stress / 2) or curio.stress)
         end
+    end
+    if curio.dread and (curio.dread > 0 or usedItem) then
+        self:adjustDread(curio.dread)
     end
     self.expedition.curiosUsed[key] = true
     self.world:setTile(x, y, z, { id = self.world:floorTile(), data = 0 })
@@ -2331,6 +2404,19 @@ function Simulation:enemyStressPenalty(enemy)
     return penalty
 end
 
+function Simulation:enemyProtectorFor(enemy)
+    if not enemy or not self.combat then
+        return nil
+    end
+    for _, candidate in ipairs(self.combat.enemies or {}) do
+        local def = Defs.enemy(candidate.kind)
+        if candidate ~= enemy and candidate.hp > 0 and def and def.protectsAdjacent and math.abs((candidate.rank or 0) - (enemy.rank or 0)) <= 1 then
+            return candidate
+        end
+    end
+    return nil
+end
+
 function Simulation:damageEnemyPart(enemy, partKey, amount)
     local part = self:enemyPart(enemy, partKey)
     if not part or part.disabled then
@@ -2554,6 +2640,13 @@ function Simulation:enemyTurn(enemy)
             end
         end
     end
+    if def.supportStressRestore then
+        for _, ally in ipairs(self.combat.enemies or {}) do
+            if ally ~= enemy and ally.hp > 0 and math.abs((ally.rank or 0) - (enemy.rank or 0)) <= 1 then
+                ally.stress = math.max(0, (ally.stress or 0) - def.supportStressRestore)
+            end
+        end
+    end
     self:pushLog(def.name .. " used " .. skill.name, { event = def.boss and "boss_skill" or "enemy_skill", actor = def.name, skill = skill.name, side = "enemy", boss = def.boss == true })
     return true
 end
@@ -2703,6 +2796,9 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
     for _, target in ipairs(targets) do
         local unit = target.unit or target
         if skill.damage and targetSide == "enemy" then
+            if not target.partKey then
+                unit = self:enemyProtectorFor(unit) or unit
+            end
             local damage = math.max(0, self:roll(skill.damage[1], skill.damage[2]) + damageBonus)
             if target.partKey then
                 self:damageEnemyPart(unit, target.partKey, damage)
@@ -3056,6 +3152,8 @@ function Simulation:snapshot()
             threatState = copyMap(self.expedition.threatState),
             noise = self.expedition.noise or 0,
             ambushRolls = self.expedition.ambushRolls or 0,
+            corridorVisits = copyMap(self.expedition.corridorVisits),
+            currentCorridor = self.expedition.currentCorridor,
             generatedLayoutId = self.expedition.generatedLayoutId,
             campUsed = self.expedition.campUsed,
             camping = self.expedition.camping and {
@@ -3267,6 +3365,8 @@ function Simulation.fromSnapshot(snapshot)
             threatState = copyMap(exp.threatState),
             noise = exp.noise or 0,
             ambushRolls = exp.ambushRolls or 0,
+            corridorVisits = copyMap(exp.corridorVisits),
+            currentCorridor = exp.currentCorridor,
             generatedLayoutId = exp.generatedLayoutId,
             campUsed = exp.campUsed == true,
             camping = exp.camping and {

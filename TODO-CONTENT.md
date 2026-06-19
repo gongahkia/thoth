@@ -2,52 +2,6 @@
 
 Loose Markdown backlog. Task lines keep todo-ish metadata for search/filter use.
 
-## Buried Archive
-
-- [ ] (A) Add archive room template called intake_desk with blocked sightlines and one visible threat anchor +BuriedArchive @worldgen type:room zone:buried_archive id:intake_desk
-- [ ] (A) Add archive room template called debt_chancel with loop exit and stress curio +BuriedArchive @worldgen type:room zone:buried_archive id:debt_chancel
-- [ ] (A) Add archive room template called misfiled_morgue with elite weak-point anchor +BuriedArchive @worldgen type:room zone:buried_archive id:misfiled_morgue
-- [ ] (A) Add archive room template called evidence_well as optional reward dead-end +BuriedArchive @worldgen type:room zone:buried_archive id:evidence_well
-- [ ] (B) Add archive corridor role called audit_lane with noise gain on backtracking +BuriedArchive @simulation type:corridor zone:buried_archive id:audit_lane
-- [ ] (B) Add archive corridor role called shelf_crawl that bypasses a guard but costs torch +BuriedArchive @simulation type:corridor zone:buried_archive id:shelf_crawl
-- [ ] (A) Add mission Recover Sealed Names with gather objective and extraction choice +BuriedArchive @registry type:mission zone:buried_archive id:archive_names
-- [ ] (A) Add mission Burn the False Index with activation objective and dread tradeoff +BuriedArchive @registry type:mission zone:buried_archive id:archive_false_index
-- [ ] (B) Add mission Escort the Page-Bearer with fragile NPC cargo represented as quest item +BuriedArchive @registry type:mission zone:buried_archive id:archive_page_bearer
-- [ ] (B) Add mission Map the Intake Branch with required scout rooms and no boss gate +BuriedArchive @registry type:mission zone:buried_archive id:archive_intake_map
-- [ ] (A) Add enemy Audit Hound as scout/pursuer that raises noise +BuriedArchive @registry type:enemy zone:buried_archive id:audit_hound
-- [ ] (A) Add enemy Vellum Leech as back-rank stress caster and bleed source +BuriedArchive @registry type:enemy zone:buried_archive id:vellum_leech
-- [ ] (A) Add enemy Staple Saint as armor guard that protects adjacent ranks +BuriedArchive @registry type:enemy zone:buried_archive id:staple_saint
-- [ ] (A) Add enemy Footnote Snare as trapper that pulls marked heroes +BuriedArchive @registry type:enemy zone:buried_archive id:footnote_snare
-- [ ] (B) Add enemy Errata Twins as two-body swarm with shared support behavior +BuriedArchive @registry type:enemy zone:buried_archive id:errata_twins
-- [ ] (B) Add enemy Shelf Warden as visible alpha with pursuit pressure +BuriedArchive @registry type:enemy zone:buried_archive id:shelf_warden
-- [ ] (A) Add elite Index Ossuary weak points named Open Register and Rib Clasps +BuriedArchive @combat type:weak_point zone:buried_archive id:index_ossuary_parts
-- [ ] (A) Add boss variant Regent in Red with weak point that disables party stress skill +BuriedArchive @combat type:boss_variant zone:buried_archive id:regent_red
-- [ ] (B) Add curio Witness Drawer with skeleton_key safe use and stress on greedy use +BuriedArchive @registry type:curio zone:buried_archive id:witness_drawer
-- [ ] (B) Add curio Clerk Cocoon with bandage safe use and injury on failure +BuriedArchive @registry type:curio zone:buried_archive id:clerk_cocoon
-- [ ] (B) Add curio Name Press with repair option that lowers dread but pays no loot +BuriedArchive @registry type:curio zone:buried_archive id:name_press
-- [ ] (C) Add trinket Wax Seal of Remand for scout bonus and stress penalty +BuriedArchive @registry type:trinket zone:buried_archive id:wax_seal_remand
-- [ ] (C) Add trinket Copper Folio Hook for weak-point damage and bleed risk +BuriedArchive @registry type:trinket zone:buried_archive id:copper_folio_hook
-- [ ] (A) Add narration bank for archive visible threats, scouting, and weak-point breaks +BuriedArchive @narration type:voice zone:buried_archive id:archive_voice_v2
-- [ ] (A) Add archive sub-tier definitions for intake_branch, misfile_court, and sealed_register +BuriedArchive @worldgen type:tier zone:buried_archive id:archive_tiers_v1
-- [ ] (A) Add archive room template called witness_drawer_court with branching exit and elite anchor +BuriedArchive @worldgen type:room zone:buried_archive id:witness_drawer_court
-- [ ] (A) Add archive room template called debt_vault as Tier III reward room behind audit gate +BuriedArchive @worldgen type:room zone:buried_archive id:debt_vault
-- [ ] (B) Add archive room template called bound_scriptorium with Tier II curio cluster and noise hazard +BuriedArchive @worldgen type:room zone:buried_archive id:bound_scriptorium
-- [ ] (B) Add archive room template called sealed_atrium with optional repair objective and dread tradeoff +BuriedArchive @worldgen type:room zone:buried_archive id:sealed_atrium
-- [ ] (B) Add archive corridor role called writ_run that mantles over locked shelves at stress cost +BuriedArchive @simulation type:corridor zone:buried_archive id:writ_run
-- [ ] (A) Add mini-boss warden Codex Reeve as visible alpha with audit-call lockout skill +BuriedArchive @combat type:warden zone:buried_archive id:codex_reeve
-- [ ] (A) Add enemy Margin Auditor as caster that marks party rank for follow-up audit +BuriedArchive @registry type:enemy zone:buried_archive id:margin_auditor
-- [ ] (A) Add enemy Bailiff in Wax as armor guard that locks rear ranks +BuriedArchive @registry type:enemy zone:buried_archive id:bailiff_in_wax
-- [ ] (B) Add enemy Ink Drowner as trapper that bleeds and silences +BuriedArchive @registry type:enemy zone:buried_archive id:ink_drowner
-- [ ] (B) Add enemy Index Worm as scout swarm that triples noise on backtrack +BuriedArchive @registry type:enemy zone:buried_archive id:index_worm
-- [ ] (B) Add enemy Pressed Witness as support that restores adjacent enemy stress damage +BuriedArchive @registry type:enemy zone:buried_archive id:pressed_witness
-- [ ] (A) Add mission Audit the Page-Bearer with escort and noise pressure +BuriedArchive @registry type:mission zone:buried_archive id:archive_audit_page_bearer
-- [ ] (A) Add mission Silence the Codex Reeve with mini-boss objective and faction tradeoff +BuriedArchive @registry type:mission zone:buried_archive id:archive_silence_reeve
-- [ ] (B) Add mission Witness the Sealed Confession with stand-and-survive objective and dread bonus +BuriedArchive @registry type:mission zone:buried_archive id:archive_witness_confession
-- [ ] (B) Add mission Remand the Bound Scribe with repair-vs-extract branch and enclave consequence +BuriedArchive @registry type:mission zone:buried_archive id:archive_remand_scribe
-- [ ] (B) Add mission Carry Out the Misfiled Dead with carry-load objective and pack pressure +BuriedArchive @registry type:mission zone:buried_archive id:archive_misfiled_dead
-- [ ] (B) Add curio Open Register with key safe use and stress on greedy use +BuriedArchive @registry type:curio zone:buried_archive id:open_register
-- [ ] (C) Add curio Stamped Confessional with skeleton_key repair use and dread reduction +BuriedArchive @registry type:curio zone:buried_archive id:stamped_confessional
-
 ## Salt Cistern
 
 - [ ] (A) Add cistern layout grammar with pump hub, valve loop, drowned shortcut, and sluice boss gate +SaltCistern @worldgen type:layout zone:salt_cistern id:cistern_grammar_v1

@@ -245,6 +245,52 @@ for key, location in pairs(Defs.locations) do
     end
 end
 
+do
+    local archive = Defs.location("buried_archive")
+    for _, key in ipairs({ "intake_branch", "misfile_court", "sealed_register" }) do
+        expect(archive.tiers[key], "archive tier missing " .. key)
+    end
+    for _, key in ipairs({
+        "intake_desk", "debt_chancel", "misfiled_morgue", "evidence_well",
+        "witness_drawer_court", "debt_vault", "bound_scriptorium", "sealed_atrium",
+    }) do
+        expect(archive.layout.roomTemplates[key], "archive room template missing " .. key)
+    end
+    for _, key in ipairs({ "audit_lane", "shelf_crawl", "writ_run" }) do
+        expect(archive.layout.corridorRoles[key], "archive corridor role missing " .. key)
+    end
+    local threatKeys = {}
+    for _, threat in ipairs(archive.layout.threats) do
+        threatKeys[threat.key] = true
+    end
+    expect(threatKeys.shelf_warden and threatKeys.codex_reeve, "archive visible alpha threats missing")
+    for _, key in ipairs({
+        "archive_names", "archive_false_index", "archive_page_bearer", "archive_intake_map",
+        "archive_audit_page_bearer", "archive_silence_reeve", "archive_witness_confession",
+        "archive_remand_scribe", "archive_misfiled_dead",
+    }) do
+        expect(Defs.mission(key), "archive v2 mission missing " .. key)
+    end
+    for _, key in ipairs({
+        "audit_hound", "vellum_leech", "staple_saint", "footnote_snare", "errata_twins",
+        "shelf_warden", "codex_reeve", "margin_auditor", "bailiff_in_wax", "ink_drowner",
+        "index_worm", "pressed_witness",
+    }) do
+        expect(Defs.enemy(key), "archive v2 enemy missing " .. key)
+    end
+    for _, key in ipairs({
+        "witness_drawer", "clerk_cocoon", "name_press", "open_register", "stamped_confessional",
+    }) do
+        expect(Defs.curio(key), "archive v2 curio missing " .. key)
+    end
+    expect(Defs.trinket("wax_seal_remand") and Defs.trinket("copper_folio_hook"), "archive v2 trinkets missing")
+    expect(Defs.narrationFor("archive_voice_v2"), "archive v2 narration missing")
+    local ossuary = Defs.enemy("ossuary_lectern")
+    expect(ossuary.parts[1].name == "Open Register" and ossuary.parts[2].name == "Rib Clasps", "archive ossuary weak-point names missing")
+    local redRegent = Defs.enemy("regent_in_red")
+    expect(redRegent and redRegent.boss and redRegent.parts[1].skillLocks[1] == "red_stress_clause", "regent in red weak point missing")
+end
+
 for key, mission in pairs(Defs.missions) do
     expect(mission.name and Defs.location(mission.location), "mission missing location " .. key)
     expect(mission.kind == "scout" or mission.kind == "cleanse" or mission.kind == "boss" or mission.kind == "gather" or mission.kind == "activate", "mission bad kind " .. key)

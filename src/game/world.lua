@@ -86,25 +86,56 @@ function World:missionGrammarLayout(location)
     local base = deepCopy(location.layout)
     local roles = base.roles or {}
     local layoutId = self.layoutId or "archive_scout"
+    local mission = Defs.mission(layoutId) or {}
     local variant = Rng.hash(self.seed + 4201, #layoutId, 0, 0) % 3
     base.generated = true
     base.generatedLayoutId = (base.grammar and base.grammar.id or "mission_grammar") .. ":" .. layoutId .. ":" .. tostring(variant)
+    base.roomTemplateByRole = {}
+    for templateKey, template in pairs(base.roomTemplates or {}) do
+        if template.role then
+            base.roomTemplateByRole[template.role] = templateKey
+        end
+    end
     base.encounters = {
         [roles.lock_gate or "8:0"] = "entry",
         [roles.scout_branch or "0:8"] = "archive_branch",
         [roles.reward_dead_end or "16:0"] = "stacks",
         [roles.boss_gate or location.bossRoom or "24:0"] = "regent",
     }
+    if mission.noBossGate then
+        base.encounters[roles.boss_gate or location.bossRoom or "24:0"] = nil
+    end
     if layoutId == "archive_cleansing" then
         base.encounters[roles.risky_shortcut or "16:6"] = "undercroft"
+    elseif layoutId == "archive_false_index" then
+        base.encounters[roles.lock_gate or "8:0"] = "archive_snare"
+    elseif layoutId == "archive_silence_reeve" then
+        base.encounters[roles.camp_fallback or "8:6"] = "archive_reeve"
+        base.encounters[roles.boss_gate or location.bossRoom or "24:0"] = nil
+    elseif layoutId == "archive_witness_confession" then
+        base.encounters[roles.camp_fallback or "8:6"] = "archive_witness"
+        base.encounters[roles.alpha_roost or "24:6"] = "archive_bailiff"
+    elseif layoutId == "archive_remand_scribe" then
+        base.encounters[roles.lock_gate or "8:0"] = "archive_bailiff"
+    elseif layoutId == "archive_misfiled_dead" then
+        base.encounters[roles.risky_shortcut or "16:6"] = "archive_elite"
+    elseif layoutId == "archive_audit_page_bearer" then
+        base.encounters[roles.alpha_roost or "24:6"] = "archive_hounds"
+    end
+    local function sameEdge(a, b, roleA, roleB)
+        return (a == (roles[roleA] or "") and b == (roles[roleB] or ""))
+            or (b == (roles[roleA] or "") and a == (roles[roleB] or ""))
     end
     for _, corridor in ipairs(base.corridors or {}) do
         local a = tostring(corridor.ax) .. ":" .. tostring(corridor.ay)
         local b = tostring(corridor.bx) .. ":" .. tostring(corridor.by)
-        if (a == (roles.camp_fallback or "8:6") and b == (roles.risky_shortcut or "16:6"))
-            or (b == (roles.camp_fallback or "8:6") and a == (roles.risky_shortcut or "16:6"))
-        then
-            corridor.role = "shortcut"
+        corridor.key = a < b and (a .. ">" .. b) or (b .. ">" .. a)
+        if sameEdge(a, b, "entrance", "scout_branch") then
+            corridor.role = "shelf_crawl"
+        elseif sameEdge(a, b, "lock_gate", "reward_dead_end") or sameEdge(a, b, "reward_dead_end", "boss_gate") then
+            corridor.role = "audit_lane"
+        elseif sameEdge(a, b, "camp_fallback", "risky_shortcut") or sameEdge(a, b, "risky_shortcut", "alpha_roost") then
+            corridor.role = "writ_run"
         elseif b == (roles.boss_gate or "24:0") or a == (roles.boss_gate or "24:0") then
             corridor.role = "boss_gate"
         else
