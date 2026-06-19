@@ -30,6 +30,5 @@
 ## Next
 
 - Add more room layouts, boss variants, and endgame consequences.
-- Add richer estate UX for filtering/sorting the roster and comparing hero progression.
 - Add more diseases, trinkets, and town events.
 - Add authored visual/audio cues for RPG actions when assets are available.

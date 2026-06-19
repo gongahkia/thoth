@@ -275,6 +275,10 @@ function Input.mousepressed(sim, app, x, y, button)
                 sim:queue(Simulation.commands.treatDisease(hitbox.heroId, hitbox.diseaseKey))
             elseif hitbox.action == "assignParty" then
                 sim:queue(Simulation.commands.assignParty(hitbox.heroId, hitbox.rank))
+            elseif hitbox.action == "rosterFilter" then
+                app.rosterFilter = hitbox.filter
+            elseif hitbox.action == "rosterSort" then
+                app.rosterSort = hitbox.sort
             end
             app.status = hitbox.action
             play(app, "craft")

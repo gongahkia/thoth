@@ -439,6 +439,20 @@ local function selectedEstateHero(sim, app)
     return sim:heroAtRank(sim.player.selectedHero) or sim:heroAtRank(1) or sim.estate.roster[1]
 end
 
+local rosterFilters = {
+    { key = "all", label = "all" },
+    { key = "party", label = "party" },
+    { key = "recovering", label = "rest" },
+    { key = "stressed", label = "stress" },
+}
+
+local rosterSorts = {
+    { key = "rank", label = "rank" },
+    { key = "level", label = "lvl" },
+    { key = "stress", label = "str" },
+    { key = "name", label = "name" },
+}
+
 local function addEstateAction(app, label, x, y, w, action)
     love.graphics.setColor(action.enabled and 0.15 or 0.09, action.enabled and 0.18 or 0.09, action.enabled and 0.16 or 0.09, 1)
     love.graphics.rectangle("fill", x, y, w, 28)
@@ -455,23 +469,80 @@ local function addEstateAction(app, label, x, y, w, action)
     end
 end
 
+local function rosterVisible(sim, hero, filter)
+    if filter == "party" then
+        return sim:heroRank(hero.id) ~= nil
+    end
+    if filter == "recovering" then
+        return (hero.recovering or 0) > 0
+    end
+    if filter == "stressed" then
+        return (hero.stress or 0) >= 50
+    end
+    return hero.alive ~= false
+end
+
+local function rosterEntries(sim, app)
+    local filter = app.rosterFilter or "all"
+    local sort = app.rosterSort or "rank"
+    local heroes = {}
+    for _, hero in ipairs(sim.estate.roster) do
+        if rosterVisible(sim, hero, filter) then
+            heroes[#heroes + 1] = hero
+        end
+    end
+    table.sort(heroes, function(a, b)
+        if sort == "level" then
+            if (a.level or 1) ~= (b.level or 1) then
+                return (a.level or 1) > (b.level or 1)
+            end
+        elseif sort == "stress" then
+            if (a.stress or 0) ~= (b.stress or 0) then
+                return (a.stress or 0) > (b.stress or 0)
+            end
+        elseif sort == "name" then
+            if a.name ~= b.name then
+                return a.name < b.name
+            end
+        else
+            local ar = sim:heroRank(a.id) or 99
+            local br = sim:heroRank(b.id) or 99
+            if ar ~= br then
+                return ar < br
+            end
+        end
+        return (a.id or 0) < (b.id or 0)
+    end)
+    return heroes
+end
+
 local function drawRosterBrowser(sim, app, x, y, w, h)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Roster", x, y)
+    local filter = app.rosterFilter or "all"
+    local sort = app.rosterSort or "rank"
+    for index, option in ipairs(rosterFilters) do
+        addEstateAction(app, option.label, x + (index - 1) * 58, y + 20, 54, { action = "rosterFilter", filter = option.key, enabled = filter ~= option.key })
+    end
+    for index, option in ipairs(rosterSorts) do
+        addEstateAction(app, option.label, x + (index - 1) * 58, y + 52, 54, { action = "rosterSort", sort = option.key, enabled = sort ~= option.key })
+    end
     local selected = selectedEstateHero(sim, app)
-    for index, hero in ipairs(sim.estate.roster) do
-        local rowY = y + 22 + (index - 1) * 34
+    for index, hero in ipairs(rosterEntries(sim, app)) do
+        local rowY = y + 86 + (index - 1) * 30
         if rowY + 28 > y + h then
             break
         end
         local active = selected and selected.id == hero.id
         local class = Defs.heroClass(hero.class)
+        local rank = sim:heroRank(hero.id)
+        local suffix = (rank and (" R" .. rank) or "") .. " S" .. (hero.stress or 0)
         love.graphics.setColor(active and 0.2 or 0.11, active and 0.23 or 0.13, active and 0.18 or 0.13, 1)
         love.graphics.rectangle("fill", x, rowY, w, 28)
         love.graphics.setColor(active and 0.72 or 0.32, active and 0.62 or 0.34, active and 0.32 or 0.28, 1)
         love.graphics.rectangle("line", x, rowY, w, 28)
         love.graphics.setColor(hero.alive and 0.9 or 0.48, hero.alive and 0.92 or 0.44, hero.alive and 0.86 or 0.42, 1)
-        love.graphics.printf(hero.name .. " / " .. class.name .. " L" .. (hero.level or 1), x + 4, rowY + 6, w - 8, "left")
+        love.graphics.printf(hero.name .. " / " .. class.name .. " L" .. (hero.level or 1) .. suffix, x + 4, rowY + 6, w - 8, "left")
         app.ui.rosterButtons[#app.ui.rosterButtons + 1] = { x = x, y = rowY, w = w, h = 28, heroId = hero.id }
     end
     return selected
@@ -486,8 +557,10 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
     love.graphics.print(hero.name .. " / " .. class.name, x, y)
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
     love.graphics.printf("hp " .. hero.hp .. "/" .. sim:maxHp(hero) .. " stress " .. hero.stress .. " weapon " .. (hero.weapon or 0) .. " armor " .. (hero.armor or 0), x, y + 18, w)
+    local nextXp = (hero.level or 1) < 5 and ((hero.level or 1) * 2) or nil
+    love.graphics.printf("rank " .. (sim:heroRank(hero.id) or "-") .. " resolve " .. sim:heroResolve(hero) .. " xp " .. (hero.xp or 0) .. (nextXp and ("/" .. nextXp) or " max"), x, y + 36, w)
 
-    local actionY = y + 44
+    local actionY = y + 62
     for index, skillKey in ipairs(hero.skills or {}) do
         addEstateAction(app, "train " .. index, x + ((index - 1) % 3) * 82, actionY + math.floor((index - 1) / 3) * 34, 76, { action = "upgradeSkill", heroId = hero.id, skillKey = skillKey, enabled = true })
     end

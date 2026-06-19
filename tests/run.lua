@@ -1022,6 +1022,23 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(75)
+    sim:endExpedition(true)
+    local app = {
+        ui = {
+            estateActionButtons = {
+                { x = 0, y = 0, w = 20, h = 20, action = "rosterFilter", filter = "stressed" },
+                { x = 30, y = 0, w = 20, h = 20, action = "rosterSort", sort = "level" },
+            },
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    expect(app.rosterFilter == "stressed", "roster filter button should set local filter")
+    Input.mousepressed(sim, app, 35, 5, 1)
+    expect(app.rosterSort == "level", "roster sort button should set local sort")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(51)
     reachEntryCombat(sim)
     local enemy = sim:enemyAtRank(2)
