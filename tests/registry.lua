@@ -156,6 +156,10 @@ for key, location in pairs(Defs.locations) do
     if location.layout.obstacleTile then
         expect(Defs.tile(location.layout.obstacleTile), "location missing obstacle tile " .. key)
     end
+    expect(location.provisions and #location.provisions > 0, "location missing provision kit " .. key)
+    for _, stack in ipairs(location.provisions or {}) do
+        expect(Defs.item(stack.item) and Defs.item(stack.item).provision and stack.count > 0, "location bad provision kit " .. key)
+    end
     for _, special in ipairs(location.layout.specials or {}) do
         expect(Defs.tile(special.tile), "location special missing tile " .. tostring(special.tile))
     end

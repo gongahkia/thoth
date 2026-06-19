@@ -870,14 +870,7 @@ function Simulation:startExpedition(locationKey)
     self.player.selectedHero = 1
     self.mode = "expedition"
     self.combat = nil
-    local supplies = Inventory.new({
-        { item = "torch", count = 4 },
-        { item = "ration", count = 8 },
-        { item = "bandage", count = 2 },
-        { item = "laudanum", count = 2 },
-        { item = "skeleton_key", count = 1 },
-        { item = "salve", count = 1 },
-    })
+    local supplies = Inventory.new(location.provisions or {})
     for _, stack in ipairs((self.estate.provisionCart and self.estate.provisionCart:stacks()) or {}) do
         supplies:add(stack.item, stack.count)
     end

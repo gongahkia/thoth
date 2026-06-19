@@ -737,6 +737,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(46)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_survey"))
+    expect(sim.expedition.supplies:count("torch") == 3 and sim.expedition.supplies:count("ration") == 10, "cistern should use location provision kit")
+    sim = Simulation.new(47)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("ember_cleansing"))
+    expect(sim.expedition.supplies:count("torch") == 5 and sim.expedition.supplies:count("ward_charm") == 1, "ember should use location provision kit")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(32)
     sim:endExpedition(true)
     local hero = sim:heroAtRank(1)

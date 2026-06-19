@@ -32,13 +32,13 @@ Registry.tiles = {
 }
 
 Registry.items = {
-    torch = { name = "Torch", stack = 12, cost = 5, provision = true },
-    ration = { name = "Ration", stack = 16, cost = 3, provision = true },
-    bandage = { name = "Bandage", stack = 8, cost = 6, provision = true },
-    laudanum = { name = "Laudanum", stack = 8, cost = 7, provision = true },
-    skeleton_key = { name = "Skeleton Key", stack = 8, cost = 12, provision = true },
-    salve = { name = "Salve", stack = 8, cost = 9, provision = true },
-    ward_charm = { name = "Ward Charm", stack = 4, cost = 18, provision = true },
+    torch = { name = "Torch", short = "t", stack = 12, cost = 5, provision = true },
+    ration = { name = "Ration", short = "r", stack = 16, cost = 3, provision = true },
+    bandage = { name = "Bandage", short = "b", stack = 8, cost = 6, provision = true },
+    laudanum = { name = "Laudanum", short = "l", stack = 8, cost = 7, provision = true },
+    skeleton_key = { name = "Skeleton Key", short = "k", stack = 8, cost = 12, provision = true },
+    salve = { name = "Salve", short = "s", stack = 8, cost = 9, provision = true },
+    ward_charm = { name = "Ward Charm", short = "w", stack = 4, cost = 18, provision = true },
     relic = { name = "Relic", stack = 99 },
     coin = { name = "Coin", stack = 999 },
     heirloom = { name = "Heirloom", stack = 99 },
@@ -460,6 +460,14 @@ Registry.locations = {
         objectiveRooms = 3,
         start = { x = 0, y = 0, z = 0 },
         bossRoom = "24:0",
+        provisions = {
+            { item = "torch", count = 4 },
+            { item = "ration", count = 8 },
+            { item = "bandage", count = 2 },
+            { item = "laudanum", count = 2 },
+            { item = "skeleton_key", count = 1 },
+            { item = "salve", count = 1 },
+        },
         layout = {
             floorTile = "archive_floor",
             wallTile = "archive_wall",
@@ -508,6 +516,14 @@ Registry.locations = {
         objectiveRooms = 4,
         start = { x = 0, y = 0, z = 0 },
         bossRoom = "18:10",
+        provisions = {
+            { item = "torch", count = 3 },
+            { item = "ration", count = 10 },
+            { item = "bandage", count = 2 },
+            { item = "laudanum", count = 1 },
+            { item = "skeleton_key", count = 1 },
+            { item = "salve", count = 2 },
+        },
         layout = {
             floorTile = "salt_floor",
             wallTile = "salt_wall",
@@ -552,6 +568,14 @@ Registry.locations = {
         objectiveRooms = 4,
         start = { x = 0, y = 0, z = 0 },
         bossRoom = "20:-8",
+        provisions = {
+            { item = "torch", count = 5 },
+            { item = "ration", count = 8 },
+            { item = "bandage", count = 3 },
+            { item = "laudanum", count = 2 },
+            { item = "salve", count = 2 },
+            { item = "ward_charm", count = 1 },
+        },
         layout = {
             floorTile = "ember_floor",
             wallTile = "ember_wall",

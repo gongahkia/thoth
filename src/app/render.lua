@@ -44,6 +44,17 @@ local function clearList(list)
     end
 end
 
+local function compactStacks(stacks)
+    local parts = {}
+    for _, stack in ipairs(stacks or {}) do
+        local item = Defs.item(stack.item)
+        if item then
+            parts[#parts + 1] = (item.short or string.sub(stack.item, 1, 1)) .. tostring(stack.count or 0)
+        end
+    end
+    return table.concat(parts, " ")
+end
+
 function Render.prepareUi(app)
     app.ui = app.ui or {}
     app.ui.skillButtons = app.ui.skillButtons or {}
@@ -690,14 +701,17 @@ function Render.drawEstatePanel(sim, app)
     for index, key in ipairs(sim:availableMissionKeys()) do
         local mission = Defs.mission(key)
         local bx = x + 10 + ((index - 1) % 2) * 205
-        local by = y + 196 + math.floor((index - 1) / 2) * 34
+        local by = y + 196 + math.floor((index - 1) / 2) * 44
         love.graphics.setColor(0.13, 0.16, 0.15, 1)
-        love.graphics.rectangle("fill", bx, by, 196, 28)
+        love.graphics.rectangle("fill", bx, by, 196, 38)
         love.graphics.setColor(0.42, 0.48, 0.36, 1)
-        love.graphics.rectangle("line", bx, by, 196, 28)
+        love.graphics.rectangle("line", bx, by, 196, 38)
         love.graphics.setColor(0.86, 0.88, 0.8, 1)
-        love.graphics.printf((mission.difficulty or "mission") .. " " .. mission.kind, bx + 4, by + 7, 188, "center")
-        app.ui.missionButtons[#app.ui.missionButtons + 1] = { x = bx, y = by, w = 196, h = 28, missionKey = key }
+        love.graphics.printf((mission.difficulty or "mission") .. " " .. mission.kind, bx + 4, by + 5, 188, "center")
+        local location = Defs.location(mission.location)
+        love.graphics.setColor(0.58, 0.62, 0.55, 1)
+        love.graphics.printf("kit " .. compactStacks(location and location.provisions), bx + 4, by + 21, 188, "center")
+        app.ui.missionButtons[#app.ui.missionButtons + 1] = { x = bx, y = by, w = 196, h = 38, missionKey = key }
     end
     local recruitY = y + 380
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
@@ -716,7 +730,12 @@ function Render.drawEstatePanel(sim, app)
     local provisionY = y + 472
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Provisions", x + 10, provisionY)
-    local provisionItems = { "torch", "ration", "bandage", "laudanum", "skeleton_key", "salve" }
+    local provisionItems = {}
+    for _, itemKey in ipairs(Defs.itemOrder) do
+        if Defs.item(itemKey).provision then
+            provisionItems[#provisionItems + 1] = itemKey
+        end
+    end
     for index, itemKey in ipairs(provisionItems) do
         local item = Defs.item(itemKey)
         local bx = x + 10 + ((index - 1) % 3) * 136
