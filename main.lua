@@ -219,6 +219,17 @@ local function describeSave(loaded)
     return "save found: week " .. tostring(week) .. " / " .. tostring(loaded.mode)
 end
 
+local function persistSettings(state)
+    if not (state and state.settings) then
+        return false, "settings unavailable"
+    end
+    local ok, err = Settings.write(state.settings, "settings.thoth")
+    if not ok then
+        state.settingsStatus = "settings save failed: " .. tostring(err)
+    end
+    return ok, err
+end
+
 local function refreshContinueState(state)
     local loaded = Save.read("save.thoth")
     state.canContinue = loaded ~= nil
@@ -355,6 +366,9 @@ local function keySettings(state, key)
         end
         local ok, err = Settings.bindKey(state.settings, state.captureBinding, key)
         state.settingsStatus = ok and ("bound " .. state.captureBinding .. " to " .. key) or tostring(err)
+        if ok then
+            persistSettings(state)
+        end
         state.captureBinding = nil
         Audio.play(state.audio, ok and "save" or "invalid")
         return
@@ -373,34 +387,48 @@ local function keySettings(state, key)
     end
     local control = controls[state.settingsFocus]
     if key == "left" or key == "a" then
+        local changed = false
         if control.kind == "slider" then
-            Settings.adjust(state.settings, control.setting, -1)
+            changed = Settings.adjust(state.settings, control.setting, -1)
         elseif control.kind == "cycle" then
-            Settings.cycle(state.settings, control.setting, -1)
+            changed = Settings.cycle(state.settings, control.setting, -1)
         end
         Audio.applySettings(state.audio, state.settings)
+        if changed then
+            persistSettings(state)
+        end
         Audio.play(state.audio, "tick")
         return
     end
     if key == "right" or key == "d" then
+        local changed = false
         if control.kind == "slider" then
-            Settings.adjust(state.settings, control.setting, 1)
+            changed = Settings.adjust(state.settings, control.setting, 1)
         elseif control.kind == "cycle" then
-            Settings.cycle(state.settings, control.setting, 1)
+            changed = Settings.cycle(state.settings, control.setting, 1)
         end
         Audio.applySettings(state.audio, state.settings)
+        if changed then
+            persistSettings(state)
+        end
         Audio.play(state.audio, "tick")
         return
     end
     if key == "space" or key == "return" or key == "kpenter" then
         if control.kind == "toggle" then
-            Settings.toggle(state.settings, control.setting)
+            if Settings.toggle(state.settings, control.setting) then
+                persistSettings(state)
+            end
             Audio.play(state.audio, "tick")
         elseif control.kind == "cycle" then
-            Settings.cycle(state.settings, control.setting, 1)
+            if Settings.cycle(state.settings, control.setting, 1) then
+                persistSettings(state)
+            end
             Audio.play(state.audio, "tick")
         elseif control.kind == "slider" then
-            Settings.adjust(state.settings, control.setting, 1)
+            if Settings.adjust(state.settings, control.setting, 1) then
+                persistSettings(state)
+            end
             Audio.applySettings(state.audio, state.settings)
             Audio.play(state.audio, "tick")
         elseif control.kind == "bind" then
@@ -424,14 +452,20 @@ local function activateSettingsHitbox(state, hitbox)
         state.settingsFocus = hitbox.index
     end
     if hitbox.action == "adjust" then
-        Settings.adjust(state.settings, hitbox.setting, hitbox.delta or 1)
+        if Settings.adjust(state.settings, hitbox.setting, hitbox.delta or 1) then
+            persistSettings(state)
+        end
         Audio.applySettings(state.audio, state.settings)
         Audio.play(state.audio, "tick")
     elseif hitbox.action == "toggle" then
-        Settings.toggle(state.settings, hitbox.setting)
+        if Settings.toggle(state.settings, hitbox.setting) then
+            persistSettings(state)
+        end
         Audio.play(state.audio, "tick")
     elseif hitbox.action == "cycle" then
-        Settings.cycle(state.settings, hitbox.setting, hitbox.delta or 1)
+        if Settings.cycle(state.settings, hitbox.setting, hitbox.delta or 1) then
+            persistSettings(state)
+        end
         Audio.play(state.audio, "tick")
     elseif hitbox.action == "bind" then
         state.captureBinding = hitbox.binding
@@ -1111,6 +1145,7 @@ function love.load(args)
     if renderBenchmark then
         setupRenderBenchmark(sim)
     end
+    local loadedSettings = Settings.read("settings.thoth")
     if estateSmoke then
         sim:endExpedition(true)
         sim.estate.heirlooms = math.max(sim.estate.heirlooms or 0, 20)
@@ -1155,7 +1190,7 @@ function love.load(args)
         viewRotation = 0,
         renderer = "render3d",
         status = "ready",
-        settings = Settings.defaults(),
+        settings = loadedSettings or Settings.defaults(),
         settingsFocus = 1,
         audio = Audio.load(),
         moveCooldown = 0,

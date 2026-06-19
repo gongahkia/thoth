@@ -1,6 +1,10 @@
+local Serialize = require("src.core.serialize")
+
 local Settings = {}
 
 local colorblindModes = { "off", "deuteranopia", "protanopia", "tritanopia" }
+local settingsVersion = 1
+local settingsHeader = "THOTH_LUA_SETTINGS"
 
 local defaultKeybinds = {
     moveUp = "w",
@@ -9,6 +13,15 @@ local defaultKeybinds = {
     moveRight = "d",
     interact = "space",
     pause = "escape",
+}
+
+local keybindActions = {
+    "moveUp",
+    "moveDown",
+    "moveLeft",
+    "moveRight",
+    "interact",
+    "pause",
 }
 
 local controls = {
@@ -47,6 +60,19 @@ local function clamp(value, minValue, maxValue)
     return value
 end
 
+local function validColorblindMode(value)
+    for _, mode in ipairs(colorblindModes) do
+        if mode == value then
+            return true
+        end
+    end
+    return false
+end
+
+local function validBindingKey(key)
+    return type(key) == "string" and key ~= "escape" and key ~= "return" and key ~= "kpenter"
+end
+
 function Settings.defaults()
     return {
         masterVolume = 1,
@@ -59,6 +85,86 @@ function Settings.defaults()
         fontScale = 1,
         keybinds = copyMap(defaultKeybinds),
     }
+end
+
+function Settings.normalize(source)
+    source = type(source) == "table" and source or {}
+    local result = Settings.defaults()
+    for _, control in ipairs(controls) do
+        local setting = control.setting
+        if control.kind == "slider" and type(source[setting]) == "number" then
+            result[setting] = clamp(source[setting], control.min, control.max)
+        elseif control.kind == "toggle" and type(source[setting]) == "boolean" then
+            result[setting] = source[setting]
+        elseif control.kind == "cycle" and validColorblindMode(source[setting]) then
+            result[setting] = source[setting]
+        end
+    end
+    local used = {}
+    for _, action in ipairs(keybindActions) do
+        used[result.keybinds[action]] = true
+    end
+    local sourceKeybinds = type(source.keybinds) == "table" and source.keybinds or {}
+    for _, action in ipairs(keybindActions) do
+        local key = sourceKeybinds[action]
+        if validBindingKey(key) and (not used[key] or result.keybinds[action] == key) then
+            used[result.keybinds[action]] = nil
+            result.keybinds[action] = key
+            used[key] = true
+        end
+    end
+    return result
+end
+
+function Settings.toText(settings)
+    return settingsHeader .. " " .. tostring(settingsVersion) .. "\n" .. Serialize.encode(Settings.normalize(settings)) .. "\n"
+end
+
+function Settings.fromText(text)
+    local version, body = tostring(text or ""):match("^" .. settingsHeader .. "%s+(%d+)%s+(.+)$")
+    if not version then
+        return nil, "bad settings header"
+    end
+    if tonumber(version) ~= settingsVersion then
+        return nil, "unsupported settings version " .. tostring(version)
+    end
+    local decoded, err = Serialize.decode(body)
+    if type(decoded) ~= "table" then
+        return nil, err or "bad settings body"
+    end
+    return Settings.normalize(decoded)
+end
+
+function Settings.write(settings, path)
+    local text = Settings.toText(settings)
+    if love and love.filesystem then
+        return love.filesystem.write(path, text)
+    end
+    local file, err = io.open(path, "w")
+    if not file then
+        return false, err
+    end
+    file:write(text)
+    file:close()
+    return true
+end
+
+function Settings.read(path)
+    local text
+    if love and love.filesystem then
+        text = love.filesystem.read(path)
+    else
+        local file, err = io.open(path, "r")
+        if not file then
+            return nil, err
+        end
+        text = file:read("*a")
+        file:close()
+    end
+    if not text then
+        return nil, "settings not found"
+    end
+    return Settings.fromText(text)
 end
 
 function Settings.controls()
