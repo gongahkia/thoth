@@ -15,6 +15,28 @@ local baseYaw = math.rad(45)
 local visibleRadius = 10
 local atlasColumns = 8
 local atlasRows = 5
+local uiHitboxGroups = {
+    "titleButtons",
+    "settingsButtons",
+    "pauseButtons",
+    "confirmButtons",
+    "gameOverButtons",
+    "creditsButtons",
+    "journalButtons",
+    "tutorialButtons",
+    "curioButtons",
+    "campSkillButtons",
+    "campHeroButtons",
+    "skillButtons",
+    "enemyButtons",
+    "heroButtons",
+    "missionButtons",
+    "recruitButtons",
+    "provisionButtons",
+    "rosterButtons",
+    "partyRankSlots",
+    "estateActionButtons",
+}
 
 local function clamp(value, minValue, maxValue)
     if value < minValue then
@@ -30,6 +52,29 @@ local function clearList(list)
     for i = #list, 1, -1 do
         list[i] = nil
     end
+end
+
+local function hitboxContains(hitbox, x, y)
+    return hitbox and x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h
+end
+
+function Render.hitboxAt(app, x, y)
+    for _, group in ipairs(uiHitboxGroups) do
+        for index, hitbox in ipairs((app and app.ui and app.ui[group]) or {}) do
+            if hitboxContains(hitbox, x, y) then
+                return hitbox, group, index
+            end
+        end
+    end
+    return nil
+end
+
+function Render.markUiPulse(app, hitbox, kind)
+    if not (app and hitbox) then
+        return false
+    end
+    app.uiPulse = { x = hitbox.x, y = hitbox.y, w = hitbox.w, h = hitbox.h, t = 0.22, kind = kind or "press" }
+    return true
 end
 
 local function panel(x, y, w, h, alpha)
@@ -1028,6 +1073,47 @@ function Render.drawKeyboardFocus(app)
     love.graphics.rectangle("line", hitbox.x - 3, hitbox.y - 3, hitbox.w + 6, hitbox.h + 6)
 end
 
+function Render.drawUiMicroAnimations(app)
+    local drawn = 0
+    local hot = app and app.uiHot
+    local hotbox = hot and app.ui and app.ui[hot.group] and app.ui[hot.group][hot.index]
+    if hotbox then
+        drawn = drawn + 1
+    end
+    local focus = app and app.keyboardFocus
+    local focusBox = focus and app.ui and app.ui[focus.group] and app.ui[focus.group][focus.index]
+    if focusBox then
+        drawn = drawn + 1
+    end
+    if app and app.uiPulse then
+        drawn = drawn + 1
+    end
+    if not (love and love.graphics) then
+        return drawn
+    end
+    if hotbox then
+        love.graphics.setColor(0.95, 0.82, 0.28, 0.18)
+        love.graphics.rectangle("fill", hotbox.x, hotbox.y, hotbox.w, hotbox.h)
+        love.graphics.setColor(0.95, 0.82, 0.28, 0.66)
+        love.graphics.rectangle("line", hotbox.x - 2, hotbox.y - 2, hotbox.w + 4, hotbox.h + 4)
+    end
+    if focusBox then
+        love.graphics.setColor(0.98, 0.9, 0.38, 0.9)
+        love.graphics.rectangle("line", focusBox.x - 4, focusBox.y - 4, focusBox.w + 8, focusBox.h + 8)
+    end
+    local pulse = app and app.uiPulse
+    if pulse then
+        local ratio = clamp((pulse.t or 0) / 0.22, 0, 1)
+        local pad = (1 - ratio) * 10
+        local color = pulse.kind == "error" and { 0.9, 0.18, 0.16 } or { 0.95, 0.82, 0.28 }
+        love.graphics.setColor(color[1], color[2], color[3], 0.24 * ratio)
+        love.graphics.rectangle("fill", pulse.x - pad, pulse.y - pad, pulse.w + pad * 2, pulse.h + pad * 2)
+        love.graphics.setColor(color[1], color[2], color[3], 0.75 * ratio)
+        love.graphics.rectangle("line", pulse.x - pad, pulse.y - pad, pulse.w + pad * 2, pulse.h + pad * 2)
+    end
+    return drawn
+end
+
 local gameOverActions = {
     { action = "restart", label = "Restart", enabled = true },
     { action = "title", label = "Title", enabled = true },
@@ -1166,6 +1252,7 @@ function Render.drawGameOver(sim, app)
     for index, item in ipairs(items) do
         drawGameOverButton(app, item, app.ui.gameOverButtons[index])
     end
+    Render.drawUiMicroAnimations(app)
     love.graphics.pop()
     return summary
 end
@@ -1263,6 +1350,7 @@ function Render.drawCredits(app)
     love.graphics.printf("Back", button.x + 8, button.y + 13, button.w - 16, "center")
     love.graphics.setColor(0.58, 0.62, 0.58, 1)
     love.graphics.printf("scroll " .. tostring(app.creditsScroll) .. "/" .. tostring(maxScroll), width - 260, height - 72, 180, "right")
+    Render.drawUiMicroAnimations(app)
     love.graphics.pop()
     return data
 end
@@ -1372,6 +1460,7 @@ function Render.drawJournal(sim, app)
     drawJournalButton(app, back, "Back", false)
     love.graphics.setColor(0.58, 0.62, 0.58, 1)
     love.graphics.printf("documents " .. #summary.documents .. " / epitaphs " .. #summary.epitaphs, width - 360, height - 72, 280, "right")
+    Render.drawUiMicroAnimations(app)
     love.graphics.pop()
     return summary
 end
@@ -1519,6 +1608,7 @@ function Render.drawTitle(sim, app)
     local status = app.titleStatus or app.saveStatus or "ready"
     love.graphics.printf(status, 64, height - 54, width - 128, "left")
     love.graphics.printf("keyboard", 64, height - 32, width - 128, "right")
+    Render.drawUiMicroAnimations(app)
     love.graphics.pop()
     return items
 end
@@ -1610,6 +1700,7 @@ function Render.drawSettings(app)
     end
     love.graphics.setColor(0.58, 0.62, 0.58, 1)
     love.graphics.printf(app.settingsStatus or "", 72, height - 82, width - 144, "left")
+    Render.drawUiMicroAnimations(app)
     love.graphics.pop()
 end
 
@@ -2650,6 +2741,7 @@ function Render.draw(sim, app)
     Render.drawPauseMenu(app)
     Render.drawConfirmDialog(app)
     Render.drawToasts(app)
+    Render.drawUiMicroAnimations(app)
     love.graphics.pop()
 end
 

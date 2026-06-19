@@ -265,12 +265,14 @@ function Input.activateFocused(sim, app)
             sim:queue(Simulation.commands.assignParty(heroId, hitbox.rank))
             app.status = "assign rank " .. hitbox.rank
             app.dragHeroId = nil
+            app.uiPulse = { x = hitbox.x, y = hitbox.y, w = hitbox.w, h = hitbox.h, t = 0.22, kind = "press" }
             play(app, "craft")
             return true
         end
         play(app, "invalid")
         return true
     end
+    app.uiPulse = { x = hitbox.x, y = hitbox.y, w = hitbox.w, h = hitbox.h, t = 0.22, kind = "press" }
     Input.mousepressed(sim, app, hitbox.x + hitbox.w / 2, hitbox.y + hitbox.h / 2, 1)
     return true
 end

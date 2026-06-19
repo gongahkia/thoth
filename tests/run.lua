@@ -533,6 +533,15 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local app = { ui = { titleButtons = { { x = 10, y = 20, w = 100, h = 30, action = "new", enabled = true } } } }
+    local hitbox, group, index = Render.hitboxAt(app, 20, 25)
+    expect(hitbox and group == "titleButtons" and index == 1, "ui hitbox lookup should find button target")
+    expect(Render.markUiPulse(app, hitbox, "press"), "ui pulse should mark button interaction")
+    app.uiHot = { group = group, index = index }
+    expect(Render.drawUiMicroAnimations(app) == 2, "micro animation renderer should report hover and pulse")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(15)
     reachEntryCombat(sim)
     expect(sim.combat.encounter == "entry", "entry encounter key missing")

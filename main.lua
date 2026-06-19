@@ -950,6 +950,19 @@ local function printToastSmoke(state)
     print("toast-smoke-count=" .. tostring(#(state.toasts or {})))
 end
 
+local function printPolishSmoke(state)
+    if not state.polishSmoke or state.polishSmokePrinted then
+        return
+    end
+    state.polishSmokePrinted = true
+    local hitbox = state.ui and state.ui.titleButtons and state.ui.titleButtons[1]
+    Render.markUiPulse(state, hitbox, "press")
+    state.uiHot = hitbox and { group = "titleButtons", index = 1 } or nil
+    print("polish-smoke-hitbox=" .. tostring(hitbox ~= nil))
+    print("polish-smoke-pulse=" .. tostring(state.uiPulse ~= nil))
+    print("polish-smoke-draw=" .. tostring(Render.drawUiMicroAnimations(state) > 0))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -969,7 +982,8 @@ function love.load(args)
     local journalSmoke = hasArg(args, "--journal-smoke")
     local tutorialSmoke = hasArg(args, "--tutorial-smoke")
     local toastSmoke = hasArg(args, "--toast-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke or tutorialSmoke or toastSmoke
+    local polishSmoke = hasArg(args, "--polish-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke or tutorialSmoke or toastSmoke or polishSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
@@ -1012,7 +1026,7 @@ function love.load(args)
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
         paused = false,
-        uiState = (titleSmoke and "title") or (settingsSmoke and "settings") or (gameOverSmoke and "gameover") or (creditsSmoke and "credits") or ((smoke or renderBenchmark or renderSmoke) and "game" or "title"),
+        uiState = (titleSmoke and "title") or (polishSmoke and "title") or (settingsSmoke and "settings") or (gameOverSmoke and "gameover") or (creditsSmoke and "credits") or ((smoke or renderBenchmark or renderSmoke) and "game" or "title"),
         titleMenuIndex = 1,
         titleTime = 0,
         viewRotation = 0,
@@ -1041,6 +1055,7 @@ function love.load(args)
         journalSmoke = journalSmoke,
         tutorialSmoke = tutorialSmoke,
         toastSmoke = toastSmoke,
+        polishSmoke = polishSmoke,
         achievements = {},
         toasts = {},
         renderBenchmarkFrames = renderBenchmarkFrames,
@@ -1077,6 +1092,12 @@ end
 function love.update(dt)
     app.titleTime = (app.titleTime or 0) + dt
     Achievements.updateToasts(app, dt)
+    if app.uiPulse then
+        app.uiPulse.t = (app.uiPulse.t or 0) - dt
+        if app.uiPulse.t <= 0 then
+            app.uiPulse = nil
+        end
+    end
     if app.uiState ~= "game" then
         if app.smoke then
             app.smokeFrames = app.smokeFrames + 1
@@ -1135,6 +1156,7 @@ function love.draw()
     if app.uiState == "title" then
         Render.drawTitle(sim, app)
         printTitleSmoke(app)
+        printPolishSmoke(app)
         return
     end
     if app.uiState == "settings" then
@@ -1288,6 +1310,10 @@ function love.keyreleased(key)
 end
 
 function love.mousepressed(x, y, button)
+    if button == 1 then
+        local hitbox = Render.hitboxAt(app, x, y)
+        Render.markUiPulse(app, hitbox, "press")
+    end
     if button == 1 and app.uiState == "title" then
         mouseTitle(app, x, y)
         return
@@ -1334,6 +1360,11 @@ function love.wheelmoved(_, y)
     if app.uiState == "credits" then
         app.creditsScroll = math.max(0, (app.creditsScroll or 0) - y)
     end
+end
+
+function love.mousemoved(x, y)
+    local _, group, index = Render.hitboxAt(app, x, y)
+    app.uiHot = group and { group = group, index = index } or nil
 end
 
 function love.quit()
