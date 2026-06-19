@@ -927,6 +927,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(89)
+    local before = sim.eventSerial or 0
+    sim:pushLog("combat: test")
+    expect(sim.eventSerial == before + 1 and sim.events[#sim.events].message == "combat: test", "pushLog should buffer visual events")
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect((loaded.eventSerial or 0) == 0 and #(loaded.events or {}) == 0, "visual event buffer should not persist in saves")
+    loaded:pushLog("combat won")
+    expect(loaded.eventSerial == 1 and loaded.events[1].message == "combat won", "loaded sim should resume visual event ids")
+end
+
+tests[#tests + 1] = function()
     local view = {
         centerX = 400,
         centerY = 260,
@@ -943,6 +954,25 @@ tests[#tests + 1] = function()
     sx, sy = Render.projectIso(view, 10, -1)
     wx, wy = Render.screenToWorld(view, sx, sy)
     expect(wx == 10 and wy == -1, "rotated iso projection should round trip")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(90)
+    reachEntryCombat(sim)
+    local hero = sim:activeHero()
+    local enemy = sim:enemyAtRank(1)
+    local heroCutscene = Render.cutsceneForStatus(hero.name .. " used Razor Lunge", sim)
+    expect(heroCutscene and heroCutscene.kind == "strike" and heroCutscene.side == "ally", "hero skill should map to ally strike cutscene")
+    local enemyName = Defs.enemy(enemy.kind).name
+    local enemyCutscene = Render.cutsceneForStatus(enemyName .. " used Rusted Chop", sim)
+    expect(enemyCutscene and enemyCutscene.kind == "strike" and enemyCutscene.side == "enemy", "enemy skill should map to enemy strike cutscene")
+    expect(Render.cutsceneForStatus("combat: entry", sim).kind == "intro", "combat start should map to intro cutscene")
+    expect(Render.cutsceneForStatus("combat won", sim).kind == "victory", "combat win should map to victory cutscene")
+    expect(Render.cutsceneForStatus("Moth fell", sim).kind == "danger", "death event should map to danger cutscene")
+    expect(Render.cutsceneForStatus("used Torch", sim) == nil, "provision use should not map to combat cutscene")
+    local app = { cutscene = Render.cutsceneForStatus("combat won", sim) }
+    Render.advanceCutscene(app, 1)
+    expect(app.cutscene == nil, "advanceCutscene should expire completed cutscene")
 end
 
 tests[#tests + 1] = function()

@@ -190,6 +190,8 @@ function Simulation.new(seed)
         status = "ready",
         narration = "",
         log = {},
+        events = {},
+        eventSerial = 0,
     }, Simulation)
     self:refillRecruits()
     self:refreshMissionBoard(true)
@@ -419,11 +421,17 @@ end
 function Simulation:pushLog(message)
     self.status = message
     self.log[#self.log + 1] = message
+    self.events = self.events or {}
+    self.eventSerial = (self.eventSerial or 0) + 1
+    self.events[#self.events + 1] = { id = self.eventSerial, message = message }
     if self.expedition then
         self.expedition.log[#self.expedition.log + 1] = message
     end
     while #self.log > 12 do
         table.remove(self.log, 1)
+    end
+    while #self.events > 24 do
+        table.remove(self.events, 1)
     end
 end
 
@@ -2866,6 +2874,8 @@ function Simulation.fromSnapshot(snapshot)
         status = snapshot.status or "loaded",
         narration = snapshot.narration or "",
         log = copyList(snapshot.log or {}),
+        events = {},
+        eventSerial = 0,
     }, Simulation)
     self.estate.gold = (snapshot.estate and snapshot.estate.gold) or 0
     self.estate.heirlooms = (snapshot.estate and snapshot.estate.heirlooms) or 0

@@ -41,6 +41,16 @@ local function cueColor(cue)
     return { 0.42, 0.54, 0.76 }
 end
 
+local function startNextCutscene(state)
+    if state.cutscene then
+        return
+    end
+    local queue = state.cutsceneQueue
+    if queue and #queue > 0 then
+        state.cutscene = table.remove(queue, 1)
+    end
+end
+
 local function playStatusCue(state, simulation)
     if simulation.status == state.lastCueStatus then
         return
@@ -51,6 +61,21 @@ local function playStatusCue(state, simulation)
         Audio.play(state.audio, cue)
         state.eventFlash = { cue = cue, color = cueColor(cue), t = 0.45 }
     end
+end
+
+local function queueCutscenes(state, simulation)
+    state.lastVisualEventId = state.lastVisualEventId or (simulation.eventSerial or 0)
+    state.cutsceneQueue = state.cutsceneQueue or {}
+    for _, event in ipairs(simulation.events or {}) do
+        if event.id > state.lastVisualEventId then
+            local cutscene = Render.cutsceneForStatus(event.message, simulation)
+            if cutscene then
+                state.cutsceneQueue[#state.cutsceneQueue + 1] = cutscene
+            end
+            state.lastVisualEventId = event.id
+        end
+    end
+    startNextCutscene(state)
 end
 
 function love.load(args)
@@ -75,12 +100,16 @@ function love.load(args)
         renderBenchmarkTotalMs = 0,
         renderBenchmarkMaxMs = 0,
         lastCueStatus = sim.status,
+        lastVisualEventId = sim.eventSerial or 0,
+        cutsceneQueue = {},
     }
     Render.load()
 end
 
 function love.update(dt)
     Input.update(sim, app, dt)
+    Render.advanceCutscene(app, dt)
+    startNextCutscene(app)
     if app.eventFlash then
         app.eventFlash.t = math.max(0, app.eventFlash.t - dt)
         if app.eventFlash.t <= 0 then
@@ -93,6 +122,7 @@ function love.update(dt)
     while not app.paused and accumulator >= fixedDt and steps < maxSteps do
         sim:step()
         playStatusCue(app, sim)
+        queueCutscenes(app, sim)
         accumulator = accumulator - fixedDt
         steps = steps + 1
     end
@@ -137,6 +167,10 @@ function love.keypressed(key)
         if loaded then
             sim = loaded
             app.status = "loaded"
+            app.lastCueStatus = sim.status
+            app.lastVisualEventId = sim.eventSerial or 0
+            app.cutscene = nil
+            app.cutsceneQueue = {}
             Audio.play(app.audio, "load")
         else
             app.status = "load failed: " .. tostring(err)

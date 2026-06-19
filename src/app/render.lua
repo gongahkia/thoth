@@ -55,6 +55,39 @@ local function compactStacks(stacks)
     return table.concat(parts, " ")
 end
 
+local function clamp01(value)
+    return math.max(0, math.min(1, value or 0))
+end
+
+local function smooth(value)
+    value = clamp01(value)
+    return value * value * (3 - 2 * value)
+end
+
+local function containsText(text, needle)
+    return string.find(string.lower(tostring(text or "")), needle, 1, true) ~= nil
+end
+
+local function actorSide(actor, sim)
+    if not actor or actor == "" or not sim then
+        return "ally"
+    end
+    for _, hero in ipairs((sim.estate and sim.estate.roster) or {}) do
+        if hero.name == actor then
+            return "ally"
+        end
+    end
+    if sim.combat then
+        for _, enemy in ipairs(sim.combat.enemies or {}) do
+            local def = Defs.enemy(enemy.kind)
+            if def and def.name == actor then
+                return "enemy"
+            end
+        end
+    end
+    return "ally"
+end
+
 function Render.prepareUi(app)
     app.ui = app.ui or {}
     app.ui.skillButtons = app.ui.skillButtons or {}
@@ -75,6 +108,38 @@ function Render.prepareUi(app)
     clearList(app.ui.provisionButtons)
     clearList(app.ui.estateActionButtons)
     clearList(app.ui.rosterButtons)
+end
+
+function Render.cutsceneForStatus(message, sim)
+    local text = tostring(message or "")
+    if text == "" then
+        return nil
+    end
+    if containsText(text, "combat:") then
+        return { kind = "intro", title = text, side = "enemy", duration = 0.9, elapsed = 0 }
+    end
+    if containsText(text, "combat won") or containsText(text, "mission complete") or containsText(text, "campaign sealed") then
+        return { kind = "victory", title = text, side = "ally", duration = 0.8, elapsed = 0 }
+    end
+    if containsText(text, "party lost") or containsText(text, "fell") or containsText(text, "death") or containsText(text, "ambush") or containsText(text, "faltered") then
+        return { kind = "danger", title = text, side = "enemy", duration = 0.85, elapsed = 0 }
+    end
+    local actor = string.match(text, "^(.-) used ")
+    if actor then
+        return { kind = "strike", title = text, actor = actor, side = actorSide(actor, sim), duration = 0.75, elapsed = 0 }
+    end
+    return nil
+end
+
+function Render.advanceCutscene(app, dt)
+    if not (app and app.cutscene) then
+        return
+    end
+    local cutscene = app.cutscene
+    cutscene.elapsed = (cutscene.elapsed or 0) + (dt or 0)
+    if cutscene.elapsed >= (cutscene.duration or 0.75) then
+        app.cutscene = nil
+    end
 end
 
 function Render.rotateDelta(dx, dy, rotation)
@@ -654,6 +719,136 @@ function Render.drawSidePanel(sim, app)
     end
 end
 
+local function drawSceneWall(x, y, w, h, pulse, danger)
+    love.graphics.setColor(0.045, 0.052, 0.052, 0.96)
+    love.graphics.rectangle("fill", x, y, w, h)
+    love.graphics.setColor(danger and 0.32 or 0.14, danger and 0.08 or 0.17, danger and 0.08 or 0.15, 0.92)
+    love.graphics.rectangle("fill", x, y + h * 0.55, w, h * 0.45)
+    local blockW = math.max(54, w / 12)
+    for row = 0, 3 do
+        for col = 0, 11 do
+            local bx = x + col * blockW + (row % 2) * blockW * 0.42
+            local by = y + 18 + row * 34
+            if bx < x + w - 12 then
+                love.graphics.setColor(0.12 + pulse * 0.05, 0.19 + pulse * 0.04, 0.17 + pulse * 0.04, 0.5)
+                love.graphics.rectangle("line", bx, by, blockW - 5, 26)
+            end
+        end
+    end
+    love.graphics.setColor(0.72, 0.22 + pulse * 0.3, 0.12, 0.78)
+    love.graphics.rectangle("fill", x + 24, y + 28, w - 48, 3)
+    love.graphics.circle("fill", x + w * 0.5, y + 30, 10 + pulse * 7)
+    love.graphics.setColor(0.08, 0.08, 0.07, 0.72)
+    love.graphics.rectangle("fill", x, y + h - 30, w, 30)
+end
+
+local function drawSceneFigure(cx, floorY, side, label, active, danger)
+    local dir = side == "ally" and 1 or -1
+    local bodyR, bodyG, bodyB = 0.52, 0.57, 0.48
+    if side == "enemy" then
+        bodyR, bodyG, bodyB = 0.48, 0.28, 0.25
+    end
+    if danger then
+        bodyR, bodyG, bodyB = 0.58, 0.16, 0.13
+    end
+    love.graphics.setColor(0, 0, 0, 0.42)
+    love.graphics.ellipse("fill", cx, floorY + 4, 23, 7)
+    love.graphics.setColor(bodyR, bodyG, bodyB, active and 1 or 0.78)
+    love.graphics.polygon("fill", cx - 12, floorY - 48, cx + 12, floorY - 48, cx + 16, floorY - 8, cx - 16, floorY - 8)
+    love.graphics.setColor(0.86, 0.78, 0.58, active and 1 or 0.8)
+    love.graphics.circle("fill", cx, floorY - 60, 11)
+    love.graphics.setColor(0.08, 0.08, 0.07, 0.9)
+    love.graphics.circle("line", cx, floorY - 60, 11)
+    love.graphics.setLineWidth(active and 4 or 2)
+    love.graphics.setColor(0.74, 0.72, 0.62, active and 1 or 0.62)
+    love.graphics.line(cx + dir * 8, floorY - 42, cx + dir * 32, floorY - 64)
+    love.graphics.line(cx - dir * 8, floorY - 30, cx - dir * 18, floorY - 5)
+    love.graphics.line(cx + dir * 8, floorY - 30, cx + dir * 18, floorY - 5)
+    love.graphics.setLineWidth(1)
+    if active then
+        love.graphics.setColor(0.9, 0.64, 0.22, 0.9)
+        love.graphics.rectangle("line", cx - 22, floorY - 78, 44, 76)
+    end
+    love.graphics.setColor(0.84, 0.86, 0.78, active and 1 or 0.72)
+    love.graphics.printf(label or "", cx - 44, floorY + 12, 88, "center")
+end
+
+local function drawHeroLine(sim, floorY, x, scene, lunge, intro)
+    for rank = 1, 4 do
+        local hero = sim:heroAtRank(rank)
+        if hero and hero.alive then
+            local active = scene.side == "ally" and scene.actor == hero.name
+            local cx = x + (rank - 1) * 56 - intro * 70
+            if active then
+                cx = cx + lunge * 86
+            end
+            drawSceneFigure(cx, floorY, "ally", hero.name, active, false)
+        end
+    end
+end
+
+local function drawEnemyLine(sim, floorY, x, scene, lunge, intro)
+    if not sim.combat then
+        return
+    end
+    for rank = 1, 4 do
+        local enemy = sim:enemyAtRank(rank)
+        if enemy then
+            local name = Defs.enemy(enemy.kind).name
+            local active = scene.side == "enemy" and scene.actor == name
+            local cx = x - (rank - 1) * 56 + intro * 70
+            if active then
+                cx = cx - lunge * 86
+            end
+            drawSceneFigure(cx, floorY, "enemy", name, active, scene.kind == "danger")
+        end
+    end
+end
+
+local function drawImpact(scene, x, y, w, h, progress)
+    local pulse = math.sin(progress * math.pi)
+    if scene.kind == "strike" then
+        local cx = scene.side == "enemy" and x + w * 0.42 or x + w * 0.58
+        love.graphics.setColor(0.96, 0.86, 0.42, 0.8 * pulse)
+        love.graphics.setLineWidth(5)
+        love.graphics.line(cx - 52, y + h * 0.42, cx + 58, y + h * 0.26)
+        love.graphics.line(cx - 35, y + h * 0.28, cx + 45, y + h * 0.52)
+        love.graphics.setLineWidth(1)
+    elseif scene.kind == "victory" then
+        love.graphics.setColor(0.86, 0.68, 0.25, 0.7 * smooth(progress))
+        love.graphics.circle("line", x + w * 0.5, y + h * 0.48, 44 + 120 * progress)
+    elseif scene.kind == "danger" then
+        love.graphics.setColor(0.86, 0.08, 0.06, 0.26 * pulse)
+        love.graphics.rectangle("fill", x, y, w, h)
+    end
+end
+
+function Render.drawCutscene(sim, app)
+    local scene = app and app.cutscene
+    if not scene then
+        return
+    end
+    local width = love.graphics.getWidth()
+    local x = 28
+    local w = math.max(360, width - 370)
+    local y = 92
+    local h = 238
+    local progress = clamp01((scene.elapsed or 0) / (scene.duration or 0.75))
+    local pulse = math.sin(progress * math.pi)
+    local intro = scene.kind == "intro" and (1 - smooth(progress)) or 0
+    local lunge = scene.kind == "strike" and pulse or 0
+    drawSceneWall(x, y, w, h, pulse, scene.kind == "danger")
+    drawHeroLine(sim, y + h - 42, x + 92, scene, lunge, intro)
+    drawEnemyLine(sim, y + h - 42, x + w - 96, scene, lunge, intro)
+    drawImpact(scene, x, y, w, h, progress)
+    love.graphics.setColor(0.02, 0.025, 0.026, 0.72)
+    love.graphics.rectangle("fill", x, y + h - 34, w, 34)
+    love.graphics.setColor(0.93, 0.9, 0.78, 1)
+    love.graphics.printf(scene.title or "", x + 18, y + h - 25, w - 36, "center")
+    love.graphics.setColor(0.68, 0.24, 0.2, 0.92)
+    love.graphics.rectangle("line", x, y, w, h)
+end
+
 function Render.drawCombatOverlay(sim, app)
     if sim.mode ~= "combat" or not sim.combat then
         return
@@ -843,6 +1038,7 @@ function Render.draw(sim, app)
     Render.drawCombatOverlay(sim, app)
     Render.drawCampOverlay(sim)
     Render.drawEstatePanel(sim, app)
+    Render.drawCutscene(sim, app)
 end
 
 return Render
