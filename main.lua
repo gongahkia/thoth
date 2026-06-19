@@ -92,6 +92,7 @@ function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
     local renderBenchmark = hasArg(args, "--render-benchmark")
+    local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
         setupRenderBenchmark(sim)
     end
@@ -107,7 +108,7 @@ function love.load(args)
         smokeFrames = 0,
         renderBenchmark = renderBenchmark,
         renderSmoke = hasArg(args, "--render-smoke"),
-        renderBenchmarkFrames = 180,
+        renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
         renderBenchmarkMaxMs = 0,
@@ -160,6 +161,8 @@ function love.draw()
         app.renderBenchmarkMaxMs = math.max(app.renderBenchmarkMaxMs, elapsedMs)
         if app.renderBenchmarkCount >= app.renderBenchmarkFrames then
             print("benchmark=render")
+            print("renderer=" .. tostring(app.renderer))
+            print("mode=" .. tostring(app.worldView and app.worldView.mode))
             print("frames=" .. app.renderBenchmarkCount)
             print(string.format("avg_draw_ms=%.6f", app.renderBenchmarkTotalMs / app.renderBenchmarkCount))
             print(string.format("max_draw_ms=%.6f", app.renderBenchmarkMaxMs))
