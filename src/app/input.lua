@@ -105,6 +105,9 @@ function Input.keypressed(sim, app, key)
         elseif sim.mode == "combat" then
             sim:queue(Simulation.commands.passTurn())
             app.status = "pass"
+        elseif sim.expedition and sim.expedition.camping then
+            sim:queue(Simulation.commands.finishCamp())
+            app.status = "finish camp"
         else
             sim:queue(Simulation.commands.interact())
             app.status = "interact"
@@ -148,6 +151,10 @@ function Input.keypressed(sim, app, key)
             sim:queue(Simulation.commands.combatSkill(index))
             app.status = "skill " .. index
             play(app, "place")
+        elseif sim.expedition and sim.expedition.camping then
+            sim:queue(Simulation.commands.campSkill(index))
+            app.status = "camp skill " .. index
+            play(app, "craft")
         else
             sim:queue(Simulation.commands.selectHero(index))
             app.status = "hero " .. index

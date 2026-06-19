@@ -189,6 +189,14 @@ function Simulation.commands.camp()
     return { type = "camp" }
 end
 
+function Simulation.commands.campSkill(skillKey, heroRank)
+    return { type = "campSkill", skillKey = skillKey, heroRank = heroRank }
+end
+
+function Simulation.commands.finishCamp()
+    return { type = "finishCamp" }
+end
+
 function Simulation.commands.useItem(item, heroRank)
     return { type = "useItem", item = item, heroRank = heroRank }
 end
@@ -272,6 +280,12 @@ function Simulation:apply(command)
     end
     if command.type == "camp" then
         return self:camp()
+    end
+    if command.type == "campSkill" then
+        return self:campSkill(command.skillKey, command.heroRank)
+    end
+    if command.type == "finishCamp" then
+        return self:finishCamp()
     end
     if command.type == "useItem" then
         return self:useItem(command.item, command.heroRank)
@@ -954,7 +968,7 @@ function Simulation:isWalkable(x, y, z)
 end
 
 function Simulation:move(direction)
-    if self.mode ~= "expedition" then
+    if self.mode ~= "expedition" or (self.expedition and self.expedition.camping) then
         return false
     end
     direction = direction or self.player.facing
@@ -1050,10 +1064,17 @@ function Simulation:resolveCurio(x, y, z, curioKey, options)
 end
 
 function Simulation:camp()
-    if self.mode ~= "expedition" or not self.expedition or self.expedition.campUsed then
+    if self.mode ~= "expedition" or not self.expedition then
+        return false
+    end
+    if self.expedition.camping then
+        return self:finishCamp()
+    end
+    if self.expedition.campUsed then
         return false
     end
     self.expedition.campUsed = true
+    self.expedition.camping = { respite = 4, usedSkills = {}, ambushPrevented = false }
     self.expedition.supplies:consume("ration", math.min(2, self.expedition.supplies:count("ration")))
     self.expedition.torch = clamp(self.expedition.torch + 20, 0, 100)
     for rank = 1, 4 do
@@ -1064,6 +1085,74 @@ function Simulation:camp()
         end
     end
     self:pushLog("camped")
+    return true
+end
+
+function Simulation:campTargets(skill, heroRank)
+    local targets = {}
+    if skill.target == "party" then
+        return self:livingParty()
+    end
+    local hero = self:heroAtRank(heroRank or self.player.selectedHero) or self:heroAtRank(1)
+    if hero and hero.alive then
+        targets[#targets + 1] = hero
+    end
+    return targets
+end
+
+function Simulation:campSkill(skillKey, heroRank)
+    if self.mode ~= "expedition" or not self.expedition or not self.expedition.camping then
+        return false
+    end
+    if tonumber(skillKey) then
+        skillKey = Defs.campSkillOrder[tonumber(skillKey)]
+    end
+    local skill = Defs.campSkill(skillKey)
+    local camping = self.expedition.camping
+    if not skill or camping.usedSkills[skillKey] or camping.respite < (skill.cost or 0) then
+        return false
+    end
+    local targets = self:campTargets(skill, heroRank)
+    if #targets == 0 then
+        return false
+    end
+    camping.respite = camping.respite - (skill.cost or 0)
+    camping.usedSkills[skillKey] = true
+    for _, target in ipairs(targets) do
+        if skill.heal then
+            self:healHero(target, skill.heal)
+        end
+        if skill.stressHeal then
+            self:healStress(target, skill.stressHeal)
+        end
+        for _, statusKey in ipairs(skill.clearStatuses or {}) do
+            self:clearStatus(target, statusKey)
+        end
+    end
+    if skill.torch then
+        self.expedition.torch = clamp(self.expedition.torch + skill.torch, 0, 100)
+    end
+    if skill.preventAmbush then
+        camping.ambushPrevented = true
+    end
+    self:pushLog("camp skill " .. skill.name)
+    if camping.respite <= 0 then
+        self:finishCamp()
+    end
+    return true
+end
+
+function Simulation:finishCamp()
+    if self.mode ~= "expedition" or not self.expedition or not self.expedition.camping then
+        return false
+    end
+    local camping = self.expedition.camping
+    self.expedition.camping = nil
+    if not camping.ambushPrevented and self:roll(1, 100) <= 25 then
+        self:pushLog("camp ambush")
+        return self:startCombat("entry", "camp")
+    end
+    self:pushLog("camp ended")
     return true
 end
 
@@ -1663,6 +1752,25 @@ function Simulation:availableSkills()
     return result
 end
 
+function Simulation:availableCampSkills()
+    local result = {}
+    local camping = self.expedition and self.expedition.camping
+    if not camping then
+        return result
+    end
+    for index, skillKey in ipairs(Defs.campSkillOrder) do
+        local skill = Defs.campSkill(skillKey)
+        result[#result + 1] = {
+            index = index,
+            key = skillKey,
+            name = skill.name,
+            cost = skill.cost or 0,
+            usable = not camping.usedSkills[skillKey] and camping.respite >= (skill.cost or 0),
+        }
+    end
+    return result
+end
+
 function Simulation:missionProgressText()
     if not self.expedition then
         return "estate"
@@ -1774,6 +1882,11 @@ function Simulation:snapshot()
             stepsSinceMeal = self.expedition.stepsSinceMeal,
             hungerChecks = self.expedition.hungerChecks,
             campUsed = self.expedition.campUsed,
+            camping = self.expedition.camping and {
+                respite = self.expedition.camping.respite,
+                usedSkills = copyMap(self.expedition.camping.usedSkills),
+                ambushPrevented = self.expedition.camping.ambushPrevented,
+            } or nil,
             objectiveComplete = self.expedition.objectiveComplete,
             bossDefeated = self.expedition.bossDefeated,
             log = copyList(self.expedition.log),
@@ -1907,6 +2020,11 @@ function Simulation.fromSnapshot(snapshot)
             stepsSinceMeal = exp.stepsSinceMeal or 0,
             hungerChecks = exp.hungerChecks or 0,
             campUsed = exp.campUsed == true,
+            camping = exp.camping and {
+                respite = exp.camping.respite or 0,
+                usedSkills = copyMap(exp.camping.usedSkills),
+                ambushPrevented = exp.camping.ambushPrevented == true,
+            } or nil,
             objectiveComplete = exp.objectiveComplete == true,
             bossDefeated = exp.bossDefeated == true,
             log = copyList(exp.log or {}),

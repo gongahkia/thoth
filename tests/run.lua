@@ -259,7 +259,34 @@ tests[#tests + 1] = function()
     sim.player.facing = "south"
     runQueued(sim, Simulation.commands.interact())
     expect(sim.expedition.campUsed, "camp marker interaction should camp")
+    expect(sim.expedition.camping and sim.expedition.camping.respite == 4, "camp should enter respite phase")
     expect(hero.hp > 15 and hero.stress < 20, "camp should heal hp and stress")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(40)
+    runQueued(sim, Simulation.commands.camp())
+    local x = sim.player.x
+    runQueued(sim, Simulation.commands.move("east"))
+    expect(sim.player.x == x, "camping should block movement")
+    local hero = sim:heroAtRank(2)
+    hero.hp = hero.hp - 8
+    hero.stress = 20
+    hero.statuses[#hero.statuses + 1] = { kind = "bleed", amount = 1, turns = 3 }
+    runQueued(sim, Simulation.commands.campSkill("watch_order"))
+    expect(sim.expedition.camping.respite == 2 and sim.expedition.camping.ambushPrevented, "watch order should spend respite and prevent ambush")
+    runQueued(sim, Simulation.commands.campSkill("bind_wounds", 2))
+    expect(not sim.expedition.camping, "spending all respite should finish camp")
+    expect(hero.hp > 14 and hero.stress < 20, "bind wounds should restore target")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(41)
+    runQueued(sim, Simulation.commands.camp())
+    local hero = sim:heroAtRank(1)
+    hero.statuses[#hero.statuses + 1] = { kind = "bleed", amount = 1, turns = 3 }
+    runQueued(sim, Simulation.commands.campSkill("bitter_tonic", 1))
+    expect(#hero.statuses == 0 and sim.expedition.camping.respite == 3, "bitter tonic should clear bleed and spend one respite")
 end
 
 tests[#tests + 1] = function()

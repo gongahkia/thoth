@@ -476,6 +476,30 @@ function Render.drawCombatOverlay(sim, app)
     end
 end
 
+function Render.drawCampOverlay(sim)
+    if not (sim.expedition and sim.expedition.camping) then
+        return
+    end
+    local width, height = love.graphics.getDimensions()
+    local x = 28
+    local y = height - 164
+    local w = width - 370
+    panel(x, y, w, 144, 0.93)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Camp  respite " .. sim.expedition.camping.respite, x + 10, y + 8)
+    local skillY = y + 44
+    for _, skill in ipairs(sim:availableCampSkills()) do
+        local sx = x + 12 + (skill.index - 1) * 150
+        love.graphics.setColor(skill.usable and 0.18 or 0.1, skill.usable and 0.22 or 0.1, skill.usable and 0.2 or 0.1, 1)
+        love.graphics.rectangle("fill", sx, skillY, 140, 54)
+        love.graphics.setColor(skill.usable and 0.74 or 0.34, skill.usable and 0.66 or 0.34, skill.usable and 0.36 or 0.32, 1)
+        love.graphics.rectangle("line", sx, skillY, 140, 54)
+        love.graphics.setColor(skill.usable and 0.94 or 0.46, skill.usable and 0.96 or 0.46, skill.usable and 0.9 or 0.46, 1)
+        love.graphics.printf(skill.index .. " " .. skill.name, sx + 6, skillY + 8, 128, "center")
+        love.graphics.printf("cost " .. skill.cost, sx + 6, skillY + 30, 128, "center")
+    end
+end
+
 function Render.drawEstatePanel(sim, app)
     if app.panel ~= "estate" and sim.mode ~= "estate" then
         return
@@ -511,6 +535,7 @@ function Render.draw(sim, app)
     Render.drawHud(sim, app)
     Render.drawSidePanel(sim, app)
     Render.drawCombatOverlay(sim, app)
+    Render.drawCampOverlay(sim)
     Render.drawEstatePanel(sim, app)
 end
 

@@ -263,10 +263,12 @@ Registry.locations = {
 Registry.locationOrder = { "buried_archive" }
 
 Registry.campSkills = {
-    bind_wounds = { name = "Bind Wounds", heal = 4, stressHeal = 4 },
-    watch_order = { name = "Watch Order", torch = 20, stressHeal = 2 },
+    bind_wounds = { name = "Bind Wounds", cost = 2, target = "ally", heal = 5, stressHeal = 3 },
+    watch_order = { name = "Watch Order", cost = 2, target = "party", torch = 20, stressHeal = 2, preventAmbush = true },
+    bitter_tonic = { name = "Bitter Tonic", cost = 1, target = "ally", clearStatuses = { "bleed", "blight" }, stressHeal = 1 },
+    last_rites = { name = "Last Rites", cost = 3, target = "party", stressHeal = 5 },
 }
-Registry.campSkillOrder = { "bind_wounds", "watch_order" }
+Registry.campSkillOrder = { "bind_wounds", "watch_order", "bitter_tonic", "last_rites" }
 
 Registry.estateBuildings = {
     stagecoach = { name = "Stagecoach", maxLevel = 3, heirloomCost = 2, rosterLimit = 6, rosterPerLevel = 2, recruitSlots = 3, slotsPerLevel = 1, recruitCost = 20, discountPerLevel = 3 },

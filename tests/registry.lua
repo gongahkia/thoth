@@ -35,6 +35,7 @@ checkOrder("affliction", Defs.afflictionOrder, Defs.afflictions)
 checkOrder("curio", Defs.curioOrder, Defs.curios)
 checkOrder("encounter", Defs.encounterOrder, Defs.encounters)
 checkOrder("location", Defs.locationOrder, Defs.locations)
+checkOrder("camp skill", Defs.campSkillOrder, Defs.campSkills)
 checkOrder("estate building", Defs.estateBuildingOrder, Defs.estateBuildings)
 
 for key, tile in pairs(Defs.tiles) do
@@ -130,6 +131,11 @@ for key, location in pairs(Defs.locations) do
     for _, encounterKey in pairs(location.encounters or {}) do
         expect(Defs.encounter(encounterKey), "location missing encounter " .. encounterKey)
     end
+end
+
+for key, skill in pairs(Defs.campSkills) do
+    expect(skill.name and skill.cost >= 0, "camp skill missing data " .. key)
+    expect(skill.target == "ally" or skill.target == "party", "camp skill bad target " .. key)
 end
 
 for key, building in pairs(Defs.estateBuildings) do
