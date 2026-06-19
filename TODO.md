@@ -85,7 +85,6 @@ Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
 
 Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render layer. Keep `simulation.lua` untouched.
 
-- [ ] 1.4 Port world tile rendering: convert iso tile draw to 3D quad mesh per tile (16h)
 - [ ] 1.5 Port hero billboards (8h)
 - [ ] 1.6 Port enemy billboards (8h)
 - [ ] 1.7 Port lighting/torch effects (current `render.lua` has torch falloff math) (16h)

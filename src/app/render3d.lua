@@ -1,3 +1,5 @@
+local Defs = require("src.game.defs")
+
 local Render3D = {}
 local state = {
     loaded = false,
@@ -5,6 +7,13 @@ local state = {
     g3d = nil,
     assets = {},
 }
+local tilePalette = {}
+local tilePaletteOrder = {}
+local cameraPitch = math.rad(30)
+local cameraDistance = 26
+local cameraViewSize = 24
+local baseYaw = math.rad(45)
+local visibleRadius = 10
 
 local function clearList(list)
     for i = #list, 1, -1 do
@@ -116,6 +125,30 @@ local function loadImage(path)
     return image
 end
 
+local function sortedTileIds()
+    local ids = {}
+    for id in pairs(Defs.tiles) do
+        ids[#ids + 1] = id
+    end
+    table.sort(ids)
+    return ids
+end
+
+local function buildTilePalette()
+    tilePalette = {}
+    tilePaletteOrder = sortedTileIds()
+    local width = math.max(1, #tilePaletteOrder)
+    local data = love.image.newImageData(width, 1)
+    for index, id in ipairs(tilePaletteOrder) do
+        local color = Defs.tile(id).color or { 255, 255, 255 }
+        data:setPixel(index - 1, 0, color[1] / 255, color[2] / 255, color[3] / 255, 1)
+        tilePalette[id] = (index - 0.5) / width
+    end
+    local image = love.graphics.newImage(data)
+    image:setFilter("nearest", "nearest")
+    return image
+end
+
 function Render3D.load()
     state.loaded = true
     state.headless = not (love and love.graphics)
@@ -134,11 +167,62 @@ function Render3D.load()
     end
     state.g3d = g3dOrErr
     state.assets.white = newSolidImage(1, 1, 1, 1)
+    state.assets.tilePalette = buildTilePalette()
     state.assets.spriteAtlas = loadImage("assets/sprites/thoth_atlas.png")
     state.g3d.camera.updateProjectionMatrix()
     state.g3d.camera.updateViewMatrix()
     Render3D.state = state
     return state
+end
+
+local function tileVertex(x, y, z, u)
+    return {x, y, z, u, 0.5, 0, 0, 1, 1, 1, 1, 1}
+end
+
+local function pushTileQuad(vertices, x, y, z, u)
+    local gap = 0.03
+    local left = x + gap
+    local right = x + 1 - gap
+    local top = y + gap
+    local bottom = y + 1 - gap
+    local a = tileVertex(left, top, z, u)
+    local b = tileVertex(right, top, z, u)
+    local c = tileVertex(right, bottom, z, u)
+    local d = tileVertex(left, bottom, z, u)
+    vertices[#vertices + 1] = a
+    vertices[#vertices + 1] = b
+    vertices[#vertices + 1] = c
+    vertices[#vertices + 1] = a
+    vertices[#vertices + 1] = c
+    vertices[#vertices + 1] = d
+end
+
+local function buildWorldTileModel(sim)
+    local vertices = {}
+    local z = sim.player.z or 0
+    for y = sim.player.y - visibleRadius, sim.player.y + visibleRadius do
+        for x = sim.player.x - visibleRadius, sim.player.x + visibleRadius do
+            local tile = sim.world:peekTile(x, y, z)
+            local u = tilePalette[tile.id] or tilePalette.archive_floor or 0.5
+            pushTileQuad(vertices, x, y, z, u)
+        end
+    end
+    local model = state.g3d.newModel(vertices, state.assets.tilePalette)
+    model:makeNormals()
+    return model
+end
+
+local function applyCamera(sim, app)
+    local yaw = baseYaw + ((app.viewRotation or 0) % 4) * math.pi / 2
+    local horizontal = math.cos(cameraPitch) * cameraDistance
+    local targetX = sim.player.x + 0.5
+    local targetY = sim.player.y + 0.5
+    local targetZ = sim.player.z or 0
+    local x = targetX + math.cos(yaw) * horizontal
+    local y = targetY - math.sin(yaw) * horizontal
+    local z = targetZ + math.sin(cameraPitch) * cameraDistance
+    state.g3d.camera.lookAt(x, y, z, targetX, targetY, targetZ)
+    state.g3d.camera.updateOrthographicMatrix(cameraViewSize)
 end
 
 function Render3D.drawWorld(sim, app)
@@ -151,6 +235,13 @@ function Render3D.drawWorld(sim, app)
     app.worldView.originX = sim and sim.player and sim.player.x or 0
     app.worldView.originY = sim and sim.player and sim.player.y or 0
     app.worldView.rotation = app.viewRotation or 0
+    if not (love and love.graphics and sim and sim.world and state.g3d and state.assets.tilePalette) then
+        return
+    end
+    app.worldView.mode = "render3d"
+    applyCamera(sim, app)
+    local model = buildWorldTileModel(sim)
+    model:draw()
 end
 
 function Render3D.drawHud()
