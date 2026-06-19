@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke keyboard-smoke controller-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke keyboard-smoke controller-smoke render-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -177,6 +177,18 @@ tutorial-smoke:
 	grep -q "tutorial-smoke-active=true" $$tmp; \
 	grep -q "tutorial-smoke-steps=3" $$tmp; \
 	grep -q "tutorial-smoke-buttons=3" $$tmp; \
+	rm -f $$tmp
+
+toast-smoke:
+	@set -e; \
+	tmp=$$(mktemp); \
+	if command -v xvfb-run >/dev/null 2>&1; then \
+		xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --toast-smoke | tee $$tmp; \
+	else \
+		$(LOVE) . --toast-smoke | tee $$tmp; \
+	fi; \
+	grep -q "toast-smoke-unlocked=true" $$tmp; \
+	grep -q "toast-smoke-count=2" $$tmp; \
 	rm -f $$tmp
 
 keyboard-smoke:

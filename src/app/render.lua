@@ -1427,6 +1427,27 @@ function Render.drawTutorial(app)
     return tutorialSteps
 end
 
+function Render.drawToasts(app)
+    local toasts = (app and app.toasts) or {}
+    if #toasts == 0 then
+        return 0
+    end
+    if not (love and love.graphics) then
+        return #toasts
+    end
+    local width = love.graphics.getWidth()
+    local x = width - 338
+    for index, toast in ipairs(toasts) do
+        local y = 106 + (index - 1) * 70
+        panel(x, y, 306, 58, 0.96)
+        love.graphics.setColor(0.9, 0.82, 0.48, 1)
+        love.graphics.print(toast.title or "Unlocked", x + 12, y + 10)
+        love.graphics.setColor(0.7, 0.74, 0.68, 1)
+        love.graphics.printf(toast.text or "", x + 12, y + 32, 282)
+    end
+    return #toasts
+end
+
 local function layoutTitleButtons(app, items, width, height)
     local buttonW = math.min(320, math.max(220, width - 88))
     local x = math.max(44, width - buttonW - 96)
@@ -2628,6 +2649,7 @@ function Render.draw(sim, app)
     Render.drawTutorial(app)
     Render.drawPauseMenu(app)
     Render.drawConfirmDialog(app)
+    Render.drawToasts(app)
     love.graphics.pop()
 end
 

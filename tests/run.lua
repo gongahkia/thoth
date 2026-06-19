@@ -7,6 +7,7 @@ local Replay = require("src.game.replay")
 local Input = require("src.app.input")
 local Render = require("src.app.render")
 local Settings = require("src.app.settings")
+local Achievements = require("src.app.achievements")
 local World = require("src.game.world")
 local Defs = require("src.game.defs")
 
@@ -515,6 +516,20 @@ tests[#tests + 1] = function()
     expect(Input.gamepadAxisKey("leftx", 0.1, axisState) == nil, "recentered stick should clear state")
     expect(Input.gamepadAxisKey("leftx", -0.8, axisState) == "left", "left stick should map negative x to left")
     expect(Input.gamepadAxisKey("lefty", -0.8, axisState) == "up" and Input.gamepadAxisKey("lefty", 0.8, axisState) == "down", "left stick y should map to vertical nav")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(142)
+    local app = { achievements = {}, toasts = {} }
+    Achievements.update(sim, app)
+    expect(app.achievements.first_steps and #app.toasts == 1, "achievement update should unlock expedition toast")
+    sim:collectDocument("archive_writ_01", "test")
+    Achievements.update(sim, app)
+    expect(app.achievements.first_document and #app.toasts == 2, "achievement update should unlock document toast")
+    expect(not Achievements.unlock(app, "first_document"), "achievement unlock should be idempotent")
+    expect(Render.drawToasts(app) == 2, "toast renderer should report active toast count")
+    Achievements.updateToasts(app, 4)
+    expect(#app.toasts == 0, "toast timers should expire")
 end
 
 tests[#tests + 1] = function()

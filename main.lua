@@ -6,6 +6,7 @@ local Render = require("src.app.render")
 local Audio = require("src.app.audio")
 local Save = require("src.game.save")
 local Settings = require("src.app.settings")
+local Achievements = require("src.app.achievements")
 
 local sim
 local app
@@ -940,6 +941,15 @@ local function printTutorialSmoke(state)
     print("tutorial-smoke-buttons=" .. tostring(#((state.ui and state.ui.tutorialButtons) or {})))
 end
 
+local function printToastSmoke(state)
+    if not state.toastSmoke or state.toastSmokePrinted then
+        return
+    end
+    state.toastSmokePrinted = true
+    print("toast-smoke-unlocked=" .. tostring(state.achievements and state.achievements.first_document == true))
+    print("toast-smoke-count=" .. tostring(#(state.toasts or {})))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -958,7 +968,8 @@ function love.load(args)
     local controllerSmoke = hasArg(args, "--controller-smoke")
     local journalSmoke = hasArg(args, "--journal-smoke")
     local tutorialSmoke = hasArg(args, "--tutorial-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke or tutorialSmoke
+    local toastSmoke = hasArg(args, "--toast-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke or tutorialSmoke or toastSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
@@ -995,6 +1006,9 @@ function love.load(args)
         hero.deathblowResist = 0
         sim:damageHero(hero, hero.hp + 1)
     end
+    if toastSmoke then
+        sim:collectDocument("archive_writ_01", "smoke")
+    end
     app = {
         camera = { x = 0, y = 0, zoom = 2 },
         paused = false,
@@ -1026,6 +1040,9 @@ function love.load(args)
         controllerSmoke = controllerSmoke,
         journalSmoke = journalSmoke,
         tutorialSmoke = tutorialSmoke,
+        toastSmoke = toastSmoke,
+        achievements = {},
+        toasts = {},
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -1053,11 +1070,13 @@ function love.load(args)
         app.tutorialSeen = false
         startTutorial(app)
     end
+    Achievements.update(sim, app)
     Render.load()
 end
 
 function love.update(dt)
     app.titleTime = (app.titleTime or 0) + dt
+    Achievements.updateToasts(app, dt)
     if app.uiState ~= "game" then
         if app.smoke then
             app.smokeFrames = app.smokeFrames + 1
@@ -1073,6 +1092,7 @@ function love.update(dt)
     if not app.paused then
         Input.update(sim, app, dt)
     end
+    Achievements.update(sim, app)
     Render.advanceCutscene(app, dt)
     startNextCutscene(app)
     if app.eventFlash then
@@ -1149,6 +1169,7 @@ function love.draw()
     printKeyboardSmoke(app)
     printControllerSmoke(app)
     printTutorialSmoke(app)
+    printToastSmoke(app)
     if app.renderBenchmark then
         local elapsedMs = (love.timer.getTime() - started) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1

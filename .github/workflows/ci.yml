@@ -82,6 +82,11 @@ jobs:
           SDL_AUDIODRIVER: dummy
         run: make tutorial-smoke
 
+      - name: Run toast smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make toast-smoke
+
       - name: Run keyboard smoke
         env:
           SDL_AUDIODRIVER: dummy
