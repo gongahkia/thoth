@@ -673,4 +673,13 @@ Registry.estateBuildings = {
 }
 Registry.estateBuildingOrder = { "stagecoach", "guild", "forge", "infirmary" }
 
+Registry.townEvents = {
+    supply_cache = { name = "Supply Cache", provisions = { torch = 1, ration = 2 } },
+    memorial_bell = { name = "Memorial Bell", stressHeal = 5 },
+    levy_notice = { name = "Levy Notice", gold = -20 },
+    clear_roads = { name = "Clear Roads", gold = 30 },
+    bad_omens = { name = "Bad Omens", stress = 4 },
+}
+Registry.townEventOrder = { "supply_cache", "memorial_bell", "levy_notice", "clear_roads", "bad_omens" }
+
 return Registry

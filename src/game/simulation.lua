@@ -149,6 +149,8 @@ function Simulation.new(seed)
             gold = 150,
             heirlooms = 0,
             week = 1,
+            currentEvent = nil,
+            eventHistory = {},
             roster = roster,
             graveyard = {},
             trinkets = { ember_pin = 1, cracked_lens = 1, chirurgic_thread = 1 },
@@ -760,6 +762,47 @@ function Simulation:advanceWeek()
         end
     end
     self:refillRecruits()
+    self:rollTownEvent()
+    return true
+end
+
+function Simulation:rollTownEvent()
+    local order = Defs.townEventOrder
+    if not order or #order == 0 then
+        return false
+    end
+    local eventKey = order[(Rng.hash(self.seed + 4409, self.estate.week or 1, #self.estate.eventHistory + 1, 0) % #order) + 1]
+    return self:applyTownEvent(eventKey)
+end
+
+function Simulation:applyTownEvent(eventKey)
+    local event = Defs.townEvent(eventKey)
+    if not event then
+        return false
+    end
+    self.estate.currentEvent = eventKey
+    self.estate.eventHistory[#self.estate.eventHistory + 1] = { week = self.estate.week or 1, event = eventKey }
+    if event.gold then
+        self.estate.gold = math.max(0, self.estate.gold + event.gold)
+    end
+    for item, count in pairs(event.provisions or {}) do
+        self.estate.provisionCart:add(item, count)
+    end
+    if event.stressHeal then
+        for _, hero in ipairs(self.estate.roster) do
+            if hero.alive then
+                self:healStress(hero, event.stressHeal)
+            end
+        end
+    end
+    if event.stress then
+        for _, hero in ipairs(self.estate.roster) do
+            if hero.alive then
+                self:addStress(hero, event.stress)
+            end
+        end
+    end
+    self:pushLog("event: " .. event.name)
     return true
 end
 
@@ -2267,6 +2310,8 @@ function Simulation:snapshot()
             gold = self.estate.gold,
             heirlooms = self.estate.heirlooms,
             week = self.estate.week,
+            currentEvent = self.estate.currentEvent,
+            eventHistory = copyList(self.estate.eventHistory),
             roster = roster,
             graveyard = copyList(self.estate.graveyard),
             trinkets = copyMap(self.estate.trinkets),
@@ -2306,6 +2351,8 @@ function Simulation.fromSnapshot(snapshot)
     self.estate.gold = (snapshot.estate and snapshot.estate.gold) or 0
     self.estate.heirlooms = (snapshot.estate and snapshot.estate.heirlooms) or 0
     self.estate.week = (snapshot.estate and snapshot.estate.week) or 1
+    self.estate.currentEvent = snapshot.estate and snapshot.estate.currentEvent or nil
+    self.estate.eventHistory = copyList((snapshot.estate and snapshot.estate.eventHistory) or {})
     self.estate.graveyard = copyList((snapshot.estate and snapshot.estate.graveyard) or {})
     self.estate.trinkets = copyMap((snapshot.estate and snapshot.estate.trinkets) or {})
     self.estate.provisionCart = inventoryFromStacks((snapshot.estate and snapshot.estate.provisionCart) or {})

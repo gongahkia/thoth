@@ -39,6 +39,7 @@ checkOrder("location", Defs.locationOrder, Defs.locations)
 checkOrder("mission", Defs.missionOrder, Defs.missions)
 checkOrder("camp skill", Defs.campSkillOrder, Defs.campSkills)
 checkOrder("estate building", Defs.estateBuildingOrder, Defs.estateBuildings)
+checkOrder("town event", Defs.townEventOrder, Defs.townEvents)
 
 for key, tile in pairs(Defs.tiles) do
     expect(tile.name and tile.name ~= "", "tile missing name " .. key)
@@ -176,6 +177,13 @@ end
 
 for key, building in pairs(Defs.estateBuildings) do
     expect(building.name and building.maxLevel >= 1 and building.heirloomCost >= 0, "building missing data " .. key)
+end
+
+for key, event in pairs(Defs.townEvents) do
+    expect(event.name and event.name ~= "", "town event missing name " .. key)
+    for item in pairs(event.provisions or {}) do
+        expect(Defs.item(item), "town event provision missing item " .. item)
+    end
 end
 
 print("registry checks passed")

@@ -572,6 +572,9 @@ function Render.drawEstatePanel(sim, app)
     love.graphics.print("week " .. (sim.estate.week or 1) .. "  gold " .. sim.estate.gold .. "  heirlooms " .. sim.estate.heirlooms, x + 10, y + 34)
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
     love.graphics.print("roster " .. sim:livingRosterCount() .. "/" .. sim:rosterLimit() .. "  recruits " .. #sim.estate.recruits, x + 10, y + 58)
+    if sim.estate.currentEvent then
+        love.graphics.print("event " .. Defs.townEvent(sim.estate.currentEvent).name, x + 220, y + 58)
+    end
     local upgrades = {}
     for _, key in ipairs(Defs.estateBuildingOrder) do
         upgrades[#upgrades + 1] = key .. ":" .. sim:buildingLevel(key)

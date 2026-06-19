@@ -380,8 +380,9 @@ tests[#tests + 1] = function()
     sim.player.facing = "south"
     runQueued(sim, Simulation.commands.interact())
     expect(sim.mode == "estate", "exit should end completed expedition")
-    expect(sim.estate.gold == 280, "completed expedition should transfer loot and mission reward")
+    expect(sim.estate.gold >= 260, "completed expedition should transfer loot and mission reward after town event")
     expect(sim.estate.heirlooms == 1, "completed expedition should pay mission heirloom reward")
+    expect(sim.estate.currentEvent, "expedition return should roll town event")
 end
 
 tests[#tests + 1] = function()
@@ -447,7 +448,8 @@ tests[#tests + 1] = function()
     sim.expedition.loot:add("coin", 20)
     runQueued(sim, Simulation.commands.endExpedition(true))
     expect(sim.mode == "estate", "retreat end should return to estate")
-    expect(sim.estate.gold == 160, "retreat should transfer half coin")
+    expect(sim.estate.gold >= 140, "retreat should transfer half coin after town event")
+    expect(sim.estate.currentEvent, "retreat should advance week and roll town event")
     local stress = sim:heroAtRank(1).stress
     expect(stress > 0, "retreat should stress party")
 end
@@ -470,6 +472,23 @@ tests[#tests + 1] = function()
     hero.recovering = 1
     runQueued(sim, Simulation.commands.advanceWeek())
     expect(sim.estate.week == week + 1 and hero.recovering == 0, "advance week should tick recovery")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(60)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.advanceWeek())
+    expect(sim.estate.currentEvent and #sim.estate.eventHistory > 0, "advance week should roll town event")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(61)
+    sim:endExpedition(true)
+    local gold = sim.estate.gold
+    sim:applyTownEvent("clear_roads")
+    expect(sim.estate.gold == gold + 30 and sim.estate.currentEvent == "clear_roads", "town event should apply gold effect")
+    sim:applyTownEvent("supply_cache")
+    expect(sim.estate.provisionCart:count("torch") > 0, "town event should add provisions")
 end
 
 tests[#tests + 1] = function()
