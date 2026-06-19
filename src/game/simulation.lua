@@ -122,6 +122,25 @@ local function appendUnique(list, value)
     end
 end
 
+local function combatHasBoss(combat)
+    for _, enemy in ipairs((combat and combat.enemies) or {}) do
+        local def = Defs.enemy(enemy.kind)
+        if def and def.boss then
+            return true
+        end
+    end
+    return false
+end
+
+local function combatEnemyNames(combat)
+    local names = {}
+    for _, enemy in ipairs((combat and combat.enemies) or {}) do
+        local def = Defs.enemy(enemy.kind)
+        names[#names + 1] = def and def.name or enemy.kind
+    end
+    return names
+end
+
 local function newEnemy(id, kind, rank)
     local def = Defs.enemy(kind)
     return { id = id, kind = kind, rank = rank, hp = def.maxHp, stress = 0, statuses = {}, guard = 0 }
@@ -418,12 +437,18 @@ function Simulation:apply(command)
     return false
 end
 
-function Simulation:pushLog(message)
+function Simulation:pushLog(message, meta)
     self.status = message
     self.log[#self.log + 1] = message
     self.events = self.events or {}
     self.eventSerial = (self.eventSerial or 0) + 1
-    self.events[#self.events + 1] = { id = self.eventSerial, message = message }
+    local event = { id = self.eventSerial, message = message }
+    for key, value in pairs(meta or {}) do
+        if key ~= "id" and key ~= "message" then
+            event[key] = value
+        end
+    end
+    self.events[#self.events + 1] = event
     if self.expedition then
         self.expedition.log[#self.expedition.log + 1] = message
     end
@@ -631,7 +656,7 @@ function Simulation:damageHero(hero, amount)
         if self:roll(1, 100) <= resist then
             hero.hp = 0
             self:addStress(hero, 8)
-            self:pushLog(hero.name .. " clung to life")
+            self:pushLog(hero.name .. " clung to life", { event = "death_save", actor = hero.name, side = "ally" })
             return true
         end
         hero.alive = false
@@ -645,14 +670,14 @@ function Simulation:damageHero(hero, amount)
         self:recordFallenTrinkets(hero)
         self:compactParty()
         self:evaluateCampaignState()
-        self:pushLog(hero.name .. " fell")
+        self:pushLog(hero.name .. " fell", { event = "hero_death", actor = hero.name, side = "ally" })
         self:narrate("death", hero.name)
     elseif hero.hp <= 0 then
         hero.hp = 0
         hero.deathsDoor = true
         hero.deathblowChecks = 0
         self:addStress(hero, 10)
-        self:pushLog(hero.name .. " reached death's door")
+        self:pushLog(hero.name .. " reached death's door", { event = "death_door", actor = hero.name, side = "ally" })
     end
     return true
 end
@@ -676,7 +701,7 @@ function Simulation:addStress(hero, amount)
     if hero.stress >= 160 then
         hero.stress = 120
         self:damageHero(hero, math.max(1, math.floor(self:maxHp(hero) / 3)))
-        self:pushLog(hero.name .. " breaks under the dark")
+        self:pushLog(hero.name .. " breaks under the dark", { event = "stress_break", actor = hero.name, side = "ally" })
     end
     return true
 end
@@ -724,11 +749,11 @@ function Simulation:resolveCheck(hero)
     if roll <= self:heroResolve(hero) then
         hero.virtue = Defs.virtueOrder[((roll - 1) % #Defs.virtueOrder) + 1]
         self:healPartyStress(4)
-        self:pushLog(hero.name .. " steadied")
+        self:pushLog(hero.name .. " steadied", { event = "resolve_virtue", actor = hero.name, side = "ally" })
     else
         hero.affliction = Defs.afflictionOrder[((roll - 1) % #Defs.afflictionOrder) + 1]
         self:stressParty(hero, 3)
-        self:pushLog(hero.name .. " is " .. Defs.affliction(hero.affliction).name)
+        self:pushLog(hero.name .. " is " .. Defs.affliction(hero.affliction).name, { event = "resolve_affliction", actor = hero.name, side = "ally" })
     end
     self:narrate("resolve", hero.name)
 end
@@ -751,7 +776,7 @@ function Simulation:afflictionAct(hero)
         end
         self:addStress(hero, 2)
     end
-    self:pushLog(hero.name .. " lost control")
+    self:pushLog(hero.name .. " lost control", { event = "affliction_act", actor = hero.name, side = "ally" })
     return true
 end
 
@@ -2009,7 +2034,8 @@ function Simulation:startCombat(encounterKey, roomKey, options)
     if self.combat.ambush and self.expedition then
         self.expedition.torch = 0
     end
-    self:pushLog("combat: " .. encounterKey)
+    local hasBoss = combatHasBoss(self.combat)
+    self:pushLog("combat: " .. encounterKey, { event = self.combat.ambush and "ambush_start" or (hasBoss and "boss_start" or "combat_start"), encounter = encounterKey, boss = hasBoss, enemies = combatEnemyNames(self.combat) })
     self:narrate("combat_start", encounterKey)
     self:advanceCombat()
     return true
@@ -2236,7 +2262,7 @@ function Simulation:advanceCombat()
             if enemy.hp <= 0 then
                 self.combat.turnIndex = self.combat.turnIndex + 1
             elseif skip then
-                self:pushLog(Defs.enemy(enemy.kind).name .. " faltered")
+                self:pushLog(Defs.enemy(enemy.kind).name .. " faltered", { event = "falter", actor = Defs.enemy(enemy.kind).name, side = "enemy" })
                 self.combat.turnIndex = self.combat.turnIndex + 1
             else
                 self:enemyTurn(enemy)
@@ -2248,7 +2274,7 @@ function Simulation:advanceCombat()
             if not hero or not hero.alive then
                 self.combat.turnIndex = self.combat.turnIndex + 1
             elseif skip then
-                self:pushLog(hero.name .. " faltered")
+                self:pushLog(hero.name .. " faltered", { event = "falter", actor = hero.name, side = "ally" })
                 self.combat.turnIndex = self.combat.turnIndex + 1
             elseif hero.affliction and self:roll(1, 100) <= 15 then
                 self:afflictionAct(hero)
@@ -2306,7 +2332,7 @@ function Simulation:enemyTurn(enemy)
             end
         end
     end
-    self:pushLog(def.name .. " used " .. skill.name)
+    self:pushLog(def.name .. " used " .. skill.name, { event = def.boss and "boss_skill" or "enemy_skill", actor = def.name, skill = skill.name, side = "enemy", boss = def.boss == true })
     return true
 end
 
@@ -2325,14 +2351,17 @@ function Simulation:finishCombat(victory)
     if not self.combat then
         return false
     end
+    local bossActive = combatHasBoss(self.combat)
+    local outcomeEncounter = self.combat.encounter
     if victory then
+        local bossWon = false
         for _, trinketKey in ipairs(self.combat.fallenTrinkets or {}) do
             self.estate.trinkets[trinketKey] = ((self.estate.trinkets or {})[trinketKey] or 0) + 1
         end
         if self.expedition then
             local baseEncounter = self.combat.baseEncounter or self.combat.encounter
             local _, bossMission = self:bossMissionForEncounter(baseEncounter)
-            local bossWon = bossMission ~= nil
+            bossWon = bossMission ~= nil or bossActive
             self.expedition.clearedEncounters[self.combat.roomKey or self.combat.encounter] = true
             self:addLoot("coin", bossWon and 120 or 35)
             self:addLoot("heirloom", bossWon and 2 or 1)
@@ -2352,14 +2381,14 @@ function Simulation:finishCombat(victory)
             self:updateObjective()
         end
         self.mode = "expedition"
-        self:pushLog("combat won")
+        self:pushLog("combat won", { event = bossWon and "boss_win" or "combat_win", encounter = outcomeEncounter, boss = bossWon, enemies = combatEnemyNames(self.combat) })
         self:narrate("combat_win", self.combat.encounter)
     else
         self.mode = "estate"
         if self.expedition then
             self.expedition.active = false
         end
-        self:pushLog("party lost")
+        self:pushLog("party lost", { event = bossActive and "boss_loss" or "combat_loss", encounter = outcomeEncounter, boss = bossActive, enemies = combatEnemyNames(self.combat) })
         self:narrate("death", "party")
     end
     self.combat = nil
@@ -2473,7 +2502,7 @@ function Simulation:applySkill(hero, heroRank, skillKey, skill, targets, targetS
     if skill.torch and self.expedition then
         self.expedition.torch = clamp(self.expedition.torch + skill.torch, 0, 100)
     end
-    self:pushLog(hero.name .. " used " .. skill.name)
+    self:pushLog(hero.name .. " used " .. skill.name, { event = "hero_skill", actor = hero.name, skill = skill.name, side = "ally" })
     return true
 end
 
@@ -2483,7 +2512,7 @@ function Simulation:passTurn()
         return false
     end
     self:addStress(hero, 2)
-    self:pushLog(hero.name .. " held")
+    self:pushLog(hero.name .. " held", { event = "hero_hold", actor = hero.name, side = "ally" })
     self.combat.turnIndex = self.combat.turnIndex + 1
     return self:advanceCombat()
 end
@@ -2491,9 +2520,11 @@ end
 function Simulation:retreat()
     if self.mode == "combat" then
         if self.combat and self.combat.ambush then
-            self:pushLog("ambush blocks retreat")
+            self:pushLog("ambush blocks retreat", { event = "retreat_blocked", side = "enemy" })
             return false
         end
+        local bossActive = combatHasBoss(self.combat)
+        local encounterKey = self.combat and self.combat.encounter or nil
         for rank = 1, 4 do
             local hero = self:heroAtRank(rank)
             if hero and hero.alive then
@@ -2503,7 +2534,7 @@ function Simulation:retreat()
         self.mode = "expedition"
         self.combat = nil
         self:decayTorch(10)
-        self:pushLog("retreated")
+        self:pushLog("retreated", { event = "retreat", encounter = encounterKey, boss = bossActive })
         return true
     end
     if self.mode == "expedition" then

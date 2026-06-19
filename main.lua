@@ -68,7 +68,7 @@ local function queueCutscenes(state, simulation)
     state.cutsceneQueue = state.cutsceneQueue or {}
     for _, event in ipairs(simulation.events or {}) do
         if event.id > state.lastVisualEventId then
-            local cutscene = Render.cutsceneForStatus(event.message, simulation)
+            local cutscene = Render.cutsceneForEvent(event, simulation)
             if cutscene then
                 state.cutsceneQueue[#state.cutsceneQueue + 1] = cutscene
             end

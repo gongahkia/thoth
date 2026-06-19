@@ -88,6 +88,20 @@ local function actorSide(actor, sim)
     return "ally"
 end
 
+local function scene(kind, title, options)
+    local result = {
+        kind = kind,
+        title = title,
+        side = (options and options.side) or "ally",
+        duration = (options and options.duration) or 0.85,
+        elapsed = 0,
+    }
+    for key, value in pairs(options or {}) do
+        result[key] = value
+    end
+    return result
+end
+
 function Render.prepareUi(app)
     app.ui = app.ui or {}
     app.ui.skillButtons = app.ui.skillButtons or {}
@@ -110,25 +124,70 @@ function Render.prepareUi(app)
     clearList(app.ui.rosterButtons)
 end
 
-function Render.cutsceneForStatus(message, sim)
-    local text = tostring(message or "")
+function Render.cutsceneForEvent(event, sim)
+    event = type(event) == "table" and event or { message = event }
+    local text = tostring(event.message or "")
     if text == "" then
         return nil
     end
-    if containsText(text, "combat:") then
-        return { kind = "intro", title = text, side = "enemy", duration = 0.9, elapsed = 0 }
+    local eventKind = event.event
+    if eventKind == "combat_start" then
+        return scene("intro", text, { side = "enemy", duration = 0.9, encounter = event.encounter, enemies = event.enemies })
     end
-    if containsText(text, "combat won") or containsText(text, "mission complete") or containsText(text, "campaign sealed") then
-        return { kind = "victory", title = text, side = "ally", duration = 0.8, elapsed = 0 }
+    if eventKind == "boss_start" then
+        return scene("boss_intro", text, { side = "enemy", duration = 1.15, encounter = event.encounter, enemies = event.enemies, boss = true })
+    end
+    if eventKind == "ambush_start" then
+        return scene("ambush", text, { side = "enemy", duration = 1.0, encounter = event.encounter, enemies = event.enemies })
+    end
+    if eventKind == "hero_skill" then
+        return scene("strike", text, { side = "ally", duration = 0.72, actor = event.actor, skill = event.skill })
+    end
+    if eventKind == "enemy_skill" or eventKind == "boss_skill" then
+        return scene(eventKind == "boss_skill" and "boss_strike" or "strike", text, { side = "enemy", duration = eventKind == "boss_skill" and 0.95 or 0.72, actor = event.actor, skill = event.skill, boss = event.boss })
+    end
+    if eventKind == "combat_win" or eventKind == "boss_win" then
+        return scene(eventKind == "boss_win" and "boss_victory" or "victory", text, { side = "ally", duration = eventKind == "boss_win" and 1.2 or 0.86, encounter = event.encounter, enemies = event.enemies, boss = event.boss })
+    end
+    if eventKind == "combat_loss" or eventKind == "boss_loss" then
+        return scene(eventKind == "boss_loss" and "boss_defeat" or "defeat", text, { side = "enemy", duration = eventKind == "boss_loss" and 1.2 or 0.95, encounter = event.encounter, enemies = event.enemies, boss = event.boss })
+    end
+    if eventKind == "retreat" then
+        return scene("retreat", text, { side = "ally", duration = 0.78, encounter = event.encounter, boss = event.boss })
+    end
+    if eventKind == "retreat_blocked" then
+        return scene("blocked", text, { side = "enemy", duration = 0.72 })
+    end
+    if eventKind == "death_door" or eventKind == "death_save" or eventKind == "hero_death" then
+        return scene(eventKind, text, { side = "ally", duration = eventKind == "hero_death" and 1.1 or 0.85, actor = event.actor })
+    end
+    if eventKind == "resolve_virtue" or eventKind == "resolve_affliction" or eventKind == "stress_break" or eventKind == "affliction_act" then
+        return scene(eventKind, text, { side = "ally", duration = 0.95, actor = event.actor })
+    end
+    if eventKind == "falter" or eventKind == "hero_hold" then
+        return scene(eventKind, text, { side = event.side or "ally", duration = 0.62, actor = event.actor })
+    end
+    if containsText(text, "combat:") then
+        return scene("intro", text, { side = "enemy", duration = 0.9 })
+    end
+    if containsText(text, "campaign sealed") then
+        return scene("campaign_victory", text, { side = "ally", duration = 1.25 })
+    end
+    if containsText(text, "combat won") or containsText(text, "mission complete") then
+        return scene("victory", text, { side = "ally", duration = 0.86 })
     end
     if containsText(text, "party lost") or containsText(text, "fell") or containsText(text, "death") or containsText(text, "ambush") or containsText(text, "faltered") then
-        return { kind = "danger", title = text, side = "enemy", duration = 0.85, elapsed = 0 }
+        return scene("danger", text, { side = "enemy", duration = 0.85 })
     end
     local actor = string.match(text, "^(.-) used ")
     if actor then
-        return { kind = "strike", title = text, actor = actor, side = actorSide(actor, sim), duration = 0.75, elapsed = 0 }
+        return scene("strike", text, { actor = actor, side = actorSide(actor, sim), duration = 0.75 })
     end
     return nil
+end
+
+function Render.cutsceneForStatus(message, sim)
+    return Render.cutsceneForEvent({ message = message }, sim)
 end
 
 function Render.idleCombatScene(sim)
@@ -781,6 +840,13 @@ local function drawSceneFigure(cx, floorY, side, label, active, danger)
     love.graphics.printf(label or "", cx - 44, floorY + 12, 88, "center")
 end
 
+local function drawBossSigil(cx, y, pulse)
+    love.graphics.setColor(0.72, 0.08, 0.08, 0.45 + pulse * 0.35)
+    love.graphics.circle("line", cx, y, 38 + pulse * 16)
+    love.graphics.line(cx - 30, y, cx + 30, y)
+    love.graphics.line(cx, y - 30, cx, y + 30)
+end
+
 local function drawHeroLine(sim, floorY, x, scene, lunge, intro)
     for rank = 1, 4 do
         local hero = sim:heroAtRank(rank)
@@ -796,38 +862,87 @@ local function drawHeroLine(sim, floorY, x, scene, lunge, intro)
 end
 
 local function drawEnemyLine(sim, floorY, x, scene, lunge, intro)
-    if not sim.combat then
+    local labels = scene.enemies or {}
+    if not (sim and sim.combat) and #labels == 0 then
         return
     end
     for rank = 1, 4 do
-        local enemy = sim:enemyAtRank(rank)
+        local enemy = sim and sim.combat and sim:enemyAtRank(rank) or nil
+        local name = labels[rank]
+        local isBoss = false
         if enemy then
-            local name = Defs.enemy(enemy.kind).name
+            local def = Defs.enemy(enemy.kind)
+            name = def.name
+            isBoss = def.boss == true
+        end
+        if name then
             local active = scene.side == "enemy" and scene.actor == name
-            local cx = x - (rank - 1) * 56 + intro * 70
+            local cx = x - (rank - 1) * (isBoss and 72 or 56) + intro * 70
             if active then
-                cx = cx - lunge * 86
+                cx = cx - lunge * (isBoss and 112 or 86)
             end
-            drawSceneFigure(cx, floorY, "enemy", name, active, scene.kind == "danger")
+            if isBoss or (scene.boss and rank == 1) then
+                drawBossSigil(cx, floorY - 58, math.abs(lunge) + math.abs(intro) * 0.6)
+            end
+            drawSceneFigure(cx, floorY, "enemy", name, active or isBoss, scene.kind == "danger" or scene.kind == "boss_defeat" or scene.kind == "boss_strike")
         end
     end
 end
 
+local function sceneDanger(scene)
+    local kind = scene.kind
+    return kind == "danger" or kind == "defeat" or kind == "boss_defeat" or kind == "death_door" or kind == "hero_death" or kind == "stress_break" or kind == "resolve_affliction" or kind == "affliction_act" or kind == "ambush" or kind == "blocked"
+end
+
 local function drawImpact(scene, x, y, w, h, progress)
     local pulse = math.sin(progress * math.pi)
-    if scene.kind == "strike" then
+    local kind = scene.kind
+    if kind == "strike" or kind == "boss_strike" then
         local cx = scene.side == "enemy" and x + w * 0.42 or x + w * 0.58
-        love.graphics.setColor(0.96, 0.86, 0.42, 0.8 * pulse)
-        love.graphics.setLineWidth(5)
+        love.graphics.setColor(kind == "boss_strike" and 0.86 or 0.96, kind == "boss_strike" and 0.12 or 0.86, kind == "boss_strike" and 0.1 or 0.42, 0.82 * pulse)
+        love.graphics.setLineWidth(kind == "boss_strike" and 8 or 5)
         love.graphics.line(cx - 52, y + h * 0.42, cx + 58, y + h * 0.26)
         love.graphics.line(cx - 35, y + h * 0.28, cx + 45, y + h * 0.52)
+        if kind == "boss_strike" then
+            love.graphics.circle("line", cx, y + h * 0.4, 36 + pulse * 60)
+        end
         love.graphics.setLineWidth(1)
-    elseif scene.kind == "victory" then
-        love.graphics.setColor(0.86, 0.68, 0.25, 0.7 * smooth(progress))
+    elseif kind == "victory" or kind == "boss_victory" or kind == "campaign_victory" then
+        love.graphics.setColor(0.86, kind == "campaign_victory" and 0.82 or 0.68, kind == "boss_victory" and 0.16 or 0.25, 0.7 * smooth(progress))
         love.graphics.circle("line", x + w * 0.5, y + h * 0.48, 44 + 120 * progress)
-    elseif scene.kind == "danger" then
+        love.graphics.rectangle("fill", x + w * 0.5 - 4, y + h * 0.2, 8, 80 * pulse)
+    elseif kind == "defeat" or kind == "boss_defeat" or kind == "danger" then
         love.graphics.setColor(0.86, 0.08, 0.06, 0.26 * pulse)
         love.graphics.rectangle("fill", x, y, w, h)
+        love.graphics.setColor(0, 0, 0, 0.42 * smooth(progress))
+        love.graphics.rectangle("fill", x, y, w, h * smooth(progress))
+    elseif kind == "ambush" then
+        love.graphics.setColor(0.92, 0.12, 0.08, 0.42 * pulse)
+        for i = 0, 5 do
+            love.graphics.rectangle("fill", x + i * w / 6, y, 12, h)
+        end
+    elseif kind == "retreat" then
+        love.graphics.setColor(0.48, 0.58, 0.5, 0.75 * pulse)
+        love.graphics.polygon("fill", x + w * (0.65 - progress * 0.35), y + h * 0.45, x + w * (0.75 - progress * 0.35), y + h * 0.34, x + w * (0.75 - progress * 0.35), y + h * 0.56)
+    elseif kind == "blocked" then
+        love.graphics.setColor(0.86, 0.08, 0.06, 0.8 * pulse)
+        love.graphics.setLineWidth(7)
+        love.graphics.line(x + w * 0.45, y + h * 0.32, x + w * 0.55, y + h * 0.58)
+        love.graphics.line(x + w * 0.55, y + h * 0.32, x + w * 0.45, y + h * 0.58)
+        love.graphics.setLineWidth(1)
+    elseif kind == "death_door" or kind == "hero_death" or kind == "death_save" then
+        love.graphics.setColor(kind == "death_save" and 0.86 or 0.78, kind == "death_save" and 0.78 or 0.08, kind == "death_save" and 0.38 or 0.08, 0.72 * pulse)
+        love.graphics.circle("line", x + w * 0.28, y + h * 0.48, 28 + 42 * pulse)
+        love.graphics.line(x + w * 0.28, y + h * 0.32, x + w * 0.28, y + h * 0.64)
+    elseif kind == "resolve_virtue" or kind == "resolve_affliction" or kind == "stress_break" or kind == "affliction_act" then
+        local good = kind == "resolve_virtue"
+        love.graphics.setColor(good and 0.68 or 0.72, good and 0.82 or 0.12, good and 0.36 or 0.52, 0.55 * pulse)
+        love.graphics.circle("line", x + w * 0.34, y + h * 0.43, 32 + 58 * pulse)
+        love.graphics.circle("fill", x + w * 0.34, y + h * 0.43, 8 + 8 * pulse)
+    elseif kind == "falter" or kind == "hero_hold" then
+        love.graphics.setColor(0.64, 0.62, 0.52, 0.5 * pulse)
+        love.graphics.line(x + w * 0.3, y + h * 0.32, x + w * 0.3, y + h * 0.6)
+        love.graphics.line(x + w * 0.32, y + h * 0.32, x + w * 0.32, y + h * 0.6)
     end
 end
 
@@ -843,9 +958,9 @@ function Render.drawCutscene(sim, app)
     local h = 238
     local progress = clamp01((scene.elapsed or 0) / (scene.duration or 0.75))
     local pulse = math.sin(progress * math.pi)
-    local intro = scene.kind == "intro" and (1 - smooth(progress)) or 0
-    local lunge = scene.kind == "strike" and pulse or 0
-    drawSceneWall(x, y, w, h, pulse, scene.kind == "danger")
+    local intro = (scene.kind == "intro" or scene.kind == "boss_intro" or scene.kind == "ambush") and (1 - smooth(progress)) or 0
+    local lunge = (scene.kind == "strike" or scene.kind == "boss_strike") and pulse or 0
+    drawSceneWall(x, y, w, h, pulse, sceneDanger(scene))
     drawHeroLine(sim, y + h - 42, x + 92, scene, lunge, intro)
     drawEnemyLine(sim, y + h - 42, x + w - 96, scene, lunge, intro)
     drawImpact(scene, x, y, w, h, progress)
