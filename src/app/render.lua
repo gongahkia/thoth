@@ -1039,19 +1039,23 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
     for index, skillKey in ipairs(hero.skills or {}) do
         addEstateAction(app, "train " .. index, x + ((index - 1) % 3) * 82, actionY + math.floor((index - 1) / 3) * 34, 76, { action = "upgradeSkill", heroId = hero.id, skillKey = skillKey, enabled = true })
     end
-    addEstateAction(app, "weapon", x, actionY + 40, 76, { action = "upgradeGear", heroId = hero.id, kind = "weapon", enabled = true })
-    addEstateAction(app, "armor", x + 82, actionY + 40, 76, { action = "upgradeGear", heroId = hero.id, kind = "armor", enabled = true })
-    addEstateAction(app, "dismiss", x + 164, actionY + 40, 76, { action = "dismissHero", heroId = hero.id, enabled = not sim:heroRank(hero.id) and sim:livingRosterCount() > 4 and (hero.recovering or 0) <= 0 })
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Equipment", x, actionY + 42)
+    addEstateAction(app, "weapon L" .. (hero.weapon or 0), x, actionY + 62, 76, { action = "upgradeGear", heroId = hero.id, kind = "weapon", enabled = true })
+    addEstateAction(app, "armor L" .. (hero.armor or 0), x + 82, actionY + 62, 76, { action = "upgradeGear", heroId = hero.id, kind = "armor", enabled = true })
+    addEstateAction(app, "dismiss", x + 164, actionY + 62, 76, { action = "dismissHero", heroId = hero.id, enabled = not sim:heroRank(hero.id) and sim:livingRosterCount() > 4 and (hero.recovering or 0) <= 0 })
     for index, activityKey in ipairs(Defs.estateActivityOrder) do
         local activity = Defs.estateActivity(activityKey)
-        addEstateAction(app, (activity.short or activity.name) .. " " .. activity.cost, x + ((index - 1) % 3) * 82, actionY + 74 + math.floor((index - 1) / 3) * 34, 76, { action = "recoverHero", heroId = hero.id, activityKey = activityKey, enabled = (hero.recovering or 0) <= 0 })
+        addEstateAction(app, (activity.short or activity.name) .. " " .. activity.cost, x + ((index - 1) % 3) * 82, actionY + 96 + math.floor((index - 1) / 3) * 34, 76, { action = "recoverHero", heroId = hero.id, activityKey = activityKey, enabled = (hero.recovering or 0) <= 0 })
     end
-    local trinketY = actionY + 118
+    local trinketY = actionY + 140
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Trinkets", x, trinketY)
     for slot = 1, 2 do
         local key = hero.trinkets and hero.trinkets[slot]
-        addEstateAction(app, key and ("slot " .. slot .. " -" ) or ("slot " .. slot), x + (slot - 1) * 82, trinketY + 22, 76, { action = "unequipTrinket", heroId = hero.id, slot = slot, enabled = key ~= false and key ~= nil })
+        local trinket = key and Defs.trinket(key)
+        local label = key and ((trinket and (trinket.short or trinket.name)) or key) or ("slot " .. slot)
+        addEstateAction(app, label, x + (slot - 1) * 82, trinketY + 22, 76, { action = "unequipTrinket", heroId = hero.id, slot = slot, enabled = key ~= false and key ~= nil })
     end
     local openSlot = firstOpenTrinketSlot(hero)
     local trinketIndex = 0

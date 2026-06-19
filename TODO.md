@@ -93,7 +93,6 @@ Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render
 
 Goal: build every missing player-facing screen. Game must boot from title → load campaign → play → quit gracefully.
 
-- [ ] 2.6 Build equipment screen: hero gear slots, trinket assignment (24h)
 - [ ] 2.7 Build trinket detail tooltips with set bonus visualization (`Registry.trinketSets`) (16h)
 - [ ] 2.8 Build expedition HUD overlay: stress meter, torch level, party HP/HP, current room (24h)
 - [ ] 2.9 Build combat HUD: turn order, skill selection, target picker, rank indicators (40h)
