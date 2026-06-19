@@ -52,6 +52,11 @@ jobs:
           SDL_AUDIODRIVER: dummy
         run: make camp-smoke
 
+      - name: Run pause smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make pause-smoke
+
       - name: Run render3d smoke
         env:
           SDL_AUDIODRIVER: dummy

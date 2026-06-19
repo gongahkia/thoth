@@ -219,6 +219,7 @@ function Render.prepareUi(app)
     app.ui.curioButtons = app.ui.curioButtons or {}
     app.ui.campSkillButtons = app.ui.campSkillButtons or {}
     app.ui.campHeroButtons = app.ui.campHeroButtons or {}
+    app.ui.pauseButtons = app.ui.pauseButtons or {}
     app.ui.titleButtons = app.ui.titleButtons or {}
     app.ui.settingsButtons = app.ui.settingsButtons or {}
     clearList(app.ui.skillButtons)
@@ -234,6 +235,7 @@ function Render.prepareUi(app)
     clearList(app.ui.curioButtons)
     clearList(app.ui.campSkillButtons)
     clearList(app.ui.campHeroButtons)
+    clearList(app.ui.pauseButtons)
     clearList(app.ui.titleButtons)
     clearList(app.ui.settingsButtons)
 end
@@ -870,6 +872,59 @@ function Render.drawCurioResult(app)
     love.graphics.print(result.title or "Curio", x + 14, y + 12)
     love.graphics.setColor(0.72, 0.76, 0.68, 1)
     love.graphics.printf(result.text or "", x + 14, y + 38, w - 28)
+end
+
+local pauseActions = {
+    { action = "resume", label = "Resume" },
+    { action = "save", label = "Save" },
+    { action = "settings", label = "Settings" },
+    { action = "quitTitle", label = "Quit to Title" },
+}
+
+function Render.pauseMenuItems()
+    return pauseActions
+end
+
+local function layoutPauseButtons(app, x, y, w)
+    app.pauseMenuIndex = clamp(app.pauseMenuIndex or 1, 1, #pauseActions)
+    for index, item in ipairs(pauseActions) do
+        local by = y + 72 + (index - 1) * 42
+        app.ui.pauseButtons[#app.ui.pauseButtons + 1] = { x = x + 46, y = by, w = w - 92, h = 34, action = item.action, index = index }
+    end
+end
+
+function Render.drawPauseMenu(app)
+    if not (app and app.paused) then
+        return
+    end
+    Render.prepareUi(app)
+    local w, h = 320, 260
+    layoutPauseButtons(app, (1280 - w) / 2, (720 - h) / 2, w)
+    if not (love and love.graphics) then
+        return
+    end
+    local width, height = love.graphics.getDimensions()
+    clearList(app.ui.pauseButtons)
+    love.graphics.setColor(0.01, 0.012, 0.014, 0.62)
+    love.graphics.rectangle("fill", 0, 0, width, height)
+    local x = (width - w) / 2
+    local y = (height - h) / 2
+    layoutPauseButtons(app, x, y, w)
+    panel(x, y, w, h, 0.96)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.printf("Paused", x, y + 24, w, "center")
+    for index, item in ipairs(pauseActions) do
+        local button = app.ui.pauseButtons[index]
+        local active = app.pauseMenuIndex == index
+        love.graphics.setColor(active and 0.18 or 0.1, active and 0.22 or 0.12, active and 0.19 or 0.12, 1)
+        love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+        love.graphics.setColor(active and 0.74 or 0.34, active and 0.66 or 0.38, active and 0.36 or 0.32, 1)
+        love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+        love.graphics.setColor(0.92, 0.94, 0.88, 1)
+        love.graphics.printf((active and "> " or "") .. item.label, button.x + 10, button.y + 10, button.w - 20, "left")
+    end
+    love.graphics.setColor(0.58, 0.62, 0.58, 1)
+    love.graphics.printf(app.pauseStatus or "", x + 20, y + h - 30, w - 40, "center")
 end
 
 local function layoutTitleButtons(app, items, width, height)
@@ -2068,6 +2123,7 @@ function Render.draw(sim, app)
     Render.drawCurioResult(app)
     Render.drawCurioModal(app)
     Render.drawCutscene(sim, app)
+    Render.drawPauseMenu(app)
     love.graphics.pop()
 end
 

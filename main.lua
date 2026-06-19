@@ -319,6 +319,82 @@ local function mouseSettings(state, x, y)
     return false
 end
 
+local function openPause(state)
+    state.paused = true
+    state.pauseMenuIndex = state.pauseMenuIndex or 1
+    state.pauseStatus = "paused"
+end
+
+local function quitToTitle(state)
+    sim = Simulation.new(20260618)
+    state.paused = false
+    state.uiState = "title"
+    state.pauseStatus = nil
+    resetVisualState(state, sim)
+    refreshContinueState(state)
+end
+
+local function activatePauseAction(state, action)
+    if action == "resume" then
+        state.paused = false
+        state.pauseStatus = nil
+        return
+    end
+    if action == "save" then
+        local ok, err = Save.write(sim, "save.thoth")
+        state.pauseStatus = ok and "saved" or ("save failed: " .. tostring(err))
+        refreshContinueState(state)
+        Audio.play(state.audio, ok and "save" or "invalid")
+        return
+    end
+    if action == "settings" then
+        state.settingsReturnState = "game"
+        state.uiState = "settings"
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if action == "quitTitle" then
+        quitToTitle(state)
+    end
+end
+
+local function keyPause(state, key)
+    local items = Render.pauseMenuItems()
+    if key == "up" or key == "w" then
+        state.pauseMenuIndex = ((state.pauseMenuIndex or 1) - 2) % #items + 1
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "down" or key == "s" then
+        state.pauseMenuIndex = ((state.pauseMenuIndex or 1) % #items) + 1
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "return" or key == "kpenter" or key == "space" then
+        local item = items[state.pauseMenuIndex or 1]
+        activatePauseAction(state, item.action)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "escape" or Settings.isAction(state.settings, key, "pause", "escape") then
+        state.paused = false
+        state.pauseStatus = nil
+        Audio.play(state.audio, "tick")
+    end
+end
+
+local function mousePause(state, x, y)
+    for _, hitbox in ipairs((state.ui and state.ui.pauseButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            state.pauseMenuIndex = hitbox.index
+            activatePauseAction(state, hitbox.action)
+            Audio.play(state.audio, "tick")
+            return true
+        end
+    end
+    return false
+end
+
 local function printRenderSmoke(state)
     if not state.renderSmoke or state.renderSmokePrinted then
         return
@@ -441,6 +517,15 @@ local function printCampSmoke(state)
     print("camp-smoke-respite=" .. tostring(summary.respite))
 end
 
+local function printPauseSmoke(state)
+    if not state.pauseSmoke or state.pauseSmokePrinted then
+        return
+    end
+    state.pauseSmokePrinted = true
+    print("pause-smoke-paused=" .. tostring(state.paused))
+    print("pause-smoke-buttons=" .. tostring(#((state.ui and state.ui.pauseButtons) or {})))
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     sim = Simulation.new(20260618)
@@ -451,7 +536,8 @@ function love.load(args)
     local combatSmoke = hasArg(args, "--combat-smoke")
     local curioSmoke = hasArg(args, "--curio-smoke")
     local campSmoke = hasArg(args, "--camp-smoke")
-    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke
+    local pauseSmoke = hasArg(args, "--pause-smoke")
+    local smoke = hasArg(args, "--smoke") or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
     if renderBenchmark then
@@ -494,6 +580,7 @@ function love.load(args)
         combatSmoke = combatSmoke,
         curioSmoke = curioSmoke,
         campSmoke = campSmoke,
+        pauseSmoke = pauseSmoke,
         renderBenchmarkFrames = renderBenchmarkFrames,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
@@ -506,6 +593,9 @@ function love.load(args)
     Audio.applySettings(app.audio, app.settings)
     if curioSmoke then
         app.curioModal = Render.curioModalForTarget(sim)
+    end
+    if pauseSmoke then
+        openPause(app)
     end
     Render.load()
 end
@@ -521,7 +611,9 @@ function love.update(dt)
         end
         return
     end
-    Input.update(sim, app, dt)
+    if not app.paused then
+        Input.update(sim, app, dt)
+    end
     Render.advanceCutscene(app, dt)
     startNextCutscene(app)
     if app.eventFlash then
@@ -575,6 +667,7 @@ function love.draw()
     printCombatSmoke(app)
     printCurioSmoke(app)
     printCampSmoke(app)
+    printPauseSmoke(app)
     if app.renderBenchmark then
         local elapsedMs = (love.timer.getTime() - started) * 1000
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1
@@ -599,6 +692,15 @@ function love.keypressed(key)
     end
     if app.uiState == "settings" then
         keySettings(app, key)
+        return
+    end
+    if app.paused then
+        keyPause(app, key)
+        return
+    end
+    if Settings.isAction(app.settings, key, "pause", "escape") then
+        openPause(app)
+        Audio.play(app.audio, "tick")
         return
     end
     if key == "f5" then
@@ -641,6 +743,10 @@ function love.mousepressed(x, y, button)
     end
     if button == 1 and app.uiState == "settings" then
         mouseSettings(app, x, y)
+        return
+    end
+    if button == 1 and app.paused then
+        mousePause(app, x, y)
         return
     end
     Input.mousepressed(sim, app, x, y, button)

@@ -2069,6 +2069,13 @@ tests[#tests + 1] = function()
     local app = { canContinue = true, ui = { titleButtons = { { stale = true } } } }
     Render.drawTitle(Simulation.new(76), app)
     expect(#app.ui.titleButtons == 4 and app.ui.titleButtons[2].action == "continue", "title draw should populate title hitboxes")
+    local pauseItems = Render.pauseMenuItems()
+    expect(#pauseItems == 4 and pauseItems[1].action == "resume" and pauseItems[4].action == "quitTitle", "pause should expose resume, save, settings, quit")
+    app.paused = true
+    app.pauseMenuIndex = 99
+    Render.drawPauseMenu(app)
+    expect(#app.ui.pauseButtons == 4 and app.ui.pauseButtons[3].action == "settings", "pause draw should populate pause hitboxes")
+    expect(app.pauseMenuIndex == 4, "pause draw should clamp focus")
     app.settings = Settings.defaults()
     Render.drawSettings(app)
     local hasBack = false
@@ -2098,6 +2105,7 @@ tests[#tests + 1] = function()
             curioButtons = { { stale = true } },
             campSkillButtons = { { stale = true } },
             campHeroButtons = { { stale = true } },
+            pauseButtons = { { stale = true } },
             titleButtons = { { stale = true } },
             settingsButtons = { { stale = true } },
         },
@@ -2116,7 +2124,7 @@ tests[#tests + 1] = function()
     expect(#app.ui.partyRankSlots == 0, "prepareUi should clear party rank slots")
     expect(#app.ui.curioButtons == 0, "prepareUi should clear curio buttons")
     expect(#app.ui.campSkillButtons == 0 and #app.ui.campHeroButtons == 0, "prepareUi should clear camp buttons")
-    expect(#app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
+    expect(#app.ui.pauseButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
     app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
     app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }
     Render.prepareUi(app)
