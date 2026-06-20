@@ -1319,6 +1319,26 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.newEstate(313)
+    local campaign = sim:ensureCampaignState()
+    campaign.flags.enclaveCompactSigned = true
+    sim:adjustFaction("enclave_meter", 5)
+    expect(sim:shouldSourCompact(), "high enclave meter with signed compact should mark for souring")
+    sim:sourCompact()
+    expect(campaign.flags.enclaveCompactSoured == true, "souring should flip the compact")
+    expect(campaign.flags.enclaveCompactSigned == false, "signed flag should clear when soured")
+    expect(campaign.flags.souredFixture == "fixture_surveyor", "souring should name the Surveyor")
+    expect(campaign.factions.enclave_meter.value <= -2, "souring should drop the enclave meter")
+    expect(sim:silenceFixture("fixture_vault_keeper") == false, "silencing the wrong fixture should fail")
+    campaign.dread = 5
+    expect(sim:silenceFixture("fixture_surveyor"), "silencing the soured fixture should succeed")
+    expect(campaign.flags.enclaveCompactSoured == false, "silenced fixture should clear soured flag")
+    expect(campaign.flags.enclaveCompactSigned == true, "silenced fixture should restore compact")
+    expect(campaign.flags.souredFixture == nil, "silenced fixture should clear name")
+    expect(campaign.dread == 2, "silencing should drop dread by 3")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(122)
     sim.player.x = 15
     sim.player.y = 0

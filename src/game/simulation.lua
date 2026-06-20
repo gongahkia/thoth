@@ -454,6 +454,10 @@ function Simulation.commands.treatDisease(heroId, diseaseKey)
     return { type = "treatDisease", heroId = heroId, diseaseKey = diseaseKey }
 end
 
+function Simulation.commands.silenceFixture(fixtureKey)
+    return { type = "silenceFixture", fixtureKey = fixtureKey }
+end
+
 function Simulation:queue(command)
     self.commandQueue[#self.commandQueue + 1] = command
 end
@@ -560,6 +564,9 @@ function Simulation:apply(command)
     end
     if command.type == "treatDisease" then
         return self:treatDisease(command.heroId, command.diseaseKey)
+    end
+    if command.type == "silenceFixture" then
+        return self:silenceFixture(command.fixtureKey)
     end
     return false
 end
@@ -1325,6 +1332,62 @@ function Simulation:evaluateFiledState()
     return campaign.flags.partyFiled == true
 end
 
+function Simulation:compactSouringRule()
+    return Defs.compactSouringRule("compact_sour_v1") or {}
+end
+
+function Simulation:shouldSourCompact()
+    local campaign = self:ensureCampaignState()
+    if not campaign.flags.enclaveCompactSigned then
+        return false
+    end
+    if campaign.flags.enclaveCompactSoured then
+        return false
+    end
+    local rule = self:compactSouringRule()
+    local entry = campaign.factions and campaign.factions.enclave_meter
+    local value = (entry and entry.value) or 0
+    return value >= (rule.threshold or 4)
+end
+
+function Simulation:sourCompact()
+    local campaign = self:ensureCampaignState()
+    local rule = self:compactSouringRule()
+    campaign.flags.enclaveCompactSoured = true
+    campaign.flags.enclaveCompactSigned = false
+    campaign.flags.souredFixture = rule.souredFixture or "fixture_surveyor"
+    local entry = campaign.factions and campaign.factions.enclave_meter
+    if entry then
+        entry.value = math.min(entry.value or 0, rule.meterFloor or -2)
+        self:factionState("enclave_meter")
+    end
+    return self:applyTownEvent("enclave_compact_soured")
+end
+
+function Simulation:silenceFixture(fixtureKey)
+    local campaign = self:ensureCampaignState()
+    if not campaign.flags.enclaveCompactSoured then
+        return false
+    end
+    if fixtureKey ~= campaign.flags.souredFixture then
+        return false
+    end
+    local rule = self:compactSouringRule()
+    campaign.dread = math.max(0, (campaign.dread or 0) + (rule.silenceDread or -3))
+    for _, hero in ipairs(self.estate.roster) do
+        if hero.alive and (hero.recovering or 0) <= 0 then
+            self:addStress(hero, rule.silenceStress or 6)
+        end
+    end
+    self:adjustFaction("enclave_meter", rule.silenceMeter or 2)
+    campaign.flags.enclaveCompactSoured = false
+    campaign.flags.enclaveCompactSigned = true
+    campaign.flags.souredFixture = nil
+    local fixture = Defs.estateFixture(fixtureKey)
+    self:pushLog((fixture and fixture.name or fixtureKey) .. " silenced; compact restored")
+    return true
+end
+
 function Simulation:refreshMissionBoard(force)
     if self.estate.missionBoard and #self.estate.missionBoard > 0 and not force then
         return false
@@ -1758,6 +1821,9 @@ function Simulation:rollTownEvent()
     if (campaign.flags.repairMissions or 0) >= 3 and not campaign.flags.enclaveCompactSigned then
         campaign.flags.enclaveCompactSigned = true
         return self:applyTownEvent("enclave_compact_signed")
+    end
+    if self:shouldSourCompact() then
+        return self:sourCompact()
     end
     if (campaign.dread or 0) >= (campaign.dreadLimit or 18) - 2 and not campaign.flags.estateReckoning then
         campaign.flags.estateReckoning = true

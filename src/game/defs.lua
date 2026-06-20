@@ -359,6 +359,10 @@ function Defs.filedRule(id)
     return Defs.filedRules[id]
 end
 
+function Defs.compactSouringRule(id)
+    return Defs.compactSouringRules[id]
+end
+
 function Defs.injuryCureTooltip(id)
     return Defs.injuryCureTooltips[id]
 end
