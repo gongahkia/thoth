@@ -91,6 +91,16 @@ Screenshot slots required before TODO 8.11 closes:
 - 1080p title, Estate, expedition, combat, ending.
 - 4K title, Estate, expedition, combat, ending.
 
+Local 1280x720 gameplay captures generated on 2026-06-20:
+
+- `assets/previews/final-title.png`
+- `assets/previews/final-estate.png`
+- `assets/previews/final-expedition.png`
+- `assets/previews/final-combat.png`
+- `assets/previews/final-gameover.png`
+
+These are enough for draft review, not enough to close TODO 8.11.
+
 Trailer required before TODO 8.11 closes:
 
 - Public 60-90s trailer URL.

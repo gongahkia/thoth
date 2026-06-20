@@ -74,6 +74,12 @@ Final screenshots required:
 - `assets/previews/final-combat.png` - combat stage with skills, target affordances, turn order, and readable enemies.
 - `assets/previews/final-gameover.png` - ending summary or campaign-sealed state.
 
+Local capture status:
+
+- 2026-06-20: all five files above generated at 1280x720 with `love . --preview-capture`.
+- Visual spot check passed locally.
+- TODO 8.6 remains open because the public itch page and trailer are not published.
+
 Trailer required:
 
 - 60-90 seconds.
