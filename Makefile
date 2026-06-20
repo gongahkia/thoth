@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke sprite-import-smoke model-import-smoke test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke sprite-import-smoke model-import-smoke test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -317,6 +317,13 @@ package-build:
 	rm -f $(PACKAGE)
 	zip -9 -r $(PACKAGE) $(PACKAGE_INPUTS) -x "assets/previews/*" "assets/press/*" "assets/replays/*"
 	zip -T $(PACKAGE)
+
+package-title-smoke: package-build
+	@tmp_home=$$(mktemp -d); \
+	HOME="$$tmp_home" SDL_AUDIODRIVER=dummy $(LOVE) $(PACKAGE) --title-smoke; \
+	rc=$$?; \
+	rm -rf "$$tmp_home"; \
+	exit $$rc
 
 package: check
 
