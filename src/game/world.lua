@@ -45,11 +45,6 @@ local function inCorridor(x, y, corridor)
     return false
 end
 
-local function parseRoomKey(key)
-    local x, y = tostring(key or ""):match("^(-?%d+):(-?%d+)$")
-    return tonumber(x), tonumber(y)
-end
-
 local function rectContains(x, y, rect)
     return x >= rect.x - rect.w and x <= rect.x + rect.w and y >= rect.y - rect.h and y <= rect.y + rect.h
 end
@@ -74,60 +69,224 @@ local function append(list, value)
     return value
 end
 
-local function buildMegastructureLayout(base, seed, layoutId)
-    local rng = Rng.new(seed + #tostring(layoutId or "") * 97 + 17031)
-    local platforms = {}
-    local bridges = {}
-    local overlooks = {}
-    local monuments = {}
-    local hidden = {}
-    for _, room in ipairs(base.rooms or {}) do
-        local wide = rng:range(0, 2)
-        append(platforms, { x = room.x, y = room.y, w = room.w + 2 + wide, h = room.h + 1 + rng:range(0, 2), tile = base.floorTile })
-        if rng:range(1, 100) <= 70 then
-            local side = rng:range(0, 3)
-            local dx = side == 0 and room.w + 5 or (side == 1 and -(room.w + 5) or 0)
-            local dy = side == 2 and room.h + 4 or (side == 3 and -(room.h + 4) or 0)
-            local overlook = append(overlooks, { x = room.x + dx, y = room.y + dy, w = 2 + rng:range(0, 1), h = 2 + rng:range(0, 1), tile = base.floorTile, roomKey = room.key })
-            append(bridges, { ax = room.x, ay = room.y, bx = overlook.x, by = overlook.y, width = 1, tile = base.corridorTile or base.floorTile, role = "overlook" })
+local function outwardPoint(room, side, distance)
+    if side == 0 then
+        return room.x + room.w + distance, room.y
+    end
+    if side == 1 then
+        return room.x - room.w - distance, room.y
+    end
+    if side == 2 then
+        return room.x, room.y + room.h + distance
+    end
+    return room.x, room.y - room.h - distance
+end
+
+local function addRotationSecret(mega, base, rng, room, x, y, tileId)
+    local allowed = rng:range(0, 3)
+    append(mega.hidden, { x = x, y = y, z = 0, tile = tileId, hiddenBehind = true, revealRotations = { allowed } })
+    append(mega.platforms, { x = x, y = y, w = 1, h = 1, tile = base.floorTile, role = "secret_lip", roomKey = room and room.key })
+    append(mega.monuments, { x = x + (allowed == 1 and -1 or 1), y = y + (allowed == 2 and 1 or -1), tile = base.occluderTile or base.wallTile, roomKey = room and room.key, role = "secret_occluder" })
+end
+
+local function addRoomSecrets(mega, base, rng, everyNth)
+    local tileId = base.rotationCacheTile or base.rewardTile
+    if not tileId then
+        return
+    end
+    for index, room in ipairs(base.rooms or {}) do
+        if index % everyNth == 0 or rng:range(1, 100) <= 42 then
+            local side = (index + rng:range(0, 3)) % 4
+            local x, y = outwardPoint(room, side, 3 + rng:range(0, 2))
+            addRotationSecret(mega, base, rng, room, x, y, tileId)
         end
-        if rng:range(1, 100) <= 55 then
-            local side = rng:range(0, 3)
-            local sx = rng:range(0, 1) == 0 and -1 or 1
-            local sy = rng:range(0, 1) == 0 and -1 or 1
-            local mx = room.x + (side == 0 and room.w + 2 or (side == 1 and -(room.w + 2) or sx * (room.w + 1)))
-            local my = room.y + (side == 2 and room.h + 2 or (side == 3 and -(room.h + 2) or sy * (room.h + 1)))
-            append(monuments, { x = mx, y = my, tile = base.occluderTile or base.wallTile, roomKey = room.key })
+    end
+end
+
+local function finalizeMegastructure(base, mega)
+    for _, monument in ipairs(mega.monuments or {}) do
+        for _, corridor in ipairs(base.corridors or {}) do
+            if inCorridor(monument.x, monument.y, corridor) then
+                if corridor.ay == corridor.by or monument.y == corridor.ay then
+                    monument.y = monument.y + 2
+                else
+                    monument.x = monument.x + 2
+                end
+            end
+        end
+    end
+    return mega
+end
+
+local function buildArchiveMegastructure(base, seed, layoutId)
+    local rng = Rng.new(seed + #tostring(layoutId or "") * 97 + 17031)
+    local mega = { platforms = {}, bridges = {}, overlooks = {}, monuments = {}, hidden = {}, algorithm = "archive_indexed_terraces" }
+    for index, room in ipairs(base.rooms or {}) do
+        local wide = rng:range(0, 2)
+        append(mega.platforms, { x = room.x, y = room.y, w = room.w + 2 + wide, h = room.h + 1 + rng:range(0, 2), tile = base.floorTile, role = "catalogue_terrace" })
+        local side = (index + rng:range(0, 3)) % 4
+        local ox, oy = outwardPoint(room, side, 4 + rng:range(0, 1))
+        local overlook = append(mega.overlooks, { x = ox, y = oy, w = 2 + rng:range(0, 1), h = 2 + rng:range(0, 1), tile = base.floorTile, roomKey = room.key, role = "reading_balcony" })
+        append(mega.bridges, { ax = room.x, ay = room.y, bx = overlook.x, by = overlook.y, width = 1, tile = base.corridorTile or base.floorTile, role = "index_span" })
+        if index % 2 == 0 or rng:range(1, 100) <= 55 then
+            local mx, my = outwardPoint(room, (side + 1) % 4, 2)
+            append(mega.monuments, { x = mx, y = my, tile = base.occluderTile or base.wallTile, roomKey = room.key, role = "shelf_monolith" })
         end
     end
     for _, corridor in ipairs(base.corridors or {}) do
-        append(bridges, { ax = corridor.ax, ay = corridor.ay, bx = corridor.bx, by = corridor.by, width = rng:range(1, 2), tile = base.corridorTile or base.floorTile, role = corridor.role })
-        if rng:range(1, 100) <= 45 then
-            local mx = math.floor((corridor.ax + corridor.bx) / 2 + 0.5)
-            local my = math.floor((corridor.ay + corridor.by) / 2 + 0.5)
-            local side = rng:range(0, 1) == 0 and -1 or 1
-            if corridor.ay == corridor.by then
-                my = my + side * rng:range(3, 5)
-            else
-                mx = mx + side * rng:range(3, 5)
+        append(mega.bridges, { ax = corridor.ax, ay = corridor.ay, bx = corridor.bx, by = corridor.by, width = rng:range(1, 2), tile = base.corridorTile or base.floorTile, role = corridor.role or "audit_spine" })
+        local mx = math.floor((corridor.ax + corridor.bx) / 2 + 0.5)
+        local my = math.floor((corridor.ay + corridor.by) / 2 + 0.5)
+        local side = rng:range(0, 1) == 0 and -1 or 1
+        if corridor.ay == corridor.by then
+            my = my + side * rng:range(3, 5)
+        else
+            mx = mx + side * rng:range(3, 5)
+        end
+        append(mega.platforms, { x = mx, y = my, w = 2, h = 2, tile = base.floorTile, role = "misfiled_landing" })
+        append(mega.bridges, { ax = math.floor((corridor.ax + corridor.bx) / 2 + 0.5), ay = math.floor((corridor.ay + corridor.by) / 2 + 0.5), bx = mx, by = my, width = 1, tile = base.corridorTile or base.floorTile, role = "side_span" })
+    end
+    addRoomSecrets(mega, base, rng, 3)
+    return finalizeMegastructure(base, mega)
+end
+
+local function buildCisternMegastructure(base, seed, layoutId)
+    local rng = Rng.new(seed + #tostring(layoutId or "") * 131 + 27091)
+    local mega = { platforms = {}, bridges = {}, overlooks = {}, monuments = {}, hidden = {}, algorithm = "cistern_hydraulic_rings" }
+    for index, room in ipairs(base.rooms or {}) do
+        local basin = append(mega.platforms, { x = room.x, y = room.y, w = room.w + 1, h = room.h + 1, tile = base.floorTile, role = "sluice_basin" })
+        if index % 2 == 1 then
+            append(mega.platforms, { x = room.x, y = room.y, w = math.max(1, basin.w - 2), h = basin.h + 3, tile = base.corridorTile or base.floorTile, role = "flood_ring" })
+        else
+            append(mega.platforms, { x = room.x, y = room.y, w = basin.w + 3, h = math.max(1, basin.h - 2), tile = base.corridorTile or base.floorTile, role = "flood_ring" })
+        end
+        local side = rng:range(0, 3)
+        local ox, oy = outwardPoint(room, side, 4)
+        append(mega.overlooks, { x = ox, y = oy, w = 1 + rng:range(0, 1), h = 2 + rng:range(0, 2), tile = base.floorTile, roomKey = room.key, role = "maintenance_cupola" })
+        append(mega.bridges, { ax = room.x, ay = room.y, bx = ox, by = oy, width = 1, tile = base.corridorTile or base.floorTile, role = "valve_walk" })
+        if rng:range(1, 100) <= 70 then
+            local mx, my = outwardPoint(room, (side + 2) % 4, 2)
+            append(mega.monuments, { x = mx, y = my, tile = base.obstacleTile or base.wallTile, roomKey = room.key, role = "brine_column" })
+        end
+    end
+    for _, corridor in ipairs(base.corridors or {}) do
+        append(mega.bridges, { ax = corridor.ax, ay = corridor.ay, bx = corridor.bx, by = corridor.by, width = 1, tile = base.corridorTile or base.floorTile, role = corridor.role or "causeway" })
+        local mx = math.floor((corridor.ax + corridor.bx) / 2 + 0.5)
+        local my = math.floor((corridor.ay + corridor.by) / 2 + 0.5)
+        append(mega.platforms, { x = mx, y = my, w = 1 + rng:range(0, 1), h = 1 + rng:range(0, 1), tile = base.floorTile, role = "service_island" })
+    end
+    addRoomSecrets(mega, base, rng, 2)
+    return finalizeMegastructure(base, mega)
+end
+
+local function buildEmberMegastructure(base, seed, layoutId)
+    local rng = Rng.new(seed + #tostring(layoutId or "") * 149 + 37057)
+    local mega = { platforms = {}, bridges = {}, overlooks = {}, monuments = {}, hidden = {}, algorithm = "ember_branching_veins" }
+    for index, room in ipairs(base.rooms or {}) do
+        append(mega.platforms, { x = room.x, y = room.y, w = room.w + rng:range(1, 2), h = room.h + rng:range(1, 2), tile = base.floorTile, role = "kiln_chamber" })
+        local spokes = 1 + (index % 3)
+        for spoke = 1, spokes do
+            local side = (index + spoke + rng:range(0, 1)) % 4
+            local ox, oy = outwardPoint(room, side, 3 + spoke)
+            append(mega.bridges, { ax = room.x, ay = room.y, bx = ox, by = oy, width = 1, tile = base.corridorTile or base.floorTile, role = "clinker_vein" })
+            append(mega.overlooks, { x = ox, y = oy, w = 1, h = 1 + rng:range(0, 1), tile = base.floorTile, roomKey = room.key, role = "ash_pocket" })
+        end
+        if rng:range(1, 100) <= 75 then
+            local mx, my = outwardPoint(room, rng:range(0, 3), 2)
+            append(mega.monuments, { x = mx, y = my, tile = base.obstacleTile or base.wallTile, roomKey = room.key, role = "ash_choke" })
+        end
+    end
+    for _, corridor in ipairs(base.corridors or {}) do
+        append(mega.bridges, { ax = corridor.ax, ay = corridor.ay, bx = corridor.bx, by = corridor.by, width = rng:range(1, 2), tile = base.corridorTile or base.floorTile, role = corridor.role or "bellows_spine" })
+        local mx = math.floor((corridor.ax + corridor.bx) / 2 + 0.5)
+        local my = math.floor((corridor.ay + corridor.by) / 2 + 0.5)
+        if corridor.ay == corridor.by then
+            my = my + (rng:range(0, 1) == 0 and -2 or 2)
+        else
+            mx = mx + (rng:range(0, 1) == 0 and -2 or 2)
+        end
+        append(mega.monuments, { x = mx, y = my, tile = base.obstacleTile or base.wallTile, role = "falling_cinder" })
+    end
+    addRoomSecrets(mega, base, rng, 2)
+    return finalizeMegastructure(base, mega)
+end
+
+local function buildMegastructureLayout(base, seed, layoutId)
+    if base.floorTile == "salt_floor" then
+        return buildCisternMegastructure(base, seed, layoutId)
+    end
+    if base.floorTile == "ember_floor" then
+        return buildEmberMegastructure(base, seed, layoutId)
+    end
+    return buildArchiveMegastructure(base, seed, layoutId)
+end
+
+local function applyGeneratedRoomAlgorithms(base, seed, layoutId)
+    local rng = Rng.new(seed + #tostring(layoutId or "") * 173 + 47011)
+    for index, room in ipairs(base.rooms or {}) do
+        if base.floorTile == "salt_floor" then
+            room.generatedShape = "cistern_basin"
+            if index ~= 1 then
+                room.w = room.w + (index % 2 == 0 and 1 or 0)
+                room.h = room.h + rng:range(0, 1)
             end
-            append(platforms, { x = mx, y = my, w = 2, h = 2, tile = base.floorTile })
-            append(bridges, { ax = math.floor((corridor.ax + corridor.bx) / 2 + 0.5), ay = math.floor((corridor.ay + corridor.by) / 2 + 0.5), bx = mx, by = my, width = 1, tile = base.corridorTile or base.floorTile, role = "side_span" })
+            room.roomAlgorithm = "ellipse basin with causeway rim"
+        elseif base.floorTile == "ember_floor" then
+            room.generatedShape = "ember_vein"
+            if index ~= 1 then
+                room.w = room.w + rng:range(0, 1)
+                room.h = room.h + (index % 3 == 0 and 1 or 0)
+            end
+            room.roomAlgorithm = "jagged heat-carved chamber"
+        else
+            room.generatedShape = "archive_stacks"
+            room.roomAlgorithm = "rectilinear stacks with parallax alcoves"
         end
     end
-    local cacheTile = base.rotationCacheTile or base.rewardTile
-    if cacheTile then
-        local rooms = base.rooms or {}
-        local room = rooms[#rooms > 0 and rng:range(1, #rooms) or 1]
-        if room then
-            local x = room.x + room.w + 3
-            local y = room.y + rng:range(-room.h, room.h)
-            append(hidden, { x = x, y = y, z = 0, tile = cacheTile, hiddenBehind = true, revealRotations = { rng:range(0, 3) } })
-            append(monuments, { x = x + 1, y = y - 1, tile = base.occluderTile or base.wallTile, roomKey = room.key })
-            append(platforms, { x = x, y = y, w = 1, h = 1, tile = base.floorTile })
+end
+
+local function roomTileKind(seed, x, y, z, room, layout)
+    local dx = math.abs(x - room.x)
+    local dy = math.abs(y - room.y)
+    if room.generatedShape == "cistern_basin" then
+        local rx = math.max(1, room.w + 0.35)
+        local ry = math.max(1, room.h + 0.35)
+        local ellipse = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry)
+        if ellipse > 1.06 then
+            return "wall"
         end
+        if ellipse > 0.86 and Rng.hash(seed + 51013, x, y, z or 0) % 5 == 0 then
+            return "wall"
+        end
+        return "floor"
     end
-    return { platforms = platforms, bridges = bridges, overlooks = overlooks, monuments = monuments, hidden = hidden }
+    if room.generatedShape == "ember_vein" then
+        if dx == room.w or dy == room.h then
+            return "wall"
+        end
+        local jag = Rng.hash(seed + 61027, x, y, z or 0) % 7
+        if dx + dy > room.w + room.h - 2 and jag < 3 then
+            return "wall"
+        end
+        if layout.obstacleTile and dx > 0 and dy > 0 and Rng.hash(seed + 61031, x, y, z or 0) % 41 == 0 then
+            return "obstacle"
+        end
+        return "floor"
+    end
+    if room.generatedShape == "archive_stacks" then
+        if dx == room.w or dy == room.h then
+            return "wall"
+        end
+        local edgeAlcove = (dx == room.w - 1 and dy % 2 == 0) or (dy == room.h - 1 and dx % 2 == 0)
+        if edgeAlcove and Rng.hash(seed + 71039, x, y, z or 0) % 6 == 0 then
+            return "wall"
+        end
+        return "floor"
+    end
+    if dx == room.w or dy == room.h then
+        return "wall"
+    end
+    return "floor"
 end
 
 function World.new(seed, locationKey, overrides)
@@ -181,6 +340,7 @@ function World:staticMissionLayout(location)
             base.roomTemplateByRole[template.role] = templateKey
         end
     end
+    applyGeneratedRoomAlgorithms(base, self.seed or 1, layoutId)
     base.encounters = deepCopy(location.encounters or {})
     if layoutId == "cistern_silence_choir" then
         base.encounters["6:10"] = "cistern_choir"
@@ -246,6 +406,7 @@ function World:missionGrammarLayout(location)
             base.roomTemplateByRole[template.role] = templateKey
         end
     end
+    applyGeneratedRoomAlgorithms(base, self.seed or 1, layoutId)
     base.encounters = {
         [roles.lock_gate or "8:0"] = "entry",
         [roles.scout_branch or "0:8"] = "archive_branch",
@@ -513,20 +674,24 @@ function World:generatedTile(x, y, z)
             return tile(layout.corridorTile or "corridor")
         end
     end
-    local megaTile = self:megastructureTile(x, y, z)
-    if megaTile then
-        return tile(megaTile)
-    end
     for _, room in ipairs(layout.rooms or {}) do
         if inRoom(x, y, room) then
-            if math.abs(x - room.x) == room.w or math.abs(y - room.y) == room.h then
+            local kind = roomTileKind(self.seed or 1, x, y, z, room, layout)
+            if kind == "wall" then
                 return tile(layout.wallTile or "archive_wall")
+            end
+            if kind == "obstacle" then
+                return tile(layout.obstacleTile or layout.wallTile or "archive_wall")
             end
             if layout.obstacleTile and layout.obstacleModulo and Rng.hash(self.seed + 11017, x, y, z) % layout.obstacleModulo == 0 then
                 return tile(layout.obstacleTile)
             end
             return tile(layout.floorTile or "archive_floor")
         end
+    end
+    local megaTile = self:megastructureTile(x, y, z)
+    if megaTile then
+        return tile(megaTile)
     end
     return tile(layout.wallTile or "archive_wall")
 end

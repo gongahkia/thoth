@@ -264,7 +264,7 @@ tests[#tests + 1] = function()
     expect(#cleanse:threatsInRect(-999, 999, -999, 999, 0) >= 2, "generated archive should expose visible threats")
     expect(#(cleanse:layout().megastructure.platforms or {}) >= #(cleanse:layout().rooms or {}), "generated archive should add megastructure platforms around rooms")
     expect(#(cleanse:layout().megastructure.bridges or {}) > #(cleanse:layout().corridors or {}), "generated archive should add side spans beyond graph corridors")
-    expect(cleanse:getTile(4, 4, 0).id == "archive_floor", "megastructure platform should create explorable space outside rectangular rooms")
+    expect(Defs.tile(cleanse:getTile(4, 4, 0).id).walkable == true, "megastructure platform should create explorable space outside rectangular rooms")
     expect(#(cleanse:layout().megastructure.hidden or {}) >= 1, "generated archive should add rotation-hidden megastructure rewards")
 end
 
