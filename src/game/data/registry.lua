@@ -1,5 +1,55 @@
 local Registry = {}
 
+local function clone(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local result = {}
+    for key, nested in pairs(value) do
+        result[key] = clone(nested)
+    end
+    return result
+end
+
+local function listHas(list, value)
+    for _, item in ipairs(list) do
+        if item == value then
+            return true
+        end
+    end
+    return false
+end
+
+function Registry.applyOverrides(overrides)
+    if type(overrides) ~= "table" then
+        return false, "registry overrides must be a table"
+    end
+    for category, entries in pairs(overrides) do
+        local target = Registry[category]
+        if type(target) ~= "table" then
+            return false, "unknown registry category " .. tostring(category)
+        end
+        if type(entries) ~= "table" then
+            return false, "registry override category must be a table: " .. tostring(category)
+        end
+        if tostring(category):match("Order$") then
+            for _, key in ipairs(entries) do
+                if type(key) ~= "string" then
+                    return false, "registry order entries must be strings: " .. tostring(category)
+                end
+                if not listHas(target, key) then
+                    target[#target + 1] = key
+                end
+            end
+        else
+            for key, value in pairs(entries) do
+                target[key] = clone(value)
+            end
+        end
+    end
+    return true
+end
+
 Registry.contentRules = {
     namingPrefixes = {
         global = "global_",
@@ -100,6 +150,21 @@ Registry.tiles = {
     ember_sigil = { name = "Ember Sigil", walkable = true, encounter = "prioress", color = { 160, 74, 42 } },
     exit_gate = { name = "Exit Gate", walkable = true, exit = true, color = { 60, 106, 116 } },
     black_water = { name = "Black Water", walkable = false, color = { 20, 46, 58 } },
+}
+
+Registry.tileOrder = {
+    "archive_floor", "archive_wall", "corridor",
+    "salt_floor", "salt_wall", "salt_causeway", "brine_pool",
+    "ember_floor", "ember_wall", "ember_corridor", "ash_choke",
+    "sealed_door", "camp_marker", "relic_cache", "whispering_idol", "wire_snare",
+    "salt_font", "brine_lockbox", "ash_vent", "ember_reliquary", "lost_page",
+    "sealed_name", "false_index", "page_bearer", "misfiled_dead", "witness_drawer",
+    "clerk_cocoon", "name_press", "open_register", "stamped_confessional",
+    "tide_valve", "salt_register", "tov_child", "deep_sluice_key", "shutoff_shrine",
+    "silted_cradle", "pressure_bell", "brine_reliquary",
+    "ember_ward", "ash_name", "warm_ledger", "aron_boy", "white_furnace_key",
+    "false_vow", "ash_lung_reliquary", "fuse_saint", "halo_vent", "vitrified_cot",
+    "boss_sigil", "tide_sigil", "ember_sigil", "exit_gate", "black_water",
 }
 
 Registry.items = {
@@ -268,7 +333,7 @@ Registry.heroClasses = {
         skills = { "razor_lunge", "arterial_cut", "shadow_step" },
     },
     mender = {
-        name = "Mender",
+        name = "Apothecary",
         maxHp = 22,
         speed = 4,
         resolve = 56,
@@ -282,7 +347,7 @@ Registry.heroClasses = {
         skills = { "lantern_bolt", "hush", "ember_veil" },
     },
     harrier = {
-        name = "Harrier",
+        name = "Thief",
         maxHp = 19,
         speed = 6,
         resolve = 50,
@@ -309,8 +374,27 @@ Registry.heroClasses = {
         resolve = 58,
         skills = { "staff_strike", "kindle", "white_flare" },
     },
+    merchant = {
+        name = "Merchant",
+        maxHp = 19,
+        speed = 4,
+        resolve = 54,
+        skills = { "appraise_weak_point", "brokered_mercy", "settle_accounts" },
+    },
 }
-Registry.heroClassOrder = { "warden", "duelist", "mender", "arcanist", "harrier", "chirurgeon", "exile", "lamplighter" }
+Registry.heroClassOrder = { "warden", "duelist", "mender", "arcanist", "harrier", "chirurgeon", "exile", "lamplighter", "merchant" }
+Registry.classUnlocks = {
+    warden = { default = true, reason = "Available at Estate start." },
+    duelist = { default = true, reason = "Available at Estate start." },
+    mender = { default = true, reason = "Available at Estate start." },
+    harrier = { default = true, reason = "Available at Estate start." },
+    arcanist = { location = "buried_archive", progress = 1, reason = "Complete any Buried Archive expedition." },
+    chirurgeon = { bossKill = "buried_archive", reason = "Defeat the Vault Regent." },
+    exile = { location = "salt_cistern", progress = 1, reason = "Complete any Salt Cistern expedition." },
+    lamplighter = { bossKill = "salt_cistern", reason = "Defeat the Bell Diver." },
+    merchant = { eventFlag = "merchant_ledger_accepted", reason = "Defeat the Vault Regent, then accept the ledger." },
+}
+Registry.classUnlockOrder = Registry.heroClassOrder
 
 Registry.skills = {
     shield_crack = {
@@ -515,12 +599,39 @@ Registry.skills = {
         stressDamage = 3,
         status = { kind = "daze", amount = 1, turns = 1 },
     },
+    appraise_weak_point = {
+        name = "Appraise Weak Point",
+        class = "merchant",
+        userRanks = { 3, 4 },
+        target = "enemy",
+        targetRanks = { 1, 2, 3, 4 },
+        status = { kind = "marked", amount = 1, turns = 2 },
+    },
+    brokered_mercy = {
+        name = "Brokered Mercy",
+        class = "merchant",
+        userRanks = { 2, 3, 4 },
+        target = "ally",
+        targetRanks = { 1, 2, 3, 4 },
+        heal = { 6, 6 },
+        selfStress = 3,
+    },
+    settle_accounts = {
+        name = "Settle Accounts",
+        class = "merchant",
+        userRanks = { 1, 2 },
+        target = "enemy",
+        targetRanks = { 1, 2 },
+        damage = { 2, 4 },
+        missingHpScale = 4,
+    },
 }
 Registry.skillOrder = {
     "shield_crack", "hold_line", "iron_oath", "razor_lunge", "arterial_cut", "shadow_step",
     "field_dress", "steady_words", "bone_saw", "lantern_bolt", "hush", "ember_veil",
     "crossbolt", "pinning_shot", "disengage", "acrid_vial", "cauterize", "triage",
     "low_sweep", "grit_teeth", "war_cry", "staff_strike", "kindle", "white_flare",
+    "appraise_weak_point", "brokered_mercy", "settle_accounts",
 }
 
 Registry.enemySkills = {
@@ -623,13 +734,36 @@ Registry.enemies = {
         boss = true,
         skills = { "regent_sentence", "censer_wail" },
         parts = {
-            { key = "edict_crown", name = "Edict Crown", hp = 10, skillLocks = { "regent_sentence" }, exposeDamage = 4 },
-            { key = "choir_chain", name = "Choir Chain", hp = 8, skillLocks = { "censer_wail" }, stressPenalty = 2 },
+            { key = "edict_crown", name = "Edict Crown", hp = 10, skillLocks = { "regent_sentence" }, exposeDamage = 4, hint = "break to disable Regent Sentence" },
+            { key = "choir_chain", name = "Choir Chain", hp = 8, skillLocks = { "censer_wail" }, stressPenalty = 2, hint = "break to quiet Censer Wail" },
+        },
+        bossPhases = {
+            { key = "edict", name = "Edict Phase", opening = true, preferredSkill = "regent_sentence", dialogue = "The Regent reads the first sentence; the crown is the hinge." },
+            { key = "choir", name = "Choir Phase", disabledParts = 1, preferredSkill = "censer_wail", dialogue = "The chain answers when the crown cracks." },
+            { key = "remand", name = "Remand Phase", hpBelow = 0.45, preferredSkill = "regent_sentence", dialogue = "The Regent stamps the remand line in its own blood." },
         },
     },
     drowned_acolyte = { name = "Drowned Acolyte", roles = { "caster", "support" }, maxHp = 11, speed = 5, damage = { 2, 4 }, stress = 5, skills = { "brine_spit", "drowned_hymn" } },
     brine_stalker = { name = "Brine Stalker", roles = { "scout", "trapper" }, maxHp = 17, speed = 4, damage = { 3, 6 }, stress = 2, skills = { "hook_chain", "brine_spit" } },
-    bell_diver = { name = "Bell Diver", roles = { "boss", "guard" }, maxHp = 28, speed = 2, damage = { 5, 8 }, stress = 6, boss = true, skills = { "hook_chain", "drowned_hymn" } },
+    bell_diver = {
+        name = "Bell Diver",
+        roles = { "boss", "guard" },
+        maxHp = 28,
+        speed = 2,
+        damage = { 5, 8 },
+        stress = 6,
+        boss = true,
+        skills = { "hook_chain", "drowned_hymn" },
+        parts = {
+            { key = "bell_lung", name = "Bell Lung", hp = 9, skillLocks = { "drowned_hymn" }, stressPenalty = 2, hint = "break to quiet Drowned Hymn" },
+            { key = "hook_chain", name = "Hook Chain", hp = 8, skillLocks = { "hook_chain" }, exposeDamage = 4, hint = "break to disable Hook Chain" },
+        },
+        bossPhases = {
+            { key = "toll", name = "Toll Phase", opening = true, preferredSkill = "drowned_hymn", dialogue = "The Bell Diver tolls once; the water counts the living." },
+            { key = "chain", name = "Chain Phase", disabledParts = 1, preferredSkill = "hook_chain", dialogue = "The bell lung splits and the chain starts fishing." },
+            { key = "undertow", name = "Undertow Phase", hpBelow = 0.45, preferredSkill = "hook_chain", dialogue = "The Diver sinks lower and drags the room after it." },
+        },
+    },
     valve_thrall = { name = "Valve Thrall", roles = { "guard" }, maxHp = 24, speed = 2, damage = { 4, 7 }, stress = 2, armor = 2, skills = { "valve_crush", "iron_margin" } },
     brine_midwife = { name = "Brine Midwife", roles = { "caster", "support" }, maxHp = 13, speed = 4, damage = { 1, 3 }, stress = 8, skills = { "brine_birth", "salt_hymn" } },
     sluice_eel = { name = "Sluice Eel", roles = { "scout", "trapper" }, maxHp = 12, speed = 8, damage = { 3, 5 }, stress = 3, skills = { "sluice_lunge", "brine_net" } },
@@ -668,12 +802,36 @@ Registry.enemies = {
         boss = true,
         skills = { "flood_toll", "hook_chain", "drowned_hymn" },
         parts = {
-            { key = "bell_lung", name = "Bell Lung", hp = 10, skillLocks = { "flood_toll" }, stressPenalty = 3 },
+            { key = "bell_lung", name = "Bell Lung", hp = 10, skillLocks = { "flood_toll" }, stressPenalty = 3, hint = "break to disable Flood Toll" },
+            { key = "toll_chain", name = "Toll Chain", hp = 9, skillLocks = { "hook_chain" }, exposeDamage = 4, hint = "break to disable Hook Chain" },
+        },
+        bossPhases = {
+            { key = "flood", name = "Flood Phase", opening = true, preferredSkill = "flood_toll", dialogue = "The Flood-Toll rings under the floorboards." },
+            { key = "chain", name = "Chain Phase", disabledParts = 1, preferredSkill = "hook_chain", dialogue = "The bell cracks and the chain comes up angry." },
+            { key = "drown", name = "Drown Phase", hpBelow = 0.45, preferredSkill = "drowned_hymn", dialogue = "The Diver spends its last air on a hymn." },
         },
     },
     ash_husk = { name = "Ash Husk", roles = { "guard" }, maxHp = 13, speed = 4, damage = { 3, 5 }, stress = 3, skills = { "kiln_bite", "soot_cloud" } },
     kiln_imp = { name = "Kiln Imp", roles = { "scout", "caster" }, maxHp = 9, speed = 7, damage = { 2, 4 }, stress = 5, skills = { "soot_cloud", "kiln_bite" } },
-    cinder_prioress = { name = "Cinder Prioress", roles = { "boss", "caster" }, maxHp = 31, speed = 5, damage = { 4, 7 }, stress = 8, boss = true, skills = { "kiln_liturgy", "soot_cloud" } },
+    cinder_prioress = {
+        name = "Cinder Prioress",
+        roles = { "boss", "caster" },
+        maxHp = 31,
+        speed = 5,
+        damage = { 4, 7 },
+        stress = 8,
+        boss = true,
+        skills = { "kiln_liturgy", "soot_cloud" },
+        parts = {
+            { key = "cinder_halo", name = "Cinder Halo", hp = 9, skillLocks = { "kiln_liturgy" }, stressPenalty = 2, hint = "break to quiet Kiln Liturgy" },
+            { key = "soot_veil", name = "Soot Veil", hp = 8, skillLocks = { "soot_cloud" }, exposeDamage = 4, hint = "break to clear Soot Cloud" },
+        },
+        bossPhases = {
+            { key = "liturgy", name = "Liturgy Phase", opening = true, preferredSkill = "kiln_liturgy", dialogue = "The Prioress raises the liturgy and the room remembers fire." },
+            { key = "veil", name = "Veil Phase", disabledParts = 1, preferredSkill = "soot_cloud", dialogue = "The halo cracks and soot pours through the sermon." },
+            { key = "cinder", name = "Cinder Phase", hpBelow = 0.45, preferredSkill = "kiln_liturgy", dialogue = "The Prioress spends the last flame like a verdict." },
+        },
+    },
     kiln_nurse = { name = "Kiln Nurse", roles = { "support", "caster" }, maxHp = 13, speed = 4, damage = { 1, 3 }, stress = 7, supportHeal = 3, skills = { "kiln_cautery", "soot_cloud" } },
     glass_penitent = { name = "Glass Penitent", roles = { "guard" }, maxHp = 22, speed = 2, damage = { 4, 6 }, stress = 3, reflectDamage = 1, skills = { "glass_rebuke", "kiln_bite" } },
     ash_wasp_cloud = { name = "Ash Wasp Cloud", roles = { "swarm", "scout" }, maxHp = 8, speed = 9, damage = { 1, 3 }, stress = 5, skills = { "ash_swarm", "soot_cloud" } },
@@ -711,7 +869,13 @@ Registry.enemies = {
         boss = true,
         skills = { "glass_crown_liturgy", "kiln_liturgy", "soot_cloud" },
         parts = {
-            { key = "halo_vent", name = "Halo Vent", hp = 10, skillLocks = { "glass_crown_liturgy" }, stressPenalty = 3 },
+            { key = "halo_vent", name = "Halo Vent", hp = 10, skillLocks = { "glass_crown_liturgy" }, stressPenalty = 3, hint = "break to disable Glass Crown Liturgy" },
+            { key = "glass_veil", name = "Glass Veil", hp = 9, skillLocks = { "soot_cloud" }, exposeDamage = 4, hint = "break to clear Soot Cloud" },
+        },
+        bossPhases = {
+            { key = "glass", name = "Glass Phase", opening = true, preferredSkill = "glass_crown_liturgy", dialogue = "The glass crown catches every ember and gives none back." },
+            { key = "veil", name = "Veil Phase", disabledParts = 1, preferredSkill = "soot_cloud", dialogue = "The crown vents and the veil cuts into sparks." },
+            { key = "white", name = "White Phase", hpBelow = 0.45, preferredSkill = "kiln_liturgy", dialogue = "The Prioress turns white-hot and calls it mercy." },
         },
     },
     parchment_swarm = { name = "Parchment Swarm", roles = { "swarm", "caster" }, maxHp = 8, speed = 8, damage = { 1, 2 }, stress = 7, skills = { "page_swarm", "ink_splatter" } },
@@ -792,8 +956,13 @@ Registry.enemies = {
         boss = true,
         skills = { "regent_sentence", "red_stress_clause", "red_catalogue" },
         parts = {
-            { key = "red_register", name = "Red Register", hp = 11, skillLocks = { "red_stress_clause" }, stressPenalty = 3 },
-            { key = "remand_crown", name = "Remand Crown", hp = 9, skillLocks = { "regent_sentence" }, exposeDamage = 5 },
+            { key = "red_register", name = "Red Register", hp = 11, skillLocks = { "red_stress_clause" }, stressPenalty = 3, hint = "break to disable Red Stress Clause" },
+            { key = "remand_crown", name = "Remand Crown", hp = 9, skillLocks = { "regent_sentence" }, exposeDamage = 5, hint = "break to disable Regent Sentence" },
+        },
+        bossPhases = {
+            { key = "red", name = "Red Phase", opening = true, preferredSkill = "red_stress_clause", dialogue = "The red register opens; every debt has found a throat." },
+            { key = "catalogue", name = "Catalogue Phase", disabledParts = 1, preferredSkill = "red_catalogue", dialogue = "The Regent abandons law and starts naming bodies." },
+            { key = "crown", name = "Crown Phase", hpBelow = 0.45, preferredSkill = "regent_sentence", dialogue = "The Remand Crown lowers until the room kneels." },
         },
     },
 }
@@ -1291,6 +1460,15 @@ Registry.missions = {
         difficulty = "apprentice",
         resolveLevel = 1,
         objectiveRooms = 3,
+        progressLabel = "survey rooms",
+        objectiveLabel = "survey",
+        objectiveNext = "Scout 3 rooms, then leave before the Archive notices the route.",
+        campHint = "Camp only if stress spikes; scouting pays for speed.",
+        regentHint = "Ignore the sealed gate for now; the Estate needs a map first.",
+        intro = {
+            brief = "Chart three rooms past the intake shelves and return with a usable route.",
+            sting = "A map is a promise that someone else can be charged for walking deeper.",
+        },
         reward = { gold = 80, heirlooms = 1 },
     },
     archive_cleansing = {
@@ -1301,6 +1479,15 @@ Registry.missions = {
         difficulty = "apprentice",
         resolveLevel = 1,
         objectiveEncounters = 2,
+        progressLabel = "rooms cleared",
+        objectiveLabel = "cleanse",
+        objectiveNext = "Win 2 fights and keep the corridor usable for the next crew.",
+        campHint = "Camp after the first fight if stress or death's door risk is high.",
+        regentHint = "Leave the Regent sealed; this run is corridor control.",
+        intro = {
+            brief = "Cull two hostile rooms so the Buried Archive stops feeding on its own entrance.",
+            sting = "A cleared shelf is not safe; it is only rentable.",
+        },
         reward = { gold = 110, heirlooms = 2 },
     },
     archive_gather = {
@@ -1311,6 +1498,15 @@ Registry.missions = {
         difficulty = "apprentice",
         resolveLevel = 1,
         objectiveItems = { archive_page = 2 },
+        progressLabel = "folios recovered",
+        objectiveLabel = "recover",
+        objectiveNext = "Recover 2 archive pages from dead-end shelves or curio rooms.",
+        campHint = "Camp before carrying full loot through an uncleared corridor.",
+        regentHint = "Do not chase the Regent while the folios are still loose.",
+        intro = {
+            brief = "Recover two torn folios before the Stack files them under ash and bone.",
+            sting = "Evidence becomes truth only once it reaches the Estate ledger.",
+        },
         reward = { gold = 120, heirlooms = 2 },
     },
     archive_names = {
@@ -1322,6 +1518,15 @@ Registry.missions = {
         resolveLevel = 1,
         objectiveItems = { sealed_name = 2 },
         extractionChoice = true,
+        progressLabel = "sealed names recovered",
+        objectiveLabel = "recover",
+        objectiveNext = "Recover 2 sealed names from the intake branch and leave before the names are priced.",
+        campHint = "Camp after the first name if stress or cargo risk starts climbing.",
+        regentHint = "Ignore the Regent; this run is extraction, not command.",
+        intro = {
+            brief = "Recover two sealed names before the Archive sells them back as evidence.",
+            sting = "A name is a debt with a pulse still attached.",
+        },
         reward = { gold = 125, heirlooms = 2, trinket = "wax_seal_remand" },
     },
     archive_false_index = {
@@ -1334,6 +1539,15 @@ Registry.missions = {
         objectiveActivations = 1,
         questProvision = { { item = "false_index_writ", count = 1 } },
         dreadTradeoff = 1,
+        progressLabel = "false index burned",
+        objectiveLabel = "burn",
+        objectiveNext = "Use the False Index Writ at the false index, then leave before the correction spreads.",
+        campHint = "Camp before the rite if dread or stress is already near collapse.",
+        regentHint = "Do not open the sealed gate; the false index is the target.",
+        intro = {
+            brief = "Carry the writ to the false index and burn one branch of fraudulent record.",
+            sting = "Correction is still violence when the Archive owns the ink.",
+        },
         reward = { gold = 115, heirlooms = 3 },
     },
     archive_page_bearer = {
@@ -1345,6 +1559,15 @@ Registry.missions = {
         resolveLevel = 3,
         objectiveItems = { page_bearer = 1 },
         fragileCargo = "page_bearer",
+        progressLabel = "page-bearer escorted",
+        objectiveLabel = "escort",
+        objectiveNext = "Escort the Page-Bearer out with the cargo intact.",
+        campHint = "Camp before the long return if the escort has drawn pressure.",
+        regentHint = "Leave the Regent sealed; the living page is the win condition.",
+        intro = {
+            brief = "Escort the Page-Bearer before the Archive files the witness as property.",
+            sting = "A witness carried alive is harder to edit.",
+        },
         reward = { gold = 150, heirlooms = 3 },
     },
     archive_intake_map = {
@@ -1356,6 +1579,15 @@ Registry.missions = {
         resolveLevel = 1,
         objectiveRooms = 4,
         noBossGate = true,
+        progressLabel = "intake rooms mapped",
+        objectiveLabel = "map",
+        objectiveNext = "Scout 4 intake rooms and return with the branch layout.",
+        campHint = "Camp only if the intake loop costs more stress than torchlight.",
+        regentHint = "The boss gate is sealed off for this mapping run.",
+        intro = {
+            brief = "Map four intake rooms so the Estate can name where the Archive starts charging.",
+            sting = "A clean map is the first lie every expedition needs.",
+        },
         reward = { gold = 95, heirlooms = 2 },
     },
     archive_audit_page_bearer = {
@@ -1367,6 +1599,15 @@ Registry.missions = {
         resolveLevel = 3,
         objectiveItems = { page_bearer = 1 },
         noisePressure = 3,
+        progressLabel = "page-bearer audited",
+        objectiveLabel = "audit",
+        objectiveNext = "Recover the Page-Bearer while audit noise is already rising.",
+        campHint = "Camp after the escort is secured if noise has pushed stress high.",
+        regentHint = "Ignore the Regent; the witness audit is the only writ that matters.",
+        intro = {
+            brief = "Audit the Page-Bearer under an Archive alarm already counting down.",
+            sting = "Some witnesses survive only because the ledger wants one more signature.",
+        },
         reward = { gold = 155, heirlooms = 3, trinket = "copper_folio_hook" },
     },
     archive_silence_reeve = {
@@ -1379,6 +1620,15 @@ Registry.missions = {
         objectiveEncounters = 1,
         wardenEncounter = "archive_reeve",
         factionTradeoff = "faction_custodians",
+        progressLabel = "codex reeve silenced",
+        objectiveLabel = "silence",
+        objectiveNext = "Defeat the Codex Reeve in the audit branch and cut Custodian command.",
+        campHint = "Camp before the Reeve if stress or death's door risk is already high.",
+        regentHint = "Stop at the Reeve; the Vault Regent remains sealed for another run.",
+        intro = {
+            brief = "Silence the Codex Reeve before the Custodians turn audit into doctrine.",
+            sting = "Killing a clerk is still command work when every shelf obeys him.",
+        },
         reward = { gold = 165, heirlooms = 4, trinket = "wax_seal_remand" },
     },
     archive_witness_confession = {
@@ -1391,6 +1641,15 @@ Registry.missions = {
         objectiveEncounters = 2,
         standAndSurvive = true,
         dreadBonus = 1,
+        progressLabel = "confession witnessed",
+        objectiveLabel = "witness",
+        objectiveNext = "Survive 2 sealed confession fights and leave with the account intact.",
+        campHint = "Camp between confession rooms if dread pressure has stacked too high.",
+        regentHint = "Do not pursue the Regent; the confession is already enough risk.",
+        intro = {
+            brief = "Witness the sealed confession while the Archive calls two counterclaims to the stand.",
+            sting = "Truth arrives under guard, and the guard always charges admission.",
+        },
         reward = { gold = 135, heirlooms = 4 },
     },
     archive_remand_scribe = {
@@ -1403,6 +1662,15 @@ Registry.missions = {
         objectiveActivations = 1,
         questProvision = { { item = "false_index_writ", count = 1 } },
         branchChoice = "repair_vs_extract",
+        progressLabel = "bound scribe remanded",
+        objectiveLabel = "remand",
+        objectiveNext = "Spend the False Index Writ at the bound scribe's docket.",
+        campHint = "Camp before the docket if the writ run left the party frayed.",
+        regentHint = "Leave the Regent sealed; remand the scribe and extract.",
+        intro = {
+            brief = "Carry a writ to the Bound Scribe and remand the hand that keeps rewriting debt.",
+            sting = "A signature can be a cage if the paper is old enough.",
+        },
         reward = { gold = 130, heirlooms = 3 },
     },
     archive_misfiled_dead = {
@@ -1426,6 +1694,15 @@ Registry.missions = {
         bossEncounter = "regent",
         bossVariantEncounter = "regent_crowned",
         variantDread = 4,
+        progressLabel = "vault regent silenced",
+        objectiveLabel = "silence",
+        objectiveNext = "Defeat the Vault Regent at the sealed gate, then extract with command broken.",
+        campHint = "Camp before the sealed gate; there is no quiet room after the crown sees you.",
+        regentHint = "Break the Regent's weak points and finish the crown before dread crowns it again.",
+        intro = {
+            brief = "Reach the sealed gate and silence the Vault Regent's command of the Buried Archive.",
+            sting = "Every crown in the Archive is just a heavier filing stamp.",
+        },
         reward = { gold = 170, heirlooms = 4, trinket = "quiet_bell" },
     },
     cistern_survey = {
@@ -1436,6 +1713,15 @@ Registry.missions = {
         difficulty = "veteran",
         resolveLevel = 3,
         objectiveRooms = 4,
+        progressLabel = "cistern rooms sounded",
+        objectiveLabel = "sound",
+        objectiveNext = "Scout 4 cistern rooms and mark where the water answers.",
+        campHint = "Camp only if valve noise or low light makes the return unsafe.",
+        regentHint = "Leave the Bell Diver sealed; this run is survey work.",
+        intro = {
+            brief = "Sound the Salt Cistern and return with four mapped pressure rooms.",
+            sting = "Water remembers every debt that tried to dissolve.",
+        },
         reward = { gold = 95, heirlooms = 2 },
     },
     cistern_bell = {
@@ -1448,6 +1734,15 @@ Registry.missions = {
         bossEncounter = "matron",
         bossVariantEncounter = "matron_toll",
         variantDread = 4,
+        progressLabel = "bell diver sunk",
+        objectiveLabel = "sink",
+        objectiveNext = "Defeat the Bell Diver at the deep sluice gate and break the Cistern seal.",
+        campHint = "Camp before the deep sluice; the bell does not leave room for recovery.",
+        regentHint = "Break the Bell Diver's lung or chain, then finish the toll.",
+        intro = {
+            brief = "Sink the Bell Diver before the Salt Cistern turns its seal into a tide.",
+            sting = "Some bells are sunk because silence is cheaper than truth.",
+        },
         reward = { gold = 185, heirlooms = 4, trinket = "oath_ring" },
     },
     cistern_valves = {
@@ -1459,6 +1754,15 @@ Registry.missions = {
         resolveLevel = 3,
         objectiveActivations = 2,
         questProvision = { { item = "valve_key", count = 2 } },
+        progressLabel = "tide valves opened",
+        objectiveLabel = "open",
+        objectiveNext = "Spend 2 Valve Keys at tide valves to wake the old pressure route.",
+        campHint = "Camp after the first valve if pressure noise has started drawing teeth.",
+        regentHint = "Do not dive for the Bell; the valve route is the repair.",
+        intro = {
+            brief = "Open two tide valves before the Cistern seals pressure behind the wrong doors.",
+            sting = "A valve is a promise that moves only when forced.",
+        },
         reward = { gold = 130, heirlooms = 3 },
     },
     cistern_low_reservoir = {
@@ -1471,6 +1775,15 @@ Registry.missions = {
         objectiveActivations = 2,
         questProvision = { { item = "valve_key", count = 2 } },
         noisePressure = 2,
+        progressLabel = "low reservoir bled",
+        objectiveLabel = "bleed",
+        objectiveNext = "Bleed 2 low reservoir valves while pressure noise starts high.",
+        campHint = "Camp before crossing undertow lanes if the bleed has pulled ranks apart.",
+        regentHint = "Ignore the Bell Diver; the low reservoir is already loud enough.",
+        intro = {
+            brief = "Bleed the low reservoir under starting pressure before the pipes answer back.",
+            sting = "The Cistern lowers its voice only to make you lean closer.",
+        },
         reward = { gold = 135, heirlooms = 3 },
     },
     cistern_salt_register = {
@@ -1482,6 +1795,15 @@ Registry.missions = {
         resolveLevel = 3,
         objectiveItems = { salt_register = 1 },
         floodRoute = true,
+        progressLabel = "salt register recovered",
+        objectiveLabel = "recover",
+        objectiveNext = "Recover the Salt Register and leave before the route floods shut.",
+        campHint = "Camp before carrying the register through a flooded return path.",
+        regentHint = "Leave the Bell Diver below; the register is the extraction.",
+        intro = {
+            brief = "Recover the Salt Register before flood routes close over the proof.",
+            sting = "Salt preserves records better than it preserves bodies.",
+        },
         reward = { gold = 145, heirlooms = 3, trinket = "filtered_tooth" },
     },
     cistern_gatekeepers = {
@@ -1494,6 +1816,15 @@ Registry.missions = {
         objectiveActivations = 1,
         questProvision = { { item = "valve_key", count = 1 } },
         noncombatRepair = true,
+        progressLabel = "gatekeepers spared",
+        objectiveLabel = "spare",
+        objectiveNext = "Spend 1 Valve Key to spare the gatekeepers without making a killing route.",
+        campHint = "Camp only if the noncombat route still left stress near collapse.",
+        regentHint = "Do not seek the Bell; spare the gatekeepers and extract.",
+        intro = {
+            brief = "Spare the gatekeepers by turning one valve before the Cistern drafts them into the lock.",
+            sting = "Mercy is still machinery when it needs a key.",
+        },
         reward = { gold = 95, heirlooms = 4 },
     },
     cistern_silence_choir = {
@@ -1506,6 +1837,15 @@ Registry.missions = {
         objectiveEncounters = 1,
         wardenEncounter = "cistern_choir",
         enclaveTradeoff = true,
+        progressLabel = "pearl choir silenced",
+        objectiveLabel = "silence",
+        objectiveNext = "Defeat the Pearl Choir at the choir lock and quiet its valve hymn.",
+        campHint = "Camp before the choir if blight, stress, or low light is already stacked.",
+        regentHint = "Stop at the Choir; the Bell Diver remains a deeper seal.",
+        intro = {
+            brief = "Silence the Pearl Choir before its valve hymn turns rescue into pressure.",
+            sting = "A choir underwater still knows how to accuse.",
+        },
         reward = { gold = 165, heirlooms = 4, trinket = "filtered_tooth" },
     },
     cistern_drain_market = {
@@ -1518,6 +1858,15 @@ Registry.missions = {
         objectiveActivations = 2,
         questProvision = { { item = "valve_key", count = 2 } },
         timedSequence = true,
+        progressLabel = "drowned market drained",
+        objectiveLabel = "drain",
+        objectiveNext = "Open 2 market drains before the timed sequence turns rescue into undertow.",
+        campHint = "Camp before starting the drain sequence if the party cannot sprint cleanly.",
+        regentHint = "Leave the Bell below; the drowned market is the route to save.",
+        intro = {
+            brief = "Drain the drowned market before the timed valves pull the stalls under again.",
+            sting = "Every bargain floats back up asking who signed it.",
+        },
         reward = { gold = 140, heirlooms = 4 },
     },
     cistern_tov_child = {
@@ -1528,6 +1877,15 @@ Registry.missions = {
         difficulty = "veteran",
         resolveLevel = 3,
         objectiveItems = { tov_child = 1 },
+        progressLabel = "Tov child recovered",
+        objectiveLabel = "recover",
+        objectiveNext = "Recover the Tov Child and extract before the Cistern files them as salvage.",
+        campHint = "Camp before the return if the rescue has drawn too much stress.",
+        regentHint = "Do not chase the Bell; the child is the whole mission.",
+        intro = {
+            brief = "Recover the Tov Child before the Salt Cistern teaches the family to stop asking.",
+            sting = "A rescued child is proof that the water can be refused.",
+        },
         reward = { gold = 150, heirlooms = 3 },
     },
     cistern_flood_bailiff = {
@@ -1540,6 +1898,15 @@ Registry.missions = {
         objectiveActivations = 1,
         questProvision = { { item = "valve_key", count = 1 } },
         dreadTradeoff = 1,
+        progressLabel = "bailiff walk flooded",
+        objectiveLabel = "flood",
+        objectiveNext = "Spend 1 Valve Key to flood the Bailiff Walk and accept the dread cost.",
+        campHint = "Camp before the flood if the party is already carrying too much panic.",
+        regentHint = "Leave the Bell sealed; drowning the walk is enough violence.",
+        intro = {
+            brief = "Flood the Bailiff Walk, trading dread for a route the Cistern cannot police.",
+            sting = "Sometimes repair arrives wearing the shape of sabotage.",
+        },
         reward = { gold = 130, heirlooms = 3 },
     },
     cistern_open_deep_sluice = {
@@ -1551,6 +1918,15 @@ Registry.missions = {
         resolveLevel = 5,
         objectiveItems = { deep_sluice_key = 2 },
         tierUnlock = "deep_sluice_tier",
+        progressLabel = "deep sluice keys recovered",
+        objectiveLabel = "open",
+        objectiveNext = "Recover 2 Deep Sluice Keys and open the route toward the Bell Diver.",
+        campHint = "Camp before the final key if champion pressure has already split the line.",
+        regentHint = "The Bell gate waits beyond this; get the keys out first.",
+        intro = {
+            brief = "Recover two Deep Sluice Keys and open the Cistern's lowest route.",
+            sting = "The deep sluice does not open; it admits.",
+        },
         reward = { gold = 160, heirlooms = 4 },
     },
     ember_cleansing = {
@@ -1561,6 +1937,15 @@ Registry.missions = {
         difficulty = "champion",
         resolveLevel = 5,
         objectiveEncounters = 2,
+        progressLabel = "ember rooms quenched",
+        objectiveLabel = "quench",
+        objectiveNext = "Win 2 Warrens fights and clear the route before heat takes hold.",
+        campHint = "Camp after the first fight if heat fatigue or stress is already stacked.",
+        regentHint = "Leave the Prioress sealed; this run is route control.",
+        intro = {
+            brief = "Quench two hostile rooms in the Ember Warrens and hold the first safe path.",
+            sting = "Fire forgets nothing; it only waits for air.",
+        },
         reward = { gold = 125, heirlooms = 3 },
     },
     ember_prioress = {
@@ -1573,6 +1958,15 @@ Registry.missions = {
         bossEncounter = "prioress",
         bossVariantEncounter = "prioress_ember",
         variantDread = 4,
+        progressLabel = "cinder prioress broken",
+        objectiveLabel = "break",
+        objectiveNext = "Defeat the Cinder Prioress at the furnace gate and seal the Warrens.",
+        campHint = "Camp before the furnace gate; the Prioress punishes late recovery.",
+        regentHint = "Break the Prioress halo or veil, then finish the liturgy.",
+        intro = {
+            brief = "Break the Cinder Prioress before the White Furnace turns vow into weather.",
+            sting = "The last fire always calls itself holy.",
+        },
         reward = { gold = 195, heirlooms = 5, trinket = "ember_pin" },
     },
     ember_wards = {
@@ -1584,6 +1978,15 @@ Registry.missions = {
         resolveLevel = 5,
         objectiveActivations = 2,
         questProvision = { { item = "ember_oil", count = 2 } },
+        progressLabel = "ember wards anointed",
+        objectiveLabel = "anoint",
+        objectiveNext = "Spend 2 Ember Oil at ember wards before the kiln route reignites.",
+        campHint = "Camp before the second ward if heat fatigue is eating the line.",
+        regentHint = "Do not chase the Prioress; seal the wards and extract.",
+        intro = {
+            brief = "Anoint two Ember Wards so the Warrens cannot reopen the same wound.",
+            sting = "Oil can bless a fire or teach it restraint.",
+        },
         reward = { gold = 135, heirlooms = 3 },
     },
     ember_vow_kilns = {
@@ -1596,6 +1999,15 @@ Registry.missions = {
         objectiveActivations = 2,
         questProvision = { { item = "ember_oil", count = 2 } },
         dreadTradeoff = 1,
+        progressLabel = "vow kilns doused",
+        objectiveLabel = "douse",
+        objectiveNext = "Spend 2 Ember Oil at vow kilns and accept the dread cost.",
+        campHint = "Camp before the second kiln if the bellows path has raised too much heat.",
+        regentHint = "Leave the Prioress untouched; the kilns are the target.",
+        intro = {
+            brief = "Douse the Vow Kilns before their old promises burn into law again.",
+            sting = "A vow put to flame still knows who spoke it.",
+        },
         reward = { gold = 135, heirlooms = 3 },
     },
     ember_ash_names = {
@@ -1607,6 +2019,15 @@ Registry.missions = {
         resolveLevel = 5,
         objectiveItems = { ash_name = 2 },
         carryLoad = 2,
+        progressLabel = "ash names carried",
+        objectiveLabel = "carry",
+        objectiveNext = "Carry out 2 Ash Names despite the reduced pack space.",
+        campHint = "Camp before the return if the names have made the route too heavy.",
+        regentHint = "Do not open the Prioress gate while the names are still ash-warm.",
+        intro = {
+            brief = "Carry out two Ash Names before the Warrens burns identity down to soot.",
+            sting = "A name in ash is still heavier than bone.",
+        },
         reward = { gold = 145, heirlooms = 3, trinket = "cinder_lens" },
     },
     ember_warm_dead = {
@@ -1619,6 +2040,15 @@ Registry.missions = {
         objectiveActivations = 1,
         questProvision = { { item = "false_vow_writ", count = 1 } },
         lowerLoot = true,
+        progressLabel = "warm dead spared",
+        objectiveLabel = "spare",
+        objectiveNext = "Spend the False Vow Writ to spare the Warm Dead and accept lower loot.",
+        campHint = "Camp before the rite if the party cannot afford a bad return.",
+        regentHint = "Leave the Prioress sealed; mercy is the mission.",
+        intro = {
+            brief = "Spare the Warm Dead with a false-vow writ before the Warrens spends them again.",
+            sting = "Mercy in the Warrens smells like smoke and unpaid wages.",
+        },
         reward = { gold = 85, heirlooms = 4 },
     },
     warrens_douse_vicar = {
@@ -1631,6 +2061,15 @@ Registry.missions = {
         objectiveEncounters = 1,
         wardenEncounter = "ember_vicar",
         factionCost = "faction_ember_penitents",
+        progressLabel = "kiln vicar doused",
+        objectiveLabel = "douse",
+        objectiveNext = "Defeat the Kiln Vicar and break the Penitents' furnace route.",
+        campHint = "Camp before the Vicar if glass wounds or heat fatigue are already high.",
+        regentHint = "Stop at the Vicar; the Prioress is a deeper seal.",
+        intro = {
+            brief = "Douse the Kiln Vicar before the Penitents turn the route into liturgy.",
+            sting = "The Vicar blesses only what can still burn.",
+        },
         reward = { gold = 165, heirlooms = 4, trinket = "cinder_lens" },
     },
     warrens_burn_false_vow = {
@@ -1643,6 +2082,15 @@ Registry.missions = {
         objectiveActivations = 1,
         questProvision = { { item = "false_vow_writ", count = 1 } },
         dreadBonus = -1,
+        progressLabel = "false vow burned",
+        objectiveLabel = "burn",
+        objectiveNext = "Spend the False Vow Writ at the false vow and lower dread.",
+        campHint = "Camp before the vow if the route back is likely to punish delay.",
+        regentHint = "Leave the Prioress sealed; burning the vow is enough repair.",
+        intro = {
+            brief = "Burn the False Vow and cool one lie before it becomes inheritance.",
+            sting = "Some promises deserve ash more than witnesses.",
+        },
         reward = { gold = 120, heirlooms = 4 },
     },
     warrens_warm_ledger = {
@@ -1654,6 +2102,15 @@ Registry.missions = {
         resolveLevel = 5,
         objectiveItems = { warm_ledger = 1 },
         enclaveFavor = 1,
+        progressLabel = "warm ledger recovered",
+        objectiveLabel = "recover",
+        objectiveNext = "Recover the Warm Ledger and return it before the ash edits the names.",
+        campHint = "Camp before carrying the ledger through a hot return path.",
+        regentHint = "Do not chase the Prioress; the ledger is the extraction.",
+        intro = {
+            brief = "Recover the Warm Ledger and give the enclave one clean count of the dead.",
+            sting = "A warm ledger is still deciding who belongs in it.",
+        },
         reward = { gold = 150, heirlooms = 3 },
     },
     warrens_aron_boy = {
@@ -1665,6 +2122,15 @@ Registry.missions = {
         resolveLevel = 5,
         objectiveItems = { aron_boy = 1 },
         namedNpcConsequence = true,
+        progressLabel = "Aron boy carried",
+        objectiveLabel = "carry",
+        objectiveNext = "Carry out the Aron Boy before the Warrens turns rescue into consequence.",
+        campHint = "Camp before the return if the rescue has exposed the back line.",
+        regentHint = "Ignore the Prioress; the boy is the whole extraction.",
+        intro = {
+            brief = "Carry out the Aron Boy before the Warrens decides the family asked too loudly.",
+            sting = "A named rescue leaves a named debt behind.",
+        },
         reward = { gold = 155, heirlooms = 3 },
     },
     warrens_open_furnace = {
@@ -1676,6 +2142,15 @@ Registry.missions = {
         resolveLevel = 5,
         objectiveItems = { white_furnace_key = 2 },
         tierUnlock = "white_furnace_tier",
+        progressLabel = "white furnace keys recovered",
+        objectiveLabel = "open",
+        objectiveNext = "Recover 2 White Furnace Keys and open the route toward the Prioress.",
+        campHint = "Camp before the final key if champion pressure has cracked the line.",
+        regentHint = "The Prioress waits beyond this; get the keys out first.",
+        intro = {
+            brief = "Recover two White Furnace Keys and open the Warrens' final heat route.",
+            sting = "The White Furnace opens only for hands willing to blister.",
+        },
         reward = { gold = 165, heirlooms = 4 },
     },
 }
@@ -1700,7 +2175,7 @@ local missionIntroByKind = {
 }
 for _, missionKey in ipairs(Registry.missionOrder) do
     local mission = Registry.missions[missionKey]
-    mission.intro = missionIntroByKind[mission.kind] or missionIntroByKind.scout
+    mission.intro = mission.intro or missionIntroByKind[mission.kind] or missionIntroByKind.scout
 end
 
 Registry.campSkills = {
@@ -1711,8 +2186,10 @@ Registry.campSkills = {
     camp_witness_vigil = { name = "Witness Vigil", cost = 2, target = "party", stressHeal = 2, itemCost = { torch = 1, ration = 1 }, dread = -1 },
     camp_salt_wash = { name = "Salt Wash", cost = 1, target = "ally", itemCost = { torch = 1 }, clearDisease = true, stressHeal = 1 },
     camp_ember_quench = { name = "Ember Quench", cost = 1, target = "party", itemCost = { ember_oil = 1 }, clearHeatFatigue = true, stressHeal = 1 },
+    audit_books = { name = "Audit Books", cost = 2, target = "party", stressHeal = 4, trinketCost = 1 },
+    cancel_debt = { name = "Cancel Debt", cost = 2, target = "ally", clearDisease = true, factionCost = { enclave_meter = 2 } },
 }
-Registry.campSkillOrder = { "bind_wounds", "watch_order", "bitter_tonic", "last_rites", "camp_witness_vigil", "camp_salt_wash", "camp_ember_quench" }
+Registry.campSkillOrder = { "bind_wounds", "watch_order", "bitter_tonic", "last_rites", "camp_witness_vigil", "camp_salt_wash", "camp_ember_quench", "audit_books", "cancel_debt" }
 
 Registry.estateBuildings = {
     stagecoach = { name = "Stagecoach", maxLevel = 3, heirloomCost = 2, rosterLimit = 6, rosterPerLevel = 2, recruitSlots = 3, slotsPerLevel = 1, recruitCost = 20, discountPerLevel = 3 },
@@ -1730,30 +2207,31 @@ Registry.estateActivities = {
 Registry.estateActivityOrder = { "quiet_rest", "ash_vigil", "chance_table" }
 
 Registry.townEvents = {
-    supply_cache = { name = "Supply Cache", provisions = { torch = 1, ration = 2 } },
-    memorial_bell = { name = "Memorial Bell", stressHeal = 5 },
-    levy_notice = { name = "Levy Notice", gold = -20 },
-    clear_roads = { name = "Clear Roads", gold = 30 },
-    bad_omens = { name = "Bad Omens", stress = 4 },
-    archivist_tithe = { name = "Archivist Tithe", heirlooms = 1, gold = -10 },
-    old_maps = { name = "Old Maps", provisions = { skeleton_key = 1, ward_charm = 1 } },
-    candle_vigil = { name = "Candle Vigil", stressHeal = 8, provisions = { torch = 1 } },
-    survey_quota = { name = "Survey Quota", dread = 1, nextMissionNoise = 1 },
-    enclave_petition = { name = "Enclave Petition", dread = -1, faction = { enclave_meter = 1 }, openMission = "archive_remand_scribe" },
-    archive_tithe_v2 = { name = "Archive Tithe", heirlooms = -1, dread = -2, faction = { faction_custodians = -1 } },
-    salt_rationing = { name = "Salt Rationing", provisionCostMultiplier = 2, faction = { faction_cistern_keepers = 1 } },
-    ash_vigil_demand = { name = "Ash Vigil Demand", recoveryCostMultiplier = 2, dread = -1, faction = { faction_ember_penitents = 1 } },
-    audit_notice = { name = "Audit Notice", nextMissionNoise = 2, completionDread = -1, faction = { faction_custodians = 1 } },
-    lamplighter_strike = { name = "Lamplighter Strike", torchDelay = 15, dread = 1, faction = { faction_lamplighters = 2 } },
-    drowned_banns = { name = "Drowned Banns", openMission = "cistern_tov_child", faction = { faction_cistern_keepers = -1, enclave_meter = 1 } },
-    pyre_demand = { name = "Pyre Demand", openMission = "warrens_douse_vicar", faction = { faction_ember_penitents = 2 } },
-    estate_reckoning = { name = "Estate Reckoning", stress = 3, reckoning = true },
-    enclave_compact_signed = { name = "Enclave Compact Signed", dread = -3, faction = { enclave_meter = 2 } },
+    supply_cache = { name = "Supply Cache", summary = "A sealed cart arrives with staple rations and one dry torch, no sender named.", effect = "+2 ration, +1 torch", provisions = { torch = 1, ration = 2 } },
+    memorial_bell = { name = "Memorial Bell", summary = "The bell rings for the dead, and the living borrow its certainty for one week.", effect = "-5 party stress", stressHeal = 5 },
+    levy_notice = { name = "Levy Notice", summary = "A crown levy reaches the Estate before the wounded do; coin leaves without ceremony.", effect = "-20 gold", gold = -20 },
+    clear_roads = { name = "Clear Roads", summary = "Road crews reopen the lower switchback and salvage wagons finally reach market.", effect = "+30 gold", gold = 30 },
+    bad_omens = { name = "Bad Omens", summary = "Black wax gathers on thresholds and every recruit claims to have heard their name.", effect = "+4 party stress", stress = 4 },
+    archivist_tithe = { name = "Archivist Tithe", summary = "The Archive accepts coin for one marked heirloom and calls the exchange correction.", effect = "+1 heirloom, -10 gold", heirlooms = 1, gold = -10 },
+    old_maps = { name = "Old Maps", summary = "A retired surveyor sells routes that were erased for being useful to the wrong people.", effect = "+key, +ward charm", provisions = { skeleton_key = 1, ward_charm = 1 } },
+    candle_vigil = { name = "Candle Vigil", summary = "The chapel keeps candles burning through shift change; fear has less room to gather.", effect = "-8 stress, +1 torch", stressHeal = 8, provisions = { torch = 1 } },
+    survey_quota = { name = "Survey Quota", summary = "Survey Office quotas rise, and the next mapped route starts louder than it should.", effect = "+1 dread, +noise", dread = 1, nextMissionNoise = 1 },
+    enclave_petition = { name = "Enclave Petition", summary = "Archive survivors submit names, debts, and a remand route they cannot walk alone.", effect = "-1 dread, mission", dread = -1, faction = { enclave_meter = 1 }, openMission = "archive_remand_scribe" },
+    archive_tithe_v2 = { name = "Archive Tithe", summary = "The Custodians trade dread relief for an heirloom, then resent the bargain in writing.", effect = "-1 heirloom, -2 dread", heirlooms = -1, dread = -2, faction = { faction_custodians = -1 } },
+    salt_rationing = { name = "Salt Rationing", summary = "Keepers ration clean brine and double the price of anything that leaves the cart.", effect = "provisions cost x2", provisionCostMultiplier = 2, faction = { faction_cistern_keepers = 1 } },
+    ash_vigil_demand = { name = "Ash Vigil Demand", summary = "The Warrens demand a public vigil; dread cools while recovery costs burn hotter.", effect = "recovery cost x2", recoveryCostMultiplier = 2, dread = -1, faction = { faction_ember_penitents = 1 } },
+    audit_notice = { name = "Audit Notice", summary = "Custodian auditors announce a route review, making survey work louder but endings cleaner.", effect = "+2 noise, -1 dread", nextMissionNoise = 2, completionDread = -1, faction = { faction_custodians = 1 } },
+    lamplighter_strike = { name = "Lamplighter Strike", summary = "Lamplighters lock the oilhouse until arrears are named, priced, and paid.", effect = "+15 torch surcharge", torchDelay = 15, dread = 1, faction = { faction_lamplighters = 2 } },
+    drowned_banns = { name = "Drowned Banns", summary = "Cistern families post wedding banns for the missing so the living can force a rescue.", effect = "opens Tov route", openMission = "cistern_tov_child", faction = { faction_cistern_keepers = -1, enclave_meter = 1 } },
+    pyre_demand = { name = "Pyre Demand", summary = "Ember penitents demand one kiln be doused publicly before the Prioress names more fuel.", effect = "opens vicar route", openMission = "warrens_douse_vicar", faction = { faction_ember_penitents = 2 } },
+    estate_reckoning = { name = "Estate Reckoning", summary = "The Estate counts weeks, deaths, and sealed doors, then lets the sum reach the roster.", effect = "+3 party stress", stress = 3, reckoning = true },
+    enclave_compact_signed = { name = "Enclave Compact Signed", summary = "Three repairs become leverage; survivor enclaves sign a compact the Estate cannot ignore.", effect = "-3 dread, enclave +2", dread = -3, faction = { enclave_meter = 2 } },
+    merchant_ledger_offer = { name = "Ledger Offer", summary = "After the Regent falls, a sealed ledger arrives already balanced against the Estate.", effect = "unlocks Merchant", merchantUnlock = true, cutsceneEvent = "merchant_unlock" },
 }
 Registry.townEventOrder = {
     "supply_cache", "memorial_bell", "levy_notice", "clear_roads", "bad_omens", "archivist_tithe", "old_maps", "candle_vigil",
     "survey_quota", "enclave_petition", "archive_tithe_v2", "salt_rationing", "ash_vigil_demand", "audit_notice",
-    "lamplighter_strike", "drowned_banns", "pyre_demand", "estate_reckoning", "enclave_compact_signed",
+    "lamplighter_strike", "drowned_banns", "pyre_demand", "estate_reckoning", "enclave_compact_signed", "merchant_ledger_offer",
 }
 
 Registry.estateCopy = {
@@ -1768,14 +2246,15 @@ Registry.estateCopyOrder = { "survey_office_copy" }
 Registry.classLore = {
     warden = { origin = "Gate debt made discipline useful before it made it honorable." },
     duelist = { origin = "The Duelist sells clean violence to people who cannot afford clean records." },
-    mender = { origin = "The Mender learned that rescue is triage with witnesses." },
+    mender = { origin = "The Apothecary learned that rescue is triage with witnesses." },
     arcanist = { origin = "The Arcanist reads heat, ink, and fear as the same grammar." },
-    harrier = { origin = "The Harrier came from routes where speed counted as mercy." },
+    harrier = { origin = "The Thief came from routes where speed counted as mercy." },
     chirurgeon = { origin = "The Chirurgeon keeps bodies useful longer than hope does." },
     exile = { origin = "The Exile knows every border is a receipt." },
     lamplighter = { origin = "The Lamplighter was paid to make darkness legible, not safe." },
+    merchant = { origin = "The Merchant learned that mercy is an entry; debt outlasts the body." },
 }
-Registry.classLoreOrder = { "warden", "duelist", "mender", "arcanist", "harrier", "chirurgeon", "exile", "lamplighter" }
+Registry.classLoreOrder = { "warden", "duelist", "mender", "arcanist", "harrier", "chirurgeon", "exile", "lamplighter", "merchant" }
 Registry.classLoreBanks = {
     class_origins = { classes = Registry.classLoreOrder },
 }
@@ -1790,6 +2269,7 @@ Registry.recruitBarks = {
     chirurgeon = { "Open wounds tell useful truths.", "The Estate pays for survival, not comfort." },
     exile = { "I know what locked doors call justice.", "A bad bargain is still a map." },
     lamplighter = { "I sell distance from the dark.", "No flame is free here." },
+    merchant = { "The ledger was open before I arrived.", "Mercy is cheaper when itemized." },
 }
 Registry.recruitBarkOrder = Registry.classLoreOrder
 Registry.barkBanks = {
@@ -1802,8 +2282,9 @@ Registry.graveyardEpitaphs = {
     salt_cistern = { "The cistern closed softly over the witness.", "Pressure wrote the last line." },
     ember_warrens = { "Ash took the breath; glass kept the shape.", "The vow burned longer than the body." },
     estate = { "The road home ended one door short.", "Paid in full, recorded without mercy." },
+    merchant = { "The ledger closed around the hand that held it.", "Profit survived; the Merchant did not." },
 }
-Registry.graveyardEpitaphOrder = { "buried_archive", "salt_cistern", "ember_warrens", "estate" }
+Registry.graveyardEpitaphOrder = { "buried_archive", "salt_cistern", "ember_warrens", "estate", "merchant" }
 Registry.epitaphBanks = {
     zone_epitaphs = { zones = Registry.graveyardEpitaphOrder },
 }
@@ -1823,12 +2304,12 @@ Registry.estateFixtureOrder = {
 }
 
 Registry.enclaveLeaders = {
-    enclave_ilse = { name = "Page-Keeper Ilse", zone = "buried_archive", branch = "mission_unlock", barks = { "Repair the record, or steal from it. Both are counted." } },
-    enclave_cael = { name = "Bound Scribe Cael", zone = "buried_archive", branch = "custodian_risk", barks = { "The Custodians forgive nothing filed correctly." } },
-    enclave_tov = { name = "Valve-Mother Tov", zone = "salt_cistern", branch = "route_bargain", barks = { "Open water for us and we open routes for you." } },
-    enclave_sett = { name = "Pressure Father Sett", zone = "salt_cistern", branch = "shortcut_barter", barks = { "Shortcuts are debts with better shoes." } },
-    enclave_mira = { name = "Ash Vicar Mira", zone = "ember_warrens", branch = "purge_or_free", barks = { "Douse the vow or feed it. Do not pretend neutrality." } },
-    enclave_aron = { name = "Glass-Burnt Aron", zone = "ember_warrens", branch = "douse_kilns", barks = { "The kilns taught us to whisper without skin." } },
+    enclave_ilse = { name = "Page-Keeper Ilse", zone = "buried_archive", branch = "mission_unlock", faction = "enclave_meter", barks = { "Repair the record, or steal from it. Both are counted.", "Bring back stamped pages; stories do not open sealed doors.", "The Archive keeps rooms for debts that learned to breathe.", "If you burn a writ, remember who was warming their hands by it." } },
+    enclave_cael = { name = "Bound Scribe Cael", zone = "buried_archive", branch = "custodian_risk", faction = "faction_custodians", barks = { "The Custodians forgive nothing filed correctly.", "Walk softly near red shelves; the ink listens better than guards.", "A missing page is an accusation unless someone poorer is holding it.", "If the Reeve wakes, deny alphabet and ancestry in the same breath." } },
+    enclave_tov = { name = "Valve-Mother Tov", zone = "salt_cistern", branch = "route_bargain", faction = "faction_cistern_keepers", barks = { "Open water for us and we open routes for you.", "Do not promise dry floors; promise the children climb first.", "A valve turned for nobles sings different under the hand.", "The Cistern gives shortcuts to crews who remember names, not prices." } },
+    enclave_sett = { name = "Pressure Father Sett", zone = "salt_cistern", branch = "shortcut_barter", faction = "faction_cistern_keepers", barks = { "Shortcuts are debts with better shoes.", "Every dry passage has a wet family beneath it.", "Pay the lock before the lock decides you are payment.", "If the Bell Diver calls, answer with tools or stay silent forever." } },
+    enclave_mira = { name = "Ash Vicar Mira", zone = "ember_warrens", branch = "purge_or_free", faction = "faction_ember_penitents", barks = { "Douse the vow or feed it. Do not pretend neutrality.", "The Prioress taught us pain was holy after she learned to invoice it.", "Bring water if you mean mercy; bring flame if you mean law.", "A freed penitent still coughs doctrine for weeks." } },
+    enclave_aron = { name = "Glass-Burnt Aron", zone = "ember_warrens", branch = "douse_kilns", faction = "faction_ember_penitents", barks = { "The kilns taught us to whisper without skin.", "Follow the cool wall until it lies; then follow the scars.", "Glass keeps the shape of a scream better than any clerk.", "When the halo vent opens, kneel only if you want the ash to count you." } },
 }
 Registry.enclaveLeaderOrder = { "enclave_ilse", "enclave_cael", "enclave_tov", "enclave_sett", "enclave_mira", "enclave_aron" }
 
@@ -1850,6 +2331,30 @@ Registry.factionHazards = {
 }
 Registry.factionHazardOrder = { "faction_hazards_v1" }
 
+Registry.factionPressureRules = {
+    mission_pressure_v1 = {
+        successDread = -1,
+        repairDread = -1,
+        abandonedDread = 1,
+        failedDread = 2,
+        repairEnclave = 1,
+        repairLocal = -1,
+        extractEnclave = -1,
+        extractLocal = 1,
+        rescueEnclave = 1,
+        surveyLamplighters = -1,
+        cleanseLocal = -1,
+        activateLocal = 1,
+        sealLocal = 2,
+        sealLamplighters = -1,
+        factionTradeoff = 2,
+        enclaveTradeoff = -1,
+        namedNpcEnclave = 1,
+        namedNpcLocal = 1,
+    },
+}
+Registry.factionPressureRuleOrder = { "mission_pressure_v1" }
+
 Registry.dreadRules = {
     dread_rules_v1 = {
         greedy_extract = 1,
@@ -1869,10 +2374,34 @@ Registry.campaignTimers = {
 Registry.campaignTimerOrder = { "twin_timer_v1", "week_cap_default" }
 
 Registry.endingRoutes = {
-    estate_seal = { name = "Estate Seal", trigger = "all_bosses" },
-    repair_compact = { name = "Repair Compact", trigger = "three_repairs" },
-    extraction_collapse = { name = "Extraction Collapse", trigger = "dread_cap" },
-    quiet_failure = { name = "Quiet Failure", trigger = "week_or_death_cap" },
+    estate_seal = {
+        name = "Estate Seal",
+        alias = "seal",
+        trigger = "all_bosses",
+        condition = "Defeat all three location bosses without signing the repair compact.",
+        result = "The Estate seals the routes and keeps the last word.",
+    },
+    repair_compact = {
+        name = "Repair Compact",
+        alias = "repair",
+        trigger = "three_repairs",
+        condition = "Defeat all bosses after at least three repairs and no extraction majority.",
+        result = "The enclaves force the Estate to share the seal.",
+    },
+    extraction_collapse = {
+        name = "Extraction Collapse",
+        alias = "collapse",
+        trigger = "dread_cap",
+        condition = "Let dread reach the campaign cap.",
+        result = "Extraction becomes policy until the Estate collapses under it.",
+    },
+    quiet_failure = {
+        name = "Quiet Failure",
+        alias = "quiet_failure",
+        trigger = "week_or_death_cap",
+        condition = "Run out of weeks or lose too many heroes.",
+        result = "The file closes without a final seal.",
+    },
 }
 Registry.endingRouteOrder = { "estate_seal", "repair_compact", "extraction_collapse", "quiet_failure" }
 Registry.endingRouters = {
@@ -1886,47 +2415,51 @@ Registry.documentTypes = {
     penitent_confession = { name = "Penitent Confession", location = "ember_warrens" },
     intake_colophon = { name = "Intake Colophon", location = "buried_archive" },
     survivor_page = { name = "Survivor Page", location = "global" },
+    ledger_fragment = { name = "Ledger Fragment", location = "buried_archive" },
 }
-Registry.documentTypeOrder = { "writ_fragment", "valve_schematic", "penitent_confession", "intake_colophon", "survivor_page" }
+Registry.documentTypeOrder = { "writ_fragment", "valve_schematic", "penitent_confession", "intake_colophon", "survivor_page", "ledger_fragment" }
 Registry.documentRegistries = {
     document_registry_v1 = { types = Registry.documentTypeOrder },
 }
 Registry.documentRegistryOrder = { "document_registry_v1" }
 
 Registry.documents = {
-    archive_writ_01 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment I", abstract = "A custody order names debt as inheritance.", text = "The first seal makes debt hereditary before guilt is considered." },
-    archive_writ_02 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment II", abstract = "A margin clause sells silence as safety.", text = "Silence is accepted as payment when witnesses are scarce." },
-    archive_writ_03 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment III", abstract = "A sealed appeal was filed under a dead name.", text = "The appellant is recorded as deceased before the hearing." },
-    archive_writ_04 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment IV", abstract = "A bailiff route bypasses the public ledger.", text = "The shortcut exists for removals that must look like audits." },
-    archive_writ_05 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment V", abstract = "A confession drawer cross-indexes living children.", text = "Witness drawers sort families by future usefulness." },
-    archive_writ_06 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment VI", abstract = "A red amendment authorizes punitive memory.", text = "The red ink marks what must be remembered by force." },
-    archive_colophon_01 = { type = "intake_colophon", location = "buried_archive", title = "Intake Colophon I", abstract = "The intake desk counted hunger as consent.", text = "The ledger accepts a hungry signature as clean consent." },
-    archive_colophon_02 = { type = "intake_colophon", location = "buried_archive", title = "Intake Colophon II", abstract = "The old map omits rooms that owed too much.", text = "The map is accurate only where the Estate is innocent." },
-    archive_colophon_03 = { type = "intake_colophon", location = "buried_archive", title = "Intake Colophon III", abstract = "The Regent's seal repeats on erased pages.", text = "The same seal appears where records were scraped blank." },
+    archive_writ_01 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment I", abstract = "A custody order names debt as inheritance.", text = "By order of intake, all debts attached to the named laborer pass cleanly to spouse, child, ward, or discovered kin. Guilt is not required for attachment; proximity is sufficient proof of use." },
+    archive_writ_02 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment II", abstract = "A margin clause sells silence as safety.", text = "Witness silence may be purchased with exemption from night duty, dry bread, or transfer to upper rooms. Any witness who speaks after accepting safety shall be reclassified as inventory in breach." },
+    archive_writ_03 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment III", abstract = "A sealed appeal was filed under a dead name.", text = "The appellant petitions for return of name, tools, and daughter. The clerk marks the petitioner deceased before review, then notes that no living party remains with standing to complain." },
+    archive_writ_04 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment IV", abstract = "A bailiff route bypasses the public ledger.", text = "Bailiffs assigned to private removals shall use the east service stair and omit boot counts from the public ledger. The absence of a route proves the removal did not occur." },
+    archive_writ_05 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment V", abstract = "A confession drawer cross-indexes living children.", text = "Confessions shall be sorted by the usefulness of children named therein. A parent who withholds a child from the drawer admits intent to hide future labor from the Estate." },
+    archive_writ_06 = { type = "writ_fragment", location = "buried_archive", title = "Writ Fragment VI", abstract = "A red amendment authorizes punitive memory.", text = "Records marked in red are not evidence but duty. Clerks must recite them during intake so the condemned remembers the offense in the precise form most useful to sentence." },
+    archive_colophon_01 = { type = "intake_colophon", location = "buried_archive", title = "Intake Colophon I", abstract = "The intake desk counted hunger as consent.", text = "This volume was copied beside the bread gate. Each signature was taken after ration bell and before water bell, when the hand shakes enough to look voluntary on the page." },
+    archive_colophon_02 = { type = "intake_colophon", location = "buried_archive", title = "Intake Colophon II", abstract = "The old map omits rooms that owed too much.", text = "The floor plan excludes chambers under fiscal review. Staff are reminded that omitted rooms are not hidden; they are unresolved, and unresolved space may not be searched without fee." },
+    archive_colophon_03 = { type = "intake_colophon", location = "buried_archive", title = "Intake Colophon III", abstract = "The Regent's seal repeats on erased pages.", text = "Twenty-seven scraped pages bear the same seal pressure beneath the wash. The name removed from each page varies, but the authorizing hand is identical and was never countersigned." },
+    merchant_ledger_01 = { type = "ledger_fragment", location = "buried_archive", title = "Merchant Ledger I", abstract = "A rescue column prices living bodies below proof.", text = "Four survivors are valued below two stamped writs because writs travel cleanly and mouths require rations. The margin notes that mercy remains permissible when it improves witness quality." },
+    merchant_ledger_02 = { type = "ledger_fragment", location = "buried_archive", title = "Merchant Ledger II", abstract = "Faction standing is converted into recoverable debt.", text = "Custodian favor is listed as collateral, enclave trust as spoilage, lamplighter patience as transport cost. The exchange rate changes whenever grief becomes organized enough to bargain." },
+    merchant_ledger_03 = { type = "ledger_fragment", location = "buried_archive", title = "Merchant Ledger III", abstract = "The Estate's losses are filed as future leverage.", text = "Each failed route receives a remainder value: names for pressure, graves for warning, tools for resale, silence for policy. The account calls this waste only when no faction can be made to pay." },
 
-    cistern_valve_01 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic I", abstract = "A relief valve drains into worker bunks.", text = "Pressure safety was routed through the sleeping quarter." },
-    cistern_valve_02 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic II", abstract = "A drowned market line is labeled expendable.", text = "The market can flood without touching noble pumps." },
-    cistern_valve_03 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic III", abstract = "The choir chamber amplifies pressure pulses.", text = "Pearl song is a pressure instrument, not a miracle." },
-    cistern_valve_04 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic IV", abstract = "A maintenance siphon hides toll accounting.", text = "Each bypassed lock increments a private debt counter." },
-    cistern_valve_05 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic V", abstract = "A shutoff shrine can starve the lower sluice.", text = "Closing the shrine saves pumps and abandons sleepers." },
-    cistern_valve_06 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic VI", abstract = "The Bell Diver gate was built to fail inward.", text = "The gate collapses toward those sent to repair it." },
-    cistern_survivor_01 = { type = "survivor_page", location = "salt_cistern", title = "Survivor Page I", abstract = "Tov's first rescue list omits her own child.", text = "She wrote every name except the one she could not save." },
-    cistern_survivor_02 = { type = "survivor_page", location = "salt_cistern", title = "Survivor Page II", abstract = "A pump gang traded maps for dry sleep.", text = "They sold a route upstairs and bought one night above water." },
-    cistern_survivor_03 = { type = "survivor_page", location = "salt_cistern", title = "Survivor Page III", abstract = "A keeper warns that clean water remembers owners.", text = "Clean water keeps the taste of whoever priced it." },
+    cistern_valve_01 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic I", abstract = "A relief valve drains into worker bunks.", text = "The relief line diverts overflow through bunkhouse C before it reaches the noble pump. Fatalities are expected only during pressure correction and should be logged as sleep losses." },
+    cistern_valve_02 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic II", abstract = "A drowned market line is labeled expendable.", text = "Market channel six may be sacrificed to protect export tanks. Merchants objected until the tariff office confirmed drowned stalls still owed rent for the full quarter." },
+    cistern_valve_03 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic III", abstract = "The choir chamber amplifies pressure pulses.", text = "The pearl choir sits in the bend where water hammers hardest. Song calms the crowd, but the diagram marks each throat as an acoustic baffle, replaceable after cracking." },
+    cistern_valve_04 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic IV", abstract = "A maintenance siphon hides toll accounting.", text = "The maintenance siphon bypasses four public locks and reports each bypass as emergency access. A smaller counter beneath the brass face records the tolls that never reach the city book." },
+    cistern_valve_05 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic V", abstract = "A shutoff shrine can starve the lower sluice.", text = "The shrine wheel closes cleanly from above and cannot be reopened below. The prayers etched around it are not devotional; they are instructions for accepting thirst quietly." },
+    cistern_valve_06 = { type = "valve_schematic", location = "salt_cistern", title = "Valve Schematic VI", abstract = "The Bell Diver gate was built to fail inward.", text = "The gate hinge pins are soft iron disguised under pearl wash. Under bell pressure they shear inward, sealing the repair crew with the breach and preserving the mechanism for audit." },
+    cistern_survivor_01 = { type = "survivor_page", location = "salt_cistern", title = "Survivor Page I", abstract = "Tov's first rescue list omits her own child.", text = "Tov writes forty-two names in a steady hand and leaves a blank where her son should be. The blank is circled three times, as if enough circles could count as rescue." },
+    cistern_survivor_02 = { type = "survivor_page", location = "salt_cistern", title = "Survivor Page II", abstract = "A pump gang traded maps for dry sleep.", text = "We gave Ott the old overflow map and he let us sleep above the chalk line. By morning the lower gang was coughing brine, and every one of us knew the map still had their bunks marked." },
+    cistern_survivor_03 = { type = "survivor_page", location = "salt_cistern", title = "Survivor Page III", abstract = "A keeper warns that clean water remembers owners.", text = "Do not trust water because it runs clear. The cleanest pipe belongs to someone with a lock, and every cup remembers the hand that priced the key." },
 
-    warrens_confession_01 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession I", abstract = "A friar admits the first kiln was voluntary.", text = "The first vow entered flame freely; the second was pushed." },
-    warrens_confession_02 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession II", abstract = "A glass penitent names heat as doctrine.", text = "Pain became doctrine once it produced obedient light." },
-    warrens_confession_03 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession III", abstract = "A warm ledger records mercy as fuel loss.", text = "Every spared body is counted as wasted coal." },
-    warrens_confession_04 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession IV", abstract = "A false vow bought time for an escape.", text = "The lie held long enough for three names to run." },
-    warrens_confession_05 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession V", abstract = "A halo vent was tuned to punish doubt.", text = "The vent blooms when voices fall out of sequence." },
-    warrens_confession_06 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession VI", abstract = "The Prioress keeps ash names in sermon order.", text = "Her sermons are roll calls for those already burned." },
-    warrens_survivor_01 = { type = "survivor_page", location = "ember_warrens", title = "Survivor Page IV", abstract = "Aron marks exits by skinless touch.", text = "He counts the doorframes by heat and scar." },
-    warrens_survivor_02 = { type = "survivor_page", location = "ember_warrens", title = "Survivor Page V", abstract = "A nurse hid salve under clinker dust.", text = "The salve survived because everyone feared the dust." },
-    warrens_survivor_03 = { type = "survivor_page", location = "ember_warrens", title = "Survivor Page VI", abstract = "A doused kiln still invoices the living.", text = "Cold ash does not cancel the names pledged to it." },
+    warrens_confession_01 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession I", abstract = "A friar admits the first kiln was voluntary.", text = "I entered the first kiln because the Prioress promised that chosen pain would spare others. When the door closed again, I saw no choice offered to the next penitent." },
+    warrens_confession_02 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession II", abstract = "A glass penitent names heat as doctrine.", text = "We called the light holy after it began to sell. The doctrine followed the furnace ledger, and each cracked body became proof that obedience could be made bright." },
+    warrens_confession_03 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession III", abstract = "A warm ledger records mercy as fuel loss.", text = "I spared three fevered carriers and marked their rations as charity. The ledger corrected me at dusk: mercy equals coal loss unless the body returns to labor by morning." },
+    warrens_confession_04 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession IV", abstract = "A false vow bought time for an escape.", text = "I swore the ash vow loudly enough for the wardens to watch me instead of the west grate. Three children ran under the smoke shelf while I recited words I never believed." },
+    warrens_confession_05 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession V", abstract = "A halo vent was tuned to punish doubt.", text = "The halo vent opens when the chant falters by two beats. Doubt is not detected by heaven; it is detected by a brass governor, cleaned weekly and adjusted for crowd size." },
+    warrens_confession_06 = { type = "penitent_confession", location = "ember_warrens", title = "Penitent Confession VI", abstract = "The Prioress keeps ash names in sermon order.", text = "The Prioress says no one is forgotten, then reads the dead by usefulness to the lesson. I copied the ash roll once and found my own name penciled beneath next week's sermon." },
+    warrens_survivor_01 = { type = "survivor_page", location = "ember_warrens", title = "Survivor Page IV", abstract = "Aron marks exits by skinless touch.", text = "Aron no longer trusts signs because smoke paints every arrow black. He counts exits by the shape of heat on scar tissue and tells us which door hurts least." },
+    warrens_survivor_02 = { type = "survivor_page", location = "ember_warrens", title = "Survivor Page V", abstract = "A nurse hid salve under clinker dust.", text = "The nurse buried salve jars in clinker because inspectors would rather lose medicine than touch waste. We found them by following the only flies that survived the ward." },
+    warrens_survivor_03 = { type = "survivor_page", location = "ember_warrens", title = "Survivor Page VI", abstract = "A doused kiln still invoices the living.", text = "Kiln nine went cold after the collapse, but its account stayed open. Families still receive fuel invoices for bodies pledged to a furnace that has not burned in months." },
 }
 Registry.documentOrder = {
     "archive_writ_01", "archive_writ_02", "archive_writ_03", "archive_writ_04", "archive_writ_05", "archive_writ_06",
-    "archive_colophon_01", "archive_colophon_02", "archive_colophon_03",
+    "archive_colophon_01", "archive_colophon_02", "archive_colophon_03", "merchant_ledger_01", "merchant_ledger_02", "merchant_ledger_03",
     "cistern_valve_01", "cistern_valve_02", "cistern_valve_03", "cistern_valve_04", "cistern_valve_05", "cistern_valve_06",
     "cistern_survivor_01", "cistern_survivor_02", "cistern_survivor_03",
     "warrens_confession_01", "warrens_confession_02", "warrens_confession_03", "warrens_confession_04", "warrens_confession_05", "warrens_confession_06",
@@ -1946,8 +2479,12 @@ Registry.documentBanks = {
         location = "ember_warrens",
         documents = { "warrens_confession_01", "warrens_confession_02", "warrens_confession_03", "warrens_confession_04", "warrens_confession_05", "warrens_confession_06", "warrens_survivor_01", "warrens_survivor_02", "warrens_survivor_03" },
     },
+    merchant_documents_v1 = {
+        location = "buried_archive",
+        documents = { "merchant_ledger_01", "merchant_ledger_02", "merchant_ledger_03" },
+    },
 }
-Registry.documentBankOrder = { "archive_documents_v1", "cistern_documents_v1", "warrens_documents_v1" }
+Registry.documentBankOrder = { "archive_documents_v1", "cistern_documents_v1", "warrens_documents_v1", "merchant_documents_v1" }
 
 Registry.documentDropRules = {
     document_drop_rules = {
@@ -1970,6 +2507,7 @@ Registry.fixtureDocumentBarks = {
         valve_schematic = { fixture = "fixture_foreman_ott", text = "Ott taps the valve lines and counts missing crews." },
         penitent_confession = { fixture = "fixture_chirurgeon_vell", text = "Vell files the confession beside burn treatments." },
         survivor_page = { fixture = "fixture_stage_master", text = "The Stage Master asks which names still need seats." },
+        ledger_fragment = { fixture = "fixture_clerk_of_debts", text = "The Clerk weighs the ledger fragment and smiles without warmth." },
     },
 }
 Registry.fixtureDocumentBarkOrder = { "fixture_document_barks" }
@@ -2032,8 +2570,9 @@ Registry.supportRuleOrder = { "part_repair_skill" }
 
 Registry.rewardRules = {
     alpha_reward = { coin = 45, heirloom = 1 },
+    merchant_cut = { packDreadTier = 2, lootDreadTier = 4, packSlots = 1, bonusCoin = 25, bonusRelic = 1 },
 }
-Registry.rewardRuleOrder = { "alpha_reward" }
+Registry.rewardRuleOrder = { "alpha_reward", "merchant_cut" }
 
 Registry.recoveryRules = {
     survivor_trinket_debt = { trinkets = 1, dread = 1 },
@@ -2068,10 +2607,16 @@ Registry.panelCopy = {
         body = "Weeks and dread are hard caps, not warnings.",
     },
     ending_screen_copy = {
-        estate_seal = "The Estate Seal holds because enough bosses are dead.",
-        repair_compact = "The Compact holds because repairs outweighed extraction.",
-        extraction_collapse = "The Collapse arrives when dread becomes policy.",
-        quiet_failure = "Quiet Failure arrives when time or deaths close the file.",
+        estate_seal = "The Estate Seal holds: three bosses are dead, the routes are closed, and the Estate keeps the terms.",
+        repair_compact = "The Repair Compact holds: repairs outweighed extraction, and the enclaves force the Estate to share the seal.",
+        extraction_collapse = "The Extraction Collapse arrives when dread becomes policy and every route is treated as salvage.",
+        quiet_failure = "Quiet Failure arrives when time or deaths close the file before anyone can claim the seal.",
+        merchant_modifier = {
+            estate_seal = "A Merchant survives to price the sealed roads, and the last ledger leaves no victory unbilled.",
+            repair_compact = "A Merchant survives the compact and begins converting shared mercy into enforceable accounts.",
+            extraction_collapse = "A Merchant survives the collapse long enough to prove extraction was always an accounting system.",
+            quiet_failure = "A Merchant survives the quiet failure and files the absence of a seal as a receivable.",
+        },
     },
 }
 Registry.panelCopyOrder = { "faction_panel_copy", "timer_panel_copy", "ending_screen_copy" }
@@ -2089,6 +2634,13 @@ Registry.enclaveLeaderBarks = {
         low = "Your name is still negotiable.",
         tense = "The enclave counts favors faster than weeks.",
         high = "One more debt and the route closes.",
+        merchant = {
+            enclave_meter = "The Merchant calls survivor trust liquidity; Ilse calls it names still breathing.",
+            faction_custodians = "Custodians respect the Merchant's numbers until the invoice names them.",
+            faction_cistern_keepers = "Cistern Keepers hear tariff in every Merchant promise.",
+            faction_ember_penitents = "Ember Penitents ask whether the Merchant can price pain without worshiping it.",
+            faction_lamplighters = "Lamplighters distrust any route quote that omits oil, bodies, and blame.",
+        },
     },
 }
 Registry.enclaveLeaderBarkOrder = { "enclave_leader_barks" }
@@ -2106,12 +2658,13 @@ Registry.originBarks = {
     origin_barks_v1 = {
         warden = { arrival = "A Warden arrives already braced.", firstDeath = "The line held until it had a name-shaped gap.", factionShift = "Discipline notices political weather." },
         duelist = { arrival = "A Duelist measures exits before greetings.", firstDeath = "The riposte came too late.", factionShift = "A Duelist favors the side with cleaner odds." },
-        mender = { arrival = "A Mender counts wounds before coins.", firstDeath = "The bandage outlived the hand.", factionShift = "A Mender hears policy as triage." },
+        mender = { arrival = "An Apothecary counts wounds before coins.", firstDeath = "The bandage outlived the hand.", factionShift = "An Apothecary hears policy as triage." },
         arcanist = { arrival = "An Arcanist listens for rules under dust.", firstDeath = "The formula broke at the pulse.", factionShift = "An Arcanist tracks faction pressure like weather." },
-        harrier = { arrival = "A Harrier arrives where the road thins.", firstDeath = "The route kept moving without its scout.", factionShift = "A Harrier trusts whoever keeps paths open." },
+        harrier = { arrival = "A Thief arrives where the road thins.", firstDeath = "The route kept moving without its scout.", factionShift = "A Thief trusts whoever keeps paths open." },
         chirurgeon = { arrival = "A Chirurgeon inventories pain by habit.", firstDeath = "The diagnosis ended before the bleeding did.", factionShift = "A Chirurgeon knows debt by its symptoms." },
         exile = { arrival = "An Exile treats welcome as a temporary error.", firstDeath = "The outcast still earned a stone.", factionShift = "An Exile expects every faction to turn." },
         lamplighter = { arrival = "A Lamplighter checks the wick before the oath.", firstDeath = "The flame recorded the absence.", factionShift = "A Lamplighter counts politics in fuel." },
+        merchant = { arrival = "A Merchant arrives with the ledger already opened.", firstDeath = "The account closed at a loss.", factionShift = "A Merchant marks faction weather as price movement." },
     },
 }
 Registry.originBarkOrder = { "origin_barks_v1" }

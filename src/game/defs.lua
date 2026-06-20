@@ -1,13 +1,18 @@
 local Registry = require("src.game.data.registry")
 
 local Defs = {
+    registry = Registry,
+    applyRegistryOverrides = Registry.applyOverrides,
     contentRules = Registry.contentRules,
     tiles = Registry.tiles,
+    tileOrder = Registry.tileOrder,
     items = Registry.items,
     itemOrder = Registry.itemOrder,
     inventoryPanelOrder = Registry.inventoryPanelOrder,
     heroClasses = Registry.heroClasses,
     heroClassOrder = Registry.heroClassOrder,
+    classUnlocks = Registry.classUnlocks,
+    classUnlockOrder = Registry.classUnlockOrder,
     trinkets = Registry.trinkets,
     trinketOrder = Registry.trinketOrder,
     trinketSets = Registry.trinketSets,
@@ -66,6 +71,8 @@ local Defs = {
     factionOrder = Registry.factionOrder,
     factionHazards = Registry.factionHazards,
     factionHazardOrder = Registry.factionHazardOrder,
+    factionPressureRules = Registry.factionPressureRules,
+    factionPressureRuleOrder = Registry.factionPressureRuleOrder,
     dreadRules = Registry.dreadRules,
     dreadRuleOrder = Registry.dreadRuleOrder,
     campaignTimers = Registry.campaignTimers,
@@ -134,6 +141,10 @@ end
 
 function Defs.heroClass(id)
     return Defs.heroClasses[id]
+end
+
+function Defs.classUnlock(id)
+    return Defs.classUnlocks[id]
 end
 
 function Defs.trinket(id)
@@ -250,6 +261,10 @@ end
 
 function Defs.factionHazard(id)
     return Defs.factionHazards[id]
+end
+
+function Defs.factionPressureRule(id)
+    return Defs.factionPressureRules[id]
 end
 
 function Defs.dreadRule(id)

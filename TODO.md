@@ -1,3 +1,188 @@
-# Thoth Open Todo
+# Thoth — Roadmap & Tasks
 
-No open todo items. `TODO-CONTENT.md` holds detailed backlog metadata when present.
+Locked 2026-06-19. Single source of truth. `TODO-CONTENT.md` merged into this file.
+
+## Lock-in decisions
+
+- **Engine:** stay LOVE2D + Lua. Add 3D lib (g3d or 3DreamEngine, TBD via Phase 0 spike).
+- **Rendering:** HD-2D — 3D world geometry, billboarded 2D sprites for characters/enemies.
+- **Camera:** isometric, 90° rotation snaps (Fez-style), no smooth 360°.
+- **Distribution:** itch.io + GitHub releases. No Steam. Balatro polish bar (feel/UX/audio), not Balatro art bar.
+- **Scope:** no cuts. All 3 zones (Buried Archive lead), 32 missions, 8 existing classes + new Merchant = 9 classes total.
+- **Tone:** institutional horror preserved; classic-fantasy class names create deliberate dissonance.
+- **Timeline:** grad +2yr is alpha milestone, 1.0 expected 4–6 yr from now. No hard deadline.
+- **Audio:** royalty-free music (freepd.com, Pixabay Music). SFX from OGA or self-recorded.
+- **Art:** OGA character sprites (billboarded). CC0 3D environment geometry (KayKit/Quaternius/Kenney). AI fill only as last resort after OGA exhausted.
+
+## Class roster
+
+| ID (code) | Display name | Status | Touch points |
+|---|---|---|---|
+| `warden` | Warden | unchanged | registry.lua:257 |
+| `duelist` | Duelist | unchanged | registry.lua:264 |
+| `mender` | **Apothecary** | **renamed** | registry.lua:271 |
+| `arcanist` | Arcanist | unchanged | registry.lua:278 |
+| `harrier` | **Thief** | **renamed** | registry.lua:285 |
+| `chirurgeon` | Chirurgeon | unchanged | registry.lua:292 |
+| `exile` | Exile | unchanged | registry.lua:299 |
+| `lamplighter` | Lamplighter | unchanged | registry.lua:306 |
+| `merchant` | **Merchant** | **new** | TBD — added after `lamplighter` |
+
+Class IDs in code stay as `mender`/`harrier` for save-file compat. Display strings update.
+
+## Merchant kit v1
+
+Design artifact: `docs/merchant-kit.md`.
+
+Tone: the Stack's hand. Counts and weighs while others kill and salvage. Treats heroes as inventory entries. Lore tension: party benefits from Merchant economy while becoming Merchant's ledger.
+
+**Skills (3):**
+
+1. `appraise_weak_point` - Ranks 3-4. Enemy ranks 1-4. Applies `marked` for 2 turns; the next direct hero hit ignores armor and gains crit pressure.
+2. `brokered_mercy` - Ranks 2-4. Ally ranks 1-4. Heals 6 HP and adds 3 stress to the Merchant.
+3. `settle_accounts` - Ranks 1-2. Enemy ranks 1-2. Deals modest direct damage plus missing-HP scaling.
+
+**Camp skills (2):**
+
+- `audit_books` - Party stress heal 4. Consumes one carried trinket as an audit loss.
+- `cancel_debt` - Cures one disease on one hero. Costs 2 Survivor Enclave standing (`enclave_meter`) if available.
+
+**Passive:**
+
+- `merchant_cut` - Dread tier 2+: +1 pack slot while Merchant is on the expedition. Dread tier 4+: first room-loot coin/relic payout gains +1 bonus stack. Reverse-pressure: Estate decay makes the Merchant more profitable.
+
+**Lore/barks:**
+
+- Origin: `"The Merchant learned that mercy is an entry; debt outlasts the body."`
+- Arrival: `"A Merchant arrives with the ledger already opened."`
+- First death: `"The account closed at a loss."`
+- Faction shift: `"A Merchant marks faction weather as price movement."`
+
+---
+
+## Phase 0 — Engine spike (Week 1, ~20h total)
+
+Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
+
+### Day 1 — Library bake-off setup (~4h)
+
+### Day 2 — 3D world spike (~4h)
+
+### Day 3 — Billboard sprite spike (~4h)
+
+### Day 4 — Perf + integration spike (~4h)
+
+### Day 5 — Decision + writeup (~4h)
+
+**Phase 0 exit criteria:** all 5 spike days pass; engine lib chosen; ≥60fps with 34 billboards + 400 tiles + 4-snap rotation; existing save/load unaffected.
+
+---
+
+## Phase 1 — Engine port (~3 months, ~360h)
+
+Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render layer. Keep `simulation.lua` untouched.
+
+**Phase 1 exit criteria:** game boots into HD-2D world, all 24 cutscenes play, rotation works, all existing tests pass, save/load works, benchmarks ≥ old perf.
+
+---
+
+## Phase 2 — UI layer (~6 months, ~720h)
+
+Goal: build every missing player-facing screen. Game must boot from title → load campaign → play → quit gracefully.
+
+**Phase 2 exit criteria:** every player decision currently in code is accessible via UI. No keyboard-shortcut-only features. Controller can play the game start to finish.
+
+---
+
+## Phase 3 — Asset integration (~4 months, ~480h)
+
+Goal: replace `assets/sprites/thoth_atlas.png` (single 128×80 placeholder) with cohesive OGA pack + CC0 3D world geometry.
+
+**Phase 3 exit criteria:** zero placeholder art remaining. All audio/visual assets attributed in credits. License audit clean.
+
+---
+
+## Phase 4 — Vertical slice alpha (~3 months, ~360h)
+
+Goal: full playthrough of Buried Archive Tier I (3 missions) end-to-end, with 4 starter classes (Warden, Duelist, Apothecary, Thief).
+
+- [ ] 4.11 Drop free alpha on itch.io; share to 3 communities (r/love2d, r/IndieDev, RPG Maker horror Discord) (4h)
+- [ ] 4.12 Collect feedback for 4 weeks. Categorize: bug / balance / feel / scope (16h)
+- [ ] 4.13 Triage feedback; write `docs/alpha-feedback-triage.md` (8h)
+- [ ] 4.14 Tag commit `phase4-alpha-released` (0.5h)
+
+**Phase 4 exit criteria:** ≥50 unique alpha downloads, ≥10 feedback responses, ≥1 full playthrough recorded by a stranger.
+
+---
+
+## Phase 5 — Content scale-up (~12 months, ~1500h)
+
+Goal: fill out Buried Archive (12 missions), Salt Cistern (10 missions), Ember Warrens (9 missions) with hand-tuned polish.
+
+- [ ] 5.14 Beta itch.io drop (24h)
+- [ ] 5.15 Collect 8 weeks of beta feedback (16h)
+- [ ] 5.16 Triage + fix top 50 bugs from beta (160h)
+- [ ] 5.17 Tag commit `phase5-content-complete` (0.5h)
+
+**Phase 5 exit criteria:** all 32 missions playable, all 4 endings reachable, beta feedback triaged.
+
+---
+
+## Phase 6 — Merchant integration (~3 months, ~360h)
+
+Goal: ship 9th class. Late-game design choice: introduce dissonance at the point players have made peace with the institutional tone.
+
+- [ ] 6.14 Balance pass: 10 playthroughs with Merchant in party at various tiers (80h)
+- [ ] 6.15 Balance pass: 10 playthroughs without Merchant — verify game still tuned for 8-class roster (60h)
+- [ ] 6.19 Tag commit `phase6-merchant-complete` (0.5h)
+
+**Phase 6 exit criteria:** Merchant integrated, balanced, no regressions in 8-class playthroughs, save/replay deterministic.
+
+---
+
+## Phase 7 — Polish & audio (~6 months, ~720h)
+
+Goal: Balatro-feel polish on every interaction. Audio mix. Final accessibility pass.
+
+**Phase 7 exit criteria:** Balatro-feel polish bar met (subjective; verify via 5 external playtesters' "feel" ratings). No accessibility regressions. Perf budget hit.
+
+---
+
+## Phase 8 — Release candidate + 1.0 (~3 months, ~360h)
+
+Goal: ship 1.0 on itch.io + GitHub releases.
+
+- [ ] 8.4 Verify clean install on Windows, macOS, Linux from scratch (24h)
+- [ ] 8.6 itch.io store page final: 5 screenshots, 1 trailer (record from gameplay), description copy, tags (16h)
+- [ ] 8.7 Trailer production: 60–90s gameplay edit + music (40h)
+- [ ] 8.8 RC1 → 6-week paid-beta on itch.io for feedback ($0–5 suggested donation, no required purchase) (n/a)
+- [ ] 8.9 Triage RC feedback; fix top 20 bugs (120h)
+- [ ] 8.10 RC2 → final regression sweep (16h)
+- [ ] 8.11 Press kit: presskit() format, screenshots at 1080p/4K, logo at multiple sizes (16h)
+- [ ] 8.12 Launch announcement: r/love2d, r/IndieDev, RPG-horror Discords, Bluesky/Mastodon (4h)
+- [ ] 8.13 Set `conf.lua` version to `1.0.0`. Bump save version. Tag commit `v1.0.0` (1h)
+- [ ] 8.14 Launch (0h — let it happen)
+- [ ] 8.15 Post-launch monitor: first-week bug intake, hotfix patch within 7 days if critical bugs (40h)
+
+**Phase 8 exit criteria:** 1.0 live on itch.io + GitHub releases. Hotfix patch deployable within 24h of critical bug report.
+
+---
+
+## Crosscutting / continuous tasks
+
+- [ ] C.1 Weekly: write down 3 things learned, 1 risk introduced (use `docs/dev-log.md`, append-only)
+- [ ] C.2 Monthly: full test suite run + benchmark; record perf delta vs prior month
+- [ ] C.3 Per-phase: verify CI workflow still green (`.github/workflows/ci.yml`)
+- [ ] C.4 Per-feature: write a deterministic replay test under `tests/` proving the feature works
+- [ ] C.5 Per-asset-add: append license entry to `docs/asset-licenses.md`
+
+---
+
+## Known risks (track and revisit)
+
+- **R1 Engine perf:** g3d/3DreamEngine may not hit 60fps with full mission scene. Phase 0 falsifies this. Mitigation if fails: reduce visible tile count, LOD-cull distant tiles, swap to 3D model batching.
+- **R2 Billboard angle:** OGA sprites drawn for top-down may look wrong at 30° iso camera. Mitigation: pick packs drawn for 3/4-view characters specifically (DawnLike, 2DPIXX), or commission angle-correct redraws.
+- **R3 Rotation puzzle design conflict:** 90° rotation works mechanically, but Fez-style rotation-as-puzzle conflicts with procgen mission grammar. Mitigation: rotation is exploration aid (view occluded tiles), not puzzle mechanic, in initial design. Revisit if a rotation-as-puzzle pillar emerges.
+- **R4 Scope creep:** "as long as needed" can extend indefinitely. Mitigation: every 6 months, evaluate whether 1.0 cut is closer; if not, examine which phase is bleeding time.
+- **R5 Solo burnout:** 4–6 years solo is long. Mitigation: 1 day/week off-project minimum; alpha drops at Phase 4 and beta at Phase 5 for external motivation; do not skip the playtest community feedback loops.
+- **R6 Post-grad income loss:** project must survive transition to part-time when grad employment kicks in. Mitigation: front-load Phase 0–4 (engine + UI + alpha) into the 2-year full-time window; treat Phase 5+ as part-time-compatible.

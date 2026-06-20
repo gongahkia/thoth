@@ -56,6 +56,16 @@ local fixtures = {
             { tick = 6, command = Simulation.commands.campSkill("watch_order") },
             { tick = 7, command = Simulation.commands.campSkill("bind_wounds", 4) },
         },
+        setup = function(sim)
+            local startExpedition = sim.startExpedition
+            function sim:startExpedition(locationKey)
+                local ok = startExpedition(self, locationKey)
+                if ok then
+                    self.world:setTile(self.player.x, self.player.y, self.player.z, { id = "camp_marker", data = 0 })
+                end
+                return ok
+            end
+        end,
         validate = function(sim)
             expect(sim.expedition.mission == "archive_cleansing", "mission replay should start selected mission")
             expect(sim.expedition.supplies:count("torch") == 6, "provision replay should merge cart")
@@ -63,10 +73,30 @@ local fixtures = {
             expect(sim.expedition.campUsed and sim.expedition.camping == nil, "camp replay should spend all respite")
         end,
     },
+    {
+        name = "merchant_unlock_recruit",
+        seed = 104,
+        finalTick = 5,
+        frames = {
+            { tick = 0, command = Simulation.commands.endExpedition(true) },
+            { tick = 1, command = Simulation.commands.recruitHero(1) },
+            { tick = 2, command = Simulation.commands.assignParty(5, 4) },
+            { tick = 3, command = Simulation.commands.startExpedition("archive_scout") },
+        },
+        setup = function(sim)
+            sim.estate.campaign.completedMissions.archive_regent = true
+            sim.estate.campaign.bossKills.buried_archive = true
+        end,
+        validate = function(sim)
+            expect(sim.estate.campaign.flags.merchant_ledger_accepted, "merchant replay should unlock ledger")
+            expect(sim:heroById(5).class == "merchant" and sim.party[4] == 5, "merchant replay should recruit and assign merchant")
+            expect(sim.expedition and sim.expedition.mission == "archive_scout", "merchant replay should enter expedition")
+        end,
+    },
 }
 
 for _, fixture in ipairs(fixtures) do
-    local sim = Replay.run(fixture.seed, fixture.frames, fixture.finalTick)
+    local sim = Replay.run(fixture.seed, fixture.frames, fixture.finalTick, fixture.setup)
     fixture.validate(sim)
     io.stdout:write("replay ok ", fixture.name, "\n")
 end

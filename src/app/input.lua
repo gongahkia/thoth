@@ -1,5 +1,7 @@
 local Simulation = require("src.game.simulation")
 local Audio = require("src.app.audio")
+local Render = require("src.app.render")
+local Settings = require("src.app.settings")
 
 local Input = {}
 
@@ -23,6 +25,46 @@ end
 
 local screenDirectionIndexes = { up = 0, right = 1, down = 2, left = 3 }
 local worldDirections = { "north", "east", "south", "west" }
+local boundMovementOrder = {
+    { "moveUp", "up" },
+    { "moveRight", "right" },
+    { "moveDown", "down" },
+    { "moveLeft", "left" },
+}
+local screenDirectionActions = {
+    up = "moveUp",
+    right = "moveRight",
+    down = "moveDown",
+    left = "moveLeft",
+}
+local focusGroups = {
+    "curioButtons",
+    "campSkillButtons",
+    "campHeroButtons",
+    "skillButtons",
+    "enemyButtons",
+    "heroButtons",
+    "missionButtons",
+    "recruitButtons",
+    "provisionButtons",
+    "rosterButtons",
+    "partyRankSlots",
+    "estateActionButtons",
+}
+local gamepadButtonKeys = {
+    a = "return",
+    b = "escape",
+    x = "space",
+    y = "tab",
+    back = "tab",
+    start = "escape",
+    dpup = "up",
+    dpdown = "down",
+    dpleft = "left",
+    dpright = "right",
+    leftshoulder = "[",
+    rightshoulder = "]",
+}
 
 local function worldDirectionForScreen(app, screenDirection)
     local index = screenDirectionIndexes[screenDirection] or 0
@@ -30,17 +72,22 @@ local function worldDirectionForScreen(app, screenDirection)
     return worldDirections[((index + rotation) % 4) + 1]
 end
 
-local function isScreenDirectionDown(screenDirection)
+local function isScreenDirectionDown(screenDirection, app)
     for _, key in ipairs(movementDirectionKeys[screenDirection] or {}) do
         if love.keyboard.isDown(key) then
             return true
         end
     end
+    local action = screenDirectionActions[screenDirection]
+    local bound = action and Settings.keyForAction(app and app.settings, action)
+    if bound and love.keyboard.isDown(bound) then
+        return true
+    end
     return false
 end
 
 local function heldScreenDirection(app)
-    if app.activeMoveDirection and isScreenDirectionDown(app.activeMoveDirection) then
+    if app.activeMoveDirection and isScreenDirectionDown(app.activeMoveDirection, app) then
         return app.activeMoveDirection
     end
     for _, entry in ipairs(movementOrder) do
@@ -48,6 +95,13 @@ local function heldScreenDirection(app)
         if love.keyboard.isDown(key) then
             app.activeMoveDirection = screenDirection
             return screenDirection
+        end
+    end
+    for _, entry in ipairs(boundMovementOrder) do
+        local key = Settings.keyForAction(app and app.settings, entry[1])
+        if key and love.keyboard.isDown(key) then
+            app.activeMoveDirection = entry[2]
+            return entry[2]
         end
     end
     app.activeMoveDirection = nil
@@ -66,6 +120,125 @@ end
 
 local function play(app, cue)
     Audio.play(app.audio, cue)
+    if cue == "invalid" or cue == "ui_error" then
+        Render.markUiFeedback(app, "error")
+    elseif cue == "save" or cue == "load" or cue == "craft" or cue == "place" or cue == "produce" or cue == "ui_confirm" then
+        Render.markUiFeedback(app, "success")
+    end
+end
+
+local function focusables(app)
+    local result = {}
+    for _, group in ipairs(focusGroups) do
+        for index, hitbox in ipairs((app.ui and app.ui[group]) or {}) do
+            if hitbox.enabled ~= false then
+                result[#result + 1] = { group = group, index = index, hitbox = hitbox }
+            end
+        end
+    end
+    return result
+end
+
+local function sameFocus(a, b)
+    return a and b and a.group == b.group and a.index == b.index
+end
+
+local function focusedEntry(app, entries)
+    entries = entries or focusables(app)
+    for position, entry in ipairs(entries) do
+        if sameFocus(app.keyboardFocus, entry) then
+            return entry, position
+        end
+    end
+    return nil, nil
+end
+
+function Input.focusables(app)
+    return focusables(app)
+end
+
+function Input.cycleFocus(app, delta)
+    local entries = focusables(app)
+    if #entries == 0 then
+        app.keyboardFocus = nil
+        return nil
+    end
+    local _, position = focusedEntry(app, entries)
+    position = position or (delta > 0 and 0 or 1)
+    local nextPosition = ((position - 1 + delta) % #entries) + 1
+    app.keyboardFocus = { group = entries[nextPosition].group, index = entries[nextPosition].index }
+    return entries[nextPosition]
+end
+
+function Input.focusedEntry(app)
+    return focusedEntry(app)
+end
+
+function Input.gamepadButtonKey(button)
+    return gamepadButtonKeys[button]
+end
+
+function Input.gamepadAxisKey(axis, value, axisState)
+    axisState = axisState or {}
+    local key
+    if axis == "leftx" then
+        key = value <= -0.55 and "left" or (value >= 0.55 and "right" or nil)
+    elseif axis == "lefty" then
+        key = value <= -0.55 and "up" or (value >= 0.55 and "down" or nil)
+    end
+    if not key then
+        axisState[axis] = nil
+        return nil
+    end
+    if axisState[axis] == key then
+        return nil
+    end
+    axisState[axis] = key
+    return key
+end
+
+local function boundMovementDirection(app, key)
+    for _, entry in ipairs(boundMovementOrder) do
+        if Settings.isAction(app and app.settings, key, entry[1]) then
+            return entry[2]
+        end
+    end
+    return nil
+end
+
+local function activeRender(app)
+    if app and (app.renderer == "render3d" or (app.worldView and app.worldView.mode == "render3d")) then
+        return require("src.app.render")
+    end
+    return require("src.app.render")
+end
+
+local function openCurioModal(sim, app)
+    local modal = activeRender(app).curioModalForTarget(sim)
+    if modal then
+        app.curioModal = modal
+        app.status = "curio " .. modal.key
+        play(app, "tick")
+        return true
+    end
+    return false
+end
+
+local function chooseCurio(sim, app, choice)
+    local modal = app.curioModal
+    if not modal then
+        return false
+    end
+    app.curioModal = nil
+    app.curioResult = { title = modal.title, text = modal.result, t = 1.8 }
+    if choice ~= "leave_alone" then
+        sim:queue(Simulation.commands.curioChoice(modal.x, modal.y, modal.z, modal.key, choice))
+    else
+        sim:queue(Simulation.commands.curioChoice(modal.x, modal.y, modal.z, modal.key, "leave_alone"))
+    end
+    app.status = "curio " .. tostring(choice)
+    play(app, choice == "leave_alone" and "tick" or "produce")
+    return true
 end
 
 function Input.update(sim, app, dt)
@@ -83,9 +256,114 @@ function Input.update(sim, app, dt)
     end
 end
 
+function Input.activateFocused(sim, app)
+    local entry = focusedEntry(app)
+    if not entry then
+        entry = Input.cycleFocus(app, 1)
+    end
+    if not entry then
+        return false
+    end
+    local hitbox = entry.hitbox
+    if entry.group == "partyRankSlots" then
+        local heroId = app.dragHeroId or app.estateHeroId
+        if heroId then
+            sim:queue(Simulation.commands.assignParty(heroId, hitbox.rank))
+            app.status = "assign rank " .. hitbox.rank
+            app.dragHeroId = nil
+            app.uiPulse = { x = hitbox.x, y = hitbox.y, w = hitbox.w, h = hitbox.h, t = 0.22, kind = "press" }
+            play(app, "craft")
+            return true
+        end
+        play(app, "invalid")
+        return true
+    end
+    app.uiPulse = { x = hitbox.x, y = hitbox.y, w = hitbox.w, h = hitbox.h, t = 0.22, kind = "press" }
+    Input.mousepressed(sim, app, hitbox.x + hitbox.w / 2, hitbox.y + hitbox.h / 2, 1)
+    return true
+end
+
+function Input.back(sim, app)
+    if app.curioModal then
+        app.curioModal = nil
+        play(app, "tick")
+        return true
+    end
+    if app.pendingSkillKey then
+        app.pendingSkillKey = nil
+        app.pendingTargetSide = nil
+        app.status = "target canceled"
+        play(app, "tick")
+        return true
+    end
+    if app.pendingCampSkillKey then
+        app.pendingCampSkillKey = nil
+        app.status = "camp canceled"
+        play(app, "tick")
+        return true
+    end
+    if app.trinketTooltipKey then
+        app.trinketTooltipKey = nil
+        play(app, "tick")
+        return true
+    end
+    if app.keyboardFocus then
+        app.keyboardFocus = nil
+        play(app, "tick")
+        return true
+    end
+    if app.panel == "estate" and sim.mode ~= "estate" then
+        app.panel = nil
+        app.status = "map"
+        play(app, "tick")
+        return true
+    end
+    return false
+end
+
 function Input.keypressed(sim, app, key)
-    if movementKeys[key] then
-        requestMove(app, movementKeys[key])
+    if app.curioModal then
+        if key == "escape" then
+            app.curioModal = nil
+            play(app, "tick")
+            return
+        end
+        if key:match("^[1-4]$") then
+            local choice = app.curioModal.choices[tonumber(key)]
+            if choice and choice.enabled then
+                chooseCurio(sim, app, choice.key)
+            else
+                play(app, "invalid")
+            end
+            return
+        end
+    end
+    if key == "tab" then
+        local delta = love.keyboard.isDown("lshift", "rshift") and -1 or 1
+        local entry = Input.cycleFocus(app, delta)
+        if entry then
+            app.status = "focus " .. entry.group
+            play(app, "tick")
+            return
+        end
+        app.panel = app.panel == "estate" and nil or "estate"
+        app.status = app.panel or "map"
+        play(app, "tick")
+        return
+    end
+    if key == "return" or key == "kpenter" then
+        if Input.activateFocused(sim, app) then
+            return
+        end
+    end
+    if key == "backspace" then
+        if Input.back(sim, app) then
+            return
+        end
+    end
+    local screenDirection = movementKeys[key] or boundMovementDirection(app, key)
+    if screenDirection then
+        requestMove(app, screenDirection)
         return
     end
     if key == "[" then
@@ -98,7 +376,7 @@ function Input.keypressed(sim, app, key)
         play(app, "tick")
         return
     end
-    if key == "space" then
+    if Settings.isAction(app and app.settings, key, "interact", "space") then
         if sim.mode == "estate" then
             sim:queue(Simulation.commands.startExpedition("buried_archive"))
             app.status = "start expedition"
@@ -108,16 +386,12 @@ function Input.keypressed(sim, app, key)
         elseif sim.expedition and sim.expedition.camping then
             sim:queue(Simulation.commands.finishCamp())
             app.status = "finish camp"
+        elseif openCurioModal(sim, app) then
+            return
         else
             sim:queue(Simulation.commands.interact())
             app.status = "interact"
         end
-        play(app, "tick")
-        return
-    end
-    if key == "tab" then
-        app.panel = app.panel == "estate" and nil or "estate"
-        app.status = app.panel or "map"
         play(app, "tick")
         return
     end
@@ -164,8 +438,8 @@ function Input.keypressed(sim, app, key)
 end
 
 function Input.keyreleased(sim, app, key)
-    local screenDirection = movementKeys[key]
-    if screenDirection and app.activeMoveDirection == screenDirection and not isScreenDirectionDown(screenDirection) then
+    local screenDirection = movementKeys[key] or boundMovementDirection(app, key)
+    if screenDirection and app.activeMoveDirection == screenDirection and not isScreenDirectionDown(screenDirection, app) then
         app.activeMoveDirection = nil
     end
 end
@@ -173,6 +447,44 @@ end
 function Input.mousepressed(sim, app, x, y, button)
     if button ~= 1 then
         return
+    end
+    if app.curioModal then
+        for _, hitbox in ipairs((app.ui and app.ui.curioButtons) or {}) do
+            if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+                if hitbox.enabled then
+                    chooseCurio(sim, app, hitbox.choice)
+                else
+                    play(app, "invalid")
+                end
+                return
+            end
+        end
+        return
+    end
+    for _, hitbox in ipairs((app.ui and app.ui.campSkillButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            if hitbox.target == "party" then
+                sim:queue(Simulation.commands.campSkill(hitbox.skillKey))
+                app.pendingCampSkillKey = nil
+                app.status = "camp skill " .. hitbox.skillKey
+            else
+                app.pendingCampSkillKey = hitbox.skillKey
+                app.status = "assign camp " .. hitbox.skillKey
+            end
+            play(app, "craft")
+            return
+        end
+    end
+    for _, hitbox in ipairs((app.ui and app.ui.campHeroButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            if app.pendingCampSkillKey then
+                sim:queue(Simulation.commands.campSkill(app.pendingCampSkillKey, hitbox.rank))
+                app.status = "camp hero " .. hitbox.rank
+                app.pendingCampSkillKey = nil
+                play(app, "craft")
+            end
+            return
+        end
     end
     for _, hitbox in ipairs((app.ui and app.ui.enemyButtons) or {}) do
         if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
@@ -244,6 +556,7 @@ function Input.mousepressed(sim, app, x, y, button)
     for _, hitbox in ipairs((app.ui and app.ui.rosterButtons) or {}) do
         if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
             app.estateHeroId = hitbox.heroId
+            app.dragHeroId = hitbox.heroId
             app.status = "roster " .. hitbox.heroId
             play(app, "tick")
             return
@@ -251,6 +564,9 @@ function Input.mousepressed(sim, app, x, y, button)
     end
     for _, hitbox in ipairs((app.ui and app.ui.estateActionButtons) or {}) do
         if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            if hitbox.tooltipKey then
+                app.trinketTooltipKey = hitbox.tooltipKey
+            end
             if hitbox.action == "upgradeSkill" then
                 sim:queue(Simulation.commands.upgradeSkill(hitbox.heroId, hitbox.skillKey))
             elseif hitbox.action == "upgradeGear" then
@@ -263,6 +579,8 @@ function Input.mousepressed(sim, app, x, y, button)
                 sim:queue(Simulation.commands.sellTrinket(hitbox.trinketKey))
             elseif hitbox.action == "buyTrinket" then
                 sim:queue(Simulation.commands.buyTrinket(hitbox.stockIndex))
+            elseif hitbox.action == "upgradeBuilding" then
+                sim:queue(Simulation.commands.upgradeBuilding(hitbox.buildingKey))
             elseif hitbox.action == "recoverHero" then
                 sim:queue(Simulation.commands.recoverHero(hitbox.heroId, hitbox.activityKey))
             elseif hitbox.action == "dismissHero" then
@@ -279,6 +597,9 @@ function Input.mousepressed(sim, app, x, y, button)
                 app.rosterFilter = hitbox.filter
             elseif hitbox.action == "rosterSort" then
                 app.rosterSort = hitbox.sort
+            elseif hitbox.action == "openJournal" then
+                app.journalReturnState = "game"
+                app.uiState = "journal"
             end
             app.status = hitbox.action
             play(app, "craft")
@@ -286,7 +607,7 @@ function Input.mousepressed(sim, app, x, y, button)
         end
     end
     if app.worldView and sim.mode == "expedition" then
-        local wx, wy = require("src.app.render").screenToWorld(app.worldView, x, y)
+        local wx, wy = activeRender(app).screenToWorld(app.worldView, x, y)
         local dx = wx - sim.player.x
         local dy = wy - sim.player.y
         if math.abs(dx) + math.abs(dy) == 1 then
@@ -299,6 +620,22 @@ function Input.mousepressed(sim, app, x, y, button)
             else
                 sim:queue(Simulation.commands.move("north"))
             end
+        end
+    end
+end
+
+function Input.mousereleased(sim, app, x, y, button)
+    if button ~= 1 or not app.dragHeroId then
+        return
+    end
+    local heroId = app.dragHeroId
+    app.dragHeroId = nil
+    for _, hitbox in ipairs((app.ui and app.ui.partyRankSlots) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            sim:queue(Simulation.commands.assignParty(heroId, hitbox.rank))
+            app.status = "assign rank " .. hitbox.rank
+            play(app, "craft")
+            return
         end
     end
 end

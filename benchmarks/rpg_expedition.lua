@@ -4,6 +4,22 @@ local Simulation = require("src.game.simulation")
 
 local ticks = tonumber(os.getenv("THOTH_BENCH_TICKS")) or 300
 local runs = tonumber(os.getenv("THOTH_BENCH_RUNS")) or 8
+local includeRender = os.getenv("THOTH_BENCH_RENDER") == "1"
+
+local function runRenderBenchmark()
+    local command = os.getenv("THOTH_BENCH_RENDER_COMMAND")
+    if not command or command == "" then
+        command = (os.getenv("LOVE") or "love") .. " . --render-benchmark"
+    end
+    print("render_command=" .. command)
+    local handle = assert(io.popen(command .. " 2>&1"))
+    local output = handle:read("*a")
+    local ok, reason, code = handle:close()
+    io.write(output)
+    if not ok then
+        error("render benchmark failed: " .. tostring(reason) .. " " .. tostring(code))
+    end
+end
 
 local commands = {
     Simulation.commands.move("east"),
@@ -39,3 +55,7 @@ print("ticks=" .. ticks)
 print(string.format("elapsed_ms=%.3f", elapsedMs))
 print(string.format("avg_ms_per_tick=%.6f", elapsedMs / math.max(1, ticks * runs)))
 print(string.format("max_ms_per_tick=%.6f", maxTickMs))
+
+if includeRender then
+    runRenderBenchmark()
+end

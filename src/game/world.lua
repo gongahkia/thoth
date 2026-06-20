@@ -71,7 +71,7 @@ function World.chunkKey(cx, cy, z)
 end
 
 function World:layout()
-    local location = Defs.location(self.location) or Defs.location("buried_archive")
+    local location = Defs.locations[self.location] or Defs.locations.buried_archive
     local layout = location.layout
     if layout and layout.generator == "mission_grammar" then
         return self:missionGrammarLayout(location)
@@ -274,7 +274,7 @@ function World:encounterForRoom(roomKey)
     if layout.encounters then
         return layout.encounters[roomKey]
     end
-    local location = Defs.location(self.location) or Defs.location("buried_archive")
+    local location = Defs.locations[self.location] or Defs.locations.buried_archive
     return location.encounters and location.encounters[roomKey] or nil
 end
 

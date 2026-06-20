@@ -6,6 +6,16 @@ local Save = require("src.game.save")
 local Replay = require("src.game.replay")
 local Input = require("src.app.input")
 local Render = require("src.app.render")
+local ReplayViewer = require("src.app.replay_viewer")
+local Audio = require("src.app.audio")
+local Accessibility = require("src.app.accessibility")
+local Credits = require("src.app.credits")
+local Settings = require("src.app.settings")
+local I18n = require("src.app.i18n")
+local Achievements = require("src.app.achievements")
+local SpritePipeline = require("src.app.sprite_pipeline")
+local ModelPipeline = require("src.app.model_pipeline")
+local TileModelMap = require("assets.models.tile_model_map")
 local World = require("src.game.world")
 local Defs = require("src.game.defs")
 
@@ -24,6 +34,19 @@ local function runQueued(sim, command)
     sim:step()
 end
 
+local function placeCampMarker(sim)
+    sim.world:setTile(sim.player.x, sim.player.y, sim.player.z or 0, { id = "camp_marker", data = 0 })
+end
+
+local function walkSteps(sim, direction, count)
+    for _ = 1, count do
+        runQueued(sim, Simulation.commands.move(direction))
+        if sim.mode == "combat" then
+            sim:finishCombat(true)
+        end
+    end
+end
+
 local function contains(list, value)
     for _, entry in ipairs(list or {}) do
         if entry == value then
@@ -31,6 +54,16 @@ local function contains(list, value)
         end
     end
     return false
+end
+
+local function readFile(path)
+    local file = io.open(path, "rb")
+    if not file then
+        return nil
+    end
+    local data = file:read("*a")
+    file:close()
+    return data
 end
 
 local function reachableRooms(world, start)
@@ -64,7 +97,141 @@ local function reachEntryCombat(sim)
     expect(sim.mode == "combat", "entry room should start combat")
 end
 
+local function makeActiveMerchant(sim, rank)
+    local hero = sim:heroAtRank(rank)
+    hero.class = "merchant"
+    hero.name = "Leto"
+    hero.skills = { "appraise_weak_point", "brokered_mercy", "settle_accounts" }
+    hero.skillLevels = { appraise_weak_point = 1, brokered_mercy = 1, settle_accounts = 1 }
+    hero.hp = Defs.heroClass("merchant").maxHp
+    hero.stress = 0
+    sim.combat.active = { side = "hero", id = hero.id, rank = rank }
+    sim.player.selectedHero = rank
+    return hero
+end
+
 local tests = {}
+
+tests[#tests + 1] = function()
+    expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
+    expect(I18n.t("missing {value}", { value = "fallback" }) == "missing fallback", "i18n should interpolate fallback strings")
+    local source = readFile("src/app/render.lua")
+    expect(source, "render source should be readable for i18n coverage")
+    for key in source:gmatch('i18n%.t%(%s*"([^"]+)"%s*%)') do
+        expect(I18n.has(key), "missing render i18n key " .. key)
+    end
+    for _, control in ipairs(Settings.controls()) do
+        expect(I18n.has(control.label), "missing settings i18n key " .. control.label)
+    end
+end
+
+tests[#tests + 1] = function()
+    local function fakeSource()
+        return {
+            volume = 0,
+            plays = 0,
+            stops = 0,
+            looping = nil,
+            setVolume = function(self, volume)
+                self.volume = volume
+            end,
+            setLooping = function(self, looping)
+                self.looping = looping
+            end,
+            play = function(self)
+                self.plays = self.plays + 1
+            end,
+            stop = function(self)
+                self.stops = self.stops + 1
+            end,
+        }
+    end
+    local estateSource = fakeSource()
+    local combatSource = fakeSource()
+    local ambientSource = fakeSource()
+    local bank = {
+        __music = {
+            manifest = {
+                fadeSeconds = 2,
+                contexts = { estate = "estate", combat = "combat_normal" },
+                ambient = { combat = { track = "expedition_tense", volume = 0.25 } },
+            },
+            tracks = {
+                estate = { key = "estate", source = estateSource, loop = true },
+                combat_normal = { key = "combat_normal", source = combatSource, loop = true },
+            },
+            ambientTracks = {
+                expedition_tense = { key = "expedition_tense", source = ambientSource, loop = true },
+            },
+            fadeSeconds = 2,
+            ambientFadeSeconds = 2,
+            fade = 0,
+            ambientFade = 0,
+        },
+    }
+    Audio.applySettings(bank, { masterVolume = 0.5, musicVolume = 0.8, ambientVolume = 0.6, sfxVolume = 1 })
+    expect(Audio.setMusicContext(bank, "estate", 0) == "estate", "music should resolve estate context")
+    expect(estateSource.plays == 1 and estateSource.looping == true, "music should start first context")
+    expect(math.abs(estateSource.volume - 0.4) < 0.001, "music should apply master/music volume")
+    Audio.setMusicContext(bank, "combat", 2)
+    expect(ambientSource.plays == 1 and math.abs(ambientSource.volume - 0.075) < 0.001, "ambient layer should start at context mix volume")
+    Audio.updateMusic(bank, 1)
+    expect(math.abs(estateSource.volume - 0.2) < 0.001, "music should fade current track down")
+    expect(math.abs(combatSource.volume - 0.2) < 0.001, "music should fade next track up")
+    Audio.updateMusic(bank, 1)
+    expect(estateSource.stops == 1 and math.abs(combatSource.volume - 0.4) < 0.001, "music should finish crossfade")
+    expect(math.abs(ambientSource.volume - 0.075) < 0.001, "ambient layer should stay below music volume")
+    expect(Audio.duckForEvent(bank, { crit = true }), "critical events should trigger music ducking")
+    expect(math.abs(combatSource.volume - 0.22) < 0.001 and math.abs(ambientSource.volume - 0.04125) < 0.001, "ducking should lower music and ambient layers")
+    Audio.updateMusic(bank, 0.45)
+    expect(math.abs(combatSource.volume - 0.4) < 0.001 and math.abs(ambientSource.volume - 0.075) < 0.001, "ducking should release after its timer")
+    Audio.setMusicContext(bank, "estate", 2)
+    Audio.setMusicContext(bank, "combat", 2)
+    expect(estateSource.stops == 2, "music should stop superseded next track")
+    expect(Audio.contextForState({ uiState = "game" }, { mode = "expedition", expedition = { torch = 20 } }) == "expedition_tense", "low torch should select tense music")
+    expect(Audio.contextForState({ uiState = "game" }, { mode = "combat", combat = { enemies = { { kind = "vault_regent" } } } }) == "boss", "boss combat should select boss music")
+    expect(Audio.contextForState({ uiState = "credits" }, {}) == "credits", "credits should select credits music")
+end
+
+tests[#tests + 1] = function()
+    local plan = SpritePipeline.plan(128, 80, { frameWidth = 16, frameHeight = 16 })
+    expect(plan and plan.frames == 40, "sprite pipeline should count source frames")
+    expect(plan.columns == 8 and plan.rows == 5 and plan.atlasWidth == 128 and plan.atlasHeight == 80, "sprite pipeline should preserve atlas grid by default")
+    local rect = SpritePipeline.frameRect(plan, 10)
+    expect(rect.sourceX == 16 and rect.sourceY == 16 and rect.atlasX == 16 and rect.atlasY == 16, "sprite pipeline should map frame rects")
+    local manifest = SpritePipeline.loadManifest(SpritePipeline.manifestText(plan, "assets/sprites/oga_700_sprites.png", "source.png"))
+    expect(manifest and manifest.frames == 40 and manifest.image == "assets/sprites/oga_700_sprites.png", "sprite pipeline should write manifest data")
+    local bad, err = SpritePipeline.plan(127, 80, { frameWidth = 16, frameHeight = 16 })
+    expect(not bad and err:find("divisible", 1, true), "sprite pipeline should reject uneven source sheets")
+end
+
+tests[#tests + 1] = function()
+    local parsed = ModelPipeline.parseObj(readFile("vendor/g3d/assets/cube.obj"))
+    expect(parsed and parsed.format == "obj", "model pipeline should parse obj")
+    expect(parsed.vertexCount == 36 and parsed.triangleCount == 12, "model pipeline should triangulate cube")
+    expect(parsed.bounds.min[1] < 0 and parsed.bounds.max[1] > 0, "model pipeline should compute bounds")
+    local entry = ModelPipeline.manifestEntry(parsed, "vendor/g3d/assets/cube.obj", "assets/models/cube.obj", "cube")
+    local manifest = ModelPipeline.loadManifest(ModelPipeline.manifestText({ entry }))
+    expect(manifest and manifest.models[1].id == "cube" and manifest.models[1].triangles == 12, "model pipeline should write manifest")
+    local bad, err = ModelPipeline.import("asset.gltf", "dist/model.obj", "dist/models.lua")
+    expect(not bad and err:find("obj", 1, true), "model pipeline should fail fast for gltf")
+end
+
+tests[#tests + 1] = function()
+    local seen = {}
+    for _, key in ipairs(Defs.tileOrder or {}) do
+        expect(Defs.tiles[key], "tile order references missing tile " .. tostring(key))
+        expect(not seen[key], "tile order has duplicate " .. tostring(key))
+        seen[key] = true
+    end
+    for key in pairs(Defs.tiles or {}) do
+        expect(seen[key], "tile order missing " .. tostring(key))
+        local mapped = TileModelMap.tiles[key]
+        expect(mapped and mapped.path and mapped.role, "tile model map missing " .. tostring(key))
+        expect(mapped.path:find("addons/kaykit_dungeon_remastered/Assets/obj/", 1, true) == 1, "tile model path should use KayKit obj root")
+        expect(mapped.path:match("%.obj$"), "tile model path should be obj")
+    end
+end
 
 tests[#tests + 1] = function()
     expect(World.floorDiv(31, World.chunkSize) == 0, "positive chunk edge failed")
@@ -224,11 +391,30 @@ end
 tests[#tests + 1] = function()
     local sim = Simulation.new(109)
     sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("cistern_bell"))
+    expect(sim:missionIntro("cistern_bell").brief:find("Bell Diver", 1, true), "bell mission intro should be mission-specific")
+    expect(sim:missionProgressText():find("bell diver sunk 0/1", 1, true), "bell mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("Defeat the Bell Diver", 1, true), "bell mission should expose next-step copy")
+    expect(sim:startCombat("matron", "18:10"), "cistern boss combat should start")
+    local diver = sim.combat.enemies[1]
+    expect(diver.kind == "bell_diver" and diver.bossPhase == "toll" and diver.nextBossSkill == "drowned_hymn", "bell diver should open in toll phase")
+    expect(diver.parts[1].hint:find("Drowned Hymn", 1, true) and diver.parts[2].hint:find("Hook Chain", 1, true), "bell diver weak points should expose skill-lock hints")
+    expect(table.concat(sim.log, "\n"):find("Toll Phase", 1, true) and sim.narration:find("water counts", 1, true), "bell diver should announce phase dialogue")
+    sim:damageEnemyPart(diver, "bell_lung", 99)
+    expect(diver.bossPhase == "chain" and diver.nextBossSkill == "hook_chain", "bell diver should shift phase when a weak point breaks")
+    diver.hp = 8
+    sim:applyBossPhase(diver, false)
+    expect(diver.bossPhase == "undertow", "bell diver should enter low-hp undertow phase")
+    local loadedBell = Simulation.fromSnapshot(sim:snapshot())
+    expect(loadedBell.combat.enemies[1].bossPhase == "undertow" and loadedBell.combat.enemies[1].parts[1].hint:find("Drowned Hymn", 1, true), "bell diver phase and hints should survive snapshot")
+    sim:finishCombat(true)
+    sim:endExpedition(true)
     sim.estate.campaign.dread = 4
     runQueued(sim, Simulation.commands.startExpedition("cistern_bell"))
     expect(sim:startCombat("matron", "18:10"), "cistern boss variant combat should start")
     expect(sim.combat.encounter == "matron_toll" and sim.combat.enemies[1].kind == "bell_diver_flood_toll", "high dread should select bell diver flood-toll")
     expect(sim.combat.enemies[1].parts[1].key == "bell_lung", "bell diver variant should expose Bell Lung")
+    expect(sim.combat.enemies[1].bossPhase == "flood" and sim.combat.enemies[1].parts[1].hint:find("Flood Toll", 1, true), "flood-toll diver should expose flood phase and weak-point hints")
     sim:finishCombat(true)
     sim:startCombat("cistern_cyst", "cyst_spawn_test")
     local cyst = sim.combat.enemies[1]
@@ -241,6 +427,31 @@ tests[#tests + 1] = function()
     pilgrim.hp = 0
     sim:afterEnemyDamaged(pilgrim)
     expect(pilgrim.resurrected and pilgrim.hp > 0, "drowned pilgrim should resurrect once")
+end
+
+tests[#tests + 1] = function()
+    local cases = {
+        { "cistern_survey", "Salt Cistern", "cistern rooms sounded 1/4", "Scout 4 cistern rooms" },
+        { "cistern_valves", "tide valves", "tide valves opened 0/2", "Spend 2 Valve Keys" },
+        { "cistern_low_reservoir", "low reservoir", "low reservoir bled 0/2", "Bleed 2 low reservoir valves" },
+        { "cistern_salt_register", "Salt Register", "salt register recovered 0/1", "Recover the Salt Register" },
+        { "cistern_gatekeepers", "gatekeepers", "gatekeepers spared 0/1", "Spend 1 Valve Key to spare" },
+        { "cistern_silence_choir", "Pearl Choir", "pearl choir silenced 0/1", "Defeat the Pearl Choir" },
+        { "cistern_drain_market", "drowned market", "drowned market drained 0/2", "Open 2 market drains" },
+        { "cistern_tov_child", "Tov Child", "Tov child recovered 0/1", "Recover the Tov Child" },
+        { "cistern_flood_bailiff", "Bailiff Walk", "bailiff walk flooded 0/1", "Spend 1 Valve Key to flood" },
+        { "cistern_open_deep_sluice", "Deep Sluice Keys", "deep sluice keys recovered 0/2", "Recover 2 Deep Sluice Keys" },
+    }
+    local sim = Simulation.new(134)
+    sim:endExpedition(true)
+    for _, case in ipairs(cases) do
+        local key, introNeedle, progressNeedle, objectiveNeedle = case[1], case[2], case[3], case[4]
+        runQueued(sim, Simulation.commands.startExpedition(key))
+        expect(sim:missionIntro(key).brief:find(introNeedle, 1, true), key .. " intro should be mission-specific")
+        expect(sim:missionProgressText():find(progressNeedle, 1, true), key .. " should expose polished progress text")
+        expect(sim:objectiveChecklist()[1].items[1].next:find(objectiveNeedle, 1, true), key .. " should expose next-step copy")
+        sim:endExpedition(true)
+    end
 end
 
 tests[#tests + 1] = function()
@@ -296,6 +507,31 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local cases = {
+        { "ember_cleansing", "Ember Warrens", "ember rooms quenched 0/2", "Win 2 Warrens fights" },
+        { "ember_wards", "Ember Wards", "ember wards anointed 0/2", "Spend 2 Ember Oil" },
+        { "ember_vow_kilns", "Vow Kilns", "vow kilns doused 0/2", "Spend 2 Ember Oil at vow kilns" },
+        { "ember_ash_names", "Ash Names", "ash names carried 0/2", "Carry out 2 Ash Names" },
+        { "ember_warm_dead", "Warm Dead", "warm dead spared 0/1", "Spend the False Vow Writ" },
+        { "warrens_douse_vicar", "Kiln Vicar", "kiln vicar doused 0/1", "Defeat the Kiln Vicar" },
+        { "warrens_burn_false_vow", "False Vow", "false vow burned 0/1", "lower dread" },
+        { "warrens_warm_ledger", "Warm Ledger", "warm ledger recovered 0/1", "Recover the Warm Ledger" },
+        { "warrens_aron_boy", "Aron Boy", "Aron boy carried 0/1", "Carry out the Aron Boy" },
+        { "warrens_open_furnace", "White Furnace Keys", "white furnace keys recovered 0/2", "Recover 2 White Furnace Keys" },
+    }
+    local sim = Simulation.new(135)
+    sim:endExpedition(true)
+    for _, case in ipairs(cases) do
+        local key, introNeedle, progressNeedle, objectiveNeedle = case[1], case[2], case[3], case[4]
+        runQueued(sim, Simulation.commands.startExpedition(key))
+        expect(sim:missionIntro(key).brief:find(introNeedle, 1, true), key .. " intro should be mission-specific")
+        expect(sim:missionProgressText():find(progressNeedle, 1, true), key .. " should expose polished progress text")
+        expect(sim:objectiveChecklist()[1].items[1].next:find(objectiveNeedle, 1, true), key .. " should expose next-step copy")
+        sim:endExpedition(true)
+    end
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(113)
     sim:endExpedition(true)
     sim.estate.campaign.dread = 0
@@ -312,11 +548,30 @@ end
 tests[#tests + 1] = function()
     local sim = Simulation.new(114)
     sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("ember_prioress"))
+    expect(sim:missionIntro("ember_prioress").brief:find("Cinder Prioress", 1, true), "prioress mission intro should be mission-specific")
+    expect(sim:missionProgressText():find("cinder prioress broken 0/1", 1, true), "prioress mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("Defeat the Cinder Prioress", 1, true), "prioress mission should expose next-step copy")
+    expect(sim:startCombat("prioress", "20:-8"), "ember boss combat should start")
+    local prioress = sim.combat.enemies[1]
+    expect(prioress.kind == "cinder_prioress" and prioress.bossPhase == "liturgy" and prioress.nextBossSkill == "kiln_liturgy", "prioress should open in liturgy phase")
+    expect(prioress.parts[1].hint:find("Kiln Liturgy", 1, true) and prioress.parts[2].hint:find("Soot Cloud", 1, true), "prioress weak points should expose skill-lock hints")
+    expect(table.concat(sim.log, "\n"):find("Liturgy Phase", 1, true) and sim.narration:find("remembers fire", 1, true), "prioress should announce phase dialogue")
+    sim:damageEnemyPart(prioress, "cinder_halo", 99)
+    expect(prioress.bossPhase == "veil" and prioress.nextBossSkill == "soot_cloud", "prioress should shift phase when a weak point breaks")
+    prioress.hp = 12
+    sim:applyBossPhase(prioress, false)
+    expect(prioress.bossPhase == "cinder", "prioress should enter low-hp cinder phase")
+    local loadedPrioress = Simulation.fromSnapshot(sim:snapshot())
+    expect(loadedPrioress.combat.enemies[1].bossPhase == "cinder" and loadedPrioress.combat.enemies[1].parts[1].hint:find("Kiln Liturgy", 1, true), "prioress phase and hints should survive snapshot")
+    sim:finishCombat(true)
+    sim:endExpedition(true)
     sim.estate.campaign.dread = 4
     runQueued(sim, Simulation.commands.startExpedition("ember_prioress"))
     expect(sim:startCombat("prioress", "20:-8"), "ember boss variant combat should start")
     expect(sim.combat.encounter == "prioress_ember" and sim.combat.enemies[1].kind == "cinder_prioress_glass", "high dread should select glass-crowned prioress")
     expect(sim.combat.enemies[1].parts[1].key == "halo_vent", "glass-crowned prioress should expose halo vent")
+    expect(sim.combat.enemies[1].bossPhase == "glass" and sim.combat.enemies[1].parts[1].hint:find("Glass Crown Liturgy", 1, true), "glass-crowned prioress should expose glass phase and weak-point hints")
 end
 
 tests[#tests + 1] = function()
@@ -455,7 +710,7 @@ end
 tests[#tests + 1] = function()
     local oldLove = love
     local sim = Simulation.new(14)
-    local app = { moveCooldown = 0, viewRotation = 1, status = "ready" }
+    local app = { moveCooldown = 0, viewRotation = 1, status = "ready", settings = Settings.defaults() }
     love = { keyboard = { isDown = function() return false end } }
     Input.keypressed(sim, app, "w")
     Input.update(sim, app, 0.2)
@@ -463,7 +718,83 @@ tests[#tests + 1] = function()
     expect(sim.player.x == 1 and sim.player.y == 0, "rotated screen up should map east")
     Input.keypressed(sim, app, "]")
     expect(app.viewRotation == 2, "right bracket should rotate view")
+    Settings.bindKey(app.settings, "moveUp", "i")
+    Input.keypressed(sim, app, "i")
+    expect(app.moveIntent == "up", "remapped move key should queue screen direction")
+    Settings.bindKey(app.settings, "interact", "e")
+    Input.keypressed(sim, app, "e")
+    expect(sim.commandQueue[#sim.commandQueue].type == "interact", "remapped interact key should queue interact")
     love = oldLove
+end
+
+tests[#tests + 1] = function()
+    local oldLove = love
+    local sim = Simulation.new(141)
+    sim:endExpedition(true)
+    local app = {
+        settings = Settings.defaults(),
+        ui = {
+            missionButtons = { { x = 0, y = 0, w = 80, h = 30, missionKey = "archive_scout" } },
+            rosterButtons = { { x = 0, y = 40, w = 80, h = 30, heroId = sim.estate.roster[1].id } },
+            partyRankSlots = { { x = 0, y = 80, w = 80, h = 30, rank = 2 } },
+        },
+    }
+    love = { keyboard = { isDown = function() return false end } }
+    expect(#Input.focusables(app) == 3, "keyboard focus should expose visible UI hitboxes")
+    local first = Input.cycleFocus(app, 1)
+    expect(first.group == "missionButtons" and app.keyboardFocus.index == 1, "tab should focus first hitbox")
+    Input.keypressed(sim, app, "return")
+    expect(sim.commandQueue[#sim.commandQueue].type == "startExpedition", "enter should activate focused hitbox")
+    Input.cycleFocus(app, 1)
+    Input.activateFocused(sim, app)
+    expect(app.estateHeroId == sim.estate.roster[1].id, "keyboard activation should select roster hero")
+    Input.cycleFocus(app, 1)
+    Input.activateFocused(sim, app)
+    expect(sim.commandQueue[#sim.commandQueue].type == "assignParty", "keyboard activation should assign party rank")
+    expect(Input.back(sim, app), "escape back should clear keyboard focus")
+    expect(app.keyboardFocus == nil, "back should clear focus")
+    love = oldLove
+end
+
+tests[#tests + 1] = function()
+    local conf = assert(io.open("conf.lua", "r"))
+    local confText = conf:read("*a")
+    conf:close()
+    expect(confText:find("t.modules.joystick = true", 1, true) ~= nil, "controller support should enable joystick module")
+    expect(Input.gamepadButtonKey("a") == "return" and Input.gamepadButtonKey("b") == "escape", "gamepad buttons should map to select and back")
+    expect(Input.gamepadButtonKey("x") == "space" and Input.gamepadButtonKey("y") == "tab", "gamepad buttons should map to interact and focus")
+    local axisState = {}
+    expect(Input.gamepadAxisKey("leftx", 0.8, axisState) == "right", "left stick should map positive x to right")
+    expect(Input.gamepadAxisKey("leftx", 0.9, axisState) == nil, "held stick should not repeat until recentered")
+    expect(Input.gamepadAxisKey("leftx", 0.1, axisState) == nil, "recentered stick should clear state")
+    expect(Input.gamepadAxisKey("leftx", -0.8, axisState) == "left", "left stick should map negative x to left")
+    expect(Input.gamepadAxisKey("lefty", -0.8, axisState) == "up" and Input.gamepadAxisKey("lefty", 0.8, axisState) == "down", "left stick y should map to vertical nav")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(142)
+    local app = { achievements = {}, toasts = {} }
+    Achievements.update(sim, app)
+    expect(app.achievements.first_steps and #app.toasts == 1, "achievement update should unlock expedition toast")
+    sim:collectDocument("archive_writ_01", "test")
+    Achievements.update(sim, app)
+    expect(app.achievements.first_document and #app.toasts == 2, "achievement update should unlock document toast")
+    expect(not Achievements.unlock(app, "first_document"), "achievement unlock should be idempotent")
+    expect(Render.drawToasts(app) == 2, "toast renderer should report active toast count")
+    Achievements.updateToasts(app, 4)
+    expect(#app.toasts == 0, "toast timers should expire")
+end
+
+tests[#tests + 1] = function()
+    local app = { ui = { titleButtons = { { x = 10, y = 20, w = 100, h = 30, action = "new", enabled = true } } } }
+    local hitbox, group, index = Render.hitboxAt(app, 20, 25)
+    expect(hitbox and group == "titleButtons" and index == 1, "ui hitbox lookup should find button target")
+    expect(Render.markUiPulse(app, hitbox, "press"), "ui pulse should mark button interaction")
+    app.uiHot = { group = group, index = index }
+    expect(Render.drawUiMicroAnimations(app) == 2, "micro animation renderer should report hover and pulse")
+    expect(Render.markUiFeedback(app, "success") and app.uiPulse.kind == "success" and app.uiPulse.duration == 0.32, "ui feedback should promote pulse to success state")
+    app.uiPulse = nil
+    expect(Render.markUiFeedback(app, "error") and app.uiPulse.kind == "error", "ui feedback should target hotbox for error state")
 end
 
 tests[#tests + 1] = function()
@@ -482,6 +813,43 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.combatSkill("arterial_cut", 1, "enemy"))
     expect(enemy.hp < hp, "combat skill should damage enemy")
     expect(#enemy.statuses == 1 and enemy.statuses[1].kind == "bleed", "arterial cut should apply bleed")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(216)
+    reachEntryCombat(sim)
+    local merchant = makeActiveMerchant(sim, 4)
+    local enemy = sim:enemyAtRank(1)
+    sim:applySkill(merchant, 4, "appraise_weak_point", Defs.skill("appraise_weak_point"), { enemy }, "enemy")
+    expect(sim:hasStatus(enemy, "marked"), "merchant appraise should mark enemy")
+    local hp = enemy.hp
+    local duelist = sim:heroAtRank(2)
+    sim:applySkill(duelist, 2, "razor_lunge", Defs.skill("razor_lunge"), { enemy }, "enemy")
+    expect(enemy.hp < hp and not sim:hasStatus(enemy, "marked"), "marked enemy should take a direct hit and consume mark")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(217)
+    reachEntryCombat(sim)
+    local merchant = makeActiveMerchant(sim, 4)
+    local ally = sim:heroAtRank(1)
+    ally.hp = ally.hp - 5
+    sim:applySkill(merchant, 4, "brokered_mercy", Defs.skill("brokered_mercy"), { ally }, "ally")
+    expect(ally.hp > Defs.heroClass(ally.class).maxHp - 5 and merchant.stress >= 3, "brokered mercy should heal ally and stress merchant")
+end
+
+tests[#tests + 1] = function()
+    local function settleDamage(enemyHp)
+        local sim = Simulation.new(218)
+        reachEntryCombat(sim)
+        local merchant = makeActiveMerchant(sim, 2)
+        local enemy = sim:enemyAtRank(1)
+        enemy.kind = "hollow_guard"
+        enemy.hp = enemyHp
+        sim:applySkill(merchant, 2, "settle_accounts", Defs.skill("settle_accounts"), { enemy }, "enemy")
+        return enemyHp - enemy.hp
+    end
+    expect(settleDamage(12) > settleDamage(16), "settle accounts should scale damage against missing hp")
 end
 
 tests[#tests + 1] = function()
@@ -735,6 +1103,7 @@ tests[#tests + 1] = function()
     local sim = Simulation.new(97)
     expect(sim:itemTooltip("bandage"):find("injury", 1, true) ~= nil and sim:itemTooltip("ward_charm"):find("resolve", 1, true) ~= nil, "provision tooltip should expose injury cure copy")
     sim.expedition.noise = 5
+    placeCampMarker(sim)
     runQueued(sim, Simulation.commands.camp())
     expect(sim.expedition.noise == 3, "camp should decay noise")
     sim = Simulation.new(98)
@@ -748,6 +1117,7 @@ end
 tests[#tests + 1] = function()
     local sim = Simulation.new(99)
     sim.expedition.noise = 12
+    placeCampMarker(sim)
     runQueued(sim, Simulation.commands.camp())
     runQueued(sim, Simulation.commands.finishCamp())
     expect(sim.mode == "combat" and sim.combat.encounter == "archive_ambush" and sim.combat.pressure and sim.combat.ambush, "high noise should trigger camp ambush")
@@ -871,6 +1241,7 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.useItem("bandage", 1))
     expect(not sim:hasInjury(hero, "salt_bloat"), "bandage should clear one injury")
     sim:addInjury(hero, "glass_scarring")
+    placeCampMarker(sim)
     expect(sim:camp() and not sim:hasInjury(hero, "glass_scarring"), "camp should clear one injury")
     sim:endExpedition(true)
     sim:addInjury(hero, "nerve_burn")
@@ -921,7 +1292,9 @@ end
 
 tests[#tests + 1] = function()
     local sim = Simulation.new(126)
-    expect(sim:missionIntro("archive_scout").brief ~= "" and sim:missionIntro("archive_scout").sting ~= "", "mission intro copy should be readable")
+    expect(sim:missionIntro("archive_scout").brief:find("three rooms", 1, true) and sim:missionIntro("archive_scout").sting ~= "", "mission intro copy should be readable")
+    expect(sim:missionIntro("archive_cleansing").brief:find("two hostile", 1, true), "cleanse intro should be mission-specific")
+    expect(sim:missionIntro("archive_gather").brief:find("two torn folios", 1, true), "gather intro should be mission-specific")
     expect(sim:curioCopy("relic_cache").observe and sim:curioCopy("relic_cache").result, "curio copy should be readable")
     expect(sim:bestiaryEntry("ossuary_lectern").weakPointHint:find("weak points", 1, true) ~= nil, "bestiary weak-point hint should be readable")
     expect(#sim:glossaryEntries() == 6 and sim:panelCopy("timer_panel_copy").body and sim:endingScreenCopy("estate_seal"), "glossary and panel copy should be readable")
@@ -944,6 +1317,7 @@ end
 
 tests[#tests + 1] = function()
     local sim = Simulation.new(40)
+    placeCampMarker(sim)
     runQueued(sim, Simulation.commands.camp())
     local x = sim.player.x
     runQueued(sim, Simulation.commands.move("east"))
@@ -961,6 +1335,7 @@ end
 
 tests[#tests + 1] = function()
     local sim = Simulation.new(41)
+    placeCampMarker(sim)
     runQueued(sim, Simulation.commands.camp())
     local hero = sim:heroAtRank(1)
     hero.statuses[#hero.statuses + 1] = { kind = "bleed", amount = 1, turns = 3 }
@@ -1020,6 +1395,7 @@ tests[#tests + 1] = function()
     sim.expedition.torch = 0
     sim:checkDarkness()
     expect(sim.narration:find("shelves", 1, true) ~= nil, "low torch voice should match archive")
+    placeCampMarker(sim)
     sim:camp()
     expect(sim.narration:find("Rest", 1, true) ~= nil or sim.narration:find("fire", 1, true) ~= nil, "camp should use complicity voice")
 end
@@ -1031,6 +1407,39 @@ tests[#tests + 1] = function()
     expect(sim:addLoot("coin", 5), "existing loot stack should ignore slot limit")
     expect(not sim:addLoot("heirloom", 1), "new loot stack should fail when pack is full")
     expect(sim.expedition.loot:count("coin") == 15 and sim.expedition.loot:count("heirloom") == 0, "pack full should preserve loot counts")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(221)
+    sim:endExpedition(true)
+    sim:heroAtRank(1).class = "merchant"
+    sim.estate.campaign.dread = 9
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim.expedition.packSlots == 13 and sim.expedition.merchantCutPackApplied, "merchant cut should add pack slot at dread tier two")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.expedition.packSlots == 13 and loaded.expedition.merchantCutPackApplied, "merchant pack cut should survive snapshot")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(222)
+    sim:endExpedition(true)
+    sim:heroAtRank(1).class = "merchant"
+    sim.estate.campaign.dreadLimit = 20
+    sim.estate.campaign.dread = 20
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim:startCombat("entry", "merchant_cut_1"), "merchant cut test combat should start")
+    sim:finishCombat(true)
+    expect(sim.expedition.loot:count("coin") == 60 and sim.expedition.loot:count("relic") == 1 and sim.expedition.merchantCutLootClaimed, "merchant cut should add one room-loot bonus")
+    expect(sim:startCombat("entry", "merchant_cut_2"), "merchant cut repeat combat should start")
+    sim:finishCombat(true)
+    expect(sim.expedition.loot:count("coin") == 95 and sim.expedition.loot:count("relic") == 1, "merchant cut should only pay once per expedition")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(223)
+    sim.estate.graveyard = { { id = 1, name = "Leto", class = "merchant" } }
+    local journal = Render.journalSummary(sim)
+    expect(journal.epitaphs[1].className == "Merchant" and journal.epitaphs[1].epitaph:find("ledger", 1, true), "merchant graveyard should use class epitaph")
 end
 
 tests[#tests + 1] = function()
@@ -1056,12 +1465,105 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.startExpedition("archive_cleansing"))
     expect(sim.expedition.mission == "archive_cleansing", "start expedition should accept mission key")
     expect(not sim.expedition.objectiveComplete, "cleanse mission should start incomplete")
+    expect(sim:missionProgressText():find("rooms cleared 0/2", 1, true), "cleanse mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("Win 2 fights", 1, true), "cleanse mission should expose next-step copy")
     sim:startCombat("entry", "8:0")
     sim:finishCombat(true)
     expect(not sim.expedition.objectiveComplete, "one cleared encounter should not complete cleanse mission")
     sim:startCombat("stacks", "16:0")
     sim:finishCombat(true)
     expect(sim.expedition.objectiveComplete, "two cleared encounters should complete cleanse mission")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(132)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_names"))
+    expect(sim:missionIntro("archive_names").brief:find("sealed names", 1, true), "names intro should be mission-specific")
+    expect(sim:missionProgressText():find("sealed names recovered 0/2", 1, true), "names mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("Recover 2 sealed names", 1, true), "names mission should expose next-step copy")
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_false_index"))
+    expect(sim:missionIntro("archive_false_index").brief:find("false index", 1, true), "false index intro should be mission-specific")
+    expect(sim:missionProgressText():find("false index burned 0/1", 1, true), "false index mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("Use the False Index Writ", 1, true), "false index mission should expose next-step copy")
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_page_bearer"))
+    expect(sim:missionIntro("archive_page_bearer").brief:find("Page-Bearer", 1, true), "page-bearer intro should be mission-specific")
+    expect(sim:missionProgressText():find("page-bearer escorted 0/1", 1, true), "page-bearer mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("Escort the Page%-Bearer", 1, false), "page-bearer mission should expose next-step copy")
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_intake_map"))
+    expect(sim:missionIntro("archive_intake_map").brief:find("intake rooms", 1, true), "intake map intro should be mission-specific")
+    expect(sim:missionProgressText():find("intake rooms mapped 1/4", 1, true), "intake map mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("Scout 4 intake rooms", 1, true), "intake map mission should expose next-step copy")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(133)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_audit_page_bearer"))
+    expect(sim:missionIntro("archive_audit_page_bearer").brief:find("Page-Bearer", 1, true), "audit page-bearer intro should be mission-specific")
+    expect(sim:missionProgressText():find("page-bearer audited 0/1", 1, true), "audit page-bearer mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("audit noise", 1, true), "audit page-bearer mission should expose next-step copy")
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_silence_reeve"))
+    expect(sim:missionIntro("archive_silence_reeve").brief:find("Codex Reeve", 1, true), "reeve intro should be mission-specific")
+    expect(sim:missionProgressText():find("codex reeve silenced 0/1", 1, true), "reeve mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("Defeat the Codex Reeve", 1, true), "reeve mission should expose next-step copy")
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_witness_confession"))
+    expect(sim:missionIntro("archive_witness_confession").brief:find("sealed confession", 1, true), "confession intro should be mission-specific")
+    expect(sim:missionProgressText():find("confession witnessed 0/2", 1, true), "confession mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("Survive 2 sealed confession fights", 1, true), "confession mission should expose next-step copy")
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_remand_scribe"))
+    expect(sim:missionIntro("archive_remand_scribe").brief:find("Bound Scribe", 1, true), "remand scribe intro should be mission-specific")
+    expect(sim:missionProgressText():find("bound scribe remanded 0/1", 1, true), "remand scribe mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("bound scribe's docket", 1, true), "remand scribe mission should expose next-step copy")
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_regent"))
+    expect(sim:missionIntro("archive_regent").brief:find("Vault Regent", 1, true), "regent intro should be mission-specific")
+    expect(sim:missionProgressText():find("vault regent silenced 0/1", 1, true), "regent mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("Defeat the Vault Regent", 1, true), "regent mission should expose next-step copy")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.newEstate(1)
+    expect(sim.mode == "estate" and not sim.expedition, "playtest should reach estate from initial title handoff")
+    expect(sim.estate.recruits[1] ~= nil, "playtest should offer a reserve recruit")
+    runQueued(sim, Simulation.commands.recruitHero(1))
+    local classes = {}
+    for _, hero in ipairs(sim:partyState()) do
+        classes[hero.classId] = true
+    end
+    expect(classes.warden and classes.duelist and classes.mender and classes.harrier and not classes.arcanist, "playtest party should use Warden/Duelist/Apothecary/Thief")
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    expect(sim.expedition.mission == "archive_scout", "playtest should enter first archive mission")
+    expect(not sim:camp(), "playtest should reject camping away from a cold camp")
+    walkSteps(sim, "east", 8)
+    walkSteps(sim, "south", 6)
+    runQueued(sim, Simulation.commands.camp())
+    expect(sim.expedition.campUsed and sim.expedition.camping, "playtest should camp mid-mission")
+    runQueued(sim, Simulation.commands.campSkill("watch_order", 1))
+    runQueued(sim, Simulation.commands.finishCamp())
+    expect(not sim.expedition.camping and sim.mode == "expedition", "playtest should leave camp without ambush")
+    expect(sim.expedition.roomsScouted >= 3 and sim:updateObjective(), "playtest should complete first mission objective by scouting")
+    runQueued(sim, Simulation.commands.endExpedition(false))
+    expect(sim.mode == "estate" and sim.estate.campaign.completedMissions.archive_scout, "playtest should return after first mission")
+    local reserve
+    for _, hero in ipairs(sim.estate.roster) do
+        if not sim:heroRank(hero.id) then
+            reserve = hero
+            break
+        end
+    end
+    expect(reserve ~= nil, "playtest should have reserve hero for recovery")
+    reserve.stress = 40
+    runQueued(sim, Simulation.commands.recoverHero(reserve.id))
+    expect(reserve.recovering == 1, "playtest should send reserve to recovery")
+    runQueued(sim, Simulation.commands.startExpedition("archive_cleansing"))
+    expect(sim.mode == "expedition" and sim.expedition.mission == "archive_cleansing", "playtest should enter second mission")
 end
 
 tests[#tests + 1] = function()
@@ -1077,7 +1579,31 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.interact())
     expect(sim.estate.trinkets.quiet_bell >= 1 and sim.estate.gold >= 320, "boss mission should pay reward")
     expect(sim.estate.campaign.bossKills.buried_archive and sim.estate.campaign.locationProgress.buried_archive == 2, "boss mission should mark location boss progress")
+    expect(sim.estate.currentEvent == "merchant_ledger_offer" and sim.estate.campaign.flags.merchant_ledger_accepted, "regent return should trigger merchant ledger event")
+    expect(sim:classUnlocked("merchant") and sim.estate.recruits[1].class == "merchant", "merchant ledger should unlock and seed recruit")
+    expect(sim.events[#sim.events].event == "merchant_unlock", "merchant ledger should emit cutscene event")
     expect(sim.narration ~= "", "boss return should keep narration")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(84)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_regent"))
+    expect(sim:startCombat("regent", "24:0"), "regent polish combat should start")
+    local enemy = sim.combat.enemies[1]
+    expect(enemy.bossPhase == "edict" and enemy.nextBossSkill == "regent_sentence", "regent should open in readable edict phase")
+    expect(enemy.parts[1].hint:find("Regent Sentence", 1, true) and enemy.parts[2].hint:find("Censer Wail", 1, true), "regent weak points should expose skill-lock hints")
+    local startLog = table.concat(sim.log, "\n")
+    expect(startLog:find("weak points", 1, true) and startLog:find("Edict Phase", 1, true), "regent start should announce weak points and phase")
+    expect(sim.narration:find("crown is the hinge", 1, true), "regent opening should set dialogue")
+    sim:damageEnemyPart(enemy, "edict_crown", 99)
+    expect(enemy.bossPhase == "choir" and enemy.nextBossSkill == "censer_wail", "regent should shift phase when a weak point breaks")
+    expect(sim.narration:find("chain answers", 1, true), "regent weak-point phase should set dialogue")
+    enemy.hp = 10
+    sim:applyBossPhase(enemy, false)
+    expect(enemy.bossPhase == "remand" and enemy.nextBossSkill == "regent_sentence", "regent should enter low-hp remand phase")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded.combat.enemies[1].bossPhase == "remand" and loaded.combat.enemies[1].parts[1].hint:find("Regent Sentence", 1, true), "regent phase and weak-point hints should survive snapshot")
 end
 
 tests[#tests + 1] = function()
@@ -1087,6 +1613,7 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.startExpedition("archive_regent"))
     expect(sim:startCombat("regent", "24:0"), "variant boss combat should start")
     expect(sim.combat.encounter == "regent_crowned" and sim.combat.baseEncounter == "regent", "high dread should select boss variant")
+    expect(sim.combat.enemies[1].bossPhase == "red" and sim.combat.enemies[1].parts[1].hint:find("Red Stress Clause", 1, true), "high dread regent should expose red phase and weak-point hints")
     local loaded = Simulation.fromSnapshot(sim:snapshot())
     expect(loaded.combat.encounter == "regent_crowned" and loaded.combat.baseEncounter == "regent", "boss variant should survive snapshot")
     sim:finishCombat(true)
@@ -1107,6 +1634,55 @@ tests[#tests + 1] = function()
     expect(sim.estate.campaign.finalSeal and sim.estate.heirlooms >= heirlooms + 3 and sim.estate.trinkets.scribe_wax >= 1, "campaign victory should grant final seal reward")
     local loaded = Simulation.fromSnapshot(sim:snapshot())
     expect(loaded.estate.campaign.victory and loaded.estate.campaign.finalSeal and loaded.estate.campaign.bossKills.ember_warrens and loaded.narration ~= "", "campaign snapshot should preserve boss wins")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(83)
+    placeCampMarker(sim)
+    sim:camp()
+    local summary = Render.campHudSummary(sim, {})
+    expect(summary.active and #summary.skills == 9 and summary.partyCount == 4, "camp hud summary should expose skills and party")
+    local app = {
+        ui = {
+            campSkillButtons = { { x = 0, y = 0, w = 20, h = 20, skillKey = "bind_wounds", target = "ally" } },
+            campHeroButtons = { { x = 30, y = 0, w = 20, h = 20, rank = 2 } },
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    expect(app.pendingCampSkillKey == "bind_wounds", "camp skill click should wait for hero target")
+    Input.mousepressed(sim, app, 35, 5, 1)
+    sim:step()
+    expect(app.pendingCampSkillKey == nil and sim.expedition.camping.usedSkills.bind_wounds, "camp hero click should assign pending skill")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(82)
+    sim.player.facing = "east"
+    sim.world:setTile(sim.player.x + 1, sim.player.y, sim.player.z, { id = "salt_font", data = 0 })
+    local modal = Render.curioModalForTarget(sim)
+    expect(modal and modal.key == "salt_font" and #modal.choices == 4, "curio modal should expose four choices")
+    expect(modal.choices[1].key == "safe_use" and modal.choices[4].key == "leave_alone", "curio modal should order choices")
+    local app = { audio = {}, curioModal = modal, ui = { curioButtons = { { x = 0, y = 0, w = 20, h = 20, choice = "greedy_use", enabled = true } } } }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    sim:step()
+    expect(app.curioResult and next(sim.expedition.curiosUsed) ~= nil, "curio choice should resolve and reveal result")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(81)
+    reachEntryCombat(sim)
+    local summary = Render.combatHudSummary(sim, { pendingSkillKey = "arterial_cut", pendingTargetSide = "enemy" })
+    expect(summary.mode == "combat" and #summary.turns == 6, "combat hud summary should expose turn order")
+    expect(summary.active:find("R", 1, true), "combat hud summary should expose active rank")
+    expect(summary.skill == "arterial_cut" and summary.target == "enemy", "combat hud summary should expose target picker")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(80)
+    local summary = Render.expeditionHudSummary(sim)
+    expect(summary.torch == sim.expedition.torch, "hud summary should expose torch level")
+    expect(summary.currentRoom == sim:currentRoomKey(), "hud summary should expose current room")
+    expect(summary.partyCount == 4, "hud summary should expose party count")
 end
 
 tests[#tests + 1] = function()
@@ -1186,6 +1762,44 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(137)
+    sim:endExpedition(true)
+    for _, missionKey in ipairs(Defs.missionOrder) do
+        local profile = sim:missionPressureProfile(Defs.mission(missionKey), true, false)
+        expect(type(profile.dread) == "number" and next(profile.factions) ~= nil, missionKey .. " should expose mission pressure")
+    end
+    local extract = sim:missionPressureProfile(Defs.mission("archive_names"), true, false)
+    expect(extract.factions.faction_custodians == 1 and extract.factions.enclave_meter == -1, "extract mission should pressure local faction and enclave")
+    local repair = sim:missionPressureProfile(Defs.mission("archive_false_index"), true, false)
+    expect(repair.dread == -1 and repair.factions.faction_custodians == -1 and repair.factions.enclave_meter == 1, "repair mission should reduce dread and local pressure")
+    local boss = sim:missionPressureProfile(Defs.mission("archive_regent"), true, false)
+    expect(boss.factions.faction_custodians == 2 and boss.factions.faction_lamplighters == -1, "boss mission should seal local pressure and steady lamplighters")
+    sim:recordMissionOutcome(Defs.mission("archive_names"), true, false)
+    expect((sim.estate.campaign.factions.faction_custodians.value or 0) == 1 and (sim.estate.campaign.factions.enclave_meter.value or 0) == -1, "mission pressure should apply faction deltas")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(138)
+    sim:endExpedition(true)
+    expect(sim:enclaveLeaderReaction("enclave_cael") == "Your name is still negotiable.", "neutral leader bark should use generic low line")
+    sim:adjustFaction("faction_custodians", 2)
+    expect(sim:enclaveLeaderReaction("enclave_cael") == "The enclave counts favors faster than weeks.", "tense leader bark should use generic tense line")
+    sim:heroAtRank(1).class = "merchant"
+    expect(sim:enclaveLeaderReaction("enclave_cael"):find("Merchant", 1, true), "merchant party should trigger faction-broker leader reaction")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(140)
+    sim:endExpedition(true)
+    local base = sim:endingScreenCopy("estate_seal")
+    sim:heroAtRank(1).class = "merchant"
+    local shifted = sim:endingScreenCopy("estate_seal")
+    expect(shifted ~= base and shifted:find("Merchant", 1, true) and shifted:find("ledger", 1, true), "living merchant should shift ending copy")
+    sim:heroAtRank(1).alive = false
+    expect(sim:endingScreenCopy("estate_seal") == base, "dead merchant should not shift ending copy")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(118)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("archive_false_index"))
@@ -1206,6 +1820,7 @@ tests[#tests + 1] = function()
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("ember_vow_kilns"))
     sim.estate.campaign.dread = 4
+    placeCampMarker(sim)
     expect(sim:camp(), "camp should start for ritual test")
     local torch = sim.expedition.supplies:count("torch")
     local ration = sim.expedition.supplies:count("ration")
@@ -1216,6 +1831,35 @@ tests[#tests + 1] = function()
     expect(sim:campSkill("camp_salt_wash", 1) and #hero.diseases == 0, "salt wash should clear one disease")
     sim.expedition.heatFatigue = 3
     expect(sim:campSkill("camp_ember_quench") and sim.expedition.heatFatigue == 0 and not sim.expedition.camping, "ember quench should clear heat and spend final respite")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(219)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    placeCampMarker(sim)
+    expect(sim:camp(), "merchant camp test should enter camp")
+    for _, hero in ipairs(sim:livingParty()) do
+        hero.stress = 20
+    end
+    local hero = sim:heroAtRank(1)
+    hero.trinkets[1] = "ember_pin"
+    sim.estate.trinkets.ember_pin = 0
+    expect(sim:campSkill("audit_books"), "audit books should spend trinket")
+    expect(hero.trinkets[1] == false and sim:heroAtRank(2).stress == 16, "audit books should consume carried trinket and heal party stress")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(220)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.startExpedition("archive_scout"))
+    placeCampMarker(sim)
+    expect(sim:camp(), "cancel debt test should enter camp")
+    local hero = sim:heroAtRank(1)
+    hero.diseases = { "salt_cough" }
+    sim:adjustFaction("enclave_meter", 3)
+    expect(sim:campSkill("cancel_debt", 1), "cancel debt should run")
+    expect(#hero.diseases == 0 and sim.estate.campaign.factions.enclave_meter.value == 1, "cancel debt should cure disease and spend enclave standing")
 end
 
 tests[#tests + 1] = function()
@@ -1281,6 +1925,13 @@ tests[#tests + 1] = function()
     expect(sim:resolveEndingRoute("victory") == "estate_seal", "default victory should route to estate seal")
     sim.estate.campaign.flags.repairMissions = 3
     expect(sim:resolveEndingRoute("victory") == "repair_compact", "repair-heavy victory should route to repair compact")
+    sim.estate.campaign.flags.extractMissions = 4
+    expect(sim:resolveEndingRoute("victory") == "estate_seal", "extract majority should keep victory on estate seal")
+    sim.estate.campaign.flags.extractMissions = 0
+    sim.estate.campaign.bossKills = { buried_archive = true, salt_cistern = true, ember_warrens = true }
+    local routes = sim:endingRouteStatus()
+    expect(#routes == 4 and routes[1].alias == "seal" and routes[2].alias == "repair", "ending route status should expose four route aliases")
+    expect(sim:endingScreenCopy("repair_compact"):find("Repair Compact", 1, true), "repair route copy should be polished")
     sim.estate.campaign.dread = sim.estate.campaign.dreadLimit
     sim:evaluateCampaignState()
     expect(sim.estate.campaign.lost and sim.estate.campaign.endingRoute == "extraction_collapse", "dread cap should route to extraction collapse")
@@ -1289,12 +1940,16 @@ tests[#tests + 1] = function()
     sim.estate.campaign.deathLimit = 0
     sim:evaluateCampaignState()
     expect(sim.estate.campaign.lost and sim.estate.campaign.endingRoute == "quiet_failure", "death cap should route to quiet failure")
+    local summary = Render.gameOverSummary(sim)
+    expect(summary.routeAlias == "quiet_failure" and summary.routeCondition:find("weeks", 1, true), "game over summary should expose route condition")
 end
 
 tests[#tests + 1] = function()
     local sim = Simulation.new(56)
     sim:endExpedition(true)
     runQueued(sim, Simulation.commands.startExpedition("archive_gather"))
+    expect(sim:missionProgressText():find("folios recovered 0/2", 1, true), "gather mission should expose polished progress text")
+    expect(sim:objectiveChecklist()[1].items[1].next:find("Recover 2 archive pages", 1, true), "gather mission should expose next-step copy")
     sim:resolveCurio(8, 1, 0, "lost_page")
     expect(not sim.expedition.objectiveComplete and sim.expedition.loot:count("archive_page") == 1, "one gathered item should not complete gather mission")
     sim:resolveCurio(16, -1, 0, "lost_page")
@@ -1424,6 +2079,35 @@ tests[#tests + 1] = function()
     expect(#sim.estate.roster == rosterSize + 1, "recruitment should add a hero")
     expect(sim.estate.gold == gold - 20, "recruitment should spend stagecoach cost")
     expect(#sim.estate.recruits == sim:recruitSlots(), "recruitment should refill candidates")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(136)
+    sim:endExpedition(true)
+    local function hasClass(key)
+        return contains(sim:unlockedClassKeys(), key)
+    end
+    expect(hasClass("warden") and hasClass("duelist") and hasClass("mender") and hasClass("harrier"), "starter classes should be unlocked")
+    expect(not hasClass("arcanist") and not hasClass("chirurgeon") and not hasClass("exile") and not hasClass("lamplighter") and not hasClass("merchant"), "advanced classes should start locked")
+    sim.estate.recruits = { { class = "lamplighter", name = "Locked", quirks = {} } }
+    sim:refillRecruits()
+    for _, recruit in ipairs(sim.estate.recruits) do
+        expect(hasClass(recruit.class), "recruit pool should prune locked classes")
+    end
+    expect(Render.classUnlockSummary(sim).line:find("Arcanist", 1, true), "class unlock summary should expose next locked class")
+    sim.estate.campaign.locationProgress.buried_archive = 1
+    expect(hasClass("arcanist") and Render.classUnlockSummary(sim).line:find("Chirurgeon", 1, true), "archive progress should unlock arcanist and show next gate")
+    sim.estate.campaign.bossKills.buried_archive = true
+    expect(hasClass("chirurgeon"), "archive boss kill should unlock chirurgeon")
+    sim.estate.campaign.locationProgress.salt_cistern = 1
+    expect(hasClass("exile"), "cistern progress should unlock exile")
+    sim.estate.campaign.bossKills.salt_cistern = true
+    expect(hasClass("lamplighter"), "cistern boss kill should unlock lamplighter")
+    expect(not hasClass("merchant"), "merchant should stay locked until its unlock event")
+    sim.estate.campaign.flags.merchant_ledger_accepted = true
+    expect(hasClass("merchant"), "merchant ledger flag should unlock merchant")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(contains(loaded:unlockedClassKeys(), "lamplighter") and contains(loaded:unlockedClassKeys(), "merchant"), "class gates should survive snapshot through campaign state")
 end
 
 tests[#tests + 1] = function()
@@ -1594,9 +2278,13 @@ tests[#tests + 1] = function()
     runQueued(sim, Simulation.commands.move("east"))
     runQueued(sim, Simulation.commands.useItem("torch"))
     local text = Save.toText(sim)
-    expect(text:match("^THOTH_LUA_SAVE 3"), "save writer should use v3 header")
+    expect(text:match("^THOTH_LUA_SAVE 4"), "save writer should use v4 header")
     local loaded = assert(Save.fromText(text))
     expect(sameSnapshot(sim, loaded), "save round trip should preserve snapshot")
+    local v3Snapshot = sim:snapshot()
+    v3Snapshot.version = 3
+    local v3Loaded = assert(Save.fromText("THOTH_LUA_SAVE 3\n" .. Serialize.encode(v3Snapshot) .. "\n"))
+    expect(v3Loaded:snapshot().version == 4 and sameSnapshot(sim, v3Loaded), "v3 save should migrate to v4")
     local oldSnapshot = sim:snapshot()
     oldSnapshot.version = 2
     oldSnapshot.expedition.threatState = nil
@@ -1630,6 +2318,58 @@ tests[#tests + 1] = function()
     local text = Replay.toText(30, frames, 4)
     local decoded = assert(Replay.fromText(text))
     expect(decoded.version == 2 and decoded.finalTick == 4, "replay v2 should decode")
+    local path = "test-replay.thoth.tmp"
+    os.remove(path)
+    expect(Replay.write(path, decoded), "replay should write file")
+    local readBack = assert(Replay.read(path))
+    os.remove(path)
+    expect(readBack.seed == 30 and readBack.finalTick == 4, "replay should read file")
+    local viewer = ReplayViewer.fromData(decoded)
+    expect(viewer.sim.tick == 4 and viewer.status:find("replay seed 30", 1, true), "replay viewer should load final sim")
+    local combatFrames = {}
+    for tick = 0, 4 do
+        combatFrames[#combatFrames + 1] = { tick = tick, command = Simulation.commands.move("east") }
+    end
+    local combatReplay = assert(Replay.fromText(Replay.toText(102, combatFrames, 7)))
+    local combatViewer = ReplayViewer.fromData(combatReplay)
+    expect(#combatViewer.cutscenes > 0 and combatViewer.cutscenes[1].kind == "intro", "replay viewer should queue cutscene events")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(141)
+    sim:endExpedition(true)
+    expect(sim:unlockMerchantLedger(), "merchant ledger should unlock for save test")
+    runQueued(sim, Simulation.commands.recruitHero(1))
+    runQueued(sim, Simulation.commands.assignParty(5, 4))
+    local loaded = assert(Save.fromText(Save.toText(sim)))
+    expect(loaded:classUnlocked("merchant") and loaded:heroById(5).class == "merchant" and loaded.party[4] == 5, "merchant party should survive save load")
+    expect(sameSnapshot(sim, loaded), "merchant save round trip should preserve snapshot")
+end
+
+tests[#tests + 1] = function()
+    local function setupMerchantReplay(sim)
+        sim.estate.campaign.completedMissions.archive_regent = true
+        sim.estate.campaign.bossKills.buried_archive = true
+    end
+    local frames = {
+        { tick = 0, command = Simulation.commands.endExpedition(true) },
+        { tick = 1, command = Simulation.commands.recruitHero(1) },
+        { tick = 2, command = Simulation.commands.assignParty(5, 4) },
+        { tick = 3, command = Simulation.commands.startExpedition("archive_scout") },
+    }
+    local replay = Replay.run(142, frames, 5, setupMerchantReplay)
+    local direct = Simulation.new(142)
+    setupMerchantReplay(direct)
+    for tick = 0, 4 do
+        for _, frame in ipairs(frames) do
+            if frame.tick == tick then
+                direct:queue(frame.command)
+            end
+        end
+        direct:step()
+    end
+    expect(replay:heroById(5).class == "merchant" and replay.party[4] == 5, "merchant replay should recruit and assign merchant")
+    expect(sameSnapshot(replay, direct), "merchant replay should equal direct simulation")
 end
 
 tests[#tests + 1] = function()
@@ -1684,6 +2424,36 @@ tests[#tests + 1] = function()
     sx, sy = Render.projectIso(view, 10, -1)
     wx, wy = Render.screenToWorld(view, sx, sy)
     expect(wx == 10 and wy == -1, "rotated iso projection should round trip")
+    sx, sy = Render.projectIso(view, 10, -1)
+    wx, wy = Render.screenToWorld(view, sx, sy)
+    expect(wx == 10 and wy == -1, "render3d rotated projection should round trip")
+end
+
+tests[#tests + 1] = function()
+    local oldLove = love
+    love = nil
+    local state = Render.load()
+    expect(state.headless and state.g3d == nil, "render3d load should support headless mode")
+    local sim = Simulation.new(91)
+    local app = {
+        viewRotation = 3,
+        ui = {
+            skillButtons = { { stale = true } },
+            heroButtons = {},
+            enemyButtons = {},
+            itemButtons = {},
+            missionButtons = {},
+            recruitButtons = {},
+            provisionButtons = {},
+            estateActionButtons = {},
+            rosterButtons = {},
+        },
+    }
+    Render.draw(sim, app)
+    expect(app.worldView.mode == "render3d-placeholder", "render3d headless draw should leave placeholder worldView")
+    expect(app.worldView.rotation == 3, "render3d headless draw should preserve rotation metadata")
+    expect(#app.ui.skillButtons == 0, "render3d headless draw should still clear stale hitboxes")
+    love = oldLove
 end
 
 tests[#tests + 1] = function()
@@ -1705,6 +2475,7 @@ tests[#tests + 1] = function()
     expect(bossSkillCutscene.kind == "boss_strike", "boss skill should map to boss strike")
     expect(bossSkillCutscene.mood == "boss" and bossSkillCutscene.beat == "smite" and bossSkillCutscene.caption == "Sentence", "boss strike should carry boss scene metadata")
     expect(Render.cutsceneForEvent({ message = "combat won", event = "boss_win", boss = true, enemies = { "Vault Regent" } }, sim).kind == "boss_victory", "boss win should map to boss victory")
+    expect(Render.cutsceneForEvent({ message = "event: Ledger Offer", event = "merchant_unlock", actor = "Ledger Offer" }, sim).kind == "merchant_unlock", "merchant unlock should map to merchant cutscene")
     expect(Render.cutsceneForEvent({ message = "party lost", event = "boss_loss", boss = true, enemies = { "Vault Regent" } }, sim).kind == "boss_defeat", "boss loss should map to boss defeat")
     expect(Render.cutsceneForEvent({ message = "retreated", event = "retreat" }, sim).kind == "retreat", "retreat should map to retreat cutscene")
     expect(Render.cutsceneForEvent({ message = "ambush blocks retreat", event = "retreat_blocked" }, sim).kind == "blocked", "blocked retreat should map to blocked cutscene")
@@ -1725,6 +2496,79 @@ tests[#tests + 1] = function()
     local app = { cutscene = Render.cutsceneForStatus("combat won", sim) }
     Render.advanceCutscene(app, 1)
     expect(app.cutscene == nil, "advanceCutscene should expire completed cutscene")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(91)
+    reachEntryCombat(sim)
+    local cases = {
+        { event = "combat_start", message = "combat: entry", kind = "intro", mood = "threat", beat = "arrival", enemies = { "Cyst Bailiff" } },
+        { event = "boss_start", message = "combat: regent", kind = "boss_intro", mood = "boss", beat = "reveal", boss = true, enemies = { "Vault Regent" } },
+        { event = "ambush_start", message = "ambush", kind = "ambush", mood = "panic", beat = "snap", enemies = { "Audit Hound" } },
+        { event = "hero_skill", message = "Mara used Razor Lunge", kind = "strike", mood = "action", beat = "strike", actor = "Mara", skill = "Razor Lunge" },
+        { event = "enemy_skill", message = "Cyst Bailiff used Rusted Chop", kind = "strike", mood = "action", beat = "strike", actor = "Cyst Bailiff", skill = "Rusted Chop" },
+        { event = "boss_skill", message = "Vault Regent used Sentence", kind = "boss_strike", mood = "boss", beat = "smite", actor = "Vault Regent", skill = "Sentence", boss = true },
+        { event = "combat_win", message = "combat won", kind = "victory", mood = "resolve", beat = "triumph" },
+        { event = "boss_win", message = "boss won", kind = "boss_victory", mood = "seal", beat = "triumph", boss = true },
+        { event = "merchant_unlock", message = "event: Ledger Offer", kind = "merchant_unlock", mood = "ledger", beat = "arrival", actor = "Ledger Offer" },
+        { event = "combat_loss", message = "party lost", kind = "defeat", mood = "doom", beat = "collapse" },
+        { event = "boss_loss", message = "boss loss", kind = "boss_defeat", mood = "doom", beat = "collapse", boss = true },
+        { event = "retreat", message = "retreated", kind = "retreat", mood = "flight", beat = "exit" },
+        { event = "retreat_blocked", message = "ambush blocks retreat", kind = "blocked", mood = "panic", beat = "block" },
+        { event = "death_door", message = "Mara reached death's door", kind = "death_door", mood = "threshold", beat = "threshold", actor = "Mara" },
+        { event = "death_save", message = "Mara clung to life", kind = "death_save", mood = "resolve", beat = "revive", actor = "Mara" },
+        { event = "hero_death", message = "Mara fell", kind = "hero_death", mood = "doom", beat = "fall", actor = "Mara" },
+        { event = "resolve_virtue", message = "Mara steadied", kind = "resolve_virtue", mood = "virtue", beat = "resolve", actor = "Mara" },
+        { event = "resolve_affliction", message = "Mara is Panic", kind = "resolve_affliction", mood = "affliction", beat = "fracture", actor = "Mara" },
+        { event = "stress_break", message = "Mara breaks under the dark", kind = "stress_break", mood = "affliction", beat = "break", actor = "Mara" },
+        { event = "affliction_act", message = "Mara lashes out", kind = "affliction_act", mood = "affliction", beat = "lash", actor = "Mara" },
+        { event = "falter", message = "Cyst Bailiff faltered", kind = "falter", mood = "dazed", beat = "stagger", actor = "Cyst Bailiff", side = "enemy" },
+        { event = "hero_hold", message = "Mara holds", kind = "hero_hold", mood = "guard", beat = "hold", actor = "Mara" },
+    }
+    for _, case in ipairs(cases) do
+        local cutscene = Render.cutsceneForEvent(case, sim)
+        expect(cutscene and cutscene.kind == case.kind, "render3d should map " .. case.event .. " to " .. case.kind)
+        expect(cutscene.mood == case.mood and cutscene.beat == case.beat, "render3d cutscene should preserve profile for " .. case.event)
+    end
+    expect(Render.cutsceneForStatus("combat: entry", sim).kind == "intro", "render3d fallback combat text should map to intro")
+    expect(Render.cutsceneForStatus("campaign sealed", sim).kind == "campaign_victory", "render3d fallback campaign win should map to campaign victory")
+    expect(Render.cutsceneForStatus("Moth fell", sim).kind == "danger", "render3d fallback danger text should map to danger")
+    expect(Render.cutsceneForStatus("used Torch", sim) == nil, "render3d should ignore non-combat item use text")
+    local idle = Render.idleCombatScene(sim)
+    expect(idle and idle.kind == "idle" and idle.beat == "idle", "render3d should expose idle combat scene")
+    local app = { cutscene = Render.cutsceneForStatus("combat won", sim) }
+    Render.advanceCutscene(app, 1)
+    expect(app.cutscene == nil, "render3d advanceCutscene should expire completed cutscene")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(92)
+    reachEntryCombat(sim)
+    local hero = sim:activeHero()
+    local enemy = sim:enemyAtRank(1)
+    enemy.statuses = enemy.statuses or {}
+    enemy.statuses[#enemy.statuses + 1] = { kind = "marked", turns = 2 }
+    local skillKey = hero.skills[1]
+    sim:applySkill(hero, sim:heroRank(hero.id), skillKey, Defs.skill(skillKey), { enemy }, "enemy")
+    local event = sim.events[#sim.events]
+    expect(event.event == "hero_skill" and type(event.impacts) == "table" and #event.impacts > 0, "hero skill should emit structured impact metadata")
+    expect(event.impacts[1].side == "enemy" and event.impacts[1].rank == enemy.rank and event.impacts[1].amount > 0, "impact metadata should locate enemy damage")
+    expect(event.crit == true and event.impacts[1].crit == true, "marked direct hit should emit crit feedback metadata")
+    local scene = Render.cutsceneForEvent(event, sim)
+    expect(scene and scene.crit == true and scene.damage == event.impacts[1].amount, "combat cutscene should carry crit damage feedback")
+    expect(Render.damageNumberLabel(event.impacts[1]):find("CRIT", 1, true), "damage number label should expose crit text")
+    expect(Render.drawDamageNumbers(sim, { damageNumbers = event.impacts }) == #event.impacts, "damage numbers should render headless summary count")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(79)
+    sim:endExpedition(true)
+    sim.estate.trinkets.kiln_token = 1
+    local tooltip = table.concat(Render.trinketTooltip(sim, "ember_pin"), "\n")
+    expect(tooltip:find("Ember Pin", 1, true), "trinket tooltip should include trinket name")
+    expect(tooltip:find("Vow of Cinders", 1, true), "trinket tooltip should include matching set name")
+    expect(tooltip:find("2pc", 1, true) and tooltip:find("4pc", 1, true), "trinket tooltip should include set bonus tiers")
+    expect(tooltip:find("owned", 1, true) and tooltip:find("equipped", 1, true), "trinket tooltip should include owned and equipped counts")
 end
 
 tests[#tests + 1] = function()
@@ -1774,10 +2618,11 @@ tests[#tests + 1] = function()
             estateActionButtons = {
                 { x = 0, y = 0, w = 20, h = 20, action = "upgradeGear", heroId = hero.id, kind = "weapon" },
                 { x = 30, y = 0, w = 20, h = 20, action = "treatDisease", heroId = hero.id, diseaseKey = "salt_cough" },
-                { x = 60, y = 0, w = 20, h = 20, action = "equipTrinket", heroId = hero.id, trinketKey = "ember_pin", slot = 1 },
+                { x = 60, y = 0, w = 20, h = 20, action = "equipTrinket", heroId = hero.id, trinketKey = "ember_pin", slot = 1, tooltipKey = "ember_pin" },
                 { x = 90, y = 0, w = 20, h = 20, action = "lockQuirk", heroId = hero.id, quirkKey = "iron_nerves" },
                 { x = 120, y = 0, w = 20, h = 20, action = "recoverHero", heroId = hero.id, activityKey = "quiet_rest" },
                 { x = 150, y = 0, w = 20, h = 20, action = "sellTrinket", trinketKey = "cracked_lens" },
+                { x = 180, y = 0, w = 20, h = 20, action = "upgradeBuilding", buildingKey = "stagecoach" },
             },
         },
     }
@@ -1790,6 +2635,7 @@ tests[#tests + 1] = function()
     Input.mousepressed(sim, app, 65, 5, 1)
     sim:step()
     expect(hero.trinkets[1] == "ember_pin", "estate trinket button should equip trinket")
+    expect(app.trinketTooltipKey == "ember_pin", "estate trinket click should select tooltip target")
     Input.mousepressed(sim, app, 95, 5, 1)
     sim:step()
     expect(hero.lockedQuirks.iron_nerves == true, "estate lock button should lock positive quirk")
@@ -1800,6 +2646,9 @@ tests[#tests + 1] = function()
     Input.mousepressed(sim, app, 155, 5, 1)
     sim:step()
     expect(sim.estate.trinkets.cracked_lens == 0 and sim.estate.gold == gold + Defs.trinket("cracked_lens").value, "estate sell button should sell exact trinket")
+    Input.mousepressed(sim, app, 185, 5, 1)
+    sim:step()
+    expect(sim:buildingLevel("stagecoach") == 1, "estate building button should upgrade building")
 end
 
 tests[#tests + 1] = function()
@@ -1862,6 +2711,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(76)
+    sim:endExpedition(true)
+    runQueued(sim, Simulation.commands.recruitHero(1))
+    local hero = sim.estate.roster[#sim.estate.roster]
+    local app = {
+        ui = {
+            rosterButtons = { { x = 0, y = 0, w = 20, h = 20, heroId = hero.id } },
+            partyRankSlots = { { x = 30, y = 0, w = 20, h = 20, rank = 2 } },
+        },
+    }
+    Input.mousepressed(sim, app, 5, 5, 1)
+    expect(app.dragHeroId == hero.id, "roster mouse down should start party drag")
+    Input.mousereleased(sim, app, 35, 5, 1)
+    sim:step()
+    expect(sim:heroRank(hero.id) == 2 and app.dragHeroId == nil, "party rank release should assign dragged hero")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(51)
     reachEntryCombat(sim)
     local enemy = sim:enemyAtRank(2)
@@ -1881,6 +2748,120 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local settings = Settings.defaults()
+    expect(settings.masterVolume == 1 and settings.sfxVolume == 1 and settings.ambientVolume == 0.7, "settings defaults should expose audio volumes")
+    expect(settings.screenShake == true, "settings defaults should enable screen shake")
+    Settings.adjust(settings, "masterVolume", -4)
+    expect(settings.masterVolume > 0.59 and settings.masterVolume < 0.61, "settings slider should step and clamp")
+    Settings.toggle(settings, "highContrast")
+    expect(settings.highContrast == true, "settings toggle should flip accessibility flags")
+    Settings.toggle(settings, "screenShake")
+    expect(settings.screenShake == false and not Render.screenShakeEnabled(settings), "screen shake toggle should disable shake")
+    Settings.cycle(settings, "colorblindMode", 1)
+    expect(settings.colorblindMode == "deuteranopia", "settings cycle should advance colorblind mode")
+    settings.fontScale = 1.4
+    expect(Render.fontScale(settings) == 1.4, "font scale should clamp through render")
+    local shifted = Render.accessibleColor(settings, { 0.9, 0.1, 0.1, 1 })
+    expect(shifted[1] ~= 0.9 and shifted[2] ~= 0.1, "colorblind mode should transform cue colors")
+    local app = { settings = settings, eventFlash = { cue = "hit_slash", status = "Mara hit" } }
+    expect(Render.audioSubtitle(app) == "slash hit: Mara hit", "subtitles should expose audio cue and status")
+    local export = Accessibility.text(Simulation.new(84), app)
+    expect(export:find("Thoth accessibility export", 1, true) and export:find("high_contrast=true", 1, true) and export:find("ambient_volume=0.7", 1, true) and export:find("screen_shake=false", 1, true), "accessibility export should expose screen-reader text")
+    expect(export:find("party:", 1, true) and export:find("controls:", 1, true), "accessibility export should expose party and controls")
+    settings.subtitles = false
+    expect(Render.audioSubtitle(app) == nil, "subtitles should respect setting")
+    settings.reducedMotion = true
+    expect(not Render.markUiPulse(app, { x = 0, y = 0, w = 10, h = 10 }), "reduced motion should suppress pulse animations")
+    local ok = Settings.bindKey(settings, "moveUp", "i")
+    expect(ok and Settings.keyForAction(settings, "moveUp") == "i", "settings should bind movement key")
+    local duplicate = Settings.bindKey(settings, "moveDown", "i")
+    expect(not duplicate, "settings should reject duplicate keybind")
+    local reserved = Settings.bindKey(settings, "moveDown", "escape")
+    expect(not reserved, "settings should reserve escape during capture")
+    local settingsText = Settings.toText(settings)
+    expect(settingsText:match("^THOTH_LUA_SETTINGS 1"), "settings should write separate v1 header")
+    local loadedSettings = assert(Settings.fromText(settingsText))
+    expect(loadedSettings.masterVolume == settings.masterVolume and loadedSettings.ambientVolume == 0.7 and loadedSettings.highContrast and loadedSettings.colorblindMode == "deuteranopia" and loadedSettings.screenShake == false, "settings text round trip should preserve values")
+    expect(Settings.keyForAction(loadedSettings, "moveUp") == "i", "settings text round trip should preserve keybinds")
+    local clampedSettings = assert(Settings.fromText("THOTH_LUA_SETTINGS 1\n{[\"fontScale\"]=9,[\"masterVolume\"]=-4,[\"colorblindMode\"]=\"bad\",[\"keybinds\"]={[\"moveUp\"]=\"escape\",[\"moveDown\"]=\"j\"}}\n"))
+    expect(clampedSettings.fontScale == 1.4 and clampedSettings.masterVolume == 0 and clampedSettings.colorblindMode == "off", "settings loader should clamp values")
+    expect(Settings.keyForAction(clampedSettings, "moveUp") == "w" and Settings.keyForAction(clampedSettings, "moveDown") == "j", "settings loader should reject reserved keybinds")
+    local tempSettingsPath = "test-settings.thoth.tmp"
+    os.remove(tempSettingsPath)
+    expect(Settings.write(settings, tempSettingsPath), "settings should write to separate file")
+    local fileSettings = assert(Settings.read(tempSettingsPath))
+    os.remove(tempSettingsPath)
+    expect(fileSettings.masterVolume == settings.masterVolume and Settings.keyForAction(fileSettings, "moveUp") == "i", "settings file round trip should preserve values")
+end
+
+tests[#tests + 1] = function()
+    local disabled = Render.titleMenuItems({ canContinue = false })
+    expect(#disabled == 6, "title should expose six menu items")
+    expect(disabled[1].action == "new" and disabled[1].enabled, "title should expose new game")
+    expect(disabled[2].action == "continue" and not disabled[2].enabled, "title continue should disable without save")
+    expect(disabled[3].action == "replay" and not disabled[3].enabled, "title replay should disable without replay")
+    expect(disabled[4].action == "settings" and disabled[5].action == "credits" and disabled[6].action == "quit", "title should expose settings, credits, and quit")
+    local enabled = Render.titleMenuItems({ canContinue = true, canReplay = true })
+    expect(enabled[2].enabled and enabled[3].enabled, "title continue and replay should enable with files")
+    local app = { canContinue = true, canReplay = true, ui = { titleButtons = { { stale = true } } } }
+    Render.drawTitle(Simulation.new(76), app)
+    expect(#app.ui.titleButtons == 6 and app.ui.titleButtons[2].action == "continue" and app.ui.titleButtons[3].action == "replay" and app.ui.titleButtons[5].action == "credits", "title draw should populate title hitboxes")
+    local pauseItems = Render.pauseMenuItems()
+    expect(#pauseItems == 4 and pauseItems[1].action == "resume" and pauseItems[4].action == "quitTitle", "pause should expose resume, save, settings, quit")
+    app.paused = true
+    app.pauseMenuIndex = 99
+    Render.drawPauseMenu(app)
+    expect(#app.ui.pauseButtons == 4 and app.ui.pauseButtons[3].action == "settings", "pause draw should populate pause hitboxes")
+    expect(app.pauseMenuIndex == 4, "pause draw should clamp focus")
+    app.confirmDialog = { title = "Quit", body = "Confirm", confirmAction = "quitTitle" }
+    app.confirmMenuIndex = 99
+    Render.drawConfirmDialog(app)
+    expect(#app.ui.confirmButtons == 2 and app.ui.confirmButtons[2].action == "confirm", "confirm draw should populate confirm hitboxes")
+    expect(app.confirmMenuIndex == 2, "confirm draw should clamp focus")
+    local ended = Simulation.new(81)
+    ended:endExpedition(true)
+    ended.estate.campaign.dreadLimit = 2
+    ended.estate.campaign.dread = 2
+    ended:evaluateCampaignState()
+    app.gameOverMenuIndex = 99
+    local gameOverSummary = Render.drawGameOver(ended, app)
+    expect(gameOverSummary.reason == "dread" and gameOverSummary.route == "extraction_collapse", "game over summary should expose loss route")
+    expect(gameOverSummary.dreadTier == 4 and #gameOverSummary.factions == 5, "game over summary should expose dread tier and factions")
+    expect(#app.ui.gameOverButtons == 3 and app.ui.gameOverButtons[1].action == "restart", "game over draw should populate restart hitbox")
+    expect(app.gameOverMenuIndex == 3, "game over draw should clamp focus")
+    local credits = Render.drawCredits(app)
+    expect(#credits.assets >= 12 and credits.assets[1].license == "CC-BY 3.0", "credits should load asset license rows")
+    expect(#credits.libraries == 2 and #app.ui.creditsButtons == 1, "credits should expose libraries and back hitbox")
+    expect(credits.text:find("Asset Attributions", 1, true) and credits.text:find("assets/sprites/oga_700_sprites.png", 1, true), "credits should emit generated screen text")
+    local parsed = Credits.data("| File | Source | Author | License | Notes |\n|---|---|---|---|---|\n| `asset.png` | `src` | Author | MIT | note |\n")
+    expect(parsed.assets[1].file == "asset.png" and parsed.text:find("asset.png / MIT / Author", 1, true), "credits generator should parse markdown license rows")
+    ended:collectDocument("archive_writ_01", "test")
+    local hero = ended:heroAtRank(1)
+    hero.deathsDoor = true
+    hero.deathblowResist = 0
+    ended:damageHero(hero, hero.hp + 1)
+    local journal = Render.drawJournal(ended, app)
+    expect(#journal.documents == 1 and journal.documents[1].text ~= "", "journal should expose found document text")
+    expect(#journal.epitaphs == 1 and journal.epitaphs[1].epitaph ~= "", "journal should expose graveyard epitaphs")
+    expect(#app.ui.journalButtons >= 4, "journal draw should populate journal hitboxes")
+    app.tutorial = { active = true, index = 1 }
+    local tutorial = Render.drawTutorial(app)
+    expect(#tutorial == 3 and tutorial[1].key == "torch" and tutorial[3].key == "rank", "tutorial should expose torch, stress, and rank steps")
+    expect(#app.ui.tutorialButtons == 3, "tutorial draw should populate tutorial controls")
+    app.settings = Settings.defaults()
+    Render.drawSettings(app)
+    local hasBack = false
+    local hasBind = false
+    local hasAdjust = false
+    for _, hitbox in ipairs(app.ui.settingsButtons) do
+        hasBack = hasBack or hitbox.action == "back"
+        hasBind = hasBind or hitbox.action == "bind"
+        hasAdjust = hasAdjust or hitbox.action == "slider" or hitbox.action == "adjust"
+    end
+    expect(hasBack and hasBind and hasAdjust, "settings draw should populate back, bind, and slider hitboxes")
+end
+
+tests[#tests + 1] = function()
     local app = {
         ui = {
             skillButtons = { { stale = true } },
@@ -1892,17 +2873,40 @@ tests[#tests + 1] = function()
             provisionButtons = { { stale = true } },
             estateActionButtons = { { stale = true } },
             rosterButtons = { { stale = true } },
+            partyRankSlots = { { stale = true } },
+            curioButtons = { { stale = true } },
+            campSkillButtons = { { stale = true } },
+            campHeroButtons = { { stale = true } },
+            pauseButtons = { { stale = true } },
+            confirmButtons = { { stale = true } },
+            gameOverButtons = { { stale = true } },
+            creditsButtons = { { stale = true } },
+            journalButtons = { { stale = true } },
+            tutorialButtons = { { stale = true } },
+            titleButtons = { { stale = true } },
+            settingsButtons = { { stale = true } },
         },
     }
     local oldSkills = app.ui.skillButtons
     local oldEnemies = app.ui.enemyButtons
+    local oldTitle = app.ui.titleButtons
     Render.prepareUi(app)
     expect(app.ui.skillButtons == oldSkills, "prepareUi should reuse hitbox arrays")
     expect(app.ui.enemyButtons == oldEnemies, "prepareUi should reuse enemy hitbox array")
+    expect(app.ui.titleButtons == oldTitle, "prepareUi should reuse title hitbox array")
     expect(#app.ui.skillButtons == 0 and #app.ui.heroButtons == 0 and #app.ui.enemyButtons == 0 and #app.ui.itemButtons == 0, "prepareUi should clear combat hitboxes")
     expect(#app.ui.missionButtons == 0 and #app.ui.recruitButtons == 0 and #app.ui.provisionButtons == 0, "prepareUi should clear estate hitboxes")
     expect(#app.ui.estateActionButtons == 0, "prepareUi should clear estate action hitboxes")
     expect(#app.ui.rosterButtons == 0, "prepareUi should clear roster hitboxes")
+    expect(#app.ui.partyRankSlots == 0, "prepareUi should clear party rank slots")
+    expect(#app.ui.curioButtons == 0, "prepareUi should clear curio buttons")
+    expect(#app.ui.campSkillButtons == 0 and #app.ui.campHeroButtons == 0, "prepareUi should clear camp buttons")
+    expect(#app.ui.pauseButtons == 0 and #app.ui.confirmButtons == 0 and #app.ui.gameOverButtons == 0 and #app.ui.creditsButtons == 0 and #app.ui.journalButtons == 0 and #app.ui.tutorialButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
+    app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
+    app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }
+    Render.prepareUi(app)
+    expect(app.ui.skillButtons == oldSkills and app.ui.enemyButtons == oldEnemies, "render3d prepareUi should reuse hitbox arrays")
+    expect(#app.ui.skillButtons == 0 and #app.ui.enemyButtons == 0, "render3d prepareUi should clear reused combat hitboxes")
 end
 
 for index, test in ipairs(tests) do

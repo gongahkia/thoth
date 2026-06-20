@@ -58,6 +58,8 @@ checkOrder("quirk", Defs.quirkOrder, Defs.quirks)
 checkOrder("disease", Defs.diseaseOrder, Defs.diseases)
 checkOrder("injury", Defs.injuryOrder, Defs.injuries)
 checkOrder("hero class", Defs.heroClassOrder, Defs.heroClasses)
+expect(Defs.heroClass("mender").name == "Apothecary", "mender display name should be Apothecary")
+expect(Defs.heroClass("harrier").name == "Thief", "harrier display name should be Thief")
 checkOrder("skill", Defs.skillOrder, Defs.skills)
 checkOrder("enemy skill", Defs.enemySkillOrder, Defs.enemySkills)
 checkOrder("enemy", Defs.enemyOrder, Defs.enemies)
@@ -174,7 +176,7 @@ do
     expect(Defs.weakPointRule("part_disable_log").includeDisabledSkill, "part disable log rule missing")
     expect(Defs.weakPointRule("weak_point_chain").disabledParts == 2, "weak point chain rule missing")
     expect(Defs.supportRule("part_repair_skill").heal == 4, "part repair skill rule missing")
-    expect(Defs.rewardRule("alpha_reward").coin == 45, "alpha reward rule missing")
+    expect(Defs.rewardRule("alpha_reward").coin == 45 and Defs.rewardRule("merchant_cut").packDreadTier == 2, "reward rules missing")
     expect(Defs.recoveryRule("survivor_trinket_debt").trinkets == 1, "survivor trinket debt rule missing")
     expect(Defs.alphaRule("alpha_stalk_corridor").state == "stalked", "alpha stalk corridor rule missing")
     expect(Defs.ambushRule("camp_ambush_noise").encounter == "archive_ambush", "camp ambush noise rule missing")
@@ -484,8 +486,14 @@ for key, skill in pairs(Defs.campSkills) do
     for item in pairs(skill.itemCost or {}) do
         expect(Defs.item(item), "camp skill item cost missing item " .. item)
     end
+    if skill.trinketCost then
+        expect(skill.trinketCost > 0, "camp skill bad trinket cost " .. key)
+    end
+    for factionKey in pairs(skill.factionCost or {}) do
+        expect(Defs.faction(factionKey), "camp skill faction cost missing faction " .. key .. "/" .. factionKey)
+    end
 end
-for _, key in ipairs({ "camp_witness_vigil", "camp_salt_wash", "camp_ember_quench" }) do
+for _, key in ipairs({ "camp_witness_vigil", "camp_salt_wash", "camp_ember_quench", "audit_books", "cancel_debt" }) do
     expect(Defs.campSkill(key), "estate camp ritual missing " .. key)
 end
 
@@ -495,6 +503,7 @@ end
 
 for key, event in pairs(Defs.townEvents) do
     expect(event.name and event.name ~= "", "town event missing name " .. key)
+    expect(event.summary and #event.summary >= 40 and event.effect and event.effect ~= "", "town event missing polished copy " .. key)
     for item in pairs(event.provisions or {}) do
         expect(Defs.item(item), "town event provision missing item " .. item)
     end
@@ -510,7 +519,7 @@ for key, event in pairs(Defs.townEvents) do
 end
 for _, key in ipairs({
     "survey_quota", "enclave_petition", "archive_tithe_v2", "salt_rationing", "ash_vigil_demand",
-    "audit_notice", "lamplighter_strike", "drowned_banns", "pyre_demand", "estate_reckoning", "enclave_compact_signed",
+    "audit_notice", "lamplighter_strike", "drowned_banns", "pyre_demand", "estate_reckoning", "enclave_compact_signed", "merchant_ledger_offer",
 }) do
     expect(Defs.townEvent(key), "estate town event missing " .. key)
 end
@@ -520,9 +529,12 @@ expect(Defs.classLoreBank("class_origins") and Defs.barkBank("recruit_barks") an
 for _, classKey in ipairs(Defs.heroClassOrder) do
     expect(Defs.classLoreFor(classKey) and Defs.recruitBarksFor(classKey), "class lore/barks missing " .. classKey)
 end
+expect(Defs.classLoreFor("merchant").origin:find("debt", 1, true), "merchant class lore missing")
+expect(Defs.recruitBarksFor("merchant")[1]:find("ledger", 1, true), "merchant recruit bark missing")
 for _, key in ipairs(Defs.graveyardEpitaphOrder) do
     expect(#Defs.graveyardEpitaphsFor(key) >= 2, "graveyard epitaphs missing " .. key)
 end
+expect(Defs.graveyardEpitaphsFor("merchant")[1]:find("ledger", 1, true), "merchant graveyard epitaph missing")
 for _, key in ipairs(Defs.estateFixtureOrder) do
     local fixture = Defs.estateFixture(key)
     expect(fixture and #fixture.barks >= 2, "estate fixture barks missing " .. key)
@@ -530,7 +542,12 @@ for _, key in ipairs(Defs.estateFixtureOrder) do
 end
 for _, key in ipairs(Defs.enclaveLeaderOrder) do
     local leader = Defs.enclaveLeader(key)
-    expect(leader and Defs.location(leader.zone) and #leader.barks >= 1, "enclave leader bad data " .. key)
+    expect(leader and Defs.location(leader.zone) and leader.branch and Defs.faction(leader.faction) and #leader.barks >= 4, "enclave leader bad data " .. key)
+    local seenBarks = {}
+    for _, bark in ipairs(leader.barks) do
+        expect(bark ~= "" and not seenBarks[bark], "enclave leader duplicate/empty bark " .. key)
+        seenBarks[bark] = true
+    end
 end
 for _, key in ipairs(Defs.factionOrder) do
     local faction = Defs.faction(key)
@@ -539,15 +556,17 @@ end
 for key, documentType in pairs(Defs.documentTypes) do
     expect(documentType.name and (documentType.location == "global" or Defs.location(documentType.location)), "document type bad data " .. key)
 end
-expect(#Defs.documentTypeOrder == 5 and Defs.documentRegistry("document_registry_v1"), "document registry missing")
+expect(#Defs.documentTypeOrder == 6 and Defs.documentRegistry("document_registry_v1"), "document registry missing")
 for key, document in pairs(Defs.documents) do
     expect(document.title and document.abstract and document.text, "document missing copy " .. key)
+    expect(#document.text >= 120 and document.text ~= document.abstract, "document body copy too thin " .. key)
     expect(Defs.documentType(document.type), "document type missing " .. key)
     expect(Defs.location(document.location), "document location missing " .. key)
 end
-expect(#Defs.documentOrder == 27, "document bank should expose 27 documents")
+expect(#Defs.documentOrder == 30, "document bank should expose 30 documents")
 for key, bank in pairs(Defs.documentBanks) do
-    expect(Defs.location(bank.location) and #bank.documents == 9, "document bank bad data " .. key)
+    local expectedCount = key == "merchant_documents_v1" and 3 or 9
+    expect(Defs.location(bank.location) and #bank.documents == expectedCount, "document bank bad data " .. key)
     for _, documentKey in ipairs(bank.documents) do
         expect(Defs.document(documentKey), "document bank missing document " .. documentKey)
     end
@@ -555,6 +574,7 @@ end
 expect(Defs.documentBank("archive_documents_v1").documents[1] == "archive_writ_01", "archive document bank missing")
 expect(Defs.documentBank("cistern_documents_v1").documents[1] == "cistern_valve_01", "cistern document bank missing")
 expect(Defs.documentBank("warrens_documents_v1").documents[1] == "warrens_confession_01", "warrens document bank missing")
+expect(Defs.documentBank("merchant_documents_v1").documents[1] == "merchant_ledger_01", "merchant document bank missing")
 local dropRule = Defs.documentDropRule("document_drop_rules")
 expect(dropRule.curio and dropRule.roomLoot and dropRule.warden and dropRule.bankByLocation.buried_archive == "archive_documents_v1", "document drop rule missing")
 local fixtureBarks = Defs.fixtureDocumentBark("fixture_document_barks")
@@ -571,9 +591,12 @@ local endingCopy = Defs.panelCopyFor("ending_screen_copy")
 for _, key in ipairs(Defs.endingRouteOrder) do
     expect(endingCopy[key], "ending screen copy missing " .. key)
 end
+expect(endingCopy.merchant_modifier and endingCopy.merchant_modifier.estate_seal:find("Merchant", 1, true), "merchant ending modifier missing")
 expect(Defs.fixtureVisitBark("fixture_visit_barks").greeting and Defs.fixtureVisitBark("fixture_visit_barks").farewell, "fixture visit barks missing")
 expect(Defs.fixtureVisitBark("fixture_visit_barks").greeting ~= Defs.fixtureVisitBark("fixture_visit_barks").farewell, "fixture visit greeting/farewell should differ")
-expect(Defs.enclaveLeaderBark("enclave_leader_barks").low and Defs.enclaveLeaderBark("enclave_leader_barks").high, "enclave leader barks missing")
+local enclaveBarks = Defs.enclaveLeaderBark("enclave_leader_barks")
+expect(enclaveBarks.low and enclaveBarks.high, "enclave leader barks missing")
+expect(enclaveBarks.merchant and enclaveBarks.merchant.faction_custodians:find("Merchant", 1, true), "merchant faction barks missing")
 local wardenVoice = Defs.wardenVoice("warden_voice_v1")
 for _, key in ipairs({ "codex_reeve", "pearl_choir", "kiln_vicar" }) do
     expect(wardenVoice[key] and wardenVoice[key].intro and wardenVoice[key].defeat, "warden voice missing " .. key)
@@ -583,6 +606,7 @@ for _, classKey in ipairs(Defs.heroClassOrder) do
     local bark = originBarks[classKey]
     expect(bark and bark.arrival and bark.firstDeath and bark.factionShift, "origin bark missing " .. classKey)
 end
+expect(originBarks.merchant.arrival:find("ledger", 1, true) and originBarks.merchant.firstDeath:find("account", 1, true), "merchant origin bark missing")
 local dreadRules = Defs.dreadRule("dread_rules_v1")
 for _, key in ipairs({ "greedy_extract", "hero_death", "abandoned_mission", "repair_mission", "vigil", "enclave_compact" }) do
     expect(type(dreadRules[key]) == "number", "dread rule missing " .. key)
@@ -603,16 +627,35 @@ for _, key in ipairs(Defs.narrationOrder) do
     end
 end
 
-local todo = assert(io.open("TODO-CONTENT.md", "r"))
+local todo = assert(io.open("TODO.md", "r"))
 for line in todo:lines() do
-    if line:match("^%- %[[ xX]%]") then
-        expect(line:match("%+%w+"), "TODO-CONTENT task missing +Project metadata")
-        expect(line:match("@%w+"), "TODO-CONTENT task missing @context metadata")
-        expect(line:match("type:%w+"), "TODO-CONTENT task missing type metadata")
-        expect(line:match("zone:%w+"), "TODO-CONTENT task missing zone metadata")
-        expect(line:match("id:[%w_]+"), "TODO-CONTENT task missing id metadata")
+    local hasContentMetadata = line:match("%+%w+") or line:match("@%w+") or line:match("type:%w+") or line:match("zone:%w+") or line:match("id:[%w_]+")
+    if line:match("^%- %[[ xX]%]") and hasContentMetadata then
+        expect(line:match("%+%w+"), "TODO task missing +Project metadata")
+        expect(line:match("@%w+"), "TODO task missing @context metadata")
+        expect(line:match("type:%w+"), "TODO task missing type metadata")
+        expect(line:match("zone:%w+"), "TODO task missing zone metadata")
+        expect(line:match("id:[%w_]+"), "TODO task missing id metadata")
     end
 end
 todo:close()
+
+local ok, err = Defs.applyRegistryOverrides({
+    panelCopy = {
+        mod_test_panel = { title = "Mod Test", body = "override body" },
+    },
+    panelCopyOrder = { "mod_test_panel", "mod_test_panel" },
+})
+expect(ok, tostring(err))
+expect(Defs.panelCopyFor("mod_test_panel").body == "override body", "registry override should add map entries")
+local seenModPanel = 0
+for _, key in ipairs(Defs.panelCopyOrder) do
+    if key == "mod_test_panel" then
+        seenModPanel = seenModPanel + 1
+    end
+end
+expect(seenModPanel == 1, "registry override should append order entries once")
+local badOverride = Defs.applyRegistryOverrides({ missingCategory = {} })
+expect(not badOverride, "registry override should reject unknown categories")
 
 print("registry checks passed")

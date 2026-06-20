@@ -1,6 +1,7 @@
 .cache/
 build/
 dist/
+spike/
 *.rock
 *.log
 luacov.report.out

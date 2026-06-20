@@ -22,8 +22,90 @@ jobs:
       - name: Run asset checks
         run: make check
 
-      - name: Run render smoke
-        run: SDL_AUDIODRIVER=dummy make render-smoke
+      - name: Run title smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make title-smoke
+
+      - name: Run settings smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make settings-smoke
+
+      - name: Run estate smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make estate-smoke
+
+      - name: Run combat smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make combat-smoke
+
+      - name: Run curio smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make curio-smoke
+
+      - name: Run camp smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make camp-smoke
+
+      - name: Run pause smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make pause-smoke
+
+      - name: Run confirm smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make confirm-smoke
+
+      - name: Run game-over smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make gameover-smoke
+
+      - name: Run credits smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make credits-smoke
+
+      - name: Run journal smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make journal-smoke
+
+      - name: Run tutorial smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make tutorial-smoke
+
+      - name: Run toast smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make toast-smoke
+
+      - name: Run polish smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make polish-smoke
+
+      - name: Run keyboard smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make keyboard-smoke
+
+      - name: Run controller smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make controller-smoke
+
+      - name: Run render3d smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make render-smoke
 
       - name: Build love package
         run: make package

@@ -2,9 +2,22 @@ local Serialize = require("src.core.serialize")
 local Simulation = require("src.game.simulation")
 
 local Save = {}
+local currentVersion = 4
+local minimumVersion = 2
 
 function Save.toText(simulation)
-    return "THOTH_LUA_SAVE 3\n" .. Serialize.encode(simulation:snapshot()) .. "\n"
+    return "THOTH_LUA_SAVE " .. tostring(currentVersion) .. "\n" .. Serialize.encode(simulation:snapshot()) .. "\n"
+end
+
+function Save.migrateSnapshot(snapshot, fromVersion)
+    if type(snapshot) ~= "table" then
+        return nil, "bad save body"
+    end
+    if fromVersion < minimumVersion or fromVersion > currentVersion then
+        return nil, "unsupported save version " .. tostring(fromVersion)
+    end
+    snapshot.version = currentVersion
+    return snapshot
 end
 
 function Save.fromText(text)
@@ -13,10 +26,14 @@ function Save.fromText(text)
         return nil, "bad save header"
     end
     local numericVersion = tonumber(version)
-    if numericVersion ~= 2 and numericVersion ~= 3 then
+    if numericVersion < minimumVersion or numericVersion > currentVersion then
         return nil, "unsupported save version " .. tostring(version)
     end
     local snapshot, err = Serialize.decode(body)
+    if not snapshot then
+        return nil, err
+    end
+    snapshot, err = Save.migrateSnapshot(snapshot, numericVersion)
     if not snapshot then
         return nil, err
     end

@@ -19,6 +19,7 @@ Each mapped event expands into a render-only scene profile:
 | `boss_skill` | `boss_strike` | `boss` | `smite` | boss uses a skill |
 | `combat_win` | `victory` | `resolve` | `triumph` | normal encounter won |
 | `boss_win` | `boss_victory` | `seal` | `triumph` | boss encounter won |
+| `merchant_unlock` | `merchant_unlock` | `ledger` | `arrival` | Merchant ledger event fires |
 | `combat_loss` | `defeat` | `doom` | `collapse` | party loses normal encounter |
 | `boss_loss` | `boss_defeat` | `doom` | `collapse` | party loses boss encounter |
 | `retreat` | `retreat` | `flight` | `exit` | party escapes combat |

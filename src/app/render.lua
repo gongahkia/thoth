@@ -1,34 +1,182 @@
 local Defs = require("src.game.defs")
-local Grid = require("src.core.grid")
-local World = require("src.game.world")
+local Settings = require("src.app.settings")
+local Credits = require("src.app.credits")
+local i18n = require("src.app.i18n")
 
 local Render = {}
-
-local isoTileW = 64
-local isoTileH = 32
-local isoBlockH = 18
-local renderChunkTileSize = 16
-local isoTerrainCache = { world = nil, chunks = {}, supported = nil }
-local isoTileOrders = {}
-
-local tileAccents = {
-    relic_cache = { 0.95, 0.78, 0.28, 1 },
-    whispering_idol = { 0.62, 0.42, 0.86, 1 },
-    wire_snare = { 0.74, 0.24, 0.22, 1 },
-    camp_marker = { 0.78, 0.64, 0.38, 1 },
-    boss_sigil = { 0.86, 0.2, 0.3, 1 },
-    exit_gate = { 0.24, 0.72, 0.8, 1 },
+local state = {
+    loaded = false,
+    headless = false,
+    g3d = nil,
+    assets = {},
+    fonts = {},
+}
+local cameraPitch = math.rad(30)
+local cameraDistance = 26
+local cameraViewSize = 24
+local baseYaw = math.rad(45)
+local visibleRadius = 10
+local atlasColumns = 8
+local atlasRows = 5
+local defaultAtlasMeta = {
+    image = "assets/sprites/oga_700_sprites.png",
+    frameWidth = 32,
+    frameHeight = 32,
+    columns = 16,
+    rows = 19,
+    frames = 304,
+}
+local uiHitboxGroups = {
+    "titleButtons",
+    "settingsButtons",
+    "pauseButtons",
+    "confirmButtons",
+    "gameOverButtons",
+    "creditsButtons",
+    "journalButtons",
+    "tutorialButtons",
+    "curioButtons",
+    "campSkillButtons",
+    "campHeroButtons",
+    "skillButtons",
+    "enemyButtons",
+    "heroButtons",
+    "missionButtons",
+    "recruitButtons",
+    "provisionButtons",
+    "rosterButtons",
+    "partyRankSlots",
+    "estateActionButtons",
 }
 
-local function color(rgb, alpha)
-    return (rgb[1] or 255) / 255, (rgb[2] or 255) / 255, (rgb[3] or 255) / 255, (alpha or 255) / 255
+local function clamp(value, minValue, maxValue)
+    if value < minValue then
+        return minValue
+    end
+    if value > maxValue then
+        return maxValue
+    end
+    return value
 end
 
-local function shaded(rgb, amount, alpha)
-    return math.min(1, ((rgb[1] or 255) * amount) / 255),
-        math.min(1, ((rgb[2] or 255) * amount) / 255),
-        math.min(1, ((rgb[3] or 255) * amount) / 255),
-        alpha or 1
+local function clearList(list)
+    for i = #list, 1, -1 do
+        list[i] = nil
+    end
+end
+
+local function hitboxContains(hitbox, x, y)
+    return hitbox and x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h
+end
+
+local function accessibilitySettings(appOrSettings)
+    if appOrSettings and appOrSettings.settings then
+        return appOrSettings.settings
+    end
+    return appOrSettings
+end
+
+function Render.fontScale(settings)
+    return clamp((settings and settings.fontScale) or 1, 0.8, 1.4)
+end
+
+function Render.reducedMotion(appOrSettings)
+    local settings = accessibilitySettings(appOrSettings)
+    return settings and settings.reducedMotion == true
+end
+
+function Render.screenShakeEnabled(appOrSettings)
+    local settings = accessibilitySettings(appOrSettings)
+    return not (settings and (settings.reducedMotion == true or settings.screenShake == false))
+end
+
+function Render.accessibleColor(settings, color)
+    settings = accessibilitySettings(settings)
+    local r = color[1] or 1
+    local g = color[2] or 1
+    local b = color[3] or 1
+    local a = color[4] or 1
+    local mode = settings and settings.colorblindMode or "off"
+    if mode == "deuteranopia" then
+        r, g, b = r * 0.62 + g * 0.38, r * 0.7 + g * 0.3, b
+    elseif mode == "protanopia" then
+        r, g, b = r * 0.57 + g * 0.43, r * 0.56 + g * 0.44, b
+    elseif mode == "tritanopia" then
+        r, g, b = r, g * 0.68 + b * 0.32, g * 0.42 + b * 0.58
+    end
+    if settings and settings.highContrast then
+        r = clamp((r - 0.5) * 1.35 + 0.5, 0, 1)
+        g = clamp((g - 0.5) * 1.35 + 0.5, 0, 1)
+        b = clamp((b - 0.5) * 1.35 + 0.5, 0, 1)
+    end
+    return { clamp(r, 0, 1), clamp(g, 0, 1), clamp(b, 0, 1), a }
+end
+
+local function fontForScale(scale)
+    if not (love and love.graphics) then
+        return nil
+    end
+    local size = math.floor(12 * Render.fontScale({ fontScale = scale }) + 0.5)
+    state.fonts[size] = state.fonts[size] or love.graphics.newFont(size)
+    return state.fonts[size]
+end
+
+function Render.applyFont(appOrSettings)
+    if not (love and love.graphics) then
+        return nil
+    end
+    local font = fontForScale(Render.fontScale(accessibilitySettings(appOrSettings)))
+    love.graphics.setFont(font)
+    return font
+end
+
+function Render.hitboxAt(app, x, y)
+    for _, group in ipairs(uiHitboxGroups) do
+        for index, hitbox in ipairs((app and app.ui and app.ui[group]) or {}) do
+            if hitboxContains(hitbox, x, y) then
+                return hitbox, group, index
+            end
+        end
+    end
+    return nil
+end
+
+function Render.markUiPulse(app, hitbox, kind)
+    if not (app and hitbox) then
+        return false
+    end
+    if Render.reducedMotion(app) then
+        return false
+    end
+    local pulseKind = kind or "press"
+    local duration = (pulseKind == "success" or pulseKind == "error") and 0.32 or 0.22
+    app.uiPulse = { x = hitbox.x, y = hitbox.y, w = hitbox.w, h = hitbox.h, t = duration, duration = duration, kind = pulseKind }
+    return true
+end
+
+function Render.markUiFeedback(app, kind)
+    if not app or Render.reducedMotion(app) then
+        return false
+    end
+    local pulse = app.uiPulse
+    if pulse then
+        local duration = (kind == "success" or kind == "error") and 0.32 or (pulse.duration or 0.22)
+        pulse.kind = kind or pulse.kind or "press"
+        pulse.duration = duration
+        pulse.t = duration
+        return true
+    end
+    local hot = app.uiHot
+    local hitbox = hot and app.ui and app.ui[hot.group] and app.ui[hot.group][hot.index]
+    if hitbox then
+        return Render.markUiPulse(app, hitbox, kind)
+    end
+    local focus = app.keyboardFocus
+    hitbox = focus and app.ui and app.ui[focus.group] and app.ui[focus.group][focus.index]
+    if hitbox then
+        return Render.markUiPulse(app, hitbox, kind)
+    end
+    return false
 end
 
 local function panel(x, y, w, h, alpha)
@@ -38,10 +186,13 @@ local function panel(x, y, w, h, alpha)
     love.graphics.rectangle("line", x, y, w, h)
 end
 
-local function clearList(list)
-    for i = #list, 1, -1 do
-        list[i] = nil
-    end
+local function drawMeter(x, y, w, h, ratio, color)
+    love.graphics.setColor(0.08, 0.09, 0.09, 1)
+    love.graphics.rectangle("fill", x, y, w, h)
+    love.graphics.setColor(color[1], color[2], color[3], color[4] or 1)
+    love.graphics.rectangle("fill", x, y, w * clamp(ratio or 0, 0, 1), h)
+    love.graphics.setColor(0.24, 0.26, 0.24, 1)
+    love.graphics.rectangle("line", x, y, w, h)
 end
 
 local function compactStacks(stacks)
@@ -55,8 +206,79 @@ local function compactStacks(stacks)
     return table.concat(parts, " ")
 end
 
+local function readText(path)
+    if love and love.filesystem and love.filesystem.getInfo(path) then
+        return love.filesystem.read(path)
+    end
+    local file = io.open(path, "r")
+    if not file then
+        return nil
+    end
+    local text = file:read("*a")
+    file:close()
+    return text
+end
+
+local function statMapText(map, skip)
+    local keys = {}
+    for key in pairs(map or {}) do
+        if not (skip and skip[key]) then
+            keys[#keys + 1] = key
+        end
+    end
+    table.sort(keys)
+    local parts = {}
+    for _, key in ipairs(keys) do
+        parts[#parts + 1] = key .. " " .. tostring(map[key])
+    end
+    return #parts > 0 and table.concat(parts, ", ") or "-"
+end
+
+local function rosterHasTrinket(sim, trinketKey)
+    for _, hero in ipairs((sim and sim.estate and sim.estate.roster) or {}) do
+        for _, equipped in ipairs(hero.trinkets or {}) do
+            if equipped == trinketKey then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function ownedSetPieces(sim, setDef)
+    local count = 0
+    for _, trinketKey in ipairs((setDef and setDef.pieces) or {}) do
+        if ((sim.estate.trinkets or {})[trinketKey] or 0) > 0 or rosterHasTrinket(sim, trinketKey) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function Render.trinketTooltip(sim, trinketKey)
+    local trinket = Defs.trinket(trinketKey)
+    if not trinket then
+        return {}
+    end
+    local lines = { trinket.name .. " value " .. tostring(trinket.value or 0), "stats: " .. statMapText(trinket, { name = true, short = true, value = true }) }
+    local equippedCounts = sim and sim.trinketSetCounts and sim:trinketSetCounts() or {}
+    for _, setKey in ipairs(Defs.trinketSetOrder or {}) do
+        local setDef = Defs.trinketSet(setKey)
+        if setDef then
+            for _, piece in ipairs(setDef.pieces or {}) do
+                if piece == trinketKey then
+                    lines[#lines + 1] = "set: " .. setDef.name .. " owned " .. ownedSetPieces(sim, setDef) .. "/4 equipped " .. tostring(equippedCounts[setKey] or 0) .. "/4"
+                    lines[#lines + 1] = "2pc " .. statMapText(setDef.twoPiece) .. " / 4pc " .. statMapText(setDef.fourPiece) .. " / cost " .. statMapText(setDef.cost)
+                    break
+                end
+            end
+        end
+    end
+    return lines
+end
+
 local function clamp01(value)
-    return math.max(0, math.min(1, value or 0))
+    return clamp(value or 0, 0, 1)
 end
 
 local function smooth(value)
@@ -67,11 +289,6 @@ end
 local function phase(progress, startAt, endAt)
     local span = math.max(0.001, (endAt or 1) - (startAt or 0))
     return smooth((progress - (startAt or 0)) / span)
-end
-
-local function sceneAccent(scene)
-    local accent = scene and scene.accent or nil
-    return accent or { 0.74, 0.48, 0.22 }
 end
 
 local function containsText(text, needle)
@@ -99,31 +316,36 @@ local function actorSide(actor, sim)
 end
 
 local cutsceneProfiles = {
-    default = { mood = "neutral", focus = "stage", beat = "hold", camera = "still", caption = "Event", intensity = 0.65, accent = { 0.7, 0.58, 0.35 } },
-    idle = { mood = "watch", focus = "party", beat = "idle", camera = "still", caption = "Combat", intensity = 0.35, accent = { 0.42, 0.54, 0.36 } },
-    intro = { mood = "threat", focus = "enemy", beat = "arrival", camera = "push", caption = "Encounter", duration = 0.92, intensity = 0.75, accent = { 0.72, 0.2, 0.12 } },
-    boss_intro = { mood = "boss", focus = "boss", beat = "reveal", camera = "quake", caption = "Boss Encounter", duration = 1.18, intensity = 1.2, accent = { 0.86, 0.08, 0.08 } },
-    ambush = { mood = "panic", focus = "enemy", beat = "snap", camera = "snap", caption = "Ambush", duration = 1.0, intensity = 1.05, accent = { 0.9, 0.12, 0.08 } },
-    strike = { mood = "action", focus = "actor", beat = "strike", camera = "hit", caption = "Skill", duration = 0.72, intensity = 0.9, accent = { 0.96, 0.72, 0.32 } },
-    boss_strike = { mood = "boss", focus = "boss", beat = "smite", camera = "quake", caption = "Boss Skill", duration = 0.95, intensity = 1.25, accent = { 0.9, 0.08, 0.06 } },
-    victory = { mood = "resolve", focus = "party", beat = "triumph", camera = "lift", caption = "Victory", duration = 0.86, intensity = 0.8, accent = { 0.86, 0.68, 0.24 } },
-    boss_victory = { mood = "seal", focus = "party", beat = "triumph", camera = "lift", caption = "Boss Felled", duration = 1.2, intensity = 1.05, accent = { 0.92, 0.74, 0.18 } },
-    campaign_victory = { mood = "seal", focus = "party", beat = "seal", camera = "lift", caption = "Campaign Sealed", duration = 1.25, intensity = 1.1, accent = { 0.72, 0.82, 0.42 } },
-    defeat = { mood = "doom", focus = "enemy", beat = "collapse", camera = "sink", caption = "Defeat", duration = 0.95, intensity = 1.0, accent = { 0.78, 0.08, 0.06 } },
-    boss_defeat = { mood = "doom", focus = "boss", beat = "collapse", camera = "sink", caption = "Annihilation", duration = 1.2, intensity = 1.22, accent = { 0.82, 0.04, 0.04 } },
-    retreat = { mood = "flight", focus = "party", beat = "exit", camera = "pull", caption = "Retreat", duration = 0.78, intensity = 0.7, accent = { 0.46, 0.58, 0.48 } },
-    blocked = { mood = "panic", focus = "enemy", beat = "block", camera = "hit", caption = "Blocked", duration = 0.72, intensity = 0.9, accent = { 0.86, 0.08, 0.06 } },
-    death_door = { mood = "threshold", focus = "actor", beat = "threshold", camera = "sink", caption = "Death's Door", duration = 0.85, intensity = 1.05, accent = { 0.72, 0.08, 0.08 } },
-    death_save = { mood = "resolve", focus = "actor", beat = "revive", camera = "lift", caption = "Deathblow Resisted", duration = 0.85, intensity = 0.9, accent = { 0.86, 0.78, 0.38 } },
-    hero_death = { mood = "doom", focus = "actor", beat = "fall", camera = "sink", caption = "Hero Lost", duration = 1.1, intensity = 1.15, accent = { 0.8, 0.06, 0.06 } },
-    resolve_virtue = { mood = "virtue", focus = "actor", beat = "resolve", camera = "lift", caption = "Virtue", duration = 0.95, intensity = 0.95, accent = { 0.62, 0.82, 0.34 } },
-    resolve_affliction = { mood = "affliction", focus = "actor", beat = "fracture", camera = "snap", caption = "Affliction", duration = 0.95, intensity = 1.05, accent = { 0.72, 0.12, 0.52 } },
-    stress_break = { mood = "affliction", focus = "actor", beat = "break", camera = "sink", caption = "Stress Break", duration = 0.95, intensity = 1.0, accent = { 0.7, 0.12, 0.38 } },
-    affliction_act = { mood = "affliction", focus = "actor", beat = "lash", camera = "snap", caption = "Afflicted Action", duration = 0.95, intensity = 0.95, accent = { 0.66, 0.1, 0.44 } },
-    falter = { mood = "dazed", focus = "actor", beat = "stagger", camera = "hit", caption = "Falter", duration = 0.62, intensity = 0.65, accent = { 0.64, 0.62, 0.52 } },
-    hero_hold = { mood = "guard", focus = "actor", beat = "hold", camera = "still", caption = "Hold", duration = 0.62, intensity = 0.55, accent = { 0.62, 0.62, 0.5 } },
-    danger = { mood = "doom", focus = "enemy", beat = "omen", camera = "sink", caption = "Danger", duration = 0.85, intensity = 0.95, accent = { 0.82, 0.08, 0.06 } },
+    default = { mood = "neutral", focus = "stage", beat = "hold", camera = "still", caption = i18n.t("Event"), intensity = 0.65, accent = { 0.7, 0.58, 0.35 } },
+    idle = { mood = "watch", focus = "party", beat = "idle", camera = "still", caption = i18n.t("Combat"), intensity = 0.35, accent = { 0.42, 0.54, 0.36 } },
+    intro = { mood = "threat", focus = "enemy", beat = "arrival", camera = "push", caption = i18n.t("Encounter"), duration = 0.92, intensity = 0.75, accent = { 0.72, 0.2, 0.12 } },
+    boss_intro = { mood = "boss", focus = "boss", beat = "reveal", camera = "quake", caption = i18n.t("Boss Encounter"), duration = 1.18, intensity = 1.2, accent = { 0.86, 0.08, 0.08 } },
+    ambush = { mood = "panic", focus = "enemy", beat = "snap", camera = "snap", caption = i18n.t("Ambush"), duration = 1.0, intensity = 1.05, accent = { 0.9, 0.12, 0.08 } },
+    strike = { mood = "action", focus = "actor", beat = "strike", camera = "hit", caption = i18n.t("Skill"), duration = 0.72, intensity = 0.9, accent = { 0.96, 0.72, 0.32 } },
+    boss_strike = { mood = "boss", focus = "boss", beat = "smite", camera = "quake", caption = i18n.t("Boss Skill"), duration = 0.95, intensity = 1.25, accent = { 0.9, 0.08, 0.06 } },
+    victory = { mood = "resolve", focus = "party", beat = "triumph", camera = "lift", caption = i18n.t("Victory"), duration = 0.86, intensity = 0.8, accent = { 0.86, 0.68, 0.24 } },
+    boss_victory = { mood = "seal", focus = "party", beat = "triumph", camera = "lift", caption = i18n.t("Boss Felled"), duration = 1.2, intensity = 1.05, accent = { 0.92, 0.74, 0.18 } },
+    campaign_victory = { mood = "seal", focus = "party", beat = "seal", camera = "lift", caption = i18n.t("Campaign Sealed"), duration = 1.25, intensity = 1.1, accent = { 0.72, 0.82, 0.42 } },
+    merchant_unlock = { mood = "ledger", focus = "actor", beat = "arrival", camera = "push", caption = i18n.t("Merchant Unlocked"), duration = 1.05, intensity = 0.9, accent = { 0.66, 0.58, 0.34 } },
+    defeat = { mood = "doom", focus = "enemy", beat = "collapse", camera = "sink", caption = i18n.t("Defeat"), duration = 0.95, intensity = 1.0, accent = { 0.78, 0.08, 0.06 } },
+    boss_defeat = { mood = "doom", focus = "boss", beat = "collapse", camera = "sink", caption = i18n.t("Annihilation"), duration = 1.2, intensity = 1.22, accent = { 0.82, 0.04, 0.04 } },
+    retreat = { mood = "flight", focus = "party", beat = "exit", camera = "pull", caption = i18n.t("Retreat"), duration = 0.78, intensity = 0.7, accent = { 0.46, 0.58, 0.48 } },
+    blocked = { mood = "panic", focus = "enemy", beat = "block", camera = "hit", caption = i18n.t("Blocked"), duration = 0.72, intensity = 0.9, accent = { 0.86, 0.08, 0.06 } },
+    death_door = { mood = "threshold", focus = "actor", beat = "threshold", camera = "sink", caption = i18n.t("Death's Door"), duration = 0.85, intensity = 1.05, accent = { 0.72, 0.08, 0.08 } },
+    death_save = { mood = "resolve", focus = "actor", beat = "revive", camera = "lift", caption = i18n.t("Deathblow Resisted"), duration = 0.85, intensity = 0.9, accent = { 0.86, 0.78, 0.38 } },
+    hero_death = { mood = "doom", focus = "actor", beat = "fall", camera = "sink", caption = i18n.t("Hero Lost"), duration = 1.1, intensity = 1.15, accent = { 0.8, 0.06, 0.06 } },
+    resolve_virtue = { mood = "virtue", focus = "actor", beat = "resolve", camera = "lift", caption = i18n.t("Virtue"), duration = 0.95, intensity = 0.95, accent = { 0.62, 0.82, 0.34 } },
+    resolve_affliction = { mood = "affliction", focus = "actor", beat = "fracture", camera = "snap", caption = i18n.t("Affliction"), duration = 0.95, intensity = 1.05, accent = { 0.72, 0.12, 0.52 } },
+    stress_break = { mood = "affliction", focus = "actor", beat = "break", camera = "sink", caption = i18n.t("Stress Break"), duration = 0.95, intensity = 1.0, accent = { 0.7, 0.12, 0.38 } },
+    affliction_act = { mood = "affliction", focus = "actor", beat = "lash", camera = "snap", caption = i18n.t("Afflicted Action"), duration = 0.95, intensity = 0.95, accent = { 0.66, 0.1, 0.44 } },
+    falter = { mood = "dazed", focus = "actor", beat = "stagger", camera = "hit", caption = i18n.t("Falter"), duration = 0.62, intensity = 0.65, accent = { 0.64, 0.62, 0.52 } },
+    hero_hold = { mood = "guard", focus = "actor", beat = "hold", camera = "still", caption = i18n.t("Hold"), duration = 0.62, intensity = 0.55, accent = { 0.62, 0.62, 0.5 } },
+    danger = { mood = "doom", focus = "enemy", beat = "omen", camera = "sink", caption = i18n.t("Danger"), duration = 0.85, intensity = 0.95, accent = { 0.82, 0.08, 0.06 } },
 }
+
+local function sceneAccent(scene)
+    return (scene and scene.accent) or { 0.74, 0.48, 0.22 }
+end
 
 local function scene(kind, title, options)
     local profile = cutsceneProfiles[kind] or cutsceneProfiles.default
@@ -154,6 +376,18 @@ function Render.prepareUi(app)
     app.ui.provisionButtons = app.ui.provisionButtons or {}
     app.ui.estateActionButtons = app.ui.estateActionButtons or {}
     app.ui.rosterButtons = app.ui.rosterButtons or {}
+    app.ui.partyRankSlots = app.ui.partyRankSlots or {}
+    app.ui.curioButtons = app.ui.curioButtons or {}
+    app.ui.campSkillButtons = app.ui.campSkillButtons or {}
+    app.ui.campHeroButtons = app.ui.campHeroButtons or {}
+    app.ui.pauseButtons = app.ui.pauseButtons or {}
+    app.ui.confirmButtons = app.ui.confirmButtons or {}
+    app.ui.gameOverButtons = app.ui.gameOverButtons or {}
+    app.ui.creditsButtons = app.ui.creditsButtons or {}
+    app.ui.journalButtons = app.ui.journalButtons or {}
+    app.ui.tutorialButtons = app.ui.tutorialButtons or {}
+    app.ui.titleButtons = app.ui.titleButtons or {}
+    app.ui.settingsButtons = app.ui.settingsButtons or {}
     clearList(app.ui.skillButtons)
     clearList(app.ui.heroButtons)
     clearList(app.ui.enemyButtons)
@@ -163,11 +397,43 @@ function Render.prepareUi(app)
     clearList(app.ui.provisionButtons)
     clearList(app.ui.estateActionButtons)
     clearList(app.ui.rosterButtons)
+    clearList(app.ui.partyRankSlots)
+    clearList(app.ui.curioButtons)
+    clearList(app.ui.campSkillButtons)
+    clearList(app.ui.campHeroButtons)
+    clearList(app.ui.pauseButtons)
+    clearList(app.ui.confirmButtons)
+    clearList(app.ui.gameOverButtons)
+    clearList(app.ui.creditsButtons)
+    clearList(app.ui.journalButtons)
+    clearList(app.ui.tutorialButtons)
+    clearList(app.ui.titleButtons)
+    clearList(app.ui.settingsButtons)
 end
 
 local function eventCaption(event, fallback)
     local value = event and (event.skill or event.actor)
     return value and tostring(value) or fallback
+end
+
+local function eventImpactTotal(event)
+    local total = 0
+    for _, impact in ipairs((event and event.impacts) or {}) do
+        total = total + math.max(0, tonumber(impact.amount) or 0)
+    end
+    return total
+end
+
+local function eventHasCrit(event)
+    if event and event.crit == true then
+        return true
+    end
+    for _, impact in ipairs((event and event.impacts) or {}) do
+        if impact.crit == true then
+            return true
+        end
+    end
+    return false
 end
 
 local function encounterCaption(event, fallback)
@@ -183,25 +449,28 @@ function Render.cutsceneForEvent(event, sim)
     end
     local eventKind = event.event
     if eventKind == "combat_start" then
-        return scene("intro", text, { side = "enemy", duration = 0.9, encounter = event.encounter, enemies = event.enemies, caption = encounterCaption(event, "Encounter") })
+        return scene("intro", text, { side = "enemy", duration = 0.9, encounter = event.encounter, enemies = event.enemies, caption = encounterCaption(event, i18n.t("Encounter")) })
+    end
+    if eventKind == "merchant_unlock" then
+        return scene("merchant_unlock", text, { side = "ally", actor = event.actor, caption = i18n.t("Merchant Unlocked") })
     end
     if eventKind == "boss_start" then
-        return scene("boss_intro", text, { side = "enemy", duration = 1.15, encounter = event.encounter, enemies = event.enemies, boss = true, caption = encounterCaption(event, "Boss Encounter") })
+        return scene("boss_intro", text, { side = "enemy", duration = 1.15, encounter = event.encounter, enemies = event.enemies, boss = true, caption = encounterCaption(event, i18n.t("Boss Encounter")) })
     end
     if eventKind == "ambush_start" then
-        return scene("ambush", text, { side = "enemy", duration = 1.0, encounter = event.encounter, enemies = event.enemies, caption = encounterCaption(event, "Ambush") })
+        return scene("ambush", text, { side = "enemy", duration = 1.0, encounter = event.encounter, enemies = event.enemies, caption = encounterCaption(event, i18n.t("Ambush")) })
     end
     if eventKind == "hero_skill" then
-        return scene("strike", text, { side = "ally", duration = 0.72, actor = event.actor, skill = event.skill, caption = eventCaption(event, "Skill") })
+        return scene("strike", text, { side = "ally", duration = 0.72, actor = event.actor, skill = event.skill, caption = eventCaption(event, i18n.t("Skill")), damage = eventImpactTotal(event), crit = eventHasCrit(event) })
     end
     if eventKind == "enemy_skill" or eventKind == "boss_skill" then
-        return scene(eventKind == "boss_skill" and "boss_strike" or "strike", text, { side = "enemy", duration = eventKind == "boss_skill" and 0.95 or 0.72, actor = event.actor, skill = event.skill, boss = event.boss, caption = eventCaption(event, eventKind == "boss_skill" and "Boss Skill" or "Enemy Skill") })
+        return scene(eventKind == "boss_skill" and "boss_strike" or "strike", text, { side = "enemy", duration = eventKind == "boss_skill" and 0.95 or 0.72, actor = event.actor, skill = event.skill, boss = event.boss, caption = eventCaption(event, eventKind == "boss_skill" and i18n.t("Boss Skill") or i18n.t("Enemy Skill")), damage = eventImpactTotal(event), crit = eventHasCrit(event) })
     end
     if eventKind == "combat_win" or eventKind == "boss_win" then
-        return scene(eventKind == "boss_win" and "boss_victory" or "victory", text, { side = "ally", duration = eventKind == "boss_win" and 1.2 or 0.86, encounter = event.encounter, enemies = event.enemies, boss = event.boss, caption = eventKind == "boss_win" and "Boss Felled" or "Victory" })
+        return scene(eventKind == "boss_win" and "boss_victory" or "victory", text, { side = "ally", duration = eventKind == "boss_win" and 1.2 or 0.86, encounter = event.encounter, enemies = event.enemies, boss = event.boss, caption = eventKind == "boss_win" and i18n.t("Boss Felled") or i18n.t("Victory") })
     end
     if eventKind == "combat_loss" or eventKind == "boss_loss" then
-        return scene(eventKind == "boss_loss" and "boss_defeat" or "defeat", text, { side = "enemy", duration = eventKind == "boss_loss" and 1.2 or 0.95, encounter = event.encounter, enemies = event.enemies, boss = event.boss, caption = eventKind == "boss_loss" and "Annihilation" or "Defeat" })
+        return scene(eventKind == "boss_loss" and "boss_defeat" or "defeat", text, { side = "enemy", duration = eventKind == "boss_loss" and 1.2 or 0.95, encounter = event.encounter, enemies = event.enemies, boss = event.boss, caption = eventKind == "boss_loss" and i18n.t("Annihilation") or i18n.t("Defeat") })
     end
     if eventKind == "retreat" then
         return scene("retreat", text, { side = "ally", duration = 0.78, encounter = event.encounter, boss = event.boss })
@@ -246,11 +515,16 @@ function Render.idleCombatScene(sim)
         return nil
     end
     local active = sim:activeHero()
-    return scene("idle", active and (active.name .. " acts") or "enemy turn", { side = "ally", duration = 1 })
+    return scene("idle", active and (active.name .. " " .. i18n.t("acts")) or i18n.t("enemy turn"), { side = "ally", duration = 1 })
 end
 
 function Render.advanceCutscene(app, dt)
     if not (app and app.cutscene) then
+        return
+    end
+    if Render.reducedMotion(app) then
+        app.cutscene = nil
+        app.cutsceneQueue = {}
         return
     end
     local cutscene = app.cutscene
@@ -302,276 +576,1296 @@ function Render.screenToWorld(view, x, y)
     return math.floor(view.originX + dx + 0.5), math.floor(view.originY + dy + 0.5)
 end
 
+local function newSolidImage(r, g, b, a)
+    local data = love.image.newImageData(1, 1)
+    data:setPixel(0, 0, r, g, b, a or 1)
+    local image = love.graphics.newImage(data)
+    image:setFilter("nearest", "nearest")
+    return image
+end
+
+local function loadImage(path)
+    if not love.filesystem.getInfo(path, "file") then
+        return nil
+    end
+    local image = love.graphics.newImage(path)
+    image:setFilter("nearest", "nearest")
+    return image
+end
+
+local function loadSpriteAtlas()
+    local meta = defaultAtlasMeta
+    if love.filesystem.getInfo("assets/sprites/oga_700_sprites.lua", "file") then
+        local chunk = love.filesystem.load("assets/sprites/oga_700_sprites.lua")
+        local ok, loaded = pcall(chunk)
+        if ok and type(loaded) == "table" then
+            meta = loaded
+        end
+    end
+    return loadImage(meta.image or defaultAtlasMeta.image), meta
+end
+
+local function newImageFromData(data)
+    local image = love.graphics.newImage(data)
+    image:setFilter("nearest", "nearest")
+    return image
+end
+
 function Render.load()
-    isoTerrainCache.world = nil
-    isoTerrainCache.chunks = {}
-    isoTileOrders = {}
-end
-
-local function drawIsoDiamond(cx, cy, rgb, alpha)
-    local halfW = isoTileW / 2
-    local halfH = isoTileH / 2
-    love.graphics.setColor(color(rgb, alpha or 255))
-    love.graphics.polygon("fill", cx, cy - halfH, cx + halfW, cy, cx, cy + halfH, cx - halfW, cy)
-    love.graphics.setColor(0, 0, 0, 0.18)
-    love.graphics.polygon("line", cx, cy - halfH, cx + halfW, cy, cx, cy + halfH, cx - halfW, cy)
-end
-
-local function drawIsoBlock(cx, cy, rgb, height)
-    local halfW = isoTileW / 2
-    local halfH = isoTileH / 2
-    local topY = cy - height
-    love.graphics.setColor(shaded(rgb, 0.52, 1))
-    love.graphics.polygon("fill", cx - halfW, topY, cx, topY + halfH, cx, cy + halfH, cx - halfW, cy)
-    love.graphics.setColor(shaded(rgb, 0.42, 1))
-    love.graphics.polygon("fill", cx + halfW, topY, cx, topY + halfH, cx, cy + halfH, cx + halfW, cy)
-    love.graphics.setColor(shaded(rgb, 0.95, 1))
-    love.graphics.polygon("fill", cx, topY - halfH, cx + halfW, topY, cx, topY + halfH, cx - halfW, topY)
-    love.graphics.setColor(0, 0, 0, 0.22)
-    love.graphics.polygon("line", cx, topY - halfH, cx + halfW, topY, cx, topY + halfH, cx - halfW, topY)
-end
-
-local function drawIsoTile(world, x, y, z, screenX, screenY)
-    local tile = world:peekTile(x, y, z or 0)
-    local tileDef = Defs.tile(tile.id)
-    drawIsoDiamond(screenX, screenY, tileDef.color)
-    local accent = tileAccents[tile.id]
-    if accent then
-        love.graphics.setColor(accent)
-        love.graphics.circle("fill", screenX, screenY - 9, 8)
-        love.graphics.setColor(0, 0, 0, 0.35)
-        love.graphics.circle("line", screenX, screenY - 9, 8)
+    state.loaded = true
+    state.headless = not (love and love.graphics)
+    state.assets = {}
+    state.fonts = {}
+    state.g3d = nil
+    state.loadError = nil
+    if state.headless then
+        Render.state = state
+        return state
     end
-end
-
-local function canUseIsoTerrainCanvas()
-    if isoTerrainCache.supported == nil then
-        isoTerrainCache.supported = pcall(love.graphics.newCanvas, 1, 1)
+    local ok, g3dOrErr = pcall(require, "vendor.g3d.g3d")
+    if not ok then
+        state.loadError = g3dOrErr
+        Render.state = state
+        return state
     end
-    return isoTerrainCache.supported
+    state.g3d = g3dOrErr
+    state.assets.white = newSolidImage(1, 1, 1, 1)
+    state.assets.enemy = newSolidImage(0.68, 0.16, 0.18, 1)
+    state.assets.alpha = newSolidImage(0.58, 0.12, 0.46, 1)
+    state.assets.boss = newSolidImage(0.82, 0.22, 0.12, 1)
+    state.assets.spriteAtlas, state.assets.spriteAtlasMeta = loadSpriteAtlas()
+    state.g3d.camera.updateProjectionMatrix()
+    state.g3d.camera.updateViewMatrix()
+    Render.state = state
+    return state
 end
 
-local function isoTerrainCacheKey(cx, cy, z, rotation)
-    return tostring(z or 0) .. ":" .. tostring(rotation or 0) .. ":" .. cx .. ":" .. cy
+local function tileVertex(x, y, z, u)
+    return {x, y, z, u, 0.5, 0, 0, 1, 1, 1, 1, 1}
 end
 
-local function isoTerrainRevision(world, cx, cy, z)
-    local worldCx = World.floorDiv(cx * renderChunkTileSize, World.chunkSize)
-    local worldCy = World.floorDiv(cy * renderChunkTileSize, World.chunkSize)
-    return world:chunkRevision(worldCx, worldCy, z or 0)
+local function billboardVertex(x, y, z, u, v)
+    return {x, y, z, u, v, 0, 0, 1, 1, 1, 1, 1}
 end
 
-local function isoTileOrder(rotation)
-    rotation = (rotation or 0) % 4
-    if not isoTileOrders[rotation] then
-        local tiles = {}
-        for localY = 0, renderChunkTileSize - 1 do
-            for localX = 0, renderChunkTileSize - 1 do
-                local rx, ry = Render.rotateDelta(localX, localY, rotation)
-                tiles[#tiles + 1] = { x = localX, y = localY, rx = rx, ry = ry }
-            end
+local function pushTileQuad(vertices, x, y, z, u)
+    local gap = 0.03
+    local left = x + gap
+    local right = x + 1 - gap
+    local top = y + gap
+    local bottom = y + 1 - gap
+    local a = tileVertex(left, top, z, u)
+    local b = tileVertex(right, top, z, u)
+    local c = tileVertex(right, bottom, z, u)
+    local d = tileVertex(left, bottom, z, u)
+    vertices[#vertices + 1] = a
+    vertices[#vertices + 1] = b
+    vertices[#vertices + 1] = c
+    vertices[#vertices + 1] = a
+    vertices[#vertices + 1] = c
+    vertices[#vertices + 1] = d
+end
+
+local function torchLevel(sim)
+    if sim and sim.expedition and sim.expedition.torch then
+        return clamp(sim.expedition.torch, 0, 100)
+    end
+    return 100
+end
+
+local function lightProfile(sim)
+    local torch = torchLevel(sim)
+    local ratio = torch / 100
+    return {
+        torch = torch,
+        ambient = 0.2 + ratio * 0.38,
+        radius = 3.5 + ratio * 9.5,
+    }
+end
+
+local function lightAt(sim, x, y, profile)
+    if not (sim and sim.player) then
+        return 1
+    end
+    profile = profile or lightProfile(sim)
+    local dx = x - sim.player.x
+    local dy = y - sim.player.y
+    local distance = math.sqrt(dx * dx + dy * dy)
+    local falloff = 1 - clamp(distance / profile.radius, 0, 1)
+    falloff = falloff * falloff * (3 - 2 * falloff)
+    return clamp(profile.ambient + falloff * (1 - profile.ambient), 0, 1)
+end
+
+local function litTileColor(rgb, light, settings)
+    local r = clamp((rgb[1] / 255) * light * 1.08, 0, 1)
+    local g = clamp((rgb[2] / 255) * light * (0.9 + light * 0.1), 0, 1)
+    local b = clamp((rgb[3] / 255) * light * (0.78 + light * 0.22), 0, 1)
+    local color = Render.accessibleColor(settings, { r, g, b, 1 })
+    return color[1], color[2], color[3], color[4]
+end
+
+local function buildWorldTileModel(sim, profile, settings)
+    local vertices = {}
+    local z = sim.player.z or 0
+    local minX = sim.player.x - visibleRadius
+    local maxX = sim.player.x + visibleRadius
+    local minY = sim.player.y - visibleRadius
+    local maxY = sim.player.y + visibleRadius
+    local width = maxX - minX + 1
+    local height = maxY - minY + 1
+    local data = love.image.newImageData(width * height, 1)
+    local index = 0
+    for y = minY, maxY do
+        for x = minX, maxX do
+            index = index + 1
+            local tile = sim.world:peekTile(x, y, z)
+            local rgb = Defs.tile(tile.id).color or { 255, 255, 255 }
+            local light = lightAt(sim, x, y, profile)
+            data:setPixel(index - 1, 0, litTileColor(rgb, light, settings))
+            local u = (index - 0.5) / (width * height)
+            pushTileQuad(vertices, x, y, z, u)
         end
-        table.sort(tiles, function(a, b)
-            local ad = a.rx + a.ry
-            local bd = b.rx + b.ry
-            if ad == bd then
-                return a.rx < b.rx
-            end
-            return ad < bd
-        end)
-        isoTileOrders[rotation] = tiles
     end
-    return isoTileOrders[rotation]
+    local model = state.g3d.newModel(vertices, newImageFromData(data))
+    model:makeNormals()
+    return model
 end
 
-local function buildIsoTerrainChunk(world, cx, cy, z, rotation)
-    local halfW = isoTileW / 2
-    local halfH = isoTileH / 2
-    local topPad = 50
-    local minX, minY = math.huge, math.huge
-    local maxX, maxY = -math.huge, -math.huge
-    for localY = 0, renderChunkTileSize - 1 do
-        for localX = 0, renderChunkTileSize - 1 do
-            local rx, ry = Render.rotateDelta(localX, localY, rotation)
-            local sx = (rx - ry) * halfW
-            local sy = (rx + ry) * halfH
-            minX = math.min(minX, sx - halfW)
-            maxX = math.max(maxX, sx + halfW)
-            minY = math.min(minY, sy - halfH - topPad)
-            maxY = math.max(maxY, sy + halfH)
-        end
+local function applyCamera(sim, app)
+    local yaw = baseYaw + ((app.viewRotation or 0) % 4) * math.pi / 2
+    local horizontal = math.cos(cameraPitch) * cameraDistance
+    local targetX = sim.player.x + 0.5
+    local targetY = sim.player.y + 0.5
+    local targetZ = sim.player.z or 0
+    local x = targetX + math.cos(yaw) * horizontal
+    local y = targetY - math.sin(yaw) * horizontal
+    local z = targetZ + math.sin(cameraPitch) * cameraDistance
+    state.g3d.camera.lookAt(x, y, z, targetX, targetY, targetZ)
+    state.g3d.camera.updateOrthographicMatrix(cameraViewSize)
+    return yaw
+end
+
+local function atlasFrameUv(frame)
+    local meta = (state.assets and state.assets.spriteAtlasMeta) or defaultAtlasMeta
+    local columns = meta.columns or atlasColumns
+    local rows = meta.rows or atlasRows
+    local frames = meta.frames or (columns * rows)
+    local index = (frame or 0) % frames
+    local col = index % columns
+    local row = math.floor(index / columns)
+    local u0 = col / columns
+    local u1 = (col + 1) / columns
+    local v0 = row / rows
+    local v1 = (row + 1) / rows
+    return u0, v0, u1, v1
+end
+
+local classNameToKey = {
+    Warden = "warden",
+    Duelist = "duelist",
+    Apothecary = "mender",
+    Arcanist = "arcanist",
+    Thief = "harrier",
+    Chirurgeon = "chirurgeon",
+    Exile = "exile",
+    Lamplighter = "lamplighter",
+    Merchant = "merchant",
+}
+
+local function namedAtlasFrame(name, fallback)
+    local meta = (state.assets and state.assets.spriteAtlasMeta) or defaultAtlasMeta
+    local framesByName = meta.framesByName or {}
+    if name and framesByName[name] ~= nil then
+        return framesByName[name]
     end
-    minX = math.floor(minX)
-    minY = math.floor(minY)
-    local canvas = love.graphics.newCanvas(math.ceil(maxX - minX + 2), math.ceil(maxY - minY + 2))
+    if fallback and framesByName[fallback] ~= nil then
+        return framesByName[fallback]
+    end
+    return 0
+end
+
+local function heroFrame(hero)
+    local meta = (state.assets and state.assets.spriteAtlasMeta) or defaultAtlasMeta
+    local classKey = hero and (hero.classId or classNameToKey[hero.class])
+    local entry = classKey and meta.classes and meta.classes[classKey]
+    return namedAtlasFrame(entry and entry.frame, meta.fallbacks and meta.fallbacks.hero)
+end
+
+local function billboardVerts(width, height, frame)
+    local u0, v0, u1, v1 = atlasFrameUv(frame)
+    local halfWidth = width / 2
+    return {
+        billboardVertex(-halfWidth, 0, 0, u0, v1),
+        billboardVertex(halfWidth, 0, 0, u1, v1),
+        billboardVertex(halfWidth, 0, height, u1, v0),
+        billboardVertex(-halfWidth, 0, 0, u0, v1),
+        billboardVertex(halfWidth, 0, height, u1, v0),
+        billboardVertex(-halfWidth, 0, height, u0, v0),
+    }
+end
+
+local function newBillboard(width, height, frame, x, y, z, yaw, texture)
+    texture = texture or state.assets.spriteAtlas or state.assets.white
+    local model = state.g3d.newModel(billboardVerts(width, height, frame), texture, {x, y, z or 0})
+    model:makeNormals()
+    model:setRotation(0, 0, math.pi / 2 - yaw)
+    return model
+end
+
+local function drawLitModel(model, light)
     love.graphics.push("all")
-    love.graphics.setCanvas(canvas)
-    love.graphics.clear(0, 0, 0, 0)
-    for _, tileEntry in ipairs(isoTileOrder(rotation)) do
-        local worldX = cx * renderChunkTileSize + tileEntry.x
-        local worldY = cy * renderChunkTileSize + tileEntry.y
-        drawIsoTile(world, worldX, worldY, z, (tileEntry.rx - tileEntry.ry) * halfW - minX, (tileEntry.rx + tileEntry.ry) * halfH - minY)
-    end
-    love.graphics.setCanvas()
+    love.graphics.setColor(light, light, light, 1)
+    model:draw()
     love.graphics.pop()
-    return { canvas = canvas, offsetX = minX, offsetY = minY }
 end
 
-local function isoTerrainChunk(world, cx, cy, z, rotation)
-    if isoTerrainCache.world ~= world then
-        isoTerrainCache.world = world
-        isoTerrainCache.chunks = {}
+local function drawHeroBillboards(sim, yaw, profile)
+    if not (state.g3d and (state.assets.spriteAtlas or state.assets.white) and sim.partyState) then
+        return
     end
-    rotation = (rotation or 0) % 4
-    local key = isoTerrainCacheKey(cx, cy, z, rotation)
-    local revision = isoTerrainRevision(world, cx, cy, z)
-    local entry = isoTerrainCache.chunks[key]
-    if not entry or entry.revision ~= revision then
-        if (isoTerrainCache.buildsThisFrame or 0) >= (isoTerrainCache.buildLimit or 1) then
-            return key, nil
+    local offsets = {
+        {-1.1, -0.65},
+        {-0.35, -0.95},
+        {0.35, -0.95},
+        {1.1, -0.65},
+    }
+    for _, hero in ipairs(sim:partyState()) do
+        if hero.alive ~= false and hero.rank and offsets[hero.rank] then
+            local offset = offsets[hero.rank]
+            local x = sim.player.x + 0.5 + offset[1]
+            local y = sim.player.y + 0.5 + offset[2]
+            local model = newBillboard(0.85, 1.1, heroFrame(hero), x, y, sim.player.z or 0, yaw)
+            drawLitModel(model, lightAt(sim, x, y, profile))
         end
-        isoTerrainCache.buildsThisFrame = (isoTerrainCache.buildsThisFrame or 0) + 1
-        local built = buildIsoTerrainChunk(world, cx, cy, z, rotation)
-        entry = { canvas = built.canvas, offsetX = built.offsetX, offsetY = built.offsetY, revision = revision }
-        isoTerrainCache.chunks[key] = entry
-    end
-    return key, entry
-end
-
-local function drawIsoTerrainChunkLive(world, cx, cy, z, rotation, baseScreenX, baseScreenY)
-    local halfW = isoTileW / 2
-    local halfH = isoTileH / 2
-    for _, tileEntry in ipairs(isoTileOrder(rotation)) do
-        local worldX = cx * renderChunkTileSize + tileEntry.x
-        local worldY = cy * renderChunkTileSize + tileEntry.y
-        drawIsoTile(world, worldX, worldY, z, baseScreenX + (tileEntry.rx - tileEntry.ry) * halfW, baseScreenY + (tileEntry.rx + tileEntry.ry) * halfH)
     end
 end
 
-local function drawObject(object, screenX, screenY)
-    if object.type == "encounter" then
-        drawIsoBlock(screenX, screenY, { 126, 46, 54 }, isoBlockH)
-    elseif object.type == "threat" then
-        drawIsoBlock(screenX, screenY, { 112, 34, 86 }, isoBlockH + 4)
-    elseif object.type == "alpha" then
-        drawIsoBlock(screenX, screenY, { 176, 24, 32 }, isoBlockH + 10)
-    elseif object.type == "boss" then
-        drawIsoBlock(screenX, screenY, { 150, 40, 68 }, isoBlockH + 8)
-    elseif object.type == "exit" then
-        drawIsoBlock(screenX, screenY, { 60, 144, 154 }, isoBlockH)
-    else
-        drawIsoBlock(screenX, screenY, { 146, 116, 70 }, isoBlockH - 3)
+local function enemyFrame(objectType, enemyKind)
+    local meta = (state.assets and state.assets.spriteAtlasMeta) or defaultAtlasMeta
+    local entry = enemyKind and meta.enemies and meta.enemies[enemyKind]
+    if entry then
+        return namedAtlasFrame(entry.frame, meta.fallbacks and meta.fallbacks.threat)
+    end
+    local fallback = meta.fallbacks and (meta.fallbacks[objectType] or meta.fallbacks.threat)
+    return namedAtlasFrame(fallback, meta.fallbacks and meta.fallbacks.threat)
+end
+
+local function hasRole(def, role)
+    for _, candidate in ipairs(def.roles or {}) do
+        if candidate == role then
+            return true
+        end
+    end
+    return false
+end
+
+local function combatEnemyType(enemy)
+    local def = Defs.enemy(enemy and enemy.kind) or {}
+    if def.boss or hasRole(def, "boss") then
+        return "boss"
+    end
+    if def.alpha or hasRole(def, "alpha") then
+        return "alpha"
+    end
+    return "threat"
+end
+
+local function enemyTexture(objectType)
+    return state.assets.spriteAtlas or state.assets.enemy or state.assets.white
+end
+
+local function enemySize(objectType)
+    if objectType == "boss" then
+        return 1.2, 1.45
+    end
+    if objectType == "alpha" then
+        return 1.08, 1.3
+    end
+    return 0.95, 1.15
+end
+
+local function drawCombatEnemyBillboards(sim, yaw, profile)
+    if not (sim.combat and sim.combat.enemies) then
+        return false
+    end
+    local offsets = {
+        {-1.35, 1.7},
+        {-0.45, 2.0},
+        {0.45, 2.0},
+        {1.35, 1.7},
+    }
+    for _, enemy in ipairs(sim.combat.enemies) do
+        if enemy.hp > 0 and enemy.rank and offsets[enemy.rank] then
+            local offset = offsets[enemy.rank]
+            local objectType = combatEnemyType(enemy)
+            local width, height = enemySize(objectType)
+            local x = sim.player.x + 0.5 + offset[1]
+            local y = sim.player.y + 0.5 + offset[2]
+            local model = newBillboard(width, height, enemyFrame(objectType, enemy.kind), x, y, sim.player.z or 0, yaw, enemyTexture(objectType))
+            drawLitModel(model, lightAt(sim, x, y, profile))
+        end
+    end
+    return true
+end
+
+local function isEnemyObject(object)
+    return object.type == "threat" or object.type == "alpha" or object.type == "encounter" or object.type == "boss"
+end
+
+local function drawWorldEnemyBillboards(sim, yaw, profile)
+    if not sim.objectsInRect then
+        return
+    end
+    local minX = sim.player.x - visibleRadius
+    local maxX = sim.player.x + visibleRadius
+    local minY = sim.player.y - visibleRadius
+    local maxY = sim.player.y + visibleRadius
+    for _, object in ipairs(sim:objectsInRect(minX, maxX, minY, maxY, sim.player.z or 0)) do
+        if isEnemyObject(object) then
+            local width, height = enemySize(object.type)
+            local model = newBillboard(width, height, enemyFrame(object.type), object.x + 0.5, object.y + 0.5, object.z or 0, yaw, enemyTexture(object.type))
+            drawLitModel(model, lightAt(sim, object.x, object.y, profile))
+        end
+    end
+end
+
+local function drawEnemyBillboards(sim, yaw, profile)
+    if not (state.g3d and (state.assets.spriteAtlas or state.assets.white)) then
+        return
+    end
+    if not drawCombatEnemyBillboards(sim, yaw, profile) then
+        drawWorldEnemyBillboards(sim, yaw, profile)
     end
 end
 
 function Render.drawWorld(sim, app)
-    local width, height = love.graphics.getDimensions()
-    local rightDockW = 318
-    local topHudH = 76
-    local bottomTrayH = 120
-    local centerX = math.floor((width - rightDockW) / 2)
-    local centerY = math.floor((topHudH + height - bottomTrayH) / 2)
-    local rotation = (app.viewRotation or 0) % 4
     app.worldView = app.worldView or {}
-    app.worldView.mode = "iso"
-    app.worldView.centerX = centerX
-    app.worldView.centerY = centerY
-    app.worldView.halfW = isoTileW / 2
-    app.worldView.halfH = isoTileH / 2
-    app.worldView.originX = sim.player.x
-    app.worldView.originY = sim.player.y
-    app.worldView.rotation = rotation
-    local radius = math.ceil(width / isoTileW / 2 + height / isoTileH / 2) + 4
-    local minX = sim.player.x - radius
-    local maxX = sim.player.x + radius
-    local minY = sim.player.y - radius
-    local maxY = sim.player.y + radius
-    if canUseIsoTerrainCanvas() then
-        isoTerrainCache.buildsThisFrame = 0
-        isoTerrainCache.buildLimit = 2
-        local visibleChunkKeys = {}
-        local chunks = {}
-        for cy = World.floorDiv(minY, renderChunkTileSize), World.floorDiv(maxY, renderChunkTileSize) do
-            for cx = World.floorDiv(minX, renderChunkTileSize), World.floorDiv(maxX, renderChunkTileSize) do
-                local screenX, screenY = Render.projectIso(app.worldView, cx * renderChunkTileSize, cy * renderChunkTileSize)
-                if screenX >= -renderChunkTileSize * isoTileW and screenX <= width + renderChunkTileSize * isoTileW
-                    and screenY >= -renderChunkTileSize * isoTileH and screenY <= height + renderChunkTileSize * isoTileH
-                then
-                    local key, entry = isoTerrainChunk(sim.world, cx, cy, sim.player.z, rotation)
-                    visibleChunkKeys[key] = true
-                    chunks[#chunks + 1] = { entry = entry, cx = cx, cy = cy, baseX = screenX, baseY = screenY, x = entry and screenX + entry.offsetX or screenX, y = entry and screenY + entry.offsetY or screenY }
-                end
-            end
+    app.worldView.mode = "render3d-placeholder"
+    local screenWidth = love and love.graphics and love.graphics.getWidth() or 0
+    local screenHeight = love and love.graphics and love.graphics.getHeight() or 0
+    app.worldView.centerX = screenWidth / 2
+    app.worldView.centerY = screenHeight / 2
+    app.worldView.halfW = 32
+    app.worldView.halfH = 16
+    app.worldView.originX = sim and sim.player and sim.player.x or 0
+    app.worldView.originY = sim and sim.player and sim.player.y or 0
+    app.worldView.rotation = app.viewRotation or 0
+    if not (love and love.graphics and sim and sim.world and state.g3d) then
+        return
+    end
+    app.worldView.mode = "render3d"
+    local profile = lightProfile(sim)
+    app.worldView.light = { torch = profile.torch, ambient = profile.ambient, radius = profile.radius }
+    local yaw = applyCamera(sim, app)
+    local model = buildWorldTileModel(sim, profile, app and app.settings)
+    love.graphics.setColor(1, 1, 1, 1)
+    model:draw()
+    drawHeroBillboards(sim, yaw, profile)
+    drawEnemyBillboards(sim, yaw, profile)
+end
+
+function Render.titleMenuItems(app)
+    local canContinue = app and app.canContinue == true
+    local canReplay = app and app.canReplay == true
+    return {
+        { action = "new", label = i18n.t("New Game"), enabled = true },
+        { action = "continue", label = i18n.t("Continue"), enabled = canContinue },
+        { action = "replay", label = i18n.t("Replay"), enabled = canReplay },
+        { action = "settings", label = i18n.t("Settings"), enabled = true },
+        { action = "credits", label = i18n.t("Credits"), enabled = true },
+        { action = "quit", label = i18n.t("Quit"), enabled = true },
+    }
+end
+
+function Render.expeditionHudSummary(sim)
+    local roomKey = sim and sim.currentRoomKey and sim:currentRoomKey() or nil
+    return {
+        torch = sim and sim.expedition and sim.expedition.torch or nil,
+        currentRoom = roomKey or "corridor",
+        partyCount = sim and sim.partyState and #sim:partyState() or 0,
+    }
+end
+
+function Render.classUnlockSummary(sim)
+    local statuses = sim and sim.classUnlockStatus and sim:classUnlockStatus() or {}
+    local unlocked = 0
+    local nextLocked = nil
+    for _, status in ipairs(statuses) do
+        if status.unlocked then
+            unlocked = unlocked + 1
+        elseif not nextLocked then
+            nextLocked = status
         end
-        table.sort(chunks, function(a, b)
-            if a.y == b.y then
-                return a.x < b.x
-            end
-            return a.y < b.y
-        end)
-        love.graphics.setColor(1, 1, 1, 1)
-        for _, chunk in ipairs(chunks) do
-            if chunk.entry then
-                love.graphics.draw(chunk.entry.canvas, chunk.x, chunk.y)
-            else
-                drawIsoTerrainChunkLive(sim.world, chunk.cx, chunk.cy, sim.player.z, rotation, chunk.baseX, chunk.baseY)
-            end
+    end
+    local line = i18n.t("classes") .. " " .. tostring(unlocked) .. "/" .. tostring(#statuses)
+    if nextLocked then
+        line = line .. " " .. i18n.t("next") .. " " .. nextLocked.name .. ": " .. nextLocked.reason
+    end
+    return { unlocked = unlocked, total = #statuses, next = nextLocked, line = line, statuses = statuses }
+end
+
+local function combatActorLabel(sim, actor)
+    if not actor then
+        return "-"
+    end
+    if actor.side == "hero" then
+        local hero = sim:heroById(actor.id)
+        return i18n.t("R") .. tostring(actor.rank or "?") .. " " .. (hero and hero.name or i18n.t("hero"))
+    end
+    local enemy = sim.combat and sim.combat.enemies and sim.combat.enemies[actor.id]
+    local enemyDef = enemy and Defs.enemy(enemy.kind)
+    return i18n.t("E") .. tostring(actor.rank or "?") .. " " .. (enemyDef and enemyDef.name or i18n.t("enemy"))
+end
+
+function Render.combatHudSummary(sim, app)
+    local turns = {}
+    for index, actor in ipairs((sim and sim.combat and sim.combat.turnQueue) or {}) do
+        turns[#turns + 1] = {
+            index = index,
+            active = index == ((sim.combat and sim.combat.turnIndex) or 0),
+            label = combatActorLabel(sim, actor),
+        }
+    end
+    return {
+        mode = sim and sim.mode or nil,
+        round = sim and sim.combat and sim.combat.round or nil,
+        turns = turns,
+        active = combatActorLabel(sim, sim and sim.combat and sim.combat.active),
+        target = app and app.pendingTargetSide or nil,
+        skill = app and app.pendingSkillKey or nil,
+    }
+end
+
+function Render.campHudSummary(sim, app)
+    local camping = sim and sim.expedition and sim.expedition.camping
+    return {
+        active = camping ~= nil,
+        respite = camping and camping.respite or 0,
+        skills = sim and sim.availableCampSkills and sim:availableCampSkills() or {},
+        pendingSkill = app and app.pendingCampSkillKey or nil,
+        partyCount = sim and sim.partyState and #sim:partyState() or 0,
+    }
+end
+
+local curioChoiceOrder = {
+    { key = "safe_use", label = i18n.t("Safe") },
+    { key = "greedy_use", label = i18n.t("Greedy") },
+    { key = "repair_use", label = i18n.t("Repair") },
+    { key = "leave_alone", label = i18n.t("Leave") },
+}
+
+local function listContains(list, value)
+    for _, entry in ipairs(list or {}) do
+        if entry == value then
+            return true
         end
-        for key in pairs(isoTerrainCache.chunks) do
-            if not visibleChunkKeys[key] then
-                isoTerrainCache.chunks[key] = nil
-            end
+    end
+    return false
+end
+
+function Render.curioModalForTarget(sim)
+    local target = sim and sim.targetCurio and sim:targetCurio() or nil
+    if not target then
+        return nil
+    end
+    local copy = target.curio.copy or {}
+    local choices = {}
+    for _, choice in ipairs(curioChoiceOrder) do
+        choices[#choices + 1] = {
+            key = choice.key,
+            label = choice.label,
+            text = copy[choice.key] or choice.label,
+            enabled = listContains(target.curio.outcomes or {}, choice.key),
+        }
+    end
+    return {
+        x = target.x,
+        y = target.y,
+        z = target.z,
+        key = target.key,
+        title = target.curio.name,
+        observe = copy.observe or target.curio.name,
+        result = copy.result or (target.curio.name .. " resolved."),
+        choices = choices,
+    }
+end
+
+function Render.drawCurioModal(app)
+    local modal = app.curioModal
+    if not modal or not (love and love.graphics) then
+        return
+    end
+    local width, height = love.graphics.getDimensions()
+    local w, h = 520, 260
+    local x = (width - w) / 2
+    local y = (height - h) / 2
+    panel(x, y, w, h, 0.96)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.print(modal.title, x + 18, y + 16)
+    love.graphics.setColor(0.68, 0.72, 0.66, 1)
+    love.graphics.printf(modal.observe, x + 18, y + 42, w - 36)
+    for index, choice in ipairs(modal.choices or {}) do
+        local bx = x + 18
+        local by = y + 82 + (index - 1) * 40
+        local bw = w - 36
+        love.graphics.setColor(choice.enabled and 0.14 or 0.08, choice.enabled and 0.17 or 0.08, choice.enabled and 0.15 or 0.08, 1)
+        love.graphics.rectangle("fill", bx, by, bw, 32)
+        love.graphics.setColor(choice.enabled and 0.62 or 0.24, choice.enabled and 0.56 or 0.24, choice.enabled and 0.36 or 0.24, 1)
+        love.graphics.rectangle("line", bx, by, bw, 32)
+        love.graphics.setColor(choice.enabled and 0.9 or 0.38, choice.enabled and 0.92 or 0.38, choice.enabled and 0.84 or 0.38, 1)
+        love.graphics.printf(index .. " " .. choice.label .. " - " .. choice.text, bx + 8, by + 9, bw - 16, "left")
+        app.ui.curioButtons[#app.ui.curioButtons + 1] = { x = bx, y = by, w = bw, h = 32, choice = choice.key, enabled = choice.enabled, index = index }
+    end
+end
+
+function Render.drawCurioResult(app)
+    local result = app.curioResult
+    if not result or not (love and love.graphics) then
+        return
+    end
+    local width = love.graphics.getWidth()
+    local w, h = 460, 88
+    local x = (width - w) / 2
+    local y = 112
+    panel(x, y, w, h, 0.94)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.print(result.title or i18n.t("Curio"), x + 14, y + 12)
+    love.graphics.setColor(0.72, 0.76, 0.68, 1)
+    love.graphics.printf(result.text or "", x + 14, y + 38, w - 28)
+end
+
+local pauseActions = {
+    { action = "resume", label = i18n.t("Resume") },
+    { action = "save", label = i18n.t("Save") },
+    { action = "settings", label = i18n.t("Settings") },
+    { action = "quitTitle", label = i18n.t("Quit to Title") },
+}
+
+function Render.pauseMenuItems()
+    return pauseActions
+end
+
+local function layoutPauseButtons(app, x, y, w)
+    app.pauseMenuIndex = clamp(app.pauseMenuIndex or 1, 1, #pauseActions)
+    for index, item in ipairs(pauseActions) do
+        local by = y + 72 + (index - 1) * 42
+        app.ui.pauseButtons[#app.ui.pauseButtons + 1] = { x = x + 46, y = by, w = w - 92, h = 34, action = item.action, index = index }
+    end
+end
+
+function Render.drawPauseMenu(app)
+    if not (app and app.paused) then
+        return
+    end
+    Render.prepareUi(app)
+    local w, h = 320, 260
+    layoutPauseButtons(app, (1280 - w) / 2, (720 - h) / 2, w)
+    if not (love and love.graphics) then
+        return
+    end
+    local width, height = love.graphics.getDimensions()
+    clearList(app.ui.pauseButtons)
+    love.graphics.setColor(0.01, 0.012, 0.014, 0.62)
+    love.graphics.rectangle("fill", 0, 0, width, height)
+    local x = (width - w) / 2
+    local y = (height - h) / 2
+    layoutPauseButtons(app, x, y, w)
+    panel(x, y, w, h, 0.96)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.printf(i18n.t("Paused"), x, y + 24, w, "center")
+    for index, item in ipairs(pauseActions) do
+        local button = app.ui.pauseButtons[index]
+        local active = app.pauseMenuIndex == index
+        love.graphics.setColor(active and 0.18 or 0.1, active and 0.22 or 0.12, active and 0.19 or 0.12, 1)
+        love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+        love.graphics.setColor(active and 0.74 or 0.34, active and 0.66 or 0.38, active and 0.36 or 0.32, 1)
+        love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+        love.graphics.setColor(0.92, 0.94, 0.88, 1)
+        love.graphics.printf((active and "> " or "") .. item.label, button.x + 10, button.y + 10, button.w - 20, "left")
+    end
+    love.graphics.setColor(0.58, 0.62, 0.58, 1)
+    love.graphics.printf(app.pauseStatus or "", x + 20, y + h - 30, w - 40, "center")
+end
+
+local confirmActions = {
+    { action = "cancel", label = i18n.t("Cancel"), enabled = true },
+    { action = "confirm", label = i18n.t("Confirm"), enabled = true },
+}
+
+function Render.confirmMenuItems()
+    return confirmActions
+end
+
+local function layoutConfirmButtons(app, x, y, w)
+    app.confirmMenuIndex = clamp(app.confirmMenuIndex or 1, 1, #confirmActions)
+    for index, item in ipairs(confirmActions) do
+        app.ui.confirmButtons[#app.ui.confirmButtons + 1] = { x = x + 28 + (index - 1) * 144, y = y + 118, w = 128, h = 38, action = item.action, enabled = item.enabled, index = index }
+    end
+end
+
+function Render.drawConfirmDialog(app)
+    if not (app and app.confirmDialog) then
+        return
+    end
+    Render.prepareUi(app)
+    local w, h = 340, 184
+    layoutConfirmButtons(app, (1280 - w) / 2, (720 - h) / 2, w)
+    if not (love and love.graphics) then
+        return app.confirmDialog
+    end
+    local width, height = love.graphics.getDimensions()
+    clearList(app.ui.confirmButtons)
+    love.graphics.setColor(0.01, 0.012, 0.014, 0.64)
+    love.graphics.rectangle("fill", 0, 0, width, height)
+    local x = (width - w) / 2
+    local y = (height - h) / 2
+    layoutConfirmButtons(app, x, y, w)
+    panel(x, y, w, h, 0.98)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.printf(app.confirmDialog.title or i18n.t("Confirm"), x + 18, y + 22, w - 36, "center")
+    love.graphics.setColor(0.66, 0.7, 0.64, 1)
+    love.graphics.printf(app.confirmDialog.body or "", x + 24, y + 58, w - 48, "center")
+    for index, item in ipairs(confirmActions) do
+        local button = app.ui.confirmButtons[index]
+        local active = (app.confirmMenuIndex or 1) == index
+        love.graphics.setColor(active and 0.18 or 0.1, active and 0.2 or 0.11, active and 0.16 or 0.1, 1)
+        love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+        love.graphics.setColor(active and 0.78 or 0.34, active and 0.62 or 0.36, active and 0.32 or 0.3, 1)
+        love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+        love.graphics.setColor(0.92, 0.94, 0.88, 1)
+        love.graphics.printf((active and "> " or "") .. item.label, button.x + 8, button.y + 12, button.w - 16, "center")
+    end
+    return app.confirmDialog
+end
+
+function Render.drawKeyboardFocus(app)
+    local focus = app and app.keyboardFocus
+    if not (focus and app.ui and love and love.graphics) then
+        return
+    end
+    local hitbox = app.ui[focus.group] and app.ui[focus.group][focus.index]
+    if not hitbox then
+        return
+    end
+    love.graphics.setColor(0.95, 0.82, 0.28, 1)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", hitbox.x - 3, hitbox.y - 3, hitbox.w + 6, hitbox.h + 6)
+end
+
+function Render.drawUiMicroAnimations(app)
+    local drawn = 0
+    local hot = app and app.uiHot
+    local hotbox = hot and app.ui and app.ui[hot.group] and app.ui[hot.group][hot.index]
+    if hotbox then
+        drawn = drawn + 1
+    end
+    local focus = app and app.keyboardFocus
+    local focusBox = focus and app.ui and app.ui[focus.group] and app.ui[focus.group][focus.index]
+    if focusBox then
+        drawn = drawn + 1
+    end
+    if app and app.uiPulse and not Render.reducedMotion(app) then
+        drawn = drawn + 1
+    end
+    if not (love and love.graphics) then
+        return drawn
+    end
+    if hotbox then
+        love.graphics.setColor(0.95, 0.82, 0.28, 0.18)
+        love.graphics.rectangle("fill", hotbox.x, hotbox.y, hotbox.w, hotbox.h)
+        love.graphics.setColor(0.95, 0.82, 0.28, 0.66)
+        love.graphics.rectangle("line", hotbox.x - 2, hotbox.y - 2, hotbox.w + 4, hotbox.h + 4)
+    end
+    if focusBox then
+        love.graphics.setColor(0.98, 0.9, 0.38, 0.9)
+        love.graphics.rectangle("line", focusBox.x - 4, focusBox.y - 4, focusBox.w + 8, focusBox.h + 8)
+    end
+    local pulse = app and app.uiPulse
+    if pulse and not Render.reducedMotion(app) then
+        local ratio = clamp((pulse.t or 0) / (pulse.duration or 0.22), 0, 1)
+        local pad = (1 - ratio) * 10
+        local color = { 0.95, 0.82, 0.28 }
+        if pulse.kind == "error" then
+            color = { 0.9, 0.18, 0.16 }
+        elseif pulse.kind == "success" then
+            color = { 0.34, 0.78, 0.42 }
         end
+        color = Render.accessibleColor(app.settings, color)
+        love.graphics.setColor(color[1], color[2], color[3], 0.24 * ratio)
+        love.graphics.rectangle("fill", pulse.x - pad, pulse.y - pad, pulse.w + pad * 2, pulse.h + pad * 2)
+        love.graphics.setColor(color[1], color[2], color[3], 0.75 * ratio)
+        love.graphics.rectangle("line", pulse.x - pad, pulse.y - pad, pulse.w + pad * 2, pulse.h + pad * 2)
+    end
+    return drawn
+end
+
+local gameOverActions = {
+    { action = "restart", label = i18n.t("Restart"), enabled = true },
+    { action = "title", label = i18n.t("Title"), enabled = true },
+    { action = "credits", label = i18n.t("Credits"), enabled = true },
+}
+
+local dreadTierNames = { [0] = i18n.t("quiet"), [1] = i18n.t("uneasy"), [2] = i18n.t("strained"), [3] = i18n.t("breaking"), [4] = i18n.t("collapsed") }
+
+local function dreadTier(dread, limit)
+    local cap = math.max(1, limit or 18)
+    return clamp(math.floor(((dread or 0) / cap) * 4), 0, 4)
+end
+
+local function bossKillCount(campaign)
+    local count = 0
+    for _, key in ipairs(Defs.locationOrder or {}) do
+        if campaign.bossKills and campaign.bossKills[key] then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function Render.gameOverMenuItems()
+    return gameOverActions
+end
+
+function Render.gameOverSummary(sim)
+    local estate = (sim and sim.estate) or {}
+    local campaign = estate.campaign or {}
+    local routeKey = campaign.endingRoute or (campaign.victory and "estate_seal" or "quiet_failure")
+    local route = Defs.endingRoute(routeKey) or {}
+    local tier = dreadTier(campaign.dread or 0, campaign.dreadLimit or 18)
+    local factions = {}
+    for _, key in ipairs(Defs.factionOrder or {}) do
+        local def = Defs.faction(key) or {}
+        local entry = (campaign.factions and campaign.factions[key]) or {}
+        factions[#factions + 1] = { key = key, name = def.name or key, state = entry.state or "neutral", value = entry.value or 0 }
+    end
+    return {
+        ended = campaign.lost == true or campaign.victory == true,
+        won = campaign.victory == true,
+        reason = campaign.victory and i18n.t("victory") or (campaign.lossReason or i18n.t("lost")),
+        route = routeKey,
+        routeName = route.name or routeKey,
+        routeAlias = route.alias or routeKey,
+        routeCondition = route.condition or "",
+        routeResult = route.result or "",
+        copy = sim and sim.endingScreenCopy and sim:endingScreenCopy(routeKey) or "",
+        routes = sim and sim.endingRouteStatus and sim:endingRouteStatus() or {},
+        week = estate.week or 1,
+        renown = campaign.renown or 0,
+        dread = campaign.dread or 0,
+        dreadLimit = campaign.dreadLimit or 18,
+        dreadTier = tier,
+        dreadTierName = dreadTierNames[tier],
+        deaths = #((estate and estate.graveyard) or {}),
+        bosses = bossKillCount(campaign),
+        bossTotal = #(Defs.locationOrder or {}),
+        party = estate.roster or {},
+        graveyard = estate.graveyard or {},
+        factions = factions,
+    }
+end
+
+local function layoutGameOverButtons(app, items, width, height)
+    local totalW = 480
+    local buttonW = 148
+    local gap = 18
+    local x = (width - totalW) / 2
+    local y = height - 96
+    for index, item in ipairs(items) do
+        app.ui.gameOverButtons[#app.ui.gameOverButtons + 1] = { x = x + (index - 1) * (buttonW + gap), y = y, w = buttonW, h = 42, action = item.action, enabled = item.enabled, index = index }
+    end
+end
+
+local function drawGameOverButton(app, item, button)
+    local active = (app.gameOverMenuIndex or 1) == button.index
+    local enabled = item.enabled
+    love.graphics.setColor(active and 0.18 or 0.09, active and 0.2 or 0.1, active and 0.16 or 0.1, enabled and 0.95 or 0.45)
+    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(active and 0.78 or 0.34, active and 0.62 or 0.36, active and 0.32 or 0.3, enabled and 1 or 0.45)
+    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(enabled and 0.94 or 0.46, enabled and 0.94 or 0.46, enabled and 0.86 or 0.46, 1)
+    love.graphics.printf((active and "> " or "") .. item.label, button.x + 8, button.y + 13, button.w - 16, "center")
+end
+
+function Render.drawGameOver(sim, app)
+    Render.prepareUi(app)
+    local summary = Render.gameOverSummary(sim)
+    local items = Render.gameOverMenuItems(app)
+    app.gameOverMenuIndex = clamp(app.gameOverMenuIndex or 1, 1, #items)
+    layoutGameOverButtons(app, items, 1280, 720)
+    if not (love and love.graphics) then
+        return summary
+    end
+    love.graphics.clear(0.035, 0.038, 0.042, 1)
+    local width, height = love.graphics.getDimensions()
+    clearList(app.ui.gameOverButtons)
+    layoutGameOverButtons(app, items, width, height)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    panel(56, 52, width - 112, height - 124, 0.96)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.printf(summary.won and i18n.t("Campaign Sealed") or i18n.t("Game Over"), 80, 82, width - 160, "left", 0, 1.6, 1.6)
+    love.graphics.setColor(0.68, 0.72, 0.66, 1)
+    love.graphics.print(summary.reason .. " / " .. summary.routeName .. " / " .. i18n.t("week") .. " " .. summary.week .. " / " .. i18n.t("dread") .. " " .. summary.dread .. "/" .. summary.dreadLimit .. " " .. i18n.t("tier") .. " " .. summary.dreadTier, 82, 138)
+    love.graphics.print(i18n.t("renown") .. " " .. summary.renown .. " / " .. i18n.t("bosses") .. " " .. summary.bosses .. "/" .. summary.bossTotal .. " / " .. i18n.t("fallen") .. " " .. summary.deaths, 82, 162)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print(i18n.t("Party Fate"), 82, 210)
+    for index, hero in ipairs(summary.party) do
+        if index > 6 then
+            break
+        end
+        local class = Defs.heroClass(hero.class) or {}
+        local line = hero.name .. "  " .. (class.name or hero.class) .. "  L" .. tostring(hero.level or 1) .. "  stress " .. tostring(hero.stress or 0)
+        love.graphics.setColor(hero.alive == false and 0.56 or 0.76, hero.alive == false and 0.42 or 0.78, hero.alive == false and 0.42 or 0.72, 1)
+        love.graphics.print(line, 82, 238 + (index - 1) * 24)
+    end
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print(i18n.t("Graveyard"), 82, 406)
+    for index, death in ipairs(summary.graveyard) do
+        if index > 5 then
+            break
+        end
+        love.graphics.setColor(0.62, 0.64, 0.58, 1)
+        love.graphics.print((death.name or i18n.t("fallen")) .. "  " .. (death.location or i18n.t("estate")), 82, 432 + (index - 1) * 22)
+    end
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print(i18n.t("Faction State"), width * 0.52, 210)
+    for index, faction in ipairs(summary.factions) do
+        love.graphics.setColor(0.74, 0.78, 0.72, 1)
+        love.graphics.print(faction.name, width * 0.52, 238 + (index - 1) * 28)
+        love.graphics.setColor(0.58, 0.66, 0.56, 1)
+        love.graphics.print(faction.state .. " (" .. tostring(faction.value) .. ")", width * 0.74, 238 + (index - 1) * 28)
+    end
+    love.graphics.setColor(0.62, 0.66, 0.58, 1)
+    love.graphics.printf((summary.routeCondition or "") .. "\n" .. (summary.routeResult or "") .. "\n\n" .. (summary.copy or ""), width * 0.52, 406, width * 0.38)
+    love.graphics.printf(app.gameOverStatus or "", 80, height - 130, width - 160, "center")
+    for index, item in ipairs(items) do
+        drawGameOverButton(app, item, app.ui.gameOverButtons[index])
+    end
+    Render.drawUiMicroAnimations(app)
+    love.graphics.pop()
+    return summary
+end
+
+function Render.creditsData()
+    return Credits.data(readText("docs/asset-licenses.md") or "")
+end
+
+local function creditsLineCount(data)
+    return 2 + #((data and data.lines) or {})
+end
+
+local function layoutCreditsButtons(app, width, height)
+    app.ui.creditsButtons[#app.ui.creditsButtons + 1] = { x = 72, y = height - 86, w = 160, h = 42, action = "back", enabled = true, index = 1 }
+end
+
+function Render.drawCredits(app)
+    Render.prepareUi(app)
+    local data = Render.creditsData()
+    local maxScroll = math.max(0, creditsLineCount(data) - 15)
+    app.creditsScroll = clamp(app.creditsScroll or 0, 0, maxScroll)
+    layoutCreditsButtons(app, 1280, 720)
+    if not (love and love.graphics) then
+        return data
+    end
+    love.graphics.clear(0.035, 0.038, 0.042, 1)
+    local width, height = love.graphics.getDimensions()
+    clearList(app.ui.creditsButtons)
+    layoutCreditsButtons(app, width, height)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    panel(56, 52, width - 112, height - 124, 0.96)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.printf(i18n.t("Credits"), 80, 82, width - 160, "left", 0, 1.5, 1.5)
+    love.graphics.setColor(0.68, 0.72, 0.66, 1)
+    love.graphics.print(data.project .. " / " .. i18n.t("playable prototype"), 82, 132)
+    local y = 178 - app.creditsScroll * 24
+    local function line(text, x, color)
+        if y > 142 and y < height - 112 then
+            love.graphics.setColor(color[1], color[2], color[3], color[4] or 1)
+            love.graphics.printf(text, x or 82, y, width - (x or 82) - 92)
+        end
+        y = y + 24
+    end
+    local colors = {
+        heading = { 0.9, 0.92, 0.86, 1 },
+        entry = { 0.76, 0.78, 0.72, 1 },
+        source = { 0.56, 0.64, 0.58, 1 },
+        note = { 0.5, 0.54, 0.5, 1 },
+        spacer = { 0.5, 0.54, 0.5, 1 },
+    }
+    for _, entry in ipairs(data.lines or {}) do
+        line(entry.text or "", 82 + (entry.indent or 0), colors[entry.kind] or colors.note)
+    end
+    local button = app.ui.creditsButtons[1]
+    love.graphics.setColor(0.1, 0.12, 0.11, 1)
+    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(0.42, 0.48, 0.36, 1)
+    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(0.92, 0.94, 0.88, 1)
+    love.graphics.printf(i18n.t("Back"), button.x + 8, button.y + 13, button.w - 16, "center")
+    love.graphics.setColor(0.58, 0.62, 0.58, 1)
+    love.graphics.printf(i18n.t("scroll") .. " " .. tostring(app.creditsScroll) .. "/" .. tostring(maxScroll), width - 260, height - 72, 180, "right")
+    Render.drawUiMicroAnimations(app)
+    love.graphics.pop()
+    return data
+end
+
+function Render.journalSummary(sim)
+    local documents = {}
+    for _, entry in ipairs(sim and sim.journalEntries and sim:journalEntries() or {}) do
+        local document = Defs.document(entry.key) or {}
+        documents[#documents + 1] = {
+            key = entry.key,
+            title = entry.title,
+            typeName = entry.typeName,
+            location = entry.location,
+            abstract = entry.abstract,
+            text = document.text or "",
+        }
+    end
+    local epitaphs = {}
+    for index, death in ipairs((sim and sim.estate and sim.estate.graveyard) or {}) do
+        local location = death.location or "estate"
+        local epitaphKey = death.class and Defs.graveyardEpitaphsFor(death.class) and death.class or location
+        local lines = Defs.graveyardEpitaphsFor(epitaphKey) or Defs.graveyardEpitaphsFor("estate") or {}
+        local line = lines[((death.id or index) - 1) % math.max(1, #lines) + 1] or "recorded without epitaph"
+        local class = Defs.heroClass(death.class) or {}
+        epitaphs[#epitaphs + 1] = {
+            name = death.name or "fallen",
+            className = class.name or death.class or "hero",
+            location = location,
+            epitaph = line,
+        }
+    end
+    return { documents = documents, epitaphs = epitaphs }
+end
+
+local function layoutJournalButtons(app, summary, width, height)
+    app.ui.journalButtons[#app.ui.journalButtons + 1] = { x = 84, y = 118, w = 150, h = 34, action = "tab", tab = "documents", enabled = true, index = 1 }
+    app.ui.journalButtons[#app.ui.journalButtons + 1] = { x = 246, y = 118, w = 150, h = 34, action = "tab", tab = "epitaphs", enabled = true, index = 2 }
+    local tab = app.journalTab or "documents"
+    local items = tab == "epitaphs" and summary.epitaphs or summary.documents
+    local listX = 84
+    local listY = 174
+    local rowH = 42
+    for index = 1, math.min(#items, 10) do
+        app.ui.journalButtons[#app.ui.journalButtons + 1] = { x = listX, y = listY + (index - 1) * rowH, w = 340, h = rowH - 6, action = "select", selection = index, enabled = true, index = index + 2 }
+    end
+    app.ui.journalButtons[#app.ui.journalButtons + 1] = { x = 84, y = height - 86, w = 150, h = 42, action = "back", enabled = true, index = #app.ui.journalButtons + 1 }
+end
+
+local function drawJournalButton(app, button, label, active)
+    love.graphics.setColor(active and 0.18 or 0.09, active and 0.15 or 0.09, active and 0.22 or 0.12, 1)
+    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(active and 0.64 or 0.34, active and 0.48 or 0.34, active and 0.82 or 0.44, 1)
+    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(0.92, 0.9, 0.94, 1)
+    love.graphics.printf(label, button.x + 8, button.y + 10, button.w - 16, "center")
+end
+
+function Render.drawJournal(sim, app)
+    Render.prepareUi(app)
+    local summary = Render.journalSummary(sim)
+    app.journalTab = app.journalTab or "documents"
+    local items = app.journalTab == "epitaphs" and summary.epitaphs or summary.documents
+    app.journalIndex = clamp(app.journalIndex or 1, 1, math.max(1, #items))
+    layoutJournalButtons(app, summary, 1280, 720)
+    if not (love and love.graphics) then
+        return summary
+    end
+    love.graphics.clear(0.035, 0.038, 0.042, 1)
+    local width, height = love.graphics.getDimensions()
+    clearList(app.ui.journalButtons)
+    layoutJournalButtons(app, summary, width, height)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    panel(56, 52, width - 112, height - 124, 0.96)
+    love.graphics.setColor(0.92, 0.9, 0.94, 1)
+    love.graphics.printf(i18n.t("Journal"), 84, 82, width - 168, "left", 0, 1.5, 1.5)
+    drawJournalButton(app, app.ui.journalButtons[1], i18n.t("Documents"), app.journalTab == "documents")
+    drawJournalButton(app, app.ui.journalButtons[2], i18n.t("Epitaphs"), app.journalTab == "epitaphs")
+    for index, item in ipairs(items) do
+        if index > 10 then
+            break
+        end
+        local button = app.ui.journalButtons[index + 2]
+        local active = app.journalIndex == index
+        local label = app.journalTab == "epitaphs" and (item.name .. " / " .. item.className) or (item.title .. " / " .. item.typeName)
+        drawJournalButton(app, button, label, active)
+    end
+    local detailX = 456
+    local detailY = 172
+    local detailW = width - detailX - 96
+    local selected = items[app.journalIndex]
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    if selected and app.journalTab == "documents" then
+        love.graphics.print(selected.title, detailX, detailY)
+        love.graphics.setColor(0.66, 0.72, 0.68, 1)
+        love.graphics.print(selected.typeName .. " / " .. selected.location, detailX, detailY + 28)
+        love.graphics.printf(selected.abstract, detailX, detailY + 68, detailW)
+        love.graphics.printf(selected.text, detailX, detailY + 124, detailW)
+    elseif selected then
+        love.graphics.print(selected.name, detailX, detailY)
+        love.graphics.setColor(0.66, 0.72, 0.68, 1)
+        love.graphics.print(selected.className .. " / " .. selected.location, detailX, detailY + 28)
+        love.graphics.printf(selected.epitaph, detailX, detailY + 68, detailW)
     else
-        for sum = -radius * 2, radius * 2 do
-            for rx = -radius, radius do
-                local ry = sum - rx
-                if ry >= -radius and ry <= radius then
-                    local dx, dy = Render.unrotateDelta(rx, ry, rotation)
-                    local x = sim.player.x + dx
-                    local y = sim.player.y + dy
-                    drawIsoTile(sim.world, x, y, sim.player.z, centerX + (rx - ry) * isoTileW / 2, centerY + (rx + ry) * isoTileH / 2)
-                end
+        love.graphics.printf(app.journalTab == "epitaphs" and i18n.t("no epitaphs") or i18n.t("no documents"), detailX, detailY, detailW)
+    end
+    local back = app.ui.journalButtons[#app.ui.journalButtons]
+    drawJournalButton(app, back, i18n.t("Back"), false)
+    love.graphics.setColor(0.58, 0.62, 0.58, 1)
+    love.graphics.printf(i18n.t("documents") .. " " .. #summary.documents .. " / " .. i18n.t("epitaphs") .. " " .. #summary.epitaphs, width - 360, height - 72, 280, "right")
+    Render.drawUiMicroAnimations(app)
+    love.graphics.pop()
+    return summary
+end
+
+local tutorialSteps = {
+    { key = "torch", title = i18n.t("Torch"), body = i18n.t("Torch falls as the party advances. Spend carried torches before dark rooms turn pressure into ambush.") },
+    { key = "stress", title = i18n.t("Stress"), body = i18n.t("Stress can break heroes before HP does. Camp skills, curios, and retreat are pressure valves.") },
+    { key = "rank", title = i18n.t("Rank"), body = i18n.t("Rank controls skills and targets. Front and back positions decide who can act and who can be hit.") },
+}
+
+function Render.tutorialSteps()
+    return tutorialSteps
+end
+
+local function layoutTutorialButtons(app, x, y, w)
+    app.ui.tutorialButtons[#app.ui.tutorialButtons + 1] = { x = x + 18, y = y + 148, w = 92, h = 34, action = "skip", enabled = true, index = 1 }
+    app.ui.tutorialButtons[#app.ui.tutorialButtons + 1] = { x = x + w - 226, y = y + 148, w = 92, h = 34, action = "prev", enabled = (app.tutorial.index or 1) > 1, index = 2 }
+    app.ui.tutorialButtons[#app.ui.tutorialButtons + 1] = { x = x + w - 122, y = y + 148, w = 104, h = 34, action = "next", enabled = true, index = 3 }
+end
+
+function Render.drawTutorial(app)
+    if not (app and app.tutorial and app.tutorial.active) then
+        return
+    end
+    Render.prepareUi(app)
+    app.tutorial.index = clamp(app.tutorial.index or 1, 1, #tutorialSteps)
+    local w, h = 480, 204
+    layoutTutorialButtons(app, 1280 - w - 36, 116, w)
+    if not (love and love.graphics) then
+        return tutorialSteps
+    end
+    clearList(app.ui.tutorialButtons)
+    local width = love.graphics.getWidth()
+    local x = width - w - 36
+    local y = 116
+    layoutTutorialButtons(app, x, y, w)
+    local step = tutorialSteps[app.tutorial.index]
+    panel(x, y, w, h, 0.97)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.printf(step.title, x + 18, y + 18, w - 36)
+    love.graphics.setColor(0.68, 0.72, 0.66, 1)
+    love.graphics.printf(step.body, x + 18, y + 52, w - 36)
+    love.graphics.setColor(0.58, 0.62, 0.58, 1)
+    love.graphics.printf(tostring(app.tutorial.index) .. "/" .. tostring(#tutorialSteps), x + 18, y + 120, w - 36, "right")
+    for _, button in ipairs(app.ui.tutorialButtons) do
+        love.graphics.setColor(button.enabled and 0.11 or 0.07, button.enabled and 0.13 or 0.07, button.enabled and 0.11 or 0.07, 1)
+        love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+        love.graphics.setColor(button.enabled and 0.44 or 0.22, button.enabled and 0.5 or 0.22, button.enabled and 0.34 or 0.22, 1)
+        love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+        love.graphics.setColor(button.enabled and 0.9 or 0.4, button.enabled and 0.92 or 0.4, button.enabled and 0.84 or 0.4, 1)
+        love.graphics.printf(button.action == "next" and (app.tutorial.index == #tutorialSteps and i18n.t("Done") or i18n.t("Next")) or (button.action == "prev" and i18n.t("Back") or i18n.t("Skip")), button.x + 6, button.y + 10, button.w - 12, "center")
+    end
+    return tutorialSteps
+end
+
+function Render.drawToasts(app)
+    local toasts = (app and app.toasts) or {}
+    if #toasts == 0 then
+        return 0
+    end
+    if not (love and love.graphics) then
+        return #toasts
+    end
+    local width = love.graphics.getWidth()
+    local x = width - 338
+    for index, toast in ipairs(toasts) do
+        local y = 106 + (index - 1) * 70
+        panel(x, y, 306, 58, 0.96)
+        love.graphics.setColor(0.9, 0.82, 0.48, 1)
+        love.graphics.print(toast.title or i18n.t("Unlocked"), x + 12, y + 10)
+        love.graphics.setColor(0.7, 0.74, 0.68, 1)
+        love.graphics.printf(toast.text or "", x + 12, y + 32, 282)
+    end
+    return #toasts
+end
+
+local function layoutTitleButtons(app, items, width, height)
+    local buttonW = math.min(320, math.max(220, width - 88))
+    local x = math.max(44, width - buttonW - 96)
+    local y = math.max(206, height * 0.5 - 88)
+    for index, item in ipairs(items) do
+        app.ui.titleButtons[#app.ui.titleButtons + 1] = {
+            x = x,
+            y = y + (index - 1) * 52,
+            w = buttonW,
+            h = 42,
+            action = item.action,
+            enabled = item.enabled,
+            index = index,
+        }
+    end
+end
+
+local function drawLedgerSweep(width, height, t)
+    love.graphics.setColor(0.74, 0.62, 0.38, 0.08)
+    local offset = ((t or 0) * 28) % 88
+    for index = -1, 9 do
+        local y = index * 88 + offset
+        love.graphics.rectangle("fill", 0, y, width, 1)
+        love.graphics.rectangle("fill", 0, height - y, width, 1)
+    end
+    love.graphics.setColor(0.34, 0.42, 0.48, 0.06)
+    local xOffset = ((t or 0) * 18) % 140
+    for index = -1, 10 do
+        love.graphics.rectangle("fill", index * 140 + xOffset, 0, 1, height)
+    end
+end
+
+local function drawTitleButton(app, item, button)
+    local active = (app.titleMenuIndex or 1) == button.index
+    local enabled = item.enabled
+    love.graphics.setColor(active and 0.2 or 0.1, active and 0.24 or 0.12, active and 0.19 or 0.12, enabled and 0.94 or 0.55)
+    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(active and 0.82 or 0.36, active and 0.68 or 0.38, active and 0.34 or 0.28, enabled and 1 or 0.55)
+    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(enabled and 0.94 or 0.42, enabled and 0.94 or 0.42, enabled and 0.86 or 0.42, 1)
+    love.graphics.printf((active and "> " or "") .. item.label, button.x + 10, button.y + 12, button.w - 20, "left")
+end
+
+function Render.drawTitle(sim, app)
+    Render.prepareUi(app)
+    local items = Render.titleMenuItems(app)
+    layoutTitleButtons(app, items, 1280, 720)
+    if not (love and love.graphics) then
+        return items
+    end
+    love.graphics.clear(0.035, 0.038, 0.042, 1)
+    Render.drawWorld(sim, app)
+    local width, height = love.graphics.getDimensions()
+    clearList(app.ui.titleButtons)
+    layoutTitleButtons(app, items, width, height)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    love.graphics.setColor(0.015, 0.017, 0.019, 0.68)
+    love.graphics.rectangle("fill", 0, 0, width, height)
+    drawLedgerSweep(width, height, Render.reducedMotion(app) and 0 or (app.titleTime or 0))
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.printf(i18n.t("THOTH"), 64, math.max(86, height * 0.28), math.min(520, width - 128), "left", 0, 3.2, 3.2)
+    love.graphics.setColor(0.62, 0.68, 0.62, 1)
+    love.graphics.printf(i18n.t("account the dead"), 70, math.max(164, height * 0.28 + 76), math.min(520, width - 128), "left")
+    for index, item in ipairs(items) do
+        drawTitleButton(app, item, app.ui.titleButtons[index])
+    end
+    love.graphics.setColor(0.58, 0.62, 0.58, 1)
+    local status = app.titleStatus or app.saveStatus or i18n.t("ready")
+    love.graphics.printf(status, 64, height - 54, width - 128, "left")
+    love.graphics.printf(i18n.t("keyboard"), 64, height - 32, width - 128, "right")
+    Render.drawUiMicroAnimations(app)
+    love.graphics.pop()
+    return items
+end
+
+local function drawSliderControl(app, control, x, y, w, active)
+    love.graphics.setColor(0.68, 0.72, 0.68, 1)
+    love.graphics.printf(Settings.valueText(app.settings, control), x + w - 70, y + 2, 64, "right")
+    local barX = x + 180
+    local barW = w - 280
+    local value = clamp01(app.settings[control.setting] or 0)
+    love.graphics.setColor(0.11, 0.13, 0.13, 1)
+    love.graphics.rectangle("fill", barX, y + 8, barW, 10)
+    love.graphics.setColor(active and 0.82 or 0.42, active and 0.68 or 0.5, active and 0.34 or 0.36, 1)
+    love.graphics.rectangle("fill", barX, y + 8, barW * value, 10)
+    app.ui.settingsButtons[#app.ui.settingsButtons + 1] = { x = barX - 34, y = y - 4, w = 28, h = 28, action = "adjust", setting = control.setting, delta = -1, index = control.index }
+    app.ui.settingsButtons[#app.ui.settingsButtons + 1] = { x = barX + barW + 8, y = y - 4, w = 28, h = 28, action = "adjust", setting = control.setting, delta = 1, index = control.index }
+    love.graphics.setColor(0.22, 0.25, 0.23, 1)
+    love.graphics.rectangle("line", barX - 34, y - 4, 28, 28)
+    love.graphics.rectangle("line", barX + barW + 8, y - 4, 28, 28)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.printf("-", barX - 34, y + 3, 28, "center")
+    love.graphics.printf("+", barX + barW + 8, y + 3, 28, "center")
+end
+
+local function drawButtonControl(app, control, x, y, w, active)
+    local action = control.kind == "toggle" and "toggle" or (control.kind == "cycle" and "cycle" or "bind")
+    local button = { x = x + 180, y = y - 5, w = math.min(220, w - 220), h = 30, action = action, setting = control.setting, binding = control.binding, delta = 1, index = control.index }
+    app.ui.settingsButtons[#app.ui.settingsButtons + 1] = button
+    love.graphics.setColor(active and 0.18 or 0.1, active and 0.22 or 0.12, active and 0.2 or 0.12, 1)
+    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(active and 0.74 or 0.34, active and 0.66 or 0.38, active and 0.36 or 0.32, 1)
+    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(0.92, 0.94, 0.88, 1)
+    local value = i18n.t(Settings.valueText(app.settings, control))
+    if app.captureBinding == control.binding then
+        value = i18n.t("press key")
+    end
+    love.graphics.printf(value, button.x + 8, button.y + 8, button.w - 16, "center")
+end
+
+function Render.drawSettings(app)
+    Render.prepareUi(app)
+    if not (love and love.graphics) then
+        for index, control in ipairs(Settings.controls()) do
+            if control.kind == "back" then
+                app.ui.settingsButtons[#app.ui.settingsButtons + 1] = { x = 64, y = 610, w = 180, h = 42, action = "back", index = index }
+            else
+                app.ui.settingsButtons[#app.ui.settingsButtons + 1] = { x = 64, y = 80 + index * 34, w = 320, h = 28, action = control.kind, setting = control.setting, binding = control.binding, index = index }
             end
         end
+        return
     end
-    for _, object in ipairs(sim:objectsInRect(minX, maxX, minY, maxY, sim.player.z)) do
-        local sx, sy = Render.projectIso(app.worldView, object.x, object.y)
-        drawObject(object, sx, sy)
+    local width, height = love.graphics.getDimensions()
+    love.graphics.clear(0.045, 0.048, 0.052, 1)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    panel(48, 48, width - 96, height - 96, 0.94)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.print(i18n.t("Settings"), 72, 72)
+    local controls = Settings.controls()
+    app.settingsFocus = clamp(app.settingsFocus or 1, 1, #controls)
+    local rowX = 72
+    local rowW = width - 144
+    local rowY = 126
+    for index, control in ipairs(controls) do
+        control.index = index
+        local y = rowY + (index - 1) * 34
+        if y > height - 126 then
+            break
+        end
+        local active = app.settingsFocus == index
+        love.graphics.setColor(active and 0.16 or 0.08, active and 0.18 or 0.09, active and 0.15 or 0.09, active and 0.9 or 0.55)
+        love.graphics.rectangle("fill", rowX - 8, y - 8, rowW + 16, 30)
+        love.graphics.setColor(active and 0.92 or 0.72, active and 0.9 or 0.76, active and 0.8 or 0.7, 1)
+        love.graphics.printf(i18n.t(control.label), rowX, y, 170, "left")
+        if control.kind == "slider" then
+            drawSliderControl(app, control, rowX, y, rowW, active)
+        elseif control.kind == "toggle" or control.kind == "cycle" or control.kind == "bind" then
+            drawButtonControl(app, control, rowX, y, rowW, active)
+        elseif control.kind == "back" then
+            app.ui.settingsButtons[#app.ui.settingsButtons + 1] = { x = rowX + 180, y = y - 5, w = 180, h = 30, action = "back", index = index }
+            love.graphics.setColor(active and 0.18 or 0.1, active and 0.22 or 0.12, active and 0.2 or 0.12, 1)
+            love.graphics.rectangle("fill", rowX + 180, y - 5, 180, 30)
+            love.graphics.setColor(active and 0.74 or 0.34, active and 0.66 or 0.38, active and 0.36 or 0.32, 1)
+            love.graphics.rectangle("line", rowX + 180, y - 5, 180, 30)
+            love.graphics.setColor(0.92, 0.94, 0.88, 1)
+            love.graphics.printf(i18n.t("Back"), rowX + 188, y + 3, 164, "center")
+        end
     end
-    love.graphics.setColor(0.08, 0.1, 0.11, 1)
-    love.graphics.ellipse("fill", centerX, centerY + 5, 16, 8)
-    love.graphics.setColor(0.88, 0.82, 0.58, 1)
-    love.graphics.circle("fill", centerX, centerY - 12, 12)
-    local fx, fy = Grid.front(sim.player.x, sim.player.y, sim.player.facing)
-    local highlightX, highlightY = Render.projectIso(app.worldView, fx, fy)
-    love.graphics.setColor(1, 1, 1, 0.18)
-    love.graphics.polygon("fill", highlightX, highlightY - isoTileH / 2, highlightX + isoTileW / 2, highlightY, highlightX, highlightY + isoTileH / 2, highlightX - isoTileW / 2, highlightY)
+    love.graphics.setColor(0.58, 0.62, 0.58, 1)
+    love.graphics.printf(i18n.t(app.settingsStatus or ""), 72, height - 82, width - 144, "left")
+    Render.drawUiMicroAnimations(app)
+    love.graphics.pop()
 end
 
 local function checklistText(group)
-    local parts = { group.title }
+    local parts = { i18n.t(group.title or "") }
     for _, item in ipairs(group.items) do
-        parts[#parts + 1] = (item.done and "[x]" or "[ ]") .. item.label
+        parts[#parts + 1] = (item.done and i18n.t("[x]") or i18n.t("[ ]")) .. i18n.t(item.label)
     end
     return table.concat(parts, " ")
-end
-
-function Render.drawHud(sim, app)
-    local width = love.graphics.getWidth()
-    panel(0, 0, width, 76, 0.9)
-    if app.eventFlash then
-        local color = app.eventFlash.color or { 0.42, 0.54, 0.76 }
-        love.graphics.setColor(color[1], color[2], color[3], math.min(0.5, app.eventFlash.t or 0))
-        love.graphics.rectangle("fill", 0, 74, width, 2)
-    end
-    love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Thoth  tick " .. sim.tick .. "  " .. sim.mode .. "  pos " .. sim.player.x .. "," .. sim.player.y .. "  view " .. ((app.viewRotation or 0) * 90), 16, 10)
-    love.graphics.printf("status " .. tostring(app.status or sim.status), width - 286, 10, 270, "right")
-    love.graphics.printf("next " .. sim:nextStepText(), 16, 32, width - 320)
-    local checklist = sim:objectiveChecklist()[1]
-    love.graphics.printf(checklistText(checklist), 16, 54, width - 32)
-    love.graphics.printf(sim:missionProgressText(), width - 286, 54, 270, "right")
 end
 
 local function drawHeroRows(sim, app, x, y, w)
@@ -579,16 +1873,19 @@ local function drawHeroRows(sim, app, x, y, w)
         local rowY = y + (hero.rank - 1) * 42
         local active = hero.rank == sim.player.selectedHero
         love.graphics.setColor(active and 0.2 or 0.12, active and 0.24 or 0.14, active and 0.18 or 0.13, 1)
-        love.graphics.rectangle("fill", x, rowY, w, 36)
+        love.graphics.rectangle("fill", x, rowY, w, 40)
         love.graphics.setColor(active and 0.82 or 0.32, active and 0.72 or 0.34, active and 0.34 or 0.28, 1)
-        love.graphics.rectangle("line", x, rowY, w, 36)
+        love.graphics.rectangle("line", x, rowY, w, 40)
         love.graphics.setColor(0.94, 0.96, 0.9, 1)
-        love.graphics.print(hero.rank .. " " .. hero.name .. " / " .. hero.class .. " L" .. (hero.level or 1), x + 6, rowY + 4)
+        love.graphics.print(hero.rank .. " " .. hero.name .. " / " .. i18n.t(hero.class) .. " " .. i18n.t("L") .. (hero.level or 1), x + 6, rowY + 4)
+        drawMeter(x + 6, rowY + 20, w - 78, 6, (hero.hp or 0) / math.max(1, hero.maxHp or 1), { 0.34, 0.68, 0.42, 1 })
+        drawMeter(x + 6, rowY + 30, w - 78, 6, (hero.stress or 0) / 100, { 0.78, 0.58, 0.26, 1 })
         love.graphics.setColor(0.74, 0.82, 0.74, 1)
-        love.graphics.print("hp " .. hero.hp .. "/" .. hero.maxHp .. "  stress " .. hero.stress, x + 6, rowY + 19)
+        love.graphics.print(hero.hp .. "/" .. hero.maxHp, x + w - 66, rowY + 17)
+        love.graphics.print(i18n.t("s") .. hero.stress, x + w - 66, rowY + 28)
         if hero.deathsDoor then
             love.graphics.setColor(0.94, 0.34, 0.28, 1)
-            love.graphics.print("door", x + w - 54, rowY + 19)
+            love.graphics.print(i18n.t("door"), x + w - 54, rowY + 19)
         elseif hero.affliction then
             love.graphics.setColor(0.9, 0.46, 0.42, 1)
             love.graphics.print(hero.affliction, x + w - 74, rowY + 19)
@@ -597,9 +1894,9 @@ local function drawHeroRows(sim, app, x, y, w)
             love.graphics.print(hero.virtue, x + w - 64, rowY + 19)
         elseif hero.diseases and #hero.diseases > 0 then
             love.graphics.setColor(0.68, 0.72, 0.46, 1)
-            love.graphics.print("ill", x + w - 34, rowY + 19)
+            love.graphics.print(i18n.t("ill"), x + w - 34, rowY + 19)
         end
-        app.ui.heroButtons[#app.ui.heroButtons + 1] = { x = x, y = rowY, w = w, h = 36, rank = hero.rank }
+        app.ui.heroButtons[#app.ui.heroButtons + 1] = { x = x, y = rowY, w = w, h = 40, rank = hero.rank }
     end
 end
 
@@ -623,6 +1920,32 @@ local function firstOpenTrinketSlot(hero)
     return nil
 end
 
+local function firstVisibleTrinket(sim, hero)
+    for _, key in ipairs((hero and hero.trinkets) or {}) do
+        if key then
+            return key
+        end
+    end
+    for _, key in ipairs(Defs.trinketOrder) do
+        if ((sim.estate.trinkets or {})[key] or 0) > 0 then
+            return key
+        end
+    end
+    return nil
+end
+
+local function activeTrinketTooltipKey(app, sim, hero)
+    if love and love.mouse then
+        local mx, my = love.mouse.getPosition()
+        for _, hitbox in ipairs((app.ui and app.ui.estateActionButtons) or {}) do
+            if hitbox.tooltipKey and mx >= hitbox.x and mx <= hitbox.x + hitbox.w and my >= hitbox.y and my <= hitbox.y + hitbox.h then
+                return hitbox.tooltipKey
+            end
+        end
+    end
+    return app.trinketTooltipKey or firstVisibleTrinket(sim, hero)
+end
+
 local function selectedEstateHero(sim, app)
     local selected = app.estateHeroId and sim:heroById(app.estateHeroId)
     if selected and selected.alive then
@@ -632,17 +1955,17 @@ local function selectedEstateHero(sim, app)
 end
 
 local rosterFilters = {
-    { key = "all", label = "all" },
-    { key = "party", label = "party" },
-    { key = "recovering", label = "rest" },
-    { key = "stressed", label = "stress" },
+    { key = "all", label = i18n.t("all") },
+    { key = "party", label = i18n.t("party") },
+    { key = "recovering", label = i18n.t("rest") },
+    { key = "stressed", label = i18n.t("stress") },
 }
 
 local rosterSorts = {
-    { key = "rank", label = "rank" },
-    { key = "level", label = "lvl" },
-    { key = "stress", label = "str" },
-    { key = "name", label = "name" },
+    { key = "rank", label = i18n.t("rank") },
+    { key = "level", label = i18n.t("lvl") },
+    { key = "stress", label = i18n.t("str") },
+    { key = "name", label = i18n.t("name") },
 }
 
 local function addEstateAction(app, label, x, y, w, action)
@@ -710,7 +2033,7 @@ end
 
 local function drawRosterBrowser(sim, app, x, y, w, h)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Roster", x, y)
+    love.graphics.print(i18n.t("Roster"), x, y)
     local filter = app.rosterFilter or "all"
     local sort = app.rosterSort or "rank"
     for index, option in ipairs(rosterFilters) do
@@ -728,16 +2051,41 @@ local function drawRosterBrowser(sim, app, x, y, w, h)
         local active = selected and selected.id == hero.id
         local class = Defs.heroClass(hero.class)
         local rank = sim:heroRank(hero.id)
-        local suffix = (rank and (" R" .. rank) or "") .. " S" .. (hero.stress or 0)
+        local suffix = (rank and (" " .. i18n.t("R") .. rank) or "") .. " " .. i18n.t("S") .. (hero.stress or 0)
         love.graphics.setColor(active and 0.2 or 0.11, active and 0.23 or 0.13, active and 0.18 or 0.13, 1)
         love.graphics.rectangle("fill", x, rowY, w, 28)
         love.graphics.setColor(active and 0.72 or 0.32, active and 0.62 or 0.34, active and 0.32 or 0.28, 1)
         love.graphics.rectangle("line", x, rowY, w, 28)
         love.graphics.setColor(hero.alive and 0.9 or 0.48, hero.alive and 0.92 or 0.44, hero.alive and 0.86 or 0.42, 1)
-        love.graphics.printf(hero.name .. " / " .. class.name .. " L" .. (hero.level or 1) .. suffix, x + 4, rowY + 6, w - 8, "left")
+        love.graphics.printf(hero.name .. " / " .. i18n.t(class.name) .. " " .. i18n.t("L") .. (hero.level or 1) .. suffix, x + 4, rowY + 6, w - 8, "left")
         app.ui.rosterButtons[#app.ui.rosterButtons + 1] = { x = x, y = rowY, w = w, h = 28, heroId = hero.id }
     end
     return selected
+end
+
+local function drawPartyFormation(sim, app, x, y, w)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print(i18n.t("Party Formation"), x, y)
+    local slotW = math.floor((w - 18) / 4)
+    for rank = 1, 4 do
+        local hero = sim:heroAtRank(rank)
+        local sx = x + (rank - 1) * (slotW + 6)
+        local sy = y + 24
+        love.graphics.setColor(0.12, 0.15, 0.14, 1)
+        love.graphics.rectangle("fill", sx, sy, slotW, 52)
+        love.graphics.setColor(0.42, 0.52, 0.38, 1)
+        love.graphics.rectangle("line", sx, sy, slotW, 52)
+        love.graphics.setColor(0.88, 0.9, 0.82, 1)
+        love.graphics.printf(i18n.t("R") .. rank, sx + 4, sy + 6, slotW - 8, "center")
+        love.graphics.setColor(0.68, 0.74, 0.68, 1)
+        love.graphics.printf(hero and hero.name or i18n.t("empty"), sx + 4, sy + 28, slotW - 8, "center")
+        app.ui.partyRankSlots[#app.ui.partyRankSlots + 1] = { x = sx, y = sy, w = slotW, h = 52, rank = rank }
+    end
+    if app.dragHeroId then
+        local hero = sim:heroById(app.dragHeroId)
+        love.graphics.setColor(0.86, 0.78, 0.44, 1)
+        love.graphics.printf(i18n.t("assigning") .. " " .. (hero and hero.name or i18n.t("hero")), x, y + 84, w, "left")
+    end
 end
 
 local function drawSelectedEstateHero(sim, app, hero, x, y, w)
@@ -746,30 +2094,32 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
     end
     local class = Defs.heroClass(hero.class)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print(hero.name .. " / " .. class.name, x, y)
+    love.graphics.print(hero.name .. " / " .. i18n.t(class.name), x, y)
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
-    love.graphics.printf("hp " .. hero.hp .. "/" .. sim:maxHp(hero) .. " stress " .. hero.stress .. " weapon " .. (hero.weapon or 0) .. " armor " .. (hero.armor or 0), x, y + 18, w)
+    love.graphics.printf(i18n.t("hp") .. " " .. hero.hp .. "/" .. sim:maxHp(hero) .. " " .. i18n.t("stress") .. " " .. hero.stress .. " " .. i18n.t("weapon") .. " " .. (hero.weapon or 0) .. " " .. i18n.t("armor") .. " " .. (hero.armor or 0), x, y + 18, w)
     local nextXp = (hero.level or 1) < 5 and ((hero.level or 1) * 2) or nil
-    love.graphics.printf("rank " .. (sim:heroRank(hero.id) or "-") .. " resolve " .. sim:heroResolve(hero) .. " xp " .. (hero.xp or 0) .. (nextXp and ("/" .. nextXp) or " max"), x, y + 36, w)
-
+    love.graphics.printf(i18n.t("rank") .. " " .. (sim:heroRank(hero.id) or "-") .. " " .. i18n.t("resolve") .. " " .. sim:heroResolve(hero) .. " " .. i18n.t("xp") .. " " .. (hero.xp or 0) .. (nextXp and ("/" .. nextXp) or (" " .. i18n.t("max"))), x, y + 36, w)
     local actionY = y + 62
     for index, skillKey in ipairs(hero.skills or {}) do
-        addEstateAction(app, "train " .. index, x + ((index - 1) % 3) * 82, actionY + math.floor((index - 1) / 3) * 34, 76, { action = "upgradeSkill", heroId = hero.id, skillKey = skillKey, enabled = true })
+        addEstateAction(app, i18n.t("train") .. " " .. index, x + ((index - 1) % 3) * 82, actionY + math.floor((index - 1) / 3) * 34, 76, { action = "upgradeSkill", heroId = hero.id, skillKey = skillKey, enabled = true })
     end
-    addEstateAction(app, "weapon", x, actionY + 40, 76, { action = "upgradeGear", heroId = hero.id, kind = "weapon", enabled = true })
-    addEstateAction(app, "armor", x + 82, actionY + 40, 76, { action = "upgradeGear", heroId = hero.id, kind = "armor", enabled = true })
-    addEstateAction(app, "dismiss", x + 164, actionY + 40, 76, { action = "dismissHero", heroId = hero.id, enabled = not sim:heroRank(hero.id) and sim:livingRosterCount() > 4 and (hero.recovering or 0) <= 0 })
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print(i18n.t("Equipment"), x, actionY + 42)
+    addEstateAction(app, i18n.t("weapon L") .. (hero.weapon or 0), x, actionY + 62, 76, { action = "upgradeGear", heroId = hero.id, kind = "weapon", enabled = true })
+    addEstateAction(app, i18n.t("armor L") .. (hero.armor or 0), x + 82, actionY + 62, 76, { action = "upgradeGear", heroId = hero.id, kind = "armor", enabled = true })
+    addEstateAction(app, i18n.t("dismiss"), x + 164, actionY + 62, 76, { action = "dismissHero", heroId = hero.id, enabled = not sim:heroRank(hero.id) and sim:livingRosterCount() > 4 and (hero.recovering or 0) <= 0 })
     for index, activityKey in ipairs(Defs.estateActivityOrder) do
         local activity = Defs.estateActivity(activityKey)
-        addEstateAction(app, (activity.short or activity.name) .. " " .. activity.cost, x + ((index - 1) % 3) * 82, actionY + 74 + math.floor((index - 1) / 3) * 34, 76, { action = "recoverHero", heroId = hero.id, activityKey = activityKey, enabled = (hero.recovering or 0) <= 0 })
+        addEstateAction(app, (activity.short or activity.name) .. " " .. activity.cost, x + ((index - 1) % 3) * 82, actionY + 96 + math.floor((index - 1) / 3) * 34, 76, { action = "recoverHero", heroId = hero.id, activityKey = activityKey, enabled = (hero.recovering or 0) <= 0 })
     end
-
-    local trinketY = actionY + 118
+    local trinketY = actionY + 140
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Trinkets", x, trinketY)
+    love.graphics.print(i18n.t("Trinkets"), x, trinketY)
     for slot = 1, 2 do
         local key = hero.trinkets and hero.trinkets[slot]
-        addEstateAction(app, key and ("slot " .. slot .. " -" ) or ("slot " .. slot), x + (slot - 1) * 82, trinketY + 22, 76, { action = "unequipTrinket", heroId = hero.id, slot = slot, enabled = key ~= false and key ~= nil })
+        local trinket = key and Defs.trinket(key)
+        local label = key and ((trinket and (trinket.short or trinket.name)) or key) or (i18n.t("slot") .. " " .. slot)
+        addEstateAction(app, label, x + (slot - 1) * 82, trinketY + 22, 76, { action = "unequipTrinket", heroId = hero.id, slot = slot, tooltipKey = key, enabled = key ~= false and key ~= nil })
     end
     local openSlot = firstOpenTrinketSlot(hero)
     local trinketIndex = 0
@@ -780,14 +2130,23 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
             local trinket = Defs.trinket(key)
             local bx = x + ((trinketIndex - 1) % 3) * 82
             local by = trinketY + 56 + math.floor((trinketIndex - 1) / 3) * 34
-            addEstateAction(app, (trinket.short or key) .. ":" .. count, bx, by, 50, { action = "equipTrinket", heroId = hero.id, trinketKey = key, slot = openSlot, enabled = openSlot ~= nil })
-            addEstateAction(app, "$" .. (trinket.value or 0), bx + 52, by, 24, { action = "sellTrinket", trinketKey = key, enabled = true })
+            addEstateAction(app, (trinket.short or key) .. ":" .. count, bx, by, 50, { action = "equipTrinket", heroId = hero.id, trinketKey = key, slot = openSlot, tooltipKey = key, enabled = openSlot ~= nil })
+            addEstateAction(app, "$" .. (trinket.value or 0), bx + 52, by, 24, { action = "sellTrinket", trinketKey = key, tooltipKey = key, enabled = true })
         end
     end
-
+    local tooltipKey = activeTrinketTooltipKey(app, sim, hero)
+    if tooltipKey then
+        local tooltipLines = Render.trinketTooltip(sim, tooltipKey)
+        love.graphics.setColor(0.82, 0.78, 0.56, 1)
+        love.graphics.print(i18n.t("Set Bonus"), x, trinketY + 92)
+        love.graphics.setColor(0.68, 0.72, 0.66, 1)
+        for index = 1, math.min(3, #tooltipLines) do
+            love.graphics.printf(tooltipLines[index], x, trinketY + 108 + (index - 1) * 16, w)
+        end
+    end
     local treatY = trinketY + 126
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Treatment", x, treatY)
+    love.graphics.print(i18n.t("Treatment"), x, treatY)
     local index = 0
     for _, key in ipairs(hero.quirks or {}) do
         local quirk = Defs.quirk(key)
@@ -804,20 +2163,19 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
         addEstateAction(app, key, x + (index % 3) * 82, treatY + 22 + math.floor(index / 3) * 34, 76, { action = "treatDisease", heroId = hero.id, diseaseKey = key, enabled = true })
         index = index + 1
     end
-
     local rankY = treatY + 90
     for rank = 1, 4 do
-        addEstateAction(app, "rank " .. rank, x + (rank - 1) * 62, rankY, 56, { action = "assignParty", heroId = hero.id, rank = rank, enabled = true })
+        addEstateAction(app, i18n.t("rank") .. " " .. rank, x + (rank - 1) * 62, rankY, 56, { action = "assignParty", heroId = hero.id, rank = rank, enabled = true })
     end
 end
 
 local function drawJournalPanel(sim, x, y, w)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Journal", x, y)
+    love.graphics.print(i18n.t("Journal"), x, y)
     love.graphics.setColor(0.7, 0.74, 0.68, 1)
     local entries = sim:journalEntries()
     if #entries == 0 then
-        love.graphics.print("no documents", x, y + 20)
+        love.graphics.print(i18n.t("no documents"), x, y + 20)
         return
     end
     local first = math.max(1, #entries - 2)
@@ -827,36 +2185,115 @@ local function drawJournalPanel(sim, x, y, w)
     end
 end
 
+local cueSubtitleLabels = {
+    camp = "camp",
+    combat = "combat",
+    danger = "danger",
+    dialogue_chirp_high = "dialogue",
+    dialogue_chirp_low = "dialogue",
+    estate = "estate",
+    footstep_ash = "footstep",
+    footstep_stone = "footstep",
+    footstep_wet = "footstep",
+    hit_affliction = "affliction hit",
+    hit_blunt = "blunt hit",
+    hit_burn = "burn hit",
+    hit_slash = "slash hit",
+    hit_stress = "stress hit",
+    loot = "loot",
+    provision = "provision",
+    recovery = "recovery",
+    travel = "travel",
+    victory = "victory",
+}
+
+function Render.audioSubtitle(app)
+    if not (app and app.settings and app.settings.subtitles and app.eventFlash) then
+        return nil
+    end
+    local cue = app.eventFlash.cue
+    local label = i18n.t(cueSubtitleLabels[cue] or tostring(cue or i18n.t("audio")):gsub("_", " "))
+    local status = app.eventFlash.status or app.eventFlash.message
+    if status and status ~= "" then
+        return label .. ": " .. i18n.t(tostring(status))
+    end
+    return label
+end
+
+function Render.drawAudioSubtitle(app)
+    local text = Render.audioSubtitle(app)
+    if not text then
+        return nil
+    end
+    if not (love and love.graphics) then
+        return text
+    end
+    local width, height = love.graphics.getDimensions()
+    local w = math.min(width - 48, 560)
+    local x = (width - w) / 2
+    local y = height - 46
+    love.graphics.setColor(0.02, 0.024, 0.026, 0.86)
+    love.graphics.rectangle("fill", x, y, w, 30)
+    love.graphics.setColor(0.88, 0.9, 0.84, 1)
+    love.graphics.printf(text, x + 12, y + 8, w - 24, "center")
+    return text
+end
+
+function Render.drawHud(sim, app)
+    local width = love.graphics.getWidth()
+    panel(0, 0, width, 92, 0.9)
+    if app.eventFlash and not Render.reducedMotion(app) then
+        local color = Render.accessibleColor(app.settings, app.eventFlash.color or { 0.42, 0.54, 0.76 })
+        love.graphics.setColor(color[1], color[2], color[3], math.min(0.5, app.eventFlash.t or 0))
+        love.graphics.rectangle("fill", 0, 90, width, 2)
+    end
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print(i18n.t("Thoth") .. "  " .. i18n.t("tick") .. " " .. sim.tick .. "  " .. i18n.t(sim.mode) .. "  " .. i18n.t("pos") .. " " .. sim.player.x .. "," .. sim.player.y .. "  " .. i18n.t("view") .. " " .. ((app.viewRotation or 0) * 90), 16, 10)
+    love.graphics.printf(i18n.t("status") .. " " .. i18n.t(tostring(app.status or sim.status)), width - 286, 10, 270, "right")
+    love.graphics.printf(i18n.t("next") .. " " .. i18n.t(sim:nextStepText()), 16, 32, width - 320)
+    local checklist = sim:objectiveChecklist()[1]
+    love.graphics.printf(checklistText(checklist), 16, 54, width - 32)
+    local summary = Render.expeditionHudSummary(sim)
+    love.graphics.printf(i18n.t("room") .. " " .. tostring(summary.currentRoom), 16, 74, 260)
+    if sim.expedition then
+        love.graphics.setColor(0.9, 0.82, 0.48, 1)
+        love.graphics.printf(i18n.t("torch") .. " " .. tostring(summary.torch), width - 286, 36, 270, "right")
+        drawMeter(width - 176, 58, 160, 8, (summary.torch or 0) / 100, { 0.86, 0.58, 0.22, 1 })
+    end
+    love.graphics.setColor(0.74, 0.78, 0.72, 1)
+    love.graphics.printf(sim:missionProgressText(), width - 286, 74, 270, "right")
+end
+
 function Render.drawSidePanel(sim, app)
     local width, height = love.graphics.getDimensions()
     local x = width - 306
-    local y = 88
-    panel(x, y, 292, height - 104, 0.88)
+    local y = 104
+    panel(x, y, 292, height - 120, 0.88)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Party", x + 10, y + 10)
+    love.graphics.print(i18n.t("Party"), x + 10, y + 10)
     drawHeroRows(sim, app, x + 10, y + 34, 272)
     local detailY = y + 214
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Supplies", x + 10, detailY)
+    love.graphics.print(i18n.t("Supplies"), x + 10, detailY)
     love.graphics.setColor(0.75, 0.78, 0.72, 1)
     love.graphics.printf(sim.expedition and stacksText(sim.expedition.supplies) or "-", x + 10, detailY + 20, 272)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Loot", x + 10, detailY + 74)
+    love.graphics.print(i18n.t("Loot"), x + 10, detailY + 74)
     love.graphics.setColor(0.75, 0.78, 0.72, 1)
-    love.graphics.printf(sim.expedition and stacksText(sim.expedition.loot) or ("gold:" .. sim.estate.gold .. " heirlooms:" .. sim.estate.heirlooms), x + 10, detailY + 94, 272)
+    love.graphics.printf(sim.expedition and stacksText(sim.expedition.loot) or (i18n.t("gold") .. ":" .. sim.estate.gold .. " " .. i18n.t("heirlooms") .. ":" .. sim.estate.heirlooms), x + 10, detailY + 94, 272)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Voice", x + 10, detailY + 126)
+    love.graphics.print(i18n.t("Voice"), x + 10, detailY + 126)
     love.graphics.setColor(0.68, 0.72, 0.68, 1)
     love.graphics.printf(sim.narration or "-", x + 10, detailY + 146, 272)
     if sim.documentPopup then
         love.graphics.setColor(0.9, 0.82, 0.58, 1)
-        love.graphics.print("Document", x + 10, detailY + 166)
+        love.graphics.print(i18n.t("Document"), x + 10, detailY + 166)
         love.graphics.setColor(0.68, 0.72, 0.68, 1)
         love.graphics.printf(sim.documentPopup.title .. ": " .. sim.documentPopup.text, x + 10, detailY + 184, 272)
     end
     local logY = sim.documentPopup and (detailY + 244) or (detailY + 198)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Log", x + 10, logY)
+    love.graphics.print(i18n.t("Log"), x + 10, logY)
     love.graphics.setColor(0.72, 0.76, 0.72, 1)
     local log = sim.expedition and sim.expedition.log or sim.log
     for i = math.max(1, #log - 5), #log do
@@ -878,10 +2315,10 @@ end
 local function drawCinematicMatte(x, y, w, h, progress, scene)
     local lift = phase(progress, 0, 0.25)
     local bar = 15 + 8 * (scene and scene.intensity or 1)
-    love.graphics.setColor(0.0, 0.0, 0.0, 0.34 + 0.18 * lift)
+    love.graphics.setColor(0, 0, 0, 0.34 + 0.18 * lift)
     love.graphics.rectangle("fill", x, y, w, bar)
     love.graphics.rectangle("fill", x, y + h - bar, w, bar)
-    love.graphics.setColor(0.0, 0.0, 0.0, 0.16)
+    love.graphics.setColor(0, 0, 0, 0.16)
     love.graphics.rectangle("fill", x, y, 34, h)
     love.graphics.rectangle("fill", x + w - 34, y, 34, h)
 end
@@ -953,8 +2390,11 @@ local function drawCutsceneHud(scene, x, y, w, progress)
     end
 end
 
-local function cutsceneShake(scene, progress)
+local function cutsceneShake(scene, progress, app)
     if not scene then
+        return 0, 0
+    end
+    if not Render.screenShakeEnabled(app) then
         return 0, 0
     end
     local pulse = math.sin(progress * math.pi)
@@ -973,6 +2413,19 @@ local function cutsceneShake(scene, progress)
         return 0, -phase(progress, 0.1, 1) * 4 * intensity
     end
     return 0, 0
+end
+
+local function combatShakeOffset(app)
+    if not Render.screenShakeEnabled(app) then
+        return 0, 0
+    end
+    local remaining = app and app.combatShake or 0
+    if remaining <= 0 then
+        return 0, 0
+    end
+    local magnitude = app.combatShakeMagnitude or 4
+    local pulse = math.min(1, remaining / 0.24)
+    return math.sin(remaining * 85) * magnitude * pulse, math.cos(remaining * 63) * magnitude * 0.65 * pulse
 end
 
 local function drawSceneWall(x, y, w, h, pulse, scene)
@@ -1132,6 +2585,14 @@ local function drawImpact(scene, x, y, w, h, progress)
         if kind == "boss_strike" then
             love.graphics.circle("line", cx, y + h * 0.4, 36 + pulse * 60)
         end
+        if scene.crit then
+            love.graphics.setColor(1, 0.9, 0.42, 0.92 * pulse)
+            love.graphics.printf(i18n.t("CRIT"), cx - 70, y + h * 0.14, 140, "center")
+        end
+        if (scene.damage or 0) > 0 then
+            love.graphics.setColor(0.96, 0.88, 0.62, 0.86 * pulse)
+            love.graphics.printf("-" .. tostring(scene.damage), cx - 70, y + h * 0.62, 140, "center")
+        end
         love.graphics.setLineWidth(1)
     elseif kind == "victory" or kind == "boss_victory" or kind == "campaign_victory" then
         love.graphics.setColor(accent[1], accent[2], accent[3], 0.7 * smooth(progress))
@@ -1183,8 +2644,8 @@ local function drawImpact(scene, x, y, w, h, progress)
 end
 
 function Render.drawCutscene(sim, app)
-    local scene = app and app.cutscene
-    if not scene then
+    local currentScene = app and app.cutscene
+    if not currentScene then
         return
     end
     local width = love.graphics.getWidth()
@@ -1192,36 +2653,94 @@ function Render.drawCutscene(sim, app)
     local w = math.max(360, width - 370)
     local y = 92
     local h = 238
-    local progress = clamp01((scene.elapsed or 0) / (scene.duration or 0.75))
+    local progress = clamp01((currentScene.elapsed or 0) / (currentScene.duration or 0.75))
     local pulse = math.sin(progress * math.pi)
-    local intro = (scene.kind == "intro" or scene.kind == "boss_intro" or scene.kind == "ambush") and (1 - smooth(progress)) or 0
-    local lunge = (scene.kind == "strike" or scene.kind == "boss_strike") and pulse or 0
-    local shakeX, shakeY = cutsceneShake(scene, progress)
-    love.graphics.push()
+    local intro = (currentScene.kind == "intro" or currentScene.kind == "boss_intro" or currentScene.kind == "ambush") and (1 - smooth(progress)) or 0
+    local lunge = (currentScene.kind == "strike" or currentScene.kind == "boss_strike") and pulse or 0
+    local shakeX, shakeY = cutsceneShake(currentScene, progress, app)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
     love.graphics.translate(shakeX, shakeY)
-    drawSceneWall(x, y, w, h, pulse, scene)
-    drawSceneAtmosphere(scene, x, y, w, h, progress)
-    drawFocusBeam(scene, x, y, w, h, progress)
-    drawHeroLine(sim, y + h - 42, x + 92, scene, lunge, intro, progress)
-    drawEnemyLine(sim, y + h - 42, x + w - 96, scene, lunge, intro, progress)
-    drawImpact(scene, x, y, w, h, progress)
-    drawCinematicMatte(x, y, w, h, progress, scene)
-    drawCutsceneHud(scene, x, y, w, progress)
+    drawSceneWall(x, y, w, h, pulse, currentScene)
+    drawSceneAtmosphere(currentScene, x, y, w, h, progress)
+    drawFocusBeam(currentScene, x, y, w, h, progress)
+    drawHeroLine(sim, y + h - 42, x + 92, currentScene, lunge, intro, progress)
+    drawEnemyLine(sim, y + h - 42, x + w - 96, currentScene, lunge, intro, progress)
+    drawImpact(currentScene, x, y, w, h, progress)
+    drawCinematicMatte(x, y, w, h, progress, currentScene)
+    drawCutsceneHud(currentScene, x, y, w, progress)
     love.graphics.setColor(0.02, 0.025, 0.026, 0.72)
     love.graphics.rectangle("fill", x, y + h - 34, w, 34)
     love.graphics.setColor(0.93, 0.9, 0.78, 1)
-    love.graphics.printf(scene.title or "", x + 18, y + h - 25, w - 36, "center")
-    setSceneColor(scene, 0.92, 1.05)
+    love.graphics.printf(currentScene.title or "", x + 18, y + h - 25, w - 36, "center")
+    setSceneColor(currentScene, 0.92, 1.05)
     love.graphics.rectangle("line", x, y, w, h)
     love.graphics.pop()
+end
+
+function Render.damageNumberLabel(number)
+    local kind = number and number.kind or "hp"
+    local amount = tostring(number and number.amount or 0)
+    local prefix = kind == "heal" and "+" or "-"
+    local label = prefix .. amount
+    if kind == "stress" then
+        label = label .. " " .. i18n.t("stress")
+    end
+    if number and number.crit then
+        label = label .. " " .. i18n.t("CRIT")
+    end
+    return label
+end
+
+local function damageNumberAnchor(sim, number)
+    local width = love.graphics.getWidth()
+    local x = 28
+    local w = math.max(360, width - 370)
+    local y = 92
+    local h = 238
+    local floorY = y + h - 42
+    local rank = clamp(tonumber(number and number.rank) or 1, 1, 4)
+    if number and number.side == "ally" then
+        return x + 92 + (rank - 1) * 56, floorY - 94
+    end
+    local enemy = sim and sim.combat and sim:enemyAtRank(rank) or nil
+    local def = enemy and Defs.enemy(enemy.kind) or nil
+    local spacing = def and def.boss and 72 or 56
+    return x + w - 96 - (rank - 1) * spacing, floorY - 94
+end
+
+function Render.drawDamageNumbers(sim, app)
+    local numbers = app and app.damageNumbers
+    if not numbers or #numbers == 0 then
+        return 0
+    end
+    if not (love and love.graphics) then
+        return #numbers
+    end
+    for _, number in ipairs(numbers) do
+        local life = math.max(0.001, number.duration or 0.65)
+        local progress = 1 - clamp01((number.t or 0) / life)
+        local x, y = damageNumberAnchor(sim, number)
+        y = y - progress * 28
+        local alpha = clamp01((number.t or 0) / math.min(0.25, life))
+        if number.kind == "stress" then
+            love.graphics.setColor(0.72, 0.46, 0.86, alpha)
+        elseif number.crit then
+            love.graphics.setColor(1, 0.9, 0.36, alpha)
+        else
+            love.graphics.setColor(0.95, 0.78, 0.58, alpha)
+        end
+        love.graphics.printf(Render.damageNumberLabel(number), x - 58, y, 116, "center")
+    end
+    return #numbers
 end
 
 function Render.drawCombatStage(sim, app)
     if app and app.cutscene then
         return
     end
-    local scene = Render.idleCombatScene(sim)
-    if not scene then
+    local currentScene = Render.idleCombatScene(sim)
+    if not currentScene then
         return
     end
     local width = love.graphics.getWidth()
@@ -1229,16 +2748,19 @@ function Render.drawCombatStage(sim, app)
     local w = math.max(360, width - 370)
     local y = 92
     local h = 238
-    drawSceneWall(x, y, w, h, 0.08, scene)
-    drawSceneAtmosphere(scene, x, y, w, h, 0.15)
-    drawHeroLine(sim, y + h - 42, x + 92, scene, 0, 0, 0)
-    drawEnemyLine(sim, y + h - 42, x + w - 96, scene, 0, 0, 0)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    drawSceneWall(x, y, w, h, 0.08, currentScene)
+    drawSceneAtmosphere(currentScene, x, y, w, h, 0.15)
+    drawHeroLine(sim, y + h - 42, x + 92, currentScene, 0, 0, 0)
+    drawEnemyLine(sim, y + h - 42, x + w - 96, currentScene, 0, 0, 0)
     love.graphics.setColor(0.02, 0.025, 0.026, 0.62)
     love.graphics.rectangle("fill", x, y + h - 34, w, 34)
     love.graphics.setColor(0.82, 0.84, 0.76, 0.92)
-    love.graphics.printf(scene.title or "", x + 18, y + h - 25, w - 36, "center")
+    love.graphics.printf(currentScene.title or "", x + 18, y + h - 25, w - 36, "center")
     love.graphics.setColor(0.28, 0.34, 0.3, 0.9)
     love.graphics.rectangle("line", x, y, w, h)
+    love.graphics.pop()
 end
 
 function Render.drawCombatOverlay(sim, app)
@@ -1251,9 +2773,20 @@ function Render.drawCombatOverlay(sim, app)
     local w = width - 370
     panel(x, y, w, 186, 0.93)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Combat  round " .. sim.combat.round, x + 10, y + 8)
+    love.graphics.print(i18n.t("Combat") .. "  " .. i18n.t("round") .. " " .. sim.combat.round, x + 10, y + 8)
     local active = sim:activeHero()
-    love.graphics.print(active and (active.name .. " acts") or "enemy turn", x + 170, y + 8)
+    love.graphics.print(active and (active.name .. " " .. i18n.t("acts")) or i18n.t("enemy turn"), x + 170, y + 8)
+    local summary = Render.combatHudSummary(sim, app)
+    local turnLabels = {}
+    for _, turn in ipairs(summary.turns) do
+        turnLabels[#turnLabels + 1] = (turn.active and ">" or "") .. turn.label
+    end
+    love.graphics.setColor(0.68, 0.72, 0.66, 1)
+    love.graphics.printf(i18n.t("turn") .. " " .. table.concat(turnLabels, "  "), x + 10, y + 24, w - 20)
+    if summary.skill then
+        love.graphics.setColor(0.9, 0.72, 0.42, 1)
+        love.graphics.printf(i18n.t("target") .. " " .. tostring(summary.target or "-") .. " " .. i18n.t("for") .. " " .. tostring(summary.skill), x + w - 310, y + 8, 292, "right")
+    end
     for rank = 1, 4 do
         local hero = sim:heroAtRank(rank)
         local hx = x + 18 + (rank - 1) * 92
@@ -1262,9 +2795,10 @@ function Render.drawCombatOverlay(sim, app)
         love.graphics.setColor(0.42, 0.52, 0.38, 1)
         love.graphics.rectangle("line", hx, y + 38, 82, 58)
         love.graphics.setColor(0.9, 0.92, 0.86, 1)
+        love.graphics.print(i18n.t("R") .. rank, hx + 4, y + 42)
         love.graphics.printf(hero and hero.name or "-", hx + 4, y + 44, 74, "center")
         if hero then
-            love.graphics.printf(hero.hp .. "hp " .. hero.stress .. "s", hx + 4, y + 66, 74, "center")
+            love.graphics.printf(hero.hp .. i18n.t("hp") .. " " .. hero.stress .. i18n.t("s"), hx + 4, y + 66, 74, "center")
             app.ui.heroButtons[#app.ui.heroButtons + 1] = { x = hx, y = y + 38, w = 82, h = 58, rank = rank, side = "ally" }
         end
     end
@@ -1276,9 +2810,10 @@ function Render.drawCombatOverlay(sim, app)
         love.graphics.setColor(0.58, 0.28, 0.28, 1)
         love.graphics.rectangle("line", ex, y + 38, 82, 58)
         love.graphics.setColor(0.94, 0.86, 0.82, 1)
+        love.graphics.print(i18n.t("E") .. rank, ex + 4, y + 42)
         love.graphics.printf(enemy and Defs.enemy(enemy.kind).name or "-", ex + 4, y + 44, 74, "center")
         if enemy then
-            love.graphics.printf(enemy.hp .. "hp", ex + 4, y + 66, 74, "center")
+            love.graphics.printf(enemy.hp .. i18n.t("hp"), ex + 4, y + 66, 74, "center")
             app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { x = ex, y = y + 38, w = 82, h = 58, rank = rank, side = "enemy" }
             for index, part in ipairs(enemy.parts or {}) do
                 if index <= 2 then
@@ -1292,7 +2827,7 @@ function Render.drawCombatOverlay(sim, app)
                     love.graphics.setColor(part.disabled and 0.42 or 0.96, part.disabled and 0.4 or 0.82, part.disabled and 0.4 or 0.82, 1)
                     love.graphics.printf(string.sub(part.name or part.key, 1, 4) .. " " .. tostring(part.hp or 0), px + 1, py + 3, pw - 2, "center")
                     if not part.disabled then
-                        app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { x = px, y = py, w = pw, h = 16, rank = rank, side = "enemy", partKey = part.key }
+                        app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { x = px, y = py, w = pw, h = 16, rank = rank, side = "enemy", partKey = part.key, hint = part.hint }
                     end
                 end
             end
@@ -1314,27 +2849,50 @@ function Render.drawCombatOverlay(sim, app)
     end
 end
 
-function Render.drawCampOverlay(sim)
+function Render.drawCampOverlay(sim, app)
     if not (sim.expedition and sim.expedition.camping) then
         return
     end
     local width, height = love.graphics.getDimensions()
     local x = 28
-    local y = height - 164
+    local y = height - 238
     local w = width - 370
-    panel(x, y, w, 144, 0.93)
+    panel(x, y, w, 218, 0.93)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Camp  respite " .. sim.expedition.camping.respite, x + 10, y + 8)
-    local skillY = y + 44
+    love.graphics.print(i18n.t("Camp") .. "  " .. i18n.t("respite") .. " " .. sim.expedition.camping.respite, x + 10, y + 8)
+    local summary = Render.campHudSummary(sim, app)
+    if summary.pendingSkill then
+        love.graphics.setColor(0.9, 0.72, 0.42, 1)
+        love.graphics.printf(i18n.t("assign") .. " " .. tostring(summary.pendingSkill), x + w - 260, y + 8, 240, "right")
+    end
+    local skillY = y + 42
     for _, skill in ipairs(sim:availableCampSkills()) do
-        local sx = x + 12 + (skill.index - 1) * 150
+        local sx = x + 12 + ((skill.index - 1) % 4) * 150
+        local sy = skillY + math.floor((skill.index - 1) / 4) * 58
         love.graphics.setColor(skill.usable and 0.18 or 0.1, skill.usable and 0.22 or 0.1, skill.usable and 0.2 or 0.1, 1)
-        love.graphics.rectangle("fill", sx, skillY, 140, 54)
+        love.graphics.rectangle("fill", sx, sy, 140, 50)
         love.graphics.setColor(skill.usable and 0.74 or 0.34, skill.usable and 0.66 or 0.34, skill.usable and 0.36 or 0.32, 1)
-        love.graphics.rectangle("line", sx, skillY, 140, 54)
+        love.graphics.rectangle("line", sx, sy, 140, 50)
         love.graphics.setColor(skill.usable and 0.94 or 0.46, skill.usable and 0.96 or 0.46, skill.usable and 0.9 or 0.46, 1)
-        love.graphics.printf(skill.index .. " " .. skill.name, sx + 6, skillY + 8, 128, "center")
-        love.graphics.printf("cost " .. skill.cost, sx + 6, skillY + 30, 128, "center")
+        love.graphics.printf(skill.index .. " " .. skill.name, sx + 6, sy + 7, 128, "center")
+        love.graphics.printf(i18n.t("cost") .. " " .. skill.cost, sx + 6, sy + 28, 128, "center")
+        if skill.usable then
+            local def = Defs.campSkill(skill.key)
+            app.ui.campSkillButtons[#app.ui.campSkillButtons + 1] = { x = sx, y = sy, w = 140, h = 50, skillKey = skill.key, target = def and def.target or "party" }
+        end
+    end
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print(i18n.t("Assign Hero"), x + 10, y + 162)
+    for _, hero in ipairs(sim:partyState()) do
+        local hx = x + 100 + (hero.rank - 1) * 104
+        local hy = y + 154
+        love.graphics.setColor(0.12, 0.15, 0.14, 1)
+        love.graphics.rectangle("fill", hx, hy, 96, 40)
+        love.graphics.setColor(0.42, 0.52, 0.38, 1)
+        love.graphics.rectangle("line", hx, hy, 96, 40)
+        love.graphics.setColor(0.88, 0.9, 0.82, 1)
+        love.graphics.printf(i18n.t("R") .. hero.rank .. " " .. hero.name, hx + 4, hy + 13, 88, "center")
+        app.ui.campHeroButtons[#app.ui.campHeroButtons + 1] = { x = hx, y = hy, w = 96, h = 40, rank = hero.rank }
     end
 end
 
@@ -1346,8 +2904,8 @@ function Render.drawEstatePanel(sim, app)
     local y = 92
     panel(x, y, 720, 610, 0.92)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Estate", x + 10, y + 10)
-    love.graphics.print("week " .. (sim.estate.week or 1) .. "  gold " .. sim.estate.gold .. "  heirlooms " .. sim.estate.heirlooms, x + 10, y + 34)
+    love.graphics.print(i18n.t("Estate"), x + 10, y + 10)
+    love.graphics.print(i18n.t("week") .. " " .. (sim.estate.week or 1) .. "  " .. i18n.t("gold") .. " " .. sim.estate.gold .. "  " .. i18n.t("heirlooms") .. " " .. sim.estate.heirlooms, x + 10, y + 34)
     local campaign = sim.estate.campaign or {}
     local bosses = 0
     for _, key in ipairs(Defs.locationOrder) do
@@ -1355,23 +2913,33 @@ function Render.drawEstatePanel(sim, app)
             bosses = bosses + 1
         end
     end
-    local campaignStatus = campaign.lost and ("lost " .. (campaign.lossReason or "")) or (campaign.victory and "victory" or ("bosses " .. bosses .. "/" .. #Defs.locationOrder))
-    love.graphics.print("renown " .. (campaign.renown or 0) .. "  dread " .. (campaign.dread or 0) .. "  " .. campaignStatus, x + 390, y + 34)
+    local campaignStatus = campaign.lost and (i18n.t("lost") .. " " .. (campaign.lossReason or "")) or (campaign.victory and i18n.t("victory") or (i18n.t("bosses") .. " " .. bosses .. "/" .. #Defs.locationOrder))
+    love.graphics.print(i18n.t("renown") .. " " .. (campaign.renown or 0) .. "  " .. i18n.t("dread") .. " " .. (campaign.dread or 0) .. "  " .. campaignStatus, x + 390, y + 34)
     drawJournalPanel(sim, x + 390, y + 58, 320)
+    addEstateAction(app, i18n.t("journal"), x + 622, y + 56, 88, { action = "openJournal", enabled = true })
     local timerCopy = sim:panelCopy("timer_panel_copy")
     local factionCopy = sim:panelCopy("faction_panel_copy")
     love.graphics.setColor(0.62, 0.66, 0.58, 1)
     love.graphics.printf((timerCopy and timerCopy.body or "") .. " " .. (factionCopy and factionCopy.body or ""), x + 390, y + 128, 320)
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
-    love.graphics.print("roster " .. sim:livingRosterCount() .. "/" .. sim:rosterLimit() .. "  recruits " .. #sim.estate.recruits, x + 10, y + 58)
+    love.graphics.print(i18n.t("roster") .. " " .. sim:livingRosterCount() .. "/" .. sim:rosterLimit() .. "  " .. i18n.t("recruits") .. " " .. #sim.estate.recruits, x + 10, y + 58)
     if sim.estate.currentEvent then
-        love.graphics.print("event " .. Defs.townEvent(sim.estate.currentEvent).name, x + 220, y + 58)
+        local event = Defs.townEvent(sim.estate.currentEvent)
+        love.graphics.printf(i18n.t("event") .. " " .. event.name, x + 220, y + 58, 150)
+        love.graphics.setColor(0.62, 0.66, 0.58, 1)
+        love.graphics.printf(event.effect or event.summary or "", x + 220, y + 72, 150)
     end
-    local upgrades = {}
-    for _, key in ipairs(Defs.estateBuildingOrder) do
-        upgrades[#upgrades + 1] = key .. ":" .. sim:buildingLevel(key)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print(i18n.t("Buildings"), x + 10, y + 82)
+    for index, key in ipairs(Defs.estateBuildingOrder) do
+        local building = Defs.estateBuilding(key)
+        local level = sim:buildingLevel(key)
+        local cost = (building.heirloomCost or 0) * (level + 1)
+        local bx = x + 10 + ((index - 1) % 2) * 154
+        local by = y + 104 + math.floor((index - 1) / 2) * 34
+        local label = string.sub(building.name, 1, 10) .. " " .. level .. "/" .. building.maxLevel .. " " .. cost .. "h"
+        addEstateAction(app, label, bx, by, 148, { action = "upgradeBuilding", buildingKey = key, enabled = level < building.maxLevel and sim.estate.heirlooms >= cost })
     end
-    love.graphics.printf(table.concat(upgrades, "  "), x + 10, y + 78, 312)
     local trinkets = {}
     for _, key in ipairs(Defs.trinketOrder) do
         local count = (sim.estate.trinkets or {})[key] or 0
@@ -1379,33 +2947,36 @@ function Render.drawEstatePanel(sim, app)
             trinkets[#trinkets + 1] = key .. ":" .. count
         end
     end
-    love.graphics.printf(#trinkets > 0 and table.concat(trinkets, "  ") or "no trinkets", x + 10, y + 100, 312)
-    love.graphics.print("Market", x + 10, y + 122)
+    love.graphics.printf(#trinkets > 0 and table.concat(trinkets, "  ") or i18n.t("no trinkets"), x + 10, y + 174, 312)
+    love.graphics.print(i18n.t("Market"), x + 10, y + 196)
     for index, offer in ipairs(sim.estate.trinketStock or {}) do
         local trinket = Defs.trinket(offer.trinket)
-        addEstateAction(app, (trinket.short or offer.trinket) .. " " .. offer.price, x + 70 + (index - 1) * 112, y + 116, 104, { action = "buyTrinket", stockIndex = index, enabled = sim.estate.gold >= (offer.price or 0) })
+        addEstateAction(app, (trinket.short or offer.trinket) .. " " .. offer.price, x + 70 + (index - 1) * 112, y + 190, 104, { action = "buyTrinket", stockIndex = index, enabled = sim.estate.gold >= (offer.price or 0) })
     end
-    love.graphics.printf("cart " .. stacksText(sim.estate.provisionCart), x + 10, y + 146, 400)
+    love.graphics.printf(i18n.t("cart") .. " " .. stacksText(sim.estate.provisionCart), x + 10, y + 220, 400)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Missions", x + 10, y + 174)
+    love.graphics.print(i18n.t("Missions"), x + 10, y + 246)
     for index, key in ipairs(sim:availableMissionKeys()) do
         local mission = Defs.mission(key)
         local bx = x + 10 + ((index - 1) % 2) * 205
-        local by = y + 196 + math.floor((index - 1) / 2) * 44
+        local by = y + 268 + math.floor((index - 1) / 2) * 44
         love.graphics.setColor(0.13, 0.16, 0.15, 1)
         love.graphics.rectangle("fill", bx, by, 196, 38)
         love.graphics.setColor(0.42, 0.48, 0.36, 1)
         love.graphics.rectangle("line", bx, by, 196, 38)
         love.graphics.setColor(0.86, 0.88, 0.8, 1)
-        love.graphics.printf((mission.difficulty or "mission") .. " " .. mission.kind, bx + 4, by + 5, 188, "center")
+        love.graphics.printf((mission.difficulty or i18n.t("mission")) .. " " .. mission.kind, bx + 4, by + 5, 188, "center")
         local location = Defs.location(mission.location)
         love.graphics.setColor(0.58, 0.62, 0.55, 1)
-        love.graphics.printf("kit " .. compactStacks(location and location.provisions), bx + 4, by + 21, 188, "center")
+        love.graphics.printf(i18n.t("kit") .. " " .. compactStacks(location and location.provisions), bx + 4, by + 21, 188, "center")
         app.ui.missionButtons[#app.ui.missionButtons + 1] = { x = bx, y = by, w = 196, h = 38, missionKey = key }
     end
-    local recruitY = y + 380
+    drawPartyFormation(sim, app, x + 10, y + 356, 410)
+    local recruitY = y + 452
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Recruits", x + 10, recruitY)
+    love.graphics.print(i18n.t("Recruits"), x + 10, recruitY)
+    love.graphics.setColor(0.58, 0.62, 0.55, 1)
+    love.graphics.printf(Render.classUnlockSummary(sim).line, x + 92, recruitY, 328, "right")
     for index, recruit in ipairs(sim.estate.recruits or {}) do
         local bx = x + 10 + ((index - 1) % 3) * 136
         local by = recruitY + 24 + math.floor((index - 1) / 3) * 34
@@ -1417,9 +2988,9 @@ function Render.drawEstatePanel(sim, app)
         love.graphics.printf(recruit.name .. " " .. Defs.heroClass(recruit.class).name, bx + 4, by + 7, 120, "center")
         app.ui.recruitButtons[#app.ui.recruitButtons + 1] = { x = bx, y = by, w = 128, h = 28, recruitIndex = index }
     end
-    local provisionY = y + 472
+    local provisionY = y + 544
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Provisions", x + 10, provisionY)
+    love.graphics.print(i18n.t("Provisions"), x + 10, provisionY)
     local provisionItems = {}
     for _, itemKey in ipairs(Defs.itemOrder) do
         if Defs.item(itemKey).provision then
@@ -1443,16 +3014,35 @@ function Render.drawEstatePanel(sim, app)
 end
 
 function Render.draw(sim, app)
-    love.graphics.clear(0.055, 0.058, 0.065, 1)
     Render.prepareUi(app)
+    if not (love and love.graphics) then
+        Render.drawWorld(sim, app)
+        return
+    end
+    love.graphics.clear(0.055, 0.058, 0.065, 1)
     Render.drawWorld(sim, app)
+    love.graphics.push("all")
+    local shakeX, shakeY = combatShakeOffset(app)
+    love.graphics.translate(shakeX, shakeY)
+    love.graphics.setDepthMode()
     Render.drawHud(sim, app)
     Render.drawSidePanel(sim, app)
     Render.drawCombatStage(sim, app)
     Render.drawCombatOverlay(sim, app)
-    Render.drawCampOverlay(sim)
+    Render.drawCampOverlay(sim, app)
     Render.drawEstatePanel(sim, app)
+    Render.drawCurioResult(app)
+    Render.drawCurioModal(app)
     Render.drawCutscene(sim, app)
+    Render.drawDamageNumbers(sim, app)
+    Render.drawKeyboardFocus(app)
+    Render.drawTutorial(app)
+    Render.drawPauseMenu(app)
+    Render.drawConfirmDialog(app)
+    Render.drawToasts(app)
+    Render.drawAudioSubtitle(app)
+    Render.drawUiMicroAnimations(app)
+    love.graphics.pop()
 end
 
 return Render
