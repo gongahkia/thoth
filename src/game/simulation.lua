@@ -4392,6 +4392,9 @@ function Simulation:objectsInRect(minX, maxX, minY, maxY, z)
                 tile = object.tile,
                 curio = tileDef.curio,
                 encounter = tileDef.encounter,
+                hiddenBehind = object.hiddenBehind == true,
+                revealRotation = object.revealRotation,
+                revealRotations = object.revealRotations,
             }
         end
     end

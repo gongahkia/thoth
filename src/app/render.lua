@@ -576,6 +576,103 @@ function Render.screenToWorld(view, x, y)
     return math.floor(view.originX + dx + 0.5), math.floor(view.originY + dy + 0.5)
 end
 
+function Render.tileHeight(tileDef)
+    return math.max(0, tonumber(tileDef and tileDef.height) or 0)
+end
+
+function Render.isOccluderTile(tileDef)
+    return tileDef and (tileDef.occluder == true or Render.tileHeight(tileDef) > 0)
+end
+
+function Render.occlusionOffsets(rotation)
+    rotation = (rotation or 0) % 4
+    if rotation == 1 then
+        return { { -1, -1 }, { -1, 0 }, { 0, -1 } }
+    end
+    if rotation == 2 then
+        return { { -1, 1 }, { -1, 0 }, { 0, 1 } }
+    end
+    if rotation == 3 then
+        return { { 1, 1 }, { 1, 0 }, { 0, 1 } }
+    end
+    return { { 1, -1 }, { 1, 0 }, { 0, -1 } }
+end
+
+local function rotationAllowed(value, allowed)
+    if allowed == nil then
+        return true
+    end
+    value = (value or 0) % 4
+    if type(allowed) == "number" then
+        return value == (allowed % 4)
+    end
+    for _, entry in ipairs(allowed or {}) do
+        if value == (entry % 4) then
+            return true
+        end
+    end
+    return false
+end
+
+local function objectRevealRotations(object, tileDef)
+    if object and object.revealRotations then
+        return object.revealRotations
+    end
+    if object and object.revealRotation ~= nil then
+        return object.revealRotation
+    end
+    if tileDef and tileDef.revealRotations then
+        return tileDef.revealRotations
+    end
+    return tileDef and tileDef.revealRotation
+end
+
+function Render.occluderAt(sim, x, y, z)
+    if not (sim and sim.world) then
+        return false
+    end
+    local tile = sim.world:peekTile(x, y, z or 0)
+    local tileDef = tile and Defs.tile(tile.id)
+    return Render.isOccluderTile(tileDef), tileDef, tile
+end
+
+function Render.concealingOccluder(sim, app, object)
+    if not (object and object.x and object.y) then
+        return nil
+    end
+    local rotation = (app and app.viewRotation) or 0
+    for _, offset in ipairs(Render.occlusionOffsets(rotation)) do
+        local ox = object.x + offset[1]
+        local oy = object.y + offset[2]
+        local occludes, tileDef, tile = Render.occluderAt(sim, ox, oy, object.z or 0)
+        if occludes then
+            return { x = ox, y = oy, z = object.z or 0, tile = tile and tile.id, height = Render.tileHeight(tileDef) }
+        end
+    end
+    return nil
+end
+
+function Render.objectRevealState(sim, app, object)
+    local tileDef = object and object.tile and Defs.tile(object.tile) or nil
+    local rotation = (app and app.viewRotation) or 0
+    local allowed = objectRevealRotations(object, tileDef)
+    local puzzleHidden = not rotationAllowed(rotation, allowed)
+    local occluder = Render.concealingOccluder(sim, app, object)
+    local architectureCandidate = (object and object.hiddenBehind == true) or (tileDef and tileDef.hiddenBehind == true)
+    local architectureHidden = architectureCandidate and occluder ~= nil or false
+    local hidden = puzzleHidden or architectureHidden
+    return {
+        visible = not hidden,
+        hidden = hidden,
+        alpha = hidden and 0.18 or 1,
+        puzzleHidden = puzzleHidden,
+        architectureHidden = architectureHidden,
+        occluder = occluder,
+        rotation = rotation % 4,
+        rotationPuzzle = tileDef and tileDef.rotationPuzzle == true,
+    }
+end
+
 local function newSolidImage(r, g, b, a)
     local data = love.image.newImageData(1, 1)
     data:setPixel(0, 0, r, g, b, a or 1)
@@ -616,6 +713,7 @@ function Render.load()
     state.headless = not (love and love.graphics)
     state.assets = {}
     state.fonts = {}
+    state.quads = {}
     state.g3d = nil
     state.loadError = nil
     if state.headless then
@@ -664,6 +762,30 @@ local function pushTileQuad(vertices, x, y, z, u)
     vertices[#vertices + 1] = a
     vertices[#vertices + 1] = c
     vertices[#vertices + 1] = d
+end
+
+local function pushFace(vertices, a, b, c, d, u)
+    vertices[#vertices + 1] = tileVertex(a[1], a[2], a[3], u)
+    vertices[#vertices + 1] = tileVertex(b[1], b[2], b[3], u)
+    vertices[#vertices + 1] = tileVertex(c[1], c[2], c[3], u)
+    vertices[#vertices + 1] = tileVertex(a[1], a[2], a[3], u)
+    vertices[#vertices + 1] = tileVertex(c[1], c[2], c[3], u)
+    vertices[#vertices + 1] = tileVertex(d[1], d[2], d[3], u)
+end
+
+local function pushBox(vertices, x, y, z, height, u)
+    local gap = 0.035
+    local l = x + gap
+    local r = x + 1 - gap
+    local t = y + gap
+    local b = y + 1 - gap
+    local floor = z or 0
+    local top = floor + height
+    pushFace(vertices, { l, t, top }, { r, t, top }, { r, b, top }, { l, b, top }, u)
+    pushFace(vertices, { l, t, floor }, { l, t, top }, { r, t, top }, { r, t, floor }, u)
+    pushFace(vertices, { r, t, floor }, { r, t, top }, { r, b, top }, { r, b, floor }, u)
+    pushFace(vertices, { r, b, floor }, { r, b, top }, { l, b, top }, { l, b, floor }, u)
+    pushFace(vertices, { l, b, floor }, { l, b, top }, { l, t, top }, { l, t, floor }, u)
 end
 
 local function torchLevel(sim)
@@ -731,8 +853,51 @@ local function buildWorldTileModel(sim, profile, settings)
     return model
 end
 
+local function exposedArchitecture(sim, x, y, z, tileDef)
+    if not Render.isOccluderTile(tileDef) then
+        return false
+    end
+    local neighbors = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
+    for _, offset in ipairs(neighbors) do
+        local tile = sim.world:peekTile(x + offset[1], y + offset[2], z)
+        local def = tile and Defs.tile(tile.id)
+        if def and (def.walkable == true or not Render.isOccluderTile(def)) then
+            return true
+        end
+    end
+    return false
+end
+
+local function buildArchitectureModel(sim, profile, settings)
+    local vertices = {}
+    local entries = {}
+    local z = sim.player.z or 0
+    for y = sim.player.y - visibleRadius, sim.player.y + visibleRadius do
+        for x = sim.player.x - visibleRadius, sim.player.x + visibleRadius do
+            local tile = sim.world:peekTile(x, y, z)
+            local tileDef = tile and Defs.tile(tile.id)
+            if exposedArchitecture(sim, x, y, z, tileDef) then
+                entries[#entries + 1] = { x = x, y = y, z = z, def = tileDef }
+            end
+        end
+    end
+    if #entries == 0 then
+        return nil, 0
+    end
+    local data = love.image.newImageData(#entries, 1)
+    for index, entry in ipairs(entries) do
+        local light = lightAt(sim, entry.x, entry.y, profile) * 0.92
+        data:setPixel(index - 1, 0, litTileColor(entry.def.color or { 255, 255, 255 }, light, settings))
+        pushBox(vertices, entry.x, entry.y, entry.z, Render.tileHeight(entry.def), (index - 0.5) / #entries)
+    end
+    local model = state.g3d.newModel(vertices, newImageFromData(data))
+    model:makeNormals()
+    return model, #entries
+end
+
 local function applyCamera(sim, app)
-    local yaw = baseYaw + ((app.viewRotation or 0) % 4) * math.pi / 2
+    local visualRotation = app.viewRotationVisual or app.viewRotation or 0
+    local yaw = baseYaw + visualRotation * math.pi / 2
     local horizontal = math.cos(cameraPitch) * cameraDistance
     local targetX = sim.player.x + 0.5
     local targetY = sim.player.y + 0.5
@@ -758,6 +923,28 @@ local function atlasFrameUv(frame)
     local v0 = row / rows
     local v1 = (row + 1) / rows
     return u0, v0, u1, v1
+end
+
+local function atlasFrameQuad(frame)
+    if not (love and love.graphics and state.assets and state.assets.spriteAtlas) then
+        return nil
+    end
+    local image = state.assets.spriteAtlas
+    local meta = state.assets.spriteAtlasMeta or defaultAtlasMeta
+    local columns = meta.columns or atlasColumns
+    local frames = meta.frames or columns * (meta.rows or atlasRows)
+    local index = (frame or 0) % frames
+    state.quads = state.quads or {}
+    if state.quads[index] then
+        return state.quads[index].quad, state.quads[index].w, state.quads[index].h
+    end
+    local frameW = meta.frameWidth or math.floor(image:getWidth() / columns)
+    local frameH = meta.frameHeight or math.floor(image:getHeight() / (meta.rows or atlasRows))
+    local col = index % columns
+    local row = math.floor(index / columns)
+    local quad = love.graphics.newQuad(col * frameW, row * frameH, frameW, frameH, image:getWidth(), image:getHeight())
+    state.quads[index] = { quad = quad, w = frameW, h = frameH }
+    return quad, frameW, frameH
 end
 
 local classNameToKey = {
@@ -791,6 +978,10 @@ local function heroFrame(hero)
     return namedAtlasFrame(entry and entry.frame, meta.fallbacks and meta.fallbacks.hero)
 end
 
+function Render.cutsceneSpriteFrameForHero(hero)
+    return heroFrame(hero)
+end
+
 local function billboardVerts(width, height, frame)
     local u0, v0, u1, v1 = atlasFrameUv(frame)
     local halfWidth = width / 2
@@ -815,6 +1006,13 @@ end
 local function drawLitModel(model, light)
     love.graphics.push("all")
     love.graphics.setColor(light, light, light, 1)
+    model:draw()
+    love.graphics.pop()
+end
+
+local function drawTintedModel(model, color, light, alpha)
+    love.graphics.push("all")
+    love.graphics.setColor((color[1] or 1) * light, (color[2] or 1) * light, (color[3] or 1) * light, alpha or color[4] or 1)
     model:draw()
     love.graphics.pop()
 end
@@ -848,6 +1046,10 @@ local function enemyFrame(objectType, enemyKind)
     end
     local fallback = meta.fallbacks and (meta.fallbacks[objectType] or meta.fallbacks.threat)
     return namedAtlasFrame(fallback, meta.fallbacks and meta.fallbacks.threat)
+end
+
+function Render.cutsceneSpriteFrameForEnemy(enemyKind, objectType)
+    return enemyFrame(objectType or "threat", enemyKind)
 end
 
 local function hasRole(def, role)
@@ -912,30 +1114,85 @@ local function isEnemyObject(object)
     return object.type == "threat" or object.type == "alpha" or object.type == "encounter" or object.type == "boss"
 end
 
-local function drawWorldEnemyBillboards(sim, yaw, profile)
+local function drawWorldEnemyBillboards(sim, app, yaw, profile)
     if not sim.objectsInRect then
-        return
+        return 0, 0
     end
     local minX = sim.player.x - visibleRadius
     local maxX = sim.player.x + visibleRadius
     local minY = sim.player.y - visibleRadius
     local maxY = sim.player.y + visibleRadius
+    local visible = 0
+    local hidden = 0
     for _, object in ipairs(sim:objectsInRect(minX, maxX, minY, maxY, sim.player.z or 0)) do
         if isEnemyObject(object) then
+            local reveal = Render.objectRevealState(sim, app, object)
             local width, height = enemySize(object.type)
             local model = newBillboard(width, height, enemyFrame(object.type), object.x + 0.5, object.y + 0.5, object.z or 0, yaw, enemyTexture(object.type))
-            drawLitModel(model, lightAt(sim, object.x, object.y, profile))
+            if reveal.visible then
+                visible = visible + 1
+                drawLitModel(model, lightAt(sim, object.x, object.y, profile))
+            elseif reveal.alpha > 0 then
+                hidden = hidden + 1
+                drawTintedModel(model, { 0.28, 0.3, 0.32, 1 }, lightAt(sim, object.x, object.y, profile), reveal.alpha)
+            end
         end
     end
+    return visible, hidden
 end
 
-local function drawEnemyBillboards(sim, yaw, profile)
+local function objectMarkerColor(object)
+    local tileDef = object and object.tile and Defs.tile(object.tile) or nil
+    local rgb = tileDef and tileDef.color or { 180, 160, 96 }
+    if object.type == "exit" then
+        rgb = { 70, 150, 170 }
+    elseif object.type == "boss" or object.type == "encounter" then
+        rgb = { 180, 70, 88 }
+    end
+    return { (rgb[1] or 255) / 255, (rgb[2] or 255) / 255, (rgb[3] or 255) / 255, 1 }
+end
+
+local function drawWorldObjectMarkers(sim, app, yaw, profile)
+    if not (sim.objectsInRect and state.assets.white) then
+        return 0, 0, 0
+    end
+    local minX = sim.player.x - visibleRadius
+    local maxX = sim.player.x + visibleRadius
+    local minY = sim.player.y - visibleRadius
+    local maxY = sim.player.y + visibleRadius
+    local visible = 0
+    local hidden = 0
+    local puzzles = 0
+    for _, object in ipairs(sim:objectsInRect(minX, maxX, minY, maxY, sim.player.z or 0)) do
+        if not isEnemyObject(object) then
+            local reveal = Render.objectRevealState(sim, app, object)
+            local alpha = reveal.visible and 0.92 or reveal.alpha
+            if alpha > 0.02 then
+                local model = newBillboard(0.42, 0.55, 0, object.x + 0.5, object.y + 0.5, (object.z or 0) + 0.06, yaw, state.assets.white)
+                local color = reveal.visible and objectMarkerColor(object) or { 0.24, 0.25, 0.28, 1 }
+                drawTintedModel(model, color, lightAt(sim, object.x, object.y, profile), alpha)
+            end
+            if reveal.visible then
+                visible = visible + 1
+            else
+                hidden = hidden + 1
+            end
+            if reveal.rotationPuzzle then
+                puzzles = puzzles + 1
+            end
+        end
+    end
+    return visible, hidden, puzzles
+end
+
+local function drawEnemyBillboards(sim, app, yaw, profile)
     if not (state.g3d and (state.assets.spriteAtlas or state.assets.white)) then
-        return
+        return 0, 0
     end
-    if not drawCombatEnemyBillboards(sim, yaw, profile) then
-        drawWorldEnemyBillboards(sim, yaw, profile)
+    if drawCombatEnemyBillboards(sim, yaw, profile) then
+        return 0, 0
     end
+    return drawWorldEnemyBillboards(sim, app, yaw, profile)
 end
 
 function Render.drawWorld(sim, app)
@@ -960,8 +1217,18 @@ function Render.drawWorld(sim, app)
     local model = buildWorldTileModel(sim, profile, app and app.settings)
     love.graphics.setColor(1, 1, 1, 1)
     model:draw()
+    local architecture, architectureCount = buildArchitectureModel(sim, profile, app and app.settings)
+    if architecture then
+        love.graphics.setColor(1, 1, 1, 1)
+        architecture:draw()
+    end
+    local visibleObjects, hiddenObjects, rotationPuzzles = drawWorldObjectMarkers(sim, app, yaw, profile)
     drawHeroBillboards(sim, yaw, profile)
-    drawEnemyBillboards(sim, yaw, profile)
+    local visibleEnemies, hiddenEnemies = drawEnemyBillboards(sim, app, yaw, profile)
+    app.worldView.architecture = architectureCount or 0
+    app.worldView.revealedObjects = (visibleObjects or 0) + (visibleEnemies or 0)
+    app.worldView.hiddenObjects = (hiddenObjects or 0) + (hiddenEnemies or 0)
+    app.worldView.rotationPuzzles = rotationPuzzles or 0
 end
 
 function Render.titleMenuItems(app)
@@ -2453,7 +2720,37 @@ local function drawSceneWall(x, y, w, h, pulse, scene)
     love.graphics.rectangle("fill", x, y + h - 30, w, 30)
 end
 
-local function drawSceneFigure(cx, floorY, side, label, active, danger, scene, rank, progress)
+local function drawSceneSprite(cx, floorY, side, label, active, danger, scene, rank, progress, frame, boss)
+    local quad, frameW, frameH = atlasFrameQuad(frame)
+    if not (quad and state.assets and state.assets.spriteAtlas) then
+        return false
+    end
+    local dir = side == "ally" and 1 or -1
+    local t = progress or 0
+    local pulse = math.sin(t * math.pi)
+    local scale = (boss and 2.75 or 2.1) * (active and (1 + pulse * 0.08) or 0.92)
+    local alpha = active and 1 or 0.76
+    if danger then
+        love.graphics.setColor(1, 0.62, 0.58, alpha)
+    else
+        love.graphics.setColor(1, 1, 1, alpha)
+    end
+    love.graphics.draw(state.assets.spriteAtlas, quad, cx, floorY - 3, 0, dir * scale, scale, frameW / 2, frameH)
+    if active then
+        setSceneColor(scene, 0.86, 1.15)
+        love.graphics.rectangle("line", cx - frameW * scale * 0.48, floorY - frameH * scale - 5, frameW * scale * 0.96, frameH * scale + 8)
+        if scene and (scene.mood == "affliction" or scene.mood == "doom" or scene.mood == "dazed") then
+            setSceneColor(scene, 0.58, 1.2)
+            love.graphics.line(cx - 18, floorY - frameH * scale - 2, cx + 18, floorY + 2)
+            love.graphics.line(cx + 18, floorY - frameH * scale - 2, cx - 18, floorY + 2)
+        end
+    end
+    love.graphics.setColor(0.84, 0.86, 0.78, active and 1 or 0.72)
+    love.graphics.printf(label or "", cx - 48, floorY + 12, 96, "center")
+    return true
+end
+
+local function drawSceneFigure(cx, floorY, side, label, active, danger, scene, rank, progress, frame, boss)
     local dir = side == "ally" and 1 or -1
     local bodyR, bodyG, bodyB = 0.52, 0.57, 0.48
     if side == "enemy" then
@@ -2481,6 +2778,9 @@ local function drawSceneFigure(cx, floorY, side, label, active, danger, scene, r
     if active then
         setSceneColor(scene, 0.22, 1.1)
         love.graphics.circle("fill", cx, floorY - 40, 33 + 10 * math.sin((progress or 0) * math.pi))
+    end
+    if drawSceneSprite(cx, floorY, side, label, active, danger, scene, rank, progress, frame, boss) then
+        return
     end
     love.graphics.setColor(bodyR, bodyG, bodyB, active and 1 or 0.78)
     love.graphics.polygon("fill", cx - 12, floorY - 48, cx + 12, floorY - 48, cx + 16, floorY - 8, cx - 16, floorY - 8)
@@ -2524,7 +2824,7 @@ local function drawHeroLine(sim, floorY, x, scene, lunge, intro, progress)
             if active then
                 cx = cx + lunge * 86
             end
-            drawSceneFigure(cx, floorY, "ally", hero.name, active, false, scene, rank, progress)
+            drawSceneFigure(cx, floorY, "ally", hero.name, active, false, scene, rank, progress, heroFrame(hero), false)
         end
     end
 end
@@ -2550,10 +2850,11 @@ local function drawEnemyLine(sim, floorY, x, scene, lunge, intro, progress)
             if active then
                 cx = cx - lunge * (isBoss and 112 or 86)
             end
-            if isBoss or (scene.boss and rank == 1) then
+            local boss = isBoss or (scene.boss and rank == 1)
+            if boss then
                 drawBossSigil(cx, floorY - 58, math.abs(lunge) + math.abs(intro) * 0.6)
             end
-            drawSceneFigure(cx, floorY, "enemy", name, active or isBoss, scene.kind == "danger" or scene.kind == "boss_defeat" or scene.kind == "boss_strike", scene, rank, progress)
+            drawSceneFigure(cx, floorY, "enemy", name, active or isBoss, scene.kind == "danger" or scene.kind == "boss_defeat" or scene.kind == "boss_strike", scene, rank, progress, enemy and enemyFrame(combatEnemyType(enemy), enemy.kind) or enemyFrame(boss and "boss" or "threat"), boss)
         end
     end
 end

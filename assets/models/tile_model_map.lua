@@ -15,6 +15,8 @@ return {
     tiles = {
         archive_floor = { path = obj("floor_tile_large.obj"), role = "base_floor" },
         archive_wall = { path = obj("wall_shelves.obj"), role = "base_wall" },
+        archive_monolith = { path = obj("pillar.obj"), role = "occluder_prop" },
+        rotation_cache = { path = obj("chest_gold.obj"), role = "rotation_puzzle_curio" },
         corridor = { path = obj("floor_tile_small.obj"), role = "base_floor" },
         salt_floor = { path = obj("floor_tile_big_grate.obj"), role = "base_floor" },
         salt_wall = { path = obj("wall_window_closed.obj"), role = "base_wall" },

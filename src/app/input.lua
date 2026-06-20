@@ -114,7 +114,22 @@ local function requestMove(app, screenDirection)
 end
 
 local function rotateView(app, delta)
-    app.viewRotation = ((app.viewRotation or 0) + delta) % 4
+    local from = app.viewRotationVisual or app.viewRotation or 0
+    local target = ((app.viewRotation or 0) + delta) % 4
+    local diff = target - from
+    while diff > 2 do
+        diff = diff - 4
+    end
+    while diff < -2 do
+        diff = diff + 4
+    end
+    app.viewRotation = target
+    if Render.reducedMotion(app) then
+        app.viewRotationVisual = target
+        app.viewTurn = nil
+    else
+        app.viewTurn = { from = from, to = from + diff, t = 0, duration = 0.24 }
+    end
     app.status = "view " .. (app.viewRotation * 90)
 end
 
@@ -216,6 +231,22 @@ end
 local function openCurioModal(sim, app)
     local modal = activeRender(app).curioModalForTarget(sim)
     if modal then
+        local tile = sim.world and sim.world:getTile(modal.x, modal.y, modal.z or 0)
+        local object = { x = modal.x, y = modal.y, z = modal.z or 0, tile = tile and tile.id }
+        if sim.objectsInRect then
+            for _, candidate in ipairs(sim:objectsInRect(modal.x, modal.x, modal.y, modal.y, modal.z or 0)) do
+                if candidate.x == modal.x and candidate.y == modal.y then
+                    object = candidate
+                    break
+                end
+            end
+        end
+        local reveal = activeRender(app).objectRevealState(sim, app, object)
+        if reveal and reveal.hidden then
+            app.status = reveal.puzzleHidden and "rotate view to reveal" or "hidden by architecture"
+            play(app, "invalid")
+            return true
+        end
         app.curioModal = modal
         app.status = "curio " .. modal.key
         play(app, "tick")

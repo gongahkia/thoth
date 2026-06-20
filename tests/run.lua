@@ -262,6 +262,10 @@ tests[#tests + 1] = function()
     expect(seen["24:0"] and seen["16:0"] and seen["0:8"] and seen["8:6"], "generated archive required rooms should be reachable")
     expect(contains(cleanse:connectedRooms("8:0"), "16:0") and contains(cleanse:connectedRooms("8:0"), "8:6"), "generated archive should include a loop and optional branch")
     expect(#cleanse:threatsInRect(-999, 999, -999, 999, 0) >= 2, "generated archive should expose visible threats")
+    expect(#(cleanse:layout().megastructure.platforms or {}) >= #(cleanse:layout().rooms or {}), "generated archive should add megastructure platforms around rooms")
+    expect(#(cleanse:layout().megastructure.bridges or {}) > #(cleanse:layout().corridors or {}), "generated archive should add side spans beyond graph corridors")
+    expect(cleanse:getTile(4, 4, 0).id == "archive_floor", "megastructure platform should create explorable space outside rectangular rooms")
+    expect(#(cleanse:layout().megastructure.hidden or {}) >= 1, "generated archive should add rotation-hidden megastructure rewards")
 end
 
 tests[#tests + 1] = function()
@@ -2492,6 +2496,34 @@ tests[#tests + 1] = function()
     sx, sy = Render.projectIso(view, 10, -1)
     wx, wy = Render.screenToWorld(view, sx, sy)
     expect(wx == 10 and wy == -1, "render3d rotated projection should round trip")
+end
+
+tests[#tests + 1] = function()
+    local sim = Simulation.new(101)
+    sim.world:setTile(1, -1, 0, { id = "archive_monolith", data = 0 })
+    local app = { viewRotation = 0 }
+    local hidden = Render.objectRevealState(sim, app, { x = 0, y = 0, z = 0, tile = "lost_page", hiddenBehind = true })
+    expect(hidden.hidden and hidden.architectureHidden and hidden.occluder.tile == "archive_monolith", "architecture occluder should hide objects from matching view angle")
+    app.viewRotation = 1
+    local revealed = Render.objectRevealState(sim, app, { x = 0, y = 0, z = 0, tile = "lost_page", hiddenBehind = true })
+    expect(revealed.visible, "rotating view should reveal objects no longer behind occluders")
+    local puzzleHidden = Render.objectRevealState(sim, { viewRotation = 0 }, { x = 0, y = 0, z = 0, tile = "rotation_cache" })
+    local puzzleShown = Render.objectRevealState(sim, { viewRotation = 1 }, { x = 0, y = 0, z = 0, tile = "rotation_cache" })
+    expect(puzzleHidden.hidden and puzzleHidden.puzzleHidden and puzzleHidden.rotationPuzzle, "rotation puzzle object should hide at wrong view angle")
+    expect(puzzleShown.visible and puzzleShown.rotationPuzzle, "rotation puzzle object should reveal at matching view angle")
+    expect(Render.isOccluderTile(Defs.tile("archive_monolith")) and Render.tileHeight(Defs.tile("archive_monolith")) > 2, "tile metadata should expose tall occluding architecture")
+    sim.world:setTile(1, -1, 0, { id = "archive_floor", data = 0 })
+    sim.player.facing = "east"
+    sim.world:setTile(1, 0, 0, { id = "rotation_cache", data = 0 })
+    local inputApp = { viewRotation = 0, settings = Settings.defaults(), audio = {}, ui = {} }
+    Input.keypressed(sim, inputApp, "space")
+    expect(inputApp.status == "rotate view to reveal" and inputApp.curioModal == nil and #sim.commandQueue == 0, "hidden rotation curio should block interaction until revealed")
+    inputApp.viewRotation = 1
+    Input.keypressed(sim, inputApp, "space")
+    expect(inputApp.curioModal and inputApp.curioModal.key == "relic_cache", "revealed rotation curio should open interaction modal")
+    local turnApp = { viewRotation = 0, viewRotationVisual = 0, settings = Settings.defaults(), audio = {}, ui = {} }
+    Input.keypressed(sim, turnApp, "]")
+    expect(turnApp.viewRotation == 1 and turnApp.viewTurn and turnApp.viewTurn.to == 1, "bracket rotation should schedule smooth turn tween")
 end
 
 tests[#tests + 1] = function()

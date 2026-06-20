@@ -362,6 +362,30 @@ local function requestQuit(state)
     end
 end
 
+local function advanceViewTurn(state, dt)
+    if not state then
+        return
+    end
+    if state.settings and state.settings.reducedMotion then
+        state.viewRotationVisual = state.viewRotation or 0
+        state.viewTurn = nil
+        return
+    end
+    local turn = state.viewTurn
+    if not turn then
+        state.viewRotationVisual = state.viewRotationVisual or state.viewRotation or 0
+        return
+    end
+    turn.t = math.min(turn.duration or 0.24, (turn.t or 0) + (dt or 0))
+    local ratio = (turn.duration or 0.24) > 0 and (turn.t / turn.duration) or 1
+    ratio = ratio * ratio * (3 - 2 * ratio)
+    state.viewRotationVisual = (turn.from or 0) + ((turn.to or turn.from or 0) - (turn.from or 0)) * ratio
+    if turn.t >= (turn.duration or 0.24) then
+        state.viewRotationVisual = state.viewRotation or 0
+        state.viewTurn = nil
+    end
+end
+
 local function selectedTitleItem(state)
     local items = Render.titleMenuItems(state)
     local index = state.titleMenuIndex or 1
@@ -1314,6 +1338,7 @@ function love.load(args)
         titleMenuIndex = 1,
         titleTime = 0,
         viewRotation = 0,
+        viewRotationVisual = 0,
         renderer = "render3d",
         status = "ready",
         settings = loadedSettings or Settings.defaults(),
@@ -1410,6 +1435,7 @@ function love.update(dt)
         app.renderBenchmarkFrameStartedAt = love.timer.getTime()
     end
     app.titleTime = (app.settings and app.settings.reducedMotion) and 0 or ((app.titleTime or 0) + dt)
+    advanceViewTurn(app, dt)
     Audio.updateForState(app.audio, dt, app, sim)
     Achievements.updateToasts(app, dt)
     if app.uiPulse and app.settings and app.settings.reducedMotion then
