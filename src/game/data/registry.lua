@@ -2257,12 +2257,13 @@ Registry.townEvents = {
     enclave_compact_signed = { name = "Enclave Compact Signed", summary = "Three repairs become leverage; survivor enclaves sign a compact the Estate cannot ignore.", effect = "-3 dread, enclave +2", dread = -3, faction = { enclave_meter = 2 } },
     merchant_ledger_offer = { name = "Ledger Offer", summary = "After the Regent falls, a sealed ledger arrives already balanced against the Estate.", effect = "unlocks Merchant", merchantUnlock = true, cutsceneEvent = "merchant_unlock" },
     audit_review_notice = { name = "Audit Review", summary = "The Office requisitions a re-walk of a route already paid for; the room remembers the party.", effect = "opens review route", openMission = "archive_audit_review", faction = { faction_custodians = 1 } },
+    enclave_compact_soured = { name = "Compact Soured", summary = "The Surveyor sells an enclave leader's name; the compact reverses by morning light.", effect = "compact reverses, +2 dread", dread = 2, faction = { enclave_meter = -3 }, soursCompact = true },
 }
 Registry.townEventOrder = {
     "supply_cache", "memorial_bell", "levy_notice", "clear_roads", "bad_omens", "archivist_tithe", "old_maps", "candle_vigil",
     "survey_quota", "enclave_petition", "archive_tithe_v2", "salt_rationing", "ash_vigil_demand", "audit_notice",
     "lamplighter_strike", "drowned_banns", "pyre_demand", "estate_reckoning", "enclave_compact_signed", "merchant_ledger_offer",
-    "audit_review_notice",
+    "audit_review_notice", "enclave_compact_soured",
 }
 
 Registry.estateCopy = {
@@ -2582,6 +2583,11 @@ Registry.filedRules = {
     filed_rules_v1 = { threshold = 5 },
 }
 Registry.filedRuleOrder = { "filed_rules_v1" }
+
+Registry.compactSouringRules = {
+    compact_sour_v1 = { threshold = 4, dread = 2, meterFloor = -2, souredFixture = "fixture_surveyor", silenceDread = -3, silenceStress = 6, silenceMeter = 2 },
+}
+Registry.compactSouringRuleOrder = { "compact_sour_v1" }
 
 Registry.injuryCureTooltips = {
     injury_cure_tooltips = {
