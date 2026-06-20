@@ -1,5 +1,16 @@
 # Benchmark Log
 
+## 2026-06-20 release prep rerun
+
+Suite:
+
+- Command: `make check`
+- Result: pass
+- Unit tests: 167
+- Replay fixtures: 4
+- Package test: pass
+- Benchmark smoke: `elapsed_ms=11.220`, `avg_ms_per_tick=0.046750`, `max_ms_per_tick=2.821000`
+
 ## 2026-06-20
 
 Suite:
