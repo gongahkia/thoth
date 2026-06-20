@@ -61,6 +61,7 @@ return {
         fuse_saint = { path = obj("candle_triple.obj"), role = "curio_prop" },
         halo_vent = { path = obj("floor_tile_extralarge_grates_open.obj"), role = "curio_floor" },
         vitrified_cot = { path = obj("bed_frame.obj"), role = "curio_prop" },
+        record_door = { path = obj("wall_doorway_door.obj"), role = "curio_prop" },
         boss_sigil = { path = obj("floor_tile_small_decorated.obj"), role = "encounter_marker" },
         tide_sigil = { path = obj("floor_tile_big_grate.obj"), role = "encounter_marker" },
         ember_sigil = { path = obj("floor_tile_big_spikes.obj"), role = "encounter_marker" },

@@ -1274,6 +1274,22 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(310)
+    local hero = sim:heroAtRank(1)
+    expect(not hero.filed, "hero starts unfiled")
+    local gx, gy, gz = sim.player.x + 1, sim.player.y, sim.player.z or 0
+    sim.world:setTile(gx, gy, gz, { id = "record_door", data = 0 })
+    local beforeHeirloom = sim.expedition.loot:count("heirloom")
+    runQueued(sim, Simulation.commands.curioChoice(gx, gy, gz, "record_door", "pay_name", 1))
+    expect(hero.filed == true, "pay_name should file the hero")
+    expect(sim.expedition.loot:count("heirloom") == beforeHeirloom + 1, "name gate should grant heirloom")
+    expect(sim.world:getTile(gx, gy, gz).id ~= "record_door", "name gate tile should clear")
+    expect(sim.expedition.curiosUsed[tostring(gz) .. ":" .. tostring(gx) .. ":" .. tostring(gy)], "name gate should be marked used")
+    local loaded = Simulation.fromSnapshot(sim:snapshot())
+    expect(loaded:heroAtRank(1).filed == true, "filed should survive snapshot")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(122)
     sim.player.x = 15
     sim.player.y = 0

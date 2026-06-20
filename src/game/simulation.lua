@@ -342,8 +342,8 @@ function Simulation.commands.interact()
     return { type = "interact" }
 end
 
-function Simulation.commands.curioChoice(x, y, z, curioKey, choice)
-    return { type = "curioChoice", x = x, y = y, z = z or 0, curioKey = curioKey, choice = choice }
+function Simulation.commands.curioChoice(x, y, z, curioKey, choice, heroRank)
+    return { type = "curioChoice", x = x, y = y, z = z or 0, curioKey = curioKey, choice = choice, heroRank = heroRank }
 end
 
 function Simulation.commands.startExpedition(locationKey)
@@ -478,7 +478,7 @@ function Simulation:apply(command)
         return self:interact()
     end
     if command.type == "curioChoice" then
-        return self:curioChoice(command.x, command.y, command.z, command.curioKey, command.choice)
+        return self:curioChoice(command.x, command.y, command.z, command.curioKey, command.choice, command.heroRank)
     end
     if command.type == "startExpedition" then
         return self:startExpedition(command.locationKey)
@@ -2944,18 +2944,53 @@ function Simulation:interact()
     return false
 end
 
-function Simulation:curioChoice(x, y, z, curioKey, choice)
+function Simulation:curioChoice(x, y, z, curioKey, choice, heroRank)
     choice = choice or "safe_use"
     if choice == "leave_alone" then
         local curio = Defs.curio(curioKey)
         self:pushLog((curio and curio.name or "curio") .. " left alone")
         return true
     end
+    if choice == "pay_name" then
+        return self:resolveNameGate(x, y, z or 0, curioKey, heroRank)
+    end
     local options = { ignoreRefusal = true }
     if choice == "greedy_use" then
         options.forceNoItem = true
     end
     return self:resolveCurio(x, y, z or 0, curioKey, options)
+end
+
+function Simulation:resolveNameGate(x, y, z, curioKey, heroRank)
+    if self.mode ~= "expedition" or not self.expedition then
+        return false
+    end
+    local curio = Defs.curio(curioKey)
+    if not (curio and curio.nameGate) then
+        return false
+    end
+    local key = Grid.key(x, y, z)
+    if self.expedition.curiosUsed[key] then
+        return false
+    end
+    local hero = self:heroAtRank(heroRank or self.player.selectedHero) or self:heroAtRank(1)
+    if not (hero and hero.alive) then
+        return false
+    end
+    hero.filed = true
+    for item, count in pairs(curio.loot or {}) do
+        self:addLoot(item, count)
+    end
+    if curio.stress then
+        self:addStress(hero, curio.stress)
+    end
+    if curio.dread then
+        self:adjustDread(curio.dread)
+    end
+    self.expedition.curiosUsed[key] = true
+    self.world:setTile(x, y, z, { id = self.world:floorTile(), data = 0 })
+    self:pushLog(hero.name .. " filed at " .. (curio.name or "record door"))
+    return true
 end
 
 function Simulation:resolveCurio(x, y, z, curioKey, options)
@@ -4463,6 +4498,7 @@ function Simulation:snapshot()
             diseases = copyList(hero.diseases),
             trinkets = copyList(hero.trinkets),
             statuses = copyList(hero.statuses),
+            filed = hero.filed == true,
         }
     end
     local recruits = {}
@@ -4711,6 +4747,7 @@ function Simulation.fromSnapshot(snapshot)
         hero.trinkets[1] = hero.trinkets[1] or false
         hero.trinkets[2] = hero.trinkets[2] or false
         hero.statuses = copyList(value.statuses or {})
+        hero.filed = value.filed == true
         self.estate.roster[#self.estate.roster + 1] = hero
         self.estate.nextHeroId = math.max(self.estate.nextHeroId, hero.id + 1)
     end

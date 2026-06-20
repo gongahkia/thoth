@@ -93,6 +93,7 @@ Registry.contentRules = {
         greedy_use = { name = "Greedy Use", role = "loot-first interaction that raises stress, harm, dread, or noise" },
         repair_use = { name = "Repair Use", role = "non-loot interaction that lowers pressure or helps survivors" },
         leave_alone = { name = "Leave Alone", role = "no-spend exit that preserves current risk" },
+        pay_name = { name = "Pay Name", role = "spend a hero's name to clear a record-keyed door; hero gains filed status" },
     },
 }
 
@@ -145,6 +146,7 @@ Registry.tiles = {
     fuse_saint = { name = "Fuse Saint", walkable = true, curio = "fuse_saint", color = { 190, 112, 64 } },
     halo_vent = { name = "Halo Vent", walkable = true, curio = "halo_vent", color = { 214, 128, 58 } },
     vitrified_cot = { name = "Vitrified Cot", walkable = true, curio = "vitrified_cot", color = { 156, 136, 120 } },
+    record_door = { name = "Record Door", walkable = true, curio = "record_door", color = { 92, 70, 96 } },
     boss_sigil = { name = "Regent Sigil", walkable = true, encounter = "regent", color = { 128, 54, 74 } },
     tide_sigil = { name = "Tide Sigil", walkable = true, encounter = "matron", color = { 44, 116, 132 } },
     ember_sigil = { name = "Ember Sigil", walkable = true, encounter = "prioress", color = { 160, 74, 42 } },
@@ -164,6 +166,7 @@ Registry.tileOrder = {
     "silted_cradle", "pressure_bell", "brine_reliquary",
     "ember_ward", "ash_name", "warm_ledger", "aron_boy", "white_furnace_key",
     "false_vow", "ash_lung_reliquary", "fuse_saint", "halo_vent", "vitrified_cot",
+    "record_door",
     "boss_sigil", "tide_sigil", "ember_sigil", "exit_gate", "black_water",
 }
 
@@ -1042,6 +1045,7 @@ Registry.curios = {
     halo_vent = { name = "Halo Vent", outcomes = { "safe_use", "greedy_use", "leave_alone" }, item = "ember_oil", stress = 6, heatFatigue = 1 },
     vitrified_cot = { name = "Vitrified Cot", outcomes = { "repair_use", "greedy_use", "leave_alone" }, item = "ward_charm", damage = 4, disease = "ember_fever", stress = 5 },
     cold_camp = { name = "Cold Camp", outcomes = { "safe_use", "leave_alone" }, camp = true },
+    record_door = { name = "Record Door", outcomes = { "pay_name", "leave_alone" }, nameGate = true, loot = { heirloom = 1, coin = 60 }, dread = -1, stress = 5 },
 }
 Registry.curioOrder = {
     "relic_cache", "whispering_idol", "wire_snare", "salt_font", "brine_lockbox", "ash_vent", "ember_reliquary",
@@ -1050,6 +1054,7 @@ Registry.curioOrder = {
     "shutoff_shrine", "silted_cradle", "pressure_bell", "brine_reliquary", "ember_ward",
     "ash_name", "warm_ledger", "aron_boy", "white_furnace_key", "false_vow", "ash_lung_reliquary",
     "fuse_saint", "halo_vent", "vitrified_cot", "cold_camp",
+    "record_door",
 }
 
 for _, curioKey in ipairs(Registry.curioOrder) do
