@@ -356,6 +356,7 @@ end
 
 local function requestQuit(state)
     state.quitRequested = true
+    state.quitConfirmed = true
     if love and love.event then
         love.event.quit(0)
     end
@@ -1631,6 +1632,10 @@ local function handleKey(key)
 end
 
 function love.keypressed(key)
+    if key == "c" and love.keyboard.isDown("lctrl", "rctrl") then
+        requestQuit(app)
+        return
+    end
     handleKey(key)
 end
 
@@ -1717,7 +1722,7 @@ function love.quit()
     if app and (app.smoke or app.renderBenchmark or app.loadBenchmark) then
         return false
     end
-    if app and not app.quitConfirmed and midExpedition() then
+    if app and app.uiState == "game" and not app.quitConfirmed and midExpedition() then
         if not app.confirmDialog then
             openPause(app)
             openConfirm(app, "Quit Game", "Abandon this expedition and quit?", "quitApp")
