@@ -55,6 +55,8 @@ Use the GitHub Issues `Beta feedback` form or an equivalent linked form with the
 - Feel: readability, pacing, UI friction, route clarity.
 - Scope: missing content, repeated content, ending expectations.
 
+Triage template: `docs/beta-feedback-triage.md`
+
 ## Community Post Draft
 
 Title:

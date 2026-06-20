@@ -135,5 +135,6 @@ Before removing TODO 4.11:
 - Itch page URL is public and downloadable for free.
 - `dist/thoth.love` or equivalent build is attached to the itch page.
 - Feedback intake points to GitHub Issues `Alpha feedback` form or equivalent public form.
+- Feedback triage continues in `docs/alpha-feedback-triage.md`.
 - Posts are submitted to r/love2d, r/IndieDev, and the Discord channel.
 - URLs or screenshots of the three posts are recorded in this file.
