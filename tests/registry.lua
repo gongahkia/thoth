@@ -44,10 +44,10 @@ end
 for _, key in ipairs({ "scout", "guard", "caster", "trapper", "swarm", "elite", "support", "alpha", "boss" }) do
     expect(rules.enemyRoleTaxonomy[key] and rules.enemyRoleTaxonomy[key].role, "enemy role taxonomy missing " .. key)
 end
-for _, key in ipairs({ "survey", "extract", "repair", "seal", "rescue", "cleanse", "activate", "boss" }) do
+for _, key in ipairs({ "survey", "extract", "repair", "seal", "rescue", "cleanse", "activate", "boss", "audit" }) do
     expect(rules.missionTagTaxonomy[key] and rules.missionTagTaxonomy[key].role, "mission tag taxonomy missing " .. key)
 end
-for _, key in ipairs({ "safe_use", "greedy_use", "repair_use", "leave_alone" }) do
+for _, key in ipairs({ "safe_use", "greedy_use", "repair_use", "leave_alone", "pay_name" }) do
     expect(rules.curioOutcomeTaxonomy[key] and rules.curioOutcomeTaxonomy[key].role, "curio outcome taxonomy missing " .. key)
 end
 

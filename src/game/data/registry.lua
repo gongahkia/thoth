@@ -87,6 +87,7 @@ Registry.contentRules = {
         cleanse = { name = "Cleanse", role = "clear hostile rooms or remove active corruption" },
         activate = { name = "Activate", role = "spend keyed mission items at fixed route nodes" },
         boss = { name = "Boss", role = "defeat or disable a named terminal encounter" },
+        audit = { name = "Audit", role = "re-enter a prior route under Survey Office review; the room remembers the party" },
     },
     curioOutcomeTaxonomy = {
         safe_use = { name = "Safe Use", role = "item-aware interaction with predictable upside" },
@@ -1690,6 +1691,28 @@ Registry.missions = {
         filedSeal = true,
         reward = { gold = 145, heirlooms = 3 },
     },
+    archive_audit_review = {
+        name = "Survey Office Review",
+        location = "buried_archive",
+        kind = "scout",
+        tags = { "survey", "audit" },
+        difficulty = "apprentice",
+        resolveLevel = 1,
+        objectiveRooms = 2,
+        progressLabel = "rooms re-walked",
+        objectiveLabel = "review",
+        objectiveNext = "Walk two routes the Office has already paid for; let the audit close cleanly.",
+        campHint = "Camp only if noise spikes; the room already remembers you.",
+        regentHint = "Leave the Regent. The Office wants a re-walked route, not a sealed gate.",
+        auditReview = true,
+        auditNoiseStart = 4,
+        dreadBonus = -1,
+        intro = {
+            brief = "Re-walk two routes the Office has already paid for; close the audit before the room files a complaint.",
+            sting = "A route audited twice belongs to the Office in writing, and to nobody in fact.",
+        },
+        reward = { gold = 60, heirlooms = 1 },
+    },
     archive_regent = {
         name = "Silence the Vault Regent",
         location = "buried_archive",
@@ -2163,7 +2186,7 @@ Registry.missions = {
 Registry.missionOrder = {
     "archive_scout", "archive_cleansing", "archive_gather", "archive_names", "archive_false_index",
     "archive_page_bearer", "archive_intake_map", "archive_audit_page_bearer", "archive_silence_reeve",
-    "archive_witness_confession", "archive_remand_scribe", "archive_misfiled_dead", "archive_regent",
+    "archive_witness_confession", "archive_remand_scribe", "archive_misfiled_dead", "archive_audit_review", "archive_regent",
     "cistern_survey", "cistern_valves", "cistern_low_reservoir", "cistern_salt_register", "cistern_gatekeepers",
     "cistern_silence_choir", "cistern_drain_market", "cistern_tov_child", "cistern_flood_bailiff",
     "cistern_open_deep_sluice", "cistern_bell",
@@ -2233,11 +2256,13 @@ Registry.townEvents = {
     estate_reckoning = { name = "Estate Reckoning", summary = "The Estate counts weeks, deaths, and sealed doors, then lets the sum reach the roster.", effect = "+3 party stress", stress = 3, reckoning = true },
     enclave_compact_signed = { name = "Enclave Compact Signed", summary = "Three repairs become leverage; survivor enclaves sign a compact the Estate cannot ignore.", effect = "-3 dread, enclave +2", dread = -3, faction = { enclave_meter = 2 } },
     merchant_ledger_offer = { name = "Ledger Offer", summary = "After the Regent falls, a sealed ledger arrives already balanced against the Estate.", effect = "unlocks Merchant", merchantUnlock = true, cutsceneEvent = "merchant_unlock" },
+    audit_review_notice = { name = "Audit Review", summary = "The Office requisitions a re-walk of a route already paid for; the room remembers the party.", effect = "opens review route", openMission = "archive_audit_review", faction = { faction_custodians = 1 } },
 }
 Registry.townEventOrder = {
     "supply_cache", "memorial_bell", "levy_notice", "clear_roads", "bad_omens", "archivist_tithe", "old_maps", "candle_vigil",
     "survey_quota", "enclave_petition", "archive_tithe_v2", "salt_rationing", "ash_vigil_demand", "audit_notice",
     "lamplighter_strike", "drowned_banns", "pyre_demand", "estate_reckoning", "enclave_compact_signed", "merchant_ledger_offer",
+    "audit_review_notice",
 }
 
 Registry.estateCopy = {

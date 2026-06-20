@@ -1306,6 +1306,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.newEstate(312)
+    local campaign = sim:ensureCampaignState()
+    expect(not contains(sim:eligibleMissionKeys(), "archive_audit_review"), "audit review should be hidden until route walked")
+    campaign.locationProgress = campaign.locationProgress or {}
+    campaign.locationProgress.buried_archive = 1
+    expect(contains(sim:eligibleMissionKeys(), "archive_audit_review"), "audit review should appear after one Archive mission")
+    sim:applyTownEvent("audit_review_notice")
+    expect(contains(sim.estate.missionBoard, "archive_audit_review"), "audit review notice should place mission on board")
+    sim:startExpedition("archive_audit_review")
+    expect(sim.expedition and sim.expedition.noise == 4, "audit review should start with elevated noise")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(122)
     sim.player.x = 15
     sim.player.y = 0

@@ -1277,6 +1277,9 @@ function Simulation:eligibleMissionKeys()
     for _, missionKey in ipairs(Defs.missionOrder) do
         local mission = Defs.mission(missionKey)
         local gated = (mission.filedSeal and filed) or (mission.filedOpen and not filed)
+        if mission.auditReview and ((campaign.locationProgress and campaign.locationProgress[mission.location]) or 0) < 1 then
+            gated = true
+        end
         if not gated then
             if mission.kind ~= "boss" then
                 result[#result + 1] = missionKey
@@ -1539,7 +1542,7 @@ function Simulation:startExpedition(locationKey)
         hungerChecks = 0,
         threatState = {},
         alphaMarkers = {},
-        noise = 0,
+        noise = mission.auditNoiseStart or 0,
         ambushRolls = 0,
         stealthApproach = false,
         heatFatigue = 0,
