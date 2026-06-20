@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke sprite-import-smoke model-import-smoke test check benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke sprite-import-smoke model-import-smoke test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -286,11 +286,15 @@ check: test
 	$(LUAJIT) tests/replays.lua
 	$(LUAJIT) tests/assets.lua
 	$(LUAJIT) tests/registry.lua
+	$(MAKE) merchant-balance-pass
 	$(MAKE) sprite-import-smoke
 	$(MAKE) model-import-smoke
 	$(MAKE) package-build
 	$(LUAJIT) tests/package.lua $(PACKAGE)
 	$(MAKE) benchmark-smoke
+
+merchant-balance-pass:
+	$(LUAJIT) tools/merchant_balance_pass.lua
 
 benchmark:
 	$(LUAJIT) benchmarks/rpg_expedition.lua
