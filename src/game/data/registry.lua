@@ -1687,6 +1687,7 @@ Registry.missions = {
         resolveLevel = 3,
         objectiveItems = { misfiled_dead = 1 },
         carryLoad = 2,
+        filedSeal = true,
         reward = { gold = 145, heirlooms = 3 },
     },
     archive_regent = {
@@ -2551,6 +2552,11 @@ Registry.pressureRules = {
     noise_decay = { camp = 2, highTorch = 1, highTorchThreshold = 75 },
 }
 Registry.pressureRuleOrder = { "noise_decay" }
+
+Registry.filedRules = {
+    filed_rules_v1 = { threshold = 5 },
+}
+Registry.filedRuleOrder = { "filed_rules_v1" }
 
 Registry.injuryCureTooltips = {
     injury_cure_tooltips = {

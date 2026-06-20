@@ -1290,6 +1290,22 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.newEstate(311)
+    local campaign = sim:ensureCampaignState()
+    expect(not sim:isPartyFiled(), "fresh campaign should be unfiled")
+    expect(contains(sim:eligibleMissionKeys(), "archive_misfiled_dead"), "filedSeal mission should be eligible while unfiled")
+    campaign.flags.greedyExtracts = sim:filedThreshold()
+    sim:evaluateFiledState()
+    expect(sim:isPartyFiled(), "threshold of greedy extracts should file the party")
+    expect(campaign.flags.partyFiled == true, "evaluateFiledState should persist flag")
+    expect(not contains(sim:eligibleMissionKeys(), "archive_misfiled_dead"), "filedSeal mission should drop from board once filed")
+    campaign.flags.repairMissions = campaign.flags.greedyExtracts
+    sim:evaluateFiledState()
+    expect(not sim:isPartyFiled(), "repair work should unfile the party")
+    expect(contains(sim:eligibleMissionKeys(), "archive_misfiled_dead"), "filedSeal mission should return once unfiled")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(122)
     sim.player.x = 15
     sim.player.y = 0

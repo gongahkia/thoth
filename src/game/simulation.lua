@@ -1273,16 +1273,53 @@ end
 function Simulation:eligibleMissionKeys()
     local result = {}
     local campaign = self.estate.campaign or {}
+    local filed = self:isPartyFiled()
     for _, missionKey in ipairs(Defs.missionOrder) do
         local mission = Defs.mission(missionKey)
-        if mission.kind ~= "boss" then
-            result[#result + 1] = missionKey
-        elseif not (campaign.bossKills and campaign.bossKills[mission.location])
-            and ((campaign.locationProgress and campaign.locationProgress[mission.location]) or 0) >= 2 then
-            result[#result + 1] = missionKey
+        local gated = (mission.filedSeal and filed) or (mission.filedOpen and not filed)
+        if not gated then
+            if mission.kind ~= "boss" then
+                result[#result + 1] = missionKey
+            elseif not (campaign.bossKills and campaign.bossKills[mission.location])
+                and ((campaign.locationProgress and campaign.locationProgress[mission.location]) or 0) >= 2 then
+                result[#result + 1] = missionKey
+            end
         end
     end
     return result
+end
+
+function Simulation:filedThreshold()
+    return ((Defs.filedRule("filed_rules_v1") or {}).threshold) or 5
+end
+
+function Simulation:partyFiledPressure()
+    local campaign = self.estate and self.estate.campaign or {}
+    local flags = campaign.flags or {}
+    local greedy = flags.greedyExtracts or 0
+    local repairs = flags.repairMissions or 0
+    return math.max(0, greedy - repairs)
+end
+
+function Simulation:isPartyFiled()
+    local campaign = self.estate and self.estate.campaign or {}
+    if campaign.flags and campaign.flags.partyFiled then
+        return true
+    end
+    return self:partyFiledPressure() >= self:filedThreshold()
+end
+
+function Simulation:evaluateFiledState()
+    local campaign = self:ensureCampaignState()
+    local filed = self:partyFiledPressure() >= self:filedThreshold()
+    if filed and not campaign.flags.partyFiled then
+        campaign.flags.partyFiled = true
+        self:pushLog("the Stack files the party")
+    elseif not filed and campaign.flags.partyFiled then
+        campaign.flags.partyFiled = false
+        self:pushLog("repair work unfiles the party")
+    end
+    return campaign.flags.partyFiled == true
 end
 
 function Simulation:refreshMissionBoard(force)
@@ -1599,6 +1636,7 @@ function Simulation:recordMissionOutcome(mission, success, retreat)
                 campaign.flags.greedyExtracts = (campaign.flags.greedyExtracts or 0) + 1
             end
         end
+        self:evaluateFiledState()
         for factionKey, amount in pairs(pressure.factions or {}) do
             self:adjustFaction(factionKey, amount)
         end

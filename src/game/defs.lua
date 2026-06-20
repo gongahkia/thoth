@@ -115,6 +115,8 @@ local Defs = {
     expeditionCommandOrder = Registry.expeditionCommandOrder,
     pressureRules = Registry.pressureRules,
     pressureRuleOrder = Registry.pressureRuleOrder,
+    filedRules = Registry.filedRules,
+    filedRuleOrder = Registry.filedRuleOrder,
     injuryCureTooltips = Registry.injuryCureTooltips,
     injuryCureTooltipOrder = Registry.injuryCureTooltipOrder,
     weakPointRules = Registry.weakPointRules,
@@ -349,6 +351,10 @@ end
 
 function Defs.pressureRule(id)
     return Defs.pressureRules[id]
+end
+
+function Defs.filedRule(id)
+    return Defs.filedRules[id]
 end
 
 function Defs.injuryCureTooltip(id)
