@@ -46,6 +46,9 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S34 | https://openresearch-repository.anu.edu.au/bitstreams/a77810ba-c05b-43c2-bedd-86a4491c3027/download | Hybrid roguelike generators can use grammar plus physical-space generation while checking completability. | Thoth validates grammar components and retreat/objective solvability before accepting a board. |
 | S35 | https://www.iccs-meeting.org/archive/iccs2021/papers/127460103.pdf | Procedural puzzle generation can estimate difficulty with explicit metrics before accepting generated content. | Thoth computes a difficulty budget from pressure contributors and rejects over-budget boards. |
 | S36 | https://80.lv/articles/environment-storytelling-in-xcom-2 | XCOM 2 procedural maps used cover parcel systems so randomized spaces still had cover and readable tactical anchors. | Thoth requires cover fields and intent-density caps in generated tactical boards. |
+| S37 | https://stackoverflow.com/questions/3064317/conceptually-how-does-replay-work-in-a-game | Deterministic replay records seeds and inputs, then replays them through the same simulation. | Thoth seeded exports record run seed, board seeds, route choices, event rolls, and replay hashes. |
+| S38 | https://www.gridsagegames.com/blog/2017/05/working-seeds/ | Roguelike world seeds can derive map seeds so maps reproduce regardless of visit order. | Thoth derives board seeds from run seed and chosen route ids. |
+| S39 | https://bugnet.io/blog/how-to-fix-a-replay-system-that-desyncs | Replay systems should record seeds/inputs and verify with checksums to catch divergence. | Thoth exports per-board replay hashes and an export hash for QA comparison. |
 
 ## Mechanic Handoffs
 
@@ -336,6 +339,22 @@ counterplay: invalid boards never enter player flow; accepted boards keep object
 preview/UI: debug report shows total, max, contributors, grammar report, and reject reasons.
 
 test/replay proof: fixed directed board accepts by default, rejects under low max, and rejects intent density overflow.
+
+### H19 Seeded Run Replay Export
+
+source pattern: deterministic replay records seeds, player choices/inputs, and checksums so a run can be reproduced and divergence can be detected.
+
+thoth transformation: Seeded run export records run seed, board seeds, route choices, squad loadout, event rolls, replay hashes, and export hash.
+
+board verb: seed, choose, roll, hash, export.
+
+zone fit: all route maps and generated boards use the same export schema.
+
+counterplay: QA can replay exact route/board/event sequence and compare hashes.
+
+preview/UI: debug export view lists schema version, route choices, board seeds, event ids, and hashes.
+
+test/replay proof: fixed seed export validates required fields, serializes identically, and changes hash when route choices change.
 
 ## Rejection Rules
 

@@ -1798,6 +1798,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local export = RunCatalog.exportSeededRun(2707, { routeChoices = { "combat_route", "event_node", "boss_gate" } })
+    local report = RunCatalog.validateSeededRunExport(export)
+    expect(report.valid, "seeded run export should validate")
+    expect(#export.boardSeeds == 3 and #export.replayHashes == 3 and export.exportHash, "seeded run export should include seeds and replay hashes")
+    expect(export.eventRolls[1].timing == "pre_board" and export.eventRolls[2].timing == "post_board", "seeded run export should include event rolls")
+    expect(Serialize.encode(export) == Serialize.encode(RunCatalog.exportSeededRun(2707, { routeChoices = { "combat_route", "event_node", "boss_gate" } })), "seeded run export should be deterministic")
+    local alternate = RunCatalog.exportSeededRun(2707, { routeChoices = { "enclave_request", "repair_route", "boss_gate" } })
+    expect(export.exportHash ~= alternate.exportHash, "seeded run export should change when route choices change")
+end
+
+tests[#tests + 1] = function()
     local events = RunCatalog.events()
     local alters = {}
     local ids = {}

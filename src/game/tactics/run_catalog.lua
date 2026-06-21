@@ -1,4 +1,5 @@
 local Rng = require("src.core.rng")
+local Serialize = require("src.core.serialize")
 
 local RunCatalog = {}
 
@@ -174,6 +175,18 @@ local function node(id, kind, depth, data)
     return result
 end
 
+local function hashText(text, seed)
+    local hash = seed or 1
+    for index = 1, #text do
+        hash = Rng.hash(hash, text:byte(index), index, #text)
+    end
+    return string.format("%08x", hash)
+end
+
+local function boardSeedFor(runSeed, nodeId, index)
+    return Rng.hash(runSeed or 1, index, #nodeId, 2707)
+end
+
 function RunCatalog.boardTemplate(id)
     for _, template in ipairs(RunCatalog.boardTemplates) do
         if template.id == id then
@@ -209,6 +222,55 @@ end
 
 function RunCatalog.events()
     return RunCatalog.eventPrompts
+end
+
+function RunCatalog.exportSeededRun(seed, options)
+    options = options or {}
+    local map = options.map or RunCatalog.generateMap(seed, { zone = options.zone })
+    local routeChoices = copyValue(options.routeChoices or map.choices)
+    local eventLayer = options.eventLayer or RunCatalog.rollEventLayer(seed, options.eventContext)
+    local boardSeeds = {}
+    local replayHashes = {}
+    for index, nodeId in ipairs(routeChoices) do
+        local boardSeed = boardSeedFor(seed, nodeId, index)
+        boardSeeds[#boardSeeds + 1] = { nodeId = nodeId, seed = boardSeed }
+        replayHashes[#replayHashes + 1] = hashText(Serialize.encode({
+            runSeed = seed or 1,
+            boardSeed = boardSeed,
+            nodeId = nodeId,
+            preEvent = eventLayer.preBoard.eventId,
+            postEvent = eventLayer.postBoard.eventId,
+        }), seed or 1)
+    end
+    local export = {
+        version = RunCatalog.seededRunExport.version,
+        runSeed = seed or 1,
+        boardSeeds = boardSeeds,
+        routeChoices = routeChoices,
+        squadLoadout = copyValue(options.squadLoadout or {
+            { id = "warden", class = "warden", tools = { "brace", "shove" } },
+            { id = "duelist", class = "duelist", tools = { "dash", "flank" } },
+        }),
+        eventRolls = { eventLayer.preBoard, eventLayer.postBoard },
+        replayHashes = replayHashes,
+    }
+    export.exportHash = hashText(Serialize.encode(export), seed or 1)
+    return export
+end
+
+function RunCatalog.validateSeededRunExport(export)
+    local report = { valid = true, missing = {} }
+    for _, field in ipairs(RunCatalog.seededRunExport.fields) do
+        if export == nil or export[field.id] == nil then
+            report.valid = false
+            report.missing[#report.missing + 1] = field.id
+        end
+    end
+    if export and (#(export.boardSeeds or {}) ~= #(export.routeChoices or {}) or #(export.replayHashes or {}) ~= #(export.routeChoices or {})) then
+        report.valid = false
+        report.missing[#report.missing + 1] = "route_seed_hash_alignment"
+    end
+    return report
 end
 
 function RunCatalog.generateMap(seed, options)

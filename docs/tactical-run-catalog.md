@@ -182,7 +182,7 @@ preview/UI:
 Debug export view shows schema version and field list; player-facing replay sharing can hide raw internals later.
 
 test/replay proof:
-`tests/run.lua` verifies the seeded export schema version and all six required fields.
+`tests/run.lua` verifies the seeded export schema version, all six required fields, generated board seeds, event rolls, replay hashes, deterministic serialization, and route-choice hash changes.
 
 ## P.7 Event Prompts
 
