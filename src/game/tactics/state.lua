@@ -500,6 +500,14 @@ local objectiveKinds = {
     protect_archive_shelf = "protect",
     protect_civilian_cell = "protect",
     protect_pressure_node = "protect",
+    extract_record = "extract",
+    extract_civilian = "extract",
+    extract_body = "extract",
+    extract_machine_core = "extract",
+    extract_ledger = "extract",
+    extract_fuel = "extract",
+    extract_medicine = "extract",
+    extract_witness = "extract",
 }
 
 local function normalizeObjective(objective, index)
@@ -533,17 +541,29 @@ local function normalizeObjective(objective, index)
 end
 
 local cargoKinds = {
+    record = true,
     civilian = true,
     body = true,
+    machine_core = true,
     machinery_core = true,
+    ledger = true,
+    fuel = true,
+    medicine = true,
+    witness = true,
     loot_crate = true,
     wounded_hero = true,
 }
 
 local cargoDefaultWeight = {
+    record = 1,
     civilian = 1,
     body = 1,
+    machine_core = 2,
     machinery_core = 2,
+    ledger = 1,
+    fuel = 2,
+    medicine = 1,
+    witness = 1,
     loot_crate = 2,
     wounded_hero = 1,
 }

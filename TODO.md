@@ -75,7 +75,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Objective Families
 
-- [ ] O.2 Extract objective: carry record, civilian, body, machine core, ledger, fuel, medicine, or witness to exit.
 - [ ] O.3 Disable objective: break seal, silence bell, jam valve, douse kiln, collapse audit lens.
 - [ ] O.4 Repair objective: spend AP/tools to restore cover, machinery, floodgate, bridge, or ward.
 - [ ] O.5 Hold objective: maintain presence on claim tile for N turns while intents escalate.

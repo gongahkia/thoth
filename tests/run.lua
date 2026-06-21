@@ -981,6 +981,28 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local cargoKinds = { "record", "civilian", "body", "machine_core", "ledger", "fuel", "medicine", "witness" }
+    local cargo = {}
+    for index, kind in ipairs(cargoKinds) do
+        cargo[#cargo + 1] = { id = kind, kind = kind, x = index, y = 1, integrity = 1 }
+    end
+    local state = TacticsState.new({
+        board = { width = 8, height = 2 },
+        units = { { id = "runner", side = "player", x = 1, y = 2 } },
+        cargo = cargo,
+        objectives = {
+            { id = "ledger_extract", kind = "extract_ledger", x = 8, y = 2, integrity = 1, evacuateAt = { x = 8, y = 2 } },
+        },
+    })
+    for _, kind in ipairs(cargoKinds) do
+        expect(state:cargoItem(kind).kind == kind, "extract cargo kind should be accepted: " .. kind)
+    end
+    expect(state:objective("ledger_extract").family == "extract", "extract objective should use extract family")
+    state:apply(TacticsState.commands.extractObjective("runner", "ledger_extract", 0))
+    expect(state:objectiveStatus("ledger_extract") == "complete", "extract objective should complete deterministically")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
