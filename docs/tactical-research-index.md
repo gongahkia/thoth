@@ -790,6 +790,22 @@ preview/UI: `docs/itch-alpha-page.md` carries public page copy; `.github/ISSUE_T
 
 test/replay proof: tests verify package manifest/page/form contents; package verification uses `make package-build` and `luajit tests/package.lua dist/thoth.love`.
 
+### H46 Full Scope Zone Terrain And Enemy Families
+
+source pattern: Into the Breach constrains tactics around shown attacks, low UI load, and enemy manipulation; Gears Tactics uses cover, flanking, and player-authored overwatch cones; Invisible Inc warns that procedural stealth/tactics needs validation discipline; Mario + Rabbids shows readable small-squad movement and cover synergies.
+
+thoth transformation: The full scope keeps three zones with shared validation but distinct terrain grammars and enemy families: Buried Archive claim/shelf/audit procedures, Salt Cistern flood/valve/pressure procedures, and Ember Warrens heat/ash/glass procedures.
+
+board verb: localize, threaten, validate, counter.
+
+zone fit: Archive enemies file, seal, summon, and audit; Cistern enemies flood, drain, pull, and pressure; Warrens enemies burn, douse, reflect, and vitrify.
+
+counterplay: use zone-local terrain answers before killing: rotate for Archive back seals, turn Cistern valves or drain grates, and douse or shatter Warrens heat/glass sources.
+
+preview/UI: `ZoneCatalog` exposes tile mechanics, objects, and rotation facts per zone; `EnemyCatalog` exposes common, elite, alpha, exact-intent, and masked-intent data per family.
+
+test/replay proof: tests verify each full-scope zone has 12 mechanics, 8 objects, 4 rotation facts, distinct prefixes, zone-local enemy verb fields, and 3 elites with local counterplay metadata.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

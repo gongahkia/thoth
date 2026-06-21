@@ -1832,6 +1832,35 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local specs = {
+        buried_archive = { family = "archive", prefix = "archive_", verbField = "boardVerb", eliteField = "terrainInteraction", required = { "archive_audit_beam", "archive_shelf_shift", "archive_back_face_seal" } },
+        salt_cistern = { family = "cistern", prefix = "cistern_", verbField = "waterPressureVerb", eliteField = "floodDrainCounterplay", required = { "cistern_flood_lane", "cistern_valve_turn", "cistern_waterline_height" } },
+        ember_warrens = { family = "warrens", prefix = "warrens_", verbField = "heatAshGlassVerb", eliteField = "burnDouseGlassCounterplay", required = { "warrens_heat_lane", "warrens_kiln_heat", "warrens_vitrified_cover" } },
+    }
+    for zoneId, spec in pairs(specs) do
+        local mechanics = ZoneCatalog.tileMechanics(zoneId)
+        local objects = ZoneCatalog.objects(zoneId)
+        local facts = ZoneCatalog.rotationFacts(zoneId)
+        local seen = {}
+        expect(#mechanics == 12 and #objects == 8 and #facts >= 4, zoneId .. " should expose full-scope terrain grammar")
+        for _, mechanic in ipairs(mechanics) do
+            expect(mechanic.id:find(spec.prefix, 1, true) == 1, zoneId .. " mechanic should keep zone-local prefix: " .. mechanic.id)
+            seen[mechanic.id] = true
+        end
+        for _, id in ipairs(spec.required) do
+            expect(seen[id], zoneId .. " should expose signature terrain mechanic " .. id)
+        end
+        expect(#EnemyCatalog.common(spec.family) == 10 and #EnemyCatalog.elites(spec.family) == 3, spec.family .. " should expose full enemy family")
+        for _, enemy in ipairs(EnemyCatalog.common(spec.family)) do
+            expect(enemy[spec.verbField], spec.family .. " common enemy should expose local verb: " .. enemy.id)
+        end
+        for _, enemy in ipairs(EnemyCatalog.elites(spec.family)) do
+            expect(enemy[spec.eliteField], spec.family .. " elite should expose local counterplay: " .. enemy.id)
+        end
+    end
+end
+
+tests[#tests + 1] = function()
     local enemies = EnemyCatalog.globalEnemies()
     expect(#enemies == 8, "global pressure should define 8 enemies")
     local factions = {}
