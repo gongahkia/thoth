@@ -75,7 +75,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Objective Families
 
-- [ ] O.7 Split-squad objective: simultaneous switches/rooms with rotation-revealed dependency.
 - [ ] O.8 Stealth-read objective: gather information and leave without raising exposure cap.
 - [ ] O.9 Sacrifice-choice objective: save squad HP, objective integrity, loot, or faction standing, but not all.
 - [ ] O.10 Boss-procedure objective: counter multi-turn board ritual through weak points and terrain interactions.

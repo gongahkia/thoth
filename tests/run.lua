@@ -1086,6 +1086,36 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = { width = 4, height = 2 },
+        units = {
+            { id = "left", side = "player", x = 1, y = 1, ap = 2 },
+            { id = "right", side = "player", x = 4, y = 1, ap = 2 },
+        },
+        objectives = {
+            {
+                id = "split",
+                kind = "split_switch",
+                x = 1,
+                y = 1,
+                integrity = 1,
+                evacuateAt = { x = 4, y = 2 },
+                switches = {
+                    { id = "left_switch", x = 1, y = 1, dependency = "right_switch" },
+                    { id = "right_switch", x = 4, y = 1, dependency = "left_switch", revealRotation = 1 },
+                },
+            },
+        },
+    })
+    expect(state:splitObjectivePreview("split", { rotation = 0 }).switches[2].hidden, "split dependency should hide until matching rotation")
+    expect(not state:splitObjectivePreview("split", { rotation = 1 }).switches[2].hidden, "split dependency should reveal at matching rotation")
+    state:apply(TacticsState.commands.activateSplitObjective("left", "split", "left_switch", 0))
+    expect(state:objectiveStatus("split") == "active", "one split switch should not complete objective")
+    state:apply(TacticsState.commands.activateSplitObjective("right", "split", "right_switch", 0))
+    expect(state:objectiveStatus("split") == "complete", "all split switches should complete objective")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {

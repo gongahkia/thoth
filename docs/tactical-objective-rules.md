@@ -146,3 +146,22 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies minimum unit evacuation and board-collapse failure carryover.
+
+## O.7 Split-Squad Objectives
+
+Split objectives require simultaneous or distributed switch progress.
+
+Kind:
+
+- `split_switch`
+
+Rules:
+
+- Split objectives belong to family `split`.
+- Switches are declared with ids and board tiles.
+- Switch dependencies may be hidden until matching rotation.
+- Activating all switches completes the objective.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies rotation-hidden dependency preview, switch activation, and completion after all switches are active.

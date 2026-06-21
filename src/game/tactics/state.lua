@@ -520,6 +520,7 @@ local objectiveKinds = {
     repair_ward = "repair",
     hold_claim = "hold",
     evacuate_board = "evacuate",
+    split_switch = "split",
 }
 
 local function normalizeObjective(objective, index)
@@ -548,6 +549,7 @@ local function normalizeObjective(objective, index)
         minUnits = objective.minUnits,
         minObjectives = objective.minObjectives,
         boardCollapseIn = objective.boardCollapseIn,
+        switches = copyValue(objective.switches),
         extracted = objective.extracted == true,
         disabled = objective.disabled == true,
         relocated = objective.relocated == true,
@@ -1961,6 +1963,19 @@ function State:evaluateObjective(objective)
         objective.complete = true
         return "complete"
     end
+    if objective.family == "split" then
+        local allActive = #(objective.switches or {}) > 0
+        for _, switch in ipairs(objective.switches or {}) do
+            if not switch.activated then
+                allActive = false
+                break
+            end
+        end
+        if allActive then
+            objective.complete = true
+            return "complete"
+        end
+    end
     return "active"
 end
 
@@ -2078,6 +2093,41 @@ function State:tickEvacuationObjective(id)
         end
     end
     return self:evacuationProgress(id)
+end
+
+function State:splitObjectivePreview(id, options)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    expect(objective.family == "split", "objective is not split")
+    options = options or {}
+    local rotation = options.rotation or options.viewRotation or 0
+    local switches = {}
+    for _, switch in ipairs(objective.switches or {}) do
+        local hidden = switch.revealRotation ~= nil and (switch.revealRotation % 4) ~= (rotation % 4)
+        switches[#switches + 1] = {
+            id = switch.id,
+            x = hidden and nil or switch.x,
+            y = hidden and nil or switch.y,
+            activated = switch.activated == true,
+            hidden = hidden,
+            dependency = hidden and nil or switch.dependency,
+        }
+    end
+    return { objective = id, switches = switches, complete = objective.complete == true }
+end
+
+function State:activateSplitObjective(id, switchId, unitId)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    expect(objective.family == "split", "objective is not split")
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    for _, switch in ipairs(objective.switches or {}) do
+        if switch.id == switchId then
+            expect(unit.x == switch.x and unit.y == switch.y, "unit is not on split switch")
+            switch.activated = true
+            self:evaluateObjective(objective)
+            return switch
+        end
+    end
+    error("unknown split switch " .. tostring(switchId), 2)
 end
 
 function State:sacrificeObjective(id, reason)
@@ -2633,6 +2683,9 @@ function State:apply(command)
         self:tickHoldObjective(command.objective)
     elseif kind == "tickEvacuationObjective" then
         self:tickEvacuationObjective(command.objective)
+    elseif kind == "activateSplitObjective" then
+        self:spendAP(command.unit, command.cost or 1)
+        self:activateSplitObjective(command.objective, command.switch, command.unit)
     elseif kind == "sacrificeObjective" then
         expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
         self:spendAP(command.unit, command.cost or 0)
@@ -2871,6 +2924,10 @@ end
 
 function commands.tickEvacuationObjective(objectiveId)
     return { type = "tickEvacuationObjective", objective = objectiveId }
+end
+
+function commands.activateSplitObjective(unitId, objectiveId, switchId, cost)
+    return { type = "activateSplitObjective", unit = unitId, objective = objectiveId, switch = switchId, cost = cost }
 end
 
 function commands.sacrificeObjective(unitId, objectiveId, reason, cost)
