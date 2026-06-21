@@ -48,6 +48,29 @@ BossCatalog.bosses = {
             },
         },
     },
+    pearl_choir = {
+        name = "Pearl Choir",
+        zone = "salt_cistern",
+        board = {
+            refloodingLanes = {
+                { id = "west_reflood_lane", pattern = "row", countdown = 1, effect = "drained lane becomes flood hazard after chorus" },
+                { id = "east_reflood_lane", pattern = "column", countdown = 2, effect = "low cover floats one tile when reflooded" },
+            },
+            choirThroats = {
+                { id = "low_throat", waterline = "low", counter = "silence to stop next reflood" },
+                { id = "high_throat", waterline = "high", counter = "silence to expose Pearl Choir core" },
+            },
+            movingWaterline = {
+                states = { "drained", "ankle", "waist", "overflow" },
+                rule = "waterline advances one state after unresolved chorus",
+                lowGroundPunishment = "overflow turns low ground hostile",
+            },
+            pressureBellAdds = {
+                { id = "bell_acolyte_pair", spawn = "two pressure acolytes", trigger = "unsilenced throat" },
+                { id = "bell_cyst_cluster", spawn = "one pearl cyst cluster", trigger = "overflow waterline" },
+            },
+        },
+    },
 }
 
 function BossCatalog.boss(id)
@@ -56,7 +79,7 @@ end
 
 function BossCatalog.allBosses()
     local bosses = {}
-    for _, id in ipairs({ "codex_reeve", "vault_regent" }) do
+    for _, id in ipairs({ "codex_reeve", "vault_regent", "pearl_choir" }) do
         bosses[#bosses + 1] = BossCatalog.boss(id)
     end
     return bosses

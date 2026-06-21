@@ -45,3 +45,26 @@ Show claim beam footprint, collateral names, cover authority edge, writ pillar H
 
 test/replay proof:
 `tests/run.lua` verifies the Vault Regent board defines claim beams, name collateral, legal cover, and destructible writ pillars.
+
+## B.3 Pearl Choir
+
+source pattern:
+Boss boards combine telegraphed hazard lanes, phase clocks, adds, and objective-safe counter windows.
+
+thoth transformation:
+Pearl Choir refloods drained cistern lanes unless choir throats are silenced before the moving waterline reaches overflow.
+
+board verb:
+Reflood, silence throats, move waterline, ring pressure bells, spawn adds.
+
+zone fit:
+Salt Cistern already uses valves, flood lanes, pressure bells, pearl cysts, and waterline height.
+
+counterplay:
+Silence low and high choir throats, drain lanes before chorus, reposition off low ground, or block pressure bell add spawns.
+
+preview/UI:
+Show reflood countdowns, throat status, current/next waterline, low-ground hostility, and add spawn triggers.
+
+test/replay proof:
+`tests/run.lua` verifies the Pearl Choir board defines reflooding lanes, choir throats, moving waterline, and pressure bell adds.

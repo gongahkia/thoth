@@ -1643,6 +1643,15 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local boss = BossCatalog.boss("pearl_choir")
+    expect(boss and boss.name == "Pearl Choir" and boss.zone == "salt_cistern", "Pearl Choir boss catalog entry should exist")
+    expect(#boss.board.refloodingLanes == 2, "Pearl Choir should define reflooding lanes")
+    expect(#boss.board.choirThroats == 2, "Pearl Choir should define choir throats")
+    expect(#boss.board.movingWaterline.states == 4 and boss.board.movingWaterline.rule, "Pearl Choir should define moving waterline")
+    expect(#boss.board.pressureBellAdds == 2, "Pearl Choir should define pressure bell adds")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
