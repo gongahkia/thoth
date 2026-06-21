@@ -84,10 +84,13 @@ Rules:
 - Forced movement into an active route-machinery objective damages objective integrity.
 - Threat zones can trigger from forced movement after a successful displacement step.
 - Evacuated or defeated units cannot be moved or swapped by core commands.
+- `State.collisionRules()` exposes deterministic rule metadata for blocked tiles, occupied tiles, objective tiles, and threat-zone-after-step triggers.
+- Occupied-tile collisions allow friendly fire when the occupant shares the moved unit's side.
+- Objective-tile collisions damage objective integrity after the unit enters the tile.
 
 Acceptance proof:
 
-- `tests/run.lua` verifies shove, pull, swap, blocked movement, collision damage, objective collision, and enemy friendly-fire collision.
+- `tests/run.lua` verifies shove, pull, swap, blocked movement, collision damage, objective collision, enemy friendly-fire collision, and exported collision policy metadata.
 
 ## M.5 Dash, Vault, Climb, And Drop
 

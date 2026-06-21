@@ -586,6 +586,14 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local rules = TacticsState.collisionRules()
+    expect(rules.blockedTile.result == "stop" and rules.blockedTile.movedUnitDamage and rules.blockedTile.deterministic, "blocked-tile collision rule should damage moved unit deterministically")
+    expect(rules.occupiedTile.friendlyFire and rules.occupiedTile.occupantDamage and rules.occupiedTile.deterministic, "occupied-tile collision rule should allow deterministic friendly fire")
+    expect(rules.objectiveTile.result == "enter" and rules.objectiveTile.objectiveDamage and rules.objectiveTile.deterministic, "objective collision rule should damage objective after entry")
+    expect(rules.threatZoneAfterStep.triggerThreatZone and rules.threatZoneAfterStep.deterministic, "forced movement should trigger threat zones after a successful step")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 8,
         board = {

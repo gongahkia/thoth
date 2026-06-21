@@ -137,7 +137,6 @@ Initial class direction:
 
 Goal: make enemies readable, varied, and board-native.
 
-- [ ] 4.5 Add friendly fire and enemy-vs-objective collision rules.
 - [ ] 4.6 Add destructible location rules for shelves, bridges, valves, kilns, doors, floors, and machinery.
 - [ ] 4.7 Add visible reinforcement rules and spawn blocking.
 

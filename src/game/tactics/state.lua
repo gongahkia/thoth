@@ -48,6 +48,17 @@ local function copyMap(values)
     return result
 end
 
+local collisionRules = {
+    blockedTile = { result = "stop", movedUnitDamage = true, occupantDamage = false, objectiveDamage = false, deterministic = true },
+    occupiedTile = { result = "stop", movedUnitDamage = true, occupantDamage = true, friendlyFire = true, objectiveDamage = false, deterministic = true },
+    objectiveTile = { result = "enter", movedUnitDamage = false, occupantDamage = false, objectiveDamage = true, deterministic = true },
+    threatZoneAfterStep = { result = "enter", triggerThreatZone = true, deterministic = true },
+}
+
+function State.collisionRules()
+    return copyValue(collisionRules)
+end
+
 local function tileKey(x, y)
     return tostring(x) .. ":" .. tostring(y)
 end

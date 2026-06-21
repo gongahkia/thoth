@@ -529,6 +529,22 @@ preview/UI: boss phase card shows phase id, tile pattern, weak-point rotation, t
 
 test/replay proof: `BossCatalog.auditPhaseProcedures()` rejects missing phase charts, missing tile patterns, missing rotating weak points, missing terrain conversion, missing objective pressure, missing visible clocks, missing counterplay/preview, and weak-point rotation coverage below two rotations.
 
+### H30 Friendly Fire And Objective Collision
+
+source pattern: Into the Breach makes friendly fire and collateral objective defense central by telegraphing displacement and attacks before resolution.
+
+thoth transformation: Forced movement has explicit collision rules for blocked tiles, occupied tiles, objective tiles, and threat zones after a successful displacement step.
+
+board verb: shove, pull, collide, damage, trigger.
+
+zone fit: Archive misfile lanes push bodies into machinery; Cistern undertow pulls carriers across pumps; Warrens heat and ash lanes shove units into fuel or glass pressure.
+
+counterplay: brace, block landing, anchor target, move objective carrier, repair objective, break LoS, or redirect forced movement into enemies.
+
+preview/UI: push/pull preview shows destination, blocked or occupied collision, friendly-fire marker, objective integrity delta, and threat-zone trigger.
+
+test/replay proof: `State.collisionRules()` exposes deterministic policy metadata, and `tests/run.lua` verifies objective collision, enemy friendly fire, blocked-tile collision, and threat-zone-after-step policy.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.
