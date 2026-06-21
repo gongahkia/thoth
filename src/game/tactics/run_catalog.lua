@@ -43,6 +43,13 @@ RunCatalog.routeNodeTypes = {
     { id = "high_reward_extraction", risk = "harder exit pressure", reward = "extra cargo and proof", preview = "cargo value and exit rules" },
 }
 
+RunCatalog.eventRngRules = {
+    { id = "pre_board_complication", timing = "pre_board", roll = "before board seed locks", effect = "add board modifier or route pressure" },
+    { id = "pre_board_offer", timing = "pre_board", roll = "before squad deployment", effect = "offer debt, tool, or faction trade" },
+    { id = "post_board_reward", timing = "post_board", roll = "after deterministic resolution", effect = "adjust salvage, trinket, or standing reward" },
+    { id = "post_board_consequence", timing = "post_board", roll = "after extraction or loss", effect = "apply injury, dread, faction, or route event" },
+}
+
 function RunCatalog.boardTemplate(id)
     for _, template in ipairs(RunCatalog.boardTemplates) do
         if template.id == id then
@@ -66,6 +73,10 @@ end
 
 function RunCatalog.routeNodes()
     return RunCatalog.routeNodeTypes
+end
+
+function RunCatalog.eventRules()
+    return RunCatalog.eventRngRules
 end
 
 return RunCatalog

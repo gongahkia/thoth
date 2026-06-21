@@ -1740,6 +1740,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local timings = {}
+    for _, rule in ipairs(RunCatalog.eventRules()) do
+        expect(rule.roll and rule.effect, "event RNG rule should define roll and effect: " .. rule.id)
+        expect(rule.timing == "pre_board" or rule.timing == "post_board", "event RNG should not run during tactical resolution: " .. rule.id)
+        timings[rule.timing] = true
+    end
+    expect(timings.pre_board and timings.post_board, "event RNG rules should cover pre-board and post-board timing")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

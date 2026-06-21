@@ -91,3 +91,26 @@ Node card shows risk, reward, and the information preview field for that node ty
 
 test/replay proof:
 `tests/run.lua` verifies all ten route node types exist and each defines risk, reward, and preview text.
+
+## P.5 Event RNG Rules
+
+source pattern:
+Roguelite event variance can happen around tactical boards without making declared tactical resolution random.
+
+thoth transformation:
+Thoth event RNG is restricted to pre-board and post-board windows; once board state and intents are declared, tactical resolution remains deterministic.
+
+board verb:
+Roll before, lock board, resolve deterministically, roll after.
+
+zone fit:
+All zone events can alter route choice, board modifier, squad state, objective reward, or faction standing only outside declared tactical resolution.
+
+counterplay:
+Players see event timing and board modifier before committing to a route or deployment.
+
+preview/UI:
+Event card labels timing as pre-board or post-board and describes the board/run effect.
+
+test/replay proof:
+`tests/run.lua` verifies every event RNG rule runs only pre-board or post-board and covers both timing windows.
