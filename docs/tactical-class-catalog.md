@@ -6,11 +6,12 @@ Source of truth: `src/game/tactics/class_catalog.lua`.
 
 ## CL.0 Board-Verb Contract
 
-Every class defines `boardVerbs`. Every loadout defines exactly one `boardVerb` and no `role` field.
+Every class defines `boardVerbs`, `loadoutSlots = 2`, 3-5 tools, and at least one terrain interaction. Every loadout defines exactly one `boardVerb` and spends exactly two class tools.
 
 Acceptance proof:
 
 - `tests/run.lua` calls `ClassCatalog.auditBoardVerbs()` and verifies every class/loadout uses board verbs.
+- `tests/run.lua` calls `ClassCatalog.auditLoadoutShape()` and verifies 2 slots, 3-5 tools, terrain interactions, and loadout tool refs.
 
 ## CL.1 Warden
 
@@ -18,14 +19,13 @@ The Warden defines 3 loadouts:
 
 - `line_guard`: `brace_line` using `brace_pavise` and `route_hook`.
 - `claim_anchor`: `hold_claim` using `claim_spike` and `oath_tether`.
-- `breach_shield`: `break_cover` using `shelf_shove_kit` and `breach_maul`.
+- `breach_shield`: `break_cover` using `route_hook` and `breach_maul`.
 
-The Warden defines 6 tools:
+The Warden defines 5 tools:
 
 - `brace_pavise`: raise mobile half cover.
 - `route_hook`: pull ally or cargo one tile.
 - `claim_spike`: brace on claim tile without losing LoS.
-- `shelf_shove_kit`: shove full cover or blockers.
 - `oath_tether`: redirect first objective hit to Warden guard.
 - `breach_maul`: damage destructible cover and expose flanks.
 
@@ -53,16 +53,15 @@ The Duelist defines 3 loadouts:
 
 - `red_line`: `dash_strike` using `razor_dash` and `angle_step`.
 - `patron_shadow`: `swap_position` using `swap_foil` and `riposte_mark`.
-- `debt_blade`: `convert_flank` using `cloak_pin` and `ledger_stiletto`.
+- `debt_blade`: `convert_flank` using `cloak_pin` and `angle_step`.
 
-The Duelist defines 6 tools:
+The Duelist defines 5 tools:
 
 - `razor_dash`: dash through a safe lane before attacking.
 - `angle_step`: shift one tile after a flank preview.
 - `swap_foil`: swap with adjacent enemy or ally.
 - `riposte_mark`: mark first enemy entering adjacent tile.
 - `cloak_pin`: ignore first overwatch line while flanking.
-- `ledger_stiletto`: bonus damage against isolated objective guards.
 
 Terrain interactions:
 
@@ -88,15 +87,14 @@ The Apothecary defines 3 loadouts:
 
 - `field_triage`: `stabilize_objective` using `wound_clamp` and `salt_draught`.
 - `smoke_binder`: `place_smoke` using `hush_smoke` and `salve_flare`.
-- `plague_cutter`: `cleanse_hazard` using `bitter_vial` and `sterilize_hook`.
+- `plague_cutter`: `cleanse_hazard` using `salt_draught` and `sterilize_hook`.
 
-The Apothecary defines 6 tools:
+The Apothecary defines 5 tools:
 
 - `wound_clamp`: repair ally or civilian integrity.
 - `salt_draught`: cleanse brine or blight status.
 - `hush_smoke`: place short-lived obscurant.
 - `salve_flare`: reveal safe rescue route through smoke.
-- `bitter_vial`: apply deterministic debuff to one enemy.
 - `sterilize_hook`: drag cargo or patient out of hazard.
 
 Terrain interactions:
@@ -122,15 +120,14 @@ Acceptance proof:
 The Arcanist defines 3 loadouts:
 
 - `seal_reader`: `reveal_hidden_mark` using `seal_lantern` and `syntax_hook`.
-- `line_bender`: `bend_los` using `glyph_prism` and `angle_wax`.
+- `line_bender`: `bend_los` using `glyph_prism` and `syntax_hook`.
 - `intent_breaker`: `interrupt_intent` using `hush_formula` and `permission_key`.
 
-The Arcanist defines 6 tools:
+The Arcanist defines 5 tools:
 
 - `seal_lantern`: reveal class-gated marks and weak points.
 - `syntax_hook`: pull one redacted intent into exact preview.
 - `glyph_prism`: bend one visible LoS ray around cover.
-- `angle_wax`: mark a tile as readable from current rotation.
 - `hush_formula`: interrupt one ritual or category intent.
 - `permission_key`: treat one sealed tile as passable for a move.
 
@@ -157,15 +154,14 @@ Acceptance proof:
 The Thief defines 3 loadouts:
 
 - `ghost_route`: `sneak_route` using `quiet_pick` and `route_chalk`.
-- `trap_lifter`: `disarm_hazard` using `tripwire_spool` and `pocket_lantern`.
+- `trap_lifter`: `disarm_hazard` using `tripwire_spool` and `route_chalk`.
 - `courier_cut`: `extract_cargo` using `false_warrant` and `escape_hook`.
 
-The Thief defines 6 tools:
+The Thief defines 5 tools:
 
 - `quiet_pick`: open adjacent lock without raising exposure.
 - `tripwire_spool`: mark and disarm one trap lane.
 - `route_chalk`: reveal hidden safe tile on current path.
-- `pocket_lantern`: reveal one nearby hidden pickup.
 - `false_warrant`: carry objective cargo at normal move cost.
 - `escape_hook`: pull self or cargo to extraction edge.
 
@@ -191,14 +187,13 @@ Acceptance proof:
 
 The Chirurgeon defines 3 loadouts:
 
-- `bone_setter`: `stabilize_injury` using `nerve_suture` and `pain_contract`.
+- `bone_setter`: `stabilize_injury` using `nerve_suture` and `mercy_clamp`.
 - `cautery_engineer`: `douse_burn` using `cautery_lamp` and `machine_splint`.
 - `preservationist`: `preserve_body` using `preservation_saw` and `mercy_clamp`.
 
-The Chirurgeon defines 6 tools:
+The Chirurgeon defines 5 tools:
 
 - `nerve_suture`: convert injury penalty into timed AP cost.
-- `pain_contract`: brace ally with deterministic stress debt.
 - `cautery_lamp`: douse bleed or burn lane around patient.
 - `machine_splint`: repair machinery objective integrity.
 - `preservation_saw`: extract body cargo without integrity loss.
@@ -228,16 +223,15 @@ The Exile defines 3 loadouts:
 
 - `faultbreaker`: `break_terrain` using `ruin_maul` and `fault_step`.
 - `borderless`: `hold_hazard` using `hazard_hide` and `spite_breath`.
-- `thrown_oath`: `throw_unit` using `exile_throw` and `broken_oath_grip`.
+- `thrown_oath`: `throw_unit` using `exile_throw` and `ruin_maul`.
 
-The Exile defines 6 tools:
+The Exile defines 5 tools:
 
 - `ruin_maul`: destroy adjacent cover or brittle floor.
 - `fault_step`: move through one broken terrain tile.
 - `hazard_hide`: ignore first hazard tick this turn.
 - `spite_breath`: gain AP now and take deterministic self damage.
 - `exile_throw`: throw enemy or cargo one tile.
-- `broken_oath_grip`: pin target against blocker after shove.
 
 Terrain interactions:
 
@@ -261,14 +255,13 @@ Acceptance proof:
 
 The Lamplighter defines 3 loadouts:
 
-- `beacon_runner`: `anchor_beacon` using `route_beacon` and `white_flare`.
+- `beacon_runner`: `anchor_beacon` using `route_beacon` and `smoke_gel`.
 - `cone_keeper`: `project_overwatch` using `mirror_lantern` and `wick_line`.
 - `ash_lamp`: `reduce_hidden_intent` using `smoke_gel` and `safe_cinder`.
 
-The Lamplighter defines 6 tools:
+The Lamplighter defines 5 tools:
 
 - `route_beacon`: reveal hidden route tile and extraction edge.
-- `white_flare`: force redacted intent into exact preview.
 - `mirror_lantern`: project overwatch cone around cover.
 - `wick_line`: connect two lit tiles for ally movement.
 - `smoke_gel`: turn smoke into light-blocking obscurant.
@@ -297,15 +290,14 @@ Acceptance proof:
 The Merchant defines 3 loadouts:
 
 - `debt_broker`: `convert_debt_to_ap` using `debt_note` and `risk_ledger`.
-- `salvage_factor`: `insure_salvage` using `salvage_drone` and `escrow_token`.
+- `salvage_factor`: `insure_salvage` using `salvage_drone` and `risk_ledger`.
 - `mercy_accountant`: `insure_objective` using `appraisal_lens` and `mercy_clause`.
 
-The Merchant defines 6 tools:
+The Merchant defines 5 tools:
 
 - `debt_note`: gain AP now and record deterministic debt.
 - `risk_ledger`: convert incoming objective damage into future cost.
 - `salvage_drone`: carry small loot without occupying a unit.
-- `escrow_token`: protect extracted cargo from one damage tick.
 - `appraisal_lens`: mark enemy weak point or objective value.
 - `mercy_clause`: repair ally or civilian now, pay later.
 

@@ -51,6 +51,7 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S39 | https://bugnet.io/blog/how-to-fix-a-replay-system-that-desyncs | Replay systems should record seeds/inputs and verify with checksums to catch divergence. | Thoth exports per-board replay hashes and an export hash for QA comparison. |
 | S40 | https://www.gearsofwar.com/en-us/game-guide/classes/ | Classes branch into subclasses and skill sets that tailor soldiers to battlefield needs. | Thoth classes branch into named board verbs so loadouts describe actions on tiles, cover, objectives, and intent. |
 | S41 | https://www.feralinteractive.com/en/manuals/xcom2/latest/steam/ | Soldier classes expose battlefield roles through unique abilities and specializations. | Thoth rejects RPG role labels at loadout level; the catalog records inspectable verbs such as brace, dash, reveal, douse, and insure. |
+| S42 | https://www.ubisoft.com/en-us/game/mario-rabbids/sparks-of-hope/news-updates/54KqtyUg25UlrGQ20LC0ga/mario-rabbids-sparks-of-hope-a-deep-dive-into-combat-and-hero-archetypes | Compact hero kits combine movement options, weapons, techniques, and external powers for tactical variety. | Thoth caps class tools at 3-5 and uses 2 loadout slots so squad choices stay readable before board load. |
 
 ## Mechanic Handoffs
 
@@ -373,6 +374,22 @@ counterplay: every loadout verb has a cost, tile condition, LoS condition, coold
 preview/UI: class sheet lists board verbs, loadouts list one `boardVerb`, and inspector text states the tile/objective/intent state changed before commit.
 
 test/replay proof: `ClassCatalog.auditBoardVerbs()` rejects missing verbs or legacy loadout `role`; `tests/run.lua` verifies every class and loadout uses board verbs.
+
+### H21 Loadout Slot Budget
+
+source pattern: XCOM and Gears Tactics keep class identity readable through bounded abilities and class branches; Mario + Rabbids combines each hero's weapon, technique, movement verbs, and Spark choices into a readable pre-battle kit.
+
+thoth transformation: Every class declares 2 loadout slots, 3-5 catalog tools, and at least one terrain interaction; loadouts must spend exactly those 2 slots using tools from the class catalog.
+
+board verb: choose, equip, share, constrain, preview.
+
+zone fit: all zones; Archive stresses reveal/cover slots, Cistern stresses rescue/douse slots, Warrens stresses heat/terrain/objective slots.
+
+counterplay: slot caps force tradeoffs; enemies and objectives can punish missing reveal, missing hazard control, missing cover break, or missing extraction support.
+
+preview/UI: class loadout screen shows `loadoutSlots`, available tools, chosen two-slot loadout, terrain interaction, and missing counter category.
+
+test/replay proof: `ClassCatalog.auditLoadoutShape()` rejects non-2-slot loadouts, tool catalogs outside 3-5, missing terrain interactions, and loadout tools absent from the class catalog.
 
 ## Rejection Rules
 
