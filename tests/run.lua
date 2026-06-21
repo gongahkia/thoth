@@ -206,6 +206,26 @@ tests[#tests + 1] = function()
     local sx, sy = Render.projectIso(app.worldView, runtime.originX + 3.5, runtime.originY + 6.5)
     local tileX, tileY = Render.tacticalTileAt(app, sx, sy)
     expect(tileX == 3 and tileY == 6, "tactical mouse projection should map screen point to board tile")
+    app.worldView.tacticalCamera = {
+        eyeX = runtime.originX + 3.5 + 10,
+        eyeY = runtime.originY + 6.5 - 10,
+        eyeZ = 8,
+        targetX = runtime.originX + 3.5,
+        targetY = runtime.originY + 6.5,
+        targetZ = 0,
+        boardZ = 0,
+        orthoSize = 10,
+        screenWidth = 800,
+        screenHeight = 600,
+    }
+    tileX, tileY = Render.tacticalTileAt(app, 400, 300)
+    expect(tileX == 3 and tileY == 6, "g3d tactical mouse projection should map screen center to target tile")
+    tileX, tileY = Render.tacticalTileAt(app, 450, 300)
+    expect(tileX == 4 and tileY == 7, "g3d tactical mouse projection should follow camera right axis")
+    tileX, tileY = Render.tacticalTileAt(app, 350, 300)
+    expect(tileX == 2 and tileY == 5, "g3d tactical mouse projection should follow camera left axis")
+    app.worldView.tacticalCamera = nil
+    tileX, tileY = 3, 6
     expect(runtime:handleMouseTile(tileX, tileY, 1), "left click should handle reachable board tile")
     expect(runtime.state:unit("warden").x == 3 and runtime.state:unit("warden").ap == 2, "left click should move selected unit to reachable tile")
     expect(runtime:handleMouseTile(2, 7, 1), "left click should select player unit")

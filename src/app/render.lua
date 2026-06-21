@@ -626,6 +626,48 @@ function Render.screenToWorld(view, x, y)
     return math.floor(worldX + 0.5), math.floor(worldY + 0.5)
 end
 
+local function normalize3(x, y, z)
+    local length = math.sqrt(x * x + y * y + z * z)
+    if length <= 0 then
+        return 0, 0, 0
+    end
+    return x / length, y / length, z / length
+end
+
+local function cross3(ax, ay, az, bx, by, bz)
+    return ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx
+end
+
+function Render.tacticalScreenToWorldPoint(view, screenX, screenY)
+    local camera = view and view.tacticalCamera
+    if not camera then
+        return nil
+    end
+    local width = camera.screenWidth or (love and love.graphics and love.graphics.getWidth()) or 0
+    local height = camera.screenHeight or (love and love.graphics and love.graphics.getHeight()) or 0
+    if width <= 0 or height <= 0 then
+        return nil
+    end
+    local eyeX, eyeY, eyeZ = camera.eyeX, camera.eyeY, camera.eyeZ
+    local targetX, targetY, targetZ = camera.targetX, camera.targetY, camera.targetZ
+    local backX, backY, backZ = normalize3(eyeX - targetX, eyeY - targetY, eyeZ - targetZ)
+    local rightX, rightY, rightZ = normalize3(cross3(0, 0, 1, backX, backY, backZ))
+    local upX, upY, upZ = cross3(backX, backY, backZ, rightX, rightY, rightZ)
+    local top = camera.orthoSize or 1
+    local right = top * (width / height)
+    local cameraX = ((screenX / width) * 2 - 1) * right
+    local cameraY = (1 - (screenY / height) * 2) * top
+    local rayX = eyeX + rightX * cameraX + upX * cameraY
+    local rayY = eyeY + rightY * cameraX + upY * cameraY
+    local rayZ = eyeZ + rightZ * cameraX + upZ * cameraY
+    local dirX, dirY, dirZ = -backX, -backY, -backZ
+    if math.abs(dirZ) < 0.0001 then
+        return nil
+    end
+    local t = ((camera.boardZ or 0) - rayZ) / dirZ
+    return rayX + dirX * t, rayY + dirY * t
+end
+
 local function clamp(value, minValue, maxValue)
     return math.max(minValue, math.min(maxValue, value))
 end
@@ -1223,7 +1265,10 @@ function Render.tacticalTileAt(app, screenX, screenY)
     if not (source and source.state and view) then
         return nil
     end
-    local worldX, worldY = Render.screenToWorldPoint(view, screenX, screenY)
+    local worldX, worldY = Render.tacticalScreenToWorldPoint(view, screenX, screenY)
+    if not worldX then
+        worldX, worldY = Render.screenToWorldPoint(view, screenX, screenY)
+    end
     local tileX = math.floor(worldX - (source.originX or 0))
     local tileY = math.floor(worldY - (source.originY or 0))
     if not source.state:inBounds(tileX, tileY) then
@@ -1349,7 +1394,22 @@ local function applyCamera(sim, app)
     local z = targetZ + math.sin(cameraPitch) * cameraDistance
     state.g3d.camera.lookAt(x, y, z, targetX, targetY, targetZ)
     local viewSize = app and app.tacticalMode and (cameraViewSize * 0.58) or cameraViewSize
-    state.g3d.camera.updateOrthographicMatrix(viewSize / zoom)
+    local orthoSize = viewSize / zoom
+    state.g3d.camera.updateOrthographicMatrix(orthoSize)
+    if app and app.tacticalMode and app.worldView then
+        app.worldView.tacticalCamera = {
+            eyeX = x,
+            eyeY = y,
+            eyeZ = z,
+            targetX = targetX,
+            targetY = targetY,
+            targetZ = targetZ,
+            boardZ = targetZ,
+            orthoSize = orthoSize,
+            screenWidth = love.graphics.getWidth(),
+            screenHeight = love.graphics.getHeight(),
+        }
+    end
     return yaw
 end
 
