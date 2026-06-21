@@ -1571,6 +1571,18 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local enemies = EnemyCatalog.common("warrens")
+    expect(#enemies == 10, "Warrens should define 10 common enemies")
+    local ids = {}
+    for _, enemy in ipairs(enemies) do
+        expect(enemy.id and enemy.name and enemy.heatAshGlassVerb, "warrens common enemy should include id name heat/ash/glass verb")
+        expect(enemy.exactIntent and enemy.exactIntent.mode == "exact", "warrens common enemy should include exact intent")
+        expect(not ids[enemy.id], "warrens common enemy ids should be unique")
+        ids[enemy.id] = true
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

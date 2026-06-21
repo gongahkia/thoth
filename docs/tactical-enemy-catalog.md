@@ -97,3 +97,22 @@ Effects:
 Acceptance proof:
 
 - `tests/run.lua` verifies the Cistern alpha is visible before board reveal and defines pre-board, route-choice, and board-generation effects.
+
+## E.7 Warrens Common Enemies
+
+The Warrens family defines 10 common enemies. Each has exact intent metadata and one heat/ash/glass verb:
+
+- `ash_husk`: exact attack, `kick_ash`.
+- `kiln_imp`: exact move, `spark_jump`.
+- `kiln_nurse`: exact buff, `cautery_stoke`.
+- `glass_penitent`: exact guard, `raise_glass`.
+- `clinker_butcher`: exact attack, `hook_clinker`.
+- `white_furnace`: exact destroy, `pressure_coal`.
+- `glass_choirmaster`: exact debuff, `sing_reflection`.
+- `cinder_penitent`: exact attack, `immolate_cinder`.
+- `ember_mote`: exact summon, `seed_ember`.
+- `coal_monk`: exact debuff, `chant_pressure`.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies the Warrens has exactly 10 common enemies and each one has unique id, name, exact intent, and heat/ash/glass verb metadata.

@@ -55,6 +55,20 @@ EnemyCatalog.families = {
             boardGenerationChange = "adds one pressure bell, two flood lanes, and raised low-ground punishment",
         },
     },
+    warrens = {
+        common = {
+            { id = "ash_husk", name = "Ash Husk", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "front" }, heatAshGlassVerb = "kick_ash" },
+            { id = "kiln_imp", name = "Kiln Imp", exactIntent = { mode = "exact", category = "move", damage = 1, target = "heat_lane" }, heatAshGlassVerb = "spark_jump" },
+            { id = "kiln_nurse", name = "Kiln Nurse", exactIntent = { mode = "exact", category = "buff", damage = 0, target = "burned_ally" }, heatAshGlassVerb = "cautery_stoke" },
+            { id = "glass_penitent", name = "Glass Penitent", exactIntent = { mode = "exact", category = "guard", damage = 1, target = "line" }, heatAshGlassVerb = "raise_glass" },
+            { id = "clinker_butcher", name = "Clinker Butcher", exactIntent = { mode = "exact", category = "attack", damage = 3, target = "cover" }, heatAshGlassVerb = "hook_clinker" },
+            { id = "white_furnace", name = "White Furnace", exactIntent = { mode = "exact", category = "destroy", damage = 3, target = "objective" }, heatAshGlassVerb = "pressure_coal" },
+            { id = "glass_choirmaster", name = "Glass Choirmaster", exactIntent = { mode = "exact", category = "debuff", damage = 0, target = "reflected_line" }, heatAshGlassVerb = "sing_reflection" },
+            { id = "cinder_penitent", name = "Cinder Penitent", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "adjacent" }, heatAshGlassVerb = "immolate_cinder" },
+            { id = "ember_mote", name = "Ember Mote", exactIntent = { mode = "exact", category = "summon", damage = 1, target = "burn_tile" }, heatAshGlassVerb = "seed_ember" },
+            { id = "coal_monk", name = "Coal Monk", exactIntent = { mode = "exact", category = "debuff", damage = 1, target = "white_coal" }, heatAshGlassVerb = "chant_pressure" },
+        },
+    },
 }
 
 function EnemyCatalog.family(id)
