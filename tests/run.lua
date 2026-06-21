@@ -577,6 +577,71 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = {
+            width = 8,
+            height = 4,
+            tiles = {
+                ["1:1"] = { hazard = { kind = "burn", active = true, damage = 1 } },
+                ["1:2"] = { hazard = { kind = "flood", active = true, damage = 1 } },
+            },
+        },
+        units = {
+            { id = "stunner", side = "enemy", x = 2, y = 2 },
+            { id = "shoved", side = "enemy", x = 3, y = 2 },
+            { id = "los", side = "enemy", x = 4, y = 2 },
+            { id = "cover", side = "enemy", x = 5, y = 2 },
+            { id = "sealed", side = "enemy", x = 6, y = 2 },
+            { id = "hacked", side = "enemy", x = 7, y = 2 },
+            { id = "doused", side = "enemy", x = 8, y = 2 },
+            { id = "drained", side = "enemy", x = 2, y = 3 },
+            { id = "boss", side = "enemy", x = 3, y = 3 },
+        },
+    })
+    local function exactIntent(unitId)
+        state:apply(TacticsState.commands.intent(unitId, { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 4 } }, damage = 1 }))
+    end
+    exactIntent("stunner")
+    state:apply(TacticsState.commands.interruptIntent("stunner", "stun", { turns = 1 }))
+    expect(state:intentPreview("stunner") == nil and state:hasStatus("stunner", "stunned"), "stun interrupt should prevent intent and apply stun")
+    exactIntent("shoved")
+    state:apply(TacticsState.commands.interruptIntent("shoved", "shove", { direction = "north", distance = 1 }))
+    expect(state:intentPreview("shoved") == nil and state:unit("shoved").y == 1, "shove interrupt should move source and prevent intent")
+    exactIntent("los")
+    state:apply(TacticsState.commands.interruptIntent("los", "losBreak"))
+    expect(state:intentPreview("los") == nil, "LoS break interrupt should prevent intent")
+    exactIntent("cover")
+    state:apply(TacticsState.commands.interruptIntent("cover", "coverRaise", { x = 1, y = 3 }))
+    expect(state:intentPreview("cover") == nil and state:tileAt(1, 3).coverEdges.north == "half", "cover raise interrupt should raise cover and prevent intent")
+    exactIntent("sealed")
+    state:apply(TacticsState.commands.interruptIntent("sealed", "seal", { turns = 1 }))
+    expect(state:intentPreview("sealed") == nil and state:hasStatus("sealed", "sealed"), "seal interrupt should prevent intent and apply sealed")
+    exactIntent("hacked")
+    state:apply(TacticsState.commands.interruptIntent("hacked", "hack"))
+    expect(state:intentPreview("hacked") == nil, "hack interrupt should prevent intent")
+    exactIntent("doused")
+    state:apply(TacticsState.commands.interruptIntent("doused", "douse", { x = 1, y = 1 }))
+    expect(state:intentPreview("doused") == nil and state:tileAt(1, 1).state == "doused" and not state:tileAt(1, 1).hazard.active, "douse interrupt should clear hazard and prevent intent")
+    exactIntent("drained")
+    state:apply(TacticsState.commands.interruptIntent("drained", "drain", { x = 1, y = 2 }))
+    expect(state:intentPreview("drained") == nil and state:tileAt(1, 2).state == "drained", "drain interrupt should drain tile and prevent intent")
+    state:apply(TacticsState.commands.intent("boss", {
+        mode = "bossStage",
+        category = "destroy",
+        stage = 1,
+        stageCount = 2,
+        mask = "rear_weak_point",
+        targetTiles = { { x = 2, y = 4 } },
+    }))
+    expect(state:intentPreview("boss").footprintHidden, "masked boss intent should hide footprint before weak point exposure")
+    state:apply(TacticsState.commands.interruptIntent("boss", "exposeWeakPoint"))
+    local exposed = state:intentPreview("boss")
+    expect(exposed.revealed and exposed.targetTiles[1].x == 2 and exposed.mask == nil, "expose weak point should reveal masked intent without cancelling it")
+    local loaded = TacticsState.fromSnapshot(state:snapshot())
+    expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(state:snapshot()), "interrupt state should snapshot deterministically")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {

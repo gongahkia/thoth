@@ -171,6 +171,18 @@ local conditionKinds = {
     otherwise = true,
 }
 
+local interruptKinds = {
+    stun = true,
+    shove = true,
+    losBreak = true,
+    coverRaise = true,
+    seal = true,
+    hack = true,
+    douse = true,
+    drain = true,
+    exposeWeakPoint = true,
+}
+
 local function normalizeFuseAnchor(anchor)
     anchor = anchor or {}
     local kind = anchor.kind or anchor.type or (anchor.x and "tile") or (anchor.object and "object") or (anchor.enemy and "enemy") or (anchor.unit and "unit")
@@ -333,6 +345,7 @@ local function normalizeIntent(intent)
         anchor = anchor,
         trigger = trigger,
         branches = branches,
+        revealed = intent.revealed == true,
         revealRotations = normalizeRotationList(intent.revealRotations),
         revealActions = copyList(intent.revealActions),
         revealClasses = copyList(intent.revealClasses),
@@ -344,6 +357,9 @@ local function normalizeIntent(intent)
 end
 
 local function shouldRevealIntentFootprint(intent, options)
+    if intent.revealed == true then
+        return true
+    end
     if options == true or options.reveal == true then
         return true
     end
@@ -453,6 +469,7 @@ local statusRules = {
     filed = {},
     redacted = {},
     sealed = {},
+    stunned = {},
     blinded = {},
     braced = { amount = 1 },
 }
@@ -1096,6 +1113,7 @@ function State:intentPreview(unitId, options)
         anchor = copyMap(intent.anchor),
         trigger = copyMap(intent.trigger),
         branches = copyValue(intent.branches),
+        revealed = intent.revealed == true,
         revealRotations = copyList(intent.revealRotations),
         revealActions = copyList(intent.revealActions),
         revealClasses = copyList(intent.revealClasses),
@@ -1234,6 +1252,48 @@ function State:resolveConditionalIntent(unitId)
     result.branch = index
     result.condition = copyValue(branch.condition)
     self.intents[unitId] = nil
+    return result
+end
+
+function State:interruptIntent(unitId, interrupt)
+    local intent = expect(self.intents[unitId], "unknown intent " .. tostring(unitId))
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    if type(interrupt) == "string" then
+        interrupt = { kind = interrupt }
+    end
+    interrupt = interrupt or {}
+    local kind = interrupt.kind or interrupt.type
+    expect(interruptKinds[kind], "unsupported interrupt " .. tostring(kind))
+    local result = { unit = unitId, kind = kind, prevented = false, revealed = false }
+    if kind == "exposeWeakPoint" then
+        intent.mask = nil
+        intent.revealed = true
+        result.revealed = true
+        return result
+    elseif kind == "stun" then
+        self:applyStatus(unitId, "stunned", interrupt.turns or 1, interrupt.amount)
+    elseif kind == "seal" then
+        self:applyStatus(unitId, "sealed", interrupt.turns or 1, interrupt.amount)
+    elseif kind == "shove" then
+        local delta = expect(Grid.directions[interrupt.direction], "unknown direction " .. tostring(interrupt.direction))
+        self:displaceUnit(unitId, delta.x, delta.y, interrupt.distance or 1, interrupt.collisionDamage or 1)
+        result.moved = unit.x ~= intent.sourceTile.x or unit.y ~= intent.sourceTile.y
+    elseif kind == "coverRaise" then
+        self:convertTile(expectInteger(interrupt.x, "interrupt x"), expectInteger(interrupt.y, "interrupt y"), "raise_cover")
+    elseif kind == "drain" then
+        self:convertTile(expectInteger(interrupt.x, "interrupt x"), expectInteger(interrupt.y, "interrupt y"), "drain")
+    elseif kind == "douse" then
+        local x = expectInteger(interrupt.x, "interrupt x")
+        local y = expectInteger(interrupt.y, "interrupt y")
+        expect(self:inBounds(x, y), "interrupt tile out of bounds")
+        local key = tileKey(x, y)
+        local tile = self.board.tiles[key] or normalizeTile()
+        tile.hazard = { kind = (tile.hazard and tile.hazard.kind) or "burn", active = false, damage = 0 }
+        tile.state = "doused"
+        self.board.tiles[key] = tile
+    end
+    self.intents[unitId] = nil
+    result.prevented = true
     return result
 end
 
@@ -1966,6 +2026,8 @@ function State:apply(command)
         self:tickIntentFuse(command.unit)
     elseif kind == "resolveConditionalIntent" then
         self:resolveConditionalIntent(command.unit)
+    elseif kind == "interruptIntent" then
+        self:interruptIntent(command.unit, command.interrupt)
     elseif kind == "reward" then
         self:grantReward(command.reward)
     else
@@ -2144,6 +2206,13 @@ end
 
 function commands.resolveConditionalIntent(unitId)
     return { type = "resolveConditionalIntent", unit = unitId }
+end
+
+function commands.interruptIntent(unitId, interrupt, options)
+    options = options or {}
+    local payload = type(interrupt) == "table" and copyMap(interrupt) or copyMap(options)
+    payload.kind = payload.kind or interrupt
+    return { type = "interruptIntent", unit = unitId, interrupt = payload }
 end
 
 function commands.reward(reward)

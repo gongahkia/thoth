@@ -128,3 +128,30 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies `targetMoved`/`otherwise` branch preview, repair fallback, movement-triggered attack branch, and snapshot stability.
+
+## I.6 Interrupt Rules
+
+Interrupts are deterministic counters to declared intent.
+
+Supported interrupts:
+
+- `stun`: cancels intent and applies `stunned`.
+- `shove`: moves the source and cancels intent.
+- `losBreak`: cancels intent after line break.
+- `coverRaise`: raises cover and cancels intent.
+- `seal`: cancels intent and applies `sealed`.
+- `hack`: cancels intent.
+- `douse`: clears a burning hazard and cancels intent.
+- `drain`: drains a flood tile and cancels intent.
+- `exposeWeakPoint`: reveals masked/redacted intent without cancelling it.
+
+Rules:
+
+- Interrupt kind must be supported.
+- Cancelling interrupts remove the declared intent.
+- Expose-weak-point keeps the intent active and reveals the footprint.
+- Interrupt commands are logged and replayable.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies all supported interrupt kinds, side effects, prevention, weak-point reveal, and snapshot stability.
