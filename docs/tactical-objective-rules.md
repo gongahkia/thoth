@@ -107,3 +107,22 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies every repair kind, AP spend, and max-integrity cap.
+
+## O.5 Hold Objectives
+
+Hold objectives require player presence on a claim tile for N ticks.
+
+Kind:
+
+- `hold_claim`
+
+Rules:
+
+- Hold objectives belong to family `hold`.
+- A hold tick increments only when an active player unit occupies the claim tile.
+- Completion occurs when `heldTurns >= requiredTurns`.
+- Hold ticks can escalate active intents via ignored-threat pressure.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies presence ticking, intent escalation, and completion after required turns.

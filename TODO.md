@@ -75,7 +75,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Objective Families
 
-- [ ] O.5 Hold objective: maintain presence on claim tile for N turns while intents escalate.
 - [ ] O.6 Evacuate objective: leave with minimum units/objectives before board collapse.
 - [ ] O.7 Split-squad objective: simultaneous switches/rooms with rotation-revealed dependency.
 - [ ] O.8 Stealth-read objective: gather information and leave without raising exposure cap.

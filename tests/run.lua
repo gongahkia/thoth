@@ -1041,6 +1041,24 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = { width = 3, height = 2 },
+        units = {
+            { id = "warden", side = "player", x = 2, y = 1 },
+            { id = "bailiff", side = "enemy", x = 3, y = 2 },
+        },
+        objectives = {
+            { id = "claim", kind = "hold_claim", x = 2, y = 1, integrity = 1, requiredTurns = 2, escalateIntents = true, evacuateAt = { x = 1, y = 2 } },
+        },
+    })
+    state:apply(TacticsState.commands.intent("bailiff", { mode = "exact", category = "attack", targetTiles = { { x = 2, y = 1 } }, damage = 1, escalation = { after = 1, damageDelta = 1 } }))
+    state:apply(TacticsState.commands.tickHoldObjective("claim"))
+    expect(state:objective("claim").heldTurns == 1 and state:intentPreview("bailiff").damage == 2, "hold objective should tick presence and escalate intents")
+    state:apply(TacticsState.commands.tickHoldObjective("claim"))
+    expect(state:objectiveStatus("claim") == "complete", "hold objective should complete after required turns")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {

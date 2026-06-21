@@ -518,6 +518,7 @@ local objectiveKinds = {
     repair_floodgate = "repair",
     repair_bridge = "repair",
     repair_ward = "repair",
+    hold_claim = "hold",
 }
 
 local function normalizeObjective(objective, index)
@@ -540,6 +541,9 @@ local function normalizeObjective(objective, index)
         evacuateAt = { x = expectInteger(evacuateAt.x, "evacuation x"), y = expectInteger(evacuateAt.y, "evacuation y") },
         evacuationsRequired = objective.evacuationsRequired or 1,
         evacuatedUnits = copyList(objective.evacuatedUnits),
+        requiredTurns = objective.requiredTurns or objective.turnsRequired,
+        heldTurns = objective.heldTurns or 0,
+        escalateIntents = objective.escalateIntents == true,
         extracted = objective.extracted == true,
         disabled = objective.disabled == true,
         relocated = objective.relocated == true,
@@ -1948,6 +1952,10 @@ function State:evaluateObjective(objective)
         objective.complete = true
         return "complete"
     end
+    if objective.family == "hold" and objective.requiredTurns and (objective.heldTurns or 0) >= objective.requiredTurns then
+        objective.complete = true
+        return "complete"
+    end
     return "active"
 end
 
@@ -2006,6 +2014,28 @@ function State:disableObjective(id, reason)
     objective.disabledReason = reason
     objective.complete = true
     return objective
+end
+
+function State:tickHoldObjective(id)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    expect(objective.family == "hold", "objective is not hold")
+    local occupied = false
+    for _, unit in pairs(self.units) do
+        if unit.side == "player" and unit.alive and not unit.evacuated and unit.x == objective.x and unit.y == objective.y then
+            occupied = true
+            break
+        end
+    end
+    if occupied then
+        objective.heldTurns = (objective.heldTurns or 0) + 1
+    end
+    if objective.escalateIntents then
+        for unitId in pairs(self.intents) do
+            self:advanceIntentPressure(unitId, "ignored")
+        end
+    end
+    self:evaluateObjective(objective)
+    return { objective = id, occupied = occupied, heldTurns = objective.heldTurns or 0, complete = objective.complete == true }
 end
 
 function State:sacrificeObjective(id, reason)
@@ -2557,6 +2587,8 @@ function State:apply(command)
         expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
         self:spendAP(command.unit, command.cost or 1)
         self:disableObjective(command.objective, command.reason)
+    elseif kind == "tickHoldObjective" then
+        self:tickHoldObjective(command.objective)
     elseif kind == "sacrificeObjective" then
         expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
         self:spendAP(command.unit, command.cost or 0)
@@ -2787,6 +2819,10 @@ end
 
 function commands.disableObjective(unitId, objectiveId, reason, cost)
     return { type = "disableObjective", unit = unitId, objective = objectiveId, reason = reason, cost = cost }
+end
+
+function commands.tickHoldObjective(objectiveId)
+    return { type = "tickHoldObjective", objective = objectiveId }
 end
 
 function commands.sacrificeObjective(unitId, objectiveId, reason, cost)
