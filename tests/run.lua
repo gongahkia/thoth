@@ -22,6 +22,7 @@ local TacticsState = require("src.game.tactics.state")
 local ZoneCatalog = require("src.game.tactics.zone_catalog")
 local ClassCatalog = require("src.game.tactics.class_catalog")
 local EnemyCatalog = require("src.game.tactics.enemy_catalog")
+local BossCatalog = require("src.game.tactics.boss_catalog")
 
 local function expect(value, message)
     if not value then
@@ -1621,6 +1622,15 @@ tests[#tests + 1] = function()
         expect(enemy.utilityBehavior and enemy.utilityBehavior.effect, "enemy should include no-damage utility behavior: " .. enemy.id)
         expect(enemy.utilityBehavior.damage == 0, "enemy utility behavior should deal no damage: " .. enemy.id)
     end
+end
+
+tests[#tests + 1] = function()
+    local boss = BossCatalog.boss("codex_reeve")
+    expect(boss and boss.name == "Codex Reeve" and boss.zone == "buried_archive", "Codex Reeve boss catalog entry should exist")
+    expect(#boss.board.auditLines == 2, "Codex Reeve should define audit lines")
+    expect(#boss.board.apDisableTiles == 3, "Codex Reeve should define AP disable tiles")
+    expect(boss.board.weakPoints[1].id == "open_register", "Codex Reeve should define Open Register weak point")
+    expect(#boss.board.rotationBackSeals == 4, "Codex Reeve should define rotation-revealed back seals")
 end
 
 tests[#tests + 1] = function()
