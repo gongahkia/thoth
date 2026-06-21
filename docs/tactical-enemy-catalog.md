@@ -144,3 +144,20 @@ Effects:
 Acceptance proof:
 
 - `tests/run.lua` verifies the Warrens alpha is visible before board reveal and defines pre-board, route-choice, and board-generation effects.
+
+## E.10 Global Pressure Enemies
+
+The catalog defines 8 cross-zone pressure units for rare events:
+
+- `survey_auditor`: Survey Office, audit route, adds redacted intent to next board.
+- `survey_levy_guard`: Survey Office, asset seizure, guards extraction cargo.
+- `survey_map_burner`: Survey Office, map confiscation, removes one route preview.
+- `lamplighter_defector`: Lamplighter, stolen beacon, moves hidden-intent reveal farther away.
+- `lamp_claimant`: Lamplighter, claimed light, adds overwatch cone to lit routes.
+- `merchant_collector`: Merchant, debt collection, adds AP tax until cargo is paid.
+- `debt_drone`: Merchant, salvage escrow, steals unclaimed loot on timer.
+- `contract_knight`: Merchant, called collateral, protects enemy objective with legal cover.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies there are exactly 8 global pressure enemies, ids are unique, required metadata is present, and Survey Office, Lamplighter, and Merchant factions are represented.

@@ -1603,6 +1603,20 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local enemies = EnemyCatalog.globalEnemies()
+    expect(#enemies == 8, "global pressure should define 8 enemies")
+    local factions = {}
+    local ids = {}
+    for _, enemy in ipairs(enemies) do
+        expect(enemy.id and enemy.name and enemy.faction and enemy.rareEvent and enemy.pressureEffect, "global enemy should include pressure metadata")
+        expect(not ids[enemy.id], "global enemy ids should be unique")
+        ids[enemy.id] = true
+        factions[enemy.faction] = true
+    end
+    expect(factions.survey_office and factions.lamplighter and factions.merchant, "global enemies should cover Survey Office, Lamplighter, and Merchant")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

@@ -84,6 +84,17 @@ EnemyCatalog.families = {
     },
 }
 
+EnemyCatalog.globalPressure = {
+    { id = "survey_auditor", name = "Survey Auditor", faction = "survey_office", rareEvent = "audit_route", pressureEffect = "adds redacted intent to next board" },
+    { id = "survey_levy_guard", name = "Survey Levy Guard", faction = "survey_office", rareEvent = "asset_seizure", pressureEffect = "guards extraction cargo" },
+    { id = "survey_map_burner", name = "Survey Map Burner", faction = "survey_office", rareEvent = "map_confiscation", pressureEffect = "removes one route preview" },
+    { id = "lamplighter_defector", name = "Lamplighter Defector", faction = "lamplighter", rareEvent = "stolen_beacon", pressureEffect = "moves hidden-intent reveal farther away" },
+    { id = "lamp_claimant", name = "Lamp Claimant", faction = "lamplighter", rareEvent = "claimed_light", pressureEffect = "adds overwatch cone to lit routes" },
+    { id = "merchant_collector", name = "Merchant Collector", faction = "merchant", rareEvent = "debt_collection", pressureEffect = "adds AP tax until cargo is paid" },
+    { id = "debt_drone", name = "Debt Drone", faction = "merchant", rareEvent = "salvage_escrow", pressureEffect = "steals unclaimed loot on timer" },
+    { id = "contract_knight", name = "Contract Knight", faction = "merchant", rareEvent = "called_collateral", pressureEffect = "protects enemy objective with legal cover" },
+}
+
 function EnemyCatalog.family(id)
     return EnemyCatalog.families[id]
 end
@@ -101,6 +112,10 @@ end
 function EnemyCatalog.alpha(familyId)
     local family = EnemyCatalog.family(familyId)
     return family and family.alpha or nil
+end
+
+function EnemyCatalog.globalEnemies()
+    return EnemyCatalog.globalPressure
 end
 
 return EnemyCatalog
