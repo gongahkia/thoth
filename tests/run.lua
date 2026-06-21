@@ -2008,6 +2008,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    for _, zoneId in ipairs({ "buried_archive", "salt_cistern", "ember_warrens" }) do
+        local spec = TacticsProcgen.generateDirectedZoneBoard(zoneId, 2303, { includeElite = true })
+        local director = spec.encounterDirector
+        expect(director.zone == zoneId and #director.enemyMix == 3, zoneId .. " director should create enemy mix")
+        expect(director.intentDensity.exact == 2 and director.intentDensity.partial == 1 and director.intentDensity.cap >= director.intentDensity.threatenedTiles, zoneId .. " director should define intent density")
+        expect(director.objectivePressure.objectiveKind == spec.objectives[1].kind and director.objectivePressure.visible, zoneId .. " director should bind objective pressure")
+        expect(director.reinforcementTiming[1].turn >= 3 and director.reinforcementTiming[1].visibleWarningTurn == 1, zoneId .. " director should schedule visible reinforcements")
+        expect(#director.retreatRoutes[1].tiles > 0 and director.retreatRoutes[1].to.x == spec.objectives[1].evacuateAt.x, zoneId .. " director should define retreat route")
+        expect(Serialize.encode(spec) == Serialize.encode(TacticsProcgen.generateDirectedZoneBoard(zoneId, 2303, { includeElite = true })), zoneId .. " director should be deterministic per seed")
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
             width = 4,

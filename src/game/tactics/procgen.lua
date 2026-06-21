@@ -1,4 +1,5 @@
 local RunCatalog = require("src.game.tactics.run_catalog")
+local EnemyCatalog = require("src.game.tactics.enemy_catalog")
 local Rng = require("src.core.rng")
 local State = require("src.game.tactics.state")
 
@@ -29,6 +30,12 @@ local boardGrammar = {
 local hazardKinds = { "audit_static", "salt_leak", "ember_heat" }
 
 local zoneGeneratorOrder = { "buried_archive", "salt_cistern", "ember_warrens" }
+
+local zoneEnemyFamilies = {
+    buried_archive = "archive",
+    salt_cistern = "cistern",
+    ember_warrens = "warrens",
+}
 
 local zoneGenerators = {
     buried_archive = {
@@ -144,6 +151,36 @@ local function mergeOptions(base, overrides)
     return result
 end
 
+local function pickIndexed(list, index)
+    return list[((index - 1) % #list) + 1]
+end
+
+local function pathTiles(from, to)
+    local result = {}
+    local stepX = from.x <= to.x and 1 or -1
+    for x = from.x, to.x, stepX do
+        result[#result + 1] = { x = x, y = from.y }
+    end
+    if from.y ~= to.y then
+        local stepY = from.y <= to.y and 1 or -1
+        for y = from.y + stepY, to.y, stepY do
+            result[#result + 1] = { x = to.x, y = y }
+        end
+    end
+    return result
+end
+
+local function enemyEntry(enemy, role, spawnPocket)
+    return {
+        id = enemy.id,
+        name = enemy.name,
+        role = role,
+        spawnPocket = spawnPocket,
+        intent = copyValue(enemy.exactIntent or enemy.partialIntent),
+        boardVerb = enemy.boardVerb or enemy.waterPressureVerb or enemy.heatAshGlassVerb or enemy.terrainInteraction,
+    }
+end
+
 function Procgen.templates()
     return RunCatalog.templates()
 end
@@ -174,6 +211,59 @@ end
 
 function Procgen.zoneGenerator(zoneId)
     return copyValue(zoneGenerators[zoneId])
+end
+
+function Procgen.directEncounter(zoneId, seed, boardSpec, options)
+    options = options or {}
+    local familyId = zoneEnemyFamilies[zoneId]
+    local family = EnemyCatalog.family(familyId)
+    if not family then
+        error("unknown encounter director zone " .. tostring(zoneId), 2)
+    end
+    local rng = Rng.new((seed or 1) + 17017)
+    local common = EnemyCatalog.common(familyId)
+    local elites = EnemyCatalog.elites(familyId)
+    local first = pickIndexed(common, rng:range(1, #common))
+    local second = pickIndexed(common, rng:range(1, #common))
+    local elite = options.includeElite and pickIndexed(elites, rng:range(1, #elites)) or nil
+    local objective = boardSpec and boardSpec.objectives and boardSpec.objectives[1] or nil
+    local components = boardSpec and boardSpec.grammar and boardSpec.grammar.components or {}
+    local enemySpawn = components.spawnPockets and components.spawnPockets[2] or { id = "enemy_pressure", tiles = {} }
+    local playerSpawn = components.spawnPockets and components.spawnPockets[1] or { id = "player_entry", tiles = { { x = 1, y = 1 } } }
+    local retreatFrom = objective and { x = objective.x, y = objective.y } or playerSpawn.tiles[1]
+    local retreatTo = objective and objective.evacuateAt or playerSpawn.tiles[1]
+    local enemyMix = {
+        enemyEntry(first, "opening_pressure", enemySpawn.id),
+        enemyEntry(second, "objective_pressure", enemySpawn.id),
+    }
+    if elite then
+        enemyMix[#enemyMix + 1] = enemyEntry(elite, "partial_intent_pressure", enemySpawn.id)
+    end
+    return {
+        id = (zoneId or "unknown") .. "_director_v1",
+        zone = zoneId,
+        family = familyId,
+        enemyMix = enemyMix,
+        intentDensity = {
+            exact = 2,
+            partial = elite and 1 or 0,
+            threatenedTiles = options.threatenedTiles or (elite and 6 or 4),
+            cap = options.intentCap or 8,
+        },
+        objectivePressure = {
+            objectiveId = objective and objective.id,
+            objectiveKind = objective and objective.kind,
+            startsTurn = 1,
+            failureClock = options.failureClock or 3,
+            visible = true,
+        },
+        reinforcementTiming = {
+            { turn = options.reinforcementTurn or rng:range(3, 4), enemy = pickIndexed(common, rng:range(1, #common)).id, spawnPocket = enemySpawn.id, visibleWarningTurn = 1, cap = 1 },
+        },
+        retreatRoutes = {
+            { id = "route_to_entry", from = retreatFrom, to = retreatTo, tiles = pathTiles(retreatFrom, retreatTo), consequence = "retreat_costs_route_pressure" },
+        },
+    }
 end
 
 function Procgen.validateGrammarBoard(spec)
@@ -358,6 +448,12 @@ end
 
 function Procgen.zoneState(zoneId, seed, options)
     return State.new(Procgen.generateZoneBoard(zoneId, seed, options))
+end
+
+function Procgen.generateDirectedZoneBoard(zoneId, seed, options)
+    local spec = Procgen.generateZoneBoard(zoneId, seed, options)
+    spec.encounterDirector = Procgen.directEncounter(zoneId, seed, spec, options)
+    return spec
 end
 
 return Procgen

@@ -34,6 +34,9 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S22 | https://journal.stuffwithstuff.com/2014/12/21/rooms-and-mazes/ | Dungeon generators can connect every reachable cell while producing different room/corridor layouts. | Zone boards use the shared connected grammar, then vary local terrain rules. |
 | S23 | https://www.gamedeveloper.com/design/level-design-in-procedural-generation | Procedural levels can preserve critical path, side-room risk/reward, and testing discipline. | Thoth zone generators keep the grammar path stable while swapping zone-specific objective pressure and hazard rewards. |
 | S24 | https://www.gridsagegames.com/blog/2014/06/procedural-map-generation/ | Map generators should choose methods that fit gameplay; prefabs provide control over important spaces. | Thoth starts from controlled tactical grammar pieces and uses zone dressing for replay variety. |
+| S25 | https://book.leveldesignbook.com/process/combat/encounter | Encounters need pacing across beginning, middle, and ending, with readable cause and effect. | Thoth encounter director emits visible enemy mix, objective pressure, reinforcement timing, and retreat route metadata. |
+| S26 | https://keithburgun.net/solving-some-major-problems-in-turn-based-tactical-wargames/ | Reinforcements can provide time pressure while objective capture remains the tactical focus. | Thoth schedules visible reinforcement turns against objective clocks instead of hidden random spawns. |
+| S27 | https://www.pcgamer.com/games/fps/starship-troopers-extermination-implements-a-total-overhaul-to-its-spawning-system-adding-a-left-4-dead-style-ai-director-we-realized-that-our-original-spawning-system-while-functional-was-starting-to-show-its-limit/ | Director-style systems evaluate battlefield state for consistent spawn timing and location. | Thoth uses a deterministic pre-board director to author pressure, not runtime surprise spawning. |
 
 ## Mechanic Handoffs
 
@@ -260,6 +263,22 @@ counterplay: same readable board skeleton, different hazard/objective answers pe
 preview/UI: route preview can show generator id, zone, hazard, and objective kind before board load.
 
 test/replay proof: each zone generator validates and serializes deterministically for a fixed seed.
+
+### H15 Encounter Director
+
+source pattern: encounter design needs pacing, readable cause/effect, objective pressure, and reinforcement timing that does not feel arbitrary.
+
+thoth transformation: Encounter director writes enemy mix, intent density, objective pressure, reinforcement timing, and retreat routes before tactical play starts.
+
+board verb: compose, pressure, reinforce, retreat, preview.
+
+zone fit: Archive, Cistern, and Warrens use their own enemy families and shared director fields.
+
+counterplay: inspect enemy mix, objective clock, visible reinforcement warning, and retreat route before commitment.
+
+preview/UI: route/debug preview lists director id, enemy family, intent cap, objective pressure, reinforcement turn, and retreat path.
+
+test/replay proof: directed zone boards serialize identically from a fixed seed and include all director fields.
 
 ## Rejection Rules
 
