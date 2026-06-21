@@ -178,3 +178,38 @@ Acceptance proof:
 
 - `tests/run.lua` verifies Thief loadout, tool, terrain interaction, weakness, and replay fixture counts.
 - `tests/replays.lua` runs deterministic Thief cargo lift and extraction replay fixture `thief_route_lift`.
+
+## CL.6 Chirurgeon
+
+The Chirurgeon defines 3 loadouts:
+
+- `bone_setter`: injury stabilizer using `nerve_suture` and `pain_contract`.
+- `cautery_engineer`: burn controller using `cautery_lamp` and `machine_splint`.
+- `preservationist`: body-objective repair using `preservation_saw` and `mercy_clamp`.
+
+The Chirurgeon defines 6 tools:
+
+- `nerve_suture`: convert injury penalty into timed AP cost.
+- `pain_contract`: brace ally with deterministic stress debt.
+- `cautery_lamp`: douse bleed or burn lane around patient.
+- `machine_splint`: repair machinery objective integrity.
+- `preservation_saw`: extract body cargo without integrity loss.
+- `mercy_clamp`: prevent one civilian objective damage tick.
+
+Terrain interactions:
+
+- `repair_machinery`: restore objective machinery integrity.
+- `cauterize_burn_lane`: turn adjacent burn hazard inactive.
+
+Weakness:
+
+- `clinical_delay`: after stabilizing an ally, next attack costs +1 AP.
+
+Replay fixture:
+
+- `chirurgeon_stabilize_machine`
+
+Acceptance proof:
+
+- `tests/run.lua` verifies Chirurgeon loadout, tool, terrain interaction, weakness, and replay fixture counts.
+- `tests/replays.lua` runs deterministic Chirurgeon brace and machinery repair replay fixture `chirurgeon_stabilize_machine`.

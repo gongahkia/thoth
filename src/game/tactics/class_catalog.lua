@@ -111,6 +111,28 @@ ClassCatalog.classes = {
         weakness = { id = "thin_loyalty", effect = "while carrying loot, guard effects on allies cost +1 AP" },
         replayFixture = "thief_route_lift",
     },
+    chirurgeon = {
+        name = "Chirurgeon",
+        loadouts = {
+            { id = "bone_setter", role = "injury stabilizer", tools = { "nerve_suture", "pain_contract" } },
+            { id = "cautery_engineer", role = "burn controller", tools = { "cautery_lamp", "machine_splint" } },
+            { id = "preservationist", role = "body-objective repair", tools = { "preservation_saw", "mercy_clamp" } },
+        },
+        tools = {
+            { id = "nerve_suture", effect = "convert injury penalty into timed AP cost" },
+            { id = "pain_contract", effect = "brace ally with deterministic stress debt" },
+            { id = "cautery_lamp", effect = "douse bleed or burn lane around patient" },
+            { id = "machine_splint", effect = "repair machinery objective integrity" },
+            { id = "preservation_saw", effect = "extract body cargo without integrity loss" },
+            { id = "mercy_clamp", effect = "prevent one civilian objective damage tick" },
+        },
+        terrainInteractions = {
+            { id = "repair_machinery", terrain = "machinery", effect = "restore objective machinery integrity" },
+            { id = "cauterize_burn_lane", terrain = "burn_hazard", effect = "turn adjacent burn hazard inactive" },
+        },
+        weakness = { id = "clinical_delay", effect = "after stabilizing an ally, next attack costs +1 AP" },
+        replayFixture = "chirurgeon_stabilize_machine",
+    },
 }
 
 function ClassCatalog.class(id)

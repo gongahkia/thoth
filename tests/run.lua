@@ -1425,6 +1425,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local chirurgeon = ClassCatalog.class("chirurgeon")
+    expect(chirurgeon and chirurgeon.name == "Chirurgeon", "Chirurgeon catalog entry should exist")
+    expect(#ClassCatalog.loadouts("chirurgeon") == 3, "Chirurgeon should define 3 loadouts")
+    expect(#ClassCatalog.tools("chirurgeon") == 6, "Chirurgeon should define 6 tools")
+    expect(#ClassCatalog.terrainInteractions("chirurgeon") == 2, "Chirurgeon should define 2 terrain interactions")
+    expect(chirurgeon.weakness and chirurgeon.weakness.id == "clinical_delay", "Chirurgeon should define weakness")
+    expect(chirurgeon.replayFixture == "chirurgeon_stabilize_machine", "Chirurgeon should define replay fixture")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

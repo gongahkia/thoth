@@ -394,4 +394,39 @@ expect(Serialize.encode(thiefA:snapshot()) == Serialize.encode(thiefB:snapshot()
 expect(thiefA.units.harrier.carryingCargo == "ledger" and thiefA:objectiveStatus("ledger_extract") == "complete", "Thief replay should lift cargo and extract")
 io.stdout:write("tactics replay ok ", thiefFixture, "\n")
 
+local function tacticalChirurgeonReplayState()
+    return TacticsState.new({
+        defaultAp = 4,
+        board = { width = 4, height = 3 },
+        units = {
+            { id = "chirurgeon", side = "player", x = 1, y = 2, hp = 8, class = "chirurgeon" },
+            { id = "ally", side = "player", x = 2, y = 2, hp = 5 },
+        },
+        objectives = {
+            { id = "machine", kind = "repair_machinery", x = 3, y = 2, integrity = 1, maxIntegrity = 3, evacuateAt = { x = 4, y = 2 } },
+        },
+    })
+end
+
+local tacticalChirurgeonFrames = {
+    { tick = 0, command = TacticsState.commands.status("chirurgeon", "ally", "braced", 1, 1, 1) },
+    { tick = 1, command = TacticsState.commands.repairObjective("chirurgeon", "machine", 2, 1) },
+}
+
+local function runTacticalChirurgeonReplay()
+    local state = tacticalChirurgeonReplayState()
+    for _, frame in ipairs(tacticalChirurgeonFrames) do
+        state:apply(frame.command)
+    end
+    return state
+end
+
+local chirurgeonFixture = ClassCatalog.class("chirurgeon").replayFixture
+local chirurgeonA = runTacticalChirurgeonReplay()
+local chirurgeonB = runTacticalChirurgeonReplay()
+expect(chirurgeonFixture == "chirurgeon_stabilize_machine", "Chirurgeon replay fixture should be registered")
+expect(Serialize.encode(chirurgeonA:snapshot()) == Serialize.encode(chirurgeonB:snapshot()), "Chirurgeon replay fixture should be deterministic")
+expect(chirurgeonA.units.ally.statuses.braced and chirurgeonA:objective("machine").integrity == 3, "Chirurgeon replay should brace and repair")
+io.stdout:write("tactics replay ok ", chirurgeonFixture, "\n")
+
 io.stdout:write("replay fixtures passed: ", #fixtures, "\n")
