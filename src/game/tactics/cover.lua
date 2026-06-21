@@ -21,6 +21,36 @@ function Cover.profile(state, fromX, fromY, targetX, targetY)
     return state:attackProfile(fromX, fromY, targetX, targetY)
 end
 
+local function targetTile(state, target)
+    if type(target) == "string" then
+        local unit = state:unit(target)
+        return unit.x, unit.y
+    end
+    return target.x, target.y
+end
+
+function Cover.flankPreview(state, candidates, target)
+    local targetX, targetY = targetTile(state, target)
+    local result = {}
+    for _, candidate in ipairs(candidates or {}) do
+        local flank = state:flankFromAttack(candidate.x, candidate.y, targetX, targetY)
+        local profile = state:attackProfile(candidate.x, candidate.y, targetX, targetY)
+        result[#result + 1] = {
+            x = candidate.x,
+            y = candidate.y,
+            targetX = targetX,
+            targetY = targetY,
+            flanked = flank.flanked,
+            invalidated = flank.invalidated,
+            cover = flank.cover,
+            visible = profile.visible,
+            effectiveCover = profile.effectiveCover,
+            damageReduction = profile.damageReduction,
+        }
+    end
+    return result
+end
+
 function Cover.class(id)
     return Cover.classes[id]
 end

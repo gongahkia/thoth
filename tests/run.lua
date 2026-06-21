@@ -2018,6 +2018,27 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = {
+            width = 3,
+            height = 3,
+            tiles = {
+                ["2:2"] = { coverEdges = { west = "half" } },
+            },
+        },
+        units = {
+            { id = "target", side = "enemy", x = 2, y = 2, hp = 4 },
+        },
+    })
+    local preview = TacticsCover.flankPreview(state, {
+        { x = 1, y = 2 },
+        { x = 3, y = 2 },
+    }, "target")
+    expect(not preview[1].flanked and preview[1].cover == "half", "flank preview should show protected candidate tile")
+    expect(preview[2].flanked and preview[2].invalidated[1] == "west:half", "flank preview should show flanking candidate tile")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {
