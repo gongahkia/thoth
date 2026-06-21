@@ -243,6 +243,13 @@ render-smoke:
 	grep -q "render-smoke-hud-torch=" $$tmp; \
 	grep -q "render-smoke-hud-room=" $$tmp; \
 	grep -q "render-smoke-hud-party=4" $$tmp; \
+	grep -q "render-smoke-overlay-total=7" $$tmp; \
+	grep -q "render-smoke-overlay-movement=2" $$tmp; \
+	grep -q "render-smoke-overlay-los=1" $$tmp; \
+	grep -q "render-smoke-overlay-cover=1" $$tmp; \
+	grep -q "render-smoke-overlay-flank=1" $$tmp; \
+	grep -q "render-smoke-overlay-intent=1" $$tmp; \
+	grep -q "render-smoke-overlay-hazard=1" $$tmp; \
 	rm -f $$tmp
 
 sprite-import-smoke:

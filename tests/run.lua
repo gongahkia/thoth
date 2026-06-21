@@ -193,6 +193,42 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
+            width = 4,
+            height = 4,
+            tiles = {
+                ["2:2"] = {
+                    kind = "claim_desk",
+                    coverEdges = { north = "half", west = "full" },
+                    hazard = { kind = "ink_spread", damage = 1 },
+                },
+            },
+        },
+        units = {
+            { id = "lamplighter", x = 1, y = 1 },
+        },
+    })
+    local overlays = {
+        movement = { { x = 1, y = 2 }, { x = 2, y = 1 } },
+        los = { ["3:1"] = true },
+        flanks = { { x = 3, y = 2 } },
+        intents = { { x = 4, y = 2, label = "audit_line" } },
+        hazards = { { x = 1, y = 4, label = "falling_shelf" } },
+    }
+    local entries, counts = Render.tacticalOverlayEntries(state, overlays)
+    expect(counts.movement == 2, "tactical overlays should include movement range tiles")
+    expect(counts.los == 1, "tactical overlays should include LoS tiles")
+    expect(counts.cover == 1, "tactical overlays should include cover tiles")
+    expect(counts.flank == 1, "tactical overlays should include flank tiles")
+    expect(counts.intent == 1, "tactical overlays should include intent tiles")
+    expect(counts.hazard == 2, "tactical overlays should include board and explicit hazard tiles")
+    expect(#entries == 8, "tactical overlay entry count should match all required overlay classes")
+    local summary = Render.tacticalOverlaySummary(state, overlays)
+    expect(summary.total == 8 and summary.intent == 1, "tactical overlay summary should expose render-smoke counts")
+end
+
+tests[#tests + 1] = function()
     expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
     expect(I18n.t("missing {value}", { value = "fallback" }) == "missing fallback", "i18n should interpolate fallback strings")
     local source = readFile("src/app/render.lua")

@@ -614,6 +614,114 @@ local function rotationAllowed(value, allowed)
     return false
 end
 
+local tacticalOverlayOrder = { "movement", "los", "cover", "flank", "intent", "hazard" }
+local tacticalOverlayColors = {
+    movement = { 0.28, 0.58, 0.94, 0.5 },
+    los = { 0.86, 0.78, 0.28, 0.46 },
+    cover = { 0.32, 0.72, 0.62, 0.48 },
+    flank = { 0.94, 0.52, 0.18, 0.55 },
+    intent = { 0.9, 0.18, 0.18, 0.58 },
+    hazard = { 0.62, 0.34, 0.86, 0.56 },
+}
+
+local function parseTileKey(key)
+    local x, y = tostring(key):match("^(-?%d+):(-?%d+)$")
+    return tonumber(x), tonumber(y)
+end
+
+local function tileHasCover(tile)
+    for _, direction in ipairs({ "north", "east", "south", "west" }) do
+        if tile and tile.coverEdges and tile.coverEdges[direction] and tile.coverEdges[direction] ~= "none" then
+            return true
+        end
+    end
+    return false
+end
+
+local function appendOverlayTile(entries, counts, seen, kind, x, y, options)
+    if x == nil or y == nil then
+        return
+    end
+    local key = kind .. ":" .. tostring(x) .. ":" .. tostring(y)
+    if seen[key] then
+        return
+    end
+    seen[key] = true
+    counts[kind] = (counts[kind] or 0) + 1
+    entries[#entries + 1] = {
+        kind = kind,
+        x = x,
+        y = y,
+        label = options and options.label or kind,
+        color = (options and options.color) or tacticalOverlayColors[kind],
+    }
+end
+
+local function appendOverlayList(entries, counts, seen, kind, values)
+    if values == true then
+        return
+    end
+    for key, value in pairs(values or {}) do
+        local x = type(value) == "table" and value.x or nil
+        local y = type(value) == "table" and value.y or nil
+        if type(key) == "string" and (x == nil or y == nil) then
+            x, y = parseTileKey(key)
+        end
+        if type(value) == "table" then
+            appendOverlayTile(entries, counts, seen, kind, x, y, value)
+        elseif value == true then
+            appendOverlayTile(entries, counts, seen, kind, x, y)
+        end
+    end
+end
+
+function Render.tacticalOverlayEntries(tactics, overlays)
+    local entries = {}
+    local counts = {}
+    local seen = {}
+    overlays = overlays or {}
+    if tactics and tactics.board and overlays.cover ~= false then
+        for key, tile in pairs(tactics.board.tiles or {}) do
+            if tileHasCover(tile) then
+                local x, y = parseTileKey(key)
+                appendOverlayTile(entries, counts, seen, "cover", x, y, { label = "cover" })
+            end
+        end
+    end
+    if tactics and tactics.board and overlays.hazard ~= false then
+        for key, tile in pairs(tactics.board.tiles or {}) do
+            if tile and tile.hazard and next(tile.hazard) ~= nil then
+                local x, y = parseTileKey(key)
+                appendOverlayTile(entries, counts, seen, "hazard", x, y, { label = tile.hazard.kind or "hazard" })
+            end
+        end
+    end
+    appendOverlayList(entries, counts, seen, "movement", overlays.movement or overlays.movementRange)
+    appendOverlayList(entries, counts, seen, "los", overlays.los or overlays.lineOfSight)
+    appendOverlayList(entries, counts, seen, "flank", overlays.flanks or overlays.flank)
+    appendOverlayList(entries, counts, seen, "intent", overlays.intent or overlays.intents)
+    appendOverlayList(entries, counts, seen, "hazard", overlays.hazards)
+    table.sort(entries, function(a, b)
+        if a.y == b.y then
+            if a.x == b.x then
+                return a.kind < b.kind
+            end
+            return a.x < b.x
+        end
+        return a.y < b.y
+    end)
+    for _, kind in ipairs(tacticalOverlayOrder) do
+        counts[kind] = counts[kind] or 0
+    end
+    return entries, counts
+end
+
+function Render.tacticalOverlaySummary(tactics, overlays)
+    local entries, counts = Render.tacticalOverlayEntries(tactics, overlays)
+    counts.total = #entries
+    return counts
+end
+
 local function objectRevealRotations(object, tileDef)
     if object and object.revealRotations then
         return object.revealRotations
@@ -893,6 +1001,52 @@ local function buildArchitectureModel(sim, profile, settings)
     local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()
     return model, #entries
+end
+
+local function tacticalOverlaySource(sim, app)
+    local source = (app and app.tactics) or (sim and sim.tactics)
+    if not source then
+        return nil
+    end
+    if source.board then
+        return { state = source, overlays = app and app.tacticalOverlays or {} }
+    end
+    return source
+end
+
+local function buildTacticalOverlayModel(entries, source, settings, z)
+    if #entries == 0 then
+        return nil
+    end
+    local vertices = {}
+    local data = love.image.newImageData(#entries, 1)
+    local originX = source.originX or 0
+    local originY = source.originY or 0
+    for index, entry in ipairs(entries) do
+        local color = Render.accessibleColor(settings, entry.color or tacticalOverlayColors[entry.kind] or { 1, 1, 1, 0.5 })
+        data:setPixel(index - 1, 0, color[1], color[2], color[3], color[4] or 0.5)
+        pushTileQuad(vertices, originX + entry.x, originY + entry.y, z or 0, (index - 0.5) / #entries)
+    end
+    local model = state.g3d.newModel(vertices, newImageFromData(data))
+    model:makeNormals()
+    return model
+end
+
+local function drawTacticalOverlays(sim, app)
+    local source = tacticalOverlaySource(sim, app)
+    if not (source and source.state) then
+        return nil
+    end
+    local entries, counts = Render.tacticalOverlayEntries(source.state, source.overlays or {})
+    counts.total = #entries
+    if #entries > 0 and state.g3d and state.assets.white then
+        local model = buildTacticalOverlayModel(entries, source, app and app.settings, ((sim and sim.player and sim.player.z) or 0) + 0.035)
+        if model then
+            love.graphics.setColor(1, 1, 1, 1)
+            model:draw()
+        end
+    end
+    return counts
 end
 
 local function applyCamera(sim, app)
@@ -1217,6 +1371,7 @@ function Render.drawWorld(sim, app)
     local model = buildWorldTileModel(sim, profile, app and app.settings)
     love.graphics.setColor(1, 1, 1, 1)
     model:draw()
+    local tacticalOverlayCounts = drawTacticalOverlays(sim, app)
     local architecture, architectureCount = buildArchitectureModel(sim, profile, app and app.settings)
     if architecture then
         love.graphics.setColor(1, 1, 1, 1)
@@ -1229,6 +1384,7 @@ function Render.drawWorld(sim, app)
     app.worldView.revealedObjects = (visibleObjects or 0) + (visibleEnemies or 0)
     app.worldView.hiddenObjects = (hiddenObjects or 0) + (hiddenEnemies or 0)
     app.worldView.rotationPuzzles = rotationPuzzles or 0
+    app.worldView.tacticalOverlays = tacticalOverlayCounts
 end
 
 function Render.titleMenuItems(app)

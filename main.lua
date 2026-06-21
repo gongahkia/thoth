@@ -12,6 +12,7 @@ local Settings = require("src.app.settings")
 local Achievements = require("src.app.achievements")
 local SpritePipeline = require("src.app.sprite_pipeline")
 local ModelPipeline = require("src.app.model_pipeline")
+local TacticsState = require("src.game.tactics.state")
 
 local sim
 local app
@@ -1022,6 +1023,14 @@ local function printRenderSmoke(state)
     print("render-smoke-hud-torch=" .. tostring(hud.torch))
     print("render-smoke-hud-room=" .. tostring(hud.currentRoom))
     print("render-smoke-hud-party=" .. tostring(hud.partyCount))
+    local overlays = (state.worldView and state.worldView.tacticalOverlays) or {}
+    print("render-smoke-overlay-total=" .. tostring(overlays.total or 0))
+    print("render-smoke-overlay-movement=" .. tostring(overlays.movement or 0))
+    print("render-smoke-overlay-los=" .. tostring(overlays.los or 0))
+    print("render-smoke-overlay-cover=" .. tostring(overlays.cover or 0))
+    print("render-smoke-overlay-flank=" .. tostring(overlays.flank or 0))
+    print("render-smoke-overlay-intent=" .. tostring(overlays.intent or 0))
+    print("render-smoke-overlay-hazard=" .. tostring(overlays.hazard or 0))
 end
 
 local function printTitleSmoke(state)
@@ -1396,6 +1405,34 @@ function love.load(args)
     Audio.updateMusic(app.audio, 0)
     if curioSmoke then
         app.curioModal = Render.curioModalForTarget(sim)
+    end
+    if renderSmoke then
+        app.tactics = {
+            originX = sim.player.x - 1,
+            originY = sim.player.y - 1,
+            state = TacticsState.new({
+                board = {
+                    width = 4,
+                    height = 4,
+                    tiles = {
+                        ["2:2"] = {
+                            kind = "claim_desk",
+                            coverEdges = { north = "half", west = "full" },
+                            hazard = { kind = "ink_spread", damage = 1 },
+                        },
+                    },
+                },
+                units = {
+                    { id = "lamplighter", x = 1, y = 1 },
+                },
+            }),
+            overlays = {
+                movement = { { x = 1, y = 2 }, { x = 2, y = 1 } },
+                los = { ["3:1"] = true },
+                flanks = { { x = 3, y = 2 } },
+                intents = { { x = 4, y = 2, label = "audit_line" } },
+            },
+        }
     end
     if pauseSmoke then
         openPause(app)
