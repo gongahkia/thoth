@@ -126,3 +126,23 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies presence ticking, intent escalation, and completion after required turns.
+
+## O.6 Evacuate Objectives
+
+Evacuate objectives require leaving before board collapse.
+
+Kind:
+
+- `evacuate_board`
+
+Rules:
+
+- Evacuate objectives belong to family `evacuate`.
+- `minUnits` defines minimum evacuated units.
+- `minObjectives` is tracked in evacuation progress for boards that require other objectives first.
+- `boardCollapseIn` ticks down deterministically.
+- Collapse at zero fails an incomplete evacuation.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies minimum unit evacuation and board-collapse failure carryover.

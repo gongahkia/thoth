@@ -1059,6 +1059,33 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = { width = 3, height = 2 },
+        units = {
+            { id = "warden", side = "player", x = 3, y = 2 },
+            { id = "scout", side = "player", x = 2, y = 2 },
+        },
+        objectives = {
+            { id = "evac", kind = "evacuate_board", x = 3, y = 2, integrity = 1, minUnits = 2, minObjectives = 0, boardCollapseIn = 2, evacuateAt = { x = 3, y = 2 } },
+        },
+    })
+    state:apply(TacticsState.commands.evacuate("warden", "evac", 0))
+    expect(state:evacuationProgress("evac").units == 1 and state:objectiveStatus("evac") == "active", "evacuation should track minimum units")
+    state:apply(TacticsState.commands.move("scout", "east"))
+    state:apply(TacticsState.commands.evacuate("scout", "evac", 0))
+    expect(state:objectiveStatus("evac") == "complete", "evacuation should complete at minimum units")
+    local collapse = TacticsState.new({
+        board = { width = 2, height = 1 },
+        units = { { id = "late", side = "player", x = 1, y = 1 } },
+        objectives = {
+            { id = "evac", kind = "evacuate_board", x = 2, y = 1, integrity = 1, minUnits = 1, boardCollapseIn = 1, evacuateAt = { x = 2, y = 1 } },
+        },
+    })
+    collapse:apply(TacticsState.commands.tickEvacuationObjective("evac"))
+    expect(collapse:objectiveStatus("evac") == "failed" and collapse:objectiveResult("evac").failureCarryover.reason == "board_collapse", "evacuation should fail when board collapse timer expires")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {

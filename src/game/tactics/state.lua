@@ -519,6 +519,7 @@ local objectiveKinds = {
     repair_bridge = "repair",
     repair_ward = "repair",
     hold_claim = "hold",
+    evacuate_board = "evacuate",
 }
 
 local function normalizeObjective(objective, index)
@@ -544,6 +545,9 @@ local function normalizeObjective(objective, index)
         requiredTurns = objective.requiredTurns or objective.turnsRequired,
         heldTurns = objective.heldTurns or 0,
         escalateIntents = objective.escalateIntents == true,
+        minUnits = objective.minUnits,
+        minObjectives = objective.minObjectives,
+        boardCollapseIn = objective.boardCollapseIn,
         extracted = objective.extracted == true,
         disabled = objective.disabled == true,
         relocated = objective.relocated == true,
@@ -1948,7 +1952,8 @@ function State:evaluateObjective(objective)
         objective.failureCarryover.reason = objective.failureCarryover.reason or "integrity_zero"
         return "failed"
     end
-    if #(objective.evacuatedUnits or {}) >= (objective.evacuationsRequired or 1) then
+    local requiredEvacuations = objective.minUnits or objective.evacuationsRequired or 1
+    if #(objective.evacuatedUnits or {}) >= requiredEvacuations then
         objective.complete = true
         return "complete"
     end
@@ -2036,6 +2041,43 @@ function State:tickHoldObjective(id)
     end
     self:evaluateObjective(objective)
     return { objective = id, occupied = occupied, heldTurns = objective.heldTurns or 0, complete = objective.complete == true }
+end
+
+function State:evacuationProgress(id)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    expect(objective.family == "evacuate", "objective is not evacuate")
+    local completedObjectives = 0
+    for _, objectiveId in ipairs(self.objectiveOrder or {}) do
+        if objectiveId ~= id and self:objectiveStatus(objectiveId) == "complete" then
+            completedObjectives = completedObjectives + 1
+        end
+    end
+    return {
+        objective = id,
+        units = #(objective.evacuatedUnits or {}),
+        requiredUnits = objective.minUnits or objective.evacuationsRequired or 1,
+        objectives = completedObjectives,
+        requiredObjectives = objective.minObjectives or 0,
+        boardCollapseIn = objective.boardCollapseIn,
+        complete = objective.complete == true,
+        failed = objective.failed == true,
+    }
+end
+
+function State:tickEvacuationObjective(id)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    expect(objective.family == "evacuate", "objective is not evacuate")
+    if objective.complete or objective.failed then
+        return self:evacuationProgress(id)
+    end
+    if objective.boardCollapseIn ~= nil then
+        objective.boardCollapseIn = objective.boardCollapseIn - 1
+        if objective.boardCollapseIn <= 0 and self:evaluateObjective(objective) ~= "complete" then
+            objective.failed = true
+            objective.failureCarryover = { reason = "board_collapse", evacuatedUnits = #(objective.evacuatedUnits or {}) }
+        end
+    end
+    return self:evacuationProgress(id)
 end
 
 function State:sacrificeObjective(id, reason)
@@ -2589,6 +2631,8 @@ function State:apply(command)
         self:disableObjective(command.objective, command.reason)
     elseif kind == "tickHoldObjective" then
         self:tickHoldObjective(command.objective)
+    elseif kind == "tickEvacuationObjective" then
+        self:tickEvacuationObjective(command.objective)
     elseif kind == "sacrificeObjective" then
         expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
         self:spendAP(command.unit, command.cost or 0)
@@ -2823,6 +2867,10 @@ end
 
 function commands.tickHoldObjective(objectiveId)
     return { type = "tickHoldObjective", objective = objectiveId }
+end
+
+function commands.tickEvacuationObjective(objectiveId)
+    return { type = "tickEvacuationObjective", objective = objectiveId }
 end
 
 function commands.sacrificeObjective(unitId, objectiveId, reason, cost)
