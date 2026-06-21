@@ -624,6 +624,15 @@ local tacticalOverlayColors = {
     hazard = { 0.62, 0.34, 0.86, 0.56 },
 }
 
+local tacticalOverlayStyles = {
+    movement = { icon = "move", pattern = "dot" },
+    los = { icon = "eye", pattern = "ray" },
+    cover = { icon = "shield", pattern = "edge-hatch" },
+    flank = { icon = "angle", pattern = "chevron" },
+    intent = { icon = "intent", pattern = "crosshatch" },
+    hazard = { icon = "hazard", pattern = "stripe" },
+}
+
 local function parseTileKey(key)
     local x, y = tostring(key):match("^(-?%d+):(-?%d+)$")
     return tonumber(x), tonumber(y)
@@ -654,6 +663,8 @@ local function appendOverlayTile(entries, counts, seen, kind, x, y, options)
         y = y,
         label = options and options.label or kind,
         color = (options and options.color) or tacticalOverlayColors[kind],
+        icon = (options and options.icon) or (tacticalOverlayStyles[kind] and tacticalOverlayStyles[kind].icon),
+        pattern = (options and options.pattern) or (tacticalOverlayStyles[kind] and tacticalOverlayStyles[kind].pattern),
     }
 end
 
@@ -720,6 +731,24 @@ function Render.tacticalOverlaySummary(tactics, overlays)
     local entries, counts = Render.tacticalOverlayEntries(tactics, overlays)
     counts.total = #entries
     return counts
+end
+
+function Render.tacticalOverlayAccessibilityAudit(tactics, overlays)
+    local result = {}
+    for rotation = 0, 3 do
+        local rotated = {}
+        for key, value in pairs(overlays or {}) do
+            rotated[key] = value
+        end
+        rotated.rotation = rotation
+        local entries, counts = Render.tacticalOverlayEntries(tactics, rotated)
+        result[#result + 1] = {
+            rotation = rotation,
+            entries = entries,
+            counts = counts,
+        }
+    end
+    return result
 end
 
 local function objectRevealRotations(object, tileDef)

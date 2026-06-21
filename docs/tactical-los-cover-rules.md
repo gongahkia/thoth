@@ -151,3 +151,18 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies blocked and visible destination sightlines and confirms unit position is unchanged.
+
+## L.9 Accessible LoS And Cover Overlays
+
+LoS and cover overlays must not rely on color alone.
+
+Rules:
+
+- LoS overlay uses `eye` icon and `ray` pattern.
+- Cover overlay uses `shield` icon and `edge-hatch` pattern.
+- Overlay entries keep color, icon, pattern, label, kind, and logical tile.
+- Accessibility audit validates overlay entries for rotations 0, 1, 2, and 3.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies four-rotation overlay audit and non-color symbols for LoS and cover.

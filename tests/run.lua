@@ -418,6 +418,20 @@ tests[#tests + 1] = function()
     expect(#entries == 8, "tactical overlay entry count should match all required overlay classes")
     local summary = Render.tacticalOverlaySummary(state, overlays)
     expect(summary.total == 8 and summary.intent == 1, "tactical overlay summary should expose render-smoke counts")
+    local audit = Render.tacticalOverlayAccessibilityAudit(state, overlays)
+    expect(#audit == 4, "tactical overlay accessibility audit should cover four rotations")
+    for _, rotation in ipairs(audit) do
+        local hasLos
+        local hasCover
+        for _, entry in ipairs(rotation.entries) do
+            if entry.kind == "los" and entry.icon == "eye" and entry.pattern == "ray" then
+                hasLos = true
+            elseif entry.kind == "cover" and entry.icon == "shield" and entry.pattern == "edge-hatch" then
+                hasCover = true
+            end
+        end
+        expect(hasLos and hasCover, "LoS and cover overlays should have non-color symbols in every rotation")
+    end
 end
 
 tests[#tests + 1] = function()
