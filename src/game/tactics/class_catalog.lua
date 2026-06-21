@@ -236,22 +236,24 @@ ClassCatalog.traits = {
 ClassCatalog.requiredTraitDomains = { "ap", "movement", "los", "cooldown", "cover", "objectiveRepair" }
 
 ClassCatalog.injuryDebts = {
-    { id = "cracked_ribs", type = "injury", constraint = "climb and vault cost +1 AP", noRandomActionLoss = true },
-    { id = "salt_cough", type = "injury", constraint = "LoS reveal range is reduced by one tile in mist", noRandomActionLoss = true },
-    { id = "burned_hand", type = "injury", constraint = "first cover interaction each board costs +1 AP", noRandomActionLoss = true },
-    { id = "glass_eye", type = "injury", constraint = "class reveal actions require LoS to target tile", noRandomActionLoss = true },
-    { id = "brine_rot", type = "injury", constraint = "objective repair restores one less integrity", noRandomActionLoss = true },
-    { id = "torn_shoulder", type = "injury", constraint = "carry and drag actions cost +1 AP", noRandomActionLoss = true },
-    { id = "ash_tremor", type = "injury", constraint = "first tool cooldown gains one tick", noRandomActionLoss = true },
-    { id = "nerve_burn", type = "injury", constraint = "dash distance is capped at two tiles", noRandomActionLoss = true },
-    { id = "paper_lung", type = "injury", constraint = "obscurant entry costs +1 AP", noRandomActionLoss = true },
-    { id = "ledger_debt", type = "debt", constraint = "first AP refund each board is cancelled", noRandomActionLoss = true },
-    { id = "oath_lien", type = "debt", constraint = "protect objective failure adds faction loss", noRandomActionLoss = true },
-    { id = "marked_warrant", type = "debt", constraint = "Survey Office events start at +1 pressure", noRandomActionLoss = true },
-    { id = "pawned_tool", type = "debt", constraint = "one chosen tool starts on cooldown", noRandomActionLoss = true },
-    { id = "witness_guilt", type = "debt", constraint = "civilian objective damage adds stress debt", noRandomActionLoss = true },
-    { id = "lamp_debt", type = "debt", constraint = "Lamplighter reveal costs +1 AP until paid", noRandomActionLoss = true },
+    { id = "cracked_ribs", type = "injury", domain = "movement", constraint = "climb and vault cost +1 AP", noRandomActionLoss = true },
+    { id = "salt_cough", type = "injury", domain = "los", constraint = "LoS reveal range is reduced by one tile in mist", noRandomActionLoss = true },
+    { id = "burned_hand", type = "injury", domain = "cover", constraint = "first cover interaction each board costs +1 AP", noRandomActionLoss = true },
+    { id = "glass_eye", type = "injury", domain = "reveal", constraint = "class reveal actions require LoS to target tile", noRandomActionLoss = true },
+    { id = "brine_rot", type = "injury", domain = "objectiveRepair", constraint = "objective repair restores one less integrity", noRandomActionLoss = true },
+    { id = "torn_shoulder", type = "injury", domain = "carry", constraint = "carry and drag actions cost +1 AP", noRandomActionLoss = true },
+    { id = "ash_tremor", type = "injury", domain = "cooldown", constraint = "first tool cooldown gains one tick", noRandomActionLoss = true },
+    { id = "nerve_burn", type = "injury", domain = "movement", constraint = "dash distance is capped at two tiles", noRandomActionLoss = true },
+    { id = "paper_lung", type = "injury", domain = "los", constraint = "obscurant entry costs +1 AP", noRandomActionLoss = true },
+    { id = "ledger_debt", type = "debt", domain = "ap", constraint = "first AP refund each board is cancelled", noRandomActionLoss = true },
+    { id = "oath_lien", type = "debt", domain = "objectiveRepair", constraint = "protect objective failure adds faction loss", noRandomActionLoss = true },
+    { id = "marked_warrant", type = "debt", domain = "eventPressure", constraint = "Survey Office events start at +1 pressure", noRandomActionLoss = true },
+    { id = "pawned_tool", type = "debt", domain = "cooldown", constraint = "one chosen tool starts on cooldown", noRandomActionLoss = true },
+    { id = "witness_guilt", type = "debt", domain = "stress", constraint = "civilian objective damage adds stress debt", noRandomActionLoss = true },
+    { id = "lamp_debt", type = "debt", domain = "reveal", constraint = "Lamplighter reveal costs +1 AP until paid", noRandomActionLoss = true },
 }
+
+ClassCatalog.requiredInjuryDebtDomains = { "ap", "movement", "los", "cooldown", "cover", "objectiveRepair", "carry", "reveal" }
 
 ClassCatalog.squadScaling = {
     [2] = { apBudget = 6, enemyBudgetMultiplier = 0.65, objectivePressure = "single", reinforcementCap = 1, boardScale = "compact" },
@@ -312,6 +314,10 @@ end
 
 function ClassCatalog.injuryDebtConstraints()
     return ClassCatalog.injuryDebts
+end
+
+function ClassCatalog.requiredInjuryDebtDomainList()
+    return ClassCatalog.requiredInjuryDebtDomains
 end
 
 function ClassCatalog.squadScale(size)
@@ -442,6 +448,47 @@ function ClassCatalog.auditTraitDomains()
         end
     end
     for _, domain in ipairs(ClassCatalog.requiredTraitDomains) do
+        if not domains[domain] then
+            report.valid = false
+            table.insert(report.missing, domain)
+        end
+    end
+    return report
+end
+
+function ClassCatalog.auditInjuryDebtConstraints()
+    local report = { valid = true, missing = {} }
+    local domains = {}
+    local ids = {}
+    local types = {}
+    for _, consequence in ipairs(ClassCatalog.injuryDebts) do
+        if not consequence.id or not consequence.type or not consequence.domain or not consequence.constraint then
+            report.valid = false
+            table.insert(report.missing, tostring(consequence.id or "consequence") .. ".metadata")
+        end
+        if consequence.id and ids[consequence.id] then
+            report.valid = false
+            table.insert(report.missing, consequence.id .. ".duplicate")
+        end
+        if consequence.noRandomActionLoss ~= true or consequence.randomActionLoss or consequence.randomTurnLoss or consequence.skipTurnChance then
+            report.valid = false
+            table.insert(report.missing, tostring(consequence.id or "consequence") .. ".randomTurnLoss")
+        end
+        if consequence.id then
+            ids[consequence.id] = true
+        end
+        if consequence.domain then
+            domains[consequence.domain] = true
+        end
+        if consequence.type then
+            types[consequence.type] = true
+        end
+    end
+    if not types.injury or not types.debt then
+        report.valid = false
+        table.insert(report.missing, "injuryDebt.types")
+    end
+    for _, domain in ipairs(ClassCatalog.requiredInjuryDebtDomains) do
         if not domains[domain] then
             report.valid = false
             table.insert(report.missing, domain)

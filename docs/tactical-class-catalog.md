@@ -370,21 +370,21 @@ Acceptance proof:
 
 The catalog defines 15 deterministic injuries/debts:
 
-- `cracked_ribs`: injury, climb and vault cost +1 AP.
-- `salt_cough`: injury, LoS reveal range is reduced by one tile in mist.
-- `burned_hand`: injury, first cover interaction each board costs +1 AP.
-- `glass_eye`: injury, class reveal actions require LoS to target tile.
-- `brine_rot`: injury, objective repair restores one less integrity.
-- `torn_shoulder`: injury, carry and drag actions cost +1 AP.
-- `ash_tremor`: injury, first tool cooldown gains one tick.
-- `nerve_burn`: injury, dash distance is capped at two tiles.
-- `paper_lung`: injury, obscurant entry costs +1 AP.
-- `ledger_debt`: debt, first AP refund each board is cancelled.
-- `oath_lien`: debt, protect objective failure adds faction loss.
-- `marked_warrant`: debt, Survey Office events start at +1 pressure.
-- `pawned_tool`: debt, one chosen tool starts on cooldown.
-- `witness_guilt`: debt, civilian objective damage adds stress debt.
-- `lamp_debt`: debt, Lamplighter reveal costs +1 AP until paid.
+- `cracked_ribs`: injury/movement, climb and vault cost +1 AP.
+- `salt_cough`: injury/LoS, LoS reveal range is reduced by one tile in mist.
+- `burned_hand`: injury/cover, first cover interaction each board costs +1 AP.
+- `glass_eye`: injury/reveal, class reveal actions require LoS to target tile.
+- `brine_rot`: injury/objective repair, objective repair restores one less integrity.
+- `torn_shoulder`: injury/carry, carry and drag actions cost +1 AP.
+- `ash_tremor`: injury/cooldown, first tool cooldown gains one tick.
+- `nerve_burn`: injury/movement, dash distance is capped at two tiles.
+- `paper_lung`: injury/LoS, obscurant entry costs +1 AP.
+- `ledger_debt`: debt/AP, first AP refund each board is cancelled.
+- `oath_lien`: debt/objective repair, protect objective failure adds faction loss.
+- `marked_warrant`: debt/event pressure, Survey Office events start at +1 pressure.
+- `pawned_tool`: debt/cooldown, one chosen tool starts on cooldown.
+- `witness_guilt`: debt/stress, civilian objective damage adds stress debt.
+- `lamp_debt`: debt/reveal, Lamplighter reveal costs +1 AP until paid.
 
 Rules:
 
@@ -394,6 +394,7 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies there are exactly 15 constraints, ids are unique, both injury and debt types are present, and every constraint sets `noRandomActionLoss = true`.
+- `tests/run.lua` calls `ClassCatalog.auditInjuryDebtConstraints()` to verify tactical domains and reject random action-loss fields.
 
 ## CL.12 Squad-Size Scaling
 

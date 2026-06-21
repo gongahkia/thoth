@@ -118,7 +118,6 @@ Goal: make runs varied without sacrificing readability.
 
 Goal: make variable squads and class loadouts the main progression layer.
 
-- [ ] 3.5 Add injury/debt consequences that change tactical constraints without random turn loss.
 - [ ] 3.6 Add squad-size variance rules and board scaling.
 
 Initial class direction:

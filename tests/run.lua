@@ -1553,18 +1553,25 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local audit = ClassCatalog.auditInjuryDebtConstraints()
+    expect(audit.valid, "class catalog should define deterministic injury/debt tactical domains")
     local constraints = ClassCatalog.injuryDebtConstraints()
     expect(#constraints == 15, "class catalog should define 15 injury/debt constraints")
     local types = {}
     local ids = {}
+    local domains = {}
     for _, constraint in ipairs(constraints) do
-        expect(constraint.id and constraint.type and constraint.constraint, "injury/debt should include id type constraint")
+        expect(constraint.id and constraint.type and constraint.domain and constraint.constraint, "injury/debt should include id type domain constraint")
         expect(constraint.noRandomActionLoss == true, "injury/debt should not cause random action loss")
         expect(not ids[constraint.id], "injury/debt ids should be unique")
         ids[constraint.id] = true
         types[constraint.type] = true
+        domains[constraint.domain] = true
     end
     expect(types.injury and types.debt, "injury/debt constraints should include both types")
+    for _, domain in ipairs(ClassCatalog.requiredInjuryDebtDomainList()) do
+        expect(domains[domain], "injury/debt constraints should cover domain " .. domain)
+    end
 end
 
 tests[#tests + 1] = function()

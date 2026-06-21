@@ -55,6 +55,8 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S43 | https://www.ubisoft.com/en-us/game/mario-rabbids/sparks-of-hope/news-updates/40b42GpGsG7tlY5c2ETei8/palette-prime-tutorial-spoilers-ahead | Skill builds alter movement range, extra dashes, cooldowns, weapon use, healing, barriers, and positioning plans. | Thoth traits must alter AP, movement, LoS, cooldowns, cover use, or objective handling instead of raw stat inflation only. |
 | S44 | https://subsetgames.com/itb_ae.html | Advanced Edition expands tactical variety with new squads, weapons, missions, enemies, bosses, and pilot abilities. | Thoth run progression unlocks new class loadout options rather than raw permanent damage/HP boosts. |
 | S45 | https://entaltostudios.com/5-essential-tips-to-make-your-roguelite-game-work/ | Horizontal progression expands possibilities through weapons, mechanics, characters, modifiers, and visible unlock goals. | Thoth rewards `class_option` unlocks from run milestones and rejects stat-bearing class rewards. |
+| S46 | https://www.gamedeveloper.com/design/game-design-deep-dive-i-darkest-dungeon-s-i-affliction-system | Stress consequences can create strong character texture but may also take agency away through autonomous behavior. | Thoth injuries/debts keep the psychological pressure and roster management, but encode deterministic tactical constraints instead of random turn loss. |
+| S47 | https://www.feralinteractive.com/en/manuals/xcom2/latest/steam/ | Wounds, carry/evac, AP, movement, hazards, LoS, cover, and effects are visible tactical state. | Thoth consequence domains target AP, movement, LoS, cooldown, cover, objective repair, carry, and reveal rules. |
 
 ## Mechanic Handoffs
 
@@ -425,6 +427,22 @@ counterplay: each unlock adds a new answer and an opportunity cost, not uncondit
 preview/UI: route reward preview shows class, loadout id, board verb, source milestone, and what counter category it covers.
 
 test/replay proof: `ClassCatalog.auditLoadoutUnlocks()` rejects missing unlock metadata, non-`class_option` rewards, stat payloads, and classes with no run-sourced loadout unlock.
+
+### H24 Injury And Debt Consequences
+
+source pattern: Darkest Dungeon uses stress afflictions for roster pressure; XCOM exposes wounds, AP, movement, hazards, cover, LoS, carry, evac, and status effects as tactical state.
+
+thoth transformation: Injuries and debts become deterministic domain constraints on AP, movement, LoS, cooldown, cover, objective repair, carry, reveal, event pressure, or stress.
+
+board verb: constrain, tax, cap, delay, expose.
+
+zone fit: Archive stresses LoS/reveal/debt paperwork, Cistern stresses carry/movement/objective repair, Warrens stresses cover/cooldown/hazard pressure.
+
+counterplay: choose recovery, loadout tools, route risk, or squad composition around known constraints; never lose a turn to a hidden roll.
+
+preview/UI: roster and board inspector show consequence id, type, domain, exact constraint, and `noRandomActionLoss`.
+
+test/replay proof: `ClassCatalog.auditInjuryDebtConstraints()` rejects missing domains, duplicate ids, missing injury/debt types, and any random action/turn-loss field.
 
 ## Rejection Rules
 
