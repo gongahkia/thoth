@@ -69,3 +69,22 @@ Preview does not mutate unit position, AP, objective state, hazard state, or thr
 Acceptance proof:
 
 - `tests/run.lua` verifies reachable AP cost, hazard cost, cover gained/lost, objective carry impact, blocked-tile collision, and occupied-tile collision.
+
+## M.4 Shove, Pull, And Swap
+
+Forced movement is deterministic.
+
+Rules:
+
+- `shove` moves a target along an explicit cardinal direction.
+- `pull` moves a target toward the acting unit on the dominant axis.
+- `swap` exchanges active unit positions.
+- Blocked forced movement stops at the blocked edge and deals collision damage to the moved unit.
+- Forced movement into an occupied tile stops and deals collision damage to both units.
+- Forced movement into an active route-machinery objective damages objective integrity.
+- Threat zones can trigger from forced movement after a successful displacement step.
+- Evacuated or defeated units cannot be moved or swapped by core commands.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies shove, pull, swap, blocked movement, collision damage, objective collision, and enemy friendly-fire collision.

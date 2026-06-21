@@ -312,6 +312,27 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        defaultAp = 6,
+        board = { width = 5, height = 3 },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 2, hp = 8 },
+            { id = "custodian", side = "enemy", x = 2, y = 2, hp = 5 },
+            { id = "bailiff", side = "enemy", x = 4, y = 2, hp = 4 },
+        },
+        objectives = {
+            { id = "route_machine", x = 3, y = 2, integrity = 2, evacuateAt = { x = 5, y = 2 } },
+        },
+    })
+    state:apply(TacticsState.commands.shove("warden", "custodian", "east", 1, 1))
+    expect(state:unit("custodian").x == 3 and state:objective("route_machine").integrity == 1, "forced movement into objective should damage objective integrity")
+    state:apply(TacticsState.commands.shove("warden", "custodian", "east", 1, 2))
+    expect(state:unit("custodian").x == 3 and state:unit("custodian").hp == 3 and state:unit("bailiff").hp == 2, "blocked forced movement into unit should deal friendly-fire collision damage")
+    state:apply(TacticsState.commands.swap("warden", "custodian"))
+    expect(state:unit("warden").x == 3 and state:unit("custodian").x == 1, "swap should exchange unit positions deterministically")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         board = { width = 6, height = 4 },
         units = {
             { id = "hound", side = "enemy", x = 2, y = 2 },

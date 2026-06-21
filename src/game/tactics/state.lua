@@ -598,6 +598,16 @@ function State:objective(id)
     return self.objectives[id]
 end
 
+function State:objectiveAt(x, y)
+    for _, id in ipairs(self.objectiveOrder or {}) do
+        local objective = self.objectives[id]
+        if objective and objective.x == x and objective.y == y and not objective.complete and not objective.failed then
+            return objective
+        end
+    end
+    return nil
+end
+
 function State:evaluateObjective(objective)
     if objective.failed then
         return "failed"
@@ -631,6 +641,14 @@ function State:damageObjective(id, amount)
     objective.integrity = math.max(0, objective.integrity - amount)
     self:evaluateObjective(objective)
     return objective.integrity
+end
+
+function State:damageObjectiveAt(x, y, amount)
+    local objective = self:objectiveAt(x, y)
+    if not objective then
+        return nil
+    end
+    return self:damageObjective(objective.id, amount)
 end
 
 function State:evacuateUnit(unitId, objectiveId)
@@ -683,9 +701,21 @@ function State:displaceUnit(unitOrId, dx, dy, distance, collisionDamage)
         end
         unit.x = nx
         unit.y = ny
+        self:damageObjectiveAt(unit.x, unit.y, collisionDamage)
         self:resolveThreatAt(unit)
     end
     return true
+end
+
+function State:swapUnits(aId, bId)
+    local a = expect(self.units[aId], "unknown unit " .. tostring(aId))
+    local b = expect(self.units[bId], "unknown unit " .. tostring(bId))
+    expect(a.alive and not a.evacuated, "unit is not active")
+    expect(b.alive and not b.evacuated, "target is not active")
+    a.x, b.x = b.x, a.x
+    a.y, b.y = b.y, a.y
+    self:resolveThreatAt(a)
+    self:resolveThreatAt(b)
 end
 
 local function pullDelta(actor, target)
@@ -761,6 +791,10 @@ function State:apply(command)
         expect(dx ~= 0 or dy ~= 0, "target already adjacent to pull source")
         self:spendAP(command.unit, command.cost or 1)
         self:displaceUnit(target, dx, dy, command.distance or 1, command.collisionDamage or 1)
+    elseif kind == "swap" then
+        expect(self.units[command.target], "unknown target " .. tostring(command.target))
+        self:spendAP(command.unit, command.cost or 1)
+        self:swapUnits(command.unit, command.target)
     elseif kind == "overwatch" then
         self:spendAP(command.unit, command.cost or 1)
         self:addThreatZone(command.unit, command.tiles, { damage = command.damage, limit = command.limit, label = command.label })
@@ -854,6 +888,10 @@ end
 
 function commands.pull(unitId, targetId, distance, collisionDamage, cost)
     return { type = "pull", unit = unitId, target = targetId, distance = distance, collisionDamage = collisionDamage, cost = cost }
+end
+
+function commands.swap(unitId, targetId, cost)
+    return { type = "swap", unit = unitId, target = targetId, cost = cost }
 end
 
 function commands.overwatch(unitId, tiles, damage, limit, cost)
