@@ -86,7 +86,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Boss & Variant Catalog
 
-- [ ] B.5 Kiln Vicar boss board: vitrify target, halo vents, douse routes, ash-choke cover.
 - [ ] B.6 Cinder Prioress boss board: furnace phases, glass crown reflectors, fuel-objective tradeoffs.
 - [ ] B.7 Design 2 variants per boss by swapping arena modifier, add family, weak-point location, and objective pressure.
 - [ ] B.8 Every boss must include one exact intent, one partial intent, one terrain mutation, one objective threat, and one non-damage counter.

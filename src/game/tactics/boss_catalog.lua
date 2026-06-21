@@ -93,6 +93,30 @@ BossCatalog.bosses = {
             },
         },
     },
+    kiln_vicar = {
+        name = "Kiln Vicar",
+        zone = "ember_warrens",
+        board = {
+            vitrifyTarget = {
+                selector = "most exposed unit or objective",
+                effect = "turns target tile into glass hazard unless LoS is broken or vent is doused",
+                preview = "marks target and reflection path before commit",
+            },
+            haloVents = {
+                { id = "north_halo_vent", hp = 3, douse = "removes north heat lane" },
+                { id = "south_halo_vent", hp = 3, douse = "removes south heat lane" },
+                { id = "east_halo_vent", hp = 2, douse = "breaks vitrify reflection path" },
+            },
+            douseRoutes = {
+                { id = "ash_bucket_route", apCost = 1, effect = "safe path to douse one adjacent vent" },
+                { id = "cistern_cut_route", apCost = 2, effect = "open drain spill that douses two heat tiles" },
+            },
+            ashChokeCover = {
+                { id = "low_ash_choke", cover = "half", tradeoff = "blocks LoS but costs +1 movement" },
+                { id = "dense_ash_choke", cover = "full", tradeoff = "blocks vitrify but hides objective preview" },
+            },
+        },
+    },
 }
 
 function BossCatalog.boss(id)
@@ -101,7 +125,7 @@ end
 
 function BossCatalog.allBosses()
     local bosses = {}
-    for _, id in ipairs({ "codex_reeve", "vault_regent", "pearl_choir", "bell_diver" }) do
+    for _, id in ipairs({ "codex_reeve", "vault_regent", "pearl_choir", "bell_diver", "kiln_vicar" }) do
         bosses[#bosses + 1] = BossCatalog.boss(id)
     end
     return bosses

@@ -1661,6 +1661,15 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local boss = BossCatalog.boss("kiln_vicar")
+    expect(boss and boss.name == "Kiln Vicar" and boss.zone == "ember_warrens", "Kiln Vicar boss catalog entry should exist")
+    expect(boss.board.vitrifyTarget.selector == "most exposed unit or objective", "Kiln Vicar should define vitrify target")
+    expect(#boss.board.haloVents == 3, "Kiln Vicar should define halo vents")
+    expect(#boss.board.douseRoutes == 2, "Kiln Vicar should define douse routes")
+    expect(#boss.board.ashChokeCover == 2, "Kiln Vicar should define ash-choke cover")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

@@ -91,3 +91,26 @@ Show hook lane pull distance, Bell Lung reveal condition, toll countdown, next f
 
 test/replay proof:
 `tests/run.lua` verifies the Bell Diver board defines hook lanes, Bell Lung weak point, flood-toll countdown, and low-ground punishment.
+
+## B.5 Kiln Vicar
+
+source pattern:
+Boss puzzles use visible target selection, terrain blockers, support objects, and counter routes that trade AP for safety.
+
+thoth transformation:
+Kiln Vicar vitrifies the most exposed unit or objective unless halo vents are doused or ash-choke cover breaks LoS.
+
+board verb:
+Vitrify, douse halo vents, route water through heat, shelter in ash choke.
+
+zone fit:
+Ember Warrens already uses kiln heat, halo vents, douse chains, glass hazards, and ash-choke cover.
+
+counterplay:
+Break LoS with ash choke, douse halo vents, route water through a heat lane, or move the exposed target behind cover.
+
+preview/UI:
+Show selected vitrify target, halo vent state, douse route AP cost, glass reflection path, and ash-choke cover tradeoff.
+
+test/replay proof:
+`tests/run.lua` verifies the Kiln Vicar board defines vitrify targeting, halo vents, douse routes, and ash-choke cover.
