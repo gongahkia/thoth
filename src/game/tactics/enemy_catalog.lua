@@ -14,6 +14,11 @@ EnemyCatalog.families = {
             { id = "ledger_hound", name = "Ledger Hound", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "carrier" }, boardVerb = "sniff_route" },
             { id = "drawer_mite", name = "Drawer Mite", exactIntent = { mode = "exact", category = "summon", damage = 1, target = "drawer" }, boardVerb = "spill_records" },
         },
+        elites = {
+            { id = "codex_advocate", name = "Codex Advocate", partialIntent = { mode = "category", category = "debuff" }, weakPoints = { "open_register" }, terrainInteraction = "seal_claim_line" },
+            { id = "shelf_knight", name = "Shelf Knight", partialIntent = { mode = "category", category = "guard" }, weakPoints = { "rear_binding" }, terrainInteraction = "shove_shelf_wall" },
+            { id = "writ_cantor", name = "Writ Cantor", partialIntent = { mode = "category", category = "summon" }, weakPoints = { "choir_chain" }, terrainInteraction = "ring_audit_beam" },
+        },
     },
 }
 
@@ -24,6 +29,11 @@ end
 function EnemyCatalog.common(familyId)
     local family = EnemyCatalog.family(familyId)
     return family and family.common or {}
+end
+
+function EnemyCatalog.elites(familyId)
+    local family = EnemyCatalog.family(familyId)
+    return family and family.elites or {}
 end
 
 return EnemyCatalog

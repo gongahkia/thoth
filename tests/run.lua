@@ -1519,6 +1519,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local elites = EnemyCatalog.elites("archive")
+    expect(#elites == 3, "Archive should define 3 elites")
+    local ids = {}
+    for _, enemy in ipairs(elites) do
+        expect(enemy.id and enemy.name and enemy.terrainInteraction, "archive elite should include id name terrain interaction")
+        expect(enemy.partialIntent and enemy.partialIntent.mode == "category", "archive elite should include partial intent")
+        expect(enemy.weakPoints and #enemy.weakPoints > 0, "archive elite should include weak points")
+        expect(not ids[enemy.id], "archive elite ids should be unique")
+        ids[enemy.id] = true
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

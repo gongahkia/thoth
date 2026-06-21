@@ -22,3 +22,15 @@ The Archive family defines 10 common enemies. Each has exact intent metadata and
 Acceptance proof:
 
 - `tests/run.lua` verifies the Archive has exactly 10 common enemies and each one has unique id, name, exact intent, and board verb metadata.
+
+## E.2 Archive Elites
+
+The Archive family defines 3 elites with partial intent, weak points, and terrain interaction:
+
+- `codex_advocate`: partial debuff intent, weak point `open_register`, interaction `seal_claim_line`.
+- `shelf_knight`: partial guard intent, weak point `rear_binding`, interaction `shove_shelf_wall`.
+- `writ_cantor`: partial summon intent, weak point `choir_chain`, interaction `ring_audit_beam`.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies the Archive has exactly 3 elites and each one has unique id, name, partial intent, weak point, and terrain interaction metadata.
