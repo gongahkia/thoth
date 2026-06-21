@@ -233,6 +233,8 @@ ClassCatalog.traits = {
     { id = "cold_focus", domain = "ap", effect = "ignore first AP tax from stress debt" },
 }
 
+ClassCatalog.requiredTraitDomains = { "ap", "movement", "los", "cooldown", "cover", "objectiveRepair" }
+
 ClassCatalog.injuryDebts = {
     { id = "cracked_ribs", type = "injury", constraint = "climb and vault cost +1 AP", noRandomActionLoss = true },
     { id = "salt_cough", type = "injury", constraint = "LoS reveal range is reduced by one tile in mist", noRandomActionLoss = true },
@@ -290,6 +292,10 @@ end
 
 function ClassCatalog.characterTraits()
     return ClassCatalog.traits
+end
+
+function ClassCatalog.requiredTraitDomainList()
+    return ClassCatalog.requiredTraitDomains
 end
 
 function ClassCatalog.injuryDebtConstraints()
@@ -359,6 +365,35 @@ function ClassCatalog.auditLoadoutShape()
                     table.insert(report.missing, classId .. "." .. tostring(loadout.id) .. "." .. tostring(toolId))
                 end
             end
+        end
+    end
+    return report
+end
+
+function ClassCatalog.auditTraitDomains()
+    local report = { valid = true, missing = {} }
+    local domains = {}
+    local ids = {}
+    for _, trait in ipairs(ClassCatalog.traits) do
+        if not trait.id or not trait.domain or not trait.effect then
+            report.valid = false
+            table.insert(report.missing, tostring(trait.id or "trait") .. ".metadata")
+        end
+        if trait.id and ids[trait.id] then
+            report.valid = false
+            table.insert(report.missing, trait.id .. ".duplicate")
+        end
+        if trait.id then
+            ids[trait.id] = true
+        end
+        if trait.domain then
+            domains[trait.domain] = true
+        end
+    end
+    for _, domain in ipairs(ClassCatalog.requiredTraitDomains) do
+        if not domains[domain] then
+            report.valid = false
+            table.insert(report.missing, domain)
         end
     end
     return report

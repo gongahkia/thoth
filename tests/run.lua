@@ -1515,6 +1515,8 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local audit = ClassCatalog.auditTraitDomains()
+    expect(audit.valid, "class catalog should cover required trait domains")
     local traits = ClassCatalog.characterTraits()
     expect(#traits == 20, "class catalog should define 20 character traits")
     local domains = {}
@@ -1527,6 +1529,9 @@ tests[#tests + 1] = function()
     end
     for _, domain in ipairs({ "ap", "movement", "los", "cover", "carry", "reveal", "cooldown", "objectiveRepair", "eventOutcome" }) do
         expect(domains[domain], "character traits should cover domain " .. domain)
+    end
+    for _, domain in ipairs(ClassCatalog.requiredTraitDomainList()) do
+        expect(domains[domain], "required trait domain missing " .. domain)
     end
 end
 

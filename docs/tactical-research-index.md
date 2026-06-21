@@ -52,6 +52,7 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S40 | https://www.gearsofwar.com/en-us/game-guide/classes/ | Classes branch into subclasses and skill sets that tailor soldiers to battlefield needs. | Thoth classes branch into named board verbs so loadouts describe actions on tiles, cover, objectives, and intent. |
 | S41 | https://www.feralinteractive.com/en/manuals/xcom2/latest/steam/ | Soldier classes expose battlefield roles through unique abilities and specializations. | Thoth rejects RPG role labels at loadout level; the catalog records inspectable verbs such as brace, dash, reveal, douse, and insure. |
 | S42 | https://www.ubisoft.com/en-us/game/mario-rabbids/sparks-of-hope/news-updates/54KqtyUg25UlrGQ20LC0ga/mario-rabbids-sparks-of-hope-a-deep-dive-into-combat-and-hero-archetypes | Compact hero kits combine movement options, weapons, techniques, and external powers for tactical variety. | Thoth caps class tools at 3-5 and uses 2 loadout slots so squad choices stay readable before board load. |
+| S43 | https://www.ubisoft.com/en-us/game/mario-rabbids/sparks-of-hope/news-updates/40b42GpGsG7tlY5c2ETei8/palette-prime-tutorial-spoilers-ahead | Skill builds alter movement range, extra dashes, cooldowns, weapon use, healing, barriers, and positioning plans. | Thoth traits must alter AP, movement, LoS, cooldowns, cover use, or objective handling instead of raw stat inflation only. |
 
 ## Mechanic Handoffs
 
@@ -390,6 +391,22 @@ counterplay: slot caps force tradeoffs; enemies and objectives can punish missin
 preview/UI: class loadout screen shows `loadoutSlots`, available tools, chosen two-slot loadout, terrain interaction, and missing counter category.
 
 test/replay proof: `ClassCatalog.auditLoadoutShape()` rejects non-2-slot loadouts, tool catalogs outside 3-5, missing terrain interactions, and loadout tools absent from the class catalog.
+
+### H22 Trait Domain Contract
+
+source pattern: XCOM and Gears Tactics advancement branches change battlefield actions and support options; Mario + Rabbids skill builds alter movement, cooldowns, weapon/technique use, healing, barriers, and positioning.
+
+thoth transformation: Character traits are deterministic modifiers in required tactical domains: AP, movement, LoS, cooldown, cover, and objective repair.
+
+board verb: modify, preview, constrain, refund, tax.
+
+zone fit: Archive stresses LoS/reveal/cover traits, Cistern stresses movement/carry/objective traits, Warrens stresses cooldown/cover/objective-repair traits.
+
+counterplay: traits carry paired upsides and downsides, so a squad can be strong in one domain and exposed in another.
+
+preview/UI: recruit sheet groups traits by domain and shows AP/movement/LoS/cooldown/cover/objective deltas before squad lock.
+
+test/replay proof: `ClassCatalog.auditTraitDomains()` rejects missing required domains, duplicate trait ids, and missing trait metadata.
 
 ## Rejection Rules
 

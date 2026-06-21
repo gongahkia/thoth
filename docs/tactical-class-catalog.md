@@ -323,6 +323,15 @@ Acceptance proof:
 
 The catalog defines 20 deterministic character traits:
 
+Required tactical domains:
+
+- AP.
+- Movement.
+- LoS.
+- Cooldown.
+- Cover.
+- Objective repair.
+
 - `quick_account`: AP, +1 AP on first objective interaction.
 - `slow_oath`: AP, first attack costs +1 AP.
 - `sure_stride`: movement, ignore first rough-terrain move cost.
@@ -347,6 +356,7 @@ The catalog defines 20 deterministic character traits:
 Acceptance proof:
 
 - `tests/run.lua` verifies there are exactly 20 traits, every trait has id/domain/effect metadata, ids are unique, and all required domains are covered.
+- `tests/run.lua` calls `ClassCatalog.auditTraitDomains()` to verify required trait domain coverage.
 
 ## CL.11 Injuries And Debts
 

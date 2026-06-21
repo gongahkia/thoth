@@ -118,7 +118,6 @@ Goal: make runs varied without sacrificing readability.
 
 Goal: make variable squads and class loadouts the main progression layer.
 
-- [ ] 3.3 Add character traits that alter AP, movement, LoS, cooldowns, cover use, or objective handling.
 - [ ] 3.4 Add loadout unlocks through runs, not permanent stat inflation only.
 - [ ] 3.5 Add injury/debt consequences that change tactical constraints without random turn loss.
 - [ ] 3.6 Add squad-size variance rules and board scaling.
