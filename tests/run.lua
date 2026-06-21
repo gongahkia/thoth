@@ -1802,6 +1802,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local template = UICatalog.tileInspector()
+    expect(template.mechanicsLine and template.loreLine, "tile inspector should define mechanics and lore lines")
+    expect(template.maxMechanicsLines == 1 and template.maxLoreLines == 1, "tile inspector should cap mechanics and lore at one line each")
+    local tokens = {}
+    for _, token in ipairs(template.requiredTokens) do
+        tokens[token] = true
+    end
+    for _, token in ipairs({ "icon", "state", "verb", "effect", "apCost", "counterplay", "zoneTone", "oneSentenceLore" }) do
+        expect(tokens[token], "tile inspector missing token " .. token)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

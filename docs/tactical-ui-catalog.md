@@ -45,3 +45,26 @@ Each filter defines an icon id, shown information, and hidden noise.
 
 test/replay proof:
 `tests/run.lua` verifies all seven overlay filters exist and each defines icon, shown data, and hidden data.
+
+## U.3 Tile Inspector Copy
+
+source pattern:
+Readable tactics UI uses short tile facts instead of long rule text.
+
+thoth transformation:
+Thoth tile inspector has one mechanics line and one lore line, both filled from required tokens.
+
+board verb:
+Inspect, summarize, counter.
+
+zone fit:
+Each zone supplies tone and lore while the mechanics template stays shared.
+
+counterplay:
+Mechanics line includes effect, AP cost, and counterplay in one glance.
+
+preview/UI:
+Template fields are title, mechanics line, lore line, one-line caps, and required tokens.
+
+test/replay proof:
+`tests/run.lua` verifies the inspector template defines one mechanics line, one lore line, one-line caps, and all required tokens.

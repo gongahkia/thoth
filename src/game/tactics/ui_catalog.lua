@@ -25,6 +25,15 @@ UICatalog.overlayFilters = {
     { id = "hidden_revealed", icon = "partial_intent", shows = "hidden marks, revealed facts, rotation secrets", hides = "known base terrain" },
 }
 
+UICatalog.tileInspectorTemplate = {
+    title = "{tileName}",
+    mechanicsLine = "{icon} {state}: {verb} {effect}; AP {apCost}; counter {counterplay}",
+    loreLine = "{zoneTone}: {oneSentenceLore}",
+    maxMechanicsLines = 1,
+    maxLoreLines = 1,
+    requiredTokens = { "icon", "state", "verb", "effect", "apCost", "counterplay", "zoneTone", "oneSentenceLore" },
+}
+
 function UICatalog.icon(id)
     for _, icon in ipairs(UICatalog.icons) do
         if icon.id == id then
@@ -40,6 +49,10 @@ end
 
 function UICatalog.overlays()
     return UICatalog.overlayFilters
+end
+
+function UICatalog.tileInspector()
+    return UICatalog.tileInspectorTemplate
 end
 
 return UICatalog
