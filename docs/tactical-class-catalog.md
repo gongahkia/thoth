@@ -4,13 +4,21 @@ Checked: 2026-06-21
 
 Source of truth: `src/game/tactics/class_catalog.lua`.
 
+## CL.0 Board-Verb Contract
+
+Every class defines `boardVerbs`. Every loadout defines exactly one `boardVerb` and no `role` field.
+
+Acceptance proof:
+
+- `tests/run.lua` calls `ClassCatalog.auditBoardVerbs()` and verifies every class/loadout uses board verbs.
+
 ## CL.1 Warden
 
 The Warden defines 3 loadouts:
 
-- `line_guard`: frontline protector using `brace_pavise` and `route_hook`.
-- `claim_anchor`: objective holder using `claim_spike` and `oath_tether`.
-- `breach_shield`: cover breaker using `shelf_shove_kit` and `breach_maul`.
+- `line_guard`: `brace_line` using `brace_pavise` and `route_hook`.
+- `claim_anchor`: `hold_claim` using `claim_spike` and `oath_tether`.
+- `breach_shield`: `break_cover` using `shelf_shove_kit` and `breach_maul`.
 
 The Warden defines 6 tools:
 
@@ -43,9 +51,9 @@ Acceptance proof:
 
 The Duelist defines 3 loadouts:
 
-- `red_line`: dash striker using `razor_dash` and `angle_step`.
-- `patron_shadow`: position trader using `swap_foil` and `riposte_mark`.
-- `debt_blade`: flank finisher using `cloak_pin` and `ledger_stiletto`.
+- `red_line`: `dash_strike` using `razor_dash` and `angle_step`.
+- `patron_shadow`: `swap_position` using `swap_foil` and `riposte_mark`.
+- `debt_blade`: `convert_flank` using `cloak_pin` and `ledger_stiletto`.
 
 The Duelist defines 6 tools:
 
@@ -78,9 +86,9 @@ Acceptance proof:
 
 The Apothecary defines 3 loadouts:
 
-- `field_triage`: objective medic using `wound_clamp` and `salt_draught`.
-- `smoke_binder`: LoS controller using `hush_smoke` and `salve_flare`.
-- `plague_cutter`: hazard cleanser using `bitter_vial` and `sterilize_hook`.
+- `field_triage`: `stabilize_objective` using `wound_clamp` and `salt_draught`.
+- `smoke_binder`: `place_smoke` using `hush_smoke` and `salve_flare`.
+- `plague_cutter`: `cleanse_hazard` using `bitter_vial` and `sterilize_hook`.
 
 The Apothecary defines 6 tools:
 
@@ -113,9 +121,9 @@ Acceptance proof:
 
 The Arcanist defines 3 loadouts:
 
-- `seal_reader`: hidden-info reader using `seal_lantern` and `syntax_hook`.
-- `line_bender`: LoS manipulator using `glyph_prism` and `angle_wax`.
-- `intent_breaker`: intent disruptor using `hush_formula` and `permission_key`.
+- `seal_reader`: `reveal_hidden_mark` using `seal_lantern` and `syntax_hook`.
+- `line_bender`: `bend_los` using `glyph_prism` and `angle_wax`.
+- `intent_breaker`: `interrupt_intent` using `hush_formula` and `permission_key`.
 
 The Arcanist defines 6 tools:
 
@@ -148,9 +156,9 @@ Acceptance proof:
 
 The Thief defines 3 loadouts:
 
-- `ghost_route`: stealth runner using `quiet_pick` and `route_chalk`.
-- `trap_lifter`: hazard disarmer using `tripwire_spool` and `pocket_lantern`.
-- `courier_cut`: objective extractor using `false_warrant` and `escape_hook`.
+- `ghost_route`: `sneak_route` using `quiet_pick` and `route_chalk`.
+- `trap_lifter`: `disarm_hazard` using `tripwire_spool` and `pocket_lantern`.
+- `courier_cut`: `extract_cargo` using `false_warrant` and `escape_hook`.
 
 The Thief defines 6 tools:
 
@@ -183,9 +191,9 @@ Acceptance proof:
 
 The Chirurgeon defines 3 loadouts:
 
-- `bone_setter`: injury stabilizer using `nerve_suture` and `pain_contract`.
-- `cautery_engineer`: burn controller using `cautery_lamp` and `machine_splint`.
-- `preservationist`: body-objective repair using `preservation_saw` and `mercy_clamp`.
+- `bone_setter`: `stabilize_injury` using `nerve_suture` and `pain_contract`.
+- `cautery_engineer`: `douse_burn` using `cautery_lamp` and `machine_splint`.
+- `preservationist`: `preserve_body` using `preservation_saw` and `mercy_clamp`.
 
 The Chirurgeon defines 6 tools:
 
@@ -218,9 +226,9 @@ Acceptance proof:
 
 The Exile defines 3 loadouts:
 
-- `faultbreaker`: terrain breaker using `ruin_maul` and `fault_step`.
-- `borderless`: hazard brawler using `hazard_hide` and `spite_breath`.
-- `thrown_oath`: forced-move bruiser using `exile_throw` and `broken_oath_grip`.
+- `faultbreaker`: `break_terrain` using `ruin_maul` and `fault_step`.
+- `borderless`: `hold_hazard` using `hazard_hide` and `spite_breath`.
+- `thrown_oath`: `throw_unit` using `exile_throw` and `broken_oath_grip`.
 
 The Exile defines 6 tools:
 
@@ -253,9 +261,9 @@ Acceptance proof:
 
 The Lamplighter defines 3 loadouts:
 
-- `beacon_runner`: route revealer using `route_beacon` and `white_flare`.
-- `cone_keeper`: overwatch controller using `mirror_lantern` and `wick_line`.
-- `ash_lamp`: hidden-intent reducer using `smoke_gel` and `safe_cinder`.
+- `beacon_runner`: `anchor_beacon` using `route_beacon` and `white_flare`.
+- `cone_keeper`: `project_overwatch` using `mirror_lantern` and `wick_line`.
+- `ash_lamp`: `reduce_hidden_intent` using `smoke_gel` and `safe_cinder`.
 
 The Lamplighter defines 6 tools:
 
@@ -288,9 +296,9 @@ Acceptance proof:
 
 The Merchant defines 3 loadouts:
 
-- `debt_broker`: risk converter using `debt_note` and `risk_ledger`.
-- `salvage_factor`: loot insurer using `salvage_drone` and `escrow_token`.
-- `mercy_accountant`: objective insurer using `appraisal_lens` and `mercy_clause`.
+- `debt_broker`: `convert_debt_to_ap` using `debt_note` and `risk_ledger`.
+- `salvage_factor`: `insure_salvage` using `salvage_drone` and `escrow_token`.
+- `mercy_accountant`: `insure_objective` using `appraisal_lens` and `mercy_clause`.
 
 The Merchant defines 6 tools:
 

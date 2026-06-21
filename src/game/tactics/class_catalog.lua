@@ -3,10 +3,11 @@ local ClassCatalog = {}
 ClassCatalog.classes = {
     warden = {
         name = "Warden",
+        boardVerbs = { "brace", "raise_cover", "shove", "redirect_objective_hit" },
         loadouts = {
-            { id = "line_guard", role = "frontline protector", tools = { "brace_pavise", "route_hook" } },
-            { id = "claim_anchor", role = "objective holder", tools = { "claim_spike", "oath_tether" } },
-            { id = "breach_shield", role = "cover breaker", tools = { "shelf_shove_kit", "breach_maul" } },
+            { id = "line_guard", boardVerb = "brace_line", tools = { "brace_pavise", "route_hook" } },
+            { id = "claim_anchor", boardVerb = "hold_claim", tools = { "claim_spike", "oath_tether" } },
+            { id = "breach_shield", boardVerb = "break_cover", tools = { "shelf_shove_kit", "breach_maul" } },
         },
         tools = {
             { id = "brace_pavise", effect = "raise mobile half cover" },
@@ -25,10 +26,11 @@ ClassCatalog.classes = {
     },
     duelist = {
         name = "Duelist",
+        boardVerbs = { "dash", "flank", "swap", "riposte" },
         loadouts = {
-            { id = "red_line", role = "dash striker", tools = { "razor_dash", "angle_step" } },
-            { id = "patron_shadow", role = "position trader", tools = { "swap_foil", "riposte_mark" } },
-            { id = "debt_blade", role = "flank finisher", tools = { "cloak_pin", "ledger_stiletto" } },
+            { id = "red_line", boardVerb = "dash_strike", tools = { "razor_dash", "angle_step" } },
+            { id = "patron_shadow", boardVerb = "swap_position", tools = { "swap_foil", "riposte_mark" } },
+            { id = "debt_blade", boardVerb = "convert_flank", tools = { "cloak_pin", "ledger_stiletto" } },
         },
         tools = {
             { id = "razor_dash", effect = "dash through a safe lane before attacking" },
@@ -47,10 +49,11 @@ ClassCatalog.classes = {
     },
     mender = {
         name = "Apothecary",
+        boardVerbs = { "stabilize", "smoke", "cleanse_hazard", "rescue" },
         loadouts = {
-            { id = "field_triage", role = "objective medic", tools = { "wound_clamp", "salt_draught" } },
-            { id = "smoke_binder", role = "LoS controller", tools = { "hush_smoke", "salve_flare" } },
-            { id = "plague_cutter", role = "hazard cleanser", tools = { "bitter_vial", "sterilize_hook" } },
+            { id = "field_triage", boardVerb = "stabilize_objective", tools = { "wound_clamp", "salt_draught" } },
+            { id = "smoke_binder", boardVerb = "place_smoke", tools = { "hush_smoke", "salve_flare" } },
+            { id = "plague_cutter", boardVerb = "cleanse_hazard", tools = { "bitter_vial", "sterilize_hook" } },
         },
         tools = {
             { id = "wound_clamp", effect = "repair ally or civilian integrity" },
@@ -69,10 +72,11 @@ ClassCatalog.classes = {
     },
     arcanist = {
         name = "Arcanist",
+        boardVerbs = { "reveal", "bend_los", "unredact_intent", "pass_seal" },
         loadouts = {
-            { id = "seal_reader", role = "hidden-info reader", tools = { "seal_lantern", "syntax_hook" } },
-            { id = "line_bender", role = "LoS manipulator", tools = { "glyph_prism", "angle_wax" } },
-            { id = "intent_breaker", role = "intent disruptor", tools = { "hush_formula", "permission_key" } },
+            { id = "seal_reader", boardVerb = "reveal_hidden_mark", tools = { "seal_lantern", "syntax_hook" } },
+            { id = "line_bender", boardVerb = "bend_los", tools = { "glyph_prism", "angle_wax" } },
+            { id = "intent_breaker", boardVerb = "interrupt_intent", tools = { "hush_formula", "permission_key" } },
         },
         tools = {
             { id = "seal_lantern", effect = "reveal class-gated marks and weak points" },
@@ -91,10 +95,11 @@ ClassCatalog.classes = {
     },
     harrier = {
         name = "Thief",
+        boardVerbs = { "sneak", "disarm", "extract", "mark_route" },
         loadouts = {
-            { id = "ghost_route", role = "stealth runner", tools = { "quiet_pick", "route_chalk" } },
-            { id = "trap_lifter", role = "hazard disarmer", tools = { "tripwire_spool", "pocket_lantern" } },
-            { id = "courier_cut", role = "objective extractor", tools = { "false_warrant", "escape_hook" } },
+            { id = "ghost_route", boardVerb = "sneak_route", tools = { "quiet_pick", "route_chalk" } },
+            { id = "trap_lifter", boardVerb = "disarm_hazard", tools = { "tripwire_spool", "pocket_lantern" } },
+            { id = "courier_cut", boardVerb = "extract_cargo", tools = { "false_warrant", "escape_hook" } },
         },
         tools = {
             { id = "quiet_pick", effect = "open adjacent lock without raising exposure" },
@@ -113,10 +118,11 @@ ClassCatalog.classes = {
     },
     chirurgeon = {
         name = "Chirurgeon",
+        boardVerbs = { "repair", "stabilize_injury", "douse", "preserve_cargo" },
         loadouts = {
-            { id = "bone_setter", role = "injury stabilizer", tools = { "nerve_suture", "pain_contract" } },
-            { id = "cautery_engineer", role = "burn controller", tools = { "cautery_lamp", "machine_splint" } },
-            { id = "preservationist", role = "body-objective repair", tools = { "preservation_saw", "mercy_clamp" } },
+            { id = "bone_setter", boardVerb = "stabilize_injury", tools = { "nerve_suture", "pain_contract" } },
+            { id = "cautery_engineer", boardVerb = "douse_burn", tools = { "cautery_lamp", "machine_splint" } },
+            { id = "preservationist", boardVerb = "preserve_body", tools = { "preservation_saw", "mercy_clamp" } },
         },
         tools = {
             { id = "nerve_suture", effect = "convert injury penalty into timed AP cost" },
@@ -135,10 +141,11 @@ ClassCatalog.classes = {
     },
     exile = {
         name = "Exile",
+        boardVerbs = { "break_terrain", "throw", "stand_hazard", "self_risk_ap" },
         loadouts = {
-            { id = "faultbreaker", role = "terrain breaker", tools = { "ruin_maul", "fault_step" } },
-            { id = "borderless", role = "hazard brawler", tools = { "hazard_hide", "spite_breath" } },
-            { id = "thrown_oath", role = "forced-move bruiser", tools = { "exile_throw", "broken_oath_grip" } },
+            { id = "faultbreaker", boardVerb = "break_terrain", tools = { "ruin_maul", "fault_step" } },
+            { id = "borderless", boardVerb = "hold_hazard", tools = { "hazard_hide", "spite_breath" } },
+            { id = "thrown_oath", boardVerb = "throw_unit", tools = { "exile_throw", "broken_oath_grip" } },
         },
         tools = {
             { id = "ruin_maul", effect = "destroy adjacent cover or brittle floor" },
@@ -157,10 +164,11 @@ ClassCatalog.classes = {
     },
     lamplighter = {
         name = "Lamplighter",
+        boardVerbs = { "reveal_route", "project_cone", "anchor_beacon", "safe_hazard" },
         loadouts = {
-            { id = "beacon_runner", role = "route revealer", tools = { "route_beacon", "white_flare" } },
-            { id = "cone_keeper", role = "overwatch controller", tools = { "mirror_lantern", "wick_line" } },
-            { id = "ash_lamp", role = "hidden-intent reducer", tools = { "smoke_gel", "safe_cinder" } },
+            { id = "beacon_runner", boardVerb = "anchor_beacon", tools = { "route_beacon", "white_flare" } },
+            { id = "cone_keeper", boardVerb = "project_overwatch", tools = { "mirror_lantern", "wick_line" } },
+            { id = "ash_lamp", boardVerb = "reduce_hidden_intent", tools = { "smoke_gel", "safe_cinder" } },
         },
         tools = {
             { id = "route_beacon", effect = "reveal hidden route tile and extraction edge" },
@@ -179,10 +187,11 @@ ClassCatalog.classes = {
     },
     merchant = {
         name = "Merchant",
+        boardVerbs = { "convert_risk", "insure_objective", "carry_drone", "appraise_weak_point" },
         loadouts = {
-            { id = "debt_broker", role = "risk converter", tools = { "debt_note", "risk_ledger" } },
-            { id = "salvage_factor", role = "loot insurer", tools = { "salvage_drone", "escrow_token" } },
-            { id = "mercy_accountant", role = "objective insurer", tools = { "appraisal_lens", "mercy_clause" } },
+            { id = "debt_broker", boardVerb = "convert_debt_to_ap", tools = { "debt_note", "risk_ledger" } },
+            { id = "salvage_factor", boardVerb = "insure_salvage", tools = { "salvage_drone", "escrow_token" } },
+            { id = "mercy_accountant", boardVerb = "insure_objective", tools = { "appraisal_lens", "mercy_clause" } },
         },
         tools = {
             { id = "debt_note", effect = "gain AP now and record deterministic debt" },
@@ -259,6 +268,11 @@ function ClassCatalog.loadouts(id)
     return class and class.loadouts or {}
 end
 
+function ClassCatalog.boardVerbs(id)
+    local class = ClassCatalog.class(id)
+    return class and class.boardVerbs or {}
+end
+
 function ClassCatalog.tools(id)
     local class = ClassCatalog.class(id)
     return class and class.tools or {}
@@ -283,6 +297,27 @@ end
 
 function ClassCatalog.squadScales()
     return ClassCatalog.squadScaling
+end
+
+function ClassCatalog.auditBoardVerbs()
+    local report = { valid = true, missing = {} }
+    for classId, class in pairs(ClassCatalog.classes) do
+        if not class.boardVerbs or #class.boardVerbs == 0 then
+            report.valid = false
+            table.insert(report.missing, classId .. ".boardVerbs")
+        end
+        for _, loadout in ipairs(class.loadouts or {}) do
+            if not loadout.boardVerb then
+                report.valid = false
+                table.insert(report.missing, classId .. "." .. tostring(loadout.id) .. ".boardVerb")
+            end
+            if loadout.role ~= nil then
+                report.valid = false
+                table.insert(report.missing, classId .. "." .. tostring(loadout.id) .. ".role")
+            end
+        end
+    end
+    return report
 end
 
 return ClassCatalog

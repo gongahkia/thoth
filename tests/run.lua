@@ -1479,6 +1479,22 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local audit = ClassCatalog.auditBoardVerbs()
+    expect(audit.valid, "class catalog should use board verbs instead of RPG roles")
+    local ids = { "warden", "duelist", "mender", "arcanist", "harrier", "chirurgeon", "exile", "lamplighter", "merchant" }
+    local seen = {}
+    for _, classId in ipairs(ids) do
+        local verbs = ClassCatalog.boardVerbs(classId)
+        expect(#verbs >= 3, classId .. " should define board verbs")
+        for _, loadout in ipairs(ClassCatalog.loadouts(classId)) do
+            expect(loadout.boardVerb and loadout.role == nil, classId .. " loadout should define board verb")
+            seen[loadout.boardVerb] = true
+        end
+    end
+    expect(seen.brace_line and seen.dash_strike and seen.cleanse_hazard and seen.break_terrain, "class loadouts should cover board verbs")
+end
+
+tests[#tests + 1] = function()
     local traits = ClassCatalog.characterTraits()
     expect(#traits == 20, "class catalog should define 20 character traits")
     local domains = {}

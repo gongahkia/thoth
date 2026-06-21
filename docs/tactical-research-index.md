@@ -49,6 +49,8 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S37 | https://stackoverflow.com/questions/3064317/conceptually-how-does-replay-work-in-a-game | Deterministic replay records seeds and inputs, then replays them through the same simulation. | Thoth seeded exports record run seed, board seeds, route choices, event rolls, and replay hashes. |
 | S38 | https://www.gridsagegames.com/blog/2017/05/working-seeds/ | Roguelike world seeds can derive map seeds so maps reproduce regardless of visit order. | Thoth derives board seeds from run seed and chosen route ids. |
 | S39 | https://bugnet.io/blog/how-to-fix-a-replay-system-that-desyncs | Replay systems should record seeds/inputs and verify with checksums to catch divergence. | Thoth exports per-board replay hashes and an export hash for QA comparison. |
+| S40 | https://www.gearsofwar.com/en-us/game-guide/classes/ | Classes branch into subclasses and skill sets that tailor soldiers to battlefield needs. | Thoth classes branch into named board verbs so loadouts describe actions on tiles, cover, objectives, and intent. |
+| S41 | https://www.feralinteractive.com/en/manuals/xcom2/latest/steam/ | Soldier classes expose battlefield roles through unique abilities and specializations. | Thoth rejects RPG role labels at loadout level; the catalog records inspectable verbs such as brace, dash, reveal, douse, and insure. |
 
 ## Mechanic Handoffs
 
@@ -355,6 +357,22 @@ counterplay: QA can replay exact route/board/event sequence and compare hashes.
 preview/UI: debug export view lists schema version, route choices, board seeds, event ids, and hashes.
 
 test/replay proof: fixed seed export validates required fields, serializes identically, and changes hash when route choices change.
+
+### H20 Board-Verb Classes
+
+source pattern: XCOM and Gears Tactics classes expose battlefield specialties through class abilities, subclasses, and skill branches; Mario + Rabbids emphasizes movement verbs such as dash, team jump, and cover use.
+
+thoth transformation: Class identity is stored as verbs that change the board: brace, dash, reveal, smoke, disarm, douse, break terrain, project overwatch, convert debt, and insure objectives.
+
+board verb: brace, dash, reveal, cleanse, disarm, repair, throw, project, insure.
+
+zone fit: Archive rewards reveal, brace, shove, and seal-pass verbs; Cistern rewards douse, rescue, route, and hazard verbs; Warrens rewards break terrain, smoke, heat control, and objective insurance.
+
+counterplay: every loadout verb has a cost, tile condition, LoS condition, cooldown, debt, exposure, or positioning weakness.
+
+preview/UI: class sheet lists board verbs, loadouts list one `boardVerb`, and inspector text states the tile/objective/intent state changed before commit.
+
+test/replay proof: `ClassCatalog.auditBoardVerbs()` rejects missing verbs or legacy loadout `role`; `tests/run.lua` verifies every class and loadout uses board verbs.
 
 ## Rejection Rules
 
