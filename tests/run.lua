@@ -214,6 +214,32 @@ tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
             width = 4,
+            height = 1,
+            tiles = {
+                ["1:1"] = { blockerKind = "hard" },
+                ["2:1"] = { blockerKind = "low" },
+                ["3:1"] = { blockerKind = "transparent" },
+                ["4:1"] = { blockerKind = "destructible", destructibleHp = 2 },
+            },
+        },
+    })
+    local hard = state:blockerAt(1, 1)
+    expect(hard.kind == "hard" and hard.movement and hard.los, "hard blocker should stop movement and LoS")
+    local low = state:blockerAt(2, 1)
+    expect(low.kind == "low" and low.movement and not low.los and low.low, "low blocker should stop movement without LoS")
+    local transparent = state:blockerAt(3, 1)
+    expect(transparent.kind == "transparent" and transparent.movement and not transparent.los and transparent.transparent, "transparent blocker should stop movement without LoS")
+    local destructible = state:blockerAt(4, 1)
+    expect(destructible.kind == "destructible" and destructible.movement and destructible.los and destructible.destructible and destructible.hp == 2, "destructible blocker should expose HP and block until broken")
+    state:damageTile(4, 1, 2)
+    local broken = state:blockerAt(4, 1)
+    expect(broken.kind == "none" and not broken.movement and not broken.los and state:tileAt(4, 1).destroyed, "destroyed blocker should clear movement and LoS")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
+            width = 4,
             height = 4,
             tiles = {
                 ["2:2"] = {

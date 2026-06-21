@@ -83,11 +83,47 @@ local function emptyCoverEdges()
     return normalizeCoverEdges()
 end
 
+local blockerKinds = {
+    none = { blocker = false, losBlocker = false },
+    hard = { blocker = true, losBlocker = true },
+    low = { blocker = true, losBlocker = false, low = true },
+    transparent = { blocker = true, losBlocker = false, transparent = true },
+    destructible = { blocker = true, losBlocker = true, destructible = true },
+}
+
+local function inferBlockerKind(tile, destructibleHp)
+    local kind = tile.blockerKind or tile.blockerType
+    if kind then
+        expect(blockerKinds[kind], "invalid blocker kind " .. tostring(kind))
+        return kind
+    end
+    if destructibleHp ~= nil and tile.blocker == true then
+        return "destructible"
+    end
+    if tile.blocker == true and tile.losBlocker == true then
+        return "hard"
+    end
+    if tile.blocker == true then
+        return "low"
+    end
+    return "none"
+end
+
 local function normalizeTile(tile)
     tile = tile or {}
     local destructibleHp = tile.destructibleHp
     if destructibleHp == nil then
         destructibleHp = tile.hp
+    end
+    local blockerKind = inferBlockerKind(tile, destructibleHp)
+    local blockerRule = blockerKinds[blockerKind]
+    local blocker = tile.blocker
+    if blocker == nil then
+        blocker = blockerRule.blocker
+    end
+    local losBlocker = tile.losBlocker
+    if losBlocker == nil then
+        losBlocker = blockerRule.losBlocker
     end
     return {
         kind = tile.kind or tile.id or "floor",
@@ -95,8 +131,9 @@ local function normalizeTile(tile)
         state = tile.state,
         height = expectInteger(tile.height or 0, "tile height"),
         coverEdges = normalizeCoverEdges(tile.coverEdges or tile.cover),
-        blocker = tile.blocker == true,
-        losBlocker = tile.losBlocker == true,
+        blockerKind = blockerKind,
+        blocker = blocker == true,
+        losBlocker = losBlocker == true,
         destructibleHp = destructibleHp,
         hazard = copyMap(tile.hazard),
         objective = copyMap(tile.objective),
@@ -706,6 +743,22 @@ function State:tileAt(x, y)
     return self.board.tiles[tileKey(x, y)] or normalizeTile()
 end
 
+function State:blockerAt(x, y)
+    local tile = self:tileAt(x, y)
+    local rule = blockerKinds[tile.blockerKind] or blockerKinds.none
+    return {
+        x = x,
+        y = y,
+        kind = tile.blockerKind,
+        movement = tile.blocker == true,
+        los = tile.losBlocker == true,
+        low = rule.low == true,
+        transparent = rule.transparent == true,
+        destructible = rule.destructible == true or tile.destructibleHp ~= nil,
+        hp = tile.destructibleHp,
+    }
+end
+
 function State:unit(id)
     return self.units[id]
 end
@@ -1031,6 +1084,7 @@ function State:damageTile(x, y, amount)
     if tile.destructibleHp <= 0 then
         tile.blocker = false
         tile.losBlocker = false
+        tile.blockerKind = "none"
         tile.coverEdges = emptyCoverEdges()
         tile.destroyed = true
     end

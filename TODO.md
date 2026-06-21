@@ -72,7 +72,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Cover, LoS, Visibility
 
-- [ ] L.2 Define hard blockers, low blockers, transparent blockers, and destructible blockers.
 - [ ] L.3 Define flanking as deterministic cover invalidation from attack vector.
 - [ ] L.4 Define height effects for LoS and cover without hit-chance math.
 - [ ] L.5 Define smoke/salt mist/ash cloud as visible LoS modifiers with turn countdowns.
