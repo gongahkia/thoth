@@ -2106,6 +2106,21 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        defaultAp = 2,
+        board = { width = 3, height = 1 },
+        units = { { id = "unit", side = "player", x = 1, y = 1, hp = 4 } },
+    })
+    local recording = TacticsReplay.record(state)
+    TacticsReplay.apply(recording, TacticsState.commands.move("unit", "east"))
+    TacticsReplay.apply(recording, TacticsState.commands.move("unit", "east"))
+    expect(recording.debugOnly == true and TacticsReplay.debugOnly == true, "tactical rewind should be marked debug-only")
+    expect(TacticsReplay.rewind(recording, 0):unit("unit").x == 1, "rewind should restore initial board")
+    expect(TacticsReplay.rewind(recording, 1):unit("unit").x == 2, "rewind should restore intermediate board")
+    expect(TacticsReplay.rewind(recording, 2):unit("unit").x == 3, "rewind should restore final board")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {

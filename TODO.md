@@ -106,7 +106,6 @@ Goal: prove the new combat loop before touching broad content.
 
 Goal: replace expedition/rank combat with the tile tactics engine.
 
-- [ ] 1.8 Implement board rewind/debug replay for deterministic QA only, not as a player feature yet.
 - [ ] 1.9 Remove or quarantine legacy rank-combat code from player flow.
 
 **Exit criteria:** tactical missions use tile/AP/intent resolution; legacy rank combat no longer blocks the new loop; tests cover LoS, cover, push, destructible terrain, and replay determinism.
