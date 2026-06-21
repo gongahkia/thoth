@@ -157,6 +157,30 @@ local function normalizeIntent(intent)
     }
 end
 
+local function normalizeObjective(objective, index)
+    expect(type(objective) == "table", "objective must be a table")
+    local id = objective.id or ("objective_" .. tostring(index))
+    expect(type(id) == "string" and id ~= "", "objective id must be a non-empty string")
+    local kind = objective.kind or "protect_route_machinery"
+    expect(kind == "protect_route_machinery", "unsupported objective kind " .. tostring(kind))
+    local integrity = objective.integrity or objective.maxIntegrity or 1
+    local evacuateAt = objective.evacuateAt or objective.exit
+    expect(evacuateAt and evacuateAt.x and evacuateAt.y, "objective needs evacuation tile")
+    return {
+        id = id,
+        kind = kind,
+        x = expectInteger(objective.x, "objective x"),
+        y = expectInteger(objective.y, "objective y"),
+        integrity = integrity,
+        maxIntegrity = objective.maxIntegrity or integrity,
+        evacuateAt = { x = expectInteger(evacuateAt.x, "evacuation x"), y = expectInteger(evacuateAt.y, "evacuation y") },
+        evacuationsRequired = objective.evacuationsRequired or 1,
+        evacuatedUnits = copyList(objective.evacuatedUnits),
+        complete = objective.complete == true,
+        failed = objective.failed == true,
+    }
+end
+
 local function normalizeUnit(unit, index, defaultAp)
     expect(type(unit) == "table", "unit must be a table")
     local id = unit.id or ("unit_" .. tostring(index))
@@ -172,6 +196,7 @@ local function normalizeUnit(unit, index, defaultAp)
         maxAp = maxAp,
         ap = unit.ap ~= nil and unit.ap or maxAp,
         alive = unit.alive ~= false,
+        evacuated = unit.evacuated == true,
         tags = copyList(unit.tags),
     }
 end
@@ -208,6 +233,8 @@ function State.new(options)
         unitOrder = {},
         threatZones = copyMap(options.threatZones),
         intents = {},
+        objectives = {},
+        objectiveOrder = {},
         pending = {},
         log = copyList(options.log),
     }, State)
@@ -227,6 +254,13 @@ function State.new(options)
     for unitId, intent in pairs(options.intents or {}) do
         state.intents[unitId] = normalizeIntent(intent)
     end
+    for index, objective in ipairs(options.objectives or {}) do
+        local normalized = normalizeObjective(objective, index)
+        expect(state:inBounds(normalized.x, normalized.y), "objective " .. normalized.id .. " starts out of bounds")
+        expect(state:inBounds(normalized.evacuateAt.x, normalized.evacuateAt.y), "objective " .. normalized.id .. " evacuation tile out of bounds")
+        state.objectives[normalized.id] = normalized
+        state.objectiveOrder[#state.objectiveOrder + 1] = normalized.id
+    end
     return state
 end
 
@@ -241,6 +275,7 @@ function State.fromSnapshot(snapshot)
         units = snapshot.units or {},
         threatZones = snapshot.threatZones or {},
         intents = snapshot.intents or {},
+        objectives = snapshot.objectives or {},
         log = snapshot.log or {},
     })
 end
@@ -262,7 +297,7 @@ function State:unitsForSide(side)
     local result = {}
     for _, id in ipairs(self.unitOrder) do
         local unit = self.units[id]
-        if unit and unit.side == side and unit.alive then
+        if unit and unit.side == side and unit.alive and not unit.evacuated then
             result[#result + 1] = unit
         end
     end
@@ -272,7 +307,7 @@ end
 function State:unitAt(x, y)
     for _, id in ipairs(self.unitOrder) do
         local unit = self.units[id]
-        if unit and unit.alive and unit.x == x and unit.y == y then
+        if unit and unit.alive and not unit.evacuated and unit.x == x and unit.y == y then
             return unit
         end
     end
@@ -318,7 +353,7 @@ function State:damageUnit(unitOrId, amount)
     local unit = type(unitOrId) == "table" and unitOrId or expect(self.units[unitOrId], "unknown unit " .. tostring(unitOrId))
     amount = expectInteger(amount or 0, "damage")
     expect(amount >= 0, "damage must be non-negative")
-    if amount == 0 or not unit.alive then
+    if amount == 0 or not unit.alive or unit.evacuated then
         return unit.hp
     end
     unit.hp = math.max(0, (unit.hp or 0) - amount)
@@ -423,6 +458,68 @@ function State:intentPreview(unitId, options)
         preview.footprintHidden = true
     end
     return preview
+end
+
+local function containsUnitId(values, unitId)
+    for _, value in ipairs(values or {}) do
+        if value == unitId then
+            return true
+        end
+    end
+    return false
+end
+
+function State:objective(id)
+    return self.objectives[id]
+end
+
+function State:evaluateObjective(objective)
+    if objective.failed then
+        return "failed"
+    end
+    if objective.complete then
+        return "complete"
+    end
+    if (objective.integrity or 0) <= 0 then
+        objective.failed = true
+        return "failed"
+    end
+    if #(objective.evacuatedUnits or {}) >= (objective.evacuationsRequired or 1) then
+        objective.complete = true
+        return "complete"
+    end
+    return "active"
+end
+
+function State:objectiveStatus(id)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    return self:evaluateObjective(objective)
+end
+
+function State:damageObjective(id, amount)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    amount = expectInteger(amount or 0, "objective damage")
+    expect(amount >= 0, "objective damage must be non-negative")
+    if objective.complete or objective.failed then
+        return objective.integrity
+    end
+    objective.integrity = math.max(0, objective.integrity - amount)
+    self:evaluateObjective(objective)
+    return objective.integrity
+end
+
+function State:evacuateUnit(unitId, objectiveId)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    local objective = expect(self.objectives[objectiveId], "unknown objective " .. tostring(objectiveId))
+    expect(unit.alive and not unit.evacuated, "unit cannot evacuate")
+    expect(unit.x == objective.evacuateAt.x and unit.y == objective.evacuateAt.y, "unit is not on evacuation tile")
+    expect(self:evaluateObjective(objective) ~= "failed", "objective already failed")
+    if not containsUnitId(objective.evacuatedUnits, unitId) then
+        objective.evacuatedUnits[#objective.evacuatedUnits + 1] = unitId
+    end
+    unit.evacuated = true
+    unit.ap = 0
+    return self:evaluateObjective(objective)
 end
 
 function State:resolveThreatAt(unit)
@@ -547,6 +644,12 @@ function State:apply(command)
         self:damageTile(expectInteger(command.x, "tile x"), expectInteger(command.y, "tile y"), command.damage or 1)
     elseif kind == "intent" then
         self:declareIntent(command.unit, command.intent)
+    elseif kind == "damageObjective" then
+        self:spendAP(command.unit, command.cost or 0)
+        self:damageObjective(command.objective, command.damage or 1)
+    elseif kind == "evacuate" then
+        self:spendAP(command.unit, command.cost or 1)
+        self:evacuateUnit(command.unit, command.objective)
     else
         error("unknown command " .. tostring(kind), 2)
     end
