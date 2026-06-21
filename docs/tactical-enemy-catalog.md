@@ -34,3 +34,19 @@ The Archive family defines 3 elites with partial intent, weak points, and terrai
 Acceptance proof:
 
 - `tests/run.lua` verifies the Archive has exactly 3 elites and each one has unique id, name, partial intent, weak point, and terrain interaction metadata.
+
+## E.3 Archive Alpha
+
+Archive alpha:
+
+- `shelf_warden`: visible pre-board threat.
+
+Effects:
+
+- Pre-board threat: pursues the chosen archive route before board reveal.
+- Route choice change: marks one adjacent archive node as audited.
+- Board generation change: adds two shoveable shelf blockers and one audit beam lane.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies the Archive alpha is visible before board reveal and defines pre-board, route-choice, and board-generation effects.

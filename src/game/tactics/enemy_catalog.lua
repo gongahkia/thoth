@@ -19,6 +19,14 @@ EnemyCatalog.families = {
             { id = "shelf_knight", name = "Shelf Knight", partialIntent = { mode = "category", category = "guard" }, weakPoints = { "rear_binding" }, terrainInteraction = "shove_shelf_wall" },
             { id = "writ_cantor", name = "Writ Cantor", partialIntent = { mode = "category", category = "summon" }, weakPoints = { "choir_chain" }, terrainInteraction = "ring_audit_beam" },
         },
+        alpha = {
+            id = "shelf_warden",
+            name = "Shelf Warden",
+            visiblePreBoard = true,
+            preBoardThreat = "pursues the chosen archive route before board reveal",
+            routeChoiceChange = "marks one adjacent archive node as audited",
+            boardGenerationChange = "adds two shoveable shelf blockers and one audit beam lane",
+        },
     },
 }
 
@@ -34,6 +42,11 @@ end
 function EnemyCatalog.elites(familyId)
     local family = EnemyCatalog.family(familyId)
     return family and family.elites or {}
+end
+
+function EnemyCatalog.alpha(familyId)
+    local family = EnemyCatalog.family(familyId)
+    return family and family.alpha or nil
 end
 
 return EnemyCatalog
