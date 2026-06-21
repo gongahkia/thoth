@@ -31,6 +31,37 @@ local function nearestPlayer(state, enemy)
     return best
 end
 
+local function activeObscurantAt(state, x, y)
+    local tile = state:tileAt(x, y)
+    return tile.hazard and tile.hazard.active and tile.hazard.losModifier == "obscure"
+end
+
+local function enemyCanSeeUnit(state, enemy, unit)
+    if not (enemy and unit) then
+        return false
+    end
+    if activeObscurantAt(state, unit.x, unit.y) then
+        return false
+    end
+    local los = state:lineOfSight(enemy.x, enemy.y, unit.x, unit.y)
+    return los.visible == true and los.obscured ~= true
+end
+
+local function nearestVisiblePlayer(state, enemy)
+    local best
+    local bestDistance
+    for _, unit in ipairs(state:unitsForSide("player")) do
+        if enemyCanSeeUnit(state, enemy, unit) then
+            local distance = Grid.manhattan(enemy.x, enemy.y, unit.x, unit.y)
+            if not bestDistance or distance < bestDistance then
+                best = unit
+                bestDistance = distance
+            end
+        end
+    end
+    return best
+end
+
 local function livingEnemies(state)
     local count = 0
     for _, unit in ipairs(state:unitsForSide("enemy")) do
@@ -84,27 +115,52 @@ function Runtime.syncWorld(sim, runtime)
     sim.tick = tactics.tick
 end
 
+local function declareEnemyIntent(runtime, enemy, options)
+    local state = runtime.state
+    local objective = objectiveState(state)
+    local spec = enemyIntentSpecs[enemy.id] or {}
+    local target
+    if spec.target == "objective" then
+        target = objective
+    elseif options and options.visibleTargetsOnly then
+        target = nearestVisiblePlayer(state, enemy)
+    else
+        target = nearestPlayer(state, enemy)
+    end
+    if not target then
+        return false
+    end
+    state:declareIntent(enemy.id, {
+        mode = "exact",
+        category = "attack",
+        source = enemy.id,
+        sourceTile = { x = enemy.x, y = enemy.y },
+        targetTiles = { { x = target.x, y = target.y } },
+        damage = spec.damage or 1,
+        objectiveImpact = target.id == objective.id and objective.id or nil,
+        label = spec.label or "posted notice",
+        counterplay = { "move target", "kill source", "block tile" },
+    })
+    return true
+end
+
 function Runtime.declareEnemyIntents(runtime)
     local state = runtime.state
     state.intents = {}
-    local objective = objectiveState(state)
     for _, enemy in ipairs(state:unitsForSide("enemy")) do
-        local spec = enemyIntentSpecs[enemy.id] or {}
-        local target = spec.target == "objective" and objective or nearestPlayer(state, enemy)
-        if target then
-            state:declareIntent(enemy.id, {
-                mode = "exact",
-                category = "attack",
-                source = enemy.id,
-                sourceTile = { x = enemy.x, y = enemy.y },
-                targetTiles = { { x = target.x, y = target.y } },
-                damage = spec.damage or 1,
-                objectiveImpact = target.id == objective.id and objective.id or nil,
-                label = spec.label or "posted notice",
-                counterplay = { "move target", "kill source", "block tile" },
-            })
+        declareEnemyIntent(runtime, enemy)
+    end
+end
+
+function Runtime.replanVisibleEnemyIntents(runtime, movedUnit)
+    local state = runtime.state
+    local count = 0
+    for _, enemy in ipairs(state:unitsForSide("enemy")) do
+        if enemyCanSeeUnit(state, enemy, movedUnit) and declareEnemyIntent(runtime, enemy, { visibleTargetsOnly = true }) then
+            count = count + 1
         end
     end
+    return count
 end
 
 local function makeState()
@@ -147,6 +203,7 @@ function Runtime.new(sim)
         summary = Runtime.summary,
         handleKey = Runtime.handleKey,
         setCursor = Runtime.setCursor,
+        moveSelectedToCursor = Runtime.moveSelectedToCursor,
         handleMouseTile = Runtime.handleMouseTile,
         actionAtTile = Runtime.actionAtTile,
         actionBar = Runtime.actionBar,
@@ -235,6 +292,8 @@ function Runtime.moveSelectedToCursor(runtime)
     if not selected or selected.side ~= "player" then
         return false
     end
+    local fromX = selected.x
+    local fromY = selected.y
     local preview = state:movementPreview(selected.id)
     local destination = reachableByKey(preview)[tostring(runtime.cursor.x) .. ":" .. tostring(runtime.cursor.y)]
     if not destination then
@@ -246,7 +305,9 @@ function Runtime.moveSelectedToCursor(runtime)
             break
         end
     end
-    setStatus(runtime, selected.id .. " moved")
+    local moved = selected.x ~= fromX or selected.y ~= fromY
+    local replanned = moved and Runtime.replanVisibleEnemyIntents(runtime, selected) or 0
+    setStatus(runtime, selected.id .. (replanned > 0 and " moved; enemies adjusted" or " moved"))
     Runtime.refreshOverlays(runtime)
     return true
 end
@@ -259,16 +320,16 @@ function Runtime.actionAtTile(runtime, x, y)
     local unit = state:unitAt(x, y)
     local selected = Runtime.selectedUnit(runtime)
     if unit and unit.side == "player" then
-        return { kind = "select", label = "Select", key = "LMB", enabled = true, detail = unit.id .. " @" .. x .. "," .. y }
+        return { kind = "select", label = "Select", key = "LMB", enabled = true, detail = unit.id }
     end
     if unit and unit.side == "enemy" then
         local distance = selected and Grid.manhattan(selected.x, selected.y, unit.x, unit.y) or nil
         local enabled = selected and selected.ap >= 1 and distance and distance <= 3
-        local detail = distance and ("range " .. tostring(distance) .. "/3") or "no selected unit"
+        local detail = distance and ("HP" .. tostring(unit.hp) .. " r" .. tostring(distance) .. "/3") or "no unit"
         if selected and selected.ap < 1 then
             detail = "need AP"
         end
-        return { kind = "attack", label = "Attack", key = "LMB/A", enabled = enabled == true, detail = unit.id .. " " .. detail }
+        return { kind = "attack", label = "Attack", key = "LMB/A", enabled = enabled == true, detail = detail }
     end
     if selected and selected.side == "player" then
         local tile = reachableByKey(state:movementPreview(selected.id))[tostring(x) .. ":" .. tostring(y)]
@@ -295,8 +356,8 @@ function Runtime.actionBar(runtime, hover)
     return {
         { id = "context", key = context.key or "LMB", label = context.label, detail = context.detail, enabled = context.enabled, primary = true },
         { id = "cursor", key = "WASD", label = "Cursor", detail = "aim tile", enabled = true },
-        { id = "move", key = "Enter", label = "Move", detail = canMove and cursorAction.detail or "target blue tile", enabled = canMove },
-        { id = "attack", key = "A", label = "Attack", detail = canAttack and cursorAction.detail or "target enemy", enabled = canAttack },
+        { id = "move", key = "Enter", label = "Move", detail = canMove and cursorAction.detail or "blue tile", enabled = canMove },
+        { id = "attack", key = "A", label = "Attack", detail = canAttack and cursorAction.detail or "enemy", enabled = canAttack },
         { id = "brace", key = "B", label = "Brace", detail = "1 AP guard", enabled = selected and selected.ap >= 1 },
         { id = "unit", key = "Tab", label = "Unit", detail = tostring(playerCount) .. " squad", enabled = playerCount > 1 },
         { id = "rotate", key = "[ ]", label = "Rotate", detail = "view", enabled = true },

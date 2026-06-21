@@ -187,6 +187,33 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local tacticalSim = Simulation.new(9003)
+    local runtime = TacticalRuntime.new(tacticalSim)
+    runtime.state.units.audit_hound.x = 4
+    runtime.state.units.audit_hound.y = 6
+    TacticalRuntime.declareEnemyIntents(runtime)
+    expect(runtime.state:intentPreview("audit_hound").targetTiles[1].x == 2, "enemy intent should start on the posted pre-move target")
+    runtime:setCursor(3, 6)
+    expect(runtime:moveSelectedToCursor(), "visible tactical move should apply")
+    local adjusted = runtime.state:intentPreview("audit_hound")
+    expect(adjusted.targetTiles[1].x == 3 and adjusted.targetTiles[1].y == 6, "visible movement should update enemy intent to the new tile")
+    expect(runtime.message:find("enemies adjusted", 1, true), "visible movement should report enemy intent adjustment")
+end
+
+tests[#tests + 1] = function()
+    local tacticalSim = Simulation.new(9004)
+    local runtime = TacticalRuntime.new(tacticalSim)
+    runtime.state.units.audit_hound.x = 4
+    runtime.state.units.audit_hound.y = 6
+    TacticalRuntime.declareEnemyIntents(runtime)
+    runtime.state:addObscurant(3, 6, "smoke", 2)
+    runtime:setCursor(3, 6)
+    expect(runtime:moveSelectedToCursor(), "smoke-covered tactical move should apply")
+    local held = runtime.state:intentPreview("audit_hound")
+    expect(held.targetTiles[1].x == 2 and held.targetTiles[1].y == 6, "obscured movement should keep the old enemy intent")
+end
+
+tests[#tests + 1] = function()
     local tacticalSim = Simulation.new(9002)
     local runtime = TacticalRuntime.new(tacticalSim)
     local app = {
