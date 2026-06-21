@@ -1687,6 +1687,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    for _, boss in ipairs(BossCatalog.allBosses()) do
+        local contract = boss.tacticalContract
+        expect(contract and contract.exactIntent and contract.exactIntent.mode == "exact", "boss should define exact intent: " .. boss.name)
+        expect(contract.partialIntent and contract.partialIntent.mode == "category", "boss should define partial intent: " .. boss.name)
+        expect(contract.terrainMutation and contract.terrainMutation.effect, "boss should define terrain mutation: " .. boss.name)
+        expect(contract.objectiveThreat and contract.objectiveThreat.effect, "boss should define objective threat: " .. boss.name)
+        expect(contract.nonDamageCounter and contract.nonDamageCounter.damage == 0, "boss should define non-damage counter: " .. boss.name)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

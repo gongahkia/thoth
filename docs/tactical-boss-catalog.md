@@ -160,3 +160,26 @@ Show variant id, arena modifier, add family, weak-point location, and objective 
 
 test/replay proof:
 `tests/run.lua` verifies every boss in `BossCatalog.allBosses()` defines exactly two variants with arena modifier, add family, weak-point location, and objective pressure.
+
+## B.8 Boss Tactical Contract
+
+source pattern:
+Readable boss encounters need exact promises, partial masked warnings, terrain change, objective pressure, and non-damage counters.
+
+thoth transformation:
+Every BossCatalog entry carries a tactical contract with one exact intent, one partial intent, one terrain mutation, one objective threat, and one zero-damage counter.
+
+board verb:
+Declare exact intent, mask partial intent, mutate terrain, threaten objective, answer without damage.
+
+zone fit:
+Archive contracts use audits and claims; cistern contracts use floods and hooks; warrens contracts use vitrify, furnace, ash, and glass.
+
+counterplay:
+Use the listed non-damage counter, break LoS, rotate for weak point, protect objective, or alter terrain before declared resolution.
+
+preview/UI:
+Boss phase card must show exact intent, partial category hint, next terrain mutation, objective threat, and non-damage counter prompt.
+
+test/replay proof:
+`tests/run.lua` verifies every boss in `BossCatalog.allBosses()` defines the full tactical contract and every non-damage counter has `damage = 0`.
