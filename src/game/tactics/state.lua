@@ -302,6 +302,22 @@ local function normalizeConditionalBranches(intent)
     return branches
 end
 
+local function normalizeIntentPressure(rule)
+    if not rule then
+        return nil
+    end
+    return {
+        after = rule.after or 1,
+        every = rule.every or 1,
+        damageDelta = rule.damageDelta or rule.damage,
+        countdownDelta = rule.countdownDelta or rule.countdown,
+        category = rule.category,
+        effect = rule.effect,
+        remove = rule.remove == true,
+        removeAtZeroDamage = rule.removeAtZeroDamage == true,
+    }
+end
+
 local function normalizeIntent(intent)
     expect(type(intent) == "table", "intent must be a table")
     local mode = intent.mode or "exact"
@@ -346,6 +362,9 @@ local function normalizeIntent(intent)
         trigger = trigger,
         branches = branches,
         revealed = intent.revealed == true,
+        ignoredTurns = intent.ignoredTurns or 0,
+        escalation = normalizeIntentPressure(intent.escalation),
+        decay = normalizeIntentPressure(intent.decay),
         revealRotations = normalizeRotationList(intent.revealRotations),
         revealActions = copyList(intent.revealActions),
         revealClasses = copyList(intent.revealClasses),
@@ -1114,6 +1133,9 @@ function State:intentPreview(unitId, options)
         trigger = copyMap(intent.trigger),
         branches = copyValue(intent.branches),
         revealed = intent.revealed == true,
+        ignoredTurns = intent.ignoredTurns or 0,
+        escalation = copyMap(intent.escalation),
+        decay = copyMap(intent.decay),
         revealRotations = copyList(intent.revealRotations),
         revealActions = copyList(intent.revealActions),
         revealClasses = copyList(intent.revealClasses),
@@ -1295,6 +1317,69 @@ function State:interruptIntent(unitId, interrupt)
     self.intents[unitId] = nil
     result.prevented = true
     return result
+end
+
+local function pressureRuleApplies(intent, rule)
+    if not rule then
+        return false
+    end
+    local ignoredTurns = intent.ignoredTurns or 0
+    if ignoredTurns < (rule.after or 1) then
+        return false
+    end
+    return ((ignoredTurns - (rule.after or 1)) % (rule.every or 1)) == 0
+end
+
+function State:applyIntentPressureRule(unitId, intent, rule)
+    local result = { unit = unitId, removed = false, damage = intent.damage, countdown = intent.countdown }
+    if rule.damageDelta then
+        intent.damage = math.max(0, (intent.damage or 0) + rule.damageDelta)
+        result.damage = intent.damage
+    end
+    if rule.countdownDelta and intent.countdown ~= nil then
+        intent.countdown = math.max(0, (intent.countdown or 0) + rule.countdownDelta)
+        result.countdown = intent.countdown
+    end
+    if rule.category then
+        expect(intentCategories[rule.category], "invalid intent category " .. tostring(rule.category))
+        intent.category = rule.category
+        result.category = rule.category
+    end
+    if rule.effect then
+        intent.effect = rule.effect
+        result.effect = rule.effect
+    end
+    if rule.remove or (rule.removeAtZeroDamage and (intent.damage or 0) <= 0) then
+        self.intents[unitId] = nil
+        result.removed = true
+    end
+    return result
+end
+
+function State:advanceIntentPressure(unitId, outcome)
+    local intent = expect(self.intents[unitId], "unknown intent " .. tostring(unitId))
+    outcome = outcome or "ignored"
+    expect(outcome == "ignored" or outcome == "decay", "unsupported intent pressure outcome " .. tostring(outcome))
+    if outcome == "ignored" then
+        intent.ignoredTurns = (intent.ignoredTurns or 0) + 1
+        if pressureRuleApplies(intent, intent.escalation) then
+            local result = self:applyIntentPressureRule(unitId, intent, intent.escalation)
+            result.outcome = outcome
+            result.escalated = true
+            result.ignoredTurns = intent.ignoredTurns
+            return result
+        end
+        return { unit = unitId, outcome = outcome, escalated = false, ignoredTurns = intent.ignoredTurns }
+    end
+    intent.ignoredTurns = 0
+    if intent.decay then
+        local result = self:applyIntentPressureRule(unitId, intent, intent.decay)
+        result.outcome = outcome
+        result.decayed = true
+        result.ignoredTurns = 0
+        return result
+    end
+    return { unit = unitId, outcome = outcome, decayed = false, ignoredTurns = 0 }
 end
 
 local function containsUnitId(values, unitId)
@@ -2028,6 +2113,8 @@ function State:apply(command)
         self:resolveConditionalIntent(command.unit)
     elseif kind == "interruptIntent" then
         self:interruptIntent(command.unit, command.interrupt)
+    elseif kind == "advanceIntentPressure" then
+        self:advanceIntentPressure(command.unit, command.outcome)
     elseif kind == "reward" then
         self:grantReward(command.reward)
     else
@@ -2213,6 +2300,10 @@ function commands.interruptIntent(unitId, interrupt, options)
     local payload = type(interrupt) == "table" and copyMap(interrupt) or copyMap(options)
     payload.kind = payload.kind or interrupt
     return { type = "interruptIntent", unit = unitId, interrupt = payload }
+end
+
+function commands.advanceIntentPressure(unitId, outcome)
+    return { type = "advanceIntentPressure", unit = unitId, outcome = outcome }
 end
 
 function commands.reward(reward)

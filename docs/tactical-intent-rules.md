@@ -155,3 +155,32 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies all supported interrupt kinds, side effects, prevention, weak-point reveal, and snapshot stability.
+
+## I.7 Intent Decay And Escalation
+
+Intent pressure tracks threats the player ignores or lets fade.
+
+Fields:
+
+- `ignoredTurns`: number of ignored pressure advances.
+- `escalation`: rule applied when ignored turns meet `after`/`every`.
+- `decay`: rule applied by explicit decay outcome.
+
+Rule effects:
+
+- `damageDelta`: changes deterministic damage.
+- `countdownDelta`: changes fuse countdown.
+- `category`: changes visible category.
+- `effect`: changes visible effect label.
+- `remove` or `removeAtZeroDamage`: removes stale intent.
+
+Rules:
+
+- Ignored pressure increments `ignoredTurns`.
+- Escalation applies only when the configured ignored-turn threshold matches.
+- Decay resets `ignoredTurns`.
+- Decay can reduce or remove a stale intent.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies ignored exact-intent escalation, ignored fuse countdown pressure, decay, removal, and snapshot stability.

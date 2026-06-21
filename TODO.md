@@ -69,7 +69,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Intent & Counterplay Mechanics
 
-- [ ] I.7 Build intent decay/escalation for ignored threats.
 - [ ] I.8 Build fake/decoy intent only if a reveal/counterplay rule exists; no arbitrary lies.
 - [ ] I.9 Build boss rotating intent masks that change by phase, turn, or camera-revealed weak point.
 - [ ] I.10 Add replay fixtures for every intent class.

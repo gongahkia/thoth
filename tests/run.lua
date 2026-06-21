@@ -642,6 +642,50 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = { width = 5, height = 3 },
+        units = {
+            { id = "edict", side = "enemy", x = 2, y = 2 },
+            { id = "fuse", side = "enemy", x = 3, y = 2 },
+            { id = "haze", side = "enemy", x = 4, y = 2 },
+        },
+    })
+    state:apply(TacticsState.commands.intent("edict", {
+        mode = "exact",
+        category = "attack",
+        targetTiles = { { x = 1, y = 2 } },
+        damage = 1,
+        escalation = { after = 1, damageDelta = 2, category = "destroy", effect = "edict_escalated" },
+    }))
+    state:apply(TacticsState.commands.advanceIntentPressure("edict", "ignored"))
+    local escalated = state:intentPreview("edict")
+    expect(escalated.ignoredTurns == 1 and escalated.damage == 3 and escalated.category == "destroy" and escalated.effect == "edict_escalated", "ignored exact intent should escalate damage category and effect")
+    state:apply(TacticsState.commands.intent("fuse", {
+        mode = "fuse",
+        category = "attack",
+        countdown = 3,
+        targetTiles = { { x = 1, y = 3 } },
+        trigger = { kind = "damage", damage = 1 },
+        escalation = { after = 1, countdownDelta = -1 },
+    }))
+    state:apply(TacticsState.commands.advanceIntentPressure("fuse", "ignored"))
+    expect(state:intentPreview("fuse").countdown == 2, "ignored fuse intent should escalate countdown pressure")
+    state:apply(TacticsState.commands.intent("haze", {
+        mode = "exact",
+        category = "debuff",
+        targetTiles = { { x = 5, y = 2 } },
+        damage = 2,
+        decay = { damageDelta = -1, removeAtZeroDamage = true },
+    }))
+    state:apply(TacticsState.commands.advanceIntentPressure("haze", "decay"))
+    expect(state:intentPreview("haze").damage == 1 and state:intentPreview("haze").ignoredTurns == 0, "decay should lower stale intent pressure")
+    state:apply(TacticsState.commands.advanceIntentPressure("haze", "decay"))
+    expect(state:intentPreview("haze") == nil, "decay should remove zero-pressure intent")
+    local loaded = TacticsState.fromSnapshot(state:snapshot())
+    expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(state:snapshot()), "intent pressure should snapshot deterministically")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {
