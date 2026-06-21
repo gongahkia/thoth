@@ -48,6 +48,18 @@ UICatalog.previewContract = {
     },
 }
 
+UICatalog.tacticalHudContract = {
+    id = "tactical_hud",
+    requiredFields = {
+        { id = "selected_unit_ap", source = "selected unit", visible = true },
+        { id = "move_preview", source = "movement preview", visible = true },
+        { id = "action_preview", source = "action preview", visible = true },
+        { id = "enemy_intents", source = "intent preview", visible = true },
+        { id = "objective_risk", source = "objective state", visible = true },
+        { id = "turn_order", source = "unit order", visible = true },
+    },
+}
+
 UICatalog.rotationReadability = {
     rotations = { 0, 90, 180, 270 },
     appliesTo = { "movement", "enemy_intent", "los", "cover", "objectives", "hazards", "hidden_revealed" },
@@ -110,6 +122,52 @@ end
 
 function UICatalog.preview()
     return UICatalog.previewContract
+end
+
+local function sortedKeys(values)
+    local keys = {}
+    for key in pairs(values or {}) do
+        keys[#keys + 1] = key
+    end
+    table.sort(keys)
+    return keys
+end
+
+function UICatalog.tacticalHud()
+    return UICatalog.tacticalHudContract
+end
+
+function UICatalog.tacticalHudSummary(state, previews)
+    previews = previews or {}
+    local selected = state and state.selectedUnitId and state:unit(state.selectedUnitId) or nil
+    local intents = {}
+    for _, unitId in ipairs(sortedKeys(state and state.intents or {})) do
+        local unit = state:unit(unitId)
+        if unit and unit.side == "enemy" then
+            local preview = state:intentPreview(unitId, previews.intentOptions)
+            intents[#intents + 1] = { unit = unitId, mode = preview and preview.mode, category = preview and preview.category, damage = preview and preview.damage }
+        end
+    end
+    local objectives = {}
+    for _, objectiveId in ipairs(sortedKeys(state and state.objectives or {})) do
+        local objective = state:objective(objectiveId)
+        objectives[#objectives + 1] = { id = objectiveId, kind = objective.kind, integrity = objective.integrity, status = state:objectiveStatus(objectiveId) }
+    end
+    local turns = {}
+    for _, unitId in ipairs(sortedKeys(state and state.units or {})) do
+        local unit = state:unit(unitId)
+        if unit.alive and not unit.evacuated then
+            turns[#turns + 1] = { unit = unitId, side = unit.side, ap = unit.ap }
+        end
+    end
+    return {
+        selectedUnitAp = selected and { unit = selected.id, ap = selected.ap, maxAp = selected.maxAp },
+        movePreview = previews.move,
+        actionPreview = previews.action,
+        enemyIntents = intents,
+        objectiveRisk = objectives,
+        turnOrder = turns,
+    }
 end
 
 function UICatalog.rotationChecks()

@@ -144,7 +144,6 @@ Goal: make enemies readable, varied, and board-native.
 
 Goal: make dense tactics legible.
 
-- [ ] 5.1 Add tactical HUD: selected unit AP, move preview, action preview, enemy intents, objective risk, turn order.
 - [ ] 5.2 Add tile inspector for terrain, cover, LoS, hazards, destructible HP, hidden info, and current intent traces.
 - [ ] 5.3 Add rotation-aware overlays that stay readable at all four camera snaps.
 - [ ] 5.4 Add colorblind-safe intent/cover/hazard palette.

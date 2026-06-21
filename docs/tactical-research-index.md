@@ -578,6 +578,22 @@ preview/UI: route/debug preview shows reinforcement turn, warning turn, spawn po
 
 test/replay proof: `Procgen.auditReinforcementRules()` rejects missing visible warning timing, invalid spawn pocket links, missing blockable metadata, missing spawn block rules, hidden block rules, and missing reinforcement schedules.
 
+### H33 Tactical HUD Contract
+
+source pattern: Into the Breach interface references show combat, in-game, overlay, mission, stats, and tutorial screens as separate readable tactical surfaces.
+
+thoth transformation: The tactical HUD exposes selected unit AP, move preview, action preview, enemy intents, objective risk, and turn order from one deterministic summary.
+
+board verb: select, preview, inspect, order, commit.
+
+zone fit: All zones use the same HUD fields; Archive claim pressure, Cistern water pressure, and Warrens heat pressure feed objective risk and intent copy.
+
+counterplay: compare AP, route, action result, enemy notice, objective integrity, and upcoming turns before spending AP.
+
+preview/UI: HUD contract requires `selectedUnitAp`, `movePreview`, `actionPreview`, `enemyIntents`, `objectiveRisk`, and `turnOrder`.
+
+test/replay proof: `UICatalog.tacticalHudSummary()` is tested with a selected unit, move/action previews, enemy exact intent, objective integrity, and deterministic unit order.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

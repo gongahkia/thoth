@@ -2029,6 +2029,38 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local hud = UICatalog.tacticalHud()
+    local fields = {}
+    for _, field in ipairs(hud.requiredFields) do
+        fields[field.id] = field
+        expect(field.source and field.visible == true, "tactical HUD field should define source and visibility: " .. field.id)
+    end
+    for _, id in ipairs({ "selected_unit_ap", "move_preview", "action_preview", "enemy_intents", "objective_risk", "turn_order" }) do
+        expect(fields[id], "missing tactical HUD field " .. id)
+    end
+    local state = TacticsState.new({
+        board = { width = 3, height = 1 },
+        selectedUnitId = "warden",
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, ap = 2, maxAp = 3 },
+            { id = "bailiff", side = "enemy", x = 3, y = 1, ap = 1 },
+        },
+        objectives = {
+            { id = "machine", kind = "protect_route_machinery", x = 2, y = 1, integrity = 2, evacuateAt = { x = 1, y = 1 } },
+        },
+        intents = {
+            bailiff = { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 1 } }, damage = 1 },
+        },
+    })
+    local summary = UICatalog.tacticalHudSummary(state, { move = { apCost = 1 }, action = { damage = 1 } })
+    expect(summary.selectedUnitAp.unit == "warden" and summary.selectedUnitAp.ap == 2, "tactical HUD should expose selected unit AP")
+    expect(summary.movePreview.apCost == 1 and summary.actionPreview.damage == 1, "tactical HUD should expose move and action preview")
+    expect(summary.enemyIntents[1].unit == "bailiff" and summary.enemyIntents[1].category == "attack", "tactical HUD should expose enemy intents")
+    expect(summary.objectiveRisk[1].id == "machine" and summary.objectiveRisk[1].integrity == 2, "tactical HUD should expose objective risk")
+    expect(#summary.turnOrder == 2 and summary.turnOrder[1].unit == "bailiff", "tactical HUD should expose deterministic turn order")
+end
+
+tests[#tests + 1] = function()
     local readability = UICatalog.rotationChecks()
     local applies = {}
     expect(#readability.rotations == 4, "rotation readability should check four rotations")

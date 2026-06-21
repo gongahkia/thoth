@@ -160,3 +160,26 @@ Target defines fixture, viewport, overlays, rotations, and assertions.
 
 test/replay proof:
 `tests/run.lua` verifies the screenshot-smoke target covers every overlay filter, four rotations, viewport, fixture, and assertions.
+
+## U.8 Tactical HUD
+
+source pattern:
+Readable tactics HUDs expose active unit resources, previews, intent, objectives, and turn order without requiring external notes.
+
+thoth transformation:
+Thoth defines a tactical HUD contract for selected unit AP, move preview, action preview, enemy intents, objective risk, and turn order.
+
+board verb:
+Select, preview, inspect, order, commit.
+
+zone fit:
+All zones use the same HUD fields while objective risk and enemy intent copy stays zone-specific.
+
+counterplay:
+The player can compare AP, movement, action result, intent pressure, objective integrity, and upcoming units before spending AP.
+
+preview/UI:
+`UICatalog.tacticalHudSummary()` returns `selectedUnitAp`, `movePreview`, `actionPreview`, `enemyIntents`, `objectiveRisk`, and `turnOrder`.
+
+test/replay proof:
+`tests/run.lua` verifies the HUD contract fields and builds a deterministic summary from a tactical state with selected AP, move/action previews, enemy exact intent, objective integrity, and turn order.
