@@ -30,3 +30,22 @@ Acceptance proof:
 
 - `tests/run.lua` verifies schema normalization, nested hazard/objective roundtrip, LoS blockers separate from movement blockers, and destroyed terrain snapshot persistence.
 - `docs/tactical-pivot-prototype.md` records the prototype result and current cuts.
+
+## M.2 AP Baseline
+
+Default AP is `2` per active unit unless a fixture/tool explicitly overrides `defaultAp`, `maxAp`, or command cost.
+
+Baseline rules:
+
+- Team-turn model is the default prototype shape.
+- Movement spends AP through `moveApCost`; default move cost is `1`.
+- Actions spend AP through command cost; current tactical verbs default to `1` unless passed a different explicit cost.
+- `wait` costs `0` by default.
+- AP spend fails fast when a unit lacks AP.
+- AP cannot go negative through core commands.
+- Evacuated or defeated units cannot spend AP.
+- AP debt is not a core rule. It is reserved for explicit future class/tool mechanics, such as Merchant debt trades.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies 3-unit and 5-unit squads, AP spend isolation, insufficient-AP failure, phase reset behavior, movement AP cost, and inactive-side AP preservation.
