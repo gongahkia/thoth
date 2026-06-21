@@ -60,3 +60,19 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies covered attacks do not flank and uncovered attack vectors invalidate existing cover.
+
+## L.4 Height Effects
+
+Height modifies LoS and cover deterministically.
+
+Rules:
+
+- LoS blockers stop sight only when blocker height reaches the higher of source and target height.
+- High ground can see over lower LoS blockers.
+- High ground of 2 or more ignores half cover.
+- Attacking uphill by 2 or more adds 1 deterministic damage reduction.
+- Height never changes hit chance.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies high-ground sight over low blockers, high-ground half-cover ignore, high blockers stopping LoS, and uphill damage reduction.

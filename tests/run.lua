@@ -253,6 +253,38 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local high = TacticsState.new({
+        board = {
+            width = 4,
+            height = 1,
+            tiles = {
+                ["1:1"] = { height = 2 },
+                ["2:1"] = { losBlocker = true, height = 0 },
+                ["4:1"] = { height = 0, coverEdges = { west = "half" } },
+            },
+        },
+    })
+    expect(high:lineOfSight(1, 1, 4, 1).visible, "high ground should see over lower LoS blocker")
+    local profile = high:attackProfile(1, 1, 4, 1)
+    expect(profile.cover == "half" and profile.effectiveCover == "none" and profile.coverIgnoredByHeight, "high ground should ignore half cover without hit chance")
+    local blocked = TacticsState.new({
+        board = {
+            width = 4,
+            height = 1,
+            tiles = {
+                ["1:1"] = { height = 0 },
+                ["2:1"] = { losBlocker = true, height = 2 },
+                ["4:1"] = { height = 0 },
+            },
+        },
+    })
+    local los = blocked:lineOfSight(1, 1, 4, 1)
+    expect(not los.visible and los.blockedBy.x == 2, "higher LoS blocker should block low-ground sight")
+    local uphill = high:attackProfile(4, 1, 1, 1)
+    expect(uphill.lowGround and uphill.damageReduction == 1, "shooting uphill should add deterministic damage reduction")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
             width = 4,

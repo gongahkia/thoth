@@ -891,6 +891,75 @@ function State:flankFromAttack(fromX, fromY, targetX, targetY)
     }
 end
 
+local function lineTiles(fromX, fromY, toX, toY)
+    local points = {}
+    local x = fromX
+    local y = fromY
+    local dx = math.abs(toX - fromX)
+    local dy = math.abs(toY - fromY)
+    local sx = fromX < toX and 1 or -1
+    local sy = fromY < toY and 1 or -1
+    local err = dx - dy
+    while not (x == toX and y == toY) do
+        local e2 = err * 2
+        if e2 > -dy then
+            err = err - dy
+            x = x + sx
+        end
+        if e2 < dx then
+            err = err + dx
+            y = y + sy
+        end
+        points[#points + 1] = { x = x, y = y }
+    end
+    return points
+end
+
+function State:lineOfSight(fromX, fromY, toX, toY)
+    expect(self:inBounds(fromX, fromY), "LoS source out of bounds")
+    expect(self:inBounds(toX, toY), "LoS target out of bounds")
+    local fromHeight = self:tileAt(fromX, fromY).height or 0
+    local targetHeight = self:tileAt(toX, toY).height or 0
+    local sightHeight = math.max(fromHeight, targetHeight)
+    local points = lineTiles(fromX, fromY, toX, toY)
+    for index, point in ipairs(points) do
+        if index < #points then
+            local tile = self:tileAt(point.x, point.y)
+            if tile.losBlocker and (tile.height or 0) >= sightHeight then
+                return { visible = false, blockedBy = { x = point.x, y = point.y, height = tile.height or 0 }, heightDelta = fromHeight - targetHeight }
+            end
+        end
+    end
+    return { visible = true, blockedBy = nil, heightDelta = fromHeight - targetHeight, highGround = fromHeight > targetHeight, lowGround = fromHeight < targetHeight }
+end
+
+function State:attackProfile(fromX, fromY, targetX, targetY)
+    local los = self:lineOfSight(fromX, fromY, targetX, targetY)
+    local cover = self:coverFromAttack(fromX, fromY, targetX, targetY)
+    local effectiveCover = cover.cover
+    local damageReduction = cover.damageReduction
+    local coverIgnoredByHeight = false
+    if los.heightDelta >= 2 and cover.cover == "half" then
+        effectiveCover = "none"
+        damageReduction = 0
+        coverIgnoredByHeight = true
+    elseif los.heightDelta <= -2 then
+        damageReduction = damageReduction + 1
+    end
+    return {
+        visible = los.visible,
+        blockedBy = los.blockedBy,
+        heightDelta = los.heightDelta,
+        highGround = los.highGround,
+        lowGround = los.lowGround,
+        cover = cover.cover,
+        effectiveCover = effectiveCover,
+        damageReduction = damageReduction,
+        blocked = cover.blocked,
+        coverIgnoredByHeight = coverIgnoredByHeight,
+    }
+end
+
 local function tileHazardCost(tile)
     local hazard = tile and tile.hazard or nil
     if not hazard then

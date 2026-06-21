@@ -72,7 +72,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Cover, LoS, Visibility
 
-- [ ] L.4 Define height effects for LoS and cover without hit-chance math.
 - [ ] L.5 Define smoke/salt mist/ash cloud as visible LoS modifiers with turn countdowns.
 - [ ] L.6 Define hidden back-face marks visible only after rotation.
 - [ ] L.7 Define class reveal actions that expose redacted intent, hidden tiles, and weak points.
