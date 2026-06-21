@@ -726,6 +726,22 @@ preview/UI: `ClassCatalog.starterClassIds()` gives the four starter ids; `ClassC
 
 test/replay proof: tests verify exactly four starter classes, exact starter order, exactly two starter loadouts per class, valid catalog references, tool counts, previews, strong/awkward fixtures, and advanced-class exclusion.
 
+### H42 Vertical Slice Objective Types
+
+source pattern: XCOM objective timers, Into the Breach protected-grid pressure, and compact deterministic tactics all benefit when the objective family and failure state are visible before action.
+
+thoth transformation: The slice reduces objective breadth to protect, extract, and disable, each mapped to one Archive kind, one command, one route fixture, preview text, counterplay, success state, and failure state.
+
+board verb: protect, carry, extract, disable.
+
+zone fit: Archive shelves test protect pressure, proof caches test extraction pressure, and audit lenses test disable pressure inside sealed shortcuts.
+
+counterplay: brace or repair integrity, clear and carry cargo to an exit, or reach and disable a target before its pressure clock resolves.
+
+preview/UI: `State.objectiveTypes()` returns the three slice cards; generated Archive route fixtures expose matching objective families for protect, extract, and disable.
+
+test/replay proof: tests audit the three objective types, verify command metadata, instantiate matching Archive route boards, and apply protect/extract/disable commands to deterministic result states.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

@@ -4,6 +4,24 @@ Checked: 2026-06-21
 
 Source of truth: `src/game/tactics/state.lua`.
 
+## O.0 Vertical Slice Objective Types
+
+The content slice exposes three objective types:
+
+- `protect`: `protect_archive_shelf`, keep integrity above zero.
+- `extract`: `extract_record`, carry proof to extraction and complete the objective.
+- `disable`: `disable_audit_lens`, neutralize the target and record disable context.
+
+Rules:
+
+- `State.objectiveTypes()` returns exactly protect, extract, and disable.
+- Each type defines a command, Archive route fixture, preview, counterplay, success condition, and failure condition.
+- Archive route fixtures generate matching objective families for each type.
+
+Acceptance proof:
+
+- `tests/run.lua` calls `State.auditObjectiveTypes()`, verifies all three types, checks command metadata, loads matching Archive route fixtures, and applies protect/extract/disable commands deterministically.
+
 ## O.1 Protect Objectives
 
 Protect objectives track deterministic integrity.

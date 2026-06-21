@@ -538,6 +538,42 @@ local objectiveKinds = {
     boss_procedure = "boss",
 }
 
+local sliceObjectiveTypeOrder = { "protect", "extract", "disable" }
+
+local sliceObjectiveTypes = {
+    protect = {
+        id = "protect",
+        kind = "protect_archive_shelf",
+        command = "damageObjective",
+        boardFixture = "archive_shelf_protection",
+        preview = "keep archive shelf integrity above zero",
+        counterplay = "brace, body block, repair, or redirect posted objective damage",
+        success = "objective survives the pressure clock",
+        failure = "integrity reaches zero",
+    },
+    extract = {
+        id = "extract",
+        kind = "extract_record",
+        cargoKind = "record",
+        command = "extractObjective",
+        boardFixture = "archive_proof_extract",
+        preview = "carry proof to the evacuation edge",
+        counterplay = "clear route, carry cargo, block spawns, and extract before collapse",
+        success = "objective is extracted",
+        failure = "cargo or route integrity fails before extraction",
+    },
+    disable = {
+        id = "disable",
+        kind = "disable_audit_lens",
+        command = "disableObjective",
+        boardFixture = "archive_sealed_shortcut",
+        preview = "disable audit lens before it locks the shortcut",
+        counterplay = "reach interact tile, break LoS, smoke the claim, or spend disable AP",
+        success = "objective is disabled",
+        failure = "lens remains active through the pressure clock",
+    },
+}
+
 local function normalizeObjective(objective, index)
     expect(type(objective) == "table", "objective must be a table")
     local id = objective.id or ("objective_" .. tostring(index))
@@ -582,6 +618,56 @@ local function normalizeObjective(objective, index)
         complete = objective.complete == true,
         failed = objective.failed == true,
     }
+end
+
+function State.objectiveTypes()
+    local result = {}
+    for _, id in ipairs(sliceObjectiveTypeOrder) do
+        result[#result + 1] = copyValue(sliceObjectiveTypes[id])
+    end
+    return result
+end
+
+function State.objectiveType(id)
+    local objectiveType = sliceObjectiveTypes[id]
+    return objectiveType and copyValue(objectiveType) or nil
+end
+
+function State.auditObjectiveTypes()
+    local report = { valid = true, missing = {} }
+    local seen = {}
+    if #sliceObjectiveTypeOrder ~= 3 then
+        report.valid = false
+        table.insert(report.missing, "objectiveType.count")
+    end
+    for _, id in ipairs(sliceObjectiveTypeOrder) do
+        local objectiveType = sliceObjectiveTypes[id]
+        if seen[id] then
+            report.valid = false
+            table.insert(report.missing, id .. ".duplicate")
+        end
+        seen[id] = true
+        if not objectiveType then
+            report.valid = false
+            table.insert(report.missing, id)
+        else
+            if objectiveType.id ~= id or objectiveKinds[objectiveType.kind] ~= id then
+                report.valid = false
+                table.insert(report.missing, id .. ".kind")
+            end
+            if not objectiveType.command or not objectiveType.boardFixture or not objectiveType.preview or not objectiveType.counterplay or not objectiveType.success or not objectiveType.failure then
+                report.valid = false
+                table.insert(report.missing, id .. ".metadata")
+            end
+        end
+    end
+    for _, id in ipairs({ "protect", "extract", "disable" }) do
+        if not seen[id] then
+            report.valid = false
+            table.insert(report.missing, id .. ".missing")
+        end
+    end
+    return report
 end
 
 local cargoKinds = {

@@ -145,9 +145,9 @@ local archiveRouteVariants = {
         routeDepth = 3,
         seed = 6105,
         reward = { skipPressure = 1, proof = 1 },
-        complication = "redacted_spawn_preview",
-        preview = "short board with tighter sight breaks and redacted route pressure",
-        generatorOptions = { width = 7, height = 7, objectiveId = "sealed_index", objectiveKind = "stealth_read" },
+        complication = "audit_lens_lock",
+        preview = "short board with tighter sight breaks and a disable objective",
+        generatorOptions = { width = 7, height = 7, objectiveId = "audit_lens", objectiveKind = "disable_audit_lens" },
         directorOptions = { failureClock = 3, threatenedTiles = 6, reinforcementTurn = 3 },
     },
     archive_elite_claim = {

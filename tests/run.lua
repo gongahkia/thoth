@@ -1046,6 +1046,38 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local audit = TacticsState.auditObjectiveTypes()
+    local objectiveTypes = {}
+    expect(audit.valid, "vertical slice objective types should audit")
+    for _, objectiveType in ipairs(TacticsState.objectiveTypes()) do
+        objectiveTypes[objectiveType.id] = objectiveType
+        expect(TacticsState.commands[objectiveType.command], "objective type should name supported command: " .. objectiveType.id)
+        expect(objectiveType.preview and objectiveType.counterplay and objectiveType.success and objectiveType.failure, "objective type should expose preview metadata: " .. objectiveType.id)
+        local spec = TacticsProcgen.generateArchiveRouteBoard(objectiveType.boardFixture, 3600)
+        local state = TacticsState.new(spec)
+        expect(spec.objectives[1].kind == objectiveType.kind, "objective type fixture should generate matching kind: " .. objectiveType.id)
+        expect(state:objective(spec.objectives[1].id).family == objectiveType.id, "objective type fixture should instantiate family: " .. objectiveType.id)
+    end
+    expect(objectiveTypes.protect and objectiveTypes.extract and objectiveTypes.disable and #TacticsState.objectiveTypes() == 3, "vertical slice should expose protect extract disable objective types")
+    local state = TacticsState.new({
+        board = { width = 3, height = 2 },
+        units = { { id = "warden", side = "player", x = 1, y = 2 }, { id = "thief", side = "player", x = 2, y = 2 }, { id = "saboteur", side = "player", x = 3, y = 2 } },
+        objectives = {
+            { id = "shelf", kind = objectiveTypes.protect.kind, x = 1, y = 1, integrity = 2, evacuateAt = { x = 1, y = 2 } },
+            { id = "record", kind = objectiveTypes.extract.kind, x = 2, y = 1, integrity = 1, evacuateAt = { x = 2, y = 2 } },
+            { id = "lens", kind = objectiveTypes.disable.kind, x = 3, y = 1, integrity = 1, evacuateAt = { x = 3, y = 2 } },
+        },
+        cargo = { { id = "proof", kind = objectiveTypes.extract.cargoKind, x = 2, y = 1, integrity = 1 } },
+    })
+    state:apply(TacticsState.commands.damageObjective("warden", "shelf", 1, 0))
+    state:apply(TacticsState.commands.extractObjective("thief", "record", 0))
+    state:apply(TacticsState.commands.disableObjective("saboteur", "lens", "lens_blinded", 0))
+    expect(state:objectiveStatus("shelf") == "active", "protect objective should stay active above zero integrity")
+    expect(state:objectiveStatus("record") == "complete" and state:objectiveResult("record").extracted, "extract objective should complete with extracted result")
+    expect(state:objectiveStatus("lens") == "complete" and state:objectiveResult("lens").disabled, "disable objective should complete with disabled result")
+end
+
+tests[#tests + 1] = function()
     local kinds = { "repair_cover", "repair_machinery", "repair_floodgate", "repair_bridge", "repair_ward" }
     local objectives = {}
     for index, kind in ipairs(kinds) do
