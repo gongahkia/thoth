@@ -751,6 +751,53 @@ function Render.tacticalOverlayAccessibilityAudit(tactics, overlays)
     return result
 end
 
+local function rotationAuditView(view, rotation)
+    view = view or {}
+    return {
+        centerX = view.centerX or 0,
+        centerY = view.centerY or 0,
+        halfW = view.halfW or 1,
+        halfH = view.halfH or 1,
+        originX = view.originX or 0,
+        originY = view.originY or 0,
+        rotation = rotation,
+    }
+end
+
+function Render.tacticalOverlayRotationAudit(tactics, overlays, view)
+    local baseEntries, counts = Render.tacticalOverlayEntries(tactics, overlays)
+    local result = {}
+    for rotation = 0, 3 do
+        local rotatedView = rotationAuditView(view, rotation)
+        local entries = {}
+        for _, entry in ipairs(baseEntries) do
+            local screenX, screenY = Render.projectIso(rotatedView, entry.x, entry.y)
+            local worldX, worldY = Render.screenToWorld(rotatedView, screenX, screenY)
+            entries[#entries + 1] = {
+                key = entry.kind .. ":" .. tostring(entry.x) .. ":" .. tostring(entry.y),
+                kind = entry.kind,
+                x = entry.x,
+                y = entry.y,
+                screenX = screenX,
+                screenY = screenY,
+                icon = entry.icon,
+                pattern = entry.pattern,
+                label = entry.label,
+                labelOrientation = "upright",
+                logicalStable = worldX == entry.x and worldY == entry.y,
+                readable = entry.icon ~= nil and entry.pattern ~= nil,
+                occlusionOffsets = Render.occlusionOffsets(rotation),
+            }
+        end
+        result[#result + 1] = {
+            rotation = rotation,
+            entries = entries,
+            counts = counts,
+        }
+    end
+    return result
+end
+
 local function objectRevealRotations(object, tileDef)
     if object and object.revealRotations then
         return object.revealRotations

@@ -610,6 +610,22 @@ preview/UI: inspector contract requires `terrain`, `cover`, `los`, `hazards`, `d
 
 test/replay proof: `UICatalog.tileInspectorSummary()` is tested against a tile with normalized terrain, cover edge, selected-unit LoS, active hazard, destructible blocker HP, hidden rotation mark, reveal metadata, and exact enemy target trace.
 
+### H35 Rotation-Aware Overlay Projection
+
+source pattern: XCOM 2 exposes tactical camera rotation as a core control and uses map icons for AP range, LoS, hazards, and cover; Into the Breach interface references separate combat overlays and tutorial surfaces for readable tactical state.
+
+thoth transformation: Overlay entries keep stable logical coordinates while each camera snap gets projected screen coordinates, upright labels, icon/pattern readability, and occlusion-offset metadata.
+
+board verb: rotate, preserve, inspect, compare.
+
+zone fit: Archive back-face seals, Cistern mist lines, and Warrens glass/burn facts can rotate into view without changing underlying board coordinates.
+
+counterplay: rotate to inspect occluded cover, LoS, hazards, intent traces, hidden marks, and objective risk without losing tile identity.
+
+preview/UI: rotation audit requires four snap buckets, stable `x/y`, `screenX/screenY`, upright label orientation, icon, pattern, readability flag, and occlusion offsets.
+
+test/replay proof: `Render.tacticalOverlayRotationAudit()` is tested for four rotations, stable entry count, stable logical tile roundtrip, upright labels, readable icon/pattern metadata, occlusion offsets, and distinct screen projections.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

@@ -5187,11 +5187,12 @@ tests[#tests + 1] = function()
             { id = "arcanist", x = 1, y = 1 },
         },
     })
-    local entries = Render.tacticalOverlayEntries(tactics, {
+    local overlays = {
         los = { ["3:1"] = true },
         movement = { { x = 2, y = 1 } },
         intents = { { x = 4, y = 3 } },
-    })
+    }
+    local entries = Render.tacticalOverlayEntries(tactics, overlays)
     local view = {
         centerX = 400,
         centerY = 260,
@@ -5217,6 +5218,22 @@ tests[#tests + 1] = function()
         end
     end
     expect(changedScreenPosition, "rotation should change tactical overlay screen readability")
+    local audit = Render.tacticalOverlayRotationAudit(tactics, overlays, view)
+    local movementPositions = {}
+    expect(#audit == 4, "rotation-aware overlay audit should cover four camera snaps")
+    for _, rotation in ipairs(audit) do
+        expect(#rotation.entries == #entries, "rotation-aware overlay audit should preserve entry count")
+        for _, entry in ipairs(rotation.entries) do
+            expect(entry.logicalStable, "rotation-aware overlay audit should preserve logical tile")
+            expect(entry.labelOrientation == "upright", "rotation-aware overlay audit should keep labels upright")
+            expect(entry.readable and entry.icon and entry.pattern, "rotation-aware overlay audit should keep icon and pattern readable")
+            expect(entry.screenX and entry.screenY and #entry.occlusionOffsets > 0, "rotation-aware overlay audit should expose screen and occlusion metadata")
+            if entry.key == "movement:2:1" then
+                movementPositions[#movementPositions + 1] = tostring(entry.screenX) .. ":" .. tostring(entry.screenY)
+            end
+        end
+    end
+    expect(#movementPositions == 4 and movementPositions[1] ~= movementPositions[2], "rotation-aware overlay audit should project distinct screen positions")
 end
 
 tests[#tests + 1] = function()

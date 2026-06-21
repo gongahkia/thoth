@@ -144,7 +144,6 @@ Goal: make enemies readable, varied, and board-native.
 
 Goal: make dense tactics legible.
 
-- [ ] 5.3 Add rotation-aware overlays that stay readable at all four camera snaps.
 - [ ] 5.4 Add colorblind-safe intent/cover/hazard palette.
 - [ ] 5.5 Add reduced-motion equivalents for rotation, destruction, knockback, and explosions.
 - [ ] 5.6 Add controller path for selecting units, tiles, actions, targets, and previews.
