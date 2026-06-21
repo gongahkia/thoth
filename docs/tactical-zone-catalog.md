@@ -24,3 +24,20 @@ The Buried Archive defines 12 deterministic tile mechanics:
 Acceptance proof:
 
 - `tests/run.lua` verifies the Buried Archive exposes exactly 12 tile mechanics and each has subject, verb, and effect metadata.
+
+## Z.2 Buried Archive Objects
+
+The Buried Archive defines 8 destructible or interactable objects:
+
+- `rolling_shelf`: 2 AP, 5 HP, full cover, blocks LoS until shoved or broken, reverse side marks a crush lane.
+- `oath_desk`: 1 AP, 3 HP, half cover after tipped, reverse side marks a claim desk.
+- `sealed_stacks_door`: 2 AP, 4 HP, opaque while sealed, reverse side marks an alternate hinge.
+- `witness_drawer_bank`: 1 AP, 2 HP, no cover, reveal action source, reverse side marks a hidden witness.
+- `record_crate`: 1 AP, 2 HP, half blocker after spilled, reverse side marks a falling-record arc.
+- `name_lock_plinth`: 2 AP, 3 HP, route-node blocker, reverse side marks the true-name socket.
+- `audit_lens_stand`: 1 AP, 2 HP, projects a visible straight lane, reverse side marks beam bearing.
+- `ledger_bridge_winch`: 2 AP, 4 HP, toggles a crossing, reverse side marks bridge latch.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies the Buried Archive exposes exactly 8 objects and each has AP cost, HP, LoS effect, cover state, and rotation metadata.

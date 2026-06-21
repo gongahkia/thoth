@@ -1225,6 +1225,30 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local objects = ZoneCatalog.objects("buried_archive")
+    expect(#objects == 8, "Buried Archive should define 8 objects")
+    local seen = {}
+    for _, object in ipairs(objects) do
+        seen[object.id] = object
+        expect(object.apCost and object.apCost > 0, "archive object should include AP cost")
+        expect(object.hp and object.hp > 0, "archive object should include HP")
+        expect(object.losEffect and object.coverState and object.rotation, "archive object should include LoS cover rotation")
+    end
+    for _, id in ipairs({
+        "rolling_shelf",
+        "oath_desk",
+        "sealed_stacks_door",
+        "witness_drawer_bank",
+        "record_crate",
+        "name_lock_plinth",
+        "audit_lens_stand",
+        "ledger_bridge_winch",
+    }) do
+        expect(seen[id], "missing archive object " .. id)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

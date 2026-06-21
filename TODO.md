@@ -80,7 +80,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Zone Terrain Catalogs
 
-- [ ] Z.2 Buried Archive: design 8 destructible/interactable objects with AP costs, HP, LoS effects, cover states, and rotation info.
 - [ ] Z.3 Salt Cistern: design 12 tile mechanics around valves, sluice currents, flood lanes, brine pools, salt mist, pressure bells, pearl cysts, pump bridges, undertow tiles, drain grates, floating cover, and waterline height.
 - [ ] Z.4 Salt Cistern: design 8 destructible/interactable objects with flood/drain consequences and objective integrity effects.
 - [ ] Z.5 Ember Warrens: design 12 tile mechanics around kilns, ash choke, bellows cones, glass floors, vitrified cover, heat lanes, fuel stores, ember oil, furnace doors, cinder vents, white-coal pressure, and meltable bridges.
