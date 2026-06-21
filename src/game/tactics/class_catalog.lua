@@ -177,6 +177,28 @@ ClassCatalog.classes = {
         weakness = { id = "bright_target", effect = "after placing a beacon, exact intents against Lamplighter deal +1 damage" },
         replayFixture = "lamplighter_beacon_reveal",
     },
+    merchant = {
+        name = "Merchant",
+        loadouts = {
+            { id = "debt_broker", role = "risk converter", tools = { "debt_note", "risk_ledger" } },
+            { id = "salvage_factor", role = "loot insurer", tools = { "salvage_drone", "escrow_token" } },
+            { id = "mercy_accountant", role = "objective insurer", tools = { "appraisal_lens", "mercy_clause" } },
+        },
+        tools = {
+            { id = "debt_note", effect = "gain AP now and record deterministic debt" },
+            { id = "risk_ledger", effect = "convert incoming objective damage into future cost" },
+            { id = "salvage_drone", effect = "carry small loot without occupying a unit" },
+            { id = "escrow_token", effect = "protect extracted cargo from one damage tick" },
+            { id = "appraisal_lens", effect = "mark enemy weak point or objective value" },
+            { id = "mercy_clause", effect = "repair ally or civilian now, pay later" },
+        },
+        terrainInteractions = {
+            { id = "appraise_weak_point", terrain = "weak_point", effect = "reveal and mark one weak point for profit" },
+            { id = "escrow_objective", terrain = "objective", effect = "insure objective integrity before damage" },
+        },
+        weakness = { id = "compounding_debt", effect = "each debt tool adds a future AP tax" },
+        replayFixture = "merchant_appraise_debt",
+    },
 }
 
 function ClassCatalog.class(id)

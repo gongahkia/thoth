@@ -283,3 +283,38 @@ Acceptance proof:
 
 - `tests/run.lua` verifies Lamplighter loadout, tool, terrain interaction, weakness, and replay fixture counts.
 - `tests/replays.lua` runs deterministic Lamplighter beacon and intent reveal replay fixture `lamplighter_beacon_reveal`.
+
+## CL.9 Merchant
+
+The Merchant defines 3 loadouts:
+
+- `debt_broker`: risk converter using `debt_note` and `risk_ledger`.
+- `salvage_factor`: loot insurer using `salvage_drone` and `escrow_token`.
+- `mercy_accountant`: objective insurer using `appraisal_lens` and `mercy_clause`.
+
+The Merchant defines 6 tools:
+
+- `debt_note`: gain AP now and record deterministic debt.
+- `risk_ledger`: convert incoming objective damage into future cost.
+- `salvage_drone`: carry small loot without occupying a unit.
+- `escrow_token`: protect extracted cargo from one damage tick.
+- `appraisal_lens`: mark enemy weak point or objective value.
+- `mercy_clause`: repair ally or civilian now, pay later.
+
+Terrain interactions:
+
+- `appraise_weak_point`: reveal and mark one weak point for profit.
+- `escrow_objective`: insure objective integrity before damage.
+
+Weakness:
+
+- `compounding_debt`: each debt tool adds a future AP tax.
+
+Replay fixture:
+
+- `merchant_appraise_debt`
+
+Acceptance proof:
+
+- `tests/run.lua` verifies Merchant loadout, tool, terrain interaction, weakness, and replay fixture counts.
+- `tests/replays.lua` runs deterministic Merchant appraise and objective insurance replay fixture `merchant_appraise_debt`.

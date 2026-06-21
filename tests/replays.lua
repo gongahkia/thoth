@@ -510,4 +510,39 @@ expect(Serialize.encode(lamplighterA:snapshot()) == Serialize.encode(lamplighter
 expect(lamplighterA:intentPreview("hound").revealed and lamplighterA:tileAt(2, 1).weakPointRevealed, "Lamplighter replay should reveal beacon data")
 io.stdout:write("tactics replay ok ", lamplighterFixture, "\n")
 
+local function tacticalMerchantReplayState()
+    return TacticsState.new({
+        defaultAp = 4,
+        board = { width = 4, height = 3 },
+        units = {
+            { id = "merchant", side = "player", x = 1, y = 2, hp = 7, class = "merchant" },
+            { id = "bailiff", side = "enemy", x = 3, y = 2, hp = 6 },
+        },
+        objectives = {
+            { id = "ledger", kind = "repair_cover", x = 2, y = 2, integrity = 1, maxIntegrity = 3, evacuateAt = { x = 4, y = 2 } },
+        },
+    })
+end
+
+local tacticalMerchantFrames = {
+    { tick = 0, command = TacticsState.commands.status("merchant", "bailiff", "marked", 2, 1, 1) },
+    { tick = 1, command = TacticsState.commands.repairObjective("merchant", "ledger", 2, 1) },
+}
+
+local function runTacticalMerchantReplay()
+    local state = tacticalMerchantReplayState()
+    for _, frame in ipairs(tacticalMerchantFrames) do
+        state:apply(frame.command)
+    end
+    return state
+end
+
+local merchantFixture = ClassCatalog.class("merchant").replayFixture
+local merchantA = runTacticalMerchantReplay()
+local merchantB = runTacticalMerchantReplay()
+expect(merchantFixture == "merchant_appraise_debt", "Merchant replay fixture should be registered")
+expect(Serialize.encode(merchantA:snapshot()) == Serialize.encode(merchantB:snapshot()), "Merchant replay fixture should be deterministic")
+expect(merchantA.units.bailiff.statuses.marked and merchantA:objective("ledger").integrity == 3, "Merchant replay should appraise and insure")
+io.stdout:write("tactics replay ok ", merchantFixture, "\n")
+
 io.stdout:write("replay fixtures passed: ", #fixtures, "\n")

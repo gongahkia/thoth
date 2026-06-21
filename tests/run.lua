@@ -1455,6 +1455,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local merchant = ClassCatalog.class("merchant")
+    expect(merchant and merchant.name == "Merchant", "Merchant catalog entry should exist")
+    expect(#ClassCatalog.loadouts("merchant") == 3, "Merchant should define 3 loadouts")
+    expect(#ClassCatalog.tools("merchant") == 6, "Merchant should define 6 tools")
+    expect(#ClassCatalog.terrainInteractions("merchant") == 2, "Merchant should define 2 terrain interactions")
+    expect(merchant.weakness and merchant.weakness.id == "compounding_debt", "Merchant should define weakness")
+    expect(merchant.replayFixture == "merchant_appraise_debt", "Merchant should define replay fixture")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
