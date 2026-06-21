@@ -1710,6 +1710,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local ids = {}
+    for _, check in ipairs(RunCatalog.validators()) do
+        ids[check.id] = check
+        expect(check.input and check.reject, "board validator should define input and reject reason: " .. check.id)
+    end
+    for _, id in ipairs({ "reachability", "los_sanity", "cover_density", "objective_feasibility", "enemy_intent_density", "exit_access" }) do
+        expect(ids[id], "missing board validator " .. id)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

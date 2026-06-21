@@ -11,6 +11,15 @@ RunCatalog.boardTemplates = {
     { id = "boss_route", objective = "counter staged procedure and protect objective", layout = "large arena with weak-point rotations", pressure = "boss phase clock", validationFocus = "intent density and exit access" },
 }
 
+RunCatalog.boardValidators = {
+    { id = "reachability", input = "walk graph", reject = "any spawn, objective, or exit is unreachable" },
+    { id = "los_sanity", input = "height blockers and cover edges", reject = "declared LoS differs by camera rotation or crosses hard blockers" },
+    { id = "cover_density", input = "cover tiles per threat lane", reject = "cover ratio outside template min/max" },
+    { id = "objective_feasibility", input = "objective anchors and AP budget", reject = "objective cannot be reached or protected before first failure tick" },
+    { id = "enemy_intent_density", input = "declared enemy footprints", reject = "too many threatened tiles for squad AP budget" },
+    { id = "exit_access", input = "extract edges and cargo path", reject = "exit cannot be reached from objective or spawn" },
+}
+
 function RunCatalog.boardTemplate(id)
     for _, template in ipairs(RunCatalog.boardTemplates) do
         if template.id == id then
@@ -22,6 +31,10 @@ end
 
 function RunCatalog.templates()
     return RunCatalog.boardTemplates
+end
+
+function RunCatalog.validators()
+    return RunCatalog.boardValidators
 end
 
 return RunCatalog
