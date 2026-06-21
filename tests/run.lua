@@ -286,6 +286,24 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = { width = 5, height = 1 },
+        units = {
+            { id = "apothecary", side = "player", x = 1, y = 1, ap = 3 },
+        },
+    })
+    state:apply(TacticsState.commands.obscurant("apothecary", 2, 1, "smoke", 2, 0))
+    state:addObscurant(3, 1, "salt_mist", 1)
+    state:addObscurant(4, 1, "ash_cloud", 1)
+    local los = state:lineOfSight(1, 1, 5, 1)
+    expect(los.visible and los.obscured and #los.modifiers == 3 and los.modifiers[1].kind == "smoke", "obscurants should be visible LoS modifiers")
+    state:apply(TacticsState.commands.tickObscurants())
+    expect(state:tileAt(2, 1).hazard.countdown == 1 and not state:tileAt(3, 1).hazard.active and not state:tileAt(4, 1).hazard.active, "obscurant countdown should tick and expire")
+    state:apply(TacticsState.commands.tickObscurants())
+    expect(not state:lineOfSight(1, 1, 5, 1).obscured and not state:tileAt(2, 1).hazard.active, "expired obscurants should clear LoS modifiers")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         board = {
             width = 4,
             height = 4,

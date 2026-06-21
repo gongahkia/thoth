@@ -91,6 +91,12 @@ local blockerKinds = {
     destructible = { blocker = true, losBlocker = true, destructible = true },
 }
 
+local obscurantKinds = {
+    smoke = true,
+    salt_mist = true,
+    ash_cloud = true,
+}
+
 local function inferBlockerKind(tile, destructibleHp)
     local kind = tile.blockerKind or tile.blockerType
     if kind then
@@ -922,15 +928,19 @@ function State:lineOfSight(fromX, fromY, toX, toY)
     local targetHeight = self:tileAt(toX, toY).height or 0
     local sightHeight = math.max(fromHeight, targetHeight)
     local points = lineTiles(fromX, fromY, toX, toY)
+    local modifiers = {}
     for index, point in ipairs(points) do
         if index < #points then
             local tile = self:tileAt(point.x, point.y)
+            if tile.hazard and tile.hazard.active and obscurantKinds[tile.hazard.kind] then
+                modifiers[#modifiers + 1] = { x = point.x, y = point.y, kind = tile.hazard.kind, countdown = tile.hazard.countdown }
+            end
             if tile.losBlocker and (tile.height or 0) >= sightHeight then
-                return { visible = false, blockedBy = { x = point.x, y = point.y, height = tile.height or 0 }, heightDelta = fromHeight - targetHeight }
+                return { visible = false, blockedBy = { x = point.x, y = point.y, height = tile.height or 0 }, heightDelta = fromHeight - targetHeight, modifiers = modifiers, obscured = #modifiers > 0 }
             end
         end
     end
-    return { visible = true, blockedBy = nil, heightDelta = fromHeight - targetHeight, highGround = fromHeight > targetHeight, lowGround = fromHeight < targetHeight }
+    return { visible = true, blockedBy = nil, heightDelta = fromHeight - targetHeight, highGround = fromHeight > targetHeight, lowGround = fromHeight < targetHeight, modifiers = modifiers, obscured = #modifiers > 0 }
 end
 
 function State:attackProfile(fromX, fromY, targetX, targetY)
@@ -949,6 +959,8 @@ function State:attackProfile(fromX, fromY, targetX, targetY)
     return {
         visible = los.visible,
         blockedBy = los.blockedBy,
+        obscured = los.obscured,
+        modifiers = copyValue(los.modifiers),
         heightDelta = los.heightDelta,
         highGround = los.highGround,
         lowGround = los.lowGround,
@@ -1171,6 +1183,35 @@ function State:damageTile(x, y, amount)
         tile.destroyed = true
     end
     return tile.destructibleHp
+end
+
+function State:addObscurant(x, y, kind, countdown)
+    x = expectInteger(x, "obscurant x")
+    y = expectInteger(y, "obscurant y")
+    expect(self:inBounds(x, y), "obscurant tile out of bounds")
+    expect(obscurantKinds[kind], "unsupported obscurant " .. tostring(kind))
+    countdown = expectInteger(countdown or 1, "obscurant countdown")
+    expect(countdown > 0, "obscurant countdown must be positive")
+    local key = tileKey(x, y)
+    local tile = self.board.tiles[key] or normalizeTile()
+    tile.hazard = { kind = kind, active = true, countdown = countdown, losModifier = "obscure" }
+    tile.state = kind
+    self.board.tiles[key] = tile
+    return tile
+end
+
+function State:tickObscurants()
+    for key, tile in pairs(self.board.tiles) do
+        if tile.hazard and tile.hazard.active and obscurantKinds[tile.hazard.kind] and tile.hazard.countdown ~= nil then
+            tile.hazard.countdown = tile.hazard.countdown - 1
+            if tile.hazard.countdown <= 0 then
+                tile.hazard.active = false
+                tile.hazard.losModifier = nil
+                tile.state = "clear"
+            end
+            self.board.tiles[key] = tile
+        end
+    end
 end
 
 local function tileInList(tiles, x, y)
@@ -2392,6 +2433,13 @@ function State:apply(command)
         expect(self:inBounds(expectInteger(command.x, "convert x"), expectInteger(command.y, "convert y")), "convert tile out of bounds")
         self:spendAP(command.unit, command.cost or 1)
         self:convertTile(command.x, command.y, command.conversion)
+    elseif kind == "obscurant" then
+        if command.unit then
+            self:spendAP(command.unit, command.cost or 1)
+        end
+        self:addObscurant(command.x, command.y, command.kind, command.countdown)
+    elseif kind == "tickObscurants" then
+        self:tickObscurants()
     elseif kind == "status" then
         expect(self.units[command.target], "unknown unit " .. tostring(command.target))
         expect(statusRules[command.status], "unsupported status " .. tostring(command.status))
@@ -2571,6 +2619,14 @@ end
 
 function commands.convertTile(unitId, x, y, conversion, cost)
     return { type = "convertTile", unit = unitId, x = x, y = y, conversion = conversion, cost = cost }
+end
+
+function commands.obscurant(unitId, x, y, kind, countdown, cost)
+    return { type = "obscurant", unit = unitId, x = x, y = y, kind = kind, countdown = countdown, cost = cost }
+end
+
+function commands.tickObscurants()
+    return { type = "tickObscurants" }
 end
 
 function commands.status(unitId, targetId, status, turns, amount, cost)

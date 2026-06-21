@@ -76,3 +76,25 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies high-ground sight over low blockers, high-ground half-cover ignore, high blockers stopping LoS, and uphill damage reduction.
+
+## L.5 Obscurant LoS Modifiers
+
+Smoke, salt mist, and ash cloud are visible LoS modifiers with countdowns.
+
+Kinds:
+
+- `smoke`
+- `salt_mist`
+- `ash_cloud`
+
+Rules:
+
+- Obscurants are stored as active tile hazards.
+- LoS preview reports obscurant modifiers on the traced line.
+- Obscurants do not add hit chance; they expose deterministic `obscured` state.
+- Countdown ticks are deterministic.
+- Expired obscurants clear their LoS modifier.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies all three obscurant kinds, LoS modifier reporting, countdown ticks, and expiry.
