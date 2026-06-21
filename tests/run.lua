@@ -1583,6 +1583,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local elites = EnemyCatalog.elites("warrens")
+    expect(#elites == 3, "Warrens should define 3 elites")
+    local ids = {}
+    for _, enemy in ipairs(elites) do
+        expect(enemy.id and enemy.name and enemy.burnDouseGlassCounterplay, "warrens elite should include id name burn/douse/glass counterplay")
+        expect(enemy.partialIntent and enemy.partialIntent.mode == "category", "warrens elite should include partial intent")
+        expect(enemy.weakPoints and #enemy.weakPoints > 0, "warrens elite should include weak points")
+        expect(not ids[enemy.id], "warrens elite ids should be unique")
+        ids[enemy.id] = true
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

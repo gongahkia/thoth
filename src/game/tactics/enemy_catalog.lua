@@ -68,6 +68,11 @@ EnemyCatalog.families = {
             { id = "ember_mote", name = "Ember Mote", exactIntent = { mode = "exact", category = "summon", damage = 1, target = "burn_tile" }, heatAshGlassVerb = "seed_ember" },
             { id = "coal_monk", name = "Coal Monk", exactIntent = { mode = "exact", category = "debuff", damage = 1, target = "white_coal" }, heatAshGlassVerb = "chant_pressure" },
         },
+        elites = {
+            { id = "halo_deacon", name = "Halo Deacon", partialIntent = { mode = "category", category = "destroy" }, weakPoints = { "halo_vent" }, burnDouseGlassCounterplay = "douse halo vent before vitrify" },
+            { id = "glass_cantor", name = "Glass Cantor", partialIntent = { mode = "category", category = "debuff" }, weakPoints = { "glass_throat" }, burnDouseGlassCounterplay = "shatter reflector then douse shards" },
+            { id = "coal_prioress", name = "Coal Prioress", partialIntent = { mode = "category", category = "buff" }, weakPoints = { "white_coal_notch" }, burnDouseGlassCounterplay = "glassify fuel line to starve pressure" },
+        },
     },
 }
 

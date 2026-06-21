@@ -116,3 +116,15 @@ The Warrens family defines 10 common enemies. Each has exact intent metadata and
 Acceptance proof:
 
 - `tests/run.lua` verifies the Warrens has exactly 10 common enemies and each one has unique id, name, exact intent, and heat/ash/glass verb metadata.
+
+## E.8 Warrens Elites
+
+The Warrens family defines 3 elites with partial intent, weak points, and burn/douse/glass counterplay:
+
+- `halo_deacon`: partial destroy intent, weak point `halo_vent`, counterplay douse halo vent before vitrify.
+- `glass_cantor`: partial debuff intent, weak point `glass_throat`, counterplay shatter reflector then douse shards.
+- `coal_prioress`: partial buff intent, weak point `white_coal_notch`, counterplay glassify fuel line to starve pressure.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies the Warrens has exactly 3 elites and each one has unique id, name, partial intent, weak point, and burn/douse/glass counterplay metadata.
