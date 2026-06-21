@@ -14,6 +14,12 @@ GateCatalog.gates = {
         minimumSeeds = 25,
         blocker = "board type cannot ship",
     },
+    {
+        id = "class_loadout_ship",
+        appliesTo = "class loadout",
+        requiredEvidence = { "strong_board_fixture", "awkward_board_fixture", "preview_ui_spec" },
+        blocker = "class loadout cannot ship",
+    },
 }
 
 function GateCatalog.gate(id)

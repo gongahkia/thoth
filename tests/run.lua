@@ -1892,6 +1892,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local gate = GateCatalog.gate("class_loadout_ship")
+    local evidence = {}
+    expect(gate and gate.appliesTo == "class loadout" and gate.blocker, "class loadout gate should exist")
+    for _, item in ipairs(gate.requiredEvidence) do
+        evidence[item] = true
+    end
+    expect(evidence.strong_board_fixture and evidence.awkward_board_fixture and evidence.preview_ui_spec, "class loadout gate should require strong and awkward board evidence")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
