@@ -49,3 +49,23 @@ Baseline rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies 3-unit and 5-unit squads, AP spend isolation, insufficient-AP failure, phase reset behavior, movement AP cost, and inactive-side AP preservation.
+
+## M.3 Movement Preview
+
+Movement preview is deterministic and side-effect free.
+
+Preview output includes:
+
+- Reachable tiles up to the unit's current AP or explicit `maxCost`.
+- Per-tile AP cost.
+- Per-tile hazard cost.
+- Path directions from the starting tile.
+- Cover gained and cover lost relative to the starting tile.
+- Objective carry impact, including integrity delta from hazardous carry routes.
+- Collision records for blocked, occupied, and out-of-bounds candidate moves.
+
+Preview does not mutate unit position, AP, objective state, hazard state, or threat zones.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies reachable AP cost, hazard cost, cover gained/lost, objective carry impact, blocked-tile collision, and occupied-tile collision.

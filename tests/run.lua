@@ -403,6 +403,51 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        defaultAp = 2,
+        board = {
+            width = 4,
+            height = 3,
+            tiles = {
+                ["1:2"] = { coverEdges = { west = "half" } },
+                ["2:1"] = { coverEdges = { north = "half" } },
+                ["2:2"] = { hazard = { kind = "brine", damage = 1, carryDamage = 2 } },
+                ["3:2"] = { blocker = true },
+            },
+        },
+        units = {
+            { id = "thief", side = "player", x = 1, y = 2, carryingObjective = "route_machine" },
+            { id = "custodian", side = "enemy", x = 1, y = 3 },
+        },
+    })
+    local preview = state:movementPreview("thief")
+    local function reachableAt(x, y)
+        for _, tile in ipairs(preview.reachable) do
+            if tile.x == x and tile.y == y then
+                return tile
+            end
+        end
+        return nil
+    end
+    local function collisionAt(x, y, result)
+        for _, collision in ipairs(preview.collisions) do
+            if collision.x == x and collision.y == y and collision.result == result then
+                return collision
+            end
+        end
+        return nil
+    end
+    local brine = reachableAt(2, 2)
+    expect(brine and brine.apCost == 1 and brine.hazardCost == 1, "movement preview should include AP and hazard cost")
+    expect(brine.objectiveCarryEffect and brine.objectiveCarryEffect.integrityDelta == -2, "movement preview should include objective carry impact")
+    expect(contains(brine.coverLost, "west:half"), "movement preview should include cover lost")
+    local cover = reachableAt(2, 1)
+    expect(cover and cover.apCost == 2 and contains(cover.coverGained, "north:half"), "movement preview should include reachable cover gained")
+    expect(collisionAt(3, 2, "blocked_tile"), "movement preview should report blocker collision")
+    expect(collisionAt(1, 3, "occupied"), "movement preview should report occupied collision")
+end
+
+tests[#tests + 1] = function()
     expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
     expect(I18n.t("missing {value}", { value = "fallback" }) == "missing fallback", "i18n should interpolate fallback strings")
     local source = readFile("src/app/render.lua")

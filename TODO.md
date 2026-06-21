@@ -67,7 +67,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Core Board Mechanics
 
-- [ ] M.3 Define deterministic movement preview: reachable tiles, AP cost, collision result, hazard cost, cover gained/lost, objective carry effects.
 - [ ] M.4 Define shove/pull/swap rules: pathing, collision damage, blocked movement, edge cases against objectives, and enemy friendly fire.
 - [ ] M.5 Define dash/vault/climb/drop rules for height and cover without creating hidden LoS exceptions.
 - [ ] M.6 Define carry/drag rules for civilians, bodies, machinery cores, loot crates, and wounded heroes.

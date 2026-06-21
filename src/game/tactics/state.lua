@@ -197,6 +197,7 @@ local function normalizeUnit(unit, index, defaultAp)
         ap = unit.ap ~= nil and unit.ap or maxAp,
         alive = unit.alive ~= false,
         evacuated = unit.evacuated == true,
+        carryingObjective = unit.carryingObjective,
         tags = copyList(unit.tags),
     }
 end
@@ -326,6 +327,129 @@ function State:canEnter(x, y, movingUnitId)
         return false, "occupied"
     end
     return true
+end
+
+local function coverDirections(tile)
+    local result = {}
+    for _, direction in ipairs(Grid.order) do
+        if tile and tile.coverEdges and tile.coverEdges[direction] and tile.coverEdges[direction] ~= "none" then
+            result[#result + 1] = direction .. ":" .. tile.coverEdges[direction]
+        end
+    end
+    return result
+end
+
+local function coverSet(values)
+    local result = {}
+    for _, value in ipairs(values or {}) do
+        result[value] = true
+    end
+    return result
+end
+
+local function coverDelta(fromTile, toTile)
+    local from = coverDirections(fromTile)
+    local to = coverDirections(toTile)
+    local fromSet = coverSet(from)
+    local toSet = coverSet(to)
+    local gained = {}
+    local lost = {}
+    for _, value in ipairs(to) do
+        if not fromSet[value] then
+            gained[#gained + 1] = value
+        end
+    end
+    for _, value in ipairs(from) do
+        if not toSet[value] then
+            lost[#lost + 1] = value
+        end
+    end
+    return gained, lost
+end
+
+local function tileHazardCost(tile)
+    local hazard = tile and tile.hazard or nil
+    if not hazard then
+        return 0
+    end
+    return hazard.apCost or hazard.cost or hazard.damage or 0
+end
+
+function State:movementPreview(unitId, options)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    expect(unit.alive and not unit.evacuated, "unit is not active")
+    options = options or {}
+    local stepCost = options.stepCost or self.rules.moveApCost
+    local maxCost = options.maxCost or unit.ap or 0
+    local startKey = tileKey(unit.x, unit.y)
+    local startTile = self:tileAt(unit.x, unit.y)
+    local seen = { [startKey] = 0 }
+    local queue = { { x = unit.x, y = unit.y, apCost = 0, path = {} } }
+    local reachable = {}
+    local collisions = {}
+    local collisionSeen = {}
+    local index = 1
+    while queue[index] do
+        local node = queue[index]
+        index = index + 1
+        local tile = self:tileAt(node.x, node.y)
+        local gained, lost = coverDelta(startTile, tile)
+        local hazardCost = tileHazardCost(tile)
+        reachable[#reachable + 1] = {
+            x = node.x,
+            y = node.y,
+            apCost = node.apCost,
+            hazardCost = hazardCost,
+            coverGained = gained,
+            coverLost = lost,
+            objectiveCarryEffect = unit.carryingObjective and {
+                objective = unit.carryingObjective,
+                integrityDelta = -((tile.hazard and tile.hazard.carryDamage) or 0),
+            } or nil,
+            path = copyValue(node.path),
+        }
+        for _, direction in ipairs(Grid.order) do
+            local delta = Grid.delta(direction)
+            local nx = node.x + delta.x
+            local ny = node.y + delta.y
+            local ok, reason = self:canEnter(nx, ny, unit.id)
+            if not ok then
+                local key = tostring(node.x) .. ":" .. tostring(node.y) .. ":" .. direction
+                if not collisionSeen[key] then
+                    collisionSeen[key] = true
+                    collisions[#collisions + 1] = { fromX = node.x, fromY = node.y, x = nx, y = ny, direction = direction, result = reason }
+                end
+            else
+                local nextCost = node.apCost + stepCost
+                local key = tileKey(nx, ny)
+                if nextCost <= maxCost and (seen[key] == nil or nextCost < seen[key]) then
+                    seen[key] = nextCost
+                    local path = copyValue(node.path)
+                    path[#path + 1] = direction
+                    queue[#queue + 1] = { x = nx, y = ny, apCost = nextCost, path = path }
+                end
+            end
+        end
+    end
+    table.sort(reachable, function(a, b)
+        if a.apCost == b.apCost then
+            if a.y == b.y then
+                return a.x < b.x
+            end
+            return a.y < b.y
+        end
+        return a.apCost < b.apCost
+    end)
+    table.sort(collisions, function(a, b)
+        if a.y == b.y then
+            if a.x == b.x then
+                return a.direction < b.direction
+            end
+            return a.x < b.x
+        end
+        return a.y < b.y
+    end)
+    return { unit = unitId, ap = unit.ap, reachable = reachable, collisions = collisions }
 end
 
 function State:queue(command)
