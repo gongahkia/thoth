@@ -94,10 +94,11 @@ local function normalizeTile(tile)
     }
 end
 
-local function normalizeUnit(unit, index)
+local function normalizeUnit(unit, index, defaultAp)
     expect(type(unit) == "table", "unit must be a table")
     local id = unit.id or ("unit_" .. tostring(index))
     expect(type(id) == "string" and id ~= "", "unit id must be a non-empty string")
+    local maxAp = unit.maxAp or unit.apMax or defaultAp or 2
     return {
         id = id,
         side = unit.side or "player",
@@ -105,7 +106,8 @@ local function normalizeUnit(unit, index)
         y = expectInteger(unit.y, "unit y"),
         hp = unit.hp or 1,
         maxHp = unit.maxHp or unit.hp or 1,
-        ap = unit.ap or 0,
+        maxAp = maxAp,
+        ap = unit.ap ~= nil and unit.ap or maxAp,
         alive = unit.alive ~= false,
         tags = copyList(unit.tags),
     }
@@ -129,6 +131,11 @@ function State.new(options)
     local state = setmetatable({
         tick = options.tick or 0,
         phase = options.phase or "player",
+        selectedUnitId = options.selectedUnitId,
+        rules = {
+            defaultAp = options.defaultAp or options.apPerTurn or (options.rules and options.rules.defaultAp) or 2,
+            moveApCost = options.moveApCost or (options.rules and options.rules.moveApCost) or 1,
+        },
         board = {
             width = width,
             height = height,
@@ -143,11 +150,14 @@ function State.new(options)
         state.board.tiles[key] = normalizeTile(tile)
     end
     for index, unit in ipairs(options.units or {}) do
-        local normalized = normalizeUnit(unit, index)
+        local normalized = normalizeUnit(unit, index, state.rules.defaultAp)
         expect(state:inBounds(normalized.x, normalized.y), "unit " .. normalized.id .. " starts out of bounds")
         expect(not state:unitAt(normalized.x, normalized.y), "unit " .. normalized.id .. " starts on occupied tile")
         state.units[normalized.id] = normalized
         state.unitOrder[#state.unitOrder + 1] = normalized.id
+    end
+    if state.selectedUnitId then
+        expect(state.units[state.selectedUnitId], "selected unit does not exist")
     end
     return state
 end
@@ -157,6 +167,8 @@ function State.fromSnapshot(snapshot)
     return State.new({
         tick = snapshot.tick or 0,
         phase = snapshot.phase or "player",
+        selectedUnitId = snapshot.selectedUnitId,
+        rules = snapshot.rules,
         board = snapshot.board or { width = snapshot.width, height = snapshot.height, tiles = snapshot.tiles },
         units = snapshot.units or {},
         log = snapshot.log or {},
@@ -174,6 +186,17 @@ end
 
 function State:unit(id)
     return self.units[id]
+end
+
+function State:unitsForSide(side)
+    local result = {}
+    for _, id in ipairs(self.unitOrder) do
+        local unit = self.units[id]
+        if unit and unit.side == side and unit.alive then
+            result[#result + 1] = unit
+        end
+    end
+    return result
 end
 
 function State:unitAt(x, y)
@@ -205,6 +228,29 @@ function State:queue(command)
     self.pending[#self.pending + 1] = command
 end
 
+function State:selectUnit(id)
+    local unit = expect(self.units[id], "unknown unit " .. tostring(id))
+    expect(unit.alive, "unit is not alive")
+    self.selectedUnitId = id
+    return unit
+end
+
+function State:spendAP(id, amount)
+    local unit = expect(self.units[id], "unknown unit " .. tostring(id))
+    amount = expectInteger(amount, "ap cost")
+    expect(amount >= 0, "ap cost must be non-negative")
+    expect((unit.ap or 0) >= amount, "insufficient_ap")
+    unit.ap = unit.ap - amount
+    return unit.ap
+end
+
+function State:startTurn(side)
+    self.phase = side or self.phase
+    for _, unit in ipairs(self:unitsForSide(self.phase)) do
+        unit.ap = unit.maxAp or self.rules.defaultAp
+    end
+end
+
 function State:step()
     local command = table.remove(self.pending, 1)
     if not command then
@@ -228,10 +274,18 @@ function State:apply(command)
         if not ok then
             error("move rejected: " .. reason, 2)
         end
+        self:spendAP(unit.id, command.cost or self.rules.moveApCost)
         unit.x = nx
         unit.y = ny
     elseif kind == "wait" then
         expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
+        self:spendAP(command.unit, command.cost or 0)
+    elseif kind == "select" then
+        self:selectUnit(command.unit)
+    elseif kind == "spend" then
+        self:spendAP(command.unit, command.amount or 0)
+    elseif kind == "endTurn" then
+        self:startTurn(command.nextSide or command.side or self.phase)
     else
         error("unknown command " .. tostring(kind), 2)
     end
@@ -252,6 +306,8 @@ function State:snapshot()
         version = 1,
         tick = self.tick,
         phase = self.phase,
+        selectedUnitId = self.selectedUnitId,
+        rules = copyMap(self.rules),
         board = {
             width = self.board.width,
             height = self.board.height,
@@ -268,6 +324,18 @@ end
 
 function commands.wait(unitId)
     return { type = "wait", unit = unitId }
+end
+
+function commands.select(unitId)
+    return { type = "select", unit = unitId }
+end
+
+function commands.spend(unitId, amount, reason)
+    return { type = "spend", unit = unitId, amount = amount, reason = reason }
+end
+
+function commands.endTurn(nextSide)
+    return { type = "endTurn", nextSide = nextSide }
 end
 
 State.commands = commands

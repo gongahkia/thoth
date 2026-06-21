@@ -229,6 +229,45 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local three = TacticsState.new({
+        defaultAp = 2,
+        board = { width = 5, height = 2 },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1 },
+            { id = "duelist", side = "player", x = 2, y = 1 },
+            { id = "lamplighter", side = "player", x = 3, y = 1 },
+            { id = "custodian", side = "enemy", x = 5, y = 2, ap = 1, maxAp = 1 },
+        },
+    })
+    expect(#three:unitsForSide("player") == 3, "tactics AP should support 3-unit squads")
+    three:apply(TacticsState.commands.select("duelist"))
+    three:apply(TacticsState.commands.spend("duelist", 1, "brace"))
+    expect(three.selectedUnitId == "duelist" and three:unit("duelist").ap == 1, "AP spend should affect selected unit only")
+    local ok, err = pcall(function()
+        three:apply(TacticsState.commands.spend("duelist", 2, "overdraw"))
+    end)
+    expect(not ok and err:find("insufficient_ap", 1, true), "AP spend should fail fast when unit lacks AP")
+    three:startTurn("player")
+    expect(three:unit("warden").ap == 2 and three:unit("duelist").ap == 2 and three:unit("custodian").ap == 1, "player AP reset should not refill enemy AP")
+    local five = TacticsState.new({
+        defaultAp = 2,
+        board = { width = 7, height = 2 },
+        units = {
+            { id = "u1", side = "player", x = 1, y = 1 },
+            { id = "u2", side = "player", x = 2, y = 1 },
+            { id = "u3", side = "player", x = 3, y = 1 },
+            { id = "u4", side = "player", x = 4, y = 1 },
+            { id = "u5", side = "player", x = 5, y = 1 },
+        },
+    })
+    expect(#five:unitsForSide("player") == 5, "tactics AP should support 5-unit squads")
+    five:apply(TacticsState.commands.move("u5", "east"))
+    expect(five:unit("u5").x == 6 and five:unit("u5").ap == 1, "movement command should spend AP")
+    five:apply(TacticsState.commands.endTurn("enemy"))
+    expect(five.phase == "enemy" and five:unit("u5").ap == 1, "ending turn should switch phase without refilling inactive side")
+end
+
+tests[#tests + 1] = function()
     expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
     expect(I18n.t("missing {value}", { value = "fallback" }) == "missing fallback", "i18n should interpolate fallback strings")
     local source = readFile("src/app/render.lua")
