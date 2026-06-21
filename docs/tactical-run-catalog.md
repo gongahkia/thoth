@@ -68,3 +68,26 @@ Debug report shows weighted pressure total, pressure contributors, and cover off
 
 test/replay proof:
 `tests/run.lua` verifies all seven budget weights exist, pressure weights are positive, cover offsets pressure, and boss modifiers cost more than hazards.
+
+## P.4 Route Node Types
+
+source pattern:
+Roguelite route maps need node previews that state risk, reward, and run timing.
+
+thoth transformation:
+Thoth route nodes cover combat, repair, enclave, market, event, elite, boss, rest, cursed shortcut, and high-reward extraction.
+
+board verb:
+Route, preview, choose, pay, collect.
+
+zone fit:
+All zones reuse these node types with local enemy families, objectives, hazards, and faction pressure.
+
+counterplay:
+Players can avoid or accept a pressure axis by reading the node preview before choosing a route.
+
+preview/UI:
+Node card shows risk, reward, and the information preview field for that node type.
+
+test/replay proof:
+`tests/run.lua` verifies all ten route node types exist and each defines risk, reward, and preview text.

@@ -30,6 +30,19 @@ RunCatalog.difficultyWeights = {
     bossModifiers = 6,
 }
 
+RunCatalog.routeNodeTypes = {
+    { id = "combat", risk = "standard board", reward = "baseline salvage", preview = "template and enemy family" },
+    { id = "repair", risk = "machinery pressure", reward = "route integrity or unlock", preview = "repair objective and hazard" },
+    { id = "enclave", risk = "faction demand", reward = "standing or survivor aid", preview = "faction meter delta" },
+    { id = "market", risk = "debt or price pressure", reward = "tools, trinkets, supplies", preview = "stock and debt clause" },
+    { id = "event", risk = "pre/post-board roll", reward = "modifier, standing, or resource", preview = "event timing window" },
+    { id = "elite", risk = "partial intent enemy", reward = "rare unlock or high salvage", preview = "elite family and weak point" },
+    { id = "boss", risk = "boss procedure", reward = "seal progress", preview = "boss variant and objective threat" },
+    { id = "rest", risk = "time passes", reward = "heal, clear injury, or repair debt", preview = "week and dread change" },
+    { id = "cursed_shortcut", risk = "dread or debt spike", reward = "skip route pressure", preview = "cost before commit" },
+    { id = "high_reward_extraction", risk = "harder exit pressure", reward = "extra cargo and proof", preview = "cargo value and exit rules" },
+}
+
 function RunCatalog.boardTemplate(id)
     for _, template in ipairs(RunCatalog.boardTemplates) do
         if template.id == id then
@@ -49,6 +62,10 @@ end
 
 function RunCatalog.weights()
     return RunCatalog.difficultyWeights
+end
+
+function RunCatalog.routeNodes()
+    return RunCatalog.routeNodeTypes
 end
 
 return RunCatalog

@@ -1729,6 +1729,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local ids = {}
+    for _, node in ipairs(RunCatalog.routeNodes()) do
+        ids[node.id] = node
+        expect(node.risk and node.reward and node.preview, "route node should define risk reward preview: " .. node.id)
+    end
+    for _, id in ipairs({ "combat", "repair", "enclave", "market", "event", "elite", "boss", "rest", "cursed_shortcut", "high_reward_extraction" }) do
+        expect(ids[id], "missing route node type " .. id)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

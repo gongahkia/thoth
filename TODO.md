@@ -89,7 +89,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Procedural Board & Run Catalog
 
-- [ ] P.4 Define route map node types: combat, repair, enclave, market, event, elite, boss, rest, cursed shortcut, high-reward extraction.
 - [ ] P.5 Define event RNG rules that happen before/after boards, not during declared tactical resolution.
 - [ ] P.6 Define seeded full-run export with board seeds, route choices, squad/loadout, event rolls, and replay hashes.
 - [ ] P.7 Define 50 event prompts that alter route choice, board modifier, squad state, objective reward, or faction standing.
