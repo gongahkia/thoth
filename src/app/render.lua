@@ -689,16 +689,17 @@ end
 local tacticalOverlayOrder = { "movement", "los", "cover", "flank", "intent", "hazard", "blocker", "objective", "cursor" }
 local tacticalOverlayPalette = TacticsUICatalog.accessiblePalette().roles
 local tacticalOverlayColors = {
-    movement = { 0.28, 0.58, 0.94, 0.5 },
+    movement = { 0.34, 0.72, 1.0, 0.86 },
     los = { 0.86, 0.78, 0.28, 0.46 },
     cover = tacticalOverlayPalette.cover.color,
     flank = { 0.94, 0.52, 0.18, 0.55 },
     intent = tacticalOverlayPalette.intent.color,
     hazard = tacticalOverlayPalette.hazard.color,
-    blocker = { 0.28, 0.3, 0.34, 0.58 },
-    objective = { 0.92, 0.74, 0.18, 0.58 },
-    cursor = { 1.0, 0.9, 0.28, 0.18 },
-    hover = { 1.0, 1.0, 1.0, 0.08 },
+    blocker = { 0.06, 0.065, 0.075, 0.92 },
+    objective = { 1.0, 0.78, 0.18, 0.94 },
+    cursor = { 1.0, 0.92, 0.22, 0.98 },
+    hover = { 1.0, 1.0, 1.0, 0.86 },
+    selected = { 0.34, 1.0, 0.52, 0.94 },
 }
 
 local tacticalOverlayStyles = {
@@ -712,6 +713,7 @@ local tacticalOverlayStyles = {
     objective = { icon = "!", pattern = "solid" },
     cursor = { icon = "+", pattern = "outline" },
     hover = { icon = "hover", pattern = "outline" },
+    selected = { icon = "unit", pattern = "ring" },
 }
 
 local function parseTileKey(key)
@@ -1230,6 +1232,47 @@ function Render.tacticalTileAt(app, screenX, screenY)
     return tileX, tileY
 end
 
+local function pushOverlayLine(vertices, x1, y1, x2, y2, z, halfWidth, u)
+    local dx = x2 - x1
+    local dy = y2 - y1
+    local length = math.sqrt(dx * dx + dy * dy)
+    if length <= 0 then
+        return
+    end
+    local px = -dy / length * halfWidth
+    local py = dx / length * halfWidth
+    pushFace(vertices,
+        { x1 + px, y1 + py, z },
+        { x2 + px, y2 + py, z },
+        { x2 - px, y2 - py, z },
+        { x1 - px, y1 - py, z },
+        u)
+end
+
+local tacticalRingSpecs = {
+    movement = { inset = 0.12, width = 0.025, z = 0.045 },
+    intent = { inset = 0.1, width = 0.045, z = 0.08 },
+    objective = { inset = 0.07, width = 0.045, z = 0.09 },
+    blocker = { inset = 0.16, width = 0.035, z = 0.07 },
+    selected = { inset = 0.19, width = 0.05, z = 0.11 },
+    cursor = { inset = 0.02, width = 0.055, z = 0.12 },
+    hover = { inset = 0.24, width = 0.035, z = 0.13 },
+}
+
+local function pushTileRing(vertices, x, y, baseZ, kind, u)
+    local spec = tacticalRingSpecs[kind] or tacticalRingSpecs.movement
+    local inset = spec.inset
+    local left = x + inset
+    local right = x + 1 - inset
+    local top = y + inset
+    local bottom = y + 1 - inset
+    local z = baseZ + spec.z
+    pushOverlayLine(vertices, left, top, right, top, z, spec.width, u)
+    pushOverlayLine(vertices, right, top, right, bottom, z, spec.width, u)
+    pushOverlayLine(vertices, right, bottom, left, bottom, z, spec.width, u)
+    pushOverlayLine(vertices, left, bottom, left, top, z, spec.width, u)
+end
+
 local function buildTacticalOverlayModel(entries, source, settings, z)
     if #entries == 0 then
         return nil
@@ -1241,7 +1284,7 @@ local function buildTacticalOverlayModel(entries, source, settings, z)
     for index, entry in ipairs(entries) do
         local color = Render.accessibleColor(settings, entry.color or tacticalOverlayColors[entry.kind] or { 1, 1, 1, 0.5 })
         data:setPixel(index - 1, 0, color[1], color[2], color[3], color[4] or 0.5)
-        pushTileQuad(vertices, originX + entry.x, originY + entry.y, z or 0, (index - 0.5) / #entries)
+        pushTileRing(vertices, originX + entry.x, originY + entry.y, z or 0, entry.kind, (index - 0.5) / #entries)
     end
     local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()
@@ -1257,9 +1300,13 @@ local function drawTacticalOverlays(sim, app)
     counts.total = #entries
     local drawnEntries = {}
     for _, entry in ipairs(entries) do
-        if entry.kind == "intent" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor" then
+        if entry.kind == "movement" or entry.kind == "intent" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor" then
             drawnEntries[#drawnEntries + 1] = entry
         end
+    end
+    local selected = app and app.tactics and app.tactics.selectedUnitId and source.state:unit(app.tactics.selectedUnitId)
+    if selected then
+        drawnEntries[#drawnEntries + 1] = { kind = "selected", x = selected.x, y = selected.y, label = "selected" }
     end
     if app and app.tacticalHover then
         drawnEntries[#drawnEntries + 1] = { kind = "hover", x = app.tacticalHover.x, y = app.tacticalHover.y, label = "hover" }
@@ -3046,6 +3093,13 @@ function Render.drawTacticalHud(sim, app)
     local summary = tacticalSummary(app)
     local width = love.graphics.getWidth()
     local hover = app and app.tacticalHover
+    local selectedAt = "-"
+    for _, unit in ipairs((summary and summary.players) or {}) do
+        if unit.selected then
+            selectedAt = tostring(unit.x) .. "," .. tostring(unit.y)
+            break
+        end
+    end
     panel(16, 14, 400, 82, 0.88)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.printf("End Turn  E", 32, 28, 142, "center", 0, 1.2, 1.2)
@@ -3053,9 +3107,9 @@ function Render.drawTacticalHud(sim, app)
     love.graphics.rectangle("line", 28, 24, 156, 48)
     love.graphics.setColor(0.82, 0.86, 0.78, 1)
     love.graphics.print("turn " .. tostring(summary and summary.turn or 1) .. "  " .. tostring(summary and summary.phase or "-") .. "  view " .. tostring((app.viewRotation or 0) * 90), 204, 24)
-    love.graphics.print("selected " .. tostring(summary and summary.selected or "-") .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0), 204, 45)
+    love.graphics.print("selected " .. tostring(summary and summary.selected or "-") .. " @" .. selectedAt .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0), 204, 45)
     love.graphics.setColor(0.76, 0.8, 0.72, 1)
-    love.graphics.print("cursor " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-") .. "  hover " .. (hover and (hover.x .. "," .. hover.y) or "-") .. "  zoom " .. tostring(math.floor(Render.tacticalZoom(app) * 100 + 0.5)) .. "%", 204, 66)
+    love.graphics.print("target " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-") .. "  hover " .. (hover and (hover.x .. "," .. hover.y) or "-") .. "  zoom " .. tostring(math.floor(Render.tacticalZoom(app) * 100 + 0.5)) .. "%", 204, 66)
     local objective = summary and summary.objective or {}
     panel(width - 256, 14, 240, 72, 0.88)
     love.graphics.setColor(0.9, 0.82, 0.48, 1)
@@ -3095,7 +3149,7 @@ function Render.drawTacticalSidePanel(sim, app)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Board Rules", x + 12, rowY)
     love.graphics.setColor(0.68, 0.72, 0.66, 1)
-    love.graphics.printf("Red arrows intent\nGold objective\nBlack blocker\nYellow cursor\nWhite hover", x + 12, rowY + 26, 196)
+    love.graphics.printf("Blue move ring\nGreen selected\nYellow target\nWhite hover\nRed threat", x + 12, rowY + 26, 196)
 end
 
 function Render.drawHud(sim, app)
