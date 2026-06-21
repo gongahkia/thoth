@@ -63,6 +63,8 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S51 | https://www.feralinteractive.com/en/manuals/xcom2/latest/steam/ | Tactical actions include movement, line of sight, cover, overwatch, hunker, hack, interact, carry, evac, and class-role actions. | Thoth maps enemy variety to board verbs: move, shoot, lob, push, pull, block, summon, repair, sabotage, watch, and break terrain. |
 | S52 | https://www.gearsofwar.com/dev-blog-bosses/ | Boss fights work as combat puzzles with marked impact zones, armored weak windows, adds, cover pressure, mines, and phase escalation. | Thoth boss phases require tile patterns, rotating weak points, terrain conversion, objective pressure, visible clocks, counterplay, and preview text. |
 | S53 | https://book.leveldesignbook.com/process/combat/cover | Cover objects block sightlines or shield units, and their implementation changes how players use combat spaces. | Thoth destructible location rules expose HP, LoS/cover state, break effects, repair counterplay, and previews for shelves, bridges, valves, kilns, doors, floors, and machinery. |
+| S54 | https://www.w3.org/WAI/WCAG22/Techniques/css/C39 | Interaction-triggered motion should be suppressible when reduced motion is enabled. | Thoth reduced motion replaces tactical animation with static cues for rotation, destruction, knockback, and explosions. |
+| S55 | https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Media_queries/Using_for_accessibility | Reduced motion should minimize non-essential movement while preserving essential information. | Thoth motion plans preserve tile coordinates, terrain state, final unit tile, and affected blast tiles through non-animated equivalents. |
 
 ## Mechanic Handoffs
 
@@ -641,6 +643,22 @@ counterplay: players can separate enemy intent, cover, and hazard cues under def
 preview/UI: palette contract defines `intent`, `cover`, and `hazard` roles with RGBA, hex, icon, pattern, shape, visibility, simulation modes, and review checks.
 
 test/replay proof: `UICatalog.accessiblePalette()` and `Render.tacticalOverlayEntries()` are tested for role metadata, simulation separation, and render color/icon/pattern alignment.
+
+### H37 Reduced-Motion Tactical Equivalents
+
+source pattern: W3C guidance for interaction-triggered motion allows users to suppress motion animations; MDN guidance frames reduced motion as minimizing non-essential movement while preserving needed information.
+
+thoth transformation: Rotation, destruction, knockback, and explosion effects each define an animated plan and a reduced static equivalent that preserves the gameplay fact conveyed by motion.
+
+board verb: snap, mark, indicate, preserve.
+
+zone fit: Archive shelf breaks, Cistern hook pulls, Warrens blasts, and camera-rotation reveals use the same reduced-motion plan surface.
+
+counterplay: players can inspect view angle, destroyed tile state, forced-movement path, collision text, blast footprint, affected tiles, and damage deltas without tween, slide, shake, or expanding burst.
+
+preview/UI: `Render.motionPlan()` emits reduced plans with `animation = "none"`, static equivalent text, cue id, preserved state domain, source/target, and affected tiles.
+
+test/replay proof: `Render.reducedMotionEquivalents()`, `Render.motionPlan()`, UI pulse suppression, and reduced-motion rotation snap are tested for all four required effect families.
 
 ## Rejection Rules
 

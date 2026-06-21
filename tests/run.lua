@@ -5312,6 +5312,10 @@ tests[#tests + 1] = function()
     local turnApp = { viewRotation = 0, viewRotationVisual = 0, settings = Settings.defaults(), audio = {}, ui = {} }
     Input.keypressed(sim, turnApp, "]")
     expect(turnApp.viewRotation == 1 and turnApp.viewTurn and turnApp.viewTurn.to == 1, "bracket rotation should schedule smooth turn tween")
+    local reducedTurnApp = { viewRotation = 0, viewRotationVisual = 0, settings = Settings.defaults(), audio = {}, ui = {} }
+    reducedTurnApp.settings.reducedMotion = true
+    Input.keypressed(sim, reducedTurnApp, "]")
+    expect(reducedTurnApp.viewRotation == 1 and reducedTurnApp.viewRotationVisual == 1 and reducedTurnApp.viewTurn == nil, "reduced motion should snap rotation without tween")
 end
 
 tests[#tests + 1] = function()
@@ -5657,6 +5661,14 @@ tests[#tests + 1] = function()
     expect(Render.audioSubtitle(app) == nil, "subtitles should respect setting")
     settings.reducedMotion = true
     expect(not Render.markUiPulse(app, { x = 0, y = 0, w = 10, h = 10 }), "reduced motion should suppress pulse animations")
+    local equivalents = Render.reducedMotionEquivalents()
+    for _, effect in ipairs({ "rotation", "destruction", "knockback", "explosion" }) do
+        expect(equivalents[effect] and equivalents[effect].animated and equivalents[effect].reduced and equivalents[effect].cue and equivalents[effect].preserves, "reduced motion should define equivalent for " .. effect)
+        local reducedPlan = Render.motionPlan(settings, effect, { source = "a", target = "b", tiles = { { x = 1, y = 1 } } })
+        expect(reducedPlan.mode == "reduced" and reducedPlan.animation == "none" and reducedPlan.equivalent == equivalents[effect].reduced and reducedPlan.tiles[1].x == 1, "reduced motion plan should replace animation for " .. effect)
+        local animatedPlan = Render.motionPlan({ reducedMotion = false }, effect)
+        expect(animatedPlan.mode == "animated" and animatedPlan.animation == equivalents[effect].animated and animatedPlan.equivalent == nil, "motion plan should keep animation when reduced motion is off for " .. effect)
+    end
     local ok = Settings.bindKey(settings, "moveUp", "i")
     expect(ok and Settings.keyForAction(settings, "moveUp") == "i", "settings should bind movement key")
     local duplicate = Settings.bindKey(settings, "moveDown", "i")

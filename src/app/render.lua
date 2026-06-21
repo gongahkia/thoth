@@ -66,6 +66,17 @@ local function clearList(list)
     end
 end
 
+local function copyValue(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local result = {}
+    for key, nested in pairs(value) do
+        result[key] = copyValue(nested)
+    end
+    return result
+end
+
 local function hitboxContains(hitbox, x, y)
     return hitbox and x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h
 end
@@ -89,6 +100,37 @@ end
 function Render.screenShakeEnabled(appOrSettings)
     local settings = accessibilitySettings(appOrSettings)
     return not (settings and (settings.reducedMotion == true or settings.screenShake == false))
+end
+
+local reducedMotionEquivalents = {
+    rotation = { animated = "smooth camera tween", reduced = "instant camera snap with view label", cue = "view_degrees", preserves = "logical tile coordinates" },
+    destruction = { animated = "debris burst and impact shake", reduced = "static destroyed marker with HP delta", cue = "destroyed_tile", preserves = "terrain state change" },
+    knockback = { animated = "sliding unit and collision shake", reduced = "origin-to-landing arrow with collision text", cue = "forced_movement_path", preserves = "final unit tile" },
+    explosion = { animated = "expanding blast and screen shake", reduced = "static blast footprint with damage chips", cue = "blast_footprint", preserves = "affected tiles" },
+}
+
+function Render.reducedMotionEquivalents()
+    return copyValue(reducedMotionEquivalents)
+end
+
+function Render.motionPlan(appOrSettings, effect, details)
+    local spec = reducedMotionEquivalents[effect]
+    if not spec then
+        return nil
+    end
+    details = details or {}
+    local reduced = Render.reducedMotion(appOrSettings)
+    return {
+        effect = effect,
+        mode = reduced and "reduced" or "animated",
+        animation = reduced and "none" or spec.animated,
+        equivalent = reduced and spec.reduced or nil,
+        cue = spec.cue,
+        preserves = spec.preserves,
+        source = details.source,
+        target = details.target,
+        tiles = copyValue(details.tiles),
+    }
 end
 
 function Render.accessibleColor(settings, color)

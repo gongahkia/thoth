@@ -252,3 +252,26 @@ preview/UI:
 
 test/replay proof:
 `tests/run.lua` verifies palette roles, modes, checks, simulated color separation for off/deuteranopia/protanopia/tritanopia, and render overlay color/icon/pattern alignment.
+
+## U.12 Reduced-Motion Tactical Equivalents
+
+source pattern:
+Reduced-motion interfaces suppress non-essential interaction motion while preserving the information the motion conveyed.
+
+thoth transformation:
+Thoth defines reduced-motion equivalents for rotation, destruction, knockback, and explosions, replacing motion with static labels, markers, arrows, footprints, and state deltas.
+
+board verb:
+Snap, mark, indicate, preserve.
+
+zone fit:
+All zones use the same equivalents while local terrain, forced movement, and blast data provide the cue text.
+
+counterplay:
+The player still sees view angle, destroyed terrain state, forced-movement path, collision, blast footprint, and damage/objective deltas without camera tween, shake, slide, or expanding blast motion.
+
+preview/UI:
+`Render.motionPlan()` returns animated or reduced plans for `rotation`, `destruction`, `knockback`, and `explosion`; reduced plans use `animation = "none"` and name the static equivalent.
+
+test/replay proof:
+`tests/run.lua` verifies all four equivalents, reduced and animated plans, preserved tile metadata, UI pulse suppression, and reduced-motion camera rotation snap.
