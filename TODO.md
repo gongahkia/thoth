@@ -82,7 +82,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Class & Loadout Catalog
 
-- [ ] CL.11 Define 15 injuries/debts that create deterministic tactical constraints without random action loss.
 - [ ] CL.12 Define squad-size scaling for 2, 3, 4, 5, and 6 units.
 
 ### Enemy Family Catalog

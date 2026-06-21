@@ -1481,6 +1481,21 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local constraints = ClassCatalog.injuryDebtConstraints()
+    expect(#constraints == 15, "class catalog should define 15 injury/debt constraints")
+    local types = {}
+    local ids = {}
+    for _, constraint in ipairs(constraints) do
+        expect(constraint.id and constraint.type and constraint.constraint, "injury/debt should include id type constraint")
+        expect(constraint.noRandomActionLoss == true, "injury/debt should not cause random action loss")
+        expect(not ids[constraint.id], "injury/debt ids should be unique")
+        ids[constraint.id] = true
+        types[constraint.type] = true
+    end
+    expect(types.injury and types.debt, "injury/debt constraints should include both types")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

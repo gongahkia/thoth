@@ -347,3 +347,32 @@ The catalog defines 20 deterministic character traits:
 Acceptance proof:
 
 - `tests/run.lua` verifies there are exactly 20 traits, every trait has id/domain/effect metadata, ids are unique, and all required domains are covered.
+
+## CL.11 Injuries And Debts
+
+The catalog defines 15 deterministic injuries/debts:
+
+- `cracked_ribs`: injury, climb and vault cost +1 AP.
+- `salt_cough`: injury, LoS reveal range is reduced by one tile in mist.
+- `burned_hand`: injury, first cover interaction each board costs +1 AP.
+- `glass_eye`: injury, class reveal actions require LoS to target tile.
+- `brine_rot`: injury, objective repair restores one less integrity.
+- `torn_shoulder`: injury, carry and drag actions cost +1 AP.
+- `ash_tremor`: injury, first tool cooldown gains one tick.
+- `nerve_burn`: injury, dash distance is capped at two tiles.
+- `paper_lung`: injury, obscurant entry costs +1 AP.
+- `ledger_debt`: debt, first AP refund each board is cancelled.
+- `oath_lien`: debt, protect objective failure adds faction loss.
+- `marked_warrant`: debt, Survey Office events start at +1 pressure.
+- `pawned_tool`: debt, one chosen tool starts on cooldown.
+- `witness_guilt`: debt, civilian objective damage adds stress debt.
+- `lamp_debt`: debt, Lamplighter reveal costs +1 AP until paid.
+
+Rules:
+
+- Constraints are deterministic.
+- Constraints never cause random action loss.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies there are exactly 15 constraints, ids are unique, both injury and debt types are present, and every constraint sets `noRandomActionLoss = true`.
