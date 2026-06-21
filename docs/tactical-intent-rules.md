@@ -232,3 +232,26 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies phase masks, turn masks, camera weak-point reveal, footprint exposure, and snapshot stability.
+
+## I.10 Replay Fixtures
+
+Intent replay fixtures cover every supported intent mode.
+
+Covered modes:
+
+- `exact`
+- `category`
+- `hiddenFootprint`
+- `fuse`
+- `conditional`
+- `decoy`
+- `bossStage`
+
+Rules:
+
+- Replay streams must produce identical tactical snapshots across repeated runs.
+- Replay validation must assert each intent class reaches its expected preview/resolution state.
+
+Acceptance proof:
+
+- `tests/replays.lua` adds `intent_classes`, covering every supported intent mode and replaying pressure, fuse, conditional, decoy reveal, and boss mask commands.

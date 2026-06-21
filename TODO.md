@@ -69,7 +69,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Intent & Counterplay Mechanics
 
-- [ ] I.10 Add replay fixtures for every intent class.
 
 ### Cover, LoS, Visibility
 

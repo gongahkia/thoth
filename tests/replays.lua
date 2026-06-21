@@ -146,4 +146,65 @@ expect(Serialize.encode(tacticalA:snapshot()) == Serialize.encode(tacticalB:snap
 expect(tacticalA:objectiveStatus("route_machine") == "complete", "tactical replay should complete protect/evacuate objective")
 io.stdout:write("tactics replay ok prototype_board\n")
 
+local function tacticalIntentReplayState()
+    return TacticsState.new({
+        defaultAp = 4,
+        board = { width = 8, height = 4 },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 4, hp = 6 },
+            { id = "exacter", side = "enemy", x = 2, y = 2 },
+            { id = "categorist", side = "enemy", x = 3, y = 2 },
+            { id = "redactor", side = "enemy", x = 4, y = 2 },
+            { id = "fuser", side = "enemy", x = 5, y = 2 },
+            { id = "conditional", side = "enemy", x = 6, y = 2 },
+            { id = "decoy", side = "enemy", x = 7, y = 2 },
+            { id = "boss", side = "enemy", x = 8, y = 2 },
+        },
+        objectives = {
+            { id = "seal", x = 1, y = 1, integrity = 1, maxIntegrity = 3, evacuateAt = { x = 8, y = 4 } },
+        },
+    })
+end
+
+local tacticalIntentFrames = {
+    { tick = 0, command = TacticsState.commands.intent("exacter", { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 4 } }, damage = 1, escalation = { after = 1, damageDelta = 1 } }) },
+    { tick = 1, command = TacticsState.commands.intent("categorist", { mode = "category", category = "repair", effect = "patch_seal" }) },
+    { tick = 2, command = TacticsState.commands.intent("redactor", { mode = "hiddenFootprint", category = "redacted", targetTiles = { { x = 2, y = 4 } }, revealActions = { "inspect_intent" } }) },
+    { tick = 3, command = TacticsState.commands.intent("fuser", { mode = "fuse", category = "attack", countdown = 2, targetTiles = { { x = 1, y = 4 } }, trigger = { kind = "damage", damage = 1 } }) },
+    { tick = 4, command = TacticsState.commands.tickIntentFuse("fuser") },
+    { tick = 5, command = TacticsState.commands.intent("conditional", {
+        mode = "conditional",
+        branches = {
+            { condition = { kind = "targetMoved", target = "warden" }, intent = { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 4 } }, damage = 2 }, trigger = { kind = "damage", target = "warden", damage = 2 } },
+            { condition = "otherwise", intent = { mode = "exact", category = "repair", targetTiles = { { x = 1, y = 1 } }, effect = "repair_seal" }, trigger = { kind = "repairObjective", objective = "seal", amount = 1 } },
+        },
+    }) },
+    { tick = 6, command = TacticsState.commands.resolveConditionalIntent("conditional") },
+    { tick = 7, command = TacticsState.commands.intent("decoy", { mode = "decoy", decoy = { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 4 } }, damage = 4 }, actual = { mode = "exact", category = "guard", targetTiles = { { x = 7, y = 2 } }, damage = 0 }, counterplay = { "exposeWeakPoint" } }) },
+    { tick = 8, command = TacticsState.commands.interruptIntent("decoy", "exposeWeakPoint") },
+    { tick = 9, command = TacticsState.commands.intent("boss", { mode = "bossStage", category = "destroy", stage = 1, stageCount = 2, mask = "front", targetTiles = { { x = 3, y = 4 } }, masks = { { revealRotation = 1, weakPoint = "rear", revealed = true, stage = 2, targetTiles = { { x = 4, y = 4 } } } } }) },
+    { tick = 10, command = TacticsState.commands.advanceBossIntentMask("boss", { rotation = 1, weakPoint = "rear" }) },
+    { tick = 11, command = TacticsState.commands.advanceIntentPressure("exacter", "ignored") },
+}
+
+local function runTacticalIntentReplay()
+    local state = tacticalIntentReplayState()
+    for _, frame in ipairs(tacticalIntentFrames) do
+        state:apply(frame.command)
+    end
+    return state
+end
+
+local intentA = runTacticalIntentReplay()
+local intentB = runTacticalIntentReplay()
+expect(Serialize.encode(intentA:snapshot()) == Serialize.encode(intentB:snapshot()), "intent replay command stream should be deterministic")
+expect(intentA:intentPreview("exacter").damage == 2, "intent replay should escalate exact intent")
+expect(intentA:intentPreview("categorist").categoryOnly, "intent replay should keep category intent")
+expect(intentA:intentPreview("redactor", { revealAction = "inspect_intent" }).targetTiles[1].x == 2, "intent replay should reveal redacted footprint")
+expect(intentA:intentPreview("fuser").countdown == 1, "intent replay should tick fuse")
+expect(intentA:intentPreview("conditional") == nil and intentA:objective("seal").integrity == 2, "intent replay should resolve conditional branch")
+expect(intentA:intentPreview("decoy").decoyRevealed, "intent replay should reveal decoy")
+expect(intentA:intentPreview("boss").revealed and intentA:intentPreview("boss").targetTiles[1].x == 4, "intent replay should reveal boss mask")
+io.stdout:write("tactics replay ok intent_classes\n")
+
 io.stdout:write("replay fixtures passed: ", #fixtures, "\n")
