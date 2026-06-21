@@ -79,3 +79,24 @@ The Salt Cistern defines 8 destructible or interactable objects:
 Acceptance proof:
 
 - `tests/run.lua` verifies the Salt Cistern exposes exactly 8 objects and each has AP cost, HP, LoS effect, cover state, rotation, flood, and objective metadata.
+
+## Z.5 Ember Warrens Tile Mechanics
+
+The Ember Warrens defines 12 deterministic tile mechanics:
+
+- `warrens_kiln_heat`: kilns create declared heat around kiln mouths.
+- `warrens_ash_choke`: ash choke slows movement and obscures low LoS.
+- `warrens_bellows_cone`: bellows cones push heat and units through previewed cones.
+- `warrens_glass_floor`: glass floors reveal fragile paths and shard hazards.
+- `warrens_vitrified_cover`: vitrified cover reflects the first line effect until shattered.
+- `warrens_heat_lane`: heat lanes burn marked rows after a delay.
+- `warrens_fuel_store`: fuel stores ignite into timed fire bursts and smoke.
+- `warrens_ember_oil`: ember oil spreads burn tiles until doused.
+- `warrens_furnace_door`: furnace doors toggle blocker and vent states.
+- `warrens_cinder_vent`: cinder vents spawn ash choke after heat ticks.
+- `warrens_white_coal_pressure`: white-coal pressure escalates heat intent unless released.
+- `warrens_meltable_bridge`: meltable bridges turn crossings into hazards after countdowns.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies the Ember Warrens exposes exactly 12 tile mechanics and each has subject, verb, and effect metadata.

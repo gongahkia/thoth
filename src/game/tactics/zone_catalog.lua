@@ -53,6 +53,22 @@ ZoneCatalog.zones = {
             { id = "waterline_gauge", apCost = 1, hp = 2, losEffect = "no block", coverState = "none", rotation = "reverse side marks safe height", floodEffect = "previews next rise or drain", objectiveEffect = "prevents objective integrity surprise" },
         },
     },
+    ember_warrens = {
+        tileMechanics = {
+            { id = "warrens_kiln_heat", subject = "kilns", verb = "stoke", effect = "creates declared heat around kiln mouths" },
+            { id = "warrens_ash_choke", subject = "ash choke", verb = "clog", effect = "slows movement and obscures low LoS" },
+            { id = "warrens_bellows_cone", subject = "bellows cones", verb = "blast", effect = "pushes heat and units through previewed cone" },
+            { id = "warrens_glass_floor", subject = "glass floors", verb = "crack", effect = "reveals fragile path and shard hazard" },
+            { id = "warrens_vitrified_cover", subject = "vitrified cover", verb = "reflect", effect = "half cover reflects first line effect until shattered" },
+            { id = "warrens_heat_lane", subject = "heat lanes", verb = "burn", effect = "delayed line damage on marked rows" },
+            { id = "warrens_fuel_store", subject = "fuel stores", verb = "ignite", effect = "creates timed fire burst and smoke" },
+            { id = "warrens_ember_oil", subject = "ember oil", verb = "spread", effect = "extends burn tiles until doused" },
+            { id = "warrens_furnace_door", subject = "furnace doors", verb = "seal_vent", effect = "toggles blocker and heat vent state" },
+            { id = "warrens_cinder_vent", subject = "cinder vents", verb = "vent", effect = "spawns ash choke after heat tick" },
+            { id = "warrens_white_coal_pressure", subject = "white-coal pressure", verb = "pressurize", effect = "escalates heat intent unless released" },
+            { id = "warrens_meltable_bridge", subject = "meltable bridges", verb = "melt", effect = "turns crossing into hazard after countdown" },
+        },
+    },
 }
 
 function ZoneCatalog.zone(id)

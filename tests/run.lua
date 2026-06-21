@@ -1300,6 +1300,32 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local mechanics = ZoneCatalog.tileMechanics("ember_warrens")
+    expect(#mechanics == 12, "Ember Warrens should define 12 tile mechanics")
+    local seen = {}
+    for _, mechanic in ipairs(mechanics) do
+        seen[mechanic.id] = mechanic
+        expect(mechanic.subject and mechanic.verb and mechanic.effect, "warrens tile mechanic should include subject verb effect")
+    end
+    for _, id in ipairs({
+        "warrens_kiln_heat",
+        "warrens_ash_choke",
+        "warrens_bellows_cone",
+        "warrens_glass_floor",
+        "warrens_vitrified_cover",
+        "warrens_heat_lane",
+        "warrens_fuel_store",
+        "warrens_ember_oil",
+        "warrens_furnace_door",
+        "warrens_cinder_vent",
+        "warrens_white_coal_pressure",
+        "warrens_meltable_bridge",
+    }) do
+        expect(seen[id], "missing warrens tile mechanic " .. id)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

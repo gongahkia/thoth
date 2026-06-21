@@ -80,7 +80,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Zone Terrain Catalogs
 
-- [ ] Z.5 Ember Warrens: design 12 tile mechanics around kilns, ash choke, bellows cones, glass floors, vitrified cover, heat lanes, fuel stores, ember oil, furnace doors, cinder vents, white-coal pressure, and meltable bridges.
 - [ ] Z.6 Ember Warrens: design 8 destructible/interactable objects with burn/douse/glassify consequences.
 - [ ] Z.7 Each zone must include at least 4 rotation-revealed facts that alter planning but not logical board state.
 - [ ] Z.8 Each zone must include at least 3 terrain mechanics that can help either side.
