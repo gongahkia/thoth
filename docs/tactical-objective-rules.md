@@ -203,3 +203,22 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies choice recording, faction delta, and squad damage.
+
+## O.10 Boss-Procedure Objectives
+
+Boss-procedure objectives counter multi-turn board rituals through declared steps.
+
+Kind:
+
+- `boss_procedure`
+
+Rules:
+
+- Boss objectives belong to family `boss`.
+- Ritual steps may require a weak-point key.
+- Ritual steps may require a terrain state.
+- Countering all ritual steps completes the objective.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies weak-point and terrain counters and completion after all ritual steps are countered.

@@ -1168,6 +1168,37 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = {
+            width = 3,
+            height = 1,
+            tiles = {
+                ["2:1"] = { state = "drained" },
+            },
+        },
+        units = { { id = "warden", side = "player", x = 1, y = 1 } },
+        objectives = {
+            {
+                id = "ritual",
+                kind = "boss_procedure",
+                x = 3,
+                y = 1,
+                integrity = 1,
+                evacuateAt = { x = 1, y = 1 },
+                ritualSteps = {
+                    { id = "open_register", weakPoint = "rear_seal" },
+                    { id = "drain_lens", terrain = { x = 2, y = 1, state = "drained" } },
+                },
+            },
+        },
+    })
+    state:apply(TacticsState.commands.counterBossProcedureObjective("ritual", "open_register", { weakPoint = "rear_seal" }))
+    expect(state:objectiveStatus("ritual") == "active", "one boss procedure counter should not complete ritual")
+    state:apply(TacticsState.commands.counterBossProcedureObjective("ritual", "drain_lens"))
+    expect(state:objectiveStatus("ritual") == "complete", "all boss procedure counters should complete ritual")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {

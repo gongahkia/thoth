@@ -523,6 +523,7 @@ local objectiveKinds = {
     split_switch = "split",
     stealth_read = "stealth",
     sacrifice_choice = "sacrifice",
+    boss_procedure = "boss",
 }
 
 local function normalizeObjective(objective, index)
@@ -557,6 +558,7 @@ local function normalizeObjective(objective, index)
         exposureCap = objective.exposureCap,
         choices = copyValue(objective.choices),
         choice = objective.choice,
+        ritualSteps = copyValue(objective.ritualSteps or objective.steps),
         factionStandingDelta = objective.factionStandingDelta,
         lootLost = objective.lootLost,
         extracted = objective.extracted == true,
@@ -1993,6 +1995,19 @@ function State:evaluateObjective(objective)
             return "complete"
         end
     end
+    if objective.family == "boss" then
+        local allCountered = #(objective.ritualSteps or {}) > 0
+        for _, step in ipairs(objective.ritualSteps or {}) do
+            if not step.countered then
+                allCountered = false
+                break
+            end
+        end
+        if allCountered then
+            objective.complete = true
+            return "complete"
+        end
+    end
     return "active"
 end
 
@@ -2184,6 +2199,27 @@ function State:chooseSacrificeObjective(id, choiceId)
         end
     end
     error("unknown sacrifice choice " .. tostring(choiceId), 2)
+end
+
+function State:counterBossProcedureObjective(id, stepId, options)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    expect(objective.family == "boss", "objective is not boss")
+    options = options or {}
+    for _, step in ipairs(objective.ritualSteps or {}) do
+        if step.id == stepId then
+            if step.weakPoint then
+                expect(options.weakPoint == step.weakPoint, "wrong weak point counter")
+            end
+            if step.terrain then
+                local tile = self:tileAt(expectInteger(step.terrain.x, "counter terrain x"), expectInteger(step.terrain.y, "counter terrain y"))
+                expect(tile.state == step.terrain.state, "terrain counter state missing")
+            end
+            step.countered = true
+            self:evaluateObjective(objective)
+            return step
+        end
+    end
+    error("unknown boss procedure step " .. tostring(stepId), 2)
 end
 
 function State:sacrificeObjective(id, reason)
@@ -2750,6 +2786,8 @@ function State:apply(command)
         self:stealthReadObjective(command.objective, command.unit, command.amount)
     elseif kind == "chooseSacrificeObjective" then
         self:chooseSacrificeObjective(command.objective, command.choice)
+    elseif kind == "counterBossProcedureObjective" then
+        self:counterBossProcedureObjective(command.objective, command.step, command.options)
     elseif kind == "sacrificeObjective" then
         expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
         self:spendAP(command.unit, command.cost or 0)
@@ -3000,6 +3038,10 @@ end
 
 function commands.chooseSacrificeObjective(objectiveId, choiceId)
     return { type = "chooseSacrificeObjective", objective = objectiveId, choice = choiceId }
+end
+
+function commands.counterBossProcedureObjective(objectiveId, stepId, options)
+    return { type = "counterBossProcedureObjective", objective = objectiveId, step = stepId, options = copyMap(options) }
 end
 
 function commands.sacrificeObjective(unitId, objectiveId, reason, cost)
