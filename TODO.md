@@ -137,7 +137,6 @@ Initial class direction:
 
 Goal: make enemies readable, varied, and board-native.
 
-- [ ] 4.1 Build enemy archetypes: mover, shooter, artillery, pusher, puller, blocker, summoner, repairer, saboteur, overwatch, terrain-breaker.
 - [ ] 4.2 Add exact intents for basic enemies.
 - [ ] 4.3 Add partial/masked intents for elites.
 - [ ] 4.4 Add boss phases built around tile patterns, rotating weak points, terrain conversion, and objective pressure.

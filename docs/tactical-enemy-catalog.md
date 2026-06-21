@@ -179,3 +179,31 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` audits every enemy returned by `EnemyCatalog.allEnemies()` and verifies each has a no-damage utility behavior.
+
+## E.12 Common Enemy Archetypes
+
+Common enemies use 11 canonical archetypes:
+
+- `mover`: changes position pressure; represented by `page_scout`, `sluice_eel`, and `kiln_imp`.
+- `shooter`: direct previewed harm; represented by `bone_scribe`, `ledger_hound`, `drowned_pilgrim`, and `cinder_penitent`.
+- `artillery`: area or lane pressure; represented by `ink_wretch`, `drowned_acolyte`, and `glass_choirmaster`.
+- `pusher`: forced displacement; represented by `halocline_tender` and `ash_husk`.
+- `puller`: hook/current displacement; represented by `gutter_thing`, `brine_stalker`, and `clinker_butcher`.
+- `blocker`: denies tiles, edges, or claims; represented by `pale_censer`, `seal_clerk`, and `pearl_cyst`.
+- `summoner`: creates spawn pressure; represented by `drawer_mite`, `brine_midwife`, and `ember_mote`.
+- `repairer`: sustains or restores enemy board state; represented by `salt_choir` and `kiln_nurse`.
+- `saboteur`: pressures objectives or route state; represented by `writ_bailiff`, `reed_mouth_diver`, and `coal_monk`.
+- `overwatch`: posts reaction lanes; represented by `hollow_guard` and `glass_penitent`.
+- `terrain-breaker`: converts or destroys terrain; represented by `valve_thrall` and `white_furnace`.
+
+Rules:
+
+- Every archetype declares intent, board verb, counterplay, and preview text.
+- Every common enemy must reference one known archetype.
+- Every zone family must keep 8-12 common enemies.
+- Required archetypes must be represented by at least one common enemy.
+
+Acceptance proof:
+
+- `EnemyCatalog.auditArchetypes()` rejects missing archetypes, missing archetype metadata, invalid common enemy references, missing exact intents, missing zone verbs, out-of-range family counts, and uncovered required archetypes.
+- `tests/run.lua` verifies every required archetype has metadata and common-enemy coverage.

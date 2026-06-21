@@ -1610,6 +1610,21 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local audit = EnemyCatalog.auditArchetypes()
+    expect(audit.ok, "enemy archetype audit should pass")
+    for _, archetypeId in ipairs(EnemyCatalog.requiredArchetypes) do
+        local archetype = EnemyCatalog.archetype(archetypeId)
+        expect(archetype and archetype.intent and archetype.boardVerb and archetype.counterplay and archetype.preview, "enemy archetype should include tactical metadata: " .. archetypeId)
+        expect(audit.coverage[archetypeId] and audit.coverage[archetypeId] > 0, "enemy archetype should be represented by a common enemy: " .. archetypeId)
+    end
+    for _, familyId in ipairs({ "archive", "cistern", "warrens" }) do
+        for _, enemy in ipairs(EnemyCatalog.common(familyId)) do
+            expect(enemy.archetype and EnemyCatalog.archetype(enemy.archetype), "common enemy should reference known archetype: " .. enemy.id)
+        end
+    end
+end
+
+tests[#tests + 1] = function()
     local elites = EnemyCatalog.elites("archive")
     expect(#elites == 3, "Archive should define 3 elites")
     local ids = {}

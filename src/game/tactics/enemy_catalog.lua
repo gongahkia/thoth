@@ -1,18 +1,34 @@
 local EnemyCatalog = {}
 
+EnemyCatalog.requiredArchetypes = { "mover", "shooter", "artillery", "pusher", "puller", "blocker", "summoner", "repairer", "saboteur", "overwatch", "terrain-breaker" }
+
+EnemyCatalog.archetypes = {
+    mover = { intent = "reposition", boardVerb = "move", counterplay = "body block lane or pin source", preview = "destination and path" },
+    shooter = { intent = "direct harm", boardVerb = "shoot", counterplay = "break LoS or raise cover", preview = "source, path, target, damage" },
+    artillery = { intent = "area harm", boardVerb = "lob", counterplay = "leave footprint or interrupt fuse", preview = "impact footprint and countdown" },
+    pusher = { intent = "forced movement", boardVerb = "push", counterplay = "brace, block landing, or move target", preview = "push vector and collision" },
+    puller = { intent = "forced movement", boardVerb = "pull", counterplay = "break hook path or anchor target", preview = "pull path and landing" },
+    blocker = { intent = "space denial", boardVerb = "block", counterplay = "destroy, route around, or seal blocker", preview = "blocked edge or tile" },
+    summoner = { intent = "spawn pressure", boardVerb = "summon", counterplay = "block spawn pocket or kill source", preview = "spawn pocket and turn" },
+    repairer = { intent = "enemy sustain", boardVerb = "repair", counterplay = "isolate target or interrupt source", preview = "repaired target and amount" },
+    saboteur = { intent = "objective damage", boardVerb = "sabotage", counterplay = "body block, repair, or disable source", preview = "objective delta" },
+    overwatch = { intent = "reaction lane", boardVerb = "watch", counterplay = "bait trigger, smoke, or take alternate route", preview = "watch cone and trigger" },
+    ["terrain-breaker"] = { intent = "terrain conversion", boardVerb = "break", counterplay = "evacuate, stabilize, or use new gap", preview = "terrain tile before and after" },
+}
+
 EnemyCatalog.families = {
     archive = {
         common = {
-            { id = "hollow_guard", name = "Hollow Guard", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "nearest" }, boardVerb = "brace_cover" },
-            { id = "ink_wretch", name = "Ink Wretch", exactIntent = { mode = "exact", category = "debuff", damage = 1, target = "line" }, boardVerb = "ink_tile" },
-            { id = "bone_scribe", name = "Bone Scribe", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "marked" }, boardVerb = "redact_mark" },
-            { id = "gutter_thing", name = "Gutter Thing", exactIntent = { mode = "exact", category = "move", damage = 1, target = "pull" }, boardVerb = "hook_cargo" },
-            { id = "pale_censer", name = "Pale Censer", exactIntent = { mode = "exact", category = "debuff", damage = 0, target = "claim_tile" }, boardVerb = "fog_claim" },
-            { id = "page_scout", name = "Page Scout", exactIntent = { mode = "exact", category = "move", damage = 1, target = "flank" }, boardVerb = "flip_shelf" },
-            { id = "writ_bailiff", name = "Writ Bailiff", exactIntent = { mode = "exact", category = "destroy", damage = 2, target = "objective" }, boardVerb = "stamp_claim" },
-            { id = "seal_clerk", name = "Seal Clerk", exactIntent = { mode = "exact", category = "guard", damage = 0, target = "seal" }, boardVerb = "lock_door" },
-            { id = "ledger_hound", name = "Ledger Hound", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "carrier" }, boardVerb = "sniff_route" },
-            { id = "drawer_mite", name = "Drawer Mite", exactIntent = { mode = "exact", category = "summon", damage = 1, target = "drawer" }, boardVerb = "spill_records" },
+            { id = "hollow_guard", name = "Hollow Guard", archetype = "overwatch", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "nearest" }, boardVerb = "brace_cover" },
+            { id = "ink_wretch", name = "Ink Wretch", archetype = "artillery", exactIntent = { mode = "exact", category = "debuff", damage = 1, target = "line" }, boardVerb = "ink_tile" },
+            { id = "bone_scribe", name = "Bone Scribe", archetype = "shooter", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "marked" }, boardVerb = "redact_mark" },
+            { id = "gutter_thing", name = "Gutter Thing", archetype = "puller", exactIntent = { mode = "exact", category = "move", damage = 1, target = "pull" }, boardVerb = "hook_cargo" },
+            { id = "pale_censer", name = "Pale Censer", archetype = "blocker", exactIntent = { mode = "exact", category = "debuff", damage = 0, target = "claim_tile" }, boardVerb = "fog_claim" },
+            { id = "page_scout", name = "Page Scout", archetype = "mover", exactIntent = { mode = "exact", category = "move", damage = 1, target = "flank" }, boardVerb = "flip_shelf" },
+            { id = "writ_bailiff", name = "Writ Bailiff", archetype = "saboteur", exactIntent = { mode = "exact", category = "destroy", damage = 2, target = "objective" }, boardVerb = "stamp_claim" },
+            { id = "seal_clerk", name = "Seal Clerk", archetype = "blocker", exactIntent = { mode = "exact", category = "guard", damage = 0, target = "seal" }, boardVerb = "lock_door" },
+            { id = "ledger_hound", name = "Ledger Hound", archetype = "shooter", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "carrier" }, boardVerb = "sniff_route" },
+            { id = "drawer_mite", name = "Drawer Mite", archetype = "summoner", exactIntent = { mode = "exact", category = "summon", damage = 1, target = "drawer" }, boardVerb = "spill_records" },
         },
         elites = {
             { id = "codex_advocate", name = "Codex Advocate", partialIntent = { mode = "category", category = "debuff" }, weakPoints = { "open_register" }, terrainInteraction = "seal_claim_line" },
@@ -30,16 +46,16 @@ EnemyCatalog.families = {
     },
     cistern = {
         common = {
-            { id = "drowned_acolyte", name = "Drowned Acolyte", exactIntent = { mode = "exact", category = "debuff", damage = 1, target = "line" }, waterPressureVerb = "raise_mist" },
-            { id = "brine_stalker", name = "Brine Stalker", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "flank" }, waterPressureVerb = "pull_current" },
-            { id = "valve_thrall", name = "Valve Thrall", exactIntent = { mode = "exact", category = "destroy", damage = 2, target = "cover" }, waterPressureVerb = "turn_valve" },
-            { id = "brine_midwife", name = "Brine Midwife", exactIntent = { mode = "exact", category = "summon", damage = 0, target = "pool" }, waterPressureVerb = "birth_brine" },
-            { id = "sluice_eel", name = "Sluice Eel", exactIntent = { mode = "exact", category = "move", damage = 2, target = "current" }, waterPressureVerb = "ride_sluice" },
-            { id = "salt_choir", name = "Salt Choir", exactIntent = { mode = "exact", category = "buff", damage = 0, target = "wet_row" }, waterPressureVerb = "ring_pressure" },
-            { id = "pearl_cyst", name = "Pearl Cyst", exactIntent = { mode = "exact", category = "guard", damage = 1, target = "claim_tile" }, waterPressureVerb = "burst_pool" },
-            { id = "halocline_tender", name = "Halocline Tender", exactIntent = { mode = "exact", category = "debuff", damage = 0, target = "waterline" }, waterPressureVerb = "shift_halocline" },
-            { id = "drowned_pilgrim", name = "Drowned Pilgrim", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "low_ground" }, waterPressureVerb = "kneel_flood" },
-            { id = "reed_mouth_diver", name = "Reed-Mouth Diver", exactIntent = { mode = "exact", category = "flee", damage = 0, target = "exit_water" }, waterPressureVerb = "signal_reed" },
+            { id = "drowned_acolyte", name = "Drowned Acolyte", archetype = "artillery", exactIntent = { mode = "exact", category = "debuff", damage = 1, target = "line" }, waterPressureVerb = "raise_mist" },
+            { id = "brine_stalker", name = "Brine Stalker", archetype = "puller", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "flank" }, waterPressureVerb = "pull_current" },
+            { id = "valve_thrall", name = "Valve Thrall", archetype = "terrain-breaker", exactIntent = { mode = "exact", category = "destroy", damage = 2, target = "cover" }, waterPressureVerb = "turn_valve" },
+            { id = "brine_midwife", name = "Brine Midwife", archetype = "summoner", exactIntent = { mode = "exact", category = "summon", damage = 0, target = "pool" }, waterPressureVerb = "birth_brine" },
+            { id = "sluice_eel", name = "Sluice Eel", archetype = "mover", exactIntent = { mode = "exact", category = "move", damage = 2, target = "current" }, waterPressureVerb = "ride_sluice" },
+            { id = "salt_choir", name = "Salt Choir", archetype = "repairer", exactIntent = { mode = "exact", category = "buff", damage = 0, target = "wet_row" }, waterPressureVerb = "ring_pressure" },
+            { id = "pearl_cyst", name = "Pearl Cyst", archetype = "blocker", exactIntent = { mode = "exact", category = "guard", damage = 1, target = "claim_tile" }, waterPressureVerb = "burst_pool" },
+            { id = "halocline_tender", name = "Halocline Tender", archetype = "pusher", exactIntent = { mode = "exact", category = "debuff", damage = 0, target = "waterline" }, waterPressureVerb = "shift_halocline" },
+            { id = "drowned_pilgrim", name = "Drowned Pilgrim", archetype = "shooter", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "low_ground" }, waterPressureVerb = "kneel_flood" },
+            { id = "reed_mouth_diver", name = "Reed-Mouth Diver", archetype = "saboteur", exactIntent = { mode = "exact", category = "flee", damage = 0, target = "exit_water" }, waterPressureVerb = "signal_reed" },
         },
         elites = {
             { id = "depth_bailiff", name = "Depth Bailiff", partialIntent = { mode = "category", category = "destroy" }, weakPoints = { "depth_warrant" }, floodDrainCounterplay = "drain adjacent pressure bell" },
@@ -57,16 +73,16 @@ EnemyCatalog.families = {
     },
     warrens = {
         common = {
-            { id = "ash_husk", name = "Ash Husk", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "front" }, heatAshGlassVerb = "kick_ash" },
-            { id = "kiln_imp", name = "Kiln Imp", exactIntent = { mode = "exact", category = "move", damage = 1, target = "heat_lane" }, heatAshGlassVerb = "spark_jump" },
-            { id = "kiln_nurse", name = "Kiln Nurse", exactIntent = { mode = "exact", category = "buff", damage = 0, target = "burned_ally" }, heatAshGlassVerb = "cautery_stoke" },
-            { id = "glass_penitent", name = "Glass Penitent", exactIntent = { mode = "exact", category = "guard", damage = 1, target = "line" }, heatAshGlassVerb = "raise_glass" },
-            { id = "clinker_butcher", name = "Clinker Butcher", exactIntent = { mode = "exact", category = "attack", damage = 3, target = "cover" }, heatAshGlassVerb = "hook_clinker" },
-            { id = "white_furnace", name = "White Furnace", exactIntent = { mode = "exact", category = "destroy", damage = 3, target = "objective" }, heatAshGlassVerb = "pressure_coal" },
-            { id = "glass_choirmaster", name = "Glass Choirmaster", exactIntent = { mode = "exact", category = "debuff", damage = 0, target = "reflected_line" }, heatAshGlassVerb = "sing_reflection" },
-            { id = "cinder_penitent", name = "Cinder Penitent", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "adjacent" }, heatAshGlassVerb = "immolate_cinder" },
-            { id = "ember_mote", name = "Ember Mote", exactIntent = { mode = "exact", category = "summon", damage = 1, target = "burn_tile" }, heatAshGlassVerb = "seed_ember" },
-            { id = "coal_monk", name = "Coal Monk", exactIntent = { mode = "exact", category = "debuff", damage = 1, target = "white_coal" }, heatAshGlassVerb = "chant_pressure" },
+            { id = "ash_husk", name = "Ash Husk", archetype = "pusher", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "front" }, heatAshGlassVerb = "kick_ash" },
+            { id = "kiln_imp", name = "Kiln Imp", archetype = "mover", exactIntent = { mode = "exact", category = "move", damage = 1, target = "heat_lane" }, heatAshGlassVerb = "spark_jump" },
+            { id = "kiln_nurse", name = "Kiln Nurse", archetype = "repairer", exactIntent = { mode = "exact", category = "buff", damage = 0, target = "burned_ally" }, heatAshGlassVerb = "cautery_stoke" },
+            { id = "glass_penitent", name = "Glass Penitent", archetype = "overwatch", exactIntent = { mode = "exact", category = "guard", damage = 1, target = "line" }, heatAshGlassVerb = "raise_glass" },
+            { id = "clinker_butcher", name = "Clinker Butcher", archetype = "puller", exactIntent = { mode = "exact", category = "attack", damage = 3, target = "cover" }, heatAshGlassVerb = "hook_clinker" },
+            { id = "white_furnace", name = "White Furnace", archetype = "terrain-breaker", exactIntent = { mode = "exact", category = "destroy", damage = 3, target = "objective" }, heatAshGlassVerb = "pressure_coal" },
+            { id = "glass_choirmaster", name = "Glass Choirmaster", archetype = "artillery", exactIntent = { mode = "exact", category = "debuff", damage = 0, target = "reflected_line" }, heatAshGlassVerb = "sing_reflection" },
+            { id = "cinder_penitent", name = "Cinder Penitent", archetype = "shooter", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "adjacent" }, heatAshGlassVerb = "immolate_cinder" },
+            { id = "ember_mote", name = "Ember Mote", archetype = "summoner", exactIntent = { mode = "exact", category = "summon", damage = 1, target = "burn_tile" }, heatAshGlassVerb = "seed_ember" },
+            { id = "coal_monk", name = "Coal Monk", archetype = "saboteur", exactIntent = { mode = "exact", category = "debuff", damage = 1, target = "white_coal" }, heatAshGlassVerb = "chant_pressure" },
         },
         elites = {
             { id = "halo_deacon", name = "Halo Deacon", partialIntent = { mode = "category", category = "destroy" }, weakPoints = { "halo_vent" }, burnDouseGlassCounterplay = "douse halo vent before vitrify" },
@@ -143,6 +159,56 @@ end
 
 function EnemyCatalog.globalEnemies()
     return EnemyCatalog.globalPressure
+end
+
+function EnemyCatalog.archetype(id)
+    return EnemyCatalog.archetypes[id]
+end
+
+local function zoneVerb(enemy)
+    return enemy.boardVerb or enemy.waterPressureVerb or enemy.heatAshGlassVerb
+end
+
+function EnemyCatalog.auditArchetypes()
+    local report = { ok = true, missing = {}, invalid = {}, coverage = {} }
+    local required = {}
+    for _, id in ipairs(EnemyCatalog.requiredArchetypes) do
+        required[id] = true
+        local archetype = EnemyCatalog.archetypes[id]
+        if not archetype then
+            table.insert(report.missing, "archetype." .. id)
+        elseif not (archetype.intent and archetype.boardVerb and archetype.counterplay and archetype.preview) then
+            table.insert(report.invalid, "archetype." .. id .. ".metadata")
+        end
+    end
+    for familyId, family in pairs(EnemyCatalog.families) do
+        local common = family.common or {}
+        if #common < 8 or #common > 12 then
+            table.insert(report.invalid, familyId .. ".common.count")
+        end
+        for _, enemy in ipairs(common) do
+            if not enemy.archetype or not required[enemy.archetype] then
+                table.insert(report.invalid, enemy.id .. ".archetype")
+            elseif not EnemyCatalog.archetypes[enemy.archetype] then
+                table.insert(report.invalid, enemy.id .. ".archetype.unknown")
+            else
+                report.coverage[enemy.archetype] = (report.coverage[enemy.archetype] or 0) + 1
+            end
+            if not (enemy.exactIntent and enemy.exactIntent.mode == "exact") then
+                table.insert(report.invalid, enemy.id .. ".exactIntent")
+            end
+            if not zoneVerb(enemy) then
+                table.insert(report.invalid, enemy.id .. ".zoneVerb")
+            end
+        end
+    end
+    for _, id in ipairs(EnemyCatalog.requiredArchetypes) do
+        if not report.coverage[id] then
+            table.insert(report.missing, "coverage." .. id)
+        end
+    end
+    report.ok = #report.missing == 0 and #report.invalid == 0
+    return report
 end
 
 function EnemyCatalog.allEnemies()

@@ -59,6 +59,8 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S47 | https://www.feralinteractive.com/en/manuals/xcom2/latest/steam/ | Wounds, carry/evac, AP, movement, hazards, LoS, cover, and effects are visible tactical state. | Thoth consequence domains target AP, movement, LoS, cooldown, cover, objective repair, carry, and reveal rules. |
 | S48 | https://www.gearsofwar.com/en-us/games/gears-tactics/ | Squad tactics scale through customizable squads, equipment, fast turn-based battles, and boss fights that change battle scale. | Thoth squad size changes AP, deployment slots, enemy budget, board footprint, objective anchors, spawn pockets, and retreat routes. |
 | S49 | https://www.ubisoft.com/en-us/game/mario-rabbids/sparks-of-hope/news-updates/5h386nVuiWuW3OcxFDJgih/mario-rabbids-sparks-of-hope-a-tactical-game-for-everyone | Three-hero teams combine special abilities and external powers for battle synergies. | Thoth keeps small squad sizes readable and scales board variance only within 2-6 units. |
+| S50 | https://subsetgames.com/itb.html | Telegraphed enemy attacks make every enemy action analyzable and counterable before resolution. | Thoth enemy archetypes require preview text, exact intent metadata, and counterplay before common enemies enter a family. |
+| S51 | https://www.feralinteractive.com/en/manuals/xcom2/latest/steam/ | Tactical actions include movement, line of sight, cover, overwatch, hunker, hack, interact, carry, evac, and class-role actions. | Thoth maps enemy variety to board verbs: move, shoot, lob, push, pull, block, summon, repair, sabotage, watch, and break terrain. |
 
 ## Mechanic Handoffs
 
@@ -461,6 +463,22 @@ counterplay: smaller squads get compact boards and lower enemy budget; larger sq
 preview/UI: route preview shows squad size, AP budget, board scale, objective pressure, enemy multiplier, deployment pattern, and variance rules.
 
 test/replay proof: `ClassCatalog.auditSquadScaling()` rejects missing 2-6 sizes, non-monotonic board/enemy/reinforcement scaling, missing board variance rules, and out-of-bounds squad sizes.
+
+### H26 Common Enemy Archetypes
+
+source pattern: Into the Breach makes enemy actions telegraphed and counterable; XCOM 2 exposes tactical action roles such as movement, LoS, cover, overwatch, hack/interact, carry, and class-role actions.
+
+thoth transformation: Common enemies are tagged with 11 required archetypes: mover, shooter, artillery, pusher, puller, blocker, summoner, repairer, saboteur, overwatch, and terrain-breaker.
+
+board verb: move, shoot, lob, push, pull, block, summon, repair, sabotage, watch, break.
+
+zone fit: Archive expresses paperwork/claim versions; Cistern expresses flood/pressure versions; Warrens expresses heat/ash/glass versions.
+
+counterplay: every archetype declares counterplay such as body block, LoS break, footprint escape, brace, spawn blocking, source isolation, repair, smoke, or terrain stabilization.
+
+preview/UI: enemy inspector shows archetype, exact intent, zone verb, preview footprint/path, and counterplay line.
+
+test/replay proof: `EnemyCatalog.auditArchetypes()` rejects missing archetypes, missing archetype metadata, invalid common enemy references, missing exact intent, missing zone verbs, out-of-range family counts, and uncovered required archetypes.
 
 ## Rejection Rules
 
