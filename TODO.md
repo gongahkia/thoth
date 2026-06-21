@@ -95,7 +95,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Implementation Gates
 
-- [ ] G.2 No procedural board type ships without validator results for at least 25 fixed seeds.
 - [ ] G.3 No class loadout ships without one board where it is strong and one board where it is awkward.
 - [ ] G.4 No enemy ships without an intent preview, a counterplay path, and a no-damage utility behavior.
 - [ ] G.5 No boss ships without a phase chart, arena diagram, objective pressure, and replay proof.

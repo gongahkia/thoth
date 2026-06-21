@@ -22,3 +22,26 @@ Required evidence includes `preview_ui_spec`.
 
 test/replay proof:
 `tests/run.lua` verifies the mechanic entry gate requires research handoff, preview/UI spec, and replay acceptance test.
+
+## G.2 Procedural Board Ship Gate
+
+source pattern:
+Generated boards need fixed-seed validation before they are allowed into a run.
+
+thoth transformation:
+No procedural board type ships without validator results for at least 25 fixed seeds and reject reason logs.
+
+board verb:
+Generate, validate, reject, ship.
+
+zone fit:
+Applies to every generated board type in every zone.
+
+counterplay:
+Gate blocks boards that pass only anecdotal playthroughs.
+
+preview/UI:
+Validator results feed debug reports, not player-facing noise.
+
+test/replay proof:
+`tests/run.lua` verifies the procedural board gate requires validator results, fixed-seed batch, reject reason log, and 25 minimum seeds.

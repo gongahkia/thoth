@@ -1880,6 +1880,18 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local gate = GateCatalog.gate("procedural_board_ship")
+    local evidence = {}
+    expect(gate and gate.appliesTo == "procedural board type" and gate.minimumSeeds == 25, "procedural board ship gate should require 25 fixed seeds")
+    for _, item in ipairs(gate.requiredEvidence) do
+        evidence[item] = true
+    end
+    for _, item in ipairs({ "validator_results", "fixed_seed_batch", "reject_reason_log" }) do
+        expect(evidence[item], "procedural board gate missing evidence " .. item)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

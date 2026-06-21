@@ -7,6 +7,13 @@ GateCatalog.gates = {
         requiredEvidence = { "research_handoff", "preview_ui_spec", "replay_acceptance_test" },
         blocker = "mechanic cannot enter implementation",
     },
+    {
+        id = "procedural_board_ship",
+        appliesTo = "procedural board type",
+        requiredEvidence = { "validator_results", "fixed_seed_batch", "reject_reason_log" },
+        minimumSeeds = 25,
+        blocker = "board type cannot ship",
+    },
 }
 
 function GateCatalog.gate(id)
