@@ -25,6 +25,7 @@ local EnemyCatalog = require("src.game.tactics.enemy_catalog")
 local BossCatalog = require("src.game.tactics.boss_catalog")
 local RunCatalog = require("src.game.tactics.run_catalog")
 local UICatalog = require("src.game.tactics.ui_catalog")
+local GateCatalog = require("src.game.tactics.gate_catalog")
 
 local function expect(value, message)
     if not value then
@@ -1863,6 +1864,18 @@ tests[#tests + 1] = function()
     end
     for _, filter in ipairs(UICatalog.overlays()) do
         expect(overlays[filter.id], "screenshot smoke should include overlay " .. filter.id)
+    end
+end
+
+tests[#tests + 1] = function()
+    local gate = GateCatalog.gate("mechanic_entry")
+    local evidence = {}
+    expect(gate and gate.appliesTo == "new mechanic" and gate.blocker, "mechanic entry gate should exist")
+    for _, item in ipairs(gate.requiredEvidence) do
+        evidence[item] = true
+    end
+    for _, item in ipairs({ "research_handoff", "preview_ui_spec", "replay_acceptance_test" }) do
+        expect(evidence[item], "mechanic entry gate missing evidence " .. item)
     end
 end
 
