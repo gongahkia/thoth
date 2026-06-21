@@ -210,3 +210,31 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies every supported conversion and its tile-state side effects.
+
+## M.10 Statuses
+
+Statuses are deterministic unit state. Supported kinds:
+
+- `marked`: increases incoming damage by status amount.
+- `exposed`: increases incoming damage by status amount.
+- `pinned`: blocks voluntary movement.
+- `bound`: blocks voluntary movement.
+- `burning`: deals deterministic tick damage.
+- `flooded`: deals deterministic tick damage.
+- `corroded`: deals deterministic tick damage.
+- `filed`: accepted deterministic state flag for procedure effects.
+- `redacted`: accepted deterministic state flag for reveal/intent systems.
+- `sealed`: blocks voluntary movement.
+- `blinded`: blocks threat-zone creation.
+- `braced`: reduces collision damage by status amount.
+
+Rules:
+
+- Status application validates status kind and target before AP spend.
+- Status ticks decrement finite durations and remove expired statuses.
+- Tick damage ignores marked/exposed incoming-damage bonuses.
+- No status causes random action loss.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies all supported status kinds, incoming damage bonuses, movement blocking, blinded threat-zone blocking, deterministic tick damage/expiry, and braced collision reduction.

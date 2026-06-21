@@ -669,6 +669,51 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        defaultAp = 12,
+        board = {
+            width = 4,
+            height = 2,
+            tiles = {
+                ["4:1"] = { blocker = true },
+            },
+        },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, hp = 8 },
+            { id = "target", side = "enemy", x = 2, y = 1, hp = 10 },
+            { id = "braced", side = "enemy", x = 3, y = 1, hp = 5, statuses = { braced = { amount = 1 } } },
+        },
+    })
+    state:apply(TacticsState.commands.status("warden", "target", "marked", 2, 1, 0))
+    state:apply(TacticsState.commands.status("warden", "target", "exposed", 2, 1, 0))
+    state:apply(TacticsState.commands.attack("warden", "target", 1, 0))
+    expect(state:unit("target").hp == 7, "marked and exposed should add deterministic incoming damage")
+    state:apply(TacticsState.commands.status("warden", "warden", "pinned", 1, nil, 0))
+    local ok, err = pcall(function()
+        state:apply(TacticsState.commands.move("warden", "south"))
+    end)
+    expect(not ok and err:find("unit movement blocked", 1, true), "pinned should block voluntary movement")
+    state:removeStatus("warden", "pinned")
+    state:apply(TacticsState.commands.status("warden", "warden", "blinded", 1, nil, 0))
+    ok, err = pcall(function()
+        state:apply(TacticsState.commands.threatZone("warden", "line", "east", 2, nil, 1, 1))
+    end)
+    expect(not ok and err:find("unit is blinded", 1, true), "blinded should block threat-zone creation")
+    state:apply(TacticsState.commands.status("warden", "target", "burning", 1, 1, 0))
+    state:apply(TacticsState.commands.status("warden", "target", "flooded", 1, 1, 0))
+    state:apply(TacticsState.commands.status("warden", "target", "corroded", 1, 1, 0))
+    state:apply(TacticsState.commands.tickStatuses("target"))
+    expect(state:unit("target").hp == 4 and not state:hasStatus("target", "burning"), "damage statuses should tick and expire deterministically")
+    state:apply(TacticsState.commands.shove("warden", "braced", "east", 1, 2, 0))
+    expect(state:unit("braced").hp == 4, "braced should reduce collision damage")
+    state:apply(TacticsState.commands.status("warden", "warden", "bound", 1, nil, 0))
+    state:apply(TacticsState.commands.status("warden", "target", "filed", 1, nil, 0))
+    state:apply(TacticsState.commands.status("warden", "target", "redacted", 1, nil, 0))
+    state:apply(TacticsState.commands.status("warden", "target", "sealed", 1, nil, 0))
+    expect(state:hasStatus("warden", "bound") and state:hasStatus("target", "filed") and state:hasStatus("target", "redacted") and state:hasStatus("target", "sealed"), "all tactical status kinds should be accepted")
+end
+
+tests[#tests + 1] = function()
     expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
     expect(I18n.t("missing {value}", { value = "fallback" }) == "missing fallback", "i18n should interpolate fallback strings")
     local source = readFile("src/app/render.lua")

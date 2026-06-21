@@ -231,6 +231,36 @@ local terrainConversions = {
     open_tile = true,
 }
 
+local statusRules = {
+    marked = { amount = 1 },
+    exposed = { amount = 1 },
+    pinned = {},
+    bound = {},
+    burning = { amount = 1, tickDamage = true },
+    flooded = { amount = 1, tickDamage = true },
+    corroded = { amount = 1, tickDamage = true },
+    filed = {},
+    redacted = {},
+    sealed = {},
+    blinded = {},
+    braced = { amount = 1 },
+}
+
+local function normalizeStatuses(statuses)
+    local result = {}
+    for key, value in pairs(statuses or {}) do
+        local status = type(value) == "table" and value or { turns = value }
+        expect(statusRules[key] or statusRules[status.kind], "unsupported status " .. tostring(key))
+        local kind = status.kind or key
+        result[kind] = {
+            kind = kind,
+            turns = status.turns,
+            amount = status.amount,
+        }
+    end
+    return result
+end
+
 local function normalizeCargo(cargo, index)
     expect(type(cargo) == "table", "cargo must be a table")
     local id = cargo.id or ("cargo_" .. tostring(index))
@@ -271,6 +301,7 @@ local function normalizeUnit(unit, index, defaultAp)
         evacuated = unit.evacuated == true,
         carryingObjective = unit.carryingObjective,
         carryingCargo = unit.carryingCargo,
+        statuses = normalizeStatuses(unit.statuses),
         tags = copyList(unit.tags),
     }
 end
@@ -569,6 +600,51 @@ function State:selectUnit(id)
     return unit
 end
 
+function State:status(unitOrId, kind)
+    local unit = type(unitOrId) == "table" and unitOrId or expect(self.units[unitOrId], "unknown unit " .. tostring(unitOrId))
+    return unit.statuses and unit.statuses[kind] or nil
+end
+
+function State:hasStatus(unitOrId, kind)
+    return self:status(unitOrId, kind) ~= nil
+end
+
+function State:applyStatus(unitId, kind, turns, amount)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    local rule = expect(statusRules[kind], "unsupported status " .. tostring(kind))
+    unit.statuses = unit.statuses or {}
+    unit.statuses[kind] = {
+        kind = kind,
+        turns = turns,
+        amount = amount or rule.amount,
+    }
+    return unit.statuses[kind]
+end
+
+function State:removeStatus(unitId, kind)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    if unit.statuses then
+        unit.statuses[kind] = nil
+    end
+end
+
+function State:movementBlocked(unit)
+    return self:hasStatus(unit, "pinned") or self:hasStatus(unit, "bound") or self:hasStatus(unit, "sealed")
+end
+
+local function statusAmount(unit, kind)
+    local status = unit.statuses and unit.statuses[kind]
+    return status and (status.amount or 1) or 0
+end
+
+local function incomingDamageBonus(unit)
+    return statusAmount(unit, "marked") + statusAmount(unit, "exposed")
+end
+
+local function bracedReduction(unit)
+    return statusAmount(unit, "braced")
+end
+
 function State:spendAP(id, amount)
     local unit = expect(self.units[id], "unknown unit " .. tostring(id))
     expect(unit.alive and not unit.evacuated, "unit is not active")
@@ -579,12 +655,16 @@ function State:spendAP(id, amount)
     return unit.ap
 end
 
-function State:damageUnit(unitOrId, amount)
+function State:damageUnit(unitOrId, amount, options)
     local unit = type(unitOrId) == "table" and unitOrId or expect(self.units[unitOrId], "unknown unit " .. tostring(unitOrId))
+    options = options or {}
     amount = expectInteger(amount or 0, "damage")
     expect(amount >= 0, "damage must be non-negative")
     if amount == 0 or not unit.alive or unit.evacuated then
         return unit.hp
+    end
+    if not options.ignoreStatusBonus then
+        amount = amount + incomingDamageBonus(unit)
     end
     unit.hp = math.max(0, (unit.hp or 0) - amount)
     if unit.hp <= 0 then
@@ -592,6 +672,27 @@ function State:damageUnit(unitOrId, amount)
         unit.ap = 0
     end
     return unit.hp
+end
+
+function State:tickStatuses(unitId)
+    local units = unitId and { expect(self.units[unitId], "unknown unit " .. tostring(unitId)) } or self.units
+    for _, unit in pairs(units) do
+        if unit.alive and not unit.evacuated then
+            for kind, status in pairs(copyMap(unit.statuses)) do
+                local rule = statusRules[kind]
+                if rule and rule.tickDamage then
+                    self:damageUnit(unit, status.amount or rule.amount or 1, { ignoreStatusBonus = true })
+                end
+                local current = unit.statuses[kind]
+                if current and current.turns ~= nil then
+                    current.turns = current.turns - 1
+                    if current.turns <= 0 then
+                        unit.statuses[kind] = nil
+                    end
+                end
+            end
+        end
+    end
 end
 
 function State:damageTile(x, y, amount)
@@ -634,6 +735,7 @@ end
 
 function State:addThreatZone(unitId, tiles, options)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    expect(not self:hasStatus(unit, "blinded"), "unit is blinded")
     options = options or {}
     local zone = {
         unit = unitId,
@@ -1101,10 +1203,10 @@ function State:displaceUnit(unitOrId, dx, dy, distance, collisionDamage)
         local ny = unit.y + dy
         local ok, reason = self:canEnter(nx, ny, unit.id)
         if not ok then
-            self:damageUnit(unit, collisionDamage)
+            self:damageUnit(unit, math.max(0, collisionDamage - bracedReduction(unit)), { ignoreStatusBonus = true })
             local occupant = self:inBounds(nx, ny) and self:unitAt(nx, ny) or nil
             if occupant and occupant.id ~= unit.id then
-                self:damageUnit(occupant, collisionDamage)
+                self:damageUnit(occupant, math.max(0, collisionDamage - bracedReduction(occupant)), { ignoreStatusBonus = true })
             end
             return false, reason
         end
@@ -1119,6 +1221,7 @@ end
 function State:dashUnit(unitId, direction, distance, previewOnly)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     expect(unit.alive and not unit.evacuated, "unit is not active")
+    expect(not self:movementBlocked(unit), "unit movement blocked")
     local delta = Grid.directions[direction]
     expect(delta, "unknown direction " .. tostring(direction))
     distance = distance or 2
@@ -1149,6 +1252,7 @@ end
 function State:vaultUnit(unitId, direction, previewOnly)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     expect(unit.alive and not unit.evacuated, "unit is not active")
+    expect(not self:movementBlocked(unit), "unit movement blocked")
     local delta = Grid.directions[direction]
     expect(delta, "unknown direction " .. tostring(direction))
     local fromTile = self:tileAt(unit.x, unit.y)
@@ -1170,6 +1274,7 @@ end
 function State:climbUnit(unitId, direction, maxClimb, previewOnly)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     expect(unit.alive and not unit.evacuated, "unit is not active")
+    expect(not self:movementBlocked(unit), "unit movement blocked")
     local delta = Grid.directions[direction]
     expect(delta, "unknown direction " .. tostring(direction))
     local fromHeight = self:tileAt(unit.x, unit.y).height or 0
@@ -1190,6 +1295,7 @@ end
 function State:dropUnit(unitId, direction, maxDrop, previewOnly)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     expect(unit.alive and not unit.evacuated, "unit is not active")
+    expect(not self:movementBlocked(unit), "unit movement blocked")
     local delta = Grid.directions[direction]
     expect(delta, "unknown direction " .. tostring(direction))
     local fromHeight = self:tileAt(unit.x, unit.y).height or 0
@@ -1245,6 +1351,7 @@ function State:apply(command)
     if kind == "move" then
         local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
         expect(unit.alive and not unit.evacuated, "unit is not active")
+        expect(not self:movementBlocked(unit), "unit movement blocked")
         local delta = Grid.directions[command.direction]
         expect(delta, "unknown direction " .. tostring(command.direction))
         local nx = unit.x + delta.x
@@ -1310,6 +1417,13 @@ function State:apply(command)
         self:spendAP(command.unit, command.cost or 1)
         self:dropUnit(command.unit, command.direction, command.maxDrop)
     elseif kind == "overwatch" then
+        local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
+        expect(not self:hasStatus(unit, "blinded"), "unit is blinded")
+        if command.shape then
+            self:threatZoneTiles(command.unit, command.shape, { direction = command.direction, length = command.length, width = command.width })
+        else
+            normalizeTileList(command.tiles)
+        end
         self:spendAP(command.unit, command.cost or 1)
         if command.shape then
             self:addThreatZoneShape(command.unit, command.shape, { direction = command.direction, length = command.length, width = command.width, damage = command.damage, limit = command.limit, label = command.label })
@@ -1386,6 +1500,13 @@ function State:apply(command)
         expect(self:inBounds(expectInteger(command.x, "convert x"), expectInteger(command.y, "convert y")), "convert tile out of bounds")
         self:spendAP(command.unit, command.cost or 1)
         self:convertTile(command.x, command.y, command.conversion)
+    elseif kind == "status" then
+        expect(self.units[command.target], "unknown unit " .. tostring(command.target))
+        expect(statusRules[command.status], "unsupported status " .. tostring(command.status))
+        self:spendAP(command.unit, command.cost or 1)
+        self:applyStatus(command.target, command.status, command.turns, command.amount)
+    elseif kind == "tickStatuses" then
+        self:tickStatuses(command.unit)
     else
         error("unknown command " .. tostring(kind), 2)
     end
@@ -1529,6 +1650,14 @@ end
 
 function commands.convertTile(unitId, x, y, conversion, cost)
     return { type = "convertTile", unit = unitId, x = x, y = y, conversion = conversion, cost = cost }
+end
+
+function commands.status(unitId, targetId, status, turns, amount, cost)
+    return { type = "status", unit = unitId, target = targetId, status = status, turns = turns, amount = amount, cost = cost }
+end
+
+function commands.tickStatuses(unitId)
+    return { type = "tickStatuses", unit = unitId }
 end
 
 State.commands = commands
