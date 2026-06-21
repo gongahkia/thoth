@@ -89,7 +89,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Procedural Board & Run Catalog
 
-- [ ] P.7 Define 50 event prompts that alter route choice, board modifier, squad state, objective reward, or faction standing.
 
 ### UI & Readability Catalog
 

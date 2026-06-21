@@ -1763,6 +1763,22 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local events = RunCatalog.events()
+    local alters = {}
+    local ids = {}
+    expect(#events == 50, "run catalog should define 50 event prompts")
+    for _, event in ipairs(events) do
+        expect(event.id and event.prompt and event.alters, "event prompt should define id prompt alters")
+        expect(not ids[event.id], "event prompt ids should be unique")
+        ids[event.id] = true
+        alters[event.alters] = true
+    end
+    for _, field in ipairs({ "route_choice", "board_modifier", "squad_state", "objective_reward", "faction_standing" }) do
+        expect(alters[field], "event prompts should alter " .. field)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

@@ -137,3 +137,26 @@ Debug export view shows schema version and field list; player-facing replay shar
 
 test/replay proof:
 `tests/run.lua` verifies the seeded export schema version and all six required fields.
+
+## P.7 Event Prompts
+
+source pattern:
+Run events alter route risk, board modifiers, squad condition, rewards, or faction standing outside deterministic tactical resolution.
+
+thoth transformation:
+Thoth defines 50 event prompts split across route choice, board modifier, squad state, objective reward, and faction standing.
+
+board verb:
+Offer, alter, choose, pay, record.
+
+zone fit:
+Prompts use archive claims, cistern pressure, ember ash/glass, Estate factions, and route machinery.
+
+counterplay:
+Each prompt states the altered axis before commitment so the player can accept or avoid the pressure.
+
+preview/UI:
+Event card shows prompt text and alteration category.
+
+test/replay proof:
+`tests/run.lua` verifies exactly 50 event prompts, unique ids, and coverage for route choice, board modifier, squad state, objective reward, and faction standing.
