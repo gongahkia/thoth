@@ -153,11 +153,13 @@ local function normalizeIntent(intent)
         mode = mode,
         category = category,
         source = intent.source,
+        sourceTile = copyMap(intent.sourceTile),
         target = intent.target,
         targetTiles = tiles,
         path = normalizeTileList(intent.path),
         damage = intent.damage or 0,
         effect = intent.effect,
+        collision = copyMap(intent.collision),
         objectiveImpact = intent.objectiveImpact,
         stage = intent.stage,
         stageCount = intent.stageCount,
@@ -854,9 +856,12 @@ function State:addThreatZoneShape(unitId, shape, options)
 end
 
 function State:declareIntent(unitId, intent)
-    expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     local normalized = normalizeIntent(intent)
     normalized.source = normalized.source or unitId
+    if not normalized.sourceTile.x then
+        normalized.sourceTile = { x = unit.x, y = unit.y }
+    end
     self.intents[unitId] = normalized
     return normalized
 end
@@ -872,9 +877,11 @@ function State:intentPreview(unitId, options)
         mode = intent.mode,
         category = intent.category,
         source = intent.source,
+        sourceTile = copyMap(intent.sourceTile),
         target = intent.target,
         damage = intent.damage,
         effect = intent.effect,
+        collision = copyMap(intent.collision),
         objectiveImpact = intent.objectiveImpact,
         stage = intent.stage,
         stageCount = intent.stageCount,

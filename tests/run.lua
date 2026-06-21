@@ -418,9 +418,12 @@ tests[#tests + 1] = function()
     state:apply(TacticsState.commands.intent("hound", {
         mode = "exact",
         category = "attack",
+        path = { { x = 2, y = 2 }, { x = 1, y = 2 } },
         targetTiles = { { x = 1, y = 2 } },
         damage = 2,
         effect = "filed",
+        collision = { push = "west", damage = 1 },
+        objectiveImpact = "route_machine",
     }))
     state:apply(TacticsState.commands.intent("scribe", {
         mode = "category",
@@ -444,6 +447,8 @@ tests[#tests + 1] = function()
     }))
     local exact = state:intentPreview("hound")
     expect(exact.category == "attack" and exact.targetTiles[1].x == 1 and exact.damage == 2, "exact intent should preview target footprint and effect")
+    expect(exact.sourceTile.x == 2 and exact.sourceTile.y == 2 and exact.path[2].x == 1, "exact intent should preview source tile and path")
+    expect(exact.collision.push == "west" and exact.objectiveImpact == "route_machine", "exact intent should preview collision and objective impact")
     local category = state:intentPreview("scribe")
     expect(category.categoryOnly and category.category == "repair" and category.targetTiles == nil, "category intent should hide footprint")
     local hidden = state:intentPreview("reeve")
