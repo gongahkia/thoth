@@ -43,6 +43,9 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S31 | https://www.gamedeveloper.com/design/randomness-in-games-why- | Pre-randomness varies conditions before action; post-randomness changes results after action and can frustrate skill expression. | Thoth event RNG rolls before/after boards and locks tactical resolution after board start. |
 | S32 | https://www.gridsagegames.com/blog/2025/08/designing-for-mastery-in-roguelikes-w-roguelike-radio/ | Procedural runs can preserve mastery by telegraphing notable changes and offering control before or after major events. | Thoth event layers record timing and prompts so route/deployment choices remain inspectable. |
 | S33 | https://beigemoth.blog/2019/03/20/towards-a-better-roguelike-types-of-randomness/ | Randomness should create challenges without stripping the player's core ability to act. | Thoth event modifiers alter run context, not declared tactical command resolution. |
+| S34 | https://openresearch-repository.anu.edu.au/bitstreams/a77810ba-c05b-43c2-bedd-86a4491c3027/download | Hybrid roguelike generators can use grammar plus physical-space generation while checking completability. | Thoth validates grammar components and retreat/objective solvability before accepting a board. |
+| S35 | https://www.iccs-meeting.org/archive/iccs2021/papers/127460103.pdf | Procedural puzzle generation can estimate difficulty with explicit metrics before accepting generated content. | Thoth computes a difficulty budget from pressure contributors and rejects over-budget boards. |
+| S36 | https://80.lv/articles/environment-storytelling-in-xcom-2 | XCOM 2 procedural maps used cover parcel systems so randomized spaces still had cover and readable tactical anchors. | Thoth requires cover fields and intent-density caps in generated tactical boards. |
 
 ## Mechanic Handoffs
 
@@ -317,6 +320,22 @@ counterplay: read event timing and prompt before deployment or after extraction;
 preview/UI: event card lists timing, event id, altered system, prompt, rule id, and RNG-lock state.
 
 test/replay proof: fixed seed event layer validates pre/post timings and serializes identically.
+
+### H18 Difficulty Budget
+
+source pattern: procedural tactical/puzzle content needs completability checks, explicit difficulty estimation, and readable cover/LoS anchors before acceptance.
+
+thoth transformation: Board budget scores enemies, objectives, hazards, cover, reinforcements, redacted intent, and boss modifiers, then rejects over-budget, unsolvable, or unreadable boards.
+
+board verb: score, reject, regenerate, report.
+
+zone fit: all zone generators feed the same budget axes with local hazards/objectives/enemies.
+
+counterplay: invalid boards never enter player flow; accepted boards keep objective, cover, retreat, and intent-density data inspectable.
+
+preview/UI: debug report shows total, max, contributors, grammar report, and reject reasons.
+
+test/replay proof: fixed directed board accepts by default, rejects under low max, and rejects intent density overflow.
 
 ## Rejection Rules
 

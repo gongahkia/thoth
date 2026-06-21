@@ -70,3 +70,26 @@ Route or debug preview can show director id, family, enemy count, intent cap, ob
 
 test/replay proof:
 `tests/run.lua` verifies directed zone boards contain enemy mix, intent density, objective pressure, visible reinforcement timing, retreat routes, and deterministic serialization from the same seed.
+
+## 2.6 Difficulty Budget
+
+source pattern:
+Procedural generation references stress completability checks, difficulty estimation, and cover/LoS/readability constraints before a generated level is accepted.
+
+thoth transformation:
+Thoth scores generated boards across enemies, objectives, hazards, cover, reinforcements, redacted intent, and boss modifiers, then rejects boards that exceed the budget or lack readable/solvable requirements.
+
+board verb:
+Score, reject, regenerate, report.
+
+zone fit:
+All zone generators share the same budget axes while local hazards, objectives, enemy mixes, and reinforcements feed the score.
+
+counterplay:
+Rejected boards never enter player flow; accepted boards preserve objective anchors, cover fields, retreat routes, and intent-density caps.
+
+preview/UI:
+Debug budget report shows total, max, contributors, grammar status, and reject reasons.
+
+test/replay proof:
+`tests/run.lua` verifies a directed board is accepted under the default budget, rejected when max budget is too low, and rejected when intent density exceeds its cap.

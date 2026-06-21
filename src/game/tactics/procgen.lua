@@ -266,6 +266,65 @@ function Procgen.directEncounter(zoneId, seed, boardSpec, options)
     }
 end
 
+function Procgen.difficultyBudget(spec, options)
+    options = options or {}
+    local grammarReport = Procgen.validateGrammarBoard(spec)
+    local components = spec and spec.grammar and spec.grammar.components or {}
+    local director = spec and spec.encounterDirector or nil
+    local weights = RunCatalog.weights()
+    local enemyCount = director and #(director.enemyMix or {}) or 0
+    local objectiveCount = #(spec and spec.objectives or {})
+    local hazardCount = #(components.hazardLanes or {})
+    local coverCount = #(components.coverFields or {})
+    local reinforcementCount = director and #(director.reinforcementTiming or {}) or 0
+    local redactedCount = director and director.intentDensity and (director.intentDensity.partial or 0) or 0
+    local bossCount = spec and spec.generator and spec.generator.objectiveKind == "boss_procedure" and 1 or 0
+    local contributors = {
+        enemies = enemyCount * weights.enemies,
+        objectives = objectiveCount * weights.objectives,
+        hazards = hazardCount * weights.hazards,
+        cover = coverCount * weights.cover,
+        reinforcements = reinforcementCount * weights.reinforcements,
+        redactedIntent = redactedCount * weights.redactedIntent,
+        bossModifiers = bossCount * weights.bossModifiers,
+    }
+    local total = 0
+    for _, value in pairs(contributors) do
+        total = total + value
+    end
+    local report = {
+        accepted = true,
+        total = total,
+        max = options.max or 32,
+        contributors = contributors,
+        rejectReasons = {},
+        grammar = grammarReport,
+    }
+    local function reject(reason)
+        report.accepted = false
+        report.rejectReasons[#report.rejectReasons + 1] = reason
+    end
+    if not grammarReport.valid then
+        reject("grammar_invalid")
+    end
+    if objectiveCount == 0 then
+        reject("objective_missing")
+    end
+    if coverCount == 0 then
+        reject("cover_missing")
+    end
+    if director and director.intentDensity and (director.intentDensity.threatenedTiles or 0) > (director.intentDensity.cap or 0) then
+        reject("intent_density_exceeded")
+    end
+    if director and (not director.retreatRoutes or not director.retreatRoutes[1] or #(director.retreatRoutes[1].tiles or {}) == 0) then
+        reject("retreat_route_missing")
+    end
+    if total > report.max then
+        reject("budget_exceeded")
+    end
+    return report
+end
+
 function Procgen.validateGrammarBoard(spec)
     local report = { valid = true, missing = {}, counts = {} }
     local components = spec and spec.grammar and spec.grammar.components or {}

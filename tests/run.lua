@@ -2045,6 +2045,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local spec = TacticsProcgen.generateDirectedZoneBoard("buried_archive", 2606, { includeElite = true })
+    local accepted = TacticsProcgen.difficultyBudget(spec)
+    expect(accepted.accepted and accepted.total <= accepted.max, "difficulty budget should accept readable generated board")
+    local overloaded = TacticsProcgen.difficultyBudget(spec, { max = 1 })
+    expect(not overloaded.accepted and contains(overloaded.rejectReasons, "budget_exceeded"), "difficulty budget should reject over-budget boards")
+    spec.encounterDirector.intentDensity.threatenedTiles = spec.encounterDirector.intentDensity.cap + 1
+    local unreadable = TacticsProcgen.difficultyBudget(spec)
+    expect(not unreadable.accepted and contains(unreadable.rejectReasons, "intent_density_exceeded"), "difficulty budget should reject unreadable intent density")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
             width = 4,

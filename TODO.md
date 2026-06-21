@@ -112,7 +112,6 @@ Goal: replace expedition/rank combat with the tile tactics engine.
 
 Goal: make runs varied without sacrificing readability.
 
-- [ ] 2.6 Add difficulty budget so generated boards can be rejected if unsolvable or unreadable.
 - [ ] 2.7 Add seeded-run replay export.
 
 **Exit criteria:** seeded roguelite run generates multiple valid boards, route choices matter, and all tactical outcomes remain deterministic after mission load.
