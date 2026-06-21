@@ -116,6 +116,25 @@ local function normalizeTileList(values)
     return result
 end
 
+local function normalizeRotationList(values)
+    local result = {}
+    for _, value in ipairs(values or {}) do
+        local rotation = expectInteger(value, "reveal rotation")
+        expect(rotation >= 0 and rotation <= 3, "reveal rotation must be 0-3")
+        result[#result + 1] = rotation
+    end
+    return result
+end
+
+local function listHas(values, needle)
+    for _, value in ipairs(values or {}) do
+        if value == needle then
+            return true
+        end
+    end
+    return false
+end
+
 local intentCategories = {
     attack = true,
     move = true,
@@ -161,11 +180,34 @@ local function normalizeIntent(intent)
         effect = intent.effect,
         collision = copyMap(intent.collision),
         objectiveImpact = intent.objectiveImpact,
+        revealRotations = normalizeRotationList(intent.revealRotations),
+        revealActions = copyList(intent.revealActions),
+        revealClasses = copyList(intent.revealClasses),
         stage = intent.stage,
         stageCount = intent.stageCount,
         mask = intent.mask,
         label = intent.label,
     }
+end
+
+local function shouldRevealIntentFootprint(intent, options)
+    if options == true or options.reveal == true then
+        return true
+    end
+    local rotation = options.rotation
+    if rotation == nil then
+        rotation = options.viewRotation
+    end
+    if rotation ~= nil and listHas(intent.revealRotations, rotation % 4) then
+        return true
+    end
+    if listHas(intent.revealActions, options.revealAction) then
+        return true
+    end
+    if listHas(intent.revealClasses, options.revealClass) then
+        return true
+    end
+    return false
 end
 
 local function normalizeObjective(objective, index)
@@ -872,7 +914,7 @@ function State:intentPreview(unitId, options)
         return nil
     end
     options = options or {}
-    local reveal = options == true or options.reveal == true
+    local reveal = shouldRevealIntentFootprint(intent, options)
     local preview = {
         mode = intent.mode,
         category = intent.category,
@@ -883,6 +925,9 @@ function State:intentPreview(unitId, options)
         effect = intent.effect,
         collision = copyMap(intent.collision),
         objectiveImpact = intent.objectiveImpact,
+        revealRotations = copyList(intent.revealRotations),
+        revealActions = copyList(intent.revealActions),
+        revealClasses = copyList(intent.revealClasses),
         stage = intent.stage,
         stageCount = intent.stageCount,
         mask = intent.mask,

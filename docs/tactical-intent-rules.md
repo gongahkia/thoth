@@ -55,3 +55,25 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies all supported categories are accepted and previewed without footprint disclosure.
+
+## I.3 Redacted Footprint Intent
+
+Redacted footprint intent exposes category while withholding exact affected tiles.
+
+Reveal gates:
+
+- explicit reveal flag
+- matching camera rotation
+- matching class reveal
+- matching reveal action
+
+Rules:
+
+- Hidden-footprint intent must store at least one private target tile.
+- Default preview exposes category and marks `footprintHidden`.
+- Default preview withholds target tiles and path.
+- Matching reveal gates expose the stored footprint without changing the authored intent.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies category-visible redaction, nonmatching rotation hiding, explicit reveal, matching rotation reveal, and class/action reveal.

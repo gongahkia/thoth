@@ -435,6 +435,9 @@ tests[#tests + 1] = function()
         category = "redacted",
         targetTiles = { { x = 1, y = 1 }, { x = 1, y = 2 } },
         damage = 1,
+        revealRotations = { 1 },
+        revealActions = { "unseal_intent" },
+        revealClasses = { "lamplighter" },
     }))
     state:apply(TacticsState.commands.intent("regent", {
         mode = "bossStage",
@@ -462,9 +465,15 @@ tests[#tests + 1] = function()
         expect(preview.categoryOnly and preview.category == categoryName and preview.targetTiles == nil, "category intent should accept " .. categoryName)
     end
     local hidden = state:intentPreview("reeve")
-    expect(hidden.footprintHidden and hidden.targetTiles == nil, "hidden footprint intent should withhold target tiles")
+    expect(hidden.footprintHidden and hidden.category == "redacted" and hidden.targetTiles == nil, "hidden footprint intent should withhold target tiles")
+    local stillHidden = state:intentPreview("reeve", { rotation = 0 })
+    expect(stillHidden.footprintHidden and stillHidden.targetTiles == nil, "nonmatching rotation should keep redacted footprint hidden")
+    local rotationRevealed = state:intentPreview("reeve", { rotation = 1 })
+    expect(rotationRevealed.targetTiles[1].x == 1 and not rotationRevealed.footprintHidden, "matching rotation should reveal hidden footprint")
     local revealed = state:intentPreview("reeve", { reveal = true })
     expect(revealed.targetTiles[2].y == 2 and not revealed.footprintHidden, "revealed hidden intent should expose private footprint")
+    local classRevealed = state:intentPreview("reeve", { revealClass = "lamplighter", revealAction = "unseal_intent" })
+    expect(classRevealed.targetTiles[2].y == 2 and not classRevealed.footprintHidden, "class action should reveal hidden footprint")
     local boss = state:intentPreview("regent")
     expect(boss.mode == "bossStage" and boss.stage == 2 and boss.stageCount == 3 and boss.footprintHidden and boss.mask == "back_seal", "boss-stage intent should expose stage and mask while hiding footprint")
     local loaded = TacticsState.fromSnapshot(state:snapshot())
