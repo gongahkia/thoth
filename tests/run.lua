@@ -1140,6 +1140,34 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = { width = 2, height = 1 },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, hp = 4 },
+            { id = "thief", side = "player", x = 2, y = 1, hp = 3 },
+        },
+        objectives = {
+            {
+                id = "choice",
+                kind = "sacrifice_choice",
+                x = 1,
+                y = 1,
+                integrity = 2,
+                evacuateAt = { x = 2, y = 1 },
+                choices = {
+                    { id = "save_squad", objectiveDamage = 1, lootLost = "sealed_ledger" },
+                    { id = "save_objective", squadDamage = 1, factionStandingDelta = -1 },
+                },
+            },
+        },
+    })
+    state:apply(TacticsState.commands.chooseSacrificeObjective("choice", "save_objective"))
+    local result = state:objectiveResult("choice")
+    expect(result.status == "complete" and result.choice == "save_objective" and result.factionStandingDelta == -1, "sacrifice choice should record chosen tradeoff")
+    expect(state:unit("warden").hp == 3 and state:unit("thief").hp == 2, "sacrifice choice should apply deterministic squad damage")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {

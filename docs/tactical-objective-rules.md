@@ -184,3 +184,22 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies read progress, evacuation completion, and exposure-cap failure.
+
+## O.9 Sacrifice-Choice Objectives
+
+Sacrifice-choice objectives force deterministic tradeoffs.
+
+Kind:
+
+- `sacrifice_choice`
+
+Rules:
+
+- Sacrifice objectives belong to family `sacrifice`.
+- Choices are explicit payloads.
+- Choices can damage squad HP, damage objective integrity, lose loot, or alter faction standing.
+- Choosing a branch completes the objective and records the tradeoff.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies choice recording, faction delta, and squad damage.

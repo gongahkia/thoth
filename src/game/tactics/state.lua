@@ -522,6 +522,7 @@ local objectiveKinds = {
     evacuate_board = "evacuate",
     split_switch = "split",
     stealth_read = "stealth",
+    sacrifice_choice = "sacrifice",
 }
 
 local function normalizeObjective(objective, index)
@@ -554,6 +555,10 @@ local function normalizeObjective(objective, index)
         requiredReads = objective.requiredReads,
         readCount = objective.readCount or 0,
         exposureCap = objective.exposureCap,
+        choices = copyValue(objective.choices),
+        choice = objective.choice,
+        factionStandingDelta = objective.factionStandingDelta,
+        lootLost = objective.lootLost,
         extracted = objective.extracted == true,
         disabled = objective.disabled == true,
         relocated = objective.relocated == true,
@@ -2156,6 +2161,31 @@ function State:stealthReadObjective(id, unitId, amount)
     return objective
 end
 
+function State:chooseSacrificeObjective(id, choiceId)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    expect(objective.family == "sacrifice", "objective is not sacrifice")
+    for _, choice in ipairs(objective.choices or {}) do
+        if choice.id == choiceId then
+            if choice.squadDamage then
+                for _, unit in pairs(self.units) do
+                    if unit.side == "player" and unit.alive and not unit.evacuated then
+                        self:damageUnit(unit, choice.squadDamage, { ignoreStatusBonus = true })
+                    end
+                end
+            end
+            if choice.objectiveDamage then
+                self:damageObjective(id, choice.objectiveDamage)
+            end
+            objective.choice = choiceId
+            objective.lootLost = choice.lootLost
+            objective.factionStandingDelta = choice.factionStandingDelta
+            objective.complete = true
+            return objective
+        end
+    end
+    error("unknown sacrifice choice " .. tostring(choiceId), 2)
+end
+
 function State:sacrificeObjective(id, reason)
     local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
     objective.sacrificed = true
@@ -2178,6 +2208,9 @@ function State:objectiveResult(id)
         disabled = objective.disabled == true,
         relocated = objective.relocated == true,
         sacrificed = objective.sacrificed == true,
+        choice = objective.choice,
+        lootLost = objective.lootLost,
+        factionStandingDelta = objective.factionStandingDelta,
     }
 end
 
@@ -2715,6 +2748,8 @@ function State:apply(command)
     elseif kind == "stealthReadObjective" then
         self:spendAP(command.unit, command.cost or 1)
         self:stealthReadObjective(command.objective, command.unit, command.amount)
+    elseif kind == "chooseSacrificeObjective" then
+        self:chooseSacrificeObjective(command.objective, command.choice)
     elseif kind == "sacrificeObjective" then
         expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
         self:spendAP(command.unit, command.cost or 0)
@@ -2961,6 +2996,10 @@ end
 
 function commands.stealthReadObjective(unitId, objectiveId, amount, cost)
     return { type = "stealthReadObjective", unit = unitId, objective = objectiveId, amount = amount, cost = cost }
+end
+
+function commands.chooseSacrificeObjective(objectiveId, choiceId)
+    return { type = "chooseSacrificeObjective", objective = objectiveId, choice = choiceId }
 end
 
 function commands.sacrificeObjective(unitId, objectiveId, reason, cost)
