@@ -69,3 +69,15 @@ The Cistern family defines 10 common enemies. Each has exact intent metadata and
 Acceptance proof:
 
 - `tests/run.lua` verifies the Cistern has exactly 10 common enemies and each one has unique id, name, exact intent, and water/pressure verb metadata.
+
+## E.5 Cistern Elites
+
+The Cistern family defines 3 elites with partial intent, weak points, and flood/drain counterplay:
+
+- `depth_bailiff`: partial destroy intent, weak point `depth_warrant`, counterplay drain adjacent pressure bell.
+- `pearl_choir`: partial summon intent, weak point `choir_throat`, counterplay lower waterline before chorus.
+- `undertow_notary`: partial move intent, weak point `tide_stamp`, counterplay open drain grate to break pull lane.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies the Cistern has exactly 3 elites and each one has unique id, name, partial intent, weak point, and flood/drain counterplay metadata.

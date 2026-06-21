@@ -84,7 +84,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Enemy Family Catalog
 
-- [ ] E.5 Cistern elites: design 3 elites with partial intent, weak points, and flood/drain counterplay.
 - [ ] E.6 Cistern alpha: design one visible pre-board threat that changes route choice and board generation.
 - [ ] E.7 Warrens enemy family: design 10 common enemies with exact intents and heat/ash/glass verbs.
 - [ ] E.8 Warrens elites: design 3 elites with partial intent, weak points, and burn/douse/glass counterplay.

@@ -1551,6 +1551,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local elites = EnemyCatalog.elites("cistern")
+    expect(#elites == 3, "Cistern should define 3 elites")
+    local ids = {}
+    for _, enemy in ipairs(elites) do
+        expect(enemy.id and enemy.name and enemy.floodDrainCounterplay, "cistern elite should include id name flood/drain counterplay")
+        expect(enemy.partialIntent and enemy.partialIntent.mode == "category", "cistern elite should include partial intent")
+        expect(enemy.weakPoints and #enemy.weakPoints > 0, "cistern elite should include weak points")
+        expect(not ids[enemy.id], "cistern elite ids should be unique")
+        ids[enemy.id] = true
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

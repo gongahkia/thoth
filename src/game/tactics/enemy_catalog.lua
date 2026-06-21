@@ -41,6 +41,11 @@ EnemyCatalog.families = {
             { id = "drowned_pilgrim", name = "Drowned Pilgrim", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "low_ground" }, waterPressureVerb = "kneel_flood" },
             { id = "reed_mouth_diver", name = "Reed-Mouth Diver", exactIntent = { mode = "exact", category = "flee", damage = 0, target = "exit_water" }, waterPressureVerb = "signal_reed" },
         },
+        elites = {
+            { id = "depth_bailiff", name = "Depth Bailiff", partialIntent = { mode = "category", category = "destroy" }, weakPoints = { "depth_warrant" }, floodDrainCounterplay = "drain adjacent pressure bell" },
+            { id = "pearl_choir", name = "Pearl Choir", partialIntent = { mode = "category", category = "summon" }, weakPoints = { "choir_throat" }, floodDrainCounterplay = "lower waterline before chorus" },
+            { id = "undertow_notary", name = "Undertow Notary", partialIntent = { mode = "category", category = "move" }, weakPoints = { "tide_stamp" }, floodDrainCounterplay = "open drain grate to break pull lane" },
+        },
     },
 }
 
