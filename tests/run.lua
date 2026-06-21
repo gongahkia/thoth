@@ -1496,6 +1496,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    for _, size in ipairs({ 2, 3, 4, 5, 6 }) do
+        local scale = ClassCatalog.squadScale(size)
+        expect(scale, "squad scaling should include size " .. size)
+        expect(scale.apBudget == size * 3, "squad scaling should set AP budget for size " .. size)
+        expect(scale.enemyBudgetMultiplier and scale.objectivePressure and scale.reinforcementCap and scale.boardScale, "squad scaling should include budget metadata")
+    end
+    expect(ClassCatalog.squadScale(1) == nil and ClassCatalog.squadScale(7) == nil, "squad scaling should only cover 2 through 6")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

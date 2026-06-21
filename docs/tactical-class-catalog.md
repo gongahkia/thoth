@@ -376,3 +376,22 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies there are exactly 15 constraints, ids are unique, both injury and debt types are present, and every constraint sets `noRandomActionLoss = true`.
+
+## CL.12 Squad-Size Scaling
+
+The catalog defines deterministic scaling for squad sizes 2 through 6:
+
+- 2 units: 6 AP budget, 0.65 enemy budget multiplier, single objective pressure, 1 reinforcement cap, compact board.
+- 3 units: 9 AP budget, 0.85 enemy budget multiplier, light objective pressure, 1 reinforcement cap, small board.
+- 4 units: 12 AP budget, 1.00 enemy budget multiplier, standard objective pressure, 2 reinforcement cap, standard board.
+- 5 units: 15 AP budget, 1.20 enemy budget multiplier, split objective pressure, 2 reinforcement cap, wide board.
+- 6 units: 18 AP budget, 1.40 enemy budget multiplier, multi-front objective pressure, 3 reinforcement cap, large board.
+
+Rules:
+
+- AP budget is always `squadSize * 3`.
+- Scaling covers only 2, 3, 4, 5, and 6 unit squads.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies every supported squad size has AP, enemy budget, objective pressure, reinforcement, and board-scale metadata.

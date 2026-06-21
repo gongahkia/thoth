@@ -242,6 +242,14 @@ ClassCatalog.injuryDebts = {
     { id = "lamp_debt", type = "debt", constraint = "Lamplighter reveal costs +1 AP until paid", noRandomActionLoss = true },
 }
 
+ClassCatalog.squadScaling = {
+    [2] = { apBudget = 6, enemyBudgetMultiplier = 0.65, objectivePressure = "single", reinforcementCap = 1, boardScale = "compact" },
+    [3] = { apBudget = 9, enemyBudgetMultiplier = 0.85, objectivePressure = "light", reinforcementCap = 1, boardScale = "small" },
+    [4] = { apBudget = 12, enemyBudgetMultiplier = 1.00, objectivePressure = "standard", reinforcementCap = 2, boardScale = "standard" },
+    [5] = { apBudget = 15, enemyBudgetMultiplier = 1.20, objectivePressure = "split", reinforcementCap = 2, boardScale = "wide" },
+    [6] = { apBudget = 18, enemyBudgetMultiplier = 1.40, objectivePressure = "multi-front", reinforcementCap = 3, boardScale = "large" },
+}
+
 function ClassCatalog.class(id)
     return ClassCatalog.classes[id]
 end
@@ -267,6 +275,14 @@ end
 
 function ClassCatalog.injuryDebtConstraints()
     return ClassCatalog.injuryDebts
+end
+
+function ClassCatalog.squadScale(size)
+    return ClassCatalog.squadScaling[size]
+end
+
+function ClassCatalog.squadScales()
+    return ClassCatalog.squadScaling
 end
 
 return ClassCatalog
