@@ -482,6 +482,58 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = { width = 4, height = 3 },
+        units = {
+            { id = "warden", side = "player", x = 2, y = 2, hp = 5 },
+            { id = "fusekeeper", side = "enemy", x = 4, y = 2 },
+            { id = "bailiff", side = "enemy", x = 3, y = 1 },
+        },
+        objectives = {
+            { id = "route_machine", x = 1, y = 1, integrity = 3, maxIntegrity = 3, evacuateAt = { x = 4, y = 3 } },
+        },
+    })
+    state:apply(TacticsState.commands.intent("fusekeeper", {
+        mode = "fuse",
+        category = "attack",
+        countdown = 2,
+        anchor = { kind = "tile", x = 2, y = 2 },
+        targetTiles = { { x = 2, y = 2 } },
+        trigger = { kind = "damage", damage = 2 },
+    }))
+    local tileFuse = state:intentPreview("fusekeeper")
+    expect(tileFuse.countdown == 2 and tileFuse.anchor.kind == "tile" and tileFuse.targetTiles[1].x == 2, "tile fuse should preview countdown anchor and target")
+    state:apply(TacticsState.commands.tickIntentFuse("fusekeeper"))
+    expect(state:intentPreview("fusekeeper").countdown == 1 and state:unit("warden").hp == 5, "fuse tick should decrement before trigger")
+    state:apply(TacticsState.commands.tickIntentFuse("fusekeeper"))
+    expect(state:intentPreview("fusekeeper") == nil and state:unit("warden").hp == 3, "fuse should trigger deterministic tile damage at zero")
+    state:apply(TacticsState.commands.intent("bailiff", {
+        mode = "fuse",
+        category = "destroy",
+        countdown = 1,
+        anchor = { kind = "object", id = "route_machine" },
+        trigger = { kind = "damageObjective", objective = "route_machine", damage = 1 },
+    }))
+    local objectFuse = state:intentPreview("bailiff")
+    expect(objectFuse.anchor.kind == "object" and objectFuse.anchor.id == "route_machine" and objectFuse.countdown == 1, "object fuse should preview object countdown")
+    state:apply(TacticsState.commands.tickIntentFuse("bailiff"))
+    expect(state:objective("route_machine").integrity == 2, "object fuse should trigger objective damage")
+    state:apply(TacticsState.commands.intent("fusekeeper", {
+        mode = "fuse",
+        category = "debuff",
+        countdown = 1,
+        anchor = { kind = "enemy", id = "fusekeeper" },
+        trigger = { kind = "status", target = "warden", status = "marked", turns = 2, amount = 1 },
+    }))
+    local enemyFuse = state:intentPreview("fusekeeper")
+    expect(enemyFuse.anchor.kind == "enemy" and enemyFuse.anchor.id == "fusekeeper", "enemy fuse should preview enemy countdown anchor")
+    state:apply(TacticsState.commands.tickIntentFuse("fusekeeper"))
+    expect(state:hasStatus("warden", "marked"), "enemy fuse should trigger deterministic status")
+    local loaded = TacticsState.fromSnapshot(state:snapshot())
+    expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(state:snapshot()), "fuse intents should snapshot deterministically")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {

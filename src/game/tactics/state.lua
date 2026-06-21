@@ -153,7 +153,58 @@ local intentModes = {
     category = true,
     hiddenFootprint = true,
     bossStage = true,
+    fuse = true,
 }
+
+local fuseTriggerKinds = {
+    damage = true,
+    damageObjective = true,
+    convertTile = true,
+    status = true,
+}
+
+local function normalizeFuseAnchor(anchor)
+    anchor = anchor or {}
+    local kind = anchor.kind or anchor.type or (anchor.x and "tile") or (anchor.object and "object") or (anchor.enemy and "enemy") or (anchor.unit and "unit")
+    if not kind then
+        return {}
+    end
+    expect(kind == "tile" or kind == "object" or kind == "objective" or kind == "enemy" or kind == "unit", "unsupported fuse anchor " .. tostring(kind))
+    if kind == "tile" then
+        return { kind = kind, x = expectInteger(anchor.x, "fuse anchor x"), y = expectInteger(anchor.y, "fuse anchor y") }
+    end
+    local id = anchor.id or anchor.object or anchor.objective or anchor.enemy or anchor.unit
+    expect(type(id) == "string" and id ~= "", "fuse anchor id required")
+    return { kind = kind, id = id }
+end
+
+local function normalizeFuseTrigger(trigger)
+    trigger = trigger or {}
+    local kind = trigger.kind or trigger.type or "damage"
+    expect(fuseTriggerKinds[kind], "unsupported fuse trigger " .. tostring(kind))
+    local result = {
+        kind = kind,
+        damage = trigger.damage or 0,
+        target = trigger.target,
+        objective = trigger.objective,
+        conversion = trigger.conversion,
+        status = trigger.status,
+        turns = trigger.turns,
+        amount = trigger.amount,
+        effect = trigger.effect,
+        targetTiles = normalizeTileList(trigger.tiles or trigger.targetTiles),
+    }
+    if kind == "damageObjective" then
+        expect(type(result.objective) == "string" and result.objective ~= "", "fuse objective required")
+    elseif kind == "convertTile" then
+        expect(type(result.conversion) == "string" and result.conversion ~= "", "fuse conversion required")
+        expect(#result.targetTiles > 0, "fuse conversion needs target tiles")
+    elseif kind == "status" then
+        expect(type(result.target) == "string" and result.target ~= "", "fuse status target required")
+        expect(type(result.status) == "string" and result.status ~= "", "fuse status required")
+    end
+    return result
+end
 
 local function normalizeIntent(intent)
     expect(type(intent) == "table", "intent must be a table")
@@ -168,6 +219,16 @@ local function normalizeIntent(intent)
     if mode == "hiddenFootprint" then
         expect(#tiles > 0, "hidden footprint intent needs private target tiles")
     end
+    local countdown = intent.countdown or intent.fuse
+    local trigger = nil
+    local anchor = nil
+    if mode == "fuse" then
+        countdown = expectInteger(countdown, "fuse countdown")
+        expect(countdown >= 0, "fuse countdown must be non-negative")
+        trigger = normalizeFuseTrigger(intent.trigger)
+        anchor = normalizeFuseAnchor(intent.anchor)
+        expect(#tiles > 0 or #trigger.targetTiles > 0 or trigger.target or trigger.objective, "fuse intent needs target or trigger")
+    end
     return {
         mode = mode,
         category = category,
@@ -180,6 +241,9 @@ local function normalizeIntent(intent)
         effect = intent.effect,
         collision = copyMap(intent.collision),
         objectiveImpact = intent.objectiveImpact,
+        countdown = countdown,
+        anchor = anchor,
+        trigger = trigger,
         revealRotations = normalizeRotationList(intent.revealRotations),
         revealActions = copyList(intent.revealActions),
         revealClasses = copyList(intent.revealClasses),
@@ -925,6 +989,9 @@ function State:intentPreview(unitId, options)
         effect = intent.effect,
         collision = copyMap(intent.collision),
         objectiveImpact = intent.objectiveImpact,
+        countdown = intent.countdown,
+        anchor = copyMap(intent.anchor),
+        trigger = copyMap(intent.trigger),
         revealRotations = copyList(intent.revealRotations),
         revealActions = copyList(intent.revealActions),
         revealClasses = copyList(intent.revealClasses),
@@ -933,7 +1000,7 @@ function State:intentPreview(unitId, options)
         mask = intent.mask,
         label = intent.label,
     }
-    if intent.mode == "exact" or (intent.mode == "hiddenFootprint" and reveal) or (intent.mode == "bossStage" and not intent.mask) then
+    if intent.mode == "exact" or intent.mode == "fuse" or (intent.mode == "hiddenFootprint" and reveal) or (intent.mode == "bossStage" and not intent.mask) then
         preview.targetTiles = copyValue(intent.targetTiles)
         preview.path = copyValue(intent.path)
     elseif intent.mode == "hiddenFootprint" then
@@ -944,6 +1011,74 @@ function State:intentPreview(unitId, options)
         preview.footprintHidden = true
     end
     return preview
+end
+
+function State:resolveIntentFuse(unitId, intent)
+    intent = intent or expect(self.intents[unitId], "unknown intent " .. tostring(unitId))
+    expect(intent.mode == "fuse", "intent is not a fuse")
+    local trigger = intent.trigger or {}
+    local damage = trigger.damage or intent.damage or 0
+    local tiles = (#(trigger.targetTiles or {}) > 0) and trigger.targetTiles or intent.targetTiles
+    local result = {
+        triggered = true,
+        source = unitId,
+        kind = trigger.kind,
+        countdown = 0,
+        targetTiles = copyValue(tiles),
+        units = {},
+        objectives = {},
+        cargo = {},
+        conversions = {},
+    }
+    if trigger.kind == "damage" then
+        if trigger.target then
+            self:damageUnit(trigger.target, damage)
+            result.units[#result.units + 1] = trigger.target
+        end
+        for _, tile in ipairs(tiles or {}) do
+            local unit = self:unitAt(tile.x, tile.y)
+            if unit then
+                self:damageUnit(unit, damage)
+                result.units[#result.units + 1] = unit.id
+            end
+            local objective = self:objectiveAt(tile.x, tile.y)
+            if objective then
+                self:damageObjective(objective.id, damage)
+                result.objectives[#result.objectives + 1] = objective.id
+            end
+            local cargo = self:cargoAt(tile.x, tile.y)
+            if cargo then
+                self:damageCargo(cargo.id, damage)
+                result.cargo[#result.cargo + 1] = cargo.id
+            end
+        end
+    elseif trigger.kind == "damageObjective" then
+        self:damageObjective(trigger.objective, damage)
+        result.objectives[#result.objectives + 1] = trigger.objective
+    elseif trigger.kind == "convertTile" then
+        for _, tile in ipairs(tiles or {}) do
+            self:convertTile(tile.x, tile.y, trigger.conversion)
+            result.conversions[#result.conversions + 1] = { x = tile.x, y = tile.y, conversion = trigger.conversion }
+        end
+    elseif trigger.kind == "status" then
+        self:applyStatus(trigger.target, trigger.status, trigger.turns, trigger.amount)
+        result.units[#result.units + 1] = trigger.target
+    else
+        error("unknown fuse trigger " .. tostring(trigger.kind), 2)
+    end
+    return result
+end
+
+function State:tickIntentFuse(unitId)
+    local intent = expect(self.intents[unitId], "unknown intent " .. tostring(unitId))
+    expect(intent.mode == "fuse", "intent is not a fuse")
+    intent.countdown = math.max(0, (intent.countdown or 0) - 1)
+    if intent.countdown > 0 then
+        return { triggered = false, source = unitId, countdown = intent.countdown }
+    end
+    local result = self:resolveIntentFuse(unitId, intent)
+    self.intents[unitId] = nil
+    return result
 end
 
 local function containsUnitId(values, unitId)
@@ -1671,6 +1806,8 @@ function State:apply(command)
         self:applyStatus(command.target, command.status, command.turns, command.amount)
     elseif kind == "tickStatuses" then
         self:tickStatuses(command.unit)
+    elseif kind == "tickIntentFuse" then
+        self:tickIntentFuse(command.unit)
     elseif kind == "reward" then
         self:grantReward(command.reward)
     else
@@ -1841,6 +1978,10 @@ end
 
 function commands.tickStatuses(unitId)
     return { type = "tickStatuses", unit = unitId }
+end
+
+function commands.tickIntentFuse(unitId)
+    return { type = "tickIntentFuse", unit = unitId }
 end
 
 function commands.reward(reward)

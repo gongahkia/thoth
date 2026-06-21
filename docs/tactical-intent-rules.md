@@ -77,3 +77,32 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies category-visible redaction, nonmatching rotation hiding, explicit reveal, matching rotation reveal, and class/action reveal.
+
+## I.4 Delayed Fuse Intent
+
+Delayed fuse intent exposes a countdown anchored to a tile, object, objective, unit, or enemy.
+
+Fields:
+
+- `countdown`: deterministic turns/ticks before trigger.
+- `anchor`: visible countdown anchor.
+- `targetTiles`: exact affected tiles when tile-based.
+- `trigger`: deterministic result payload.
+
+Trigger kinds:
+
+- `damage`: damages target unit, tile occupants, objectives, and cargo on target tiles.
+- `damageObjective`: damages a named objective.
+- `convertTile`: applies a deterministic terrain conversion to target tiles.
+- `status`: applies a deterministic status to a named unit.
+
+Rules:
+
+- Fuse countdown must be non-negative.
+- Fuse preview always exposes countdown, anchor, trigger, and target tiles.
+- Ticking a fuse decrements countdown without side effects until it reaches zero.
+- A zero-count fuse resolves once, applies its deterministic trigger, and removes the intent.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies tile, object, and enemy anchors, visible countdown, delayed trigger, deterministic damage/status effects, and snapshot stability.
