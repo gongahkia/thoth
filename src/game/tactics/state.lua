@@ -521,6 +521,7 @@ local objectiveKinds = {
     hold_claim = "hold",
     evacuate_board = "evacuate",
     split_switch = "split",
+    stealth_read = "stealth",
 }
 
 local function normalizeObjective(objective, index)
@@ -550,6 +551,9 @@ local function normalizeObjective(objective, index)
         minObjectives = objective.minObjectives,
         boardCollapseIn = objective.boardCollapseIn,
         switches = copyValue(objective.switches),
+        requiredReads = objective.requiredReads,
+        readCount = objective.readCount or 0,
+        exposureCap = objective.exposureCap,
         extracted = objective.extracted == true,
         disabled = objective.disabled == true,
         relocated = objective.relocated == true,
@@ -1976,6 +1980,14 @@ function State:evaluateObjective(objective)
             return "complete"
         end
     end
+    if objective.family == "stealth" then
+        local readsReady = (objective.readCount or 0) >= (objective.requiredReads or 1)
+        local evacReady = #(objective.evacuatedUnits or {}) >= (objective.minUnits or objective.evacuationsRequired or 1)
+        if readsReady and evacReady then
+            objective.complete = true
+            return "complete"
+        end
+    end
     return "active"
 end
 
@@ -2128,6 +2140,20 @@ function State:activateSplitObjective(id, switchId, unitId)
         end
     end
     error("unknown split switch " .. tostring(switchId), 2)
+end
+
+function State:stealthReadObjective(id, unitId, amount)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    expect(objective.family == "stealth", "objective is not stealth")
+    expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    if objective.exposureCap ~= nil and self.exposure > objective.exposureCap then
+        objective.failed = true
+        objective.failureCarryover = { reason = "exposure_cap", exposure = self.exposure, cap = objective.exposureCap }
+        return objective
+    end
+    objective.readCount = (objective.readCount or 0) + (amount or 1)
+    self:evaluateObjective(objective)
+    return objective
 end
 
 function State:sacrificeObjective(id, reason)
@@ -2686,6 +2712,9 @@ function State:apply(command)
     elseif kind == "activateSplitObjective" then
         self:spendAP(command.unit, command.cost or 1)
         self:activateSplitObjective(command.objective, command.switch, command.unit)
+    elseif kind == "stealthReadObjective" then
+        self:spendAP(command.unit, command.cost or 1)
+        self:stealthReadObjective(command.objective, command.unit, command.amount)
     elseif kind == "sacrificeObjective" then
         expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
         self:spendAP(command.unit, command.cost or 0)
@@ -2928,6 +2957,10 @@ end
 
 function commands.activateSplitObjective(unitId, objectiveId, switchId, cost)
     return { type = "activateSplitObjective", unit = unitId, objective = objectiveId, switch = switchId, cost = cost }
+end
+
+function commands.stealthReadObjective(unitId, objectiveId, amount, cost)
+    return { type = "stealthReadObjective", unit = unitId, objective = objectiveId, amount = amount, cost = cost }
 end
 
 function commands.sacrificeObjective(unitId, objectiveId, reason, cost)

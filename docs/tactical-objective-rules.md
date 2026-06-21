@@ -165,3 +165,22 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies rotation-hidden dependency preview, switch activation, and completion after all switches are active.
+
+## O.8 Stealth-Read Objectives
+
+Stealth-read objectives require gathering information and leaving under exposure cap.
+
+Kind:
+
+- `stealth_read`
+
+Rules:
+
+- Stealth objectives belong to family `stealth`.
+- `requiredReads` defines information required.
+- `exposureCap` fails the objective when exceeded before reading.
+- Completion requires enough reads and required evacuation.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies read progress, evacuation completion, and exposure-cap failure.

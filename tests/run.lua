@@ -1116,6 +1116,30 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = { width = 2, height = 1 },
+        units = { { id = "thief", side = "player", x = 2, y = 1, ap = 3 } },
+        objectives = {
+            { id = "ledger", kind = "stealth_read", x = 1, y = 1, integrity = 1, requiredReads = 2, exposureCap = 1, minUnits = 1, evacuateAt = { x = 2, y = 1 } },
+        },
+    })
+    state:apply(TacticsState.commands.stealthReadObjective("thief", "ledger", 2, 0))
+    expect(state:objectiveStatus("ledger") == "active" and state:objective("ledger").readCount == 2, "stealth read should gather info before evacuation")
+    state:apply(TacticsState.commands.evacuate("thief", "ledger", 0))
+    expect(state:objectiveStatus("ledger") == "complete", "stealth read should complete after read and evacuation")
+    local exposed = TacticsState.new({
+        board = { width = 1, height = 1 },
+        exposure = 2,
+        units = { { id = "thief", side = "player", x = 1, y = 1 } },
+        objectives = {
+            { id = "ledger", kind = "stealth_read", x = 1, y = 1, integrity = 1, requiredReads = 1, exposureCap = 1, evacuateAt = { x = 1, y = 1 } },
+        },
+    })
+    exposed:apply(TacticsState.commands.stealthReadObjective("thief", "ledger", 1, 0))
+    expect(exposed:objectiveStatus("ledger") == "failed" and exposed:objectiveResult("ledger").failureCarryover.reason == "exposure_cap", "stealth read should fail when exposure cap is exceeded")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {
