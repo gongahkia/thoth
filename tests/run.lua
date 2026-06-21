@@ -1721,6 +1721,14 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local weights = RunCatalog.weights()
+    for _, id in ipairs({ "enemies", "objectives", "hazards", "cover", "reinforcements", "redactedIntent", "bossModifiers" }) do
+        expect(type(weights[id]) == "number", "missing difficulty budget weight " .. id)
+    end
+    expect(weights.enemies > 0 and weights.cover < 0 and weights.bossModifiers > weights.hazards, "difficulty weights should price pressure and offset cover")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

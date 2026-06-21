@@ -45,3 +45,26 @@ Debug validator report shows check id, input, and reject reason; player route ca
 
 test/replay proof:
 `tests/run.lua` verifies all six validator checks exist and each defines its input and reject reason.
+
+## P.3 Difficulty Budget Weights
+
+source pattern:
+Procedural tactics generators need budget weights so encounter pressure can be compared before play.
+
+thoth transformation:
+Thoth prices enemies, objectives, hazards, reinforcements, redacted intent, and boss modifiers as pressure, while cover offsets pressure.
+
+board verb:
+Budget, price, offset, reject.
+
+zone fit:
+All zones feed local threats into the same budget axes.
+
+counterplay:
+Route previews can expose high-pressure axes without showing hidden seed math.
+
+preview/UI:
+Debug report shows weighted pressure total, pressure contributors, and cover offset.
+
+test/replay proof:
+`tests/run.lua` verifies all seven budget weights exist, pressure weights are positive, cover offsets pressure, and boss modifiers cost more than hazards.

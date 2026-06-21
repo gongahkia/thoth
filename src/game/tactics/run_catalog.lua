@@ -20,6 +20,16 @@ RunCatalog.boardValidators = {
     { id = "exit_access", input = "extract edges and cargo path", reject = "exit cannot be reached from objective or spawn" },
 }
 
+RunCatalog.difficultyWeights = {
+    enemies = 5,
+    objectives = 4,
+    hazards = 3,
+    cover = -2,
+    reinforcements = 4,
+    redactedIntent = 3,
+    bossModifiers = 6,
+}
+
 function RunCatalog.boardTemplate(id)
     for _, template in ipairs(RunCatalog.boardTemplates) do
         if template.id == id then
@@ -35,6 +45,10 @@ end
 
 function RunCatalog.validators()
     return RunCatalog.boardValidators
+end
+
+function RunCatalog.weights()
+    return RunCatalog.difficultyWeights
 end
 
 return RunCatalog
