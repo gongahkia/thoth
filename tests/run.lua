@@ -1022,6 +1022,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local kinds = { "repair_cover", "repair_machinery", "repair_floodgate", "repair_bridge", "repair_ward" }
+    local objectives = {}
+    for index, kind in ipairs(kinds) do
+        objectives[#objectives + 1] = { id = kind, kind = kind, x = index, y = 1, integrity = 1, maxIntegrity = 3, evacuateAt = { x = 5, y = 2 } }
+    end
+    local state = TacticsState.new({
+        board = { width = 5, height = 2 },
+        units = { { id = "mender", side = "player", x = 1, y = 2, ap = 4 } },
+        objectives = objectives,
+    })
+    for _, kind in ipairs(kinds) do
+        expect(state:objective(kind).family == "repair", "repair objective kind should be accepted: " .. kind)
+    end
+    state:apply(TacticsState.commands.repairObjective("mender", "repair_floodgate", 5, 1))
+    expect(state:objective("repair_floodgate").integrity == 3 and state:unit("mender").ap == 3, "repair objective should spend AP and restore up to max")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

@@ -85,3 +85,25 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies every disable kind is accepted and disabling an audit lens completes the objective.
+
+## O.4 Repair Objectives
+
+Repair objectives restore deterministic integrity through AP/tool actions.
+
+Kinds:
+
+- `repair_cover`
+- `repair_machinery`
+- `repair_floodgate`
+- `repair_bridge`
+- `repair_ward`
+
+Rules:
+
+- Repair objectives belong to family `repair`.
+- `repairObjective` spends AP and restores integrity.
+- Integrity cannot exceed `maxIntegrity`.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies every repair kind, AP spend, and max-integrity cap.

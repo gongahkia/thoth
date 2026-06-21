@@ -75,7 +75,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Objective Families
 
-- [ ] O.4 Repair objective: spend AP/tools to restore cover, machinery, floodgate, bridge, or ward.
 - [ ] O.5 Hold objective: maintain presence on claim tile for N turns while intents escalate.
 - [ ] O.6 Evacuate objective: leave with minimum units/objectives before board collapse.
 - [ ] O.7 Split-squad objective: simultaneous switches/rooms with rotation-revealed dependency.

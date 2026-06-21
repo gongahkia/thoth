@@ -513,6 +513,11 @@ local objectiveKinds = {
     disable_valve = "disable",
     disable_kiln = "disable",
     disable_audit_lens = "disable",
+    repair_cover = "repair",
+    repair_machinery = "repair",
+    repair_floodgate = "repair",
+    repair_bridge = "repair",
+    repair_ward = "repair",
 }
 
 local function normalizeObjective(objective, index)
