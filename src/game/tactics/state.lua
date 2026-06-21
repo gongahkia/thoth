@@ -89,6 +89,7 @@ local blockerKinds = {
     low = { blocker = true, losBlocker = false, low = true },
     transparent = { blocker = true, losBlocker = false, transparent = true },
     destructible = { blocker = true, losBlocker = true, destructible = true },
+    mobile = { blocker = true, losBlocker = false, mobile = true },
 }
 
 local obscurantKinds = {
@@ -828,6 +829,7 @@ function State:blockerAt(x, y)
         low = rule.low == true,
         transparent = rule.transparent == true,
         destructible = rule.destructible == true or tile.destructibleHp ~= nil,
+        mobile = rule.mobile == true,
         hp = tile.destructibleHp,
     }
 end

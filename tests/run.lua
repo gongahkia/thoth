@@ -1997,6 +1997,26 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    for _, id in ipairs({ "none", "half", "full", "hard", "destructible", "mobile" }) do
+        expect(TacticsCover.class(id), "missing cover class " .. id)
+    end
+    local state = TacticsState.new({
+        board = {
+            width = 3,
+            height = 1,
+            tiles = {
+                ["1:1"] = { blockerKind = "hard" },
+                ["2:1"] = { blocker = true, losBlocker = true, destructibleHp = 3 },
+                ["3:1"] = { blockerKind = "mobile" },
+            },
+        },
+    })
+    expect(state:blockerAt(1, 1).kind == "hard" and state:blockerAt(1, 1).los, "hard blocker should block LoS")
+    expect(state:blockerAt(2, 1).destructible and state:blockerAt(2, 1).hp == 3, "destructible cover should expose HP")
+    expect(state:blockerAt(3, 1).mobile and not state:blockerAt(3, 1).los, "mobile cover should block movement without blocking LoS")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
