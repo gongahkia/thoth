@@ -28,6 +28,9 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S16 | https://data.europa.eu/apps/data-visualisation-guide/accessible-colour-palettes | Palettes need colorblind checks; visually similar colors fail under common simulations. | Tactical overlays must pair color with shape, icon, pattern, and tile outline; color-only meaning is rejected. |
 | S17 | https://www.nceas.ucsb.edu/sites/default/files/2022-06/Colorblind%20Safe%20Color%20Schemes.pdf | Avoid red/green reliance, use tested palettes, and check with simulators. | Intent, cover, LoS, hazard, and objective overlays need safe hue pairs plus non-color redundancy. |
 | S18 | https://interfaceingame.com/games/into-the-breach/ | Tactical games benefit from dense overlay references: combat, mission, environment, tutorial, and objective screens. | Screenshot-smoke tests should capture overlay states, not only menus. |
+| S19 | https://media.gdcvault.com/gdc2018/presentations/Hess_Brian_PlotAndParcel.pdf | XCOM 2 procedural plots use object spacing, cover density, and LoS as level-quality constraints. | Thoth board grammar emits cover fields, sight breaks, and validation-facing component counts before the board ships. |
+| S20 | https://procedural-generation.isaackarth.com/2017/05/04/priorities-in-generation-generalizing-from.html | Invisible Inc-style generation favors playable rooms, corridors, goals, exits, patrols, and gated paths over realistic interiors. | Thoth generators carve explicit tactical rooms, corridors, objective anchors, spawn pockets, and hazard gates first. |
+| S21 | https://www.wired.com/story/into-the-breach-review-ftl-developers-new-game-subset-games/ | Compact deterministic boards keep tactical state readable and failures attributable to decisions. | Thoth board grammar starts small, exposes hazards/objectives/spawns, and keeps RNG before board load. |
 
 ## Mechanic Handoffs
 
@@ -222,6 +225,22 @@ counterplay: leave loot, repair route, block spawn, use movement tool, evacuate 
 preview/UI: objective stack shows which losses are acceptable and which end the board.
 
 test/replay proof: one playable board fixture with deterministic win/loss outcomes for extract, repair, and abandon paths.
+
+### H13 Board Grammar Components
+
+source pattern: XCOM 2 procedural plot guidance names object spacing, cover density, and LoS as map-quality constraints; Invisible Inc-style generation arranges rooms, corridors, goals, exits, guards, and gated paths for playability; Into the Breach keeps deterministic boards compact and inspectable.
+
+thoth transformation: Board grammar emits rooms, corridors, height bands, cover fields, sight breaks, objective anchors, hazard lanes, and spawn pockets as first-class metadata before validation or zone dressing.
+
+board verb: carve, connect, elevate, cover, break sight, anchor, threaten, spawn.
+
+zone fit: all zones; Archive uses shelves and audit lanes, Cistern uses valves and pressure lanes, Warrens uses kilns and heat lanes.
+
+counterplay: route around hazards, use or destroy cover, break LoS, block spawns, protect/evacuate objective anchors.
+
+preview/UI: debug overlays can toggle grammar components; player overlays expose objective, cover, LoS, hazard, and spawn-risk facts.
+
+test/replay proof: fixed seed generation validates every grammar component and serializes identically from the same seed.
 
 ## Rejection Rules
 

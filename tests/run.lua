@@ -1973,6 +1973,21 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local spec = TacticsProcgen.generateBoard(2101)
+    local report = TacticsProcgen.validateGrammarBoard(spec)
+    expect(TacticsProcgen.grammar().id == "board_grammar_v1", "procgen grammar should expose board grammar id")
+    expect(report.valid, "generated board grammar should validate")
+    for _, part in ipairs(TacticsProcgen.requiredGrammarParts()) do
+        expect(report.counts[part] and report.counts[part] > 0, "board grammar missing " .. part)
+    end
+    local objective = spec.grammar.components.objectiveAnchors[1]
+    local state = TacticsProcgen.state(2101)
+    expect(state:tileAt(objective.x, objective.y).objective.id == objective.id, "generated grammar should mark objective anchor tiles")
+    expect(state:blockerAt(spec.grammar.components.sightBreaks[1].x, spec.grammar.components.sightBreaks[1].y).destructible, "generated grammar should mark sight breaks")
+    expect(Serialize.encode(spec) == Serialize.encode(TacticsProcgen.generateBoard(2101)), "board grammar generation should be deterministic per seed")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
             width = 4,
