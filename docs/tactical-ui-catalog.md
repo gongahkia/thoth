@@ -91,3 +91,26 @@ The contract is gated at `before_commit`; every required field is visible and ha
 
 test/replay proof:
 `tests/run.lua` verifies the before-commit gate and all eight preview fields.
+
+## U.5 Four-Rotation Readability
+
+source pattern:
+Isometric tactics overlays must remain readable as the camera rotates.
+
+thoth transformation:
+Thoth checks every overlay at 0, 90, 180, and 270 degrees for visibility, upright labels, stable logical tiles, distinct screen projection, non-color redundancy, and occlusion.
+
+board verb:
+Rotate, compare, audit.
+
+zone fit:
+Every overlay filter uses the same rotation checks across all zone boards.
+
+counterplay:
+Rotation should reveal planning facts without corrupting overlay meaning.
+
+preview/UI:
+Readability contract lists four rotations, applicable overlays, and required checks.
+
+test/replay proof:
+`tests/run.lua` verifies all overlay filters are covered by the four-rotation readability contract and each check defines a rule.

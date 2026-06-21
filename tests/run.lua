@@ -1828,6 +1828,21 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local readability = UICatalog.rotationChecks()
+    local applies = {}
+    expect(#readability.rotations == 4, "rotation readability should check four rotations")
+    for _, id in ipairs(readability.appliesTo) do
+        applies[id] = true
+    end
+    for _, filter in ipairs(UICatalog.overlays()) do
+        expect(applies[filter.id], "rotation readability should apply to overlay " .. filter.id)
+    end
+    for _, check in ipairs(readability.checks) do
+        expect(check.id and check.rule, "rotation readability check should include rule")
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

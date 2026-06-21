@@ -48,6 +48,19 @@ UICatalog.previewContract = {
     },
 }
 
+UICatalog.rotationReadability = {
+    rotations = { 0, 90, 180, 270 },
+    appliesTo = { "movement", "enemy_intent", "los", "cover", "objectives", "hazards", "hidden_revealed" },
+    checks = {
+        { id = "symbol_visible", rule = "icon or shape remains visible at target zoom" },
+        { id = "label_upright", rule = "text labels do not rotate with board plane" },
+        { id = "logical_tile_stable", rule = "overlay logical tile stays unchanged after camera rotation" },
+        { id = "screen_position_distinct", rule = "screen projection changes enough to confirm rotation" },
+        { id = "non_color_redundant", rule = "shape or hatch carries meaning without color" },
+        { id = "occlusion_clear", rule = "important symbol is not hidden by unit billboard or cover face" },
+    },
+}
+
 function UICatalog.icon(id)
     for _, icon in ipairs(UICatalog.icons) do
         if icon.id == id then
@@ -71,6 +84,10 @@ end
 
 function UICatalog.preview()
     return UICatalog.previewContract
+end
+
+function UICatalog.rotationChecks()
+    return UICatalog.rotationReadability
 end
 
 return UICatalog
