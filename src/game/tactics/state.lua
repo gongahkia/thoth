@@ -52,6 +52,13 @@ local function tileKey(x, y)
     return tostring(x) .. ":" .. tostring(y)
 end
 
+local oppositeDirection = {
+    north = "south",
+    east = "west",
+    south = "north",
+    west = "east",
+}
+
 local function normalizeCoverEdges(edges)
     local result = {}
     for _, direction in ipairs(Grid.order) do
@@ -327,6 +334,12 @@ function State:canEnter(x, y, movingUnitId)
         return false, "occupied"
     end
     return true
+end
+
+function State:moveUnitTo(unit, x, y)
+    unit.x = x
+    unit.y = y
+    self:resolveThreatAt(unit)
 end
 
 local function coverDirections(tile)
@@ -707,6 +720,97 @@ function State:displaceUnit(unitOrId, dx, dy, distance, collisionDamage)
     return true
 end
 
+function State:dashUnit(unitId, direction, distance, previewOnly)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    expect(unit.alive and not unit.evacuated, "unit is not active")
+    local delta = Grid.directions[direction]
+    expect(delta, "unknown direction " .. tostring(direction))
+    distance = distance or 2
+    expect(distance > 0, "dash distance must be positive")
+    local steps = {}
+    local x = unit.x
+    local y = unit.y
+    for _ = 1, distance do
+        x = x + delta.x
+        y = y + delta.y
+        local ok, reason = self:canEnter(x, y, unit.id)
+        if not ok then
+            error("dash rejected: " .. reason, 2)
+        end
+        steps[#steps + 1] = { x = x, y = y }
+    end
+    if previewOnly then
+        return steps
+    end
+    for _, step in ipairs(steps) do
+        self:moveUnitTo(unit, step.x, step.y)
+        if not unit.alive then
+            break
+        end
+    end
+end
+
+function State:vaultUnit(unitId, direction, previewOnly)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    expect(unit.alive and not unit.evacuated, "unit is not active")
+    local delta = Grid.directions[direction]
+    expect(delta, "unknown direction " .. tostring(direction))
+    local fromTile = self:tileAt(unit.x, unit.y)
+    local nx = unit.x + delta.x
+    local ny = unit.y + delta.y
+    local toTile = self:tileAt(nx, ny)
+    local cover = (fromTile.coverEdges and fromTile.coverEdges[direction]) or (toTile.coverEdges and toTile.coverEdges[oppositeDirection[direction]]) or "none"
+    expect(cover == "half", "vault requires half cover edge")
+    local ok, reason = self:canEnter(nx, ny, unit.id)
+    if not ok then
+        error("vault rejected: " .. reason, 2)
+    end
+    if previewOnly then
+        return { x = nx, y = ny }
+    end
+    self:moveUnitTo(unit, nx, ny)
+end
+
+function State:climbUnit(unitId, direction, maxClimb, previewOnly)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    expect(unit.alive and not unit.evacuated, "unit is not active")
+    local delta = Grid.directions[direction]
+    expect(delta, "unknown direction " .. tostring(direction))
+    local fromHeight = self:tileAt(unit.x, unit.y).height or 0
+    local nx = unit.x + delta.x
+    local ny = unit.y + delta.y
+    local toHeight = self:tileAt(nx, ny).height or 0
+    expect(toHeight > fromHeight and toHeight - fromHeight <= (maxClimb or 1), "climb height rejected")
+    local ok, reason = self:canEnter(nx, ny, unit.id)
+    if not ok then
+        error("climb rejected: " .. reason, 2)
+    end
+    if previewOnly then
+        return { x = nx, y = ny }
+    end
+    self:moveUnitTo(unit, nx, ny)
+end
+
+function State:dropUnit(unitId, direction, maxDrop, previewOnly)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    expect(unit.alive and not unit.evacuated, "unit is not active")
+    local delta = Grid.directions[direction]
+    expect(delta, "unknown direction " .. tostring(direction))
+    local fromHeight = self:tileAt(unit.x, unit.y).height or 0
+    local nx = unit.x + delta.x
+    local ny = unit.y + delta.y
+    local toHeight = self:tileAt(nx, ny).height or 0
+    expect(toHeight < fromHeight and fromHeight - toHeight <= (maxDrop or 2), "drop height rejected")
+    local ok, reason = self:canEnter(nx, ny, unit.id)
+    if not ok then
+        error("drop rejected: " .. reason, 2)
+    end
+    if previewOnly then
+        return { x = nx, y = ny }
+    end
+    self:moveUnitTo(unit, nx, ny)
+end
+
 function State:swapUnits(aId, bId)
     local a = expect(self.units[aId], "unknown unit " .. tostring(aId))
     local b = expect(self.units[bId], "unknown unit " .. tostring(bId))
@@ -754,9 +858,7 @@ function State:apply(command)
             error("move rejected: " .. reason, 2)
         end
         self:spendAP(unit.id, command.cost or self.rules.moveApCost)
-        unit.x = nx
-        unit.y = ny
-        self:resolveThreatAt(unit)
+        self:moveUnitTo(unit, nx, ny)
     elseif kind == "wait" then
         expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
         self:spendAP(command.unit, command.cost or 0)
@@ -795,6 +897,22 @@ function State:apply(command)
         expect(self.units[command.target], "unknown target " .. tostring(command.target))
         self:spendAP(command.unit, command.cost or 1)
         self:swapUnits(command.unit, command.target)
+    elseif kind == "dash" then
+        self:dashUnit(command.unit, command.direction, command.distance, true)
+        self:spendAP(command.unit, command.cost or 1)
+        self:dashUnit(command.unit, command.direction, command.distance)
+    elseif kind == "vault" then
+        self:vaultUnit(command.unit, command.direction, true)
+        self:spendAP(command.unit, command.cost or 1)
+        self:vaultUnit(command.unit, command.direction)
+    elseif kind == "climb" then
+        self:climbUnit(command.unit, command.direction, command.maxClimb, true)
+        self:spendAP(command.unit, command.cost or 1)
+        self:climbUnit(command.unit, command.direction, command.maxClimb)
+    elseif kind == "drop" then
+        self:dropUnit(command.unit, command.direction, command.maxDrop, true)
+        self:spendAP(command.unit, command.cost or 1)
+        self:dropUnit(command.unit, command.direction, command.maxDrop)
     elseif kind == "overwatch" then
         self:spendAP(command.unit, command.cost or 1)
         self:addThreatZone(command.unit, command.tiles, { damage = command.damage, limit = command.limit, label = command.label })
@@ -892,6 +1010,22 @@ end
 
 function commands.swap(unitId, targetId, cost)
     return { type = "swap", unit = unitId, target = targetId, cost = cost }
+end
+
+function commands.dash(unitId, direction, distance, cost)
+    return { type = "dash", unit = unitId, direction = direction, distance = distance, cost = cost }
+end
+
+function commands.vault(unitId, direction, cost)
+    return { type = "vault", unit = unitId, direction = direction, cost = cost }
+end
+
+function commands.climb(unitId, direction, maxClimb, cost)
+    return { type = "climb", unit = unitId, direction = direction, maxClimb = maxClimb, cost = cost }
+end
+
+function commands.drop(unitId, direction, maxDrop, cost)
+    return { type = "drop", unit = unitId, direction = direction, maxDrop = maxDrop, cost = cost }
 end
 
 function commands.overwatch(unitId, tiles, damage, limit, cost)

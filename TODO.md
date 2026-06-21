@@ -67,7 +67,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Core Board Mechanics
 
-- [ ] M.5 Define dash/vault/climb/drop rules for height and cover without creating hidden LoS exceptions.
 - [ ] M.6 Define carry/drag rules for civilians, bodies, machinery cores, loot crates, and wounded heroes.
 - [ ] M.7 Define overwatch/threat-zone rules with cones, lines, arcs, and trigger limits.
 - [ ] M.8 Define interact rules for valves, doors, seals, shelves, furnaces, bridges, terminals, bells, and extraction tiles.

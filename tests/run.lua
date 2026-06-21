@@ -333,6 +333,48 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        defaultAp = 8,
+        board = {
+            width = 6,
+            height = 2,
+            tiles = {
+                ["1:1"] = { coverEdges = { east = "half" } },
+                ["3:1"] = { height = 1, losBlocker = true },
+                ["4:1"] = { height = 0 },
+            },
+        },
+        units = {
+            { id = "duelist", side = "player", x = 1, y = 1 },
+        },
+    })
+    state:apply(TacticsState.commands.vault("duelist", "east"))
+    expect(state:unit("duelist").x == 2 and state:unit("duelist").ap == 7, "vault should cross half cover and spend AP")
+    state:apply(TacticsState.commands.climb("duelist", "east", 1))
+    expect(state:unit("duelist").x == 3 and state:tileAt(3, 1).losBlocker == true, "climb should use height without changing LoS blockers")
+    state:apply(TacticsState.commands.drop("duelist", "east", 2))
+    expect(state:unit("duelist").x == 4 and state:tileAt(3, 1).losBlocker == true, "drop should use height without hidden LoS exceptions")
+    state:apply(TacticsState.commands.dash("duelist", "east", 2))
+    expect(state:unit("duelist").x == 6 and state:unit("duelist").ap == 4, "dash should move multiple tiles for explicit AP cost")
+    local blocked = TacticsState.new({
+        board = {
+            width = 2,
+            height = 1,
+            tiles = {
+                ["1:1"] = { coverEdges = { east = "full" } },
+            },
+        },
+        units = {
+            { id = "warden", x = 1, y = 1, ap = 2 },
+        },
+    })
+    local ok, err = pcall(function()
+        blocked:apply(TacticsState.commands.vault("warden", "east"))
+    end)
+    expect(not ok and err:find("vault requires half cover edge", 1, true) and blocked:unit("warden").ap == 2, "full cover should block vault without spending AP")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         board = { width = 6, height = 4 },
         units = {
             { id = "hound", side = "enemy", x = 2, y = 2 },

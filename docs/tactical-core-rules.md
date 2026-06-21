@@ -88,3 +88,21 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies shove, pull, swap, blocked movement, collision damage, objective collision, and enemy friendly-fire collision.
+
+## M.5 Dash, Vault, Climb, And Drop
+
+Traversal commands are explicit. They do not create hidden LoS exceptions or mutate `losBlocker`.
+
+Rules:
+
+- `dash` moves multiple tiles along one cardinal direction after validating the full path.
+- `vault` crosses one tile only through a half-cover edge. Full cover blocks vault.
+- `climb` moves to a higher adjacent tile when the height delta is within `maxClimb`.
+- `drop` moves to a lower adjacent tile when the height delta is within `maxDrop`.
+- Each command spends explicit AP only after validation succeeds.
+- Threat zones may trigger after each successful movement step.
+- Height movement reads tile `height`; it does not alter cover edges, blockers, or LoS blockers.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies dash distance, half-cover vault, full-cover vault rejection without AP spend, climb/drop height checks, and unchanged LoS blocker state.
