@@ -128,3 +128,19 @@ The Warrens family defines 3 elites with partial intent, weak points, and burn/d
 Acceptance proof:
 
 - `tests/run.lua` verifies the Warrens has exactly 3 elites and each one has unique id, name, partial intent, weak point, and burn/douse/glass counterplay metadata.
+
+## E.9 Warrens Alpha
+
+Warrens alpha:
+
+- `white_furnace`: visible pre-board threat.
+
+Effects:
+
+- Pre-board threat: lights white coal on one route before entry.
+- Route choice change: burns one fuel branch and opens one ash shortcut.
+- Board generation change: adds heat lanes, a fuel-store fuse, and one meltable bridge.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies the Warrens alpha is visible before board reveal and defines pre-board, route-choice, and board-generation effects.

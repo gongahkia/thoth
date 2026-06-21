@@ -1596,6 +1596,13 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local alpha = EnemyCatalog.alpha("warrens")
+    expect(alpha and alpha.id == "white_furnace", "Warrens should define White Furnace alpha")
+    expect(alpha.visiblePreBoard == true, "Warrens alpha should be visible before board")
+    expect(alpha.preBoardThreat and alpha.routeChoiceChange and alpha.boardGenerationChange, "Warrens alpha should alter route and board generation")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

@@ -73,6 +73,14 @@ EnemyCatalog.families = {
             { id = "glass_cantor", name = "Glass Cantor", partialIntent = { mode = "category", category = "debuff" }, weakPoints = { "glass_throat" }, burnDouseGlassCounterplay = "shatter reflector then douse shards" },
             { id = "coal_prioress", name = "Coal Prioress", partialIntent = { mode = "category", category = "buff" }, weakPoints = { "white_coal_notch" }, burnDouseGlassCounterplay = "glassify fuel line to starve pressure" },
         },
+        alpha = {
+            id = "white_furnace",
+            name = "White Furnace",
+            visiblePreBoard = true,
+            preBoardThreat = "lights white coal on one route before entry",
+            routeChoiceChange = "burns one fuel branch and opens one ash shortcut",
+            boardGenerationChange = "adds heat lanes, a fuel-store fuse, and one meltable bridge",
+        },
     },
 }
 
