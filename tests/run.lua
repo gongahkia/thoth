@@ -686,6 +686,39 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = { width = 4, height = 3 },
+        units = {
+            { id = "mimic", side = "enemy", x = 3, y = 2 },
+            { id = "liar", side = "enemy", x = 4, y = 2 },
+        },
+    })
+    state:apply(TacticsState.commands.intent("mimic", {
+        mode = "decoy",
+        decoy = { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 2 } }, damage = 3, effect = "slash" },
+        actual = { mode = "exact", category = "guard", targetTiles = { { x = 2, y = 2 } }, damage = 0, effect = "brace" },
+        revealActions = { "inspect_intent" },
+        counterplay = { "inspect_intent" },
+    }))
+    local hidden = state:intentPreview("mimic")
+    expect(hidden.decoy and hidden.category == "attack" and hidden.targetTiles[1].x == 1 and hidden.counterplay[1] == "inspect_intent", "decoy intent should preview gated false intent and counterplay")
+    local revealed = state:intentPreview("mimic", { revealAction = "inspect_intent" })
+    expect(revealed.decoyRevealed and revealed.category == "guard" and revealed.targetTiles[1].x == 2, "decoy intent should reveal actual payload through reveal action")
+    state:apply(TacticsState.commands.interruptIntent("mimic", "exposeWeakPoint"))
+    expect(state:intentPreview("mimic").decoyRevealed, "decoy counterplay should reveal actual intent without cancelling it")
+    local ok, err = pcall(function()
+        state:apply(TacticsState.commands.intent("liar", {
+            mode = "decoy",
+            decoy = { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 1 } }, damage = 9 },
+            actual = { mode = "exact", category = "flee", targetTiles = { { x = 4, y = 3 } }, damage = 0 },
+        }))
+    end)
+    expect(not ok and err:find("decoy intent needs reveal or counterplay", 1, true), "decoy intent should reject arbitrary lies without reveal or counterplay")
+    local loaded = TacticsState.fromSnapshot(state:snapshot())
+    expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(state:snapshot()), "decoy intent should snapshot deterministically")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {

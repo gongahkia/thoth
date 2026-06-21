@@ -184,3 +184,26 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies ignored exact-intent escalation, ignored fuse countdown pressure, decay, removal, and snapshot stability.
+
+## I.8 Fake/Decoy Intent
+
+Decoy intent is allowed only with visible reveal or counterplay.
+
+Fields:
+
+- `decoy`: false visible branch.
+- `actual`: true branch exposed by reveal/counterplay.
+- `counterplay`: visible ways to reveal the lie.
+- reveal gates: rotations, actions, or classes.
+
+Rules:
+
+- Decoy intent must include false and actual payloads.
+- Decoy intent must include at least one reveal gate or counterplay entry.
+- Default preview shows the decoy payload and counterplay.
+- Revealed preview shows the actual payload.
+- Expose-weak-point reveals the actual payload without cancelling the intent.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies gated false preview, reveal-action truth, counterplay reveal, arbitrary-lie rejection, and snapshot stability.

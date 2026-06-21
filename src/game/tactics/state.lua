@@ -155,6 +155,7 @@ local intentModes = {
     bossStage = true,
     fuse = true,
     conditional = true,
+    decoy = true,
 }
 
 local fuseTriggerKinds = {
@@ -345,6 +346,19 @@ local function normalizeIntent(intent)
     if mode == "conditional" then
         branches = normalizeConditionalBranches(intent)
     end
+    local revealRotations = normalizeRotationList(intent.revealRotations)
+    local revealActions = copyList(intent.revealActions)
+    local revealClasses = copyList(intent.revealClasses)
+    local counterplay = copyList(intent.counterplay)
+    local decoy = nil
+    local actual = nil
+    if mode == "decoy" then
+        expect(type(intent.decoy) == "table" or type(intent.preview) == "table", "decoy intent needs false preview")
+        expect(type(intent.actual) == "table" or type(intent.trueIntent) == "table", "decoy intent needs actual intent")
+        decoy = normalizeBranchIntent(intent.decoy or intent.preview)
+        actual = normalizeBranchIntent(intent.actual or intent.trueIntent)
+        expect(#revealRotations > 0 or #revealActions > 0 or #revealClasses > 0 or #counterplay > 0, "decoy intent needs reveal or counterplay")
+    end
     return {
         mode = mode,
         category = category,
@@ -361,13 +375,16 @@ local function normalizeIntent(intent)
         anchor = anchor,
         trigger = trigger,
         branches = branches,
+        decoy = decoy,
+        actual = actual,
+        counterplay = counterplay,
         revealed = intent.revealed == true,
         ignoredTurns = intent.ignoredTurns or 0,
         escalation = normalizeIntentPressure(intent.escalation),
         decay = normalizeIntentPressure(intent.decay),
-        revealRotations = normalizeRotationList(intent.revealRotations),
-        revealActions = copyList(intent.revealActions),
-        revealClasses = copyList(intent.revealClasses),
+        revealRotations = revealRotations,
+        revealActions = revealActions,
+        revealClasses = revealClasses,
         stage = intent.stage,
         stageCount = intent.stageCount,
         mask = intent.mask,
@@ -1132,6 +1149,7 @@ function State:intentPreview(unitId, options)
         anchor = copyMap(intent.anchor),
         trigger = copyMap(intent.trigger),
         branches = copyValue(intent.branches),
+        counterplay = copyList(intent.counterplay),
         revealed = intent.revealed == true,
         ignoredTurns = intent.ignoredTurns or 0,
         escalation = copyMap(intent.escalation),
@@ -1144,7 +1162,18 @@ function State:intentPreview(unitId, options)
         mask = intent.mask,
         label = intent.label,
     }
-    if intent.mode == "exact" or intent.mode == "fuse" or (intent.mode == "hiddenFootprint" and reveal) or (intent.mode == "bossStage" and not intent.mask) then
+    if intent.mode == "decoy" then
+        local branch = reveal and intent.actual or intent.decoy
+        preview.category = branch.category
+        preview.target = branch.target
+        preview.targetTiles = copyValue(branch.targetTiles)
+        preview.path = copyValue(branch.path)
+        preview.damage = branch.damage
+        preview.effect = branch.effect
+        preview.objectiveImpact = branch.objectiveImpact
+        preview.decoy = not reveal
+        preview.decoyRevealed = reveal
+    elseif intent.mode == "exact" or intent.mode == "fuse" or (intent.mode == "hiddenFootprint" and reveal) or (intent.mode == "bossStage" and not intent.mask) then
         preview.targetTiles = copyValue(intent.targetTiles)
         preview.path = copyValue(intent.path)
     elseif intent.mode == "hiddenFootprint" then
