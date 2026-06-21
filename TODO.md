@@ -106,7 +106,6 @@ Goal: prove the new combat loop before touching broad content.
 
 Goal: replace expedition/rank combat with the tile tactics engine.
 
-- [ ] 1.1 Define `src/game/tactics/` modules for board, unit, AP, LoS, cover, intent, resolution, procgen, and replay.
 - [ ] 1.2 Implement deterministic LoS with height, blockers, cover edges, and rotation-independent logic.
 - [ ] 1.3 Implement cover classes: none, half, full, hard blocker, destructible, mobile cover.
 - [ ] 1.4 Implement flanking rules and UI preview from any candidate tile.

@@ -26,6 +26,15 @@ local BossCatalog = require("src.game.tactics.boss_catalog")
 local RunCatalog = require("src.game.tactics.run_catalog")
 local UICatalog = require("src.game.tactics.ui_catalog")
 local GateCatalog = require("src.game.tactics.gate_catalog")
+local TacticsBoard = require("src.game.tactics.board")
+local TacticsUnit = require("src.game.tactics.unit")
+local TacticsAP = require("src.game.tactics.ap")
+local TacticsLoS = require("src.game.tactics.los")
+local TacticsCover = require("src.game.tactics.cover")
+local TacticsIntent = require("src.game.tactics.intent")
+local TacticsResolution = require("src.game.tactics.resolution")
+local TacticsProcgen = require("src.game.tactics.procgen")
+local TacticsReplay = require("src.game.tactics.replay")
 
 local function expect(value, message)
     if not value then
@@ -1933,6 +1942,34 @@ tests[#tests + 1] = function()
     end
     expect(evidence.source_id and evidence.documented_thoth_transformation and evidence.research_index_entry, "borrowed pattern gate should require transformation evidence")
     expect(index:find("Thoth transformation", 1, true) ~= nil, "research index should document Thoth transformation")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsBoard.new({
+        defaultAp = 3,
+        board = {
+            width = 3,
+            height = 3,
+            tiles = {
+                ["2:2"] = { coverEdges = { west = "half" }, rotationMarks = { east = "seal" } },
+            },
+        },
+        units = {
+            { id = "unit", side = "player", x = 1, y = 2, hp = 4 },
+            { id = "enemy", side = "enemy", x = 3, y = 2, hp = 4 },
+        },
+    })
+    expect(TacticsBoard.tileAt(state, 2, 2).coverEdges.west == "half", "board module should expose tile data")
+    expect(TacticsUnit.select(state, "unit").id == "unit", "unit module should select units")
+    expect(TacticsAP.remaining(state, "unit") == 3 and TacticsAP.spend(state, "unit", 1) == 2, "AP module should spend AP")
+    expect(TacticsLoS.line(state, 1, 2, 3, 2).visible, "LoS module should expose line checks")
+    expect(TacticsCover.fromAttack(state, 1, 2, 2, 2).cover == "half", "cover module should expose cover checks")
+    TacticsIntent.declare(state, "enemy", { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 2 } }, damage = 1 })
+    expect(TacticsIntent.preview(state, "enemy").targetTiles[1].x == 1, "intent module should expose previews")
+    TacticsResolution.apply(state, TacticsState.commands.wait("unit"))
+    expect(TacticsProcgen.templates()[1].id == "kill_light", "procgen module should expose templates")
+    local replayed = TacticsReplay.fromSnapshot(TacticsReplay.snapshot(state))
+    expect(sameSnapshot(replayed, state), "tactical replay module should roundtrip snapshots")
 end
 
 tests[#tests + 1] = function()
