@@ -1791,6 +1791,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local filters = {}
+    for _, filter in ipairs(UICatalog.overlays()) do
+        filters[filter.id] = filter
+        expect(filter.icon and filter.shows and filter.hides, "overlay filter should define icon shows hides: " .. filter.id)
+    end
+    for _, id in ipairs({ "movement", "enemy_intent", "los", "cover", "objectives", "hazards", "hidden_revealed" }) do
+        expect(filters[id], "missing overlay filter " .. id)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

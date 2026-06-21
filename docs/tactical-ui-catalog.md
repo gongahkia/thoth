@@ -22,3 +22,26 @@ Each icon entry defines icon text, shape, color role, pattern, and label.
 
 test/replay proof:
 `tests/run.lua` verifies all 12 icon ids exist and each defines redundant non-color UI language.
+
+## U.2 Overlay Filters
+
+source pattern:
+Dense tactical UI stays readable when players can isolate movement, intent, LoS, cover, objectives, hazards, and revealed information.
+
+thoth transformation:
+Thoth defines overlay filters for movement, enemy intent, LoS, cover, objectives, hazards, and hidden/revealed info.
+
+board verb:
+Filter, show, hide, inspect.
+
+zone fit:
+All zones use the same filters while terrain-specific facts enter the shown data.
+
+counterplay:
+Player can inspect one tactical question at a time before committing AP.
+
+preview/UI:
+Each filter defines an icon id, shown information, and hidden noise.
+
+test/replay proof:
+`tests/run.lua` verifies all seven overlay filters exist and each defines icon, shown data, and hidden data.

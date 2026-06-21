@@ -15,6 +15,16 @@ UICatalog.icons = {
     { id = "extraction", icon = "EX", shape = "exit chevron", colorRole = "extraction", pattern = "chevrons", label = "extraction" },
 }
 
+UICatalog.overlayFilters = {
+    { id = "movement", icon = "move", shows = "reachable tiles, AP bands, carry path", hides = "enemy-only intent clutter" },
+    { id = "enemy_intent", icon = "exact_intent", shows = "exact and partial enemy footprints", hides = "non-threat utility hints" },
+    { id = "los", icon = "los", shows = "line of sight rays and blockers", hides = "movement AP bands" },
+    { id = "cover", icon = "cover", shows = "cover edges, flanked edges, destructible cover", hides = "hazard-only tile marks" },
+    { id = "objectives", icon = "objective", shows = "objective integrity, target links, extraction cargo", hides = "non-objective terrain" },
+    { id = "hazards", icon = "hazard", shows = "hazard tiles, countdowns, forced movement", hides = "safe movement bands" },
+    { id = "hidden_revealed", icon = "partial_intent", shows = "hidden marks, revealed facts, rotation secrets", hides = "known base terrain" },
+}
+
 function UICatalog.icon(id)
     for _, icon in ipairs(UICatalog.icons) do
         if icon.id == id then
@@ -26,6 +36,10 @@ end
 
 function UICatalog.iconLanguage()
     return UICatalog.icons
+end
+
+function UICatalog.overlays()
+    return UICatalog.overlayFilters
 end
 
 return UICatalog
