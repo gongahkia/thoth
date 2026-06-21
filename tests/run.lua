@@ -248,6 +248,40 @@ tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
             width = 4,
+            height = 3,
+            tiles = {
+                ["1:1"] = { revealed = false, revealClasses = { "lamplighter" }, weakPoint = "rear_seal" },
+            },
+        },
+        units = {
+            { id = "lamp", class = "lamplighter", side = "player", x = 1, y = 3, ap = 2 },
+            { id = "redactor", side = "enemy", x = 3, y = 2 },
+            { id = "boss", side = "enemy", x = 4, y = 2 },
+        },
+    })
+    state:apply(TacticsState.commands.intent("redactor", {
+        mode = "hiddenFootprint",
+        category = "redacted",
+        targetTiles = { { x = 2, y = 2 } },
+        revealClasses = { "lamplighter" },
+    }))
+    state:apply(TacticsState.commands.intent("boss", {
+        mode = "bossStage",
+        category = "destroy",
+        mask = "rear_mask",
+        targetTiles = { { x = 4, y = 3 } },
+        revealClasses = { "lamplighter" },
+    }))
+    state:apply(TacticsState.commands.classReveal("lamp", { revealAction = "flare" }, 0))
+    expect(state:tileAt(1, 1).revealed and state:tileAt(1, 1).weakPointRevealed, "class reveal should expose hidden tile weak point")
+    expect(state:intentPreview("redactor").targetTiles[1].x == 2 and state:intentPreview("redactor").revealed, "class reveal should expose redacted intent")
+    expect(state:intentPreview("boss").targetTiles[1].y == 3 and state:intentPreview("boss").mask == nil, "class reveal should expose boss weak point intent")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
+            width = 4,
             height = 1,
             tiles = {
                 ["1:1"] = { blockerKind = "hard" },

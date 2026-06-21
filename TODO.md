@@ -72,7 +72,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Cover, LoS, Visibility
 
-- [ ] L.7 Define class reveal actions that expose redacted intent, hidden tiles, and weak points.
 - [ ] L.8 Define LoS preview for movement destinations before committing.
 - [ ] L.9 Define accessibility-safe LoS and cover overlays for all four rotations.
 

@@ -147,6 +147,10 @@ local function normalizeTile(tile)
         revealed = tile.revealed ~= false,
         destroyed = tile.destroyed == true,
         rotationMarks = normalizeRotationMarks(tile.rotationMarks or tile.marks),
+        revealClasses = copyList(tile.revealClasses),
+        revealActions = copyList(tile.revealActions),
+        weakPoint = tile.weakPoint,
+        weakPointRevealed = tile.weakPointRevealed == true,
         tags = copyList(tile.tags),
     }
 end
@@ -628,6 +632,7 @@ local function normalizeUnit(unit, index, defaultAp)
     local maxAp = unit.maxAp or unit.apMax or defaultAp or 2
     return {
         id = id,
+        class = unit.class,
         side = unit.side or "player",
         x = expectInteger(unit.x, "unit x"),
         y = expectInteger(unit.y, "unit y"),
@@ -1746,6 +1751,52 @@ function State:advanceBossIntentMask(unitId, context)
     }
 end
 
+function State:classReveal(unitId, options)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    options = options or {}
+    local revealClass = options.revealClass or unit.class
+    local revealAction = options.revealAction or options.action
+    local revealOptions = { revealClass = revealClass, revealAction = revealAction, rotation = options.rotation, viewRotation = options.viewRotation }
+    local result = { unit = unitId, revealClass = revealClass, revealAction = revealAction, intents = {}, tiles = {}, weakPoints = {} }
+    for intentId, intent in pairs(self.intents) do
+        if shouldRevealIntentFootprint(intent, revealOptions) then
+            intent.revealed = true
+            if intent.mode == "bossStage" then
+                intent.mask = nil
+            end
+            result.intents[#result.intents + 1] = intentId
+        end
+    end
+    for key, tile in pairs(self.board.tiles) do
+        local classMatch = revealClass and listHas(tile.revealClasses, revealClass)
+        local actionMatch = revealAction and listHas(tile.revealActions, revealAction)
+        if classMatch or actionMatch then
+            tile.revealed = true
+            local x, y = key:match("^(%-?%d+):(%-?%d+)$")
+            result.tiles[#result.tiles + 1] = { x = tonumber(x), y = tonumber(y) }
+            if tile.weakPoint then
+                tile.weakPointRevealed = true
+                result.weakPoints[#result.weakPoints + 1] = { x = tonumber(x), y = tonumber(y), weakPoint = tile.weakPoint }
+            end
+            self.board.tiles[key] = tile
+        end
+    end
+    table.sort(result.intents)
+    table.sort(result.tiles, function(a, b)
+        if a.y == b.y then
+            return a.x < b.x
+        end
+        return a.y < b.y
+    end)
+    table.sort(result.weakPoints, function(a, b)
+        if a.y == b.y then
+            return a.x < b.x
+        end
+        return a.y < b.y
+    end)
+    return result
+end
+
 local function containsUnitId(values, unitId)
     for _, value in ipairs(values or {}) do
         if value == unitId then
@@ -2488,6 +2539,9 @@ function State:apply(command)
         self:advanceIntentPressure(command.unit, command.outcome)
     elseif kind == "advanceBossIntentMask" then
         self:advanceBossIntentMask(command.unit, command.context)
+    elseif kind == "classReveal" then
+        self:spendAP(command.unit, command.cost or 1)
+        self:classReveal(command.unit, command.options)
     elseif kind == "reward" then
         self:grantReward(command.reward)
     else
@@ -2689,6 +2743,10 @@ end
 
 function commands.advanceBossIntentMask(unitId, context)
     return { type = "advanceBossIntentMask", unit = unitId, context = copyMap(context) }
+end
+
+function commands.classReveal(unitId, options, cost)
+    return { type = "classReveal", unit = unitId, options = copyMap(options), cost = cost }
 end
 
 function commands.reward(reward)

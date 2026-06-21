@@ -113,3 +113,26 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies wrong-rotation hiding, matching-rotation reveal, and filtered visible mark lists.
+
+## L.7 Class Reveal Actions
+
+Class reveal actions expose hidden tactical information through deterministic gates.
+
+Targets:
+
+- redacted intent
+- hidden tiles
+- weak points
+
+Rules:
+
+- Units may carry a `class` key.
+- Tiles and intents may list `revealClasses` or `revealActions`.
+- A class reveal action marks matching intents as revealed.
+- Boss-stage reveal clears the mask and exposes the footprint.
+- Matching hidden tiles become revealed.
+- Matching tile weak points become `weakPointRevealed`.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies Lamplighter reveal exposes redacted intent, a hidden tile, and a boss weak-point mask.
