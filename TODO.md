@@ -144,7 +144,6 @@ Goal: make enemies readable, varied, and board-native.
 
 Goal: make dense tactics legible.
 
-- [ ] 5.4 Add colorblind-safe intent/cover/hazard palette.
 - [ ] 5.5 Add reduced-motion equivalents for rotation, destruction, knockback, and explosions.
 - [ ] 5.6 Add controller path for selecting units, tiles, actions, targets, and previews.
 - [ ] 5.7 Add tutorial boards for movement, cover/flanking, intent, push/pull, destruction, and objectives.

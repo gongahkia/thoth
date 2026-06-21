@@ -229,3 +229,26 @@ preview/UI:
 
 test/replay proof:
 `tests/run.lua` verifies the audit covers four snaps, preserves entry count and logical tile coordinates, keeps labels upright, keeps icon/pattern metadata, exposes occlusion offsets, and changes screen positions across rotations.
+
+## U.11 Colorblind-Safe Tactical Palette
+
+source pattern:
+Accessible visual systems avoid red/green dependence, vary lightness, and pair color with texture, symbols, or annotation.
+
+thoth transformation:
+Thoth defines a shared intent/cover/hazard palette using distinct vermillion, blue, and yellow roles plus icon, pattern, and shape redundancy.
+
+board verb:
+Mark, distinguish, verify, inspect.
+
+zone fit:
+All zones use the same role colors while local hazard, cover, and intent labels stay data-driven.
+
+counterplay:
+The player can distinguish enemy intent, cover, and hazards through color, icon, pattern, and shape even under colorblind display modes.
+
+preview/UI:
+`UICatalog.accessiblePalette()` returns role metadata, supported simulation modes, review checks, RGBA colors, hex values, icons, patterns, and shapes; render overlay defaults consume the same role data.
+
+test/replay proof:
+`tests/run.lua` verifies palette roles, modes, checks, simulated color separation for off/deuteranopia/protanopia/tritanopia, and render overlay color/icon/pattern alignment.

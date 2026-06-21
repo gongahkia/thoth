@@ -2003,6 +2003,56 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local function colorDistance(a, b)
+        local dr = (a[1] or 0) - (b[1] or 0)
+        local dg = (a[2] or 0) - (b[2] or 0)
+        local db = (a[3] or 0) - (b[3] or 0)
+        return math.sqrt(dr * dr + dg * dg + db * db)
+    end
+    local function sameColor(a, b)
+        return math.abs((a[1] or 0) - (b[1] or 0)) < 0.001
+            and math.abs((a[2] or 0) - (b[2] or 0)) < 0.001
+            and math.abs((a[3] or 0) - (b[3] or 0)) < 0.001
+            and math.abs((a[4] or 1) - (b[4] or 1)) < 0.001
+    end
+    local palette = UICatalog.accessiblePalette()
+    expect(palette.id == "intent_cover_hazard" and #palette.modes == 4 and #palette.checks >= 4, "accessible overlay palette should define modes and checks")
+    for _, id in ipairs({ "intent", "cover", "hazard" }) do
+        local role = palette.roles[id]
+        expect(role and role.hex and role.color and role.icon and role.pattern and role.shape and role.visible == true, "accessible overlay palette missing role metadata: " .. id)
+    end
+    for _, mode in ipairs({ "off", "deuteranopia", "protanopia", "tritanopia" }) do
+        local settings = { colorblindMode = mode }
+        local intent = Render.accessibleColor(settings, palette.roles.intent.color)
+        local cover = Render.accessibleColor(settings, palette.roles.cover.color)
+        local hazard = Render.accessibleColor(settings, palette.roles.hazard.color)
+        expect(colorDistance(intent, cover) > 0.25, "intent and cover colors should stay separated in " .. mode)
+        expect(colorDistance(intent, hazard) > 0.25, "intent and hazard colors should stay separated in " .. mode)
+        expect(colorDistance(cover, hazard) > 0.25, "cover and hazard colors should stay separated in " .. mode)
+    end
+    local state = TacticsState.new({
+        board = {
+            width = 3,
+            height = 1,
+            tiles = {
+                ["1:1"] = { coverEdges = { east = "half" } },
+                ["2:1"] = { hazard = { kind = "brine", active = true } },
+            },
+        },
+    })
+    local entries = Render.tacticalOverlayEntries(state, { intents = { { x = 3, y = 1 } } })
+    local byKind = {}
+    for _, entry in ipairs(entries) do
+        byKind[entry.kind] = byKind[entry.kind] or entry
+    end
+    for _, id in ipairs({ "intent", "cover", "hazard" }) do
+        local entry = byKind[id]
+        local role = palette.roles[id]
+        expect(entry and sameColor(entry.color, role.color) and entry.icon == role.icon and entry.pattern == role.pattern, "render overlay should use accessible palette role: " .. id)
+    end
+end
+
+tests[#tests + 1] = function()
     local template = UICatalog.tileInspector()
     expect(template.mechanicsLine and template.loreLine, "tile inspector should define mechanics and lore lines")
     expect(template.maxMechanicsLines == 1 and template.maxLoreLines == 1, "tile inspector should cap mechanics and lore at one line each")

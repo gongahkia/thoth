@@ -25,6 +25,18 @@ UICatalog.overlayFilters = {
     { id = "hidden_revealed", icon = "partial_intent", shows = "hidden marks, revealed facts, rotation secrets", hides = "known base terrain" },
 }
 
+UICatalog.accessibleOverlayPalette = {
+    id = "intent_cover_hazard",
+    source = "colorblind-safe blue/orange/yellow palette with non-color redundancy",
+    modes = { "deuteranopia", "protanopia", "tritanopia", "grayscale" },
+    checks = { "avoid_red_green_pairing", "distinct_lightness", "icon_pattern_shape_redundancy", "simulator_review" },
+    roles = {
+        intent = { hex = "#D55E00", color = { 0.84, 0.37, 0.00, 0.58 }, icon = "intent", pattern = "crosshatch", shape = "target", visible = true },
+        cover = { hex = "#0072B2", color = { 0.00, 0.45, 0.70, 0.48 }, icon = "shield", pattern = "edge-hatch", shape = "edge shield", visible = true },
+        hazard = { hex = "#F0E442", color = { 0.94, 0.89, 0.26, 0.56 }, icon = "hazard", pattern = "stripe", shape = "triangle", visible = true },
+    },
+}
+
 UICatalog.tileInspectorTemplate = {
     title = "{tileName}",
     mechanicsLine = "{icon} {state}: {verb} {effect}; AP {apCost}; counter {counterplay}",
@@ -123,6 +135,10 @@ end
 
 function UICatalog.overlays()
     return UICatalog.overlayFilters
+end
+
+function UICatalog.accessiblePalette()
+    return UICatalog.accessibleOverlayPalette
 end
 
 function UICatalog.tileInspector()

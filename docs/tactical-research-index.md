@@ -626,6 +626,22 @@ preview/UI: rotation audit requires four snap buckets, stable `x/y`, `screenX/sc
 
 test/replay proof: `Render.tacticalOverlayRotationAudit()` is tested for four rotations, stable entry count, stable logical tile roundtrip, upright labels, readable icon/pattern metadata, occlusion offsets, and distinct screen projections.
 
+### H36 Colorblind-Safe Tactical Palette
+
+source pattern: Accessible color guidance warns against red/green reliance, recommends varying lightness, using tested palettes, checking simulations, and not conveying information by color alone.
+
+thoth transformation: Intent, cover, and hazard overlays use a shared colorblind-safe role palette plus icon, pattern, and shape redundancy consumed by render defaults.
+
+board verb: mark, distinguish, inspect, verify.
+
+zone fit: Archive notices, Cistern hazard lanes, and Warrens burn/glass pressure use the same role palette while retaining local labels.
+
+counterplay: players can separate enemy intent, cover, and hazard cues under default, deuteranopia, protanopia, and tritanopia modes before committing AP.
+
+preview/UI: palette contract defines `intent`, `cover`, and `hazard` roles with RGBA, hex, icon, pattern, shape, visibility, simulation modes, and review checks.
+
+test/replay proof: `UICatalog.accessiblePalette()` and `Render.tacticalOverlayEntries()` are tested for role metadata, simulation separation, and render color/icon/pattern alignment.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

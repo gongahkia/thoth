@@ -2,6 +2,7 @@ local Defs = require("src.game.defs")
 local Settings = require("src.app.settings")
 local Credits = require("src.app.credits")
 local i18n = require("src.app.i18n")
+local TacticsUICatalog = require("src.game.tactics.ui_catalog")
 
 local Render = {}
 local state = {
@@ -615,22 +616,23 @@ local function rotationAllowed(value, allowed)
 end
 
 local tacticalOverlayOrder = { "movement", "los", "cover", "flank", "intent", "hazard" }
+local tacticalOverlayPalette = TacticsUICatalog.accessiblePalette().roles
 local tacticalOverlayColors = {
     movement = { 0.28, 0.58, 0.94, 0.5 },
     los = { 0.86, 0.78, 0.28, 0.46 },
-    cover = { 0.32, 0.72, 0.62, 0.48 },
+    cover = tacticalOverlayPalette.cover.color,
     flank = { 0.94, 0.52, 0.18, 0.55 },
-    intent = { 0.9, 0.18, 0.18, 0.58 },
-    hazard = { 0.62, 0.34, 0.86, 0.56 },
+    intent = tacticalOverlayPalette.intent.color,
+    hazard = tacticalOverlayPalette.hazard.color,
 }
 
 local tacticalOverlayStyles = {
     movement = { icon = "move", pattern = "dot" },
     los = { icon = "eye", pattern = "ray" },
-    cover = { icon = "shield", pattern = "edge-hatch" },
+    cover = { icon = tacticalOverlayPalette.cover.icon, pattern = tacticalOverlayPalette.cover.pattern },
     flank = { icon = "angle", pattern = "chevron" },
-    intent = { icon = "intent", pattern = "crosshatch" },
-    hazard = { icon = "hazard", pattern = "stripe" },
+    intent = { icon = tacticalOverlayPalette.intent.icon, pattern = tacticalOverlayPalette.intent.pattern },
+    hazard = { icon = tacticalOverlayPalette.hazard.icon, pattern = tacticalOverlayPalette.hazard.pattern },
 }
 
 local function parseTileKey(key)
