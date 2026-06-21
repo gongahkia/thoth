@@ -72,6 +72,21 @@ UICatalog.tutorialSequence = {
     { id = "boss_weak_point", teaches = "boss weak point", board = "rotation reveals back-face weak point", exitCheck = "player rotates and counters boss procedure" },
 }
 
+UICatalog.screenshotSmokeTarget = {
+    id = "tactical_overlay_smoke",
+    fixture = "overlay_all_layers",
+    viewport = { width = 1280, height = 720 },
+    overlays = { "movement", "enemy_intent", "los", "cover", "objectives", "hazards", "hidden_revealed" },
+    rotations = { 0, 90, 180, 270 },
+    assertions = {
+        "non_empty_overlay_layers",
+        "icons_visible",
+        "non_color_patterns_visible",
+        "no_text_overlap",
+        "logical_tiles_stable",
+    },
+}
+
 function UICatalog.icon(id)
     for _, icon in ipairs(UICatalog.icons) do
         if icon.id == id then
@@ -103,6 +118,10 @@ end
 
 function UICatalog.tutorials()
     return UICatalog.tutorialSequence
+end
+
+function UICatalog.screenshotSmoke()
+    return UICatalog.screenshotSmokeTarget
 end
 
 return UICatalog

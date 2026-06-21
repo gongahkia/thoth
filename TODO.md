@@ -92,7 +92,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### UI & Readability Catalog
 
-- [ ] U.7 Define screenshot-smoke target for tactical overlays.
 
 ### Implementation Gates
 

@@ -137,3 +137,26 @@ Tutorial catalog defines id, taught concept, board sketch, and exit check.
 
 test/replay proof:
 `tests/run.lua` verifies all eight tutorial steps exist and each defines taught concept, board sketch, and exit check.
+
+## U.7 Screenshot-Smoke Target
+
+source pattern:
+Tactical UI should capture overlay states, not only menus, in smoke evidence.
+
+thoth transformation:
+Thoth defines a tactical overlay screenshot-smoke target covering every overlay filter across four rotations at a fixed viewport.
+
+board verb:
+Capture, compare, assert.
+
+zone fit:
+Smoke target uses a fixture with all overlay layers so zone-specific render regressions become visible.
+
+counterplay:
+QA can catch blank overlays, missing icons, color-only cues, text overlap, and rotation-coordinate drift.
+
+preview/UI:
+Target defines fixture, viewport, overlays, rotations, and assertions.
+
+test/replay proof:
+`tests/run.lua` verifies the screenshot-smoke target covers every overlay filter, four rotations, viewport, fixture, and assertions.

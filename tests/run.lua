@@ -1854,6 +1854,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local smoke = UICatalog.screenshotSmoke()
+    local overlays = {}
+    expect(smoke.id == "tactical_overlay_smoke" and smoke.fixture and smoke.viewport.width > 0 and smoke.viewport.height > 0, "screenshot smoke target should define fixture and viewport")
+    expect(#smoke.rotations == 4 and #smoke.assertions >= 5, "screenshot smoke target should define rotations and assertions")
+    for _, id in ipairs(smoke.overlays) do
+        overlays[id] = true
+    end
+    for _, filter in ipairs(UICatalog.overlays()) do
+        expect(overlays[filter.id], "screenshot smoke should include overlay " .. filter.id)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
