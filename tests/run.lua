@@ -2388,6 +2388,39 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local route = TacticsProcgen.archiveRoute()
+    local variants = TacticsProcgen.archiveRouteVariants()
+    local ids = {}
+    local templates = {}
+    local nodeKinds = {}
+    expect(route.id == "buried_archive_vertical_slice" and route.zone == "buried_archive", "archive route should define Buried Archive route metadata")
+    expect(#variants >= 5 and #variants <= 7 and route.boardCount == #variants, "archive route should expose 5-7 board variants")
+    for index, variant in ipairs(variants) do
+        ids[variant.id] = true
+        templates[variant.template] = true
+        nodeKinds[variant.nodeKind] = true
+        expect(route.variantOrder[index] == variant.id and variant.zone == "buried_archive", "archive route should keep ordered archive variants")
+        expect(RunCatalog.boardTemplate(variant.template), "archive route variant should use known template: " .. variant.id)
+        expect(variant.reward and variant.complication and variant.preview, "archive route variant should expose reward complication preview: " .. variant.id)
+        local seed = 3000 + index
+        local spec = TacticsProcgen.generateArchiveRouteBoard(variant.id, seed)
+        local state = TacticsProcgen.archiveRouteState(variant.id, seed)
+        expect(spec.zone == "buried_archive" and spec.archiveRoute.variantId == variant.id, "archive route board should bind variant metadata: " .. variant.id)
+        expect(spec.generator.variantId == variant.id and spec.generator.template == variant.template and spec.generator.routeId == route.id, "archive route board should bind generator metadata: " .. variant.id)
+        expect(spec.validation.valid and TacticsProcgen.validateGrammarBoard(spec).valid, "archive route board should validate grammar: " .. variant.id)
+        expect(TacticsProcgen.auditReinforcementRules(spec).ok, "archive route board should pass reinforcement audit: " .. variant.id)
+        expect(TacticsProcgen.difficultyBudget(spec).accepted and spec.budget.accepted, "archive route board should pass difficulty budget: " .. variant.id)
+        expect(state:tileAt(spec.objectives[1].x, spec.objectives[1].y).objective.id == spec.objectives[1].id, "archive route state should instantiate objective tile: " .. variant.id)
+        expect(Serialize.encode(spec) == Serialize.encode(TacticsProcgen.generateArchiveRouteBoard(variant.id, seed)), "archive route board should be deterministic: " .. variant.id)
+    end
+    for _, id in ipairs(route.variantOrder) do
+        expect(ids[id], "archive route order should reference existing variant " .. id)
+    end
+    expect(templates.kill_light and templates.protect_heavy and templates.extraction and templates.repair and templates.stealth and templates.holdout, "archive route should cover six tactical templates")
+    expect(nodeKinds.combat and nodeKinds.repair and nodeKinds.elite and nodeKinds.high_reward_extraction and nodeKinds.cursed_shortcut, "archive route should cover route node pressure")
+end
+
+tests[#tests + 1] = function()
     local spec = TacticsProcgen.generateDirectedZoneBoard("buried_archive", 2606, { includeElite = true })
     local accepted = TacticsProcgen.difficultyBudget(spec)
     expect(accepted.accepted and accepted.total <= accepted.max, "difficulty budget should accept readable generated board")

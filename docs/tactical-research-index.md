@@ -694,6 +694,22 @@ preview/UI: `UICatalog.tutorialBoards()` provides board, units, objectives, inte
 
 test/replay proof: Tests instantiate every tutorial board as `TacticsState` and verify required fixture metadata plus movement, cover, exact intent, push/pull, destructible cover, and objective pressure coverage.
 
+### H40 Buried Archive Vertical Slice Route
+
+source pattern: Into the Breach keeps compact deterministic boards readable; XCOM 2 procedural plot guidance stresses cover density, object spacing, and LoS constraints; Invisible Inc-style generation prioritizes goals, exits, patrol pressure, and fixed validation over realism.
+
+thoth transformation: The Buried Archive vertical-slice route ships as six ordered procedural variants with visible route metadata, deterministic seeds, archive dressing, encounter director pressure, validator evidence, and replay-stable serialization.
+
+board verb: route, generate, pressure, validate, replay.
+
+zone fit: Archive entry audit, shelf protection, proof extraction, ledger repair, sealed shortcut, and elite claim boards all use archive material, audit-static lanes, rolling shelves, and Archive enemy families.
+
+counterplay: read template, node kind, reward, complication, objective anchor, reinforcement warning, spawn block rule, and retreat path before deployment.
+
+preview/UI: `Procgen.archiveRoute()` gives ordered route metadata; `Procgen.archiveRouteVariants()` gives card fields; generated boards carry `archiveRoute` metadata for tactical preview and QA export.
+
+test/replay proof: tests verify 5-7 variants, template/node pressure coverage, grammar validation, reinforcement audit, accepted budget, `TacticsState` instantiation, and deterministic fixed-seed serialization.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

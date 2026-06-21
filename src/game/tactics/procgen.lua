@@ -73,6 +73,112 @@ local zoneGenerators = {
     },
 }
 
+local archiveRouteId = "buried_archive_vertical_slice"
+
+local archiveRouteVariantOrder = {
+    "archive_entry_audit",
+    "archive_shelf_protection",
+    "archive_proof_extract",
+    "archive_ledger_repair",
+    "archive_sealed_shortcut",
+    "archive_elite_claim",
+}
+
+local archiveRouteVariants = {
+    archive_entry_audit = {
+        id = "archive_entry_audit",
+        zone = "buried_archive",
+        nodeKind = "combat",
+        template = "kill_light",
+        routeDepth = 1,
+        seed = 6101,
+        reward = { salvage = 2, proof = 1 },
+        complication = "audit_static_claim_line",
+        preview = "compact entry stacks with known audit-static lane",
+        generatorOptions = { width = 8, height = 8, objectiveId = "entry_shelf" },
+        directorOptions = { failureClock = 3, threatenedTiles = 4, reinforcementTurn = 3 },
+    },
+    archive_shelf_protection = {
+        id = "archive_shelf_protection",
+        zone = "buried_archive",
+        nodeKind = "combat",
+        template = "protect_heavy",
+        routeDepth = 2,
+        seed = 6102,
+        reward = { salvage = 1, standing = "custodian" },
+        complication = "two_turn_shelf_pressure",
+        preview = "wider stacks around a higher-integrity shelf anchor",
+        generatorOptions = { width = 9, height = 8, objectiveId = "deep_shelf", objectiveIntegrity = 4 },
+        directorOptions = { failureClock = 4, threatenedTiles = 5, reinforcementTurn = 4 },
+    },
+    archive_proof_extract = {
+        id = "archive_proof_extract",
+        zone = "buried_archive",
+        nodeKind = "high_reward_extraction",
+        template = "extraction",
+        routeDepth = 2,
+        seed = 6103,
+        reward = { proof = 3, salvage = 1 },
+        complication = "exit_access_pressure",
+        preview = "proof cache must remain reachable to the entry evacuation tile",
+        generatorOptions = { width = 8, height = 7, objectiveId = "proof_cache", objectiveKind = "extract_record" },
+        directorOptions = { failureClock = 3, threatenedTiles = 5, reinforcementTurn = 3 },
+    },
+    archive_ledger_repair = {
+        id = "archive_ledger_repair",
+        zone = "buried_archive",
+        nodeKind = "repair",
+        template = "repair",
+        routeDepth = 3,
+        seed = 6104,
+        reward = { routeIntegrity = 1, salvage = 1 },
+        complication = "repair_ap_timing",
+        preview = "ledger machinery sits past a central audit lane",
+        generatorOptions = { width = 9, height = 7, objectiveId = "ledger_machine", objectiveKind = "repair_machinery" },
+        directorOptions = { failureClock = 3, threatenedTiles = 4, reinforcementTurn = 4 },
+    },
+    archive_sealed_shortcut = {
+        id = "archive_sealed_shortcut",
+        zone = "buried_archive",
+        nodeKind = "cursed_shortcut",
+        template = "stealth",
+        routeDepth = 3,
+        seed = 6105,
+        reward = { skipPressure = 1, proof = 1 },
+        complication = "redacted_spawn_preview",
+        preview = "short board with tighter sight breaks and redacted route pressure",
+        generatorOptions = { width = 7, height = 7, objectiveId = "sealed_index", objectiveKind = "stealth_read" },
+        directorOptions = { failureClock = 3, threatenedTiles = 6, reinforcementTurn = 3 },
+    },
+    archive_elite_claim = {
+        id = "archive_elite_claim",
+        zone = "buried_archive",
+        nodeKind = "elite",
+        template = "holdout",
+        routeDepth = 4,
+        seed = 6106,
+        reward = { rareUnlock = "archive_claim_counter", salvage = 2 },
+        complication = "partial_intent_elite",
+        preview = "elite claim pressure with one redacted footprint",
+        generatorOptions = { width = 9, height = 8, objectiveId = "claim_docket", objectiveKind = "hold_claim" },
+        directorOptions = { includeElite = true, failureClock = 4, threatenedTiles = 7, reinforcementTurn = 4 },
+    },
+}
+
+local archiveRoute = {
+    id = archiveRouteId,
+    zone = "buried_archive",
+    start = "archive_entry_audit",
+    variantOrder = archiveRouteVariantOrder,
+    boardCount = #archiveRouteVariantOrder,
+    preview = {
+        risk = "audit static, shelf cover, and visible reinforcements",
+        reward = "proof, salvage, route integrity, and one rare unlock",
+        detail = "six deterministic Buried Archive procedural board variants",
+        visible = true,
+    },
+}
+
 local function copyValue(value)
     if type(value) ~= "table" then
         return value
@@ -155,6 +261,14 @@ local function pickIndexed(list, index)
     return list[((index - 1) % #list) + 1]
 end
 
+local function archiveVariantFor(variantId)
+    local variant = archiveRouteVariants[variantId]
+    if not variant then
+        error("unknown archive route variant " .. tostring(variantId), 3)
+    end
+    return variant
+end
+
 local function pathTiles(from, to)
     local result = {}
     local stepX = from.x <= to.x and 1 or -1
@@ -211,6 +325,23 @@ end
 
 function Procgen.zoneGenerator(zoneId)
     return copyValue(zoneGenerators[zoneId])
+end
+
+function Procgen.archiveRoute()
+    return copyValue(archiveRoute)
+end
+
+function Procgen.archiveRouteVariants()
+    local result = {}
+    for _, variantId in ipairs(archiveRouteVariantOrder) do
+        result[#result + 1] = copyValue(archiveRouteVariants[variantId])
+    end
+    return result
+end
+
+function Procgen.archiveRouteVariant(variantId)
+    local variant = archiveRouteVariants[variantId]
+    return variant and copyValue(variant) or nil
 end
 
 function Procgen.directEncounter(zoneId, seed, boardSpec, options)
@@ -562,6 +693,44 @@ function Procgen.generateDirectedZoneBoard(zoneId, seed, options)
     local spec = Procgen.generateZoneBoard(zoneId, seed, options)
     spec.encounterDirector = Procgen.directEncounter(zoneId, seed, spec, options)
     return spec
+end
+
+function Procgen.generateArchiveRouteBoard(variantId, seed, options)
+    options = options or {}
+    local variant = archiveVariantFor(variantId)
+    local generatorOptions = mergeOptions(variant.generatorOptions, options.generatorOptions)
+    local directorOptions = mergeOptions(variant.directorOptions, options.directorOptions)
+    local merged = mergeOptions(generatorOptions, directorOptions)
+    if options.includeElite ~= nil then
+        merged.includeElite = options.includeElite
+    end
+    local boardSeed = seed or variant.seed
+    local spec = Procgen.generateDirectedZoneBoard("buried_archive", boardSeed, merged)
+    spec.generator.variantId = variant.id
+    spec.generator.template = variant.template
+    spec.generator.routeId = archiveRouteId
+    spec.archiveRoute = {
+        id = archiveRouteId,
+        zone = "buried_archive",
+        variantId = variant.id,
+        nodeKind = variant.nodeKind,
+        template = variant.template,
+        routeDepth = variant.routeDepth,
+        boardSeed = boardSeed,
+        reward = copyValue(variant.reward),
+        complication = variant.complication,
+        preview = variant.preview,
+    }
+    spec.validation = Procgen.validateGrammarBoard(spec)
+    spec.budget = Procgen.difficultyBudget(spec)
+    if not RunCatalog.boardTemplate(variant.template) then
+        error("unknown archive route template " .. tostring(variant.template), 2)
+    end
+    return spec
+end
+
+function Procgen.archiveRouteState(variantId, seed, options)
+    return State.new(Procgen.generateArchiveRouteBoard(variantId, seed, options))
 end
 
 return Procgen

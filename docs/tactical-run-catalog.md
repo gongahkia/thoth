@@ -206,3 +206,26 @@ Event card shows prompt text and alteration category.
 
 test/replay proof:
 `tests/run.lua` verifies exactly 50 event prompts, unique ids, and coverage for route choice, board modifier, squad state, objective reward, and faction standing.
+
+## P.8 Buried Archive Vertical Slice Route
+
+source pattern:
+Roguelite routes work best when board risk, reward, and route pressure are visible before commitment; procedural tactics boards need fixed-seed validation for every shipped variant.
+
+thoth transformation:
+The Buried Archive vertical-slice route is an ordered six-board manifest over procedural board variants: combat entry, protect-heavy shelf, proof extraction, ledger repair, sealed shortcut, and elite holdout.
+
+board verb:
+Preview, choose, generate, validate, replay.
+
+zone fit:
+The route stays Archive-only, using audit-static hazards, shelves, claim dockets, proof caches, ledger machinery, and Archive enemy families.
+
+counterplay:
+Players can read node kind, template, reward, complication, objective pressure, reinforcement timing, spawn blocking, and retreat path before accepting the next board.
+
+preview/UI:
+Route UI consumes `Procgen.archiveRoute()` for order/count and `Procgen.archiveRouteVariants()` for card fields.
+
+test/replay proof:
+`tests/run.lua` verifies six route variants, template coverage, route node pressure coverage, valid generated boards, instantiated states, accepted budgets, reinforcement audits, and deterministic serialization.

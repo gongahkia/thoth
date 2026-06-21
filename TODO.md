@@ -151,7 +151,7 @@ Goal: make dense tactics legible.
 
 Goal: ship one replayable tactical slice.
 
-- [ ] 6.1 One Buried Archive route with 5-7 procedural board variants.
+- [x] 6.1 One Buried Archive route with 5-7 procedural board variants.
 - [ ] 6.2 Four starter classes with 2 loadouts each.
 - [ ] 6.3 Three objective types: protect, extract, disable.
 - [ ] 6.4 One elite and one boss.
