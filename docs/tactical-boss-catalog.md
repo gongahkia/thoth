@@ -68,3 +68,26 @@ Show reflood countdowns, throat status, current/next waterline, low-ground hosti
 
 test/replay proof:
 `tests/run.lua` verifies the Pearl Choir board defines reflooding lanes, choir throats, moving waterline, and pressure bell adds.
+
+## B.4 Bell Diver
+
+source pattern:
+Boss boards use declared pull lanes, visible clocks, exposed weak points, and terrain bands that punish late positioning.
+
+thoth transformation:
+Bell Diver hooks units through cistern lanes while a flood-toll countdown threatens low ground unless the Bell Lung is broken.
+
+board verb:
+Hook, pull, break Bell Lung, count flood toll, punish low ground.
+
+zone fit:
+Salt Cistern uses pressure bells, undertow tiles, hook-like currents, low ground, and route machinery.
+
+counterplay:
+Block hook lanes, leave low ground before toll expiry, break the Bell Lung, or sacrifice cover to stop a pull path.
+
+preview/UI:
+Show hook lane pull distance, Bell Lung reveal condition, toll countdown, next flooded low-ground band, and objective-carrier risk.
+
+test/replay proof:
+`tests/run.lua` verifies the Bell Diver board defines hook lanes, Bell Lung weak point, flood-toll countdown, and low-ground punishment.

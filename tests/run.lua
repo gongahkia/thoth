@@ -1652,6 +1652,15 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local boss = BossCatalog.boss("bell_diver")
+    expect(boss and boss.name == "Bell Diver" and boss.zone == "salt_cistern", "Bell Diver boss catalog entry should exist")
+    expect(#boss.board.hookLanes == 2, "Bell Diver should define hook lanes")
+    expect(boss.board.weakPoints[1].id == "bell_lung", "Bell Diver should define Bell Lung weak point")
+    expect(boss.board.floodTollCountdown.start == 3 and boss.board.floodTollCountdown.failure, "Bell Diver should define flood-toll countdown")
+    expect(#boss.board.lowGroundPunishment == 2, "Bell Diver should define low-ground punishment")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

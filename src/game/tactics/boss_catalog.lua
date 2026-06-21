@@ -71,6 +71,28 @@ BossCatalog.bosses = {
             },
         },
     },
+    bell_diver = {
+        name = "Bell Diver",
+        zone = "salt_cistern",
+        board = {
+            hookLanes = {
+                { id = "chain_hook_lane", pattern = "line", pull = 3, effect = "pulls first unit toward bell mouth" },
+                { id = "reed_hook_lane", pattern = "fork", pull = 2, effect = "pulls cargo or objective carrier into low ground" },
+            },
+            weakPoints = {
+                { id = "bell_lung", reveal = "after hook lane is blocked", counter = "break to pause flood toll countdown" },
+            },
+            floodTollCountdown = {
+                start = 3,
+                tick = "after enemy intent resolution",
+                failure = "all low-ground tiles become hostile flood lanes",
+            },
+            lowGroundPunishment = {
+                { id = "drowned_step", trigger = "standing below waterline", effect = "movement costs +1 AP and next hook pull gains +1" },
+                { id = "undertow_claim", trigger = "flood toll reaches zero", effect = "objective carriers on low ground lose integrity" },
+            },
+        },
+    },
 }
 
 function BossCatalog.boss(id)
@@ -79,7 +101,7 @@ end
 
 function BossCatalog.allBosses()
     local bosses = {}
-    for _, id in ipairs({ "codex_reeve", "vault_regent", "pearl_choir" }) do
+    for _, id in ipairs({ "codex_reeve", "vault_regent", "pearl_choir", "bell_diver" }) do
         bosses[#bosses + 1] = BossCatalog.boss(id)
     end
     return bosses
