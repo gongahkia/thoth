@@ -143,3 +143,38 @@ Acceptance proof:
 
 - `tests/run.lua` verifies Arcanist loadout, tool, terrain interaction, weakness, and replay fixture counts.
 - `tests/replays.lua` runs deterministic Arcanist seal and intent reveal replay fixture `arcanist_seal_read`.
+
+## CL.5 Thief
+
+The Thief defines 3 loadouts:
+
+- `ghost_route`: stealth runner using `quiet_pick` and `route_chalk`.
+- `trap_lifter`: hazard disarmer using `tripwire_spool` and `pocket_lantern`.
+- `courier_cut`: objective extractor using `false_warrant` and `escape_hook`.
+
+The Thief defines 6 tools:
+
+- `quiet_pick`: open adjacent lock without raising exposure.
+- `tripwire_spool`: mark and disarm one trap lane.
+- `route_chalk`: reveal hidden safe tile on current path.
+- `pocket_lantern`: reveal one nearby hidden pickup.
+- `false_warrant`: carry objective cargo at normal move cost.
+- `escape_hook`: pull self or cargo to extraction edge.
+
+Terrain interactions:
+
+- `disarm_name_lock`: disable adjacent lock without breaking cover.
+- `slip_drain_grate`: move through a low drain or shelf gap.
+
+Weakness:
+
+- `thin_loyalty`: while carrying loot, guard effects on allies cost +1 AP.
+
+Replay fixture:
+
+- `thief_route_lift`
+
+Acceptance proof:
+
+- `tests/run.lua` verifies Thief loadout, tool, terrain interaction, weakness, and replay fixture counts.
+- `tests/replays.lua` runs deterministic Thief cargo lift and extraction replay fixture `thief_route_lift`.

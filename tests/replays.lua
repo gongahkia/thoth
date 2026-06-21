@@ -355,4 +355,43 @@ expect(Serialize.encode(arcanistA:snapshot()) == Serialize.encode(arcanistB:snap
 expect(arcanistA:intentPreview("redactor").revealed and arcanistA:tileAt(1, 1).weakPointRevealed, "Arcanist replay should reveal intent and seal")
 io.stdout:write("tactics replay ok ", arcanistFixture, "\n")
 
+local function tacticalThiefReplayState()
+    return TacticsState.new({
+        defaultAp = 5,
+        board = { width = 4, height = 3 },
+        units = {
+            { id = "harrier", side = "player", x = 1, y = 2, hp = 7, class = "harrier" },
+        },
+        cargo = {
+            { id = "ledger", kind = "ledger", x = 2, y = 2, integrity = 1 },
+        },
+        objectives = {
+            { id = "ledger_extract", kind = "extract_ledger", x = 4, y = 2, integrity = 1, evacuateAt = { x = 4, y = 2 } },
+        },
+    })
+end
+
+local tacticalThiefFrames = {
+    { tick = 0, command = TacticsState.commands.carryCargo("harrier", "ledger", 1) },
+    { tick = 1, command = TacticsState.commands.move("harrier", "east") },
+    { tick = 2, command = TacticsState.commands.move("harrier", "east") },
+    { tick = 3, command = TacticsState.commands.extractObjective("harrier", "ledger_extract", 1) },
+}
+
+local function runTacticalThiefReplay()
+    local state = tacticalThiefReplayState()
+    for _, frame in ipairs(tacticalThiefFrames) do
+        state:apply(frame.command)
+    end
+    return state
+end
+
+local thiefFixture = ClassCatalog.class("harrier").replayFixture
+local thiefA = runTacticalThiefReplay()
+local thiefB = runTacticalThiefReplay()
+expect(thiefFixture == "thief_route_lift", "Thief replay fixture should be registered")
+expect(Serialize.encode(thiefA:snapshot()) == Serialize.encode(thiefB:snapshot()), "Thief replay fixture should be deterministic")
+expect(thiefA.units.harrier.carryingCargo == "ledger" and thiefA:objectiveStatus("ledger_extract") == "complete", "Thief replay should lift cargo and extract")
+io.stdout:write("tactics replay ok ", thiefFixture, "\n")
+
 io.stdout:write("replay fixtures passed: ", #fixtures, "\n")

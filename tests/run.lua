@@ -1415,6 +1415,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local thief = ClassCatalog.class("harrier")
+    expect(thief and thief.name == "Thief", "Thief catalog entry should exist")
+    expect(#ClassCatalog.loadouts("harrier") == 3, "Thief should define 3 loadouts")
+    expect(#ClassCatalog.tools("harrier") == 6, "Thief should define 6 tools")
+    expect(#ClassCatalog.terrainInteractions("harrier") == 2, "Thief should define 2 terrain interactions")
+    expect(thief.weakness and thief.weakness.id == "thin_loyalty", "Thief should define weakness")
+    expect(thief.replayFixture == "thief_route_lift", "Thief should define replay fixture")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

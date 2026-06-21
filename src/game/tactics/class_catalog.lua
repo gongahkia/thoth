@@ -89,6 +89,28 @@ ClassCatalog.classes = {
         weakness = { id = "overread", effect = "after revealing hidden info, next incoming stress is +2" },
         replayFixture = "arcanist_seal_read",
     },
+    harrier = {
+        name = "Thief",
+        loadouts = {
+            { id = "ghost_route", role = "stealth runner", tools = { "quiet_pick", "route_chalk" } },
+            { id = "trap_lifter", role = "hazard disarmer", tools = { "tripwire_spool", "pocket_lantern" } },
+            { id = "courier_cut", role = "objective extractor", tools = { "false_warrant", "escape_hook" } },
+        },
+        tools = {
+            { id = "quiet_pick", effect = "open adjacent lock without raising exposure" },
+            { id = "tripwire_spool", effect = "mark and disarm one trap lane" },
+            { id = "route_chalk", effect = "reveal hidden safe tile on current path" },
+            { id = "pocket_lantern", effect = "reveal one nearby hidden pickup" },
+            { id = "false_warrant", effect = "carry objective cargo at normal move cost" },
+            { id = "escape_hook", effect = "pull self or cargo to extraction edge" },
+        },
+        terrainInteractions = {
+            { id = "disarm_name_lock", terrain = "lock", effect = "disable adjacent lock without breaking cover" },
+            { id = "slip_drain_grate", terrain = "low_gap", effect = "move through a low drain or shelf gap" },
+        },
+        weakness = { id = "thin_loyalty", effect = "while carrying loot, guard effects on allies cost +1 AP" },
+        replayFixture = "thief_route_lift",
+    },
 }
 
 function ClassCatalog.class(id)
