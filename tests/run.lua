@@ -1670,6 +1670,14 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local boss = BossCatalog.boss("cinder_prioress")
+    expect(boss and boss.name == "Cinder Prioress" and boss.zone == "ember_warrens", "Cinder Prioress boss catalog entry should exist")
+    expect(#boss.board.furnacePhases == 3, "Cinder Prioress should define furnace phases")
+    expect(#boss.board.glassCrownReflectors == 3, "Cinder Prioress should define glass crown reflectors")
+    expect(#boss.board.fuelObjectiveTradeoffs == 2, "Cinder Prioress should define fuel-objective tradeoffs")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

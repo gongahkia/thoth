@@ -114,3 +114,26 @@ Show selected vitrify target, halo vent state, douse route AP cost, glass reflec
 
 test/replay proof:
 `tests/run.lua` verifies the Kiln Vicar board defines vitrify targeting, halo vents, douse routes, and ash-choke cover.
+
+## B.6 Cinder Prioress
+
+source pattern:
+Phased boss arenas use terrain mutation, reflection-like lane control, and objective tradeoffs to make damage windows secondary.
+
+thoth transformation:
+Cinder Prioress advances furnace phases, uses glass crown reflectors to bend line intents, and pressures fuel objectives with explicit tradeoffs.
+
+board verb:
+Phase furnace, reflect through glass crown, protect or sacrifice fuel, rotate for rear weak point.
+
+zone fit:
+Ember Warrens uses furnace doors, fuel carts, glass screens, white-coal pressure, and reflected heat lanes.
+
+counterplay:
+Break or rotate around crown reflectors, destroy fuel to slow phase escalation, guard fuel for reward, or douse heat before cinder phase.
+
+preview/UI:
+Show active furnace phase, next mutation, reflector angle, fuel choice benefit/cost, and objective integrity projection.
+
+test/replay proof:
+`tests/run.lua` verifies the Cinder Prioress board defines furnace phases, glass crown reflectors, and fuel-objective tradeoffs.

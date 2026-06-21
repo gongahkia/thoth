@@ -117,6 +117,26 @@ BossCatalog.bosses = {
             },
         },
     },
+    cinder_prioress = {
+        name = "Cinder Prioress",
+        zone = "ember_warrens",
+        board = {
+            furnacePhases = {
+                { id = "liturgy", threshold = "opening", mutation = "lights two furnace mouths" },
+                { id = "veil", threshold = "first weak point broken", mutation = "adds ash-choke cover and smoke lines" },
+                { id = "cinder", threshold = "low HP", mutation = "fuel stores count down toward burn lanes" },
+            },
+            glassCrownReflectors = {
+                { id = "north_crown_reflector", angle = "north", effect = "reflects first line intent into side lane" },
+                { id = "south_crown_reflector", angle = "south", effect = "reflects douse route into safe floor" },
+                { id = "rear_crown_reflector", angle = "rear", effect = "reveals Prioress weak point by rotation" },
+            },
+            fuelObjectiveTradeoffs = {
+                { id = "sacrifice_fuel_cart", choice = "destroy fuel", benefit = "prevents furnace phase escalation", cost = "objective cargo integrity -1" },
+                { id = "protect_fuel_store", choice = "guard fuel", benefit = "keeps repair reward intact", cost = "adds heat lane next turn" },
+            },
+        },
+    },
 }
 
 function BossCatalog.boss(id)
@@ -125,7 +145,7 @@ end
 
 function BossCatalog.allBosses()
     local bosses = {}
-    for _, id in ipairs({ "codex_reeve", "vault_regent", "pearl_choir", "bell_diver", "kiln_vicar" }) do
+    for _, id in ipairs({ "codex_reeve", "vault_regent", "pearl_choir", "bell_diver", "kiln_vicar", "cinder_prioress" }) do
         bosses[#bosses + 1] = BossCatalog.boss(id)
     end
     return bosses
