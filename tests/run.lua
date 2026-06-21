@@ -19,6 +19,7 @@ local TileModelMap = require("assets.models.tile_model_map")
 local World = require("src.game.world")
 local Defs = require("src.game.defs")
 local TacticsState = require("src.game.tactics.state")
+local ZoneCatalog = require("src.game.tactics.zone_catalog")
 
 local function expect(value, message)
     if not value then
@@ -1195,6 +1196,32 @@ tests[#tests + 1] = function()
     expect(state:objectiveStatus("ritual") == "active", "one boss procedure counter should not complete ritual")
     state:apply(TacticsState.commands.counterBossProcedureObjective("ritual", "drain_lens"))
     expect(state:objectiveStatus("ritual") == "complete", "all boss procedure counters should complete ritual")
+end
+
+tests[#tests + 1] = function()
+    local mechanics = ZoneCatalog.tileMechanics("buried_archive")
+    expect(#mechanics == 12, "Buried Archive should define 12 tile mechanics")
+    local seen = {}
+    for _, mechanic in ipairs(mechanics) do
+        seen[mechanic.id] = mechanic
+        expect(mechanic.subject and mechanic.verb and mechanic.effect, "archive tile mechanic should include subject verb effect")
+    end
+    for _, id in ipairs({
+        "archive_shelf_shift",
+        "archive_claim_desk",
+        "archive_claim_line",
+        "archive_sealed_door",
+        "archive_witness_drawer",
+        "archive_falling_records",
+        "archive_name_lock",
+        "archive_audit_beam",
+        "archive_misfile_pit",
+        "archive_ledger_bridge",
+        "archive_paper_swarm",
+        "archive_back_face_seal",
+    }) do
+        expect(seen[id], "missing archive tile mechanic " .. id)
+    end
 end
 
 tests[#tests + 1] = function()
