@@ -53,6 +53,8 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S41 | https://www.feralinteractive.com/en/manuals/xcom2/latest/steam/ | Soldier classes expose battlefield roles through unique abilities and specializations. | Thoth rejects RPG role labels at loadout level; the catalog records inspectable verbs such as brace, dash, reveal, douse, and insure. |
 | S42 | https://www.ubisoft.com/en-us/game/mario-rabbids/sparks-of-hope/news-updates/54KqtyUg25UlrGQ20LC0ga/mario-rabbids-sparks-of-hope-a-deep-dive-into-combat-and-hero-archetypes | Compact hero kits combine movement options, weapons, techniques, and external powers for tactical variety. | Thoth caps class tools at 3-5 and uses 2 loadout slots so squad choices stay readable before board load. |
 | S43 | https://www.ubisoft.com/en-us/game/mario-rabbids/sparks-of-hope/news-updates/40b42GpGsG7tlY5c2ETei8/palette-prime-tutorial-spoilers-ahead | Skill builds alter movement range, extra dashes, cooldowns, weapon use, healing, barriers, and positioning plans. | Thoth traits must alter AP, movement, LoS, cooldowns, cover use, or objective handling instead of raw stat inflation only. |
+| S44 | https://subsetgames.com/itb_ae.html | Advanced Edition expands tactical variety with new squads, weapons, missions, enemies, bosses, and pilot abilities. | Thoth run progression unlocks new class loadout options rather than raw permanent damage/HP boosts. |
+| S45 | https://entaltostudios.com/5-essential-tips-to-make-your-roguelite-game-work/ | Horizontal progression expands possibilities through weapons, mechanics, characters, modifiers, and visible unlock goals. | Thoth rewards `class_option` unlocks from run milestones and rejects stat-bearing class rewards. |
 
 ## Mechanic Handoffs
 
@@ -407,6 +409,22 @@ counterplay: traits carry paired upsides and downsides, so a squad can be strong
 preview/UI: recruit sheet groups traits by domain and shows AP/movement/LoS/cooldown/cover/objective deltas before squad lock.
 
 test/replay proof: `ClassCatalog.auditTraitDomains()` rejects missing required domains, duplicate trait ids, and missing trait metadata.
+
+### H23 Run Loadout Unlocks
+
+source pattern: Into the Breach Advanced Edition expands replay variety with new squads, weapons, missions, enemies, bosses, and pilot abilities; roguelite horizontal progression works best when it changes choices rather than only increasing stats.
+
+thoth transformation: Loadouts unlock as `class_option` rewards from run milestones such as objective protection, clean extraction, hazard cleansing, elite kills, boss notices, and ledger events.
+
+board verb: unlock, choose, branch, preview, specialize.
+
+zone fit: Archive unlocks reveal, brace, and recovery loadouts; Cistern unlocks hazard, extraction, and route loadouts; Warrens unlocks heat, smoke, and objective-insurance loadouts.
+
+counterplay: each unlock adds a new answer and an opportunity cost, not unconditional damage, HP, or aim growth.
+
+preview/UI: route reward preview shows class, loadout id, board verb, source milestone, and what counter category it covers.
+
+test/replay proof: `ClassCatalog.auditLoadoutUnlocks()` rejects missing unlock metadata, non-`class_option` rewards, stat payloads, and classes with no run-sourced loadout unlock.
 
 ## Rejection Rules
 

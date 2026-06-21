@@ -6,12 +6,20 @@ Source of truth: `src/game/tactics/class_catalog.lua`.
 
 ## CL.0 Board-Verb Contract
 
-Every class defines `boardVerbs`, `loadoutSlots = 2`, 3-5 tools, and at least one terrain interaction. Every loadout defines exactly one `boardVerb` and spends exactly two class tools.
+Every class defines `boardVerbs`, `loadoutSlots = 2`, 3-5 tools, and at least one terrain interaction. Every loadout defines exactly one `boardVerb`, spends exactly two class tools, and carries unlock metadata.
+
+Loadout unlock rules:
+
+- Default loadouts use `scope = default`.
+- Run-earned loadouts use `scope = run`.
+- Unlock rewards use `rewardKind = class_option`.
+- Unlocks must not use `stat`, `statBonus`, or `permanentStat`.
 
 Acceptance proof:
 
 - `tests/run.lua` calls `ClassCatalog.auditBoardVerbs()` and verifies every class/loadout uses board verbs.
 - `tests/run.lua` calls `ClassCatalog.auditLoadoutShape()` and verifies 2 slots, 3-5 tools, terrain interactions, and loadout tool refs.
+- `tests/run.lua` calls `ClassCatalog.auditLoadoutUnlocks()` and verifies every class has a run-sourced loadout unlock.
 
 ## CL.1 Warden
 

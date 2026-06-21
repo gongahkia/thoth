@@ -1515,6 +1515,23 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local audit = ClassCatalog.auditLoadoutUnlocks()
+    expect(audit.valid, "class catalog should unlock loadouts through run class options")
+    for _, classId in ipairs({ "warden", "duelist", "mender", "arcanist", "harrier", "chirurgeon", "exile", "lamplighter", "merchant" }) do
+        local runUnlocks = 0
+        for _, entry in ipairs(ClassCatalog.loadoutUnlocks(classId)) do
+            local unlock = entry.unlock
+            expect(unlock and unlock.rewardKind == "class_option" and unlock.rewardId, classId .. " loadout should define class option unlock")
+            expect(not unlock.stat and not unlock.statBonus and not unlock.permanentStat, classId .. " loadout unlock should not be a stat reward")
+            if unlock.scope == "run" then
+                runUnlocks = runUnlocks + 1
+            end
+        end
+        expect(runUnlocks >= 1, classId .. " should include run-sourced loadout unlock")
+    end
+end
+
+tests[#tests + 1] = function()
     local audit = ClassCatalog.auditTraitDomains()
     expect(audit.valid, "class catalog should cover required trait domains")
     local traits = ClassCatalog.characterTraits()
@@ -2352,13 +2369,19 @@ end
 tests[#tests + 1] = function()
     local state = TacticsState.new({ board = { width = 2, height = 2 } })
     state:apply(TacticsState.commands.reward({ kind = "tool_unlock", id = "lamp_cone", option = "Lamplighter cone" }))
+    state:apply(TacticsState.commands.reward({ kind = "class_option", id = "warden_claim_anchor", option = "Warden claim anchor", source = "protect_objective_integrity" }))
     state:apply(TacticsState.commands.reward({ kind = "route_option", id = "repair_route", source = "route_machine" }))
     expect(state.unlocks.tool_unlock.lamp_cone.option == "Lamplighter cone", "tactical rewards should unlock tool options")
+    expect(state.unlocks.class_option.warden_claim_anchor.source == "protect_objective_integrity", "tactical rewards should unlock class loadout options")
     expect(state.unlocks.route_option.repair_route.source == "route_machine", "tactical rewards should unlock route options")
     local ok, err = pcall(function()
         state:apply(TacticsState.commands.reward({ kind = "stat_bonus", id = "plus_damage", stat = "damage" }))
     end)
     expect(not ok and err:find("unsupported tactical reward", 1, true), "tactical rewards should reject raw stat dominance")
+    local classOk, classErr = pcall(function()
+        state:apply(TacticsState.commands.reward({ kind = "class_option", id = "plus_damage", statBonus = "damage" }))
+    end)
+    expect(not classOk and classErr:find("raw stat rewards", 1, true), "class loadout rewards should reject raw stat payloads")
     local loaded = TacticsState.fromSnapshot(state:snapshot())
     expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(state:snapshot()), "tactical reward unlocks should snapshot deterministically")
 end

@@ -6,9 +6,9 @@ ClassCatalog.classes = {
         loadoutSlots = 2,
         boardVerbs = { "brace", "raise_cover", "shove", "redirect_objective_hit" },
         loadouts = {
-            { id = "line_guard", boardVerb = "brace_line", tools = { "brace_pavise", "route_hook" } },
-            { id = "claim_anchor", boardVerb = "hold_claim", tools = { "claim_spike", "oath_tether" } },
-            { id = "breach_shield", boardVerb = "break_cover", tools = { "route_hook", "breach_maul" } },
+            { id = "line_guard", boardVerb = "brace_line", tools = { "brace_pavise", "route_hook" }, unlock = { scope = "default", source = "starter_roster", rewardKind = "class_option", rewardId = "warden_line_guard", preview = "brace and hook basics" } },
+            { id = "claim_anchor", boardVerb = "hold_claim", tools = { "claim_spike", "oath_tether" }, unlock = { scope = "run", source = "protect_objective_integrity", rewardKind = "class_option", rewardId = "warden_claim_anchor", preview = "hold claim tiles under objective fire" } },
+            { id = "breach_shield", boardVerb = "break_cover", tools = { "route_hook", "breach_maul" }, unlock = { scope = "run", source = "break_cover_route", rewardKind = "class_option", rewardId = "warden_breach_shield", preview = "break cover and expose flank lanes" } },
         },
         tools = {
             { id = "brace_pavise", effect = "raise mobile half cover" },
@@ -29,9 +29,9 @@ ClassCatalog.classes = {
         loadoutSlots = 2,
         boardVerbs = { "dash", "flank", "swap", "riposte" },
         loadouts = {
-            { id = "red_line", boardVerb = "dash_strike", tools = { "razor_dash", "angle_step" } },
-            { id = "patron_shadow", boardVerb = "swap_position", tools = { "swap_foil", "riposte_mark" } },
-            { id = "debt_blade", boardVerb = "convert_flank", tools = { "cloak_pin", "angle_step" } },
+            { id = "red_line", boardVerb = "dash_strike", tools = { "razor_dash", "angle_step" }, unlock = { scope = "default", source = "starter_roster", rewardKind = "class_option", rewardId = "duelist_red_line", preview = "dash and strike from a safe lane" } },
+            { id = "patron_shadow", boardVerb = "swap_position", tools = { "swap_foil", "riposte_mark" }, unlock = { scope = "run", source = "complete_flank_objective", rewardKind = "class_option", rewardId = "duelist_patron_shadow", preview = "swap positions and mark adjacency" } },
+            { id = "debt_blade", boardVerb = "convert_flank", tools = { "cloak_pin", "angle_step" }, unlock = { scope = "run", source = "elite_guard_extract", rewardKind = "class_option", rewardId = "duelist_debt_blade", preview = "convert risky flanks into finishers" } },
         },
         tools = {
             { id = "razor_dash", effect = "dash through a safe lane before attacking" },
@@ -52,9 +52,9 @@ ClassCatalog.classes = {
         loadoutSlots = 2,
         boardVerbs = { "stabilize", "smoke", "cleanse_hazard", "rescue" },
         loadouts = {
-            { id = "field_triage", boardVerb = "stabilize_objective", tools = { "wound_clamp", "salt_draught" } },
-            { id = "smoke_binder", boardVerb = "place_smoke", tools = { "hush_smoke", "salve_flare" } },
-            { id = "plague_cutter", boardVerb = "cleanse_hazard", tools = { "salt_draught", "sterilize_hook" } },
+            { id = "field_triage", boardVerb = "stabilize_objective", tools = { "wound_clamp", "salt_draught" }, unlock = { scope = "default", source = "starter_roster", rewardKind = "class_option", rewardId = "mender_field_triage", preview = "stabilize damaged units and objectives" } },
+            { id = "smoke_binder", boardVerb = "place_smoke", tools = { "hush_smoke", "salve_flare" }, unlock = { scope = "run", source = "rescue_through_obscurant", rewardKind = "class_option", rewardId = "mender_smoke_binder", preview = "place smoke and reveal safe rescue lanes" } },
+            { id = "plague_cutter", boardVerb = "cleanse_hazard", tools = { "salt_draught", "sterilize_hook" }, unlock = { scope = "run", source = "cleanse_hazard_board", rewardKind = "class_option", rewardId = "mender_plague_cutter", preview = "cleanse hazards and pull patients clear" } },
         },
         tools = {
             { id = "wound_clamp", effect = "repair ally or civilian integrity" },
@@ -75,9 +75,9 @@ ClassCatalog.classes = {
         loadoutSlots = 2,
         boardVerbs = { "reveal", "bend_los", "unredact_intent", "pass_seal" },
         loadouts = {
-            { id = "seal_reader", boardVerb = "reveal_hidden_mark", tools = { "seal_lantern", "syntax_hook" } },
-            { id = "line_bender", boardVerb = "bend_los", tools = { "glyph_prism", "syntax_hook" } },
-            { id = "intent_breaker", boardVerb = "interrupt_intent", tools = { "hush_formula", "permission_key" } },
+            { id = "seal_reader", boardVerb = "reveal_hidden_mark", tools = { "seal_lantern", "syntax_hook" }, unlock = { scope = "default", source = "archive_progress", rewardKind = "class_option", rewardId = "arcanist_seal_reader", preview = "reveal hidden marks and exact notices" } },
+            { id = "line_bender", boardVerb = "bend_los", tools = { "glyph_prism", "syntax_hook" }, unlock = { scope = "run", source = "rotate_los_puzzle", rewardKind = "class_option", rewardId = "arcanist_line_bender", preview = "bend LoS around audited cover" } },
+            { id = "intent_breaker", boardVerb = "interrupt_intent", tools = { "hush_formula", "permission_key" }, unlock = { scope = "run", source = "unredact_boss_notice", rewardKind = "class_option", rewardId = "arcanist_intent_breaker", preview = "interrupt category or ritual intent" } },
         },
         tools = {
             { id = "seal_lantern", effect = "reveal class-gated marks and weak points" },
@@ -98,9 +98,9 @@ ClassCatalog.classes = {
         loadoutSlots = 2,
         boardVerbs = { "sneak", "disarm", "extract", "mark_route" },
         loadouts = {
-            { id = "ghost_route", boardVerb = "sneak_route", tools = { "quiet_pick", "route_chalk" } },
-            { id = "trap_lifter", boardVerb = "disarm_hazard", tools = { "tripwire_spool", "route_chalk" } },
-            { id = "courier_cut", boardVerb = "extract_cargo", tools = { "false_warrant", "escape_hook" } },
+            { id = "ghost_route", boardVerb = "sneak_route", tools = { "quiet_pick", "route_chalk" }, unlock = { scope = "default", source = "starter_roster", rewardKind = "class_option", rewardId = "harrier_ghost_route", preview = "open quiet routes and mark safe tiles" } },
+            { id = "trap_lifter", boardVerb = "disarm_hazard", tools = { "tripwire_spool", "route_chalk" }, unlock = { scope = "run", source = "disarm_trap_route", rewardKind = "class_option", rewardId = "harrier_trap_lifter", preview = "disarm hazard lanes before crossing" } },
+            { id = "courier_cut", boardVerb = "extract_cargo", tools = { "false_warrant", "escape_hook" }, unlock = { scope = "run", source = "extract_cargo_clean", rewardKind = "class_option", rewardId = "harrier_courier_cut", preview = "move objective cargo without AP bleed" } },
         },
         tools = {
             { id = "quiet_pick", effect = "open adjacent lock without raising exposure" },
@@ -121,9 +121,9 @@ ClassCatalog.classes = {
         loadoutSlots = 2,
         boardVerbs = { "repair", "stabilize_injury", "douse", "preserve_cargo" },
         loadouts = {
-            { id = "bone_setter", boardVerb = "stabilize_injury", tools = { "nerve_suture", "mercy_clamp" } },
-            { id = "cautery_engineer", boardVerb = "douse_burn", tools = { "cautery_lamp", "machine_splint" } },
-            { id = "preservationist", boardVerb = "preserve_body", tools = { "preservation_saw", "mercy_clamp" } },
+            { id = "bone_setter", boardVerb = "stabilize_injury", tools = { "nerve_suture", "mercy_clamp" }, unlock = { scope = "default", source = "archive_boss_recovery", rewardKind = "class_option", rewardId = "chirurgeon_bone_setter", preview = "stabilize injury debt during boards" } },
+            { id = "cautery_engineer", boardVerb = "douse_burn", tools = { "cautery_lamp", "machine_splint" }, unlock = { scope = "run", source = "douse_burn_lane", rewardKind = "class_option", rewardId = "chirurgeon_cautery_engineer", preview = "douse burns and repair machinery" } },
+            { id = "preservationist", boardVerb = "preserve_body", tools = { "preservation_saw", "mercy_clamp" }, unlock = { scope = "run", source = "recover_body_objective", rewardKind = "class_option", rewardId = "chirurgeon_preservationist", preview = "preserve body cargo and civilians" } },
         },
         tools = {
             { id = "nerve_suture", effect = "convert injury penalty into timed AP cost" },
@@ -144,9 +144,9 @@ ClassCatalog.classes = {
         loadoutSlots = 2,
         boardVerbs = { "break_terrain", "throw", "stand_hazard", "self_risk_ap" },
         loadouts = {
-            { id = "faultbreaker", boardVerb = "break_terrain", tools = { "ruin_maul", "fault_step" } },
-            { id = "borderless", boardVerb = "hold_hazard", tools = { "hazard_hide", "spite_breath" } },
-            { id = "thrown_oath", boardVerb = "throw_unit", tools = { "exile_throw", "ruin_maul" } },
+            { id = "faultbreaker", boardVerb = "break_terrain", tools = { "ruin_maul", "fault_step" }, unlock = { scope = "default", source = "cistern_progress", rewardKind = "class_option", rewardId = "exile_faultbreaker", preview = "break cover and cross broken terrain" } },
+            { id = "borderless", boardVerb = "hold_hazard", tools = { "hazard_hide", "spite_breath" }, unlock = { scope = "run", source = "hold_hazard_objective", rewardKind = "class_option", rewardId = "exile_borderless", preview = "hold hazard tiles at self-risk" } },
+            { id = "thrown_oath", boardVerb = "throw_unit", tools = { "exile_throw", "ruin_maul" }, unlock = { scope = "run", source = "forced_move_elite", rewardKind = "class_option", rewardId = "exile_thrown_oath", preview = "throw units and cargo into new lanes" } },
         },
         tools = {
             { id = "ruin_maul", effect = "destroy adjacent cover or brittle floor" },
@@ -167,9 +167,9 @@ ClassCatalog.classes = {
         loadoutSlots = 2,
         boardVerbs = { "reveal_route", "project_cone", "anchor_beacon", "safe_hazard" },
         loadouts = {
-            { id = "beacon_runner", boardVerb = "anchor_beacon", tools = { "route_beacon", "smoke_gel" } },
-            { id = "cone_keeper", boardVerb = "project_overwatch", tools = { "mirror_lantern", "wick_line" } },
-            { id = "ash_lamp", boardVerb = "reduce_hidden_intent", tools = { "smoke_gel", "safe_cinder" } },
+            { id = "beacon_runner", boardVerb = "anchor_beacon", tools = { "route_beacon", "smoke_gel" }, unlock = { scope = "default", source = "cistern_boss_route", rewardKind = "class_option", rewardId = "lamplighter_beacon_runner", preview = "anchor extraction through obscurant" } },
+            { id = "cone_keeper", boardVerb = "project_overwatch", tools = { "mirror_lantern", "wick_line" }, unlock = { scope = "run", source = "hold_overwatch_route", rewardKind = "class_option", rewardId = "lamplighter_cone_keeper", preview = "project cones and link lit tiles" } },
+            { id = "ash_lamp", boardVerb = "reduce_hidden_intent", tools = { "smoke_gel", "safe_cinder" }, unlock = { scope = "run", source = "warrens_smoke_board", rewardKind = "class_option", rewardId = "lamplighter_ash_lamp", preview = "turn smoke and cinders into safer routes" } },
         },
         tools = {
             { id = "route_beacon", effect = "reveal hidden route tile and extraction edge" },
@@ -190,9 +190,9 @@ ClassCatalog.classes = {
         loadoutSlots = 2,
         boardVerbs = { "convert_risk", "insure_objective", "carry_drone", "appraise_weak_point" },
         loadouts = {
-            { id = "debt_broker", boardVerb = "convert_debt_to_ap", tools = { "debt_note", "risk_ledger" } },
-            { id = "salvage_factor", boardVerb = "insure_salvage", tools = { "salvage_drone", "risk_ledger" } },
-            { id = "mercy_accountant", boardVerb = "insure_objective", tools = { "appraisal_lens", "mercy_clause" } },
+            { id = "debt_broker", boardVerb = "convert_debt_to_ap", tools = { "debt_note", "risk_ledger" }, unlock = { scope = "default", source = "merchant_ledger_event", rewardKind = "class_option", rewardId = "merchant_debt_broker", preview = "convert risk into AP debt" } },
+            { id = "salvage_factor", boardVerb = "insure_salvage", tools = { "salvage_drone", "risk_ledger" }, unlock = { scope = "run", source = "extract_salvage_event", rewardKind = "class_option", rewardId = "merchant_salvage_factor", preview = "insure salvage before extraction" } },
+            { id = "mercy_accountant", boardVerb = "insure_objective", tools = { "appraisal_lens", "mercy_clause" }, unlock = { scope = "run", source = "protect_civilian_contract", rewardKind = "class_option", rewardId = "merchant_mercy_accountant", preview = "insure objectives and pay later" } },
         },
         tools = {
             { id = "debt_note", effect = "gain AP now and record deterministic debt" },
@@ -273,6 +273,18 @@ end
 function ClassCatalog.loadoutSlots(id)
     local class = ClassCatalog.class(id)
     return class and class.loadoutSlots or 0
+end
+
+function ClassCatalog.loadoutUnlocks(id)
+    local unlocks = {}
+    for _, loadout in ipairs(ClassCatalog.loadouts(id)) do
+        unlocks[#unlocks + 1] = {
+            classId = id,
+            loadoutId = loadout.id,
+            unlock = loadout.unlock,
+        }
+    end
+    return unlocks
 end
 
 function ClassCatalog.boardVerbs(id)
@@ -365,6 +377,45 @@ function ClassCatalog.auditLoadoutShape()
                     table.insert(report.missing, classId .. "." .. tostring(loadout.id) .. "." .. tostring(toolId))
                 end
             end
+        end
+    end
+    return report
+end
+
+function ClassCatalog.auditLoadoutUnlocks()
+    local report = { valid = true, missing = {} }
+    for classId, class in pairs(ClassCatalog.classes) do
+        local runUnlocks = 0
+        for _, loadout in ipairs(class.loadouts or {}) do
+            local unlock = loadout.unlock
+            local prefix = classId .. "." .. tostring(loadout.id)
+            if not unlock then
+                report.valid = false
+                table.insert(report.missing, prefix .. ".unlock")
+            else
+                if unlock.rewardKind ~= "class_option" or not unlock.rewardId then
+                    report.valid = false
+                    table.insert(report.missing, prefix .. ".reward")
+                end
+                if unlock.stat or unlock.statBonus or unlock.permanentStat then
+                    report.valid = false
+                    table.insert(report.missing, prefix .. ".statless")
+                end
+                if unlock.scope == "run" then
+                    runUnlocks = runUnlocks + 1
+                    if not unlock.source or not unlock.preview then
+                        report.valid = false
+                        table.insert(report.missing, prefix .. ".run")
+                    end
+                elseif unlock.scope ~= "default" then
+                    report.valid = false
+                    table.insert(report.missing, prefix .. ".scope")
+                end
+            end
+        end
+        if runUnlocks < 1 then
+            report.valid = false
+            table.insert(report.missing, classId .. ".runUnlock")
         end
     end
     return report

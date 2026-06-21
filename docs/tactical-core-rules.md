@@ -275,10 +275,11 @@ Rules:
 
 - Rewards require `kind` and `id`.
 - Rewards are stored in `unlocks[kind][id]`.
+- `class_option` rewards unlock class loadout options from run milestones.
 - Raw stat rewards using `stat`, `statBonus`, or `permanentStat` are rejected.
 - Unsupported reward kinds fail fast.
 - Unlocks snapshot deterministically.
 
 Acceptance proof:
 
-- `tests/run.lua` verifies tool unlocks, route unlocks, raw-stat rejection, and snapshot roundtrip.
+- `tests/run.lua` verifies tool unlocks, class loadout unlocks, route unlocks, raw-stat rejection, stat-bearing class reward rejection, and snapshot roundtrip.
