@@ -92,7 +92,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### UI & Readability Catalog
 
-- [ ] U.4 Define preview contract: before commit, player sees AP cost, movement path, damage, push path, collision, cover change, objective change, and hazard result.
 - [ ] U.5 Define four-rotation readability checks for every overlay.
 - [ ] U.6 Define tutorial board sequence: movement, cover/flank, intent, forced movement, destructible terrain, objective pressure, redacted intent, boss weak point.
 - [ ] U.7 Define screenshot-smoke target for tactical overlays.

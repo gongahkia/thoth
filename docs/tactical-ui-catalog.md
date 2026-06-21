@@ -68,3 +68,26 @@ Template fields are title, mechanics line, lore line, one-line caps, and require
 
 test/replay proof:
 `tests/run.lua` verifies the inspector template defines one mechanics line, one lore line, one-line caps, and all required tokens.
+
+## U.4 Preview Contract
+
+source pattern:
+Tactical clarity requires consequence preview before command commitment.
+
+thoth transformation:
+Thoth preview contract exposes AP cost, movement path, damage, push path, collision, cover change, objective change, and hazard result before commit.
+
+board verb:
+Preview, compare, commit.
+
+zone fit:
+All zone mechanics must write their consequences into these preview fields.
+
+counterplay:
+The player sees state deltas before spending AP.
+
+preview/UI:
+The contract is gated at `before_commit`; every required field is visible and has a source.
+
+test/replay proof:
+`tests/run.lua` verifies the before-commit gate and all eight preview fields.

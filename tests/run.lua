@@ -1815,6 +1815,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local preview = UICatalog.preview()
+    local fields = {}
+    expect(preview.commitGate == "before_commit", "preview contract should apply before commit")
+    for _, field in ipairs(preview.fields) do
+        fields[field.id] = field
+        expect(field.source and field.visible == true, "preview field should define source and visibility: " .. field.id)
+    end
+    for _, id in ipairs({ "ap_cost", "movement_path", "damage", "push_path", "collision", "cover_change", "objective_change", "hazard_result" }) do
+        expect(fields[id], "missing preview contract field " .. id)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

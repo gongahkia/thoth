@@ -34,6 +34,20 @@ UICatalog.tileInspectorTemplate = {
     requiredTokens = { "icon", "state", "verb", "effect", "apCost", "counterplay", "zoneTone", "oneSentenceLore" },
 }
 
+UICatalog.previewContract = {
+    commitGate = "before_commit",
+    fields = {
+        { id = "ap_cost", source = "selected action and path", visible = true },
+        { id = "movement_path", source = "pathfinder", visible = true },
+        { id = "damage", source = "deterministic resolver", visible = true },
+        { id = "push_path", source = "forced movement resolver", visible = true },
+        { id = "collision", source = "forced movement collision", visible = true },
+        { id = "cover_change", source = "cover edge diff", visible = true },
+        { id = "objective_change", source = "objective integrity diff", visible = true },
+        { id = "hazard_result", source = "hazard resolver", visible = true },
+    },
+}
+
 function UICatalog.icon(id)
     for _, icon in ipairs(UICatalog.icons) do
         if icon.id == id then
@@ -53,6 +67,10 @@ end
 
 function UICatalog.tileInspector()
     return UICatalog.tileInspectorTemplate
+end
+
+function UICatalog.preview()
+    return UICatalog.previewContract
 end
 
 return UICatalog
