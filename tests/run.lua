@@ -1326,6 +1326,31 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local objects = ZoneCatalog.objects("ember_warrens")
+    expect(#objects == 8, "Ember Warrens should define 8 objects")
+    local seen = {}
+    for _, object in ipairs(objects) do
+        seen[object.id] = object
+        expect(object.apCost and object.apCost > 0, "warrens object should include AP cost")
+        expect(object.hp and object.hp > 0, "warrens object should include HP")
+        expect(object.losEffect and object.coverState and object.rotation, "warrens object should include LoS cover rotation")
+        expect(object.burnEffect and object.douseEffect and object.glassifyEffect, "warrens object should include burn douse glassify")
+    end
+    for _, id in ipairs({
+        "kiln_mouth",
+        "ash_heap",
+        "bellows_spine",
+        "glass_screen",
+        "fuel_cart",
+        "ember_oil_cask",
+        "furnace_door_chain",
+        "white_coal_cradle",
+    }) do
+        expect(seen[id], "missing warrens object " .. id)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

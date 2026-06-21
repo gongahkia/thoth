@@ -100,3 +100,20 @@ The Ember Warrens defines 12 deterministic tile mechanics:
 Acceptance proof:
 
 - `tests/run.lua` verifies the Ember Warrens exposes exactly 12 tile mechanics and each has subject, verb, and effect metadata.
+
+## Z.6 Ember Warrens Objects
+
+The Ember Warrens defines 8 destructible or interactable objects:
+
+- `kiln_mouth`: 2 AP, 5 HP, full cover, burns heat lanes, douses next heat tick, glassifies into cover lips.
+- `ash_heap`: 1 AP, 3 HP, half cover, burns into smoke, douses into rough tile, glassifies into brittle cover.
+- `bellows_spine`: 2 AP, 4 HP, extends heat cones, douses for one tick, glassifies to lock cone bearing.
+- `glass_screen`: 1 AP, 2 HP, reflective half cover, burns adjacent lanes, douses to reveal marks, glassifies to full reflective cover.
+- `fuel_cart`: 1 AP, 3 HP, mobile half cover, burns after fuse, douses into safe cover, glassifies as full blocker.
+- `ember_oil_cask`: 1 AP, 2 HP, spreads burn tiles, douses oil trails, glassifies into slick floor.
+- `furnace_door_chain`: 2 AP, 4 HP, toggles opaque door, burns heat bursts, douses safe seals, glassifies jammed open.
+- `white_coal_cradle`: 2 AP, 4 HP, half cover, raises pressure, douses safely, glassifies into permanent hazard.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies the Ember Warrens exposes exactly 8 objects and each has AP cost, HP, LoS effect, cover state, rotation, burn, douse, and glassify metadata.

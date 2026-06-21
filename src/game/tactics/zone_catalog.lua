@@ -68,6 +68,16 @@ ZoneCatalog.zones = {
             { id = "warrens_white_coal_pressure", subject = "white-coal pressure", verb = "pressurize", effect = "escalates heat intent unless released" },
             { id = "warrens_meltable_bridge", subject = "meltable bridges", verb = "melt", effect = "turns crossing into hazard after countdown" },
         },
+        objects = {
+            { id = "kiln_mouth", apCost = 2, hp = 5, losEffect = "opaque heat source", coverState = "full", rotation = "reverse side marks vent vector", burnEffect = "adds heat lane", douseEffect = "removes next heat tick", glassifyEffect = "creates vitrified cover lip" },
+            { id = "ash_heap", apCost = 1, hp = 3, losEffect = "low obscurant", coverState = "half", rotation = "reverse side marks buried clinker", burnEffect = "turns ash choke into smoke", douseEffect = "compacts into rough tile", glassifyEffect = "forms brittle half cover" },
+            { id = "bellows_spine", apCost = 2, hp = 4, losEffect = "no block", coverState = "none", rotation = "reverse side marks cone", burnEffect = "extends heat cone", douseEffect = "shuts cone for one tick", glassifyEffect = "locks cone bearing" },
+            { id = "glass_screen", apCost = 1, hp = 2, losEffect = "reflective line blocker", coverState = "half", rotation = "reverse side marks reflection path", burnEffect = "heats adjacent lane", douseEffect = "fog reveals hidden mark", glassifyEffect = "upgrades to full reflective cover" },
+            { id = "fuel_cart", apCost = 1, hp = 3, losEffect = "mobile half blocker", coverState = "half", rotation = "reverse side marks spill arc", burnEffect = "explodes after fuse", douseEffect = "becomes safe movable cover", glassifyEffect = "freezes as full blocker" },
+            { id = "ember_oil_cask", apCost = 1, hp = 2, losEffect = "no block", coverState = "none", rotation = "reverse side marks oil trail", burnEffect = "spreads burn tiles", douseEffect = "clears oil trail", glassifyEffect = "creates slick glass floor" },
+            { id = "furnace_door_chain", apCost = 2, hp = 4, losEffect = "toggles opaque door", coverState = "full", rotation = "reverse side marks chain weakness", burnEffect = "vents heat burst", douseEffect = "seals door safely", glassifyEffect = "jams door open" },
+            { id = "white_coal_cradle", apCost = 2, hp = 4, losEffect = "bright low blocker", coverState = "half", rotation = "reverse side marks pressure notch", burnEffect = "raises white-coal pressure", douseEffect = "releases pressure safely", glassifyEffect = "creates permanent glass hazard" },
+        },
     },
 }
 
