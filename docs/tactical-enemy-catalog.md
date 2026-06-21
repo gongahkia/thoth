@@ -50,3 +50,22 @@ Effects:
 Acceptance proof:
 
 - `tests/run.lua` verifies the Archive alpha is visible before board reveal and defines pre-board, route-choice, and board-generation effects.
+
+## E.4 Cistern Common Enemies
+
+The Cistern family defines 10 common enemies. Each has exact intent metadata and one water/pressure verb:
+
+- `drowned_acolyte`: exact debuff, `raise_mist`.
+- `brine_stalker`: exact attack, `pull_current`.
+- `valve_thrall`: exact destroy, `turn_valve`.
+- `brine_midwife`: exact summon, `birth_brine`.
+- `sluice_eel`: exact move, `ride_sluice`.
+- `salt_choir`: exact buff, `ring_pressure`.
+- `pearl_cyst`: exact guard, `burst_pool`.
+- `halocline_tender`: exact debuff, `shift_halocline`.
+- `drowned_pilgrim`: exact attack, `kneel_flood`.
+- `reed_mouth_diver`: exact flee, `signal_reed`.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies the Cistern has exactly 10 common enemies and each one has unique id, name, exact intent, and water/pressure verb metadata.

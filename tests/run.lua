@@ -1539,6 +1539,18 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local enemies = EnemyCatalog.common("cistern")
+    expect(#enemies == 10, "Cistern should define 10 common enemies")
+    local ids = {}
+    for _, enemy in ipairs(enemies) do
+        expect(enemy.id and enemy.name and enemy.waterPressureVerb, "cistern common enemy should include id name water/pressure verb")
+        expect(enemy.exactIntent and enemy.exactIntent.mode == "exact", "cistern common enemy should include exact intent")
+        expect(not ids[enemy.id], "cistern common enemy ids should be unique")
+        ids[enemy.id] = true
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

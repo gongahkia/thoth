@@ -28,6 +28,20 @@ EnemyCatalog.families = {
             boardGenerationChange = "adds two shoveable shelf blockers and one audit beam lane",
         },
     },
+    cistern = {
+        common = {
+            { id = "drowned_acolyte", name = "Drowned Acolyte", exactIntent = { mode = "exact", category = "debuff", damage = 1, target = "line" }, waterPressureVerb = "raise_mist" },
+            { id = "brine_stalker", name = "Brine Stalker", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "flank" }, waterPressureVerb = "pull_current" },
+            { id = "valve_thrall", name = "Valve Thrall", exactIntent = { mode = "exact", category = "destroy", damage = 2, target = "cover" }, waterPressureVerb = "turn_valve" },
+            { id = "brine_midwife", name = "Brine Midwife", exactIntent = { mode = "exact", category = "summon", damage = 0, target = "pool" }, waterPressureVerb = "birth_brine" },
+            { id = "sluice_eel", name = "Sluice Eel", exactIntent = { mode = "exact", category = "move", damage = 2, target = "current" }, waterPressureVerb = "ride_sluice" },
+            { id = "salt_choir", name = "Salt Choir", exactIntent = { mode = "exact", category = "buff", damage = 0, target = "wet_row" }, waterPressureVerb = "ring_pressure" },
+            { id = "pearl_cyst", name = "Pearl Cyst", exactIntent = { mode = "exact", category = "guard", damage = 1, target = "claim_tile" }, waterPressureVerb = "burst_pool" },
+            { id = "halocline_tender", name = "Halocline Tender", exactIntent = { mode = "exact", category = "debuff", damage = 0, target = "waterline" }, waterPressureVerb = "shift_halocline" },
+            { id = "drowned_pilgrim", name = "Drowned Pilgrim", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "low_ground" }, waterPressureVerb = "kneel_flood" },
+            { id = "reed_mouth_diver", name = "Reed-Mouth Diver", exactIntent = { mode = "exact", category = "flee", damage = 0, target = "exit_water" }, waterPressureVerb = "signal_reed" },
+        },
+    },
 }
 
 function EnemyCatalog.family(id)
