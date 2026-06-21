@@ -620,6 +620,92 @@ function State:addThreatZone(unitId, tiles, options)
     return zone
 end
 
+local function perpendicularDirections(direction)
+    if direction == "north" or direction == "south" then
+        return { "west", "east" }
+    end
+    return { "north", "south" }
+end
+
+local function appendUniqueTile(list, seen, x, y)
+    local key = tileKey(x, y)
+    if not seen[key] then
+        seen[key] = true
+        list[#list + 1] = { x = x, y = y }
+    end
+end
+
+function State:threatZoneTiles(unitId, shape, options)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    options = options or {}
+    local direction = options.direction or unit.facing or "east"
+    local forward = Grid.directions[direction]
+    expect(forward, "unknown direction " .. tostring(direction))
+    local length = options.length or options.range or 1
+    local width = options.width or 1
+    local result = {}
+    local seen = {}
+    if shape == "line" then
+        for step = 1, length do
+            local x = unit.x + forward.x * step
+            local y = unit.y + forward.y * step
+            if self:inBounds(x, y) then
+                appendUniqueTile(result, seen, x, y)
+            end
+        end
+    elseif shape == "cone" then
+        local sides = perpendicularDirections(direction)
+        for step = 1, length do
+            local cx = unit.x + forward.x * step
+            local cy = unit.y + forward.y * step
+            if self:inBounds(cx, cy) then
+                appendUniqueTile(result, seen, cx, cy)
+            end
+            local lateral = math.min(width, step - 1)
+            for _, sideDirection in ipairs(sides) do
+                local side = Grid.directions[sideDirection]
+                for offset = 1, lateral do
+                    local x = cx + side.x * offset
+                    local y = cy + side.y * offset
+                    if self:inBounds(x, y) then
+                        appendUniqueTile(result, seen, x, y)
+                    end
+                end
+            end
+        end
+    elseif shape == "arc" then
+        local directions = { direction }
+        for _, side in ipairs(perpendicularDirections(direction)) do
+            directions[#directions + 1] = side
+        end
+        for _, arcDirection in ipairs(directions) do
+            local delta = Grid.directions[arcDirection]
+            for step = 1, length do
+                local x = unit.x + delta.x * step
+                local y = unit.y + delta.y * step
+                if self:inBounds(x, y) then
+                    appendUniqueTile(result, seen, x, y)
+                end
+            end
+        end
+    else
+        error("unknown threat zone shape " .. tostring(shape), 2)
+    end
+    table.sort(result, function(a, b)
+        if a.y == b.y then
+            return a.x < b.x
+        end
+        return a.y < b.y
+    end)
+    return result
+end
+
+function State:addThreatZoneShape(unitId, shape, options)
+    options = options or {}
+    local tiles = self:threatZoneTiles(unitId, shape, options)
+    return self:addThreatZone(unitId, tiles, options)
+end
+
 function State:declareIntent(unitId, intent)
     expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     local normalized = normalizeIntent(intent)
@@ -1071,7 +1157,11 @@ function State:apply(command)
         self:dropUnit(command.unit, command.direction, command.maxDrop)
     elseif kind == "overwatch" then
         self:spendAP(command.unit, command.cost or 1)
-        self:addThreatZone(command.unit, command.tiles, { damage = command.damage, limit = command.limit, label = command.label })
+        if command.shape then
+            self:addThreatZoneShape(command.unit, command.shape, { direction = command.direction, length = command.length, width = command.width, damage = command.damage, limit = command.limit, label = command.label })
+        else
+            self:addThreatZone(command.unit, command.tiles, { damage = command.damage, limit = command.limit, label = command.label })
+        end
     elseif kind == "damageTile" then
         self:spendAP(command.unit, command.cost or 1)
         self:damageTile(expectInteger(command.x, "tile x"), expectInteger(command.y, "tile y"), command.damage or 1)
@@ -1228,6 +1318,10 @@ end
 
 function commands.overwatch(unitId, tiles, damage, limit, cost)
     return { type = "overwatch", unit = unitId, tiles = tiles, damage = damage, limit = limit, cost = cost }
+end
+
+function commands.threatZone(unitId, shape, direction, length, width, damage, limit, cost)
+    return { type = "overwatch", unit = unitId, shape = shape, direction = direction, length = length, width = width, damage = damage, limit = limit, cost = cost }
 end
 
 function commands.damageTile(unitId, x, y, damage, cost)

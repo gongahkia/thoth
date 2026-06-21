@@ -67,7 +67,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Core Board Mechanics
 
-- [ ] M.7 Define overwatch/threat-zone rules with cones, lines, arcs, and trigger limits.
 - [ ] M.8 Define interact rules for valves, doors, seals, shelves, furnaces, bridges, terminals, bells, and extraction tiles.
 - [ ] M.9 Define terrain conversion rules: flood, drain, burn, ash choke, glassify, collapse, raise cover, lower cover, seal tile, open tile.
 - [ ] M.10 Define deterministic status rules: marked, exposed, pinned, bound, burning, flooded, corroded, filed, redacted, sealed, blinded, braced.

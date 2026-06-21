@@ -312,6 +312,38 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        defaultAp = 4,
+        board = { width = 6, height = 4 },
+        units = {
+            { id = "lamplighter", side = "player", x = 2, y = 2 },
+            { id = "hound", side = "enemy", x = 4, y = 1, hp = 3 },
+            { id = "reeve", side = "enemy", x = 5, y = 1, hp = 3 },
+        },
+    })
+    local line = state:threatZoneTiles("lamplighter", "line", { direction = "east", length = 3 })
+    local cone = state:threatZoneTiles("lamplighter", "cone", { direction = "east", length = 3, width = 1 })
+    local arc = state:threatZoneTiles("lamplighter", "arc", { direction = "north", length = 1 })
+    local function tileHas(list, x, y)
+        for _, tile in ipairs(list) do
+            if tile.x == x and tile.y == y then
+                return true
+            end
+        end
+        return false
+    end
+    expect(#line == 3 and tileHas(line, 3, 2) and tileHas(line, 5, 2), "line threat zone should project forward")
+    expect(#cone == 7 and tileHas(cone, 4, 1) and tileHas(cone, 5, 3), "cone threat zone should widen predictably")
+    expect(#arc == 3 and tileHas(arc, 2, 1) and tileHas(arc, 1, 2) and tileHas(arc, 3, 2), "arc threat zone should cover forward and side lanes")
+    state:apply(TacticsState.commands.threatZone("lamplighter", "line", "east", 3, nil, 1, 1))
+    expect(#state.threatZones == 1 and #state.threatZones[1].tiles == 3, "shape command should create a threat zone from geometry")
+    state:apply(TacticsState.commands.move("hound", "south"))
+    expect(state:unit("hound").hp == 2 and #state.threatZones == 0, "threat zone should trigger once and expire at limit")
+    state:apply(TacticsState.commands.move("reeve", "south"))
+    expect(state:unit("reeve").hp == 3, "expired threat zone should not trigger again")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 6,
         board = { width = 5, height = 3 },
         units = {

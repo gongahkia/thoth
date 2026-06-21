@@ -134,3 +134,25 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies carrying civilians, bodies/loot-crate schema, machinery-core drag, wounded-hero drag, carried cargo hazard damage, cargo-aware movement preview, drop rules, and snapshot roundtrip.
+
+## M.7 Overwatch And Threat Zones
+
+Threat zones are authored as explicit tile lists or generated shapes.
+
+Supported shapes:
+
+- `line`: straight cardinal lane from the source.
+- `cone`: forward lane that widens by step up to `width`.
+- `arc`: forward and side lanes around the source.
+
+Rules:
+
+- Threat zones store source unit, side, target tiles, damage, label, and trigger limit.
+- A zone triggers when an opposing active unit enters one of its tiles.
+- Triggering applies deterministic damage and decrements `remaining`.
+- Zones expire when `remaining` reaches zero or the source unit is defeated.
+- Shape helpers clip to board bounds.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies line, cone, and arc geometry, shape-created threat zones, one-trigger limit expiry, and no retrigger after expiry.
