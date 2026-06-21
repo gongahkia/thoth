@@ -1003,6 +1003,25 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local kinds = { "disable_seal", "disable_bell", "disable_valve", "disable_kiln", "disable_audit_lens" }
+    local objectives = {}
+    for index, kind in ipairs(kinds) do
+        objectives[#objectives + 1] = { id = kind, kind = kind, x = index, y = 1, integrity = 1, evacuateAt = { x = 5, y = 2 } }
+    end
+    local state = TacticsState.new({
+        board = { width = 5, height = 2 },
+        units = { { id = "saboteur", side = "player", x = 1, y = 2 } },
+        objectives = objectives,
+    })
+    for _, kind in ipairs(kinds) do
+        expect(state:objective(kind).family == "disable", "disable objective kind should be accepted: " .. kind)
+    end
+    state:apply(TacticsState.commands.disableObjective("saboteur", "disable_audit_lens", "collapsed_lens", 0))
+    local result = state:objectiveResult("disable_audit_lens")
+    expect(result.status == "complete" and result.disabled, "disable objective should complete deterministically")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

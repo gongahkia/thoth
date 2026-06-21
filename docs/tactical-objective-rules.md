@@ -63,3 +63,25 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies all listed cargo kinds, extract objective family, and deterministic extraction completion.
+
+## O.3 Disable Objectives
+
+Disable objectives complete when their target is neutralized.
+
+Kinds:
+
+- `disable_seal`
+- `disable_bell`
+- `disable_valve`
+- `disable_kiln`
+- `disable_audit_lens`
+
+Rules:
+
+- Disable objectives belong to family `disable`.
+- `disableObjective` marks the objective disabled and complete.
+- Disable reason is recorded for result context.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies every disable kind is accepted and disabling an audit lens completes the objective.

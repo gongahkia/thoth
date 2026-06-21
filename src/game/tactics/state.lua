@@ -508,6 +508,11 @@ local objectiveKinds = {
     extract_fuel = "extract",
     extract_medicine = "extract",
     extract_witness = "extract",
+    disable_seal = "disable",
+    disable_bell = "disable",
+    disable_valve = "disable",
+    disable_kiln = "disable",
+    disable_audit_lens = "disable",
 }
 
 local function normalizeObjective(objective, index)
@@ -531,6 +536,7 @@ local function normalizeObjective(objective, index)
         evacuationsRequired = objective.evacuationsRequired or 1,
         evacuatedUnits = copyList(objective.evacuatedUnits),
         extracted = objective.extracted == true,
+        disabled = objective.disabled == true,
         relocated = objective.relocated == true,
         sacrificed = objective.sacrificed == true,
         allowPartial = objective.allowPartial == true,
@@ -1919,6 +1925,10 @@ function State:evaluateObjective(objective)
     if objective.complete then
         return "complete"
     end
+    if objective.disabled then
+        objective.complete = true
+        return "complete"
+    end
     if objective.extracted then
         objective.complete = true
         return "complete"
@@ -1984,6 +1994,15 @@ function State:extractObjective(id)
     return objective
 end
 
+function State:disableObjective(id, reason)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    expect(not objective.failed, "objective already failed")
+    objective.disabled = true
+    objective.disabledReason = reason
+    objective.complete = true
+    return objective
+end
+
 function State:sacrificeObjective(id, reason)
     local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
     objective.sacrificed = true
@@ -2003,6 +2022,7 @@ function State:objectiveResult(id)
         partialSuccess = status == "active" and objective.allowPartial == true and ratio > 0,
         failureCarryover = copyMap(objective.failureCarryover),
         extracted = objective.extracted == true,
+        disabled = objective.disabled == true,
         relocated = objective.relocated == true,
         sacrificed = objective.sacrificed == true,
     }
@@ -2528,6 +2548,10 @@ function State:apply(command)
         expect(not objective.failed, "objective already failed")
         self:spendAP(command.unit, command.cost or 1)
         self:extractObjective(command.objective)
+    elseif kind == "disableObjective" then
+        expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
+        self:spendAP(command.unit, command.cost or 1)
+        self:disableObjective(command.objective, command.reason)
     elseif kind == "sacrificeObjective" then
         expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
         self:spendAP(command.unit, command.cost or 0)
@@ -2754,6 +2778,10 @@ end
 
 function commands.extractObjective(unitId, objectiveId, cost)
     return { type = "extractObjective", unit = unitId, objective = objectiveId, cost = cost }
+end
+
+function commands.disableObjective(unitId, objectiveId, reason, cost)
+    return { type = "disableObjective", unit = unitId, objective = objectiveId, reason = reason, cost = cost }
 end
 
 function commands.sacrificeObjective(unitId, objectiveId, reason, cost)
