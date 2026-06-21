@@ -45,3 +45,18 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies hard, low, transparent, and destructible blockers plus destruction cleanup.
+
+## L.3 Flanking
+
+Flanking is deterministic cover invalidation from attack vector.
+
+Rules:
+
+- Attack direction is derived from attacker tile to target tile.
+- If the target has any cover but not on the attacked edge, the target is flanked.
+- Flanking invalidates existing cover for that attack only.
+- Flanking does not use hit chance math.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies covered attacks do not flank and uncovered attack vectors invalidate existing cover.

@@ -878,6 +878,19 @@ function State:coverFromAttack(fromX, fromY, targetX, targetY)
     }
 end
 
+function State:flankFromAttack(fromX, fromY, targetX, targetY)
+    local cover = self:coverFromAttack(fromX, fromY, targetX, targetY)
+    local coveredEdges = coverDirections(self:tileAt(targetX, targetY))
+    return {
+        x = targetX,
+        y = targetY,
+        direction = cover.direction,
+        cover = cover.cover,
+        flanked = #coveredEdges > 0 and cover.cover == "none",
+        invalidated = cover.cover == "none" and coveredEdges or {},
+    }
+end
+
 local function tileHazardCost(tile)
     local hazard = tile and tile.hazard or nil
     if not hazard then

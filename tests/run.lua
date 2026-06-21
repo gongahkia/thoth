@@ -213,6 +213,22 @@ end
 tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
+            width = 3,
+            height = 3,
+            tiles = {
+                ["2:2"] = { coverEdges = { west = "half", north = "full" } },
+            },
+        },
+    })
+    local protected = state:flankFromAttack(1, 2, 2, 2)
+    expect(not protected.flanked and protected.cover == "half", "covered attack vector should not flank")
+    local flanked = state:flankFromAttack(2, 3, 2, 2)
+    expect(flanked.flanked and flanked.direction == "south" and #flanked.invalidated == 2, "uncovered attack vector should deterministically invalidate other cover")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
             width = 4,
             height = 1,
             tiles = {
