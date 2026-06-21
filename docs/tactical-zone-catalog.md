@@ -62,3 +62,20 @@ The Salt Cistern defines 12 deterministic tile mechanics:
 Acceptance proof:
 
 - `tests/run.lua` verifies the Salt Cistern exposes exactly 12 tile mechanics and each has subject, verb, and effect metadata.
+
+## Z.4 Salt Cistern Objects
+
+The Salt Cistern defines 8 destructible or interactable objects:
+
+- `tide_valve`: 2 AP, 4 HP, drains one flood band and repairs floodgate integrity.
+- `sluice_gate`: 2 AP, 5 HP, full cover while shut, opens delayed flood lanes, can damage route machinery when broken.
+- `pressure_bell_frame`: 1 AP, 3 HP, calls surge on wet rows and pressures protect nodes.
+- `pearl_cyst_cluster`: 1 AP, 4 HP, half cover, adds brine splash and can damage civilian cells.
+- `pump_bridge_wheel`: 2 AP, 4 HP, raises a bridge while lowering adjacent water, opening extract routes.
+- `drain_grate_cap`: 1 AP, 3 HP, drains adjacent flood tiles but risks repair target integrity.
+- `floating_barricade`: 1 AP, 3 HP, drifting half cover that can shield machinery cores.
+- `waterline_gauge`: 1 AP, 2 HP, previews next rise or drain and prevents objective integrity surprises.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies the Salt Cistern exposes exactly 8 objects and each has AP cost, HP, LoS effect, cover state, rotation, flood, and objective metadata.

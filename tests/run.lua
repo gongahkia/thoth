@@ -1275,6 +1275,31 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local objects = ZoneCatalog.objects("salt_cistern")
+    expect(#objects == 8, "Salt Cistern should define 8 objects")
+    local seen = {}
+    for _, object in ipairs(objects) do
+        seen[object.id] = object
+        expect(object.apCost and object.apCost > 0, "cistern object should include AP cost")
+        expect(object.hp and object.hp > 0, "cistern object should include HP")
+        expect(object.losEffect and object.coverState and object.rotation, "cistern object should include LoS cover rotation")
+        expect(object.floodEffect and object.objectiveEffect, "cistern object should include flood and objective effects")
+    end
+    for _, id in ipairs({
+        "tide_valve",
+        "sluice_gate",
+        "pressure_bell_frame",
+        "pearl_cyst_cluster",
+        "pump_bridge_wheel",
+        "drain_grate_cap",
+        "floating_barricade",
+        "waterline_gauge",
+    }) do
+        expect(seen[id], "missing cistern object " .. id)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

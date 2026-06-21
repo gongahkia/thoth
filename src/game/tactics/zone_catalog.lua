@@ -42,6 +42,16 @@ ZoneCatalog.zones = {
             { id = "cistern_floating_cover", subject = "floating cover", verb = "drift", effect = "moves half cover with currents" },
             { id = "cistern_waterline_height", subject = "waterline height", verb = "rise_fall", effect = "changes movement cost and LoS height bands" },
         },
+        objects = {
+            { id = "tide_valve", apCost = 2, hp = 4, losEffect = "no block", coverState = "none", rotation = "reverse side marks drain order", floodEffect = "drains one flood band", objectiveEffect = "repairs floodgate integrity" },
+            { id = "sluice_gate", apCost = 2, hp = 5, losEffect = "opaque while shut", coverState = "full", rotation = "reverse side marks surge lane", floodEffect = "opens delayed flood lane", objectiveEffect = "damages route machinery if broken" },
+            { id = "pressure_bell_frame", apCost = 1, hp = 3, losEffect = "no block", coverState = "none", rotation = "reverse side marks bell radius", floodEffect = "calls surge on wet rows", objectiveEffect = "pressures protect nodes" },
+            { id = "pearl_cyst_cluster", apCost = 1, hp = 4, losEffect = "low opaque blocker", coverState = "half", rotation = "reverse side marks burst cone", floodEffect = "adds brine splash", objectiveEffect = "damages civilian cells if burst nearby" },
+            { id = "pump_bridge_wheel", apCost = 2, hp = 4, losEffect = "no block", coverState = "none", rotation = "reverse side marks bridge lock", floodEffect = "raises bridge while lowering adjacent water", objectiveEffect = "opens extract route" },
+            { id = "drain_grate_cap", apCost = 1, hp = 3, losEffect = "pit sight only", coverState = "none", rotation = "reverse side marks undertow pull", floodEffect = "drains adjacent flood tiles", objectiveEffect = "risks repair target integrity" },
+            { id = "floating_barricade", apCost = 1, hp = 3, losEffect = "drifting half blocker", coverState = "half", rotation = "reverse side marks current route", floodEffect = "moves with current after drain tick", objectiveEffect = "shields machinery core" },
+            { id = "waterline_gauge", apCost = 1, hp = 2, losEffect = "no block", coverState = "none", rotation = "reverse side marks safe height", floodEffect = "previews next rise or drain", objectiveEffect = "prevents objective integrity surprise" },
+        },
     },
 }
 
