@@ -20,6 +20,7 @@ local World = require("src.game.world")
 local Defs = require("src.game.defs")
 local TacticsState = require("src.game.tactics.state")
 local ZoneCatalog = require("src.game.tactics.zone_catalog")
+local ClassCatalog = require("src.game.tactics.class_catalog")
 
 local function expect(value, message)
     if not value then
@@ -1371,6 +1372,16 @@ tests[#tests + 1] = function()
         end
         expect(count >= 3, zoneId .. " should define at least 3 double-edged terrain mechanics")
     end
+end
+
+tests[#tests + 1] = function()
+    local warden = ClassCatalog.class("warden")
+    expect(warden and warden.name == "Warden", "Warden catalog entry should exist")
+    expect(#ClassCatalog.loadouts("warden") == 3, "Warden should define 3 loadouts")
+    expect(#ClassCatalog.tools("warden") == 6, "Warden should define 6 tools")
+    expect(#ClassCatalog.terrainInteractions("warden") == 2, "Warden should define 2 terrain interactions")
+    expect(warden.weakness and warden.weakness.id == "slow_to_pivot", "Warden should define weakness")
+    expect(warden.replayFixture == "warden_brace_line", "Warden should define replay fixture")
 end
 
 tests[#tests + 1] = function()

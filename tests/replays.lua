@@ -4,6 +4,7 @@ local Replay = require("src.game.replay")
 local Simulation = require("src.game.simulation")
 local Serialize = require("src.core.serialize")
 local TacticsState = require("src.game.tactics.state")
+local ClassCatalog = require("src.game.tactics.class_catalog")
 
 local function expect(value, message)
     if not value then
@@ -206,5 +207,41 @@ expect(intentA:intentPreview("conditional") == nil and intentA:objective("seal")
 expect(intentA:intentPreview("decoy").decoyRevealed, "intent replay should reveal decoy")
 expect(intentA:intentPreview("boss").revealed and intentA:intentPreview("boss").targetTiles[1].x == 4, "intent replay should reveal boss mask")
 io.stdout:write("tactics replay ok intent_classes\n")
+
+local function tacticalWardenReplayState()
+    return TacticsState.new({
+        defaultAp = 4,
+        board = { width = 4, height = 3 },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 2, hp = 10, class = "warden" },
+            { id = "scribe", side = "enemy", x = 2, y = 2, hp = 4 },
+        },
+        objectives = {
+            { id = "shelf", kind = "protect_archive_shelf", x = 3, y = 2, integrity = 1, maxIntegrity = 3, evacuateAt = { x = 4, y = 2 } },
+        },
+    })
+end
+
+local tacticalWardenFrames = {
+    { tick = 0, command = TacticsState.commands.spend("warden", 1, "brace_pavise") },
+    { tick = 1, command = TacticsState.commands.shove("warden", "scribe", "north", 1, 1, 1) },
+    { tick = 2, command = TacticsState.commands.repairObjective("warden", "shelf", 2, 1) },
+}
+
+local function runTacticalWardenReplay()
+    local state = tacticalWardenReplayState()
+    for _, frame in ipairs(tacticalWardenFrames) do
+        state:apply(frame.command)
+    end
+    return state
+end
+
+local wardenFixture = ClassCatalog.class("warden").replayFixture
+local wardenA = runTacticalWardenReplay()
+local wardenB = runTacticalWardenReplay()
+expect(wardenFixture == "warden_brace_line", "Warden replay fixture should be registered")
+expect(Serialize.encode(wardenA:snapshot()) == Serialize.encode(wardenB:snapshot()), "Warden replay fixture should be deterministic")
+expect(wardenA.units.scribe.y == 1 and wardenA:objective("shelf").integrity == 3, "Warden replay should shove and repair")
+io.stdout:write("tactics replay ok ", wardenFixture, "\n")
 
 io.stdout:write("replay fixtures passed: ", #fixtures, "\n")
