@@ -1,3 +1,5 @@
+local Rng = require("src.core.rng")
+
 local RunCatalog = {}
 
 RunCatalog.boardTemplates = {
@@ -115,6 +117,43 @@ RunCatalog.eventPrompts = {
     { id = "event_faction_10", alters = "faction_standing", prompt = "The Estate asks for speed over mercy; finish route fast or protect survivors for different standing." },
 }
 
+local runMapZones = {
+    buried_archive = { boss = "vault_regent", enclave = "custodian annex", hazard = "audit static" },
+    salt_cistern = { boss = "pearl_choir", enclave = "drowned pump ward", hazard = "flood lane" },
+    ember_warrens = { boss = "cinder_prioress", enclave = "ash shelter", hazard = "burn lane" },
+}
+
+local runMapZoneOrder = { "buried_archive", "salt_cistern", "ember_warrens" }
+
+local function copyValue(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local result = {}
+    for key, nested in pairs(value) do
+        result[key] = copyValue(nested)
+    end
+    return result
+end
+
+local function preview(risk, reward, detail)
+    return { risk = risk, reward = reward, detail = detail, visible = true }
+end
+
+local function eventFor(seed)
+    local rng = Rng.new(seed or 1)
+    return RunCatalog.eventPrompts[rng:range(1, #RunCatalog.eventPrompts)]
+end
+
+local function node(id, kind, depth, data)
+    local result = copyValue(data or {})
+    result.id = id
+    result.kind = kind
+    result.depth = depth
+    result.next = result.next or {}
+    return result
+end
+
 function RunCatalog.boardTemplate(id)
     for _, template in ipairs(RunCatalog.boardTemplates) do
         if template.id == id then
@@ -150,6 +189,98 @@ end
 
 function RunCatalog.events()
     return RunCatalog.eventPrompts
+end
+
+function RunCatalog.generateMap(seed, options)
+    options = options or {}
+    local rng = Rng.new(seed or 1)
+    local zoneId = options.zone or runMapZoneOrder[rng:range(1, #runMapZoneOrder)]
+    local zone = runMapZones[zoneId] or runMapZones.buried_archive
+    local event = eventFor((seed or 1) + 404)
+    local nodes = {
+        node("start", "start", 0, {
+            zone = zoneId,
+            preview = preview("none", "choose route", "branch into tactical pressure"),
+            next = { "combat_route", "enclave_request" },
+        }),
+        node("combat_route", "combat", 1, {
+            zone = zoneId,
+            template = "kill_light",
+            preview = preview("standard combat", "baseline salvage", "known enemy family and " .. zone.hazard),
+            next = { "event_node", "elite_route" },
+        }),
+        node("enclave_request", "enclave", 1, {
+            zone = zoneId,
+            request = { enclave = zone.enclave, ask = "protect local machinery", reward = "standing and repair aid", failure = "route dread +1" },
+            preview = preview("objective pressure", "enclave standing", "local request before board load"),
+            next = { "event_node", "repair_route" },
+        }),
+        node("event_node", "event", 2, {
+            zone = zoneId,
+            eventId = event.id,
+            eventTiming = event.alters,
+            preview = preview("pre/post mission complication", "modifier or resource", event.prompt),
+            next = { "boss_gate" },
+        }),
+        node("elite_route", "elite", 2, {
+            zone = zoneId,
+            template = "protect_heavy",
+            preview = preview("partial intent elite", "rare unlock", "higher enemy intent density"),
+            next = { "boss_gate" },
+        }),
+        node("repair_route", "repair", 2, {
+            zone = zoneId,
+            template = "repair",
+            preview = preview("machinery pressure", "route integrity", "repair objective under " .. zone.hazard),
+            next = { "boss_gate" },
+        }),
+        node("boss_gate", "boss", 3, {
+            zone = zoneId,
+            gate = { boss = zone.boss, requires = { "one depth-2 node cleared" }, preview = "boss variant and objective threat" },
+            preview = preview("boss procedure", "seal progress", "requires one route commitment"),
+            next = {},
+        }),
+    }
+    local byId = {}
+    for _, entry in ipairs(nodes) do
+        byId[entry.id] = entry
+    end
+    return {
+        seed = seed or 1,
+        zone = zoneId,
+        start = "start",
+        bossGate = "boss_gate",
+        choices = { "combat_route", "enclave_request" },
+        nodes = nodes,
+        nodeById = byId,
+    }
+end
+
+function RunCatalog.validateMap(map)
+    local report = { valid = true, missing = {}, counts = { choices = #(map and map.choices or {}) } }
+    local neededKinds = { combat = true, event = true, enclave = true, boss = true }
+    local seenKinds = {}
+    local byId = map and map.nodeById or {}
+    for _, entry in ipairs(map and map.nodes or {}) do
+        seenKinds[entry.kind] = true
+        if not entry.preview or not entry.preview.risk or not entry.preview.reward then
+            report.valid = false
+            report.missing[#report.missing + 1] = entry.id .. ".preview"
+        end
+        for _, nextId in ipairs(entry.next or {}) do
+            if not byId[nextId] then
+                report.valid = false
+                report.missing[#report.missing + 1] = entry.id .. "->" .. tostring(nextId)
+            end
+        end
+    end
+    for kind in pairs(neededKinds) do
+        if not seenKinds[kind] then
+            report.valid = false
+            report.missing[#report.missing + 1] = kind
+        end
+    end
+    return report
 end
 
 return RunCatalog

@@ -1751,6 +1751,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local map = RunCatalog.generateMap(2404, { zone = "salt_cistern" })
+    local report = RunCatalog.validateMap(map)
+    expect(map.zone == "salt_cistern" and report.valid, "run map should generate valid zone graph")
+    expect(#map.choices == 2 and map.nodeById[map.choices[1]].preview.risk and map.nodeById[map.choices[1]].preview.reward, "run map should expose route choices with previews")
+    expect(map.nodeById.enclave_request.request.enclave and map.nodeById.enclave_request.request.reward, "run map should include enclave request")
+    expect(map.nodeById.event_node.kind == "event" and map.nodeById.event_node.eventId, "run map should include event node")
+    expect(map.nodeById.boss_gate.gate.boss and map.nodeById.boss_gate.gate.requires[1], "run map should include boss gate")
+    expect(Serialize.encode(map) == Serialize.encode(RunCatalog.generateMap(2404, { zone = "salt_cistern" })), "run map should be deterministic per seed")
+end
+
+tests[#tests + 1] = function()
     local timings = {}
     for _, rule in ipairs(RunCatalog.eventRules()) do
         expect(rule.roll and rule.effect, "event RNG rule should define roll and effect: " .. rule.id)

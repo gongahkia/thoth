@@ -92,6 +92,29 @@ Node card shows risk, reward, and the information preview field for that node ty
 test/replay proof:
 `tests/run.lua` verifies all ten route node types exist and each defines risk, reward, and preview text.
 
+## P.4b Run Map Graph
+
+source pattern:
+Roguelite map screens create agency by showing branching paths, risk/reward node types, route length, elites/events, and boss endpoints before commitment.
+
+thoth transformation:
+Thoth run maps generate a small node graph with route choices, risk/reward previews, enclave requests, event nodes, repair/elite routes, and a boss gate.
+
+board verb:
+Route, preview, request, gate, choose.
+
+zone fit:
+Each zone supplies local enclave, hazard, and boss-gate metadata while sharing the same graph shape.
+
+counterplay:
+Players can avoid or accept combat, enclave, event, repair, elite, and boss pressure based on visible previews.
+
+preview/UI:
+Route map can show node kind, risk, reward, detail text, event id, enclave request, and boss gate requirement.
+
+test/replay proof:
+`tests/run.lua` verifies a generated run map validates, exposes two route choices, includes enclave/event/boss nodes, carries risk/reward previews, and serializes deterministically from the same seed.
+
 ## P.5 Event RNG Rules
 
 source pattern:

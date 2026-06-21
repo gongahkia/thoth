@@ -112,7 +112,6 @@ Goal: replace expedition/rank combat with the tile tactics engine.
 
 Goal: make runs varied without sacrificing readability.
 
-- [ ] 2.4 Add run map: route choices, risk/reward previews, enclave requests, boss gates, and event nodes.
 - [ ] 2.5 Add RNG event layer for pre/post mission complications; tactical combat remains deterministic after board start.
 - [ ] 2.6 Add difficulty budget so generated boards can be rejected if unsolvable or unreadable.
 - [ ] 2.7 Add seeded-run replay export.

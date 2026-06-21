@@ -37,6 +37,9 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S25 | https://book.leveldesignbook.com/process/combat/encounter | Encounters need pacing across beginning, middle, and ending, with readable cause and effect. | Thoth encounter director emits visible enemy mix, objective pressure, reinforcement timing, and retreat route metadata. |
 | S26 | https://keithburgun.net/solving-some-major-problems-in-turn-based-tactical-wargames/ | Reinforcements can provide time pressure while objective capture remains the tactical focus. | Thoth schedules visible reinforcement turns against objective clocks instead of hidden random spawns. |
 | S27 | https://www.pcgamer.com/games/fps/starship-troopers-extermination-implements-a-total-overhaul-to-its-spawning-system-adding-a-left-4-dead-style-ai-director-we-realized-that-our-original-spawning-system-while-functional-was-starting-to-show-its-limit/ | Director-style systems evaluate battlefield state for consistent spawn timing and location. | Thoth uses a deterministic pre-board director to author pressure, not runtime surprise spawning. |
+| S28 | https://thehexagarden.com/blog/lets-make-a-map-1 | Roguelite maps create agency through branching paths with visible risk/reward and node variety. | Thoth run maps expose route choices, enclave requests, events, elite/repair routes, and boss gates. |
+| S29 | https://www.diva-portal.org/smash/get/diva2%3A1565751/FULLTEXT02 | Slay the Spire-style maps use connected node types like enemy, elite, shop/event/resource, and boss, where path choice balances risk and power. | Thoth node previews state tactical risk, run reward, and boss-gate requirements before commitment. |
+| S30 | https://thom.ee/blog/what-makes-or-breaks-agency-in-roguelikes/ | Roguelike agency improves when randomness happens before decisions and choices remain meaningful across a run. | Thoth route/event data is visible pre-action; tactical resolution stays deterministic after board load. |
 
 ## Mechanic Handoffs
 
@@ -279,6 +282,22 @@ counterplay: inspect enemy mix, objective clock, visible reinforcement warning, 
 preview/UI: route/debug preview lists director id, enemy family, intent cap, objective pressure, reinforcement turn, and retreat path.
 
 test/replay proof: directed zone boards serialize identically from a fixed seed and include all director fields.
+
+### H16 Run Map Graph
+
+source pattern: branching roguelite maps create agency by showing connected node choices, risk/reward tradeoffs, event/resource pressure, and boss endpoints.
+
+thoth transformation: Run maps emit route choices, risk/reward previews, enclave requests, event nodes, repair/elite branches, and boss gates as inspectable graph data.
+
+board verb: route, preview, request, gate, choose.
+
+zone fit: all zones supply local enclave, hazard, and boss metadata.
+
+counterplay: accept or avoid pressure based on visible risk/reward before the next tactical board is generated.
+
+preview/UI: map node preview lists kind, risk, reward, detail, event id, enclave request, and boss gate requirement.
+
+test/replay proof: fixed seed run map validates all required node kinds and serializes identically.
 
 ## Rejection Rules
 
