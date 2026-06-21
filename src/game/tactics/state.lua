@@ -185,6 +185,11 @@ local function normalizeObjective(objective, index)
         evacuateAt = { x = expectInteger(evacuateAt.x, "evacuation x"), y = expectInteger(evacuateAt.y, "evacuation y") },
         evacuationsRequired = objective.evacuationsRequired or 1,
         evacuatedUnits = copyList(objective.evacuatedUnits),
+        extracted = objective.extracted == true,
+        relocated = objective.relocated == true,
+        sacrificed = objective.sacrificed == true,
+        allowPartial = objective.allowPartial == true,
+        failureCarryover = copyMap(objective.failureCarryover),
         complete = objective.complete == true,
         failed = objective.failed == true,
     }
@@ -922,8 +927,14 @@ function State:evaluateObjective(objective)
     if objective.complete then
         return "complete"
     end
+    if objective.extracted then
+        objective.complete = true
+        return "complete"
+    end
     if (objective.integrity or 0) <= 0 then
         objective.failed = true
+        objective.failureCarryover = objective.failureCarryover or {}
+        objective.failureCarryover.reason = objective.failureCarryover.reason or "integrity_zero"
         return "failed"
     end
     if #(objective.evacuatedUnits or {}) >= (objective.evacuationsRequired or 1) then
@@ -948,6 +959,61 @@ function State:damageObjective(id, amount)
     objective.integrity = math.max(0, objective.integrity - amount)
     self:evaluateObjective(objective)
     return objective.integrity
+end
+
+function State:repairObjective(id, amount)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    amount = expectInteger(amount or 0, "objective repair")
+    expect(amount >= 0, "objective repair must be non-negative")
+    if objective.complete or objective.failed then
+        return objective.integrity
+    end
+    objective.integrity = math.min(objective.maxIntegrity or objective.integrity or amount, (objective.integrity or 0) + amount)
+    return objective.integrity
+end
+
+function State:relocateObjective(id, x, y)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    x = expectInteger(x, "objective x")
+    y = expectInteger(y, "objective y")
+    expect(self:inBounds(x, y), "objective relocation out of bounds")
+    expect(not self:tileAt(x, y).blocker, "objective relocation blocked")
+    objective.x = x
+    objective.y = y
+    objective.relocated = true
+    return objective
+end
+
+function State:extractObjective(id)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    expect(not objective.failed, "objective already failed")
+    objective.extracted = true
+    objective.complete = true
+    return objective
+end
+
+function State:sacrificeObjective(id, reason)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    objective.sacrificed = true
+    objective.failed = true
+    objective.failureCarryover = { reason = reason or "sacrificed", integrity = objective.integrity or 0 }
+    return objective
+end
+
+function State:objectiveResult(id)
+    local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
+    local status = self:evaluateObjective(objective)
+    local maxIntegrity = math.max(1, objective.maxIntegrity or objective.integrity or 1)
+    local ratio = math.max(0, objective.integrity or 0) / maxIntegrity
+    return {
+        status = status,
+        integrityRatio = ratio,
+        partialSuccess = status == "active" and objective.allowPartial == true and ratio > 0,
+        failureCarryover = copyMap(objective.failureCarryover),
+        extracted = objective.extracted == true,
+        relocated = objective.relocated == true,
+        sacrificed = objective.sacrificed == true,
+    }
 end
 
 function State:damageObjectiveAt(x, y, amount)
@@ -1439,6 +1505,25 @@ function State:apply(command)
         expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
         self:spendAP(command.unit, command.cost or 0)
         self:damageObjective(command.objective, command.damage or 1)
+    elseif kind == "repairObjective" then
+        expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
+        self:spendAP(command.unit, command.cost or 1)
+        self:repairObjective(command.objective, command.amount or 1)
+    elseif kind == "relocateObjective" then
+        expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
+        expect(self:inBounds(expectInteger(command.x, "objective x"), expectInteger(command.y, "objective y")), "objective relocation out of bounds")
+        expect(not self:tileAt(command.x, command.y).blocker, "objective relocation blocked")
+        self:spendAP(command.unit, command.cost or 1)
+        self:relocateObjective(command.objective, command.x, command.y)
+    elseif kind == "extractObjective" then
+        local objective = expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
+        expect(not objective.failed, "objective already failed")
+        self:spendAP(command.unit, command.cost or 1)
+        self:extractObjective(command.objective)
+    elseif kind == "sacrificeObjective" then
+        expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
+        self:spendAP(command.unit, command.cost or 0)
+        self:sacrificeObjective(command.objective, command.reason)
     elseif kind == "evacuate" then
         local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
         local objective = expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
@@ -1626,6 +1711,22 @@ end
 
 function commands.damageObjective(unitId, objectiveId, damage, cost)
     return { type = "damageObjective", unit = unitId, objective = objectiveId, damage = damage, cost = cost }
+end
+
+function commands.repairObjective(unitId, objectiveId, amount, cost)
+    return { type = "repairObjective", unit = unitId, objective = objectiveId, amount = amount, cost = cost }
+end
+
+function commands.relocateObjective(unitId, objectiveId, x, y, cost)
+    return { type = "relocateObjective", unit = unitId, objective = objectiveId, x = x, y = y, cost = cost }
+end
+
+function commands.extractObjective(unitId, objectiveId, cost)
+    return { type = "extractObjective", unit = unitId, objective = objectiveId, cost = cost }
+end
+
+function commands.sacrificeObjective(unitId, objectiveId, reason, cost)
+    return { type = "sacrificeObjective", unit = unitId, objective = objectiveId, reason = reason, cost = cost }
 end
 
 function commands.evacuate(unitId, objectiveId, cost)

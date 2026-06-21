@@ -238,3 +238,22 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies all supported status kinds, incoming damage bonuses, movement blocking, blinded threat-zone blocking, deterministic tick damage/expiry, and braced collision reduction.
+
+## M.11 Objective Integrity
+
+Objectives have deterministic integrity and result state.
+
+Rules:
+
+- `damageObjective` lowers integrity and fails the objective at zero.
+- `repairObjective` restores integrity up to `maxIntegrity`.
+- `relocateObjective` moves an objective to an unblocked tile.
+- `extractObjective` completes an objective.
+- `sacrificeObjective` fails an objective and records carryover reason.
+- `objectiveResult` reports status, integrity ratio, partial success, extraction, relocation, sacrifice, and failure carryover.
+- Objectives with `allowPartial` report partial success while active with integrity above zero.
+- Integrity-zero failure records `failureCarryover.reason = integrity_zero` unless another reason already exists.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies damage, repair, relocation, blocked relocation rejection, sacrifice, partial success, extraction completion, and failure carryover.

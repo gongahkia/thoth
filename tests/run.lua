@@ -499,6 +499,51 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        defaultAp = 8,
+        board = {
+            width = 4,
+            height = 3,
+            tiles = {
+                ["4:3"] = { blocker = true },
+            },
+        },
+        units = {
+            { id = "chirurgeon", side = "player", x = 1, y = 1 },
+        },
+        objectives = {
+            { id = "machine", x = 2, y = 2, integrity = 2, maxIntegrity = 4, allowPartial = true, evacuateAt = { x = 4, y = 2 } },
+            { id = "ledger", x = 1, y = 2, integrity = 1, maxIntegrity = 1, evacuateAt = { x = 4, y = 2 } },
+            { id = "seal", x = 1, y = 3, integrity = 1, maxIntegrity = 1, evacuateAt = { x = 4, y = 2 } },
+        },
+    })
+    state:apply(TacticsState.commands.damageObjective("chirurgeon", "machine", 1, 0))
+    expect(state:objective("machine").integrity == 1, "objective damage should lower integrity")
+    state:apply(TacticsState.commands.repairObjective("chirurgeon", "machine", 2, 0))
+    expect(state:objective("machine").integrity == 3, "objective repair should restore integrity up to max")
+    state:apply(TacticsState.commands.relocateObjective("chirurgeon", "machine", 3, 2, 0))
+    expect(state:objective("machine").x == 3 and state:objective("machine").relocated, "objective relocation should move objective")
+    local result = state:objectiveResult("machine")
+    expect(result.partialSuccess and result.integrityRatio == 0.75 and result.relocated, "objective result should report partial success and relocation")
+    local ok, err = pcall(function()
+        state:apply(TacticsState.commands.relocateObjective("chirurgeon", "machine", 4, 3, 0))
+    end)
+    expect(not ok and err:find("objective relocation blocked", 1, true), "objective relocation should reject blocked tiles")
+    state:apply(TacticsState.commands.extractObjective("chirurgeon", "ledger", 0))
+    expect(state:objectiveStatus("ledger") == "complete" and state:objectiveResult("ledger").extracted, "objective extraction should complete objective")
+    state:apply(TacticsState.commands.sacrificeObjective("chirurgeon", "seal", "route_trade", 0))
+    local sacrificed = state:objectiveResult("seal")
+    expect(sacrificed.status == "failed" and sacrificed.sacrificed and sacrificed.failureCarryover.reason == "route_trade", "objective sacrifice should record failure carryover")
+    local failed = TacticsState.new({
+        board = { width = 2, height = 2 },
+        units = { { id = "warden", x = 1, y = 1 } },
+        objectives = { { id = "pump", x = 1, y = 2, integrity = 1, evacuateAt = { x = 2, y = 2 } } },
+    })
+    failed:apply(TacticsState.commands.damageObjective("warden", "pump", 1, 0))
+    expect(failed:objectiveResult("pump").failureCarryover.reason == "integrity_zero", "objective integrity failure should carry over reason")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 2,
         board = {
             width = 4,

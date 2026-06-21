@@ -67,7 +67,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Core Board Mechanics
 
-- [ ] M.11 Define objective integrity rules: damage, repair, relocation, sacrifice, partial success, extraction, and failure carryover.
 - [ ] M.12 Define tactical rewards that unlock options, not raw permanent stat dominance.
 
 ### Intent & Counterplay Mechanics
