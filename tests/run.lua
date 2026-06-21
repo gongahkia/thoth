@@ -634,6 +634,41 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        defaultAp = 20,
+        board = { width = 10, height = 1 },
+        units = {
+            { id = "arcanist", side = "player", x = 1, y = 1 },
+        },
+    })
+    local conversions = {
+        "flood",
+        "drain",
+        "burn",
+        "ash_choke",
+        "glassify",
+        "collapse",
+        "raise_cover",
+        "lower_cover",
+        "seal_tile",
+        "open_tile",
+    }
+    for index, conversion in ipairs(conversions) do
+        state:apply(TacticsState.commands.convertTile("arcanist", index, 1, conversion, 0))
+    end
+    expect(state:tileAt(1, 1).state == "flooded" and state:tileAt(1, 1).hazard.active, "flood conversion should activate flood hazard")
+    expect(state:tileAt(2, 1).state == "drained" and not state:tileAt(2, 1).hazard.active, "drain conversion should deactivate flood hazard")
+    expect(state:tileAt(3, 1).state == "burning" and state:tileAt(3, 1).hazard.kind == "burn", "burn conversion should activate burn hazard")
+    expect(state:tileAt(4, 1).state == "ash_choke" and state:tileAt(4, 1).losBlocker, "ash choke conversion should block LoS")
+    expect(state:tileAt(5, 1).state == "glassified" and state:tileAt(5, 1).material == "glass", "glassify conversion should change material")
+    expect(state:tileAt(6, 1).state == "collapsed" and state:tileAt(6, 1).blocker and state:tileAt(6, 1).height == 1, "collapse conversion should block and raise height")
+    expect(state:tileAt(7, 1).state == "cover_raised" and state:tileAt(7, 1).coverEdges.north == "half", "raise cover conversion should add cover")
+    expect(state:tileAt(8, 1).state == "cover_lowered" and state:tileAt(8, 1).coverEdges.north == "none", "lower cover conversion should clear cover")
+    expect(state:tileAt(9, 1).state == "sealed" and state:tileAt(9, 1).blocker and state:tileAt(9, 1).losBlocker, "seal tile conversion should close movement and LoS")
+    expect(state:tileAt(10, 1).state == "open" and not state:tileAt(10, 1).blocker and not state:tileAt(10, 1).losBlocker, "open tile conversion should clear blockers")
+end
+
+tests[#tests + 1] = function()
     expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
     expect(I18n.t("missing {value}", { value = "fallback" }) == "missing fallback", "i18n should interpolate fallback strings")
     local source = readFile("src/app/render.lua")

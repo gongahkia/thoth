@@ -218,6 +218,19 @@ local interactionKinds = {
     extraction = true,
 }
 
+local terrainConversions = {
+    flood = true,
+    drain = true,
+    burn = true,
+    ash_choke = true,
+    glassify = true,
+    collapse = true,
+    raise_cover = true,
+    lower_cover = true,
+    seal_tile = true,
+    open_tile = true,
+}
+
 local function normalizeCargo(cargo, index)
     expect(type(cargo) == "table", "cargo must be a table")
     local id = cargo.id or ("cargo_" .. tostring(index))
@@ -995,6 +1008,58 @@ function State:interactTile(unitId, x, y)
     return tile
 end
 
+function State:convertTile(x, y, conversion)
+    x = expectInteger(x, "convert x")
+    y = expectInteger(y, "convert y")
+    expect(self:inBounds(x, y), "convert tile out of bounds")
+    expect(terrainConversions[conversion], "unsupported terrain conversion " .. tostring(conversion))
+    local key = tileKey(x, y)
+    local tile = self.board.tiles[key] or normalizeTile()
+    if conversion == "flood" then
+        tile.material = "salt"
+        tile.hazard = { kind = "flood", active = true, damage = tile.hazard.damage or 1 }
+        tile.state = "flooded"
+    elseif conversion == "drain" then
+        tile.hazard = { kind = "flood", active = false, damage = 0 }
+        tile.state = "drained"
+    elseif conversion == "burn" then
+        tile.material = "ember"
+        tile.hazard = { kind = "burn", active = true, damage = tile.hazard.damage or 1 }
+        tile.state = "burning"
+    elseif conversion == "ash_choke" then
+        tile.material = "ash"
+        tile.hazard = { kind = "ash_choke", active = true, damage = 0 }
+        tile.losBlocker = true
+        tile.state = "ash_choke"
+    elseif conversion == "glassify" then
+        tile.material = "glass"
+        tile.hazard = { kind = "glass", active = false, damage = 0 }
+        tile.coverEdges = emptyCoverEdges()
+        tile.state = "glassified"
+    elseif conversion == "collapse" then
+        tile.blocker = true
+        tile.losBlocker = true
+        tile.height = math.max(tile.height or 0, 1)
+        tile.state = "collapsed"
+    elseif conversion == "raise_cover" then
+        tile.coverEdges = { north = "half", east = "half", south = "half", west = "half" }
+        tile.state = "cover_raised"
+    elseif conversion == "lower_cover" then
+        tile.coverEdges = emptyCoverEdges()
+        tile.state = "cover_lowered"
+    elseif conversion == "seal_tile" then
+        tile.blocker = true
+        tile.losBlocker = true
+        tile.state = "sealed"
+    elseif conversion == "open_tile" then
+        tile.blocker = false
+        tile.losBlocker = false
+        tile.state = "open"
+    end
+    self.board.tiles[key] = tile
+    return tile
+end
+
 function State:evacuateUnit(unitId, objectiveId)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     local objective = expect(self.objectives[objectiveId], "unknown objective " .. tostring(objectiveId))
@@ -1316,6 +1381,11 @@ function State:apply(command)
         expect(interactionKinds[tile.interact.kind or tile.kind], "unsupported interaction " .. tostring(tile.interact.kind or tile.kind))
         self:spendAP(command.unit, command.cost or 1)
         self:interactTile(command.unit, command.x, command.y)
+    elseif kind == "convertTile" then
+        expect(terrainConversions[command.conversion], "unsupported terrain conversion " .. tostring(command.conversion))
+        expect(self:inBounds(expectInteger(command.x, "convert x"), expectInteger(command.y, "convert y")), "convert tile out of bounds")
+        self:spendAP(command.unit, command.cost or 1)
+        self:convertTile(command.x, command.y, command.conversion)
     else
         error("unknown command " .. tostring(kind), 2)
     end
@@ -1455,6 +1525,10 @@ end
 
 function commands.interactTile(unitId, x, y, cost)
     return { type = "interactTile", unit = unitId, x = x, y = y, cost = cost }
+end
+
+function commands.convertTile(unitId, x, y, conversion, cost)
+    return { type = "convertTile", unit = unitId, x = x, y = y, conversion = conversion, cost = cost }
 end
 
 State.commands = commands

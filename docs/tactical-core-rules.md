@@ -183,3 +183,30 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies all supported interaction kinds, blocker/LoS changes, exposure, reveal, cargo extraction, and unit evacuation.
+
+## M.9 Terrain Conversion
+
+Terrain conversion is a direct deterministic tile mutation.
+
+Supported conversions:
+
+- `flood`: activates flood hazard.
+- `drain`: deactivates flood hazard.
+- `burn`: activates burn hazard.
+- `ash_choke`: creates ash material and LoS blocking hazard.
+- `glassify`: changes material to glass and clears cover.
+- `collapse`: creates blocker, LoS blocker, and minimum height 1.
+- `raise_cover`: creates half cover on all edges.
+- `lower_cover`: clears cover on all edges.
+- `seal_tile`: blocks movement and LoS.
+- `open_tile`: clears movement and LoS blockers.
+
+Rules:
+
+- Conversion validates kind and bounds before AP spend.
+- Conversion does not roll random outcomes.
+- Conversion effects are stored on the tile snapshot.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies every supported conversion and its tile-state side effects.
