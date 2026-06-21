@@ -95,7 +95,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Implementation Gates
 
-- [ ] G.4 No enemy ships without an intent preview, a counterplay path, and a no-damage utility behavior.
 - [ ] G.5 No boss ships without a phase chart, arena diagram, objective pressure, and replay proof.
 - [ ] G.6 No borrowed pattern ships without documented Thoth transformation in `docs/tactical-research-index.md`.
 

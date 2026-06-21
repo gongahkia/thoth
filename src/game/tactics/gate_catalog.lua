@@ -20,6 +20,12 @@ GateCatalog.gates = {
         requiredEvidence = { "strong_board_fixture", "awkward_board_fixture", "preview_ui_spec" },
         blocker = "class loadout cannot ship",
     },
+    {
+        id = "enemy_ship",
+        appliesTo = "enemy",
+        requiredEvidence = { "intent_preview", "counterplay_path", "no_damage_utility_behavior" },
+        blocker = "enemy cannot ship",
+    },
 }
 
 function GateCatalog.gate(id)

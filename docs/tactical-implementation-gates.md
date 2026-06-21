@@ -68,3 +68,26 @@ Preview/UI spec remains required so the loadout's board verb is visible.
 
 test/replay proof:
 `tests/run.lua` verifies the class loadout gate requires strong board fixture, awkward board fixture, and preview/UI spec.
+
+## G.4 Enemy Ship Gate
+
+source pattern:
+Readable tactics enemies need visible intent and deterministic counterplay before they enter encounters.
+
+thoth transformation:
+No enemy ships without intent preview, counterplay path, and no-damage utility behavior.
+
+board verb:
+Preview, answer, utility.
+
+zone fit:
+Applies to common enemies, elites, alphas, and global pressure enemies.
+
+counterplay:
+Gate blocks enemies whose only answer is damage racing.
+
+preview/UI:
+Required intent preview must be inspectable before resolution.
+
+test/replay proof:
+`tests/run.lua` verifies the enemy ship gate requires intent preview, counterplay path, and no-damage utility behavior.
