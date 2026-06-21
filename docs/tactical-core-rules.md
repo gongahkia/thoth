@@ -106,3 +106,31 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies dash distance, half-cover vault, full-cover vault rejection without AP spend, climb/drop height checks, and unchanged LoS blocker state.
+
+## M.6 Carry And Drag
+
+Cargo is explicit board state, separate from units and objectives.
+
+Supported cargo kinds:
+
+- `civilian`
+- `body`
+- `machinery_core`
+- `loot_crate`
+- `wounded_hero`
+
+Rules:
+
+- `carryCargo` attaches adjacent or same-tile cargo to one active unit.
+- A unit can carry only one cargo item.
+- Carried cargo follows the unit on movement, dash, climb, drop, and vault.
+- Hazard `carryDamage` reduces carried cargo integrity.
+- `dropCargo` detaches carried cargo on the unit tile or a chosen adjacent tile.
+- `dragCargo` moves adjacent uncarried cargo one tile in a cardinal direction.
+- Hazard `dragDamage` or `carryDamage` reduces dragged cargo integrity.
+- Cargo with integrity reduced to zero fails and detaches from any carrier.
+- Cargo state snapshots and replays deterministically.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies carrying civilians, bodies/loot-crate schema, machinery-core drag, wounded-hero drag, carried cargo hazard damage, cargo-aware movement preview, drop rules, and snapshot roundtrip.

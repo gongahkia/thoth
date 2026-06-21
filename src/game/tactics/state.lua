@@ -188,6 +188,44 @@ local function normalizeObjective(objective, index)
     }
 end
 
+local cargoKinds = {
+    civilian = true,
+    body = true,
+    machinery_core = true,
+    loot_crate = true,
+    wounded_hero = true,
+}
+
+local cargoDefaultWeight = {
+    civilian = 1,
+    body = 1,
+    machinery_core = 2,
+    loot_crate = 2,
+    wounded_hero = 1,
+}
+
+local function normalizeCargo(cargo, index)
+    expect(type(cargo) == "table", "cargo must be a table")
+    local id = cargo.id or ("cargo_" .. tostring(index))
+    local kind = cargo.kind or "loot_crate"
+    expect(type(id) == "string" and id ~= "", "cargo id must be a non-empty string")
+    expect(cargoKinds[kind], "unsupported cargo kind " .. tostring(kind))
+    local integrity = cargo.integrity or cargo.maxIntegrity
+    return {
+        id = id,
+        kind = kind,
+        x = expectInteger(cargo.x, "cargo x"),
+        y = expectInteger(cargo.y, "cargo y"),
+        weight = cargo.weight or cargoDefaultWeight[kind] or 1,
+        integrity = integrity,
+        maxIntegrity = cargo.maxIntegrity or integrity,
+        carriedBy = cargo.carriedBy,
+        extracted = cargo.extracted == true,
+        failed = cargo.failed == true,
+        tags = copyList(cargo.tags),
+    }
+end
+
 local function normalizeUnit(unit, index, defaultAp)
     expect(type(unit) == "table", "unit must be a table")
     local id = unit.id or ("unit_" .. tostring(index))
@@ -205,6 +243,7 @@ local function normalizeUnit(unit, index, defaultAp)
         alive = unit.alive ~= false,
         evacuated = unit.evacuated == true,
         carryingObjective = unit.carryingObjective,
+        carryingCargo = unit.carryingCargo,
         tags = copyList(unit.tags),
     }
 end
@@ -243,6 +282,8 @@ function State.new(options)
         intents = {},
         objectives = {},
         objectiveOrder = {},
+        cargo = {},
+        cargoOrder = {},
         pending = {},
         log = copyList(options.log),
     }, State)
@@ -269,6 +310,16 @@ function State.new(options)
         state.objectives[normalized.id] = normalized
         state.objectiveOrder[#state.objectiveOrder + 1] = normalized.id
     end
+    for index, cargo in ipairs(options.cargo or {}) do
+        local normalized = normalizeCargo(cargo, index)
+        expect(state:inBounds(normalized.x, normalized.y), "cargo " .. normalized.id .. " starts out of bounds")
+        if normalized.carriedBy then
+            expect(state.units[normalized.carriedBy], "cargo carrier does not exist")
+            state.units[normalized.carriedBy].carryingCargo = normalized.id
+        end
+        state.cargo[normalized.id] = normalized
+        state.cargoOrder[#state.cargoOrder + 1] = normalized.id
+    end
     return state
 end
 
@@ -284,6 +335,7 @@ function State.fromSnapshot(snapshot)
         threatZones = snapshot.threatZones or {},
         intents = snapshot.intents or {},
         objectives = snapshot.objectives or {},
+        cargo = snapshot.cargo or {},
         log = snapshot.log or {},
     })
 end
@@ -339,6 +391,16 @@ end
 function State:moveUnitTo(unit, x, y)
     unit.x = x
     unit.y = y
+    if unit.carryingCargo and self.cargo[unit.carryingCargo] then
+        local cargo = self.cargo[unit.carryingCargo]
+        cargo.x = x
+        cargo.y = y
+        local tile = self:tileAt(x, y)
+        local damage = (tile.hazard and tile.hazard.carryDamage) or 0
+        if damage > 0 then
+            self:damageCargo(cargo.id, damage)
+        end
+    end
     self:resolveThreatAt(unit)
 end
 
@@ -415,8 +477,9 @@ function State:movementPreview(unitId, options)
             hazardCost = hazardCost,
             coverGained = gained,
             coverLost = lost,
-            objectiveCarryEffect = unit.carryingObjective and {
+            objectiveCarryEffect = (unit.carryingObjective or unit.carryingCargo) and {
                 objective = unit.carryingObjective,
+                cargo = unit.carryingCargo,
                 integrityDelta = -((tile.hazard and tile.hazard.carryDamage) or 0),
             } or nil,
             path = copyValue(node.path),
@@ -621,6 +684,20 @@ function State:objectiveAt(x, y)
     return nil
 end
 
+function State:cargoItem(id)
+    return self.cargo[id]
+end
+
+function State:cargoAt(x, y)
+    for _, id in ipairs(self.cargoOrder or {}) do
+        local cargo = self.cargo[id]
+        if cargo and not cargo.carriedBy and not cargo.extracted and not cargo.failed and cargo.x == x and cargo.y == y then
+            return cargo
+        end
+    end
+    return nil
+end
+
 function State:evaluateObjective(objective)
     if objective.failed then
         return "failed"
@@ -662,6 +739,85 @@ function State:damageObjectiveAt(x, y, amount)
         return nil
     end
     return self:damageObjective(objective.id, amount)
+end
+
+function State:damageCargo(id, amount)
+    local cargo = expect(self.cargo[id], "unknown cargo " .. tostring(id))
+    amount = expectInteger(amount or 0, "cargo damage")
+    expect(amount >= 0, "cargo damage must be non-negative")
+    if cargo.integrity == nil or cargo.failed or cargo.extracted then
+        return cargo.integrity
+    end
+    cargo.integrity = math.max(0, cargo.integrity - amount)
+    if cargo.integrity <= 0 then
+        cargo.failed = true
+        if cargo.carriedBy and self.units[cargo.carriedBy] then
+            self.units[cargo.carriedBy].carryingCargo = nil
+        end
+        cargo.carriedBy = nil
+    end
+    return cargo.integrity
+end
+
+local function adjacentOrSame(a, b)
+    return Grid.manhattan(a.x, a.y, b.x, b.y) <= 1
+end
+
+function State:carryCargo(unitId, cargoId)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    local cargo = expect(self.cargo[cargoId], "unknown cargo " .. tostring(cargoId))
+    expect(unit.alive and not unit.evacuated, "unit is not active")
+    expect(not unit.carryingCargo, "unit already carrying cargo")
+    expect(not cargo.carriedBy and not cargo.extracted and not cargo.failed, "cargo is not available")
+    expect(adjacentOrSame(unit, cargo), "cargo is not adjacent")
+    unit.carryingCargo = cargoId
+    cargo.carriedBy = unitId
+    cargo.x = unit.x
+    cargo.y = unit.y
+    return cargo
+end
+
+function State:dropCargo(unitId, direction)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    local cargoId = expect(unit.carryingCargo, "unit is not carrying cargo")
+    local cargo = expect(self.cargo[cargoId], "unknown cargo " .. tostring(cargoId))
+    local x = unit.x
+    local y = unit.y
+    if direction then
+        local delta = Grid.directions[direction]
+        expect(delta, "unknown direction " .. tostring(direction))
+        x = x + delta.x
+        y = y + delta.y
+    end
+    expect(self:inBounds(x, y), "drop tile out of bounds")
+    expect(not self:cargoAt(x, y), "drop tile has cargo")
+    unit.carryingCargo = nil
+    cargo.carriedBy = nil
+    cargo.x = x
+    cargo.y = y
+    return cargo
+end
+
+function State:dragCargo(unitId, cargoId, direction)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    local cargo = expect(self.cargo[cargoId], "unknown cargo " .. tostring(cargoId))
+    expect(unit.alive and not unit.evacuated, "unit is not active")
+    expect(not cargo.carriedBy and not cargo.extracted and not cargo.failed, "cargo is not available")
+    expect(Grid.manhattan(unit.x, unit.y, cargo.x, cargo.y) == 1, "cargo is not adjacent")
+    local delta = Grid.directions[direction]
+    expect(delta, "unknown direction " .. tostring(direction))
+    local nx = cargo.x + delta.x
+    local ny = cargo.y + delta.y
+    expect(self:inBounds(nx, ny), "drag tile out of bounds")
+    expect(not self:cargoAt(nx, ny), "drag tile has cargo")
+    cargo.x = nx
+    cargo.y = ny
+    local tile = self:tileAt(nx, ny)
+    local damage = (tile.hazard and (tile.hazard.dragDamage or tile.hazard.carryDamage)) or 0
+    if damage > 0 then
+        self:damageCargo(cargo.id, damage)
+    end
+    return cargo
 end
 
 function State:evacuateUnit(unitId, objectiveId)
@@ -933,6 +1089,43 @@ function State:apply(command)
         expect(self:evaluateObjective(objective) ~= "failed", "objective already failed")
         self:spendAP(command.unit, command.cost or 1)
         self:evacuateUnit(command.unit, command.objective)
+    elseif kind == "carryCargo" then
+        local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
+        local cargo = expect(self.cargo[command.cargo], "unknown cargo " .. tostring(command.cargo))
+        expect(unit.alive and not unit.evacuated, "unit is not active")
+        expect(not unit.carryingCargo, "unit already carrying cargo")
+        expect(not cargo.carriedBy and not cargo.extracted and not cargo.failed, "cargo is not available")
+        expect(adjacentOrSame(unit, cargo), "cargo is not adjacent")
+        self:spendAP(command.unit, command.cost or 1)
+        self:carryCargo(command.unit, command.cargo)
+    elseif kind == "dropCargo" then
+        local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
+        local cargoId = expect(unit.carryingCargo, "unit is not carrying cargo")
+        local x = unit.x
+        local y = unit.y
+        if command.direction then
+            local delta = Grid.directions[command.direction]
+            expect(delta, "unknown direction " .. tostring(command.direction))
+            x = x + delta.x
+            y = y + delta.y
+        end
+        expect(self.cargo[cargoId], "unknown cargo " .. tostring(cargoId))
+        expect(self:inBounds(x, y), "drop tile out of bounds")
+        expect(not self:cargoAt(x, y), "drop tile has cargo")
+        self:spendAP(command.unit, command.cost or 0)
+        self:dropCargo(command.unit, command.direction)
+    elseif kind == "dragCargo" then
+        local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
+        local cargo = expect(self.cargo[command.cargo], "unknown cargo " .. tostring(command.cargo))
+        local delta = Grid.directions[command.direction]
+        expect(unit.alive and not unit.evacuated, "unit is not active")
+        expect(not cargo.carriedBy and not cargo.extracted and not cargo.failed, "cargo is not available")
+        expect(Grid.manhattan(unit.x, unit.y, cargo.x, cargo.y) == 1, "cargo is not adjacent")
+        expect(delta, "unknown direction " .. tostring(command.direction))
+        expect(self:inBounds(cargo.x + delta.x, cargo.y + delta.y), "drag tile out of bounds")
+        expect(not self:cargoAt(cargo.x + delta.x, cargo.y + delta.y), "drag tile has cargo")
+        self:spendAP(command.unit, command.cost or 1)
+        self:dragCargo(command.unit, command.cargo, command.direction)
     else
         error("unknown command " .. tostring(kind), 2)
     end
@@ -953,6 +1146,10 @@ function State:snapshot()
     for _, id in ipairs(self.objectiveOrder) do
         objectives[#objectives + 1] = copyMap(self.objectives[id])
     end
+    local cargo = {}
+    for _, id in ipairs(self.cargoOrder) do
+        cargo[#cargo + 1] = copyMap(self.cargo[id])
+    end
     return {
         version = 1,
         tick = self.tick,
@@ -962,6 +1159,7 @@ function State:snapshot()
         threatZones = copyMap(self.threatZones),
         intents = copyMap(self.intents),
         objectives = objectives,
+        cargo = cargo,
         board = {
             width = self.board.width,
             height = self.board.height,
@@ -1046,6 +1244,18 @@ end
 
 function commands.evacuate(unitId, objectiveId, cost)
     return { type = "evacuate", unit = unitId, objective = objectiveId, cost = cost }
+end
+
+function commands.carryCargo(unitId, cargoId, cost)
+    return { type = "carryCargo", unit = unitId, cargo = cargoId, cost = cost }
+end
+
+function commands.dropCargo(unitId, direction, cost)
+    return { type = "dropCargo", unit = unitId, direction = direction, cost = cost }
+end
+
+function commands.dragCargo(unitId, cargoId, direction, cost)
+    return { type = "dragCargo", unit = unitId, cargo = cargoId, direction = direction, cost = cost }
 end
 
 State.commands = commands

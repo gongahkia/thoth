@@ -511,6 +511,52 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        defaultAp = 6,
+        board = {
+            width = 6,
+            height = 3,
+            tiles = {
+                ["3:1"] = { hazard = { kind = "brine", carryDamage = 1, dragDamage = 2 } },
+            },
+        },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1 },
+            { id = "thief", side = "player", x = 4, y = 2 },
+        },
+        cargo = {
+            { id = "civilian", kind = "civilian", x = 2, y = 1, integrity = 2 },
+            { id = "body", kind = "body", x = 2, y = 2 },
+            { id = "core", kind = "machinery_core", x = 5, y = 2, integrity = 4 },
+            { id = "crate", kind = "loot_crate", x = 5, y = 3 },
+            { id = "wounded", kind = "wounded_hero", x = 6, y = 2, integrity = 3 },
+        },
+    })
+    state:apply(TacticsState.commands.carryCargo("warden", "civilian"))
+    expect(state:unit("warden").carryingCargo == "civilian" and state:cargoItem("civilian").carriedBy == "warden", "carry should attach civilian cargo")
+    local preview = state:movementPreview("warden")
+    local hazard
+    for _, tile in ipairs(preview.reachable) do
+        if tile.x == 3 and tile.y == 1 then
+            hazard = tile
+        end
+    end
+    expect(hazard and hazard.objectiveCarryEffect and hazard.objectiveCarryEffect.cargo == "civilian" and hazard.objectiveCarryEffect.integrityDelta == -1, "movement preview should show cargo carry damage")
+    state:apply(TacticsState.commands.dash("warden", "east", 2))
+    expect(state:cargoItem("civilian").x == 3 and state:cargoItem("civilian").integrity == 1, "carried cargo should follow unit and take carry hazard damage")
+    state:apply(TacticsState.commands.dropCargo("warden", "south"))
+    expect(not state:unit("warden").carryingCargo and state:cargoItem("civilian").x == 3 and state:cargoItem("civilian").y == 2, "drop should detach carried cargo")
+    state:apply(TacticsState.commands.dragCargo("thief", "core", "west"))
+    expect(state:cargoItem("core").x == 4 and state:cargoItem("core").integrity == 4, "drag should move machinery cores")
+    state:apply(TacticsState.commands.move("thief", "east"))
+    state:apply(TacticsState.commands.dragCargo("thief", "wounded", "west"))
+    expect(state:cargoItem("wounded").x == 5 and state:cargoItem("wounded").integrity == 3, "drag should move wounded heroes")
+    expect(state:cargoItem("body").kind == "body" and state:cargoItem("crate").kind == "loot_crate", "cargo schema should include bodies and loot crates")
+    local loaded = TacticsState.fromSnapshot(state:snapshot())
+    expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(state:snapshot()), "cargo state should snapshot deterministically")
+end
+
+tests[#tests + 1] = function()
     expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
     expect(I18n.t("missing {value}", { value = "fallback" }) == "missing fallback", "i18n should interpolate fallback strings")
     local source = readFile("src/app/render.lua")
