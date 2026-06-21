@@ -57,6 +57,8 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S45 | https://entaltostudios.com/5-essential-tips-to-make-your-roguelite-game-work/ | Horizontal progression expands possibilities through weapons, mechanics, characters, modifiers, and visible unlock goals. | Thoth rewards `class_option` unlocks from run milestones and rejects stat-bearing class rewards. |
 | S46 | https://www.gamedeveloper.com/design/game-design-deep-dive-i-darkest-dungeon-s-i-affliction-system | Stress consequences can create strong character texture but may also take agency away through autonomous behavior. | Thoth injuries/debts keep the psychological pressure and roster management, but encode deterministic tactical constraints instead of random turn loss. |
 | S47 | https://www.feralinteractive.com/en/manuals/xcom2/latest/steam/ | Wounds, carry/evac, AP, movement, hazards, LoS, cover, and effects are visible tactical state. | Thoth consequence domains target AP, movement, LoS, cooldown, cover, objective repair, carry, and reveal rules. |
+| S48 | https://www.gearsofwar.com/en-us/games/gears-tactics/ | Squad tactics scale through customizable squads, equipment, fast turn-based battles, and boss fights that change battle scale. | Thoth squad size changes AP, deployment slots, enemy budget, board footprint, objective anchors, spawn pockets, and retreat routes. |
+| S49 | https://www.ubisoft.com/en-us/game/mario-rabbids/sparks-of-hope/news-updates/5h386nVuiWuW3OcxFDJgih/mario-rabbids-sparks-of-hope-a-tactical-game-for-everyone | Three-hero teams combine special abilities and external powers for battle synergies. | Thoth keeps small squad sizes readable and scales board variance only within 2-6 units. |
 
 ## Mechanic Handoffs
 
@@ -443,6 +445,22 @@ counterplay: choose recovery, loadout tools, route risk, or squad composition ar
 preview/UI: roster and board inspector show consequence id, type, domain, exact constraint, and `noRandomActionLoss`.
 
 test/replay proof: `ClassCatalog.auditInjuryDebtConstraints()` rejects missing domains, duplicate ids, missing injury/debt types, and any random action/turn-loss field.
+
+### H25 Squad Size Scaling
+
+source pattern: Gears Tactics emphasizes squad outfitting, fast turn-based battles, and bosses that change scale; Mario + Rabbids keeps battle teams small and synergy-heavy.
+
+thoth transformation: Squad sizes 2-6 receive deterministic AP, deployment slots, enemy budget multipliers, reinforcement caps, board dimensions, objective anchors, spawn pockets, retreat routes, and variance budgets.
+
+board verb: deploy, scale, split, reinforce, retreat.
+
+zone fit: all zones use the same scaling shell; Archive adds claim lanes, Cistern adds water pressure lanes, Warrens adds heat and ash lanes.
+
+counterplay: smaller squads get compact boards and lower enemy budget; larger squads get more space but more fronts, anchors, hazards, and reinforcements.
+
+preview/UI: route preview shows squad size, AP budget, board scale, objective pressure, enemy multiplier, deployment pattern, and variance rules.
+
+test/replay proof: `ClassCatalog.auditSquadScaling()` rejects missing 2-6 sizes, non-monotonic board/enemy/reinforcement scaling, missing board variance rules, and out-of-bounds squad sizes.
 
 ## Rejection Rules
 

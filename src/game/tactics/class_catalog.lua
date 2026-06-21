@@ -256,11 +256,11 @@ ClassCatalog.injuryDebts = {
 ClassCatalog.requiredInjuryDebtDomains = { "ap", "movement", "los", "cooldown", "cover", "objectiveRepair", "carry", "reveal" }
 
 ClassCatalog.squadScaling = {
-    [2] = { apBudget = 6, enemyBudgetMultiplier = 0.65, objectivePressure = "single", reinforcementCap = 1, boardScale = "compact" },
-    [3] = { apBudget = 9, enemyBudgetMultiplier = 0.85, objectivePressure = "light", reinforcementCap = 1, boardScale = "small" },
-    [4] = { apBudget = 12, enemyBudgetMultiplier = 1.00, objectivePressure = "standard", reinforcementCap = 2, boardScale = "standard" },
-    [5] = { apBudget = 15, enemyBudgetMultiplier = 1.20, objectivePressure = "split", reinforcementCap = 2, boardScale = "wide" },
-    [6] = { apBudget = 18, enemyBudgetMultiplier = 1.40, objectivePressure = "multi-front", reinforcementCap = 3, boardScale = "large" },
+    [2] = { apBudget = 6, deploymentSlots = 2, enemyBudgetMultiplier = 0.65, objectivePressure = "single", reinforcementCap = 1, boardScale = "compact", board = { width = 7, height = 6, objectiveAnchors = 1, spawnPockets = 1, retreatRoutes = 1 }, varianceRules = { deploymentPattern = "pair", laneCount = 1, coverFields = 2, hazardBudget = 1 } },
+    [3] = { apBudget = 9, deploymentSlots = 3, enemyBudgetMultiplier = 0.85, objectivePressure = "light", reinforcementCap = 1, boardScale = "small", board = { width = 8, height = 7, objectiveAnchors = 1, spawnPockets = 2, retreatRoutes = 1 }, varianceRules = { deploymentPattern = "triangle", laneCount = 1, coverFields = 3, hazardBudget = 2 } },
+    [4] = { apBudget = 12, deploymentSlots = 4, enemyBudgetMultiplier = 1.00, objectivePressure = "standard", reinforcementCap = 2, boardScale = "standard", board = { width = 10, height = 8, objectiveAnchors = 2, spawnPockets = 2, retreatRoutes = 2 }, varianceRules = { deploymentPattern = "diamond", laneCount = 2, coverFields = 4, hazardBudget = 3 } },
+    [5] = { apBudget = 15, deploymentSlots = 5, enemyBudgetMultiplier = 1.20, objectivePressure = "split", reinforcementCap = 2, boardScale = "wide", board = { width = 12, height = 9, objectiveAnchors = 2, spawnPockets = 3, retreatRoutes = 2 }, varianceRules = { deploymentPattern = "split", laneCount = 2, coverFields = 5, hazardBudget = 4 } },
+    [6] = { apBudget = 18, deploymentSlots = 6, enemyBudgetMultiplier = 1.40, objectivePressure = "multi-front", reinforcementCap = 3, boardScale = "large", board = { width = 14, height = 10, objectiveAnchors = 3, spawnPockets = 3, retreatRoutes = 3 }, varianceRules = { deploymentPattern = "two_front", laneCount = 3, coverFields = 6, hazardBudget = 5 } },
 }
 
 function ClassCatalog.class(id)
@@ -326,6 +326,48 @@ end
 
 function ClassCatalog.squadScales()
     return ClassCatalog.squadScaling
+end
+
+function ClassCatalog.auditSquadScaling()
+    local report = { valid = true, missing = {} }
+    local previousCells = 0
+    local previousEnemyBudget = 0
+    local previousReinforcements = 0
+    for size = 2, 6 do
+        local scale = ClassCatalog.squadScaling[size]
+        if not scale then
+            report.valid = false
+            table.insert(report.missing, "squad." .. tostring(size))
+        else
+            local board = scale.board or {}
+            local variance = scale.varianceRules or {}
+            local cells = (board.width or 0) * (board.height or 0)
+            if scale.apBudget ~= size * 3 or scale.deploymentSlots ~= size then
+                report.valid = false
+                table.insert(report.missing, "squad." .. tostring(size) .. ".ap")
+            end
+            if cells <= previousCells or (scale.enemyBudgetMultiplier or 0) < previousEnemyBudget or (scale.reinforcementCap or 0) < previousReinforcements then
+                report.valid = false
+                table.insert(report.missing, "squad." .. tostring(size) .. ".monotonic")
+            end
+            if not scale.objectivePressure or not scale.boardScale or not variance.deploymentPattern then
+                report.valid = false
+                table.insert(report.missing, "squad." .. tostring(size) .. ".metadata")
+            end
+            if not board.objectiveAnchors or not board.spawnPockets or not board.retreatRoutes or not variance.laneCount or not variance.coverFields or not variance.hazardBudget then
+                report.valid = false
+                table.insert(report.missing, "squad." .. tostring(size) .. ".variance")
+            end
+            previousCells = cells
+            previousEnemyBudget = scale.enemyBudgetMultiplier or 0
+            previousReinforcements = scale.reinforcementCap or 0
+        end
+    end
+    if ClassCatalog.squadScaling[1] or ClassCatalog.squadScaling[7] then
+        report.valid = false
+        table.insert(report.missing, "squad.bounds")
+    end
+    return report
 end
 
 function ClassCatalog.auditBoardVerbs()

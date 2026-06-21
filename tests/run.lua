@@ -1575,11 +1575,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local audit = ClassCatalog.auditSquadScaling()
+    expect(audit.valid, "squad scaling should define monotonic board variance rules")
+    local previousCells = 0
+    local previousEnemyBudget = 0
     for _, size in ipairs({ 2, 3, 4, 5, 6 }) do
         local scale = ClassCatalog.squadScale(size)
+        local board = scale.board
+        local variance = scale.varianceRules
         expect(scale, "squad scaling should include size " .. size)
         expect(scale.apBudget == size * 3, "squad scaling should set AP budget for size " .. size)
+        expect(scale.deploymentSlots == size, "squad scaling should set deployment slots for size " .. size)
         expect(scale.enemyBudgetMultiplier and scale.objectivePressure and scale.reinforcementCap and scale.boardScale, "squad scaling should include budget metadata")
+        expect(board and board.width and board.height and board.objectiveAnchors and board.spawnPockets and board.retreatRoutes, "squad scaling should include board dimensions for size " .. size)
+        expect(variance and variance.deploymentPattern and variance.laneCount and variance.coverFields and variance.hazardBudget, "squad scaling should include variance rules for size " .. size)
+        expect(board.width * board.height > previousCells, "squad scaling should grow board cells for size " .. size)
+        expect(scale.enemyBudgetMultiplier >= previousEnemyBudget, "squad scaling should not lower enemy budget for size " .. size)
+        previousCells = board.width * board.height
+        previousEnemyBudget = scale.enemyBudgetMultiplier
     end
     expect(ClassCatalog.squadScale(1) == nil and ClassCatalog.squadScale(7) == nil, "squad scaling should only cover 2 through 6")
 end

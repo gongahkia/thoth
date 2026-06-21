@@ -400,17 +400,20 @@ Acceptance proof:
 
 The catalog defines deterministic scaling for squad sizes 2 through 6:
 
-- 2 units: 6 AP budget, 0.65 enemy budget multiplier, single objective pressure, 1 reinforcement cap, compact board.
-- 3 units: 9 AP budget, 0.85 enemy budget multiplier, light objective pressure, 1 reinforcement cap, small board.
-- 4 units: 12 AP budget, 1.00 enemy budget multiplier, standard objective pressure, 2 reinforcement cap, standard board.
-- 5 units: 15 AP budget, 1.20 enemy budget multiplier, split objective pressure, 2 reinforcement cap, wide board.
-- 6 units: 18 AP budget, 1.40 enemy budget multiplier, multi-front objective pressure, 3 reinforcement cap, large board.
+- 2 units: 6 AP, 2 deployment slots, 0.65 enemy budget, single objective pressure, 1 reinforcement, compact 7x6 board, pair deployment, 1 lane, 2 cover fields, 1 hazard budget.
+- 3 units: 9 AP, 3 deployment slots, 0.85 enemy budget, light objective pressure, 1 reinforcement, small 8x7 board, triangle deployment, 1 lane, 3 cover fields, 2 hazard budget.
+- 4 units: 12 AP, 4 deployment slots, 1.00 enemy budget, standard objective pressure, 2 reinforcements, standard 10x8 board, diamond deployment, 2 lanes, 4 cover fields, 3 hazard budget.
+- 5 units: 15 AP, 5 deployment slots, 1.20 enemy budget, split objective pressure, 2 reinforcements, wide 12x9 board, split deployment, 2 lanes, 5 cover fields, 4 hazard budget.
+- 6 units: 18 AP, 6 deployment slots, 1.40 enemy budget, multi-front objective pressure, 3 reinforcements, large 14x10 board, two-front deployment, 3 lanes, 6 cover fields, 5 hazard budget.
 
 Rules:
 
 - AP budget is always `squadSize * 3`.
+- Deployment slots equal squad size.
+- Board area, enemy budget, and reinforcement cap are monotonic.
 - Scaling covers only 2, 3, 4, 5, and 6 unit squads.
 
 Acceptance proof:
 
 - `tests/run.lua` verifies every supported squad size has AP, enemy budget, objective pressure, reinforcement, and board-scale metadata.
+- `tests/run.lua` calls `ClassCatalog.auditSquadScaling()` to verify monotonic board variance rules.
