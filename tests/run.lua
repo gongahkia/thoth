@@ -1351,6 +1351,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    for _, zoneId in ipairs({ "buried_archive", "salt_cistern", "ember_warrens" }) do
+        local facts = ZoneCatalog.rotationFacts(zoneId)
+        expect(#facts >= 4, zoneId .. " should define at least 4 rotation facts")
+        for _, fact in ipairs(facts) do
+            expect(fact.id and fact.fact and fact.planningImpact, zoneId .. " rotation fact should include metadata")
+            expect(fact.changesState == false, zoneId .. " rotation fact should not alter logical state")
+        end
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

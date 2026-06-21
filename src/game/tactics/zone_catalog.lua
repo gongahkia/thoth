@@ -26,6 +26,12 @@ ZoneCatalog.zones = {
             { id = "audit_lens_stand", apCost = 1, hp = 2, losEffect = "projects visible straight lane", coverState = "none", rotation = "reverse side marks beam bearing" },
             { id = "ledger_bridge_winch", apCost = 2, hp = 4, losEffect = "no block, toggles crossing", coverState = "none", rotation = "reverse side marks bridge latch" },
         },
+        rotationFacts = {
+            { id = "archive_shelf_weight", fact = "shelf back shows shove weight", planningImpact = "choose crush lane before spending AP", changesState = false },
+            { id = "archive_claim_stamp", fact = "desk underside shows claim stamp", planningImpact = "identify hold tile before reveal action", changesState = false },
+            { id = "archive_audit_bearing", fact = "audit lens back shows beam bearing", planningImpact = "path around future LoS pressure", changesState = false },
+            { id = "archive_name_order", fact = "seal reverse lists name order", planningImpact = "route split squad to correct lock first", changesState = false },
+        },
     },
     salt_cistern = {
         tileMechanics = {
@@ -51,6 +57,12 @@ ZoneCatalog.zones = {
             { id = "drain_grate_cap", apCost = 1, hp = 3, losEffect = "pit sight only", coverState = "none", rotation = "reverse side marks undertow pull", floodEffect = "drains adjacent flood tiles", objectiveEffect = "risks repair target integrity" },
             { id = "floating_barricade", apCost = 1, hp = 3, losEffect = "drifting half blocker", coverState = "half", rotation = "reverse side marks current route", floodEffect = "moves with current after drain tick", objectiveEffect = "shields machinery core" },
             { id = "waterline_gauge", apCost = 1, hp = 2, losEffect = "no block", coverState = "none", rotation = "reverse side marks safe height", floodEffect = "previews next rise or drain", objectiveEffect = "prevents objective integrity surprise" },
+        },
+        rotationFacts = {
+            { id = "cistern_valve_sequence", fact = "valve back shows drain sequence", planningImpact = "pick flood band order before turning", changesState = false },
+            { id = "cistern_current_arrow", fact = "sluice marker shows current arrow", planningImpact = "avoid forced movement path", changesState = false },
+            { id = "cistern_bell_radius", fact = "bell frame shows pressure radius", planningImpact = "plan outside intent escalation rows", changesState = false },
+            { id = "cistern_safe_waterline", fact = "gauge back shows safe waterline", planningImpact = "time extract movement before rise", changesState = false },
         },
     },
     ember_warrens = {
@@ -78,6 +90,12 @@ ZoneCatalog.zones = {
             { id = "furnace_door_chain", apCost = 2, hp = 4, losEffect = "toggles opaque door", coverState = "full", rotation = "reverse side marks chain weakness", burnEffect = "vents heat burst", douseEffect = "seals door safely", glassifyEffect = "jams door open" },
             { id = "white_coal_cradle", apCost = 2, hp = 4, losEffect = "bright low blocker", coverState = "half", rotation = "reverse side marks pressure notch", burnEffect = "raises white-coal pressure", douseEffect = "releases pressure safely", glassifyEffect = "creates permanent glass hazard" },
         },
+        rotationFacts = {
+            { id = "warrens_bellows_bearing", fact = "bellows spine shows cone bearing", planningImpact = "stand outside the next blast cone", changesState = false },
+            { id = "warrens_glass_reflection", fact = "glass back shows reflection path", planningImpact = "break or use reflected line effects", changesState = false },
+            { id = "warrens_fuel_spill", fact = "fuel cart underside shows spill arc", planningImpact = "avoid delayed burn spread", changesState = false },
+            { id = "warrens_white_coal_notch", fact = "coal cradle shows pressure notch", planningImpact = "release pressure before heat intent escalates", changesState = false },
+        },
     },
 }
 
@@ -93,6 +111,11 @@ end
 function ZoneCatalog.objects(zoneId)
     local zone = ZoneCatalog.zone(zoneId)
     return zone and zone.objects or {}
+end
+
+function ZoneCatalog.rotationFacts(zoneId)
+    local zone = ZoneCatalog.zone(zoneId)
+    return zone and zone.rotationFacts or {}
 end
 
 return ZoneCatalog

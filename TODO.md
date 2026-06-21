@@ -80,7 +80,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Zone Terrain Catalogs
 
-- [ ] Z.7 Each zone must include at least 4 rotation-revealed facts that alter planning but not logical board state.
 - [ ] Z.8 Each zone must include at least 3 terrain mechanics that can help either side.
 
 ### Class & Loadout Catalog

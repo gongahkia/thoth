@@ -117,3 +117,21 @@ The Ember Warrens defines 8 destructible or interactable objects:
 Acceptance proof:
 
 - `tests/run.lua` verifies the Ember Warrens exposes exactly 8 objects and each has AP cost, HP, LoS effect, cover state, rotation, burn, douse, and glassify metadata.
+
+## Z.7 Rotation-Revealed Facts
+
+Each zone defines at least 4 rotation-revealed facts that change planning information only:
+
+- Buried Archive: shelf weight, claim stamp, audit bearing, name order.
+- Salt Cistern: valve sequence, current arrow, bell radius, safe waterline.
+- Ember Warrens: bellows bearing, glass reflection, fuel spill, white-coal notch.
+
+Rules:
+
+- Rotation facts have ids, fact text, and planning impact text.
+- Rotation facts set `changesState = false`.
+- Rotation facts expose information without mutating board state.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies every zone has at least 4 rotation facts and each one is metadata-only.
