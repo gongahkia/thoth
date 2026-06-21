@@ -594,6 +594,22 @@ preview/UI: HUD contract requires `selectedUnitAp`, `movePreview`, `actionPrevie
 
 test/replay proof: `UICatalog.tacticalHudSummary()` is tested with a selected unit, move/action previews, enemy exact intent, objective integrity, and deterministic unit order.
 
+### H34 Tile Inspector Facts
+
+source pattern: XCOM 2 exposes selected-unit AP, cover, effects, LoS, hazard warnings, waypoint paths, cover icons, and action outcomes in tactical UI; Into the Breach UI analysis emphasizes animated tooltips and clarity over long explanation.
+
+thoth transformation: Tile inspector turns each inspected coordinate into deterministic fields for terrain, cover, LoS, hazards, destructible HP, hidden/revealed state, and current intent traces.
+
+board verb: inspect, reveal, compare, counter.
+
+zone fit: Archive claim marks, Cistern brine/mist, and Warrens burn/glass all feed the same inspector contract without custom UI schemas.
+
+counterplay: inspect blockers, cover edge, LoS status, hazard tick, breakable HP, reveal requirement, and enemy source/target/path trace before spending AP.
+
+preview/UI: inspector contract requires `terrain`, `cover`, `los`, `hazards`, `destructibleHp`, `hiddenInfo`, and `intentTraces`.
+
+test/replay proof: `UICatalog.tileInspectorSummary()` is tested against a tile with normalized terrain, cover edge, selected-unit LoS, active hazard, destructible blocker HP, hidden rotation mark, reveal metadata, and exact enemy target trace.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

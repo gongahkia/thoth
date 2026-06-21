@@ -32,6 +32,15 @@ UICatalog.tileInspectorTemplate = {
     maxMechanicsLines = 1,
     maxLoreLines = 1,
     requiredTokens = { "icon", "state", "verb", "effect", "apCost", "counterplay", "zoneTone", "oneSentenceLore" },
+    requiredFacts = {
+        { id = "terrain", source = "tile schema", visible = true },
+        { id = "cover", source = "cover edges", visible = true },
+        { id = "los", source = "line of sight preview", visible = true },
+        { id = "hazards", source = "tile hazard", visible = true },
+        { id = "destructible_hp", source = "blocker state", visible = true },
+        { id = "hidden_info", source = "reveal state", visible = true },
+        { id = "intent_traces", source = "intent preview", visible = true },
+    },
 }
 
 UICatalog.previewContract = {
@@ -133,8 +142,169 @@ local function sortedKeys(values)
     return keys
 end
 
+local inspectorDirections = { "north", "east", "south", "west" }
+
+local function copyValue(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local result = {}
+    for key, nested in pairs(value) do
+        result[key] = copyValue(nested)
+    end
+    return result
+end
+
+local function copyList(values)
+    local result = {}
+    for _, value in ipairs(values or {}) do
+        result[#result + 1] = copyValue(value)
+    end
+    return result
+end
+
+local function coverFacts(tile)
+    local result = {}
+    for _, direction in ipairs(inspectorDirections) do
+        local cover = tile.coverEdges and tile.coverEdges[direction]
+        if cover and cover ~= "none" then
+            result[#result + 1] = { direction = direction, cover = cover }
+        end
+    end
+    return result
+end
+
+local function tileListContains(tiles, x, y)
+    for _, tile in ipairs(tiles or {}) do
+        if tile.x == x and tile.y == y then
+            return true
+        end
+    end
+    return false
+end
+
+local function tileMatches(tile, x, y)
+    return tile and tile.x == x and tile.y == y
+end
+
+local function intentRoleForTile(preview, x, y)
+    if tileMatches(preview.sourceTile, x, y) then
+        return "source"
+    end
+    if tileListContains(preview.targetTiles, x, y) then
+        return "target"
+    end
+    if tileListContains(preview.path, x, y) then
+        return "path"
+    end
+    if preview.trigger and tileListContains(preview.trigger.targetTiles, x, y) then
+        return "trigger"
+    end
+    if preview.anchor and preview.anchor.kind == "tile" and tileMatches(preview.anchor, x, y) then
+        return "anchor"
+    end
+    return nil
+end
+
+local function intentTraceFacts(state, x, y, options)
+    local result = {}
+    for _, unitId in ipairs(sortedKeys(state and state.intents or {})) do
+        local preview = state:intentPreview(unitId, (options and options.intentOptions) or options or {})
+        local role = preview and intentRoleForTile(preview, x, y)
+        if role then
+            result[#result + 1] = {
+                unit = unitId,
+                role = role,
+                mode = preview.mode,
+                category = preview.category,
+                damage = preview.damage,
+                effect = preview.effect,
+                countdown = preview.countdown,
+            }
+        end
+    end
+    return result
+end
+
+local function resolveLosSource(state, options)
+    options = options or {}
+    if options.losFrom then
+        return { unit = options.losFrom.unit or options.losFrom.unitId, x = options.losFrom.x, y = options.losFrom.y }
+    end
+    local unitId = options.unitId or options.sourceUnitId or (state and state.selectedUnitId)
+    local unit = unitId and state and state:unit(unitId)
+    if unit then
+        return { unit = unit.id, x = unit.x, y = unit.y }
+    end
+    return nil
+end
+
+local function losFact(state, x, y, source)
+    if not source then
+        return nil
+    end
+    local los
+    if source.x == x and source.y == y then
+        los = { visible = true, heightDelta = 0, modifiers = {}, obscured = false }
+    else
+        los = state:lineOfSight(source.x, source.y, x, y)
+    end
+    return {
+        from = { unit = source.unit, x = source.x, y = source.y },
+        visible = los.visible,
+        blockedBy = copyValue(los.blockedBy),
+        heightDelta = los.heightDelta,
+        obscured = los.obscured == true,
+        modifiers = copyList(los.modifiers),
+    }
+end
+
 function UICatalog.tacticalHud()
     return UICatalog.tacticalHudContract
+end
+
+function UICatalog.tileInspectorSummary(state, x, y, options)
+    options = options or {}
+    local tile = state:tileAt(x, y)
+    local blocker = state:blockerAt(x, y)
+    local occupant = state:unitAt(x, y)
+    local rotation = options.rotation or options.viewRotation or 0
+    local rotationMark = state:rotationMarkAt(x, y, rotation)
+    return {
+        terrain = {
+            x = x,
+            y = y,
+            kind = tile.kind,
+            material = tile.material,
+            state = tile.state,
+            height = tile.height,
+            blockerKind = tile.blockerKind,
+            movementBlocked = tile.blocker,
+            losBlocked = tile.losBlocker,
+            tags = copyList(tile.tags),
+            occupant = occupant and occupant.id,
+        },
+        cover = coverFacts(tile),
+        los = losFact(state, x, y, resolveLosSource(state, options)),
+        hazards = copyValue(tile.hazard),
+        destructibleHp = {
+            hp = tile.destructibleHp,
+            blockerKind = blocker.kind,
+            movement = blocker.movement,
+            los = blocker.los,
+            destructible = blocker.destructible,
+        },
+        hiddenInfo = {
+            revealed = tile.revealed,
+            hidden = tile.revealed == false,
+            currentRotationMark = rotationMark,
+            revealClasses = copyList(tile.revealClasses),
+            revealActions = copyList(tile.revealActions),
+            weakPointRevealed = tile.weakPointRevealed,
+            weakPoint = tile.weakPointRevealed and tile.weakPoint or nil,
+        },
+        intentTraces = intentTraceFacts(state, x, y, options),
+    }
 end
 
 function UICatalog.tacticalHudSummary(state, previews)

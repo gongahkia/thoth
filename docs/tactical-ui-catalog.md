@@ -183,3 +183,26 @@ preview/UI:
 
 test/replay proof:
 `tests/run.lua` verifies the HUD contract fields and builds a deterministic summary from a tactical state with selected AP, move/action previews, enemy exact intent, objective integrity, and turn order.
+
+## U.9 Tile Inspector Facts
+
+source pattern:
+Readable tactics UI exposes tactical tile facts, projected effects, and short tooltip-style explanations at the point of decision.
+
+thoth transformation:
+Thoth tile inspector exposes terrain, cover, LoS, hazards, destructible HP, hidden info state, and current intent traces from a deterministic state summary.
+
+board verb:
+Inspect, reveal, compare, counter.
+
+zone fit:
+Archive, Cistern, and Warrens feed the same inspector fields with local terrain, hazard, reveal, and intent data.
+
+counterplay:
+The player can inspect whether a tile blocks movement/LoS, grants cover, carries hazard cost, hides rotation facts, can be broken, or is targeted before spending AP.
+
+preview/UI:
+`UICatalog.tileInspectorSummary()` returns `terrain`, `cover`, `los`, `hazards`, `destructibleHp`, `hiddenInfo`, and `intentTraces`.
+
+test/replay proof:
+`tests/run.lua` verifies the tile inspector contract fields and builds a deterministic summary from a tile with terrain, cover, LoS, active hazard, destructible HP, hidden rotation mark, reveal metadata, and exact enemy intent trace.

@@ -2013,6 +2013,56 @@ tests[#tests + 1] = function()
     for _, token in ipairs({ "icon", "state", "verb", "effect", "apCost", "counterplay", "zoneTone", "oneSentenceLore" }) do
         expect(tokens[token], "tile inspector missing token " .. token)
     end
+    local facts = {}
+    for _, fact in ipairs(template.requiredFacts) do
+        facts[fact.id] = fact
+        expect(fact.source and fact.visible == true, "tile inspector fact should define source and visibility: " .. fact.id)
+    end
+    for _, id in ipairs({ "terrain", "cover", "los", "hazards", "destructible_hp", "hidden_info", "intent_traces" }) do
+        expect(facts[id], "tile inspector missing fact " .. id)
+    end
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
+            width = 4,
+            height = 3,
+            tiles = {
+                ["2:2"] = {
+                    kind = "valve_block",
+                    material = "salt",
+                    height = 1,
+                    coverEdges = { west = "half" },
+                    blocker = true,
+                    losBlocker = true,
+                    destructibleHp = 4,
+                    hazard = { kind = "brine", active = true, damage = 1, countdown = 2 },
+                    revealed = false,
+                    rotationMarks = { east = "rear_valve_label" },
+                    revealClasses = { "arcanist" },
+                    revealActions = { "inspect" },
+                    tags = { "cistern" },
+                },
+            },
+        },
+        selectedUnitId = "warden",
+        units = {
+            { id = "warden", side = "player", x = 1, y = 2, ap = 2 },
+            { id = "bailiff", side = "enemy", x = 4, y = 2, ap = 1 },
+        },
+        intents = {
+            bailiff = { mode = "exact", category = "attack", targetTiles = { { x = 2, y = 2 } }, path = { { x = 3, y = 2 }, { x = 2, y = 2 } }, damage = 1, effect = "crack" },
+        },
+    })
+    local summary = UICatalog.tileInspectorSummary(state, 2, 2, { rotation = 1 })
+    expect(summary.terrain.kind == "valve_block" and summary.terrain.material == "salt" and summary.terrain.height == 1, "tile inspector should expose terrain")
+    expect(summary.cover[1].direction == "west" and summary.cover[1].cover == "half", "tile inspector should expose cover")
+    expect(summary.los.visible and summary.los.from.unit == "warden", "tile inspector should expose LoS from selected unit")
+    expect(summary.hazards.kind == "brine" and summary.hazards.active == true, "tile inspector should expose hazards")
+    expect(summary.destructibleHp.hp == 4 and summary.destructibleHp.destructible, "tile inspector should expose destructible HP")
+    expect(summary.hiddenInfo.hidden and summary.hiddenInfo.currentRotationMark.mark == "rear_valve_label", "tile inspector should expose hidden info without revealing all states")
+    expect(summary.intentTraces[1].unit == "bailiff" and summary.intentTraces[1].role == "target" and summary.intentTraces[1].category == "attack", "tile inspector should expose current intent traces")
 end
 
 tests[#tests + 1] = function()
