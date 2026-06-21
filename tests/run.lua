@@ -1552,6 +1552,26 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local audit = ClassCatalog.auditStarterRoster()
+    local ids = ClassCatalog.starterClassIds()
+    local expected = { "warden", "duelist", "mender", "harrier" }
+    expect(audit.valid, "starter roster should expose four classes with two loadouts each")
+    expect(#ids == 4, "starter roster should define exactly four classes")
+    for index, classId in ipairs(expected) do
+        expect(ids[index] == classId, "starter roster should preserve starter class order")
+        local loadouts = ClassCatalog.starterLoadouts(classId)
+        expect(#loadouts == 2, classId .. " starter class should expose two loadouts")
+        for _, loadout in ipairs(loadouts) do
+            expect(loadout.classId == classId and loadout.availableAt == "vertical_slice_start", classId .. " starter loadout should mark slice availability")
+            expect(loadout.boardVerb and #(loadout.tools or {}) == 2 and loadout.preview, classId .. " starter loadout should expose board verb tools preview")
+            expect(loadout.strongBoardFixture and loadout.awkwardBoardFixture, classId .. " starter loadout should define strong and awkward board fixtures")
+            expect(ClassCatalog.loadout(classId, loadout.id), classId .. " starter loadout should reference class catalog loadout")
+        end
+    end
+    expect(#ClassCatalog.starterLoadouts("arcanist") == 0 and #ClassCatalog.starterLoadouts("merchant") == 0, "advanced classes should not enter starter roster")
+end
+
+tests[#tests + 1] = function()
     local audit = ClassCatalog.auditTraitDomains()
     expect(audit.valid, "class catalog should cover required trait domains")
     local traits = ClassCatalog.characterTraits()

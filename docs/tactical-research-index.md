@@ -710,6 +710,22 @@ preview/UI: `Procgen.archiveRoute()` gives ordered route metadata; `Procgen.arch
 
 test/replay proof: tests verify 5-7 variants, template/node pressure coverage, grammar validation, reinforcement audit, accepted budget, `TacticsState` instantiation, and deterministic fixed-seed serialization.
 
+### H41 Starter Classes And Loadouts
+
+source pattern: XCOM, Gears Tactics, and Mario + Rabbids keep class identity readable through bounded ability branches, movement verbs, equipment choices, and pre-battle role clarity.
+
+thoth transformation: The vertical slice exposes Warden, Duelist, Apothecary, and Thief as starter classes, each with two slice loadouts drawn from the full class catalog and backed by board verbs, two-slot tools, preview copy, and strong/awkward board fixtures.
+
+board verb: equip, preview, counter, specialize.
+
+zone fit: Archive route boards test cover/objective guard, dash/flank, repair/smoke support, and route/extraction utility against shelf, audit, proof, repair, shortcut, and elite claim pressure.
+
+counterplay: choose between two visible loadouts per starter class based on route pressure; missing cover, mobility, repair, smoke, or extraction support remains a known risk.
+
+preview/UI: `ClassCatalog.starterClassIds()` gives the four starter ids; `ClassCatalog.starterLoadouts(classId)` gives two loadout cards with board verb, tools, preview, availability, and fixture metadata.
+
+test/replay proof: tests verify exactly four starter classes, exact starter order, exactly two starter loadouts per class, valid catalog references, tool counts, previews, strong/awkward fixtures, and advanced-class exclusion.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

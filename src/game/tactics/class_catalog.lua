@@ -210,6 +210,13 @@ ClassCatalog.classes = {
     },
 }
 
+ClassCatalog.starterRoster = {
+    { classId = "warden", loadoutIds = { "line_guard", "claim_anchor" }, routeRole = "cover and objective guard", preview = "brace lanes or hold claim pressure", strongBoardFixture = "archive_shelf_protection", awkwardBoardFixture = "archive_proof_extract" },
+    { classId = "duelist", loadoutIds = { "red_line", "patron_shadow" }, routeRole = "flank and reposition", preview = "dash through safe lanes or swap adjacency", strongBoardFixture = "archive_entry_audit", awkwardBoardFixture = "archive_shelf_protection" },
+    { classId = "mender", loadoutIds = { "field_triage", "smoke_binder" }, routeRole = "repair and rescue support", preview = "stabilize objectives or place smoke", strongBoardFixture = "archive_ledger_repair", awkwardBoardFixture = "archive_elite_claim" },
+    { classId = "harrier", loadoutIds = { "ghost_route", "courier_cut" }, routeRole = "route and extraction utility", preview = "open quiet paths or move proof cargo", strongBoardFixture = "archive_proof_extract", awkwardBoardFixture = "archive_sealed_shortcut" },
+}
+
 ClassCatalog.traits = {
     { id = "quick_account", domain = "ap", effect = "+1 AP on first objective interaction" },
     { id = "slow_oath", domain = "ap", effect = "first attack each board costs +1 AP" },
@@ -263,13 +270,76 @@ ClassCatalog.squadScaling = {
     [6] = { apBudget = 18, deploymentSlots = 6, enemyBudgetMultiplier = 1.40, objectivePressure = "multi-front", reinforcementCap = 3, boardScale = "large", board = { width = 14, height = 10, objectiveAnchors = 3, spawnPockets = 3, retreatRoutes = 3 }, varianceRules = { deploymentPattern = "two_front", laneCount = 3, coverFields = 6, hazardBudget = 5 } },
 }
 
+local function loadoutById(class, loadoutId)
+    for _, loadout in ipairs(class and class.loadouts or {}) do
+        if loadout.id == loadoutId then
+            return loadout
+        end
+    end
+    return nil
+end
+
+local function starterRosterEntry(classId)
+    for _, entry in ipairs(ClassCatalog.starterRoster) do
+        if entry.classId == classId then
+            return entry
+        end
+    end
+    return nil
+end
+
+local function toolSet(class)
+    local result = {}
+    for _, tool in ipairs(class and class.tools or {}) do
+        result[tool.id] = true
+    end
+    return result
+end
+
 function ClassCatalog.class(id)
     return ClassCatalog.classes[id]
+end
+
+function ClassCatalog.loadout(id, loadoutId)
+    return loadoutById(ClassCatalog.class(id), loadoutId)
 end
 
 function ClassCatalog.loadouts(id)
     local class = ClassCatalog.class(id)
     return class and class.loadouts or {}
+end
+
+function ClassCatalog.starterClassIds()
+    local result = {}
+    for _, entry in ipairs(ClassCatalog.starterRoster) do
+        result[#result + 1] = entry.classId
+    end
+    return result
+end
+
+function ClassCatalog.starterLoadouts(classId)
+    local entry = starterRosterEntry(classId)
+    local class = ClassCatalog.class(classId)
+    local result = {}
+    for _, loadoutId in ipairs(entry and entry.loadoutIds or {}) do
+        local loadout = loadoutById(class, loadoutId)
+        if loadout then
+            result[#result + 1] = {
+                classId = classId,
+                className = class.name,
+                id = loadout.id,
+                boardVerb = loadout.boardVerb,
+                tools = loadout.tools,
+                unlock = loadout.unlock,
+                routeRole = entry.routeRole,
+                preview = loadout.unlock and loadout.unlock.preview or entry.preview,
+                strongBoardFixture = entry.strongBoardFixture,
+                awkwardBoardFixture = entry.awkwardBoardFixture,
+                availableAt = "vertical_slice_start",
+            }
+        end
+    end
+    return result
 end
 
 function ClassCatalog.loadoutSlots(id)
@@ -464,6 +534,50 @@ function ClassCatalog.auditLoadoutUnlocks()
         if runUnlocks < 1 then
             report.valid = false
             table.insert(report.missing, classId .. ".runUnlock")
+        end
+    end
+    return report
+end
+
+function ClassCatalog.auditStarterRoster()
+    local report = { valid = true, missing = {} }
+    if #ClassCatalog.starterRoster ~= 4 then
+        report.valid = false
+        table.insert(report.missing, "starter.count")
+    end
+    for _, entry in ipairs(ClassCatalog.starterRoster) do
+        local class = ClassCatalog.class(entry.classId)
+        local prefix = "starter." .. tostring(entry.classId)
+        if not class then
+            report.valid = false
+            table.insert(report.missing, prefix .. ".class")
+        end
+        if not entry.routeRole or not entry.preview or not entry.strongBoardFixture or not entry.awkwardBoardFixture then
+            report.valid = false
+            table.insert(report.missing, prefix .. ".preview")
+        end
+        if #(entry.loadoutIds or {}) ~= 2 then
+            report.valid = false
+            table.insert(report.missing, prefix .. ".loadoutCount")
+        end
+        local tools = toolSet(class)
+        for _, loadoutId in ipairs(entry.loadoutIds or {}) do
+            local loadout = loadoutById(class, loadoutId)
+            if not loadout then
+                report.valid = false
+                table.insert(report.missing, prefix .. "." .. tostring(loadoutId))
+            else
+                if not loadout.boardVerb or #(loadout.tools or {}) ~= 2 then
+                    report.valid = false
+                    table.insert(report.missing, prefix .. "." .. tostring(loadoutId) .. ".shape")
+                end
+                for _, toolId in ipairs(loadout.tools or {}) do
+                    if not tools[toolId] then
+                        report.valid = false
+                        table.insert(report.missing, prefix .. "." .. tostring(loadoutId) .. "." .. tostring(toolId))
+                    end
+                end
+            end
         end
     end
     return report

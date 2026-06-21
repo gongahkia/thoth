@@ -20,6 +20,27 @@ Acceptance proof:
 - `tests/run.lua` calls `ClassCatalog.auditBoardVerbs()` and verifies every class/loadout uses board verbs.
 - `tests/run.lua` calls `ClassCatalog.auditLoadoutShape()` and verifies 2 slots, 3-5 tools, terrain interactions, and loadout tool refs.
 - `tests/run.lua` calls `ClassCatalog.auditLoadoutUnlocks()` and verifies every class has a run-sourced loadout unlock.
+- `tests/run.lua` calls `ClassCatalog.auditStarterRoster()` and verifies exactly four starter classes with two vertical-slice loadouts each.
+
+## CL.0b Starter Roster
+
+The vertical slice exposes four starter classes:
+
+- `warden`: `line_guard` and `claim_anchor`.
+- `duelist`: `red_line` and `patron_shadow`.
+- `mender`: `field_triage` and `smoke_binder`.
+- `harrier`: `ghost_route` and `courier_cut`.
+
+Rules:
+
+- Starter roster order is Warden, Duelist, Apothecary, Thief.
+- Each starter class exposes exactly two loadouts for the slice.
+- Each starter loadout spends two class tools, exposes one board verb, and carries preview text.
+- Each starter class records one strong board fixture and one awkward board fixture for loadout QA.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies starter roster count, order, two-loadout coverage, tool references, preview metadata, strong/awkward fixtures, and excludes advanced classes from the starter roster.
 
 ## CL.1 Warden
 
