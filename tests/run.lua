@@ -1625,6 +1625,20 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local audit = EnemyCatalog.auditExactBasicIntents()
+    expect(audit.ok, "basic enemy exact-intent audit should pass")
+    for _, familyId in ipairs({ "archive", "cistern", "warrens" }) do
+        expect(audit.coverage[familyId] == #EnemyCatalog.common(familyId), "exact-intent audit should cover all common enemies in " .. familyId)
+        for _, enemy in ipairs(EnemyCatalog.common(familyId)) do
+            local intent = enemy.exactIntent
+            expect(intent.source == "self" and intent.mode == "exact" and intent.deterministic == true, "common enemy exact intent should be deterministic: " .. enemy.id)
+            expect(intent.targetPattern and intent.pathPattern and intent.preview, "common enemy exact intent should include preview blueprint: " .. enemy.id)
+            expect(intent.counterplay and #intent.counterplay > 0 and intent.objectiveImpact ~= nil, "common enemy exact intent should include counterplay and objective impact: " .. enemy.id)
+        end
+    end
+end
+
+tests[#tests + 1] = function()
     local elites = EnemyCatalog.elites("archive")
     expect(#elites == 3, "Archive should define 3 elites")
     local ids = {}

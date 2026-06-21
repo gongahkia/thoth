@@ -16,6 +16,20 @@ EnemyCatalog.archetypes = {
     ["terrain-breaker"] = { intent = "terrain conversion", boardVerb = "break", counterplay = "evacuate, stabilize, or use new gap", preview = "terrain tile before and after" },
 }
 
+EnemyCatalog.exactIntentBlueprints = {
+    mover = { targetPattern = "destination tile", pathPattern = "shortest legal movement path", effect = "reposition threat", objectiveImpact = "none", counterplay = { "body_block_path", "pin_source" } },
+    shooter = { targetPattern = "visible target tile", pathPattern = "line of sight trace", effect = "direct damage", objectiveImpact = "none", counterplay = { "break_los", "raise_cover" } },
+    artillery = { targetPattern = "marked line or area footprint", pathPattern = "lobbed or reflected trace", effect = "area pressure", objectiveImpact = "possible integrity loss", counterplay = { "leave_footprint", "interrupt_source" } },
+    pusher = { targetPattern = "adjacent or pressure-line target", pathPattern = "push vector", effect = "forced displacement", objectiveImpact = "collision can damage objective", counterplay = { "brace", "block_landing" }, collision = { kind = "forced_movement", vector = "away" } },
+    puller = { targetPattern = "hooked target tile", pathPattern = "pull trace", effect = "forced displacement", objectiveImpact = "collision can damage objective", counterplay = { "break_hook_path", "anchor_target" }, collision = { kind = "forced_movement", vector = "toward" } },
+    blocker = { targetPattern = "blocked tile or edge", pathPattern = "adjacent placement trace", effect = "space denial", objectiveImpact = "none", counterplay = { "destroy_blocker", "route_around" } },
+    summoner = { targetPattern = "spawn pocket", pathPattern = "summon trace", effect = "adds enemy pressure", objectiveImpact = "future objective pressure", counterplay = { "block_spawn", "kill_source" } },
+    repairer = { targetPattern = "damaged ally or machine", pathPattern = "support trace", effect = "repairs enemy board state", objectiveImpact = "extends pressure clock", counterplay = { "isolate_target", "interrupt_source" } },
+    saboteur = { targetPattern = "objective or route asset", pathPattern = "sabotage trace", effect = "objective pressure", objectiveImpact = "integrity loss or escape progress", counterplay = { "body_block", "repair_objective" } },
+    overwatch = { targetPattern = "reaction cone", pathPattern = "watched lane", effect = "reaction attack", objectiveImpact = "none", counterplay = { "bait_trigger", "smoke_lane" } },
+    ["terrain-breaker"] = { targetPattern = "terrain tile", pathPattern = "conversion trace", effect = "terrain conversion", objectiveImpact = "opens or closes route", counterplay = { "stabilize_tile", "evacuate_tile" } },
+}
+
 EnemyCatalog.families = {
     archive = {
         common = {
@@ -51,7 +65,7 @@ EnemyCatalog.families = {
             { id = "valve_thrall", name = "Valve Thrall", archetype = "terrain-breaker", exactIntent = { mode = "exact", category = "destroy", damage = 2, target = "cover" }, waterPressureVerb = "turn_valve" },
             { id = "brine_midwife", name = "Brine Midwife", archetype = "summoner", exactIntent = { mode = "exact", category = "summon", damage = 0, target = "pool" }, waterPressureVerb = "birth_brine" },
             { id = "sluice_eel", name = "Sluice Eel", archetype = "mover", exactIntent = { mode = "exact", category = "move", damage = 2, target = "current" }, waterPressureVerb = "ride_sluice" },
-            { id = "salt_choir", name = "Salt Choir", archetype = "repairer", exactIntent = { mode = "exact", category = "buff", damage = 0, target = "wet_row" }, waterPressureVerb = "ring_pressure" },
+            { id = "salt_choir", name = "Salt Choir", archetype = "repairer", exactIntent = { mode = "exact", category = "repair", damage = 0, target = "wet_row" }, waterPressureVerb = "ring_pressure" },
             { id = "pearl_cyst", name = "Pearl Cyst", archetype = "blocker", exactIntent = { mode = "exact", category = "guard", damage = 1, target = "claim_tile" }, waterPressureVerb = "burst_pool" },
             { id = "halocline_tender", name = "Halocline Tender", archetype = "pusher", exactIntent = { mode = "exact", category = "debuff", damage = 0, target = "waterline" }, waterPressureVerb = "shift_halocline" },
             { id = "drowned_pilgrim", name = "Drowned Pilgrim", archetype = "shooter", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "low_ground" }, waterPressureVerb = "kneel_flood" },
@@ -75,7 +89,7 @@ EnemyCatalog.families = {
         common = {
             { id = "ash_husk", name = "Ash Husk", archetype = "pusher", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "front" }, heatAshGlassVerb = "kick_ash" },
             { id = "kiln_imp", name = "Kiln Imp", archetype = "mover", exactIntent = { mode = "exact", category = "move", damage = 1, target = "heat_lane" }, heatAshGlassVerb = "spark_jump" },
-            { id = "kiln_nurse", name = "Kiln Nurse", archetype = "repairer", exactIntent = { mode = "exact", category = "buff", damage = 0, target = "burned_ally" }, heatAshGlassVerb = "cautery_stoke" },
+            { id = "kiln_nurse", name = "Kiln Nurse", archetype = "repairer", exactIntent = { mode = "exact", category = "repair", damage = 0, target = "burned_ally" }, heatAshGlassVerb = "cautery_stoke" },
             { id = "glass_penitent", name = "Glass Penitent", archetype = "overwatch", exactIntent = { mode = "exact", category = "guard", damage = 1, target = "line" }, heatAshGlassVerb = "raise_glass" },
             { id = "clinker_butcher", name = "Clinker Butcher", archetype = "puller", exactIntent = { mode = "exact", category = "attack", damage = 3, target = "cover" }, heatAshGlassVerb = "hook_clinker" },
             { id = "white_furnace", name = "White Furnace", archetype = "terrain-breaker", exactIntent = { mode = "exact", category = "destroy", damage = 3, target = "objective" }, heatAshGlassVerb = "pressure_coal" },
@@ -124,8 +138,29 @@ local function assignUtility(enemy, familyId)
     end
 end
 
+local function assignExactIntentBlueprint(enemy)
+    if not (enemy and enemy.exactIntent and enemy.archetype) then
+        return
+    end
+    local blueprint = EnemyCatalog.exactIntentBlueprints[enemy.archetype] or {}
+    local archetype = EnemyCatalog.archetypes[enemy.archetype] or {}
+    local intent = enemy.exactIntent
+    intent.source = intent.source or "self"
+    intent.targetPattern = intent.targetPattern or blueprint.targetPattern
+    intent.pathPattern = intent.pathPattern or blueprint.pathPattern
+    intent.effect = intent.effect or blueprint.effect
+    intent.objectiveImpact = intent.objectiveImpact or blueprint.objectiveImpact
+    intent.counterplay = intent.counterplay or blueprint.counterplay
+    intent.preview = intent.preview or archetype.preview
+    intent.deterministic = intent.deterministic ~= false
+    if blueprint.collision and not intent.collision then
+        intent.collision = blueprint.collision
+    end
+end
+
 for familyId, family in pairs(EnemyCatalog.families) do
     for _, enemy in ipairs(family.common or {}) do
+        assignExactIntentBlueprint(enemy)
         assignUtility(enemy, familyId)
     end
     for _, enemy in ipairs(family.elites or {}) do
@@ -205,6 +240,48 @@ function EnemyCatalog.auditArchetypes()
     for _, id in ipairs(EnemyCatalog.requiredArchetypes) do
         if not report.coverage[id] then
             table.insert(report.missing, "coverage." .. id)
+        end
+    end
+    report.ok = #report.missing == 0 and #report.invalid == 0
+    return report
+end
+
+function EnemyCatalog.auditExactBasicIntents()
+    local report = { ok = true, missing = {}, invalid = {}, coverage = {} }
+    for familyId, family in pairs(EnemyCatalog.families) do
+        report.coverage[familyId] = 0
+        for _, enemy in ipairs(family.common or {}) do
+            local intent = enemy.exactIntent
+            if not intent then
+                table.insert(report.missing, enemy.id .. ".exactIntent")
+            elseif intent.mode ~= "exact" then
+                table.insert(report.invalid, enemy.id .. ".exactIntent.mode")
+            else
+                report.coverage[familyId] = report.coverage[familyId] + 1
+                if not (intent.source and intent.category and intent.target and intent.damage ~= nil) then
+                    table.insert(report.invalid, enemy.id .. ".exactIntent.core")
+                end
+                if not (intent.targetPattern and intent.pathPattern and intent.effect and intent.preview) then
+                    table.insert(report.invalid, enemy.id .. ".exactIntent.preview")
+                end
+                if not (intent.counterplay and #intent.counterplay > 0) then
+                    table.insert(report.invalid, enemy.id .. ".exactIntent.counterplay")
+                end
+                if intent.objectiveImpact == nil then
+                    table.insert(report.invalid, enemy.id .. ".exactIntent.objectiveImpact")
+                end
+                if intent.deterministic ~= true then
+                    table.insert(report.invalid, enemy.id .. ".exactIntent.deterministic")
+                end
+                if (enemy.archetype == "pusher" or enemy.archetype == "puller") and not intent.collision then
+                    table.insert(report.invalid, enemy.id .. ".exactIntent.collision")
+                end
+            end
+        end
+    end
+    for _, familyId in ipairs({ "archive", "cistern", "warrens" }) do
+        if (report.coverage[familyId] or 0) < 8 then
+            table.insert(report.missing, familyId .. ".exactIntentCoverage")
         end
     end
     report.ok = #report.missing == 0 and #report.invalid == 0

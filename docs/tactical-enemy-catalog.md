@@ -207,3 +207,32 @@ Acceptance proof:
 
 - `EnemyCatalog.auditArchetypes()` rejects missing archetypes, missing archetype metadata, invalid common enemy references, missing exact intents, missing zone verbs, out-of-range family counts, and uncovered required archetypes.
 - `tests/run.lua` verifies every required archetype has metadata and common-enemy coverage.
+
+## E.13 Basic Enemy Exact Intents
+
+Every common enemy has an exact intent blueprint.
+
+Fields:
+
+- `source`: always `self` at catalog level.
+- `category`: exact category used by intent preview.
+- `target`: named target rule.
+- `targetPattern`: footprint rule before board coordinates are known.
+- `pathPattern`: trace rule before board coordinates are known.
+- `damage`: deterministic damage value.
+- `effect`: deterministic effect label.
+- `objectiveImpact`: objective pressure label, or `none`.
+- `counterplay`: one or more legal answers.
+- `preview`: inspector-facing preview cue.
+- `deterministic`: always `true`.
+
+Rules:
+
+- Runtime declarations still supply board-specific `targetTiles` and `path`; catalog blueprints never fake coordinates.
+- Push and pull archetypes must include collision metadata.
+- Every zone family must have exact-intent coverage for all common enemies.
+
+Acceptance proof:
+
+- `EnemyCatalog.auditExactBasicIntents()` rejects missing exact intents, non-exact modes, missing source/category/target/damage, missing target/path/effect/preview metadata, missing counterplay, missing objective impact, nondeterministic flags, forced-movement intents without collision, and incomplete family coverage.
+- `tests/run.lua` verifies exact-intent coverage and metadata for every common enemy in Archive, Cistern, and Warrens.

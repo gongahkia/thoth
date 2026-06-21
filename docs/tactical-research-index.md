@@ -480,6 +480,22 @@ preview/UI: enemy inspector shows archetype, exact intent, zone verb, preview fo
 
 test/replay proof: `EnemyCatalog.auditArchetypes()` rejects missing archetypes, missing archetype metadata, invalid common enemy references, missing exact intent, missing zone verbs, out-of-range family counts, and uncovered required archetypes.
 
+### H27 Basic Enemy Exact Intents
+
+source pattern: Into the Breach telegraphs enemy attacks before resolution; Thoth's own exact-intent rules require source, target footprint, trace, damage/effect, collision, objective impact, and counterplay.
+
+thoth transformation: Common enemy catalog entries hydrate exact intent blueprints with source, category, target rule, target pattern, path pattern, deterministic damage/effect, objective impact, counterplay, preview, and forced-movement collision where needed.
+
+board verb: declare, preview, trace, counter, resolve.
+
+zone fit: Archive exact intents target claim lines and records; Cistern exact intents target water pressure, valves, pools, and exits; Warrens exact intents target heat lanes, glass lines, fuel, and objectives.
+
+counterplay: LoS break, cover raise, footprint escape, brace, block landing, spawn block, interrupt source, isolate repair target, repair objective, smoke lane, or stabilize terrain.
+
+preview/UI: common enemy inspector shows exact category, target pattern, path pattern, damage, effect, objective impact, collision if any, and counterplay list before deployment.
+
+test/replay proof: `EnemyCatalog.auditExactBasicIntents()` rejects missing exact intent mode, missing exact preview fields, missing objective impact, missing counterplay, nondeterministic flags, forced movement without collision, and incomplete common-family coverage.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.
