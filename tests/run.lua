@@ -1584,6 +1584,39 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local planned = { "warden", "duelist", "mender", "arcanist", "harrier", "chirurgeon", "exile", "lamplighter", "merchant" }
+    local plannedSet = {}
+    local classCount = 0
+    for _, classId in ipairs(planned) do
+        plannedSet[classId] = true
+    end
+    for classId in pairs(ClassCatalog.classes) do
+        classCount = classCount + 1
+        expect(plannedSet[classId], "class catalog should only expose planned full-scope classes: " .. classId)
+    end
+    expect(classCount == 9, "class catalog should expose exactly 9 full-scope classes")
+    for _, classId in ipairs(planned) do
+        local class = ClassCatalog.class(classId)
+        local seenLoadouts = {}
+        local runChoices = 0
+        expect(class and #ClassCatalog.loadouts(classId) == 3, classId .. " should define 3 loadout choices")
+        expect(ClassCatalog.loadoutSlots(classId) == 2, classId .. " should keep two loadout slots")
+        for _, loadout in ipairs(ClassCatalog.loadouts(classId)) do
+            local unlock = loadout.unlock or {}
+            expect(not seenLoadouts[loadout.id], classId .. " loadout ids should be unique")
+            seenLoadouts[loadout.id] = true
+            expect(loadout.boardVerb and #(loadout.tools or {}) == 2, classId .. " loadout should expose board verb and two tools")
+            expect(unlock.rewardKind == "class_option" and unlock.rewardId and not unlock.stat and not unlock.statBonus and not unlock.permanentStat, classId .. " unlock should be class option, not stat power")
+            if unlock.scope == "run" then
+                runChoices = runChoices + 1
+                expect(unlock.source and unlock.preview, classId .. " run unlock should expose source and preview")
+            end
+        end
+        expect(runChoices >= 2, classId .. " should expose at least two run-level loadout choices")
+    end
+end
+
+tests[#tests + 1] = function()
     local audit = ClassCatalog.auditStarterRoster()
     local ids = ClassCatalog.starterClassIds()
     local expected = { "warden", "duelist", "mender", "harrier" }

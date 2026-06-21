@@ -806,6 +806,22 @@ preview/UI: `ZoneCatalog` exposes tile mechanics, objects, and rotation facts pe
 
 test/replay proof: tests verify each full-scope zone has 12 mechanics, 8 objects, 4 rotation facts, distinct prefixes, zone-local enemy verb fields, and 3 elites with local counterplay metadata.
 
+### H47 Full Scope Classes And Run Loadout Choices
+
+source pattern: Gears Tactics uses class/subclass skills to tailor soldiers for battle; XCOM classes unlock unique abilities and specializations; Mario + Rabbids combines hero kits with selectable tactical powers; Into the Breach Advanced Edition expands run variety through squads, weapons, pilots, and mission/enemy content.
+
+thoth transformation: The full class roster is nine board-verb classes, each with three two-tool loadouts, no stat-only unlocks, and at least two run-sourced class-option choices.
+
+board verb: choose, unlock, specialize, counter.
+
+zone fit: Warden, Duelist, Apothecary, Arcanist, Thief, Chirurgeon, Exile, Lamplighter, and Merchant cover Archive claim/reveal, Cistern movement/repair, and Warrens heat/terrain/objective pressure.
+
+counterplay: run rewards widen tactical answers instead of raising raw power; missing loadout categories leave visible gaps against hazards, LoS, objective pressure, extraction, or redacted intent.
+
+preview/UI: `ClassCatalog` exposes class ids through table keys, loadouts, two-slot tool refs, terrain interactions, unlock scopes, reward ids, and preview copy.
+
+test/replay proof: tests verify exactly nine planned classes, three loadouts each, two tool slots, unique loadout ids, non-stat class-option unlocks, and at least two run-sourced unlock choices per class.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

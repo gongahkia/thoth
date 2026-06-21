@@ -165,7 +165,7 @@ Goal: ship one replayable tactical slice.
 Goal: expand to full game breadth after the slice proves itself.
 
 - [x] 7.1 Three zones with distinct terrain grammars and enemy families.
-- [ ] 7.2 9 classes with loadout unlocks and run-level choices.
+- [x] 7.2 9 classes with loadout unlocks and run-level choices.
 - [ ] 7.3 30+ tactical objectives across protect/extract/disable/repair/survive/boss boards.
 - [ ] 7.4 Boss variant system with generated arena modifiers.
 - [ ] 7.5 Meta progression that unlocks options, not raw power dominance.
