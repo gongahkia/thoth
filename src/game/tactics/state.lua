@@ -29,22 +29,21 @@ local function copyList(values)
     return result
 end
 
+local function copyValue(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local result = {}
+    for key, nested in pairs(value) do
+        result[key] = copyValue(nested)
+    end
+    return result
+end
+
 local function copyMap(values)
     local result = {}
     for key, value in pairs(values or {}) do
-        if type(value) == "table" then
-            local nested = {}
-            for nestedKey, nestedValue in pairs(value) do
-                if type(nestedValue) == "table" then
-                    nested[nestedKey] = copyList(nestedValue)
-                else
-                    nested[nestedKey] = nestedValue
-                end
-            end
-            result[key] = nested
-        else
-            result[key] = value
-        end
+        result[key] = copyValue(value)
     end
     return result
 end
@@ -53,12 +52,44 @@ local function tileKey(x, y)
     return tostring(x) .. ":" .. tostring(y)
 end
 
+local function normalizeCoverEdges(edges)
+    local result = {}
+    for _, direction in ipairs(Grid.order) do
+        local value = (edges and edges[direction]) or "none"
+        expect(value == "none" or value == "half" or value == "full", "invalid cover edge " .. tostring(value))
+        result[direction] = value
+    end
+    return result
+end
+
+local function normalizeRotationMarks(marks)
+    local result = {}
+    for _, direction in ipairs(Grid.order) do
+        if marks and marks[direction] ~= nil then
+            result[direction] = marks[direction]
+        end
+    end
+    return result
+end
+
 local function normalizeTile(tile)
     tile = tile or {}
+    local destructibleHp = tile.destructibleHp
+    if destructibleHp == nil then
+        destructibleHp = tile.hp
+    end
     return {
         kind = tile.kind or tile.id or "floor",
-        height = tile.height or 0,
+        material = tile.material or tile.zoneMaterial or "archive",
+        height = expectInteger(tile.height or 0, "tile height"),
+        coverEdges = normalizeCoverEdges(tile.coverEdges or tile.cover),
         blocker = tile.blocker == true,
+        losBlocker = tile.losBlocker == true,
+        destructibleHp = destructibleHp,
+        hazard = copyMap(tile.hazard),
+        objective = copyMap(tile.objective),
+        revealed = tile.revealed ~= false,
+        rotationMarks = normalizeRotationMarks(tile.rotationMarks or tile.marks),
         tags = copyList(tile.tags),
     }
 end

@@ -154,6 +154,45 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
+            width = 3,
+            height = 3,
+            tiles = {
+                ["2:2"] = {
+                    kind = "valve_block",
+                    material = "salt",
+                    height = 2,
+                    coverEdges = { north = "half", east = "full" },
+                    blocker = false,
+                    losBlocker = true,
+                    destructibleHp = 4,
+                    hazard = { kind = "brine", damage = 1, countdown = 2 },
+                    objective = { id = "pump_heart", kind = "protect", integrity = 5 },
+                    revealed = false,
+                    rotationMarks = { east = "rear_valve_label", south = "pressure_crack" },
+                    tags = { "cistern", "interactable" },
+                },
+            },
+        },
+        units = {
+            { id = "thief", side = "player", x = 1, y = 2, hp = 4 },
+        },
+    })
+    local tile = state:tileAt(2, 2)
+    expect(tile.kind == "valve_block" and tile.material == "salt" and tile.height == 2, "tile schema should keep identity, material, and height")
+    expect(tile.coverEdges.north == "half" and tile.coverEdges.east == "full" and tile.coverEdges.south == "none", "tile schema should normalize cover edges")
+    expect(tile.losBlocker == true and tile.blocker == false, "tile schema should separate LoS blockers from movement blockers")
+    expect(tile.destructibleHp == 4 and tile.hazard.kind == "brine" and tile.objective.integrity == 5, "tile schema should keep destructible, hazard, and objective data")
+    expect(tile.revealed == false and tile.rotationMarks.east == "rear_valve_label", "tile schema should keep reveal state and rotation marks")
+    state:apply(TacticsState.commands.move("thief", "east"))
+    expect(state:unit("thief").x == 2 and state:unit("thief").y == 2, "LoS blocker alone should not block movement")
+    local loaded = TacticsState.fromSnapshot(state:snapshot())
+    local loadedTile = loaded:tileAt(2, 2)
+    expect(loadedTile.hazard.countdown == 2 and loadedTile.objective.id == "pump_heart", "tile schema should roundtrip nested board data")
+end
+
+tests[#tests + 1] = function()
     expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
     expect(I18n.t("missing {value}", { value = "fallback" }) == "missing fallback", "i18n should interpolate fallback strings")
     local source = readFile("src/app/render.lua")

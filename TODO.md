@@ -204,7 +204,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 Goal: prove the new combat loop before touching broad content.
 
-- [ ] P0.2 Add square-grid board data: tile height, cover edges, blockers, hazards, destructible HP, reveal flags.
 - [ ] P0.3 Render board overlays in the existing iso renderer: movement range, LoS, cover, flanks, intent tiles, hazard tiles.
 - [ ] P0.4 Keep `[` and `]` rotation; verify rotation changes occlusion/LoS readability without changing logical coordinates.
 - [ ] P0.5 Implement AP controls for 3-5 variable squad units.
