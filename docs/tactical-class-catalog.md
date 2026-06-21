@@ -73,3 +73,38 @@ Acceptance proof:
 
 - `tests/run.lua` verifies Duelist loadout, tool, terrain interaction, weakness, and replay fixture counts.
 - `tests/replays.lua` runs deterministic Duelist dash, strike, and swap replay fixture `duelist_flank_dash`.
+
+## CL.3 Apothecary
+
+The Apothecary defines 3 loadouts:
+
+- `field_triage`: objective medic using `wound_clamp` and `salt_draught`.
+- `smoke_binder`: LoS controller using `hush_smoke` and `salve_flare`.
+- `plague_cutter`: hazard cleanser using `bitter_vial` and `sterilize_hook`.
+
+The Apothecary defines 6 tools:
+
+- `wound_clamp`: repair ally or civilian integrity.
+- `salt_draught`: cleanse brine or blight status.
+- `hush_smoke`: place short-lived obscurant.
+- `salve_flare`: reveal safe rescue route through smoke.
+- `bitter_vial`: apply deterministic debuff to one enemy.
+- `sterilize_hook`: drag cargo or patient out of hazard.
+
+Terrain interactions:
+
+- `douse_brine_pool`: turn adjacent brine or burn tile inactive.
+- `smoke_claim_line`: obscure claim tile without changing ownership.
+
+Weakness:
+
+- `triage_burden`: after repairing an objective, next carry or drag costs +1 AP.
+
+Replay fixture:
+
+- `apothecary_smoke_triage`
+
+Acceptance proof:
+
+- `tests/run.lua` verifies Apothecary loadout, tool, terrain interaction, weakness, and replay fixture counts.
+- `tests/replays.lua` runs deterministic Apothecary smoke and repair replay fixture `apothecary_smoke_triage`.

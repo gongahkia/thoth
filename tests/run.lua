@@ -1395,6 +1395,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local apothecary = ClassCatalog.class("mender")
+    expect(apothecary and apothecary.name == "Apothecary", "Apothecary catalog entry should exist")
+    expect(#ClassCatalog.loadouts("mender") == 3, "Apothecary should define 3 loadouts")
+    expect(#ClassCatalog.tools("mender") == 6, "Apothecary should define 6 tools")
+    expect(#ClassCatalog.terrainInteractions("mender") == 2, "Apothecary should define 2 terrain interactions")
+    expect(apothecary.weakness and apothecary.weakness.id == "triage_burden", "Apothecary should define weakness")
+    expect(apothecary.replayFixture == "apothecary_smoke_triage", "Apothecary should define replay fixture")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

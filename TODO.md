@@ -82,7 +82,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Class & Loadout Catalog
 
-- [ ] CL.3 Apothecary: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
 - [ ] CL.4 Arcanist: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
 - [ ] CL.5 Thief: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
 - [ ] CL.6 Chirurgeon: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.

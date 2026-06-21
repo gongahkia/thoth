@@ -277,4 +277,39 @@ expect(Serialize.encode(duelistA:snapshot()) == Serialize.encode(duelistB:snapsh
 expect(duelistA.units.duelist.x == 4 and duelistA.units.bailiff.hp == 2, "Duelist replay should dash, strike, and swap")
 io.stdout:write("tactics replay ok ", duelistFixture, "\n")
 
+local function tacticalApothecaryReplayState()
+    return TacticsState.new({
+        defaultAp = 4,
+        board = { width = 4, height = 3 },
+        units = {
+            { id = "mender", side = "player", x = 1, y = 2, hp = 8, class = "mender" },
+        },
+        objectives = {
+            { id = "patient", kind = "repair_cover", x = 2, y = 2, integrity = 1, maxIntegrity = 3, evacuateAt = { x = 4, y = 2 } },
+        },
+    })
+end
+
+local tacticalApothecaryFrames = {
+    { tick = 0, command = TacticsState.commands.obscurant("mender", 2, 2, "smoke", 2, 1) },
+    { tick = 1, command = TacticsState.commands.repairObjective("mender", "patient", 2, 1) },
+    { tick = 2, command = TacticsState.commands.tickObscurants() },
+}
+
+local function runTacticalApothecaryReplay()
+    local state = tacticalApothecaryReplayState()
+    for _, frame in ipairs(tacticalApothecaryFrames) do
+        state:apply(frame.command)
+    end
+    return state
+end
+
+local apothecaryFixture = ClassCatalog.class("mender").replayFixture
+local apothecaryA = runTacticalApothecaryReplay()
+local apothecaryB = runTacticalApothecaryReplay()
+expect(apothecaryFixture == "apothecary_smoke_triage", "Apothecary replay fixture should be registered")
+expect(Serialize.encode(apothecaryA:snapshot()) == Serialize.encode(apothecaryB:snapshot()), "Apothecary replay fixture should be deterministic")
+expect(apothecaryA:objective("patient").integrity == 3, "Apothecary replay should smoke and repair")
+io.stdout:write("tactics replay ok ", apothecaryFixture, "\n")
+
 io.stdout:write("replay fixtures passed: ", #fixtures, "\n")

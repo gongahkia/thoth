@@ -45,6 +45,28 @@ ClassCatalog.classes = {
         weakness = { id = "overextends", effect = "after dashing, adjacent enemies add +1 incoming damage" },
         replayFixture = "duelist_flank_dash",
     },
+    mender = {
+        name = "Apothecary",
+        loadouts = {
+            { id = "field_triage", role = "objective medic", tools = { "wound_clamp", "salt_draught" } },
+            { id = "smoke_binder", role = "LoS controller", tools = { "hush_smoke", "salve_flare" } },
+            { id = "plague_cutter", role = "hazard cleanser", tools = { "bitter_vial", "sterilize_hook" } },
+        },
+        tools = {
+            { id = "wound_clamp", effect = "repair ally or civilian integrity" },
+            { id = "salt_draught", effect = "cleanse brine or blight status" },
+            { id = "hush_smoke", effect = "place short-lived obscurant" },
+            { id = "salve_flare", effect = "reveal safe rescue route through smoke" },
+            { id = "bitter_vial", effect = "apply deterministic debuff to one enemy" },
+            { id = "sterilize_hook", effect = "drag cargo or patient out of hazard" },
+        },
+        terrainInteractions = {
+            { id = "douse_brine_pool", terrain = "hazard", effect = "turn adjacent brine or burn tile inactive" },
+            { id = "smoke_claim_line", terrain = "claim_line", effect = "obscure claim tile without changing ownership" },
+        },
+        weakness = { id = "triage_burden", effect = "after repairing an objective, next carry or drag costs +1 AP" },
+        replayFixture = "apothecary_smoke_triage",
+    },
 }
 
 function ClassCatalog.class(id)
