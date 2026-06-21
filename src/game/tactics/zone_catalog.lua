@@ -1,5 +1,18 @@
 local ZoneCatalog = {}
 
+local function copyValue(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local result = {}
+    for key, nested in pairs(value) do
+        result[key] = copyValue(nested)
+    end
+    return result
+end
+
+ZoneCatalog.requiredDestructibleKinds = { "shelf", "bridge", "valve", "kiln", "door", "floor", "machinery" }
+
 ZoneCatalog.zones = {
     buried_archive = {
         tileMechanics = {
@@ -99,6 +112,16 @@ ZoneCatalog.zones = {
     },
 }
 
+ZoneCatalog.destructibleLocationRules = {
+    shelf = { zone = "buried_archive", source = "object", objectId = "rolling_shelf", hp = 5, apCost = 2, breakEffect = "clears full-cover LoS blocker and opens crush lane", repairCounterplay = "brace or shove shelf before break", preview = "HP, cover edge, LoS block, crush lane", deterministic = true },
+    bridge = { zone = "buried_archive", source = "object", objectId = "ledger_bridge_winch", hp = 4, apCost = 2, breakEffect = "toggles split-squad crossing dependency", repairCounterplay = "lower bridge or route around before collapse", preview = "HP, crossing state, bridge latch", deterministic = true },
+    valve = { zone = "salt_cistern", source = "object", objectId = "tide_valve", hp = 4, apCost = 2, breakEffect = "drains or locks declared flood band", repairCounterplay = "turn valve or repair floodgate integrity", preview = "HP, drain order, water band", deterministic = true },
+    kiln = { zone = "ember_warrens", source = "object", objectId = "kiln_mouth", hp = 5, apCost = 2, breakEffect = "removes opaque heat source and changes next heat lane", repairCounterplay = "douse kiln mouth before heat tick", preview = "HP, vent vector, heat lane", deterministic = true },
+    door = { zone = "buried_archive", source = "object", objectId = "sealed_stacks_door", hp = 4, apCost = 2, breakEffect = "opens movement and LoS through sealed route", repairCounterplay = "use hinge or seal-open action before breach", preview = "HP, blocker state, hinge mark", deterministic = true },
+    floor = { zone = "ember_warrens", source = "mechanic", objectId = "warrens_glass_floor", hp = 2, apCost = 1, breakEffect = "creates fragile path and shard hazard", repairCounterplay = "route around or glassify safe floor", preview = "HP, crack state, shard hazard", deterministic = true },
+    machinery = { zone = "salt_cistern", source = "objective", objectId = "machinery_core", hp = 4, apCost = 2, breakEffect = "damages objective integrity and repair route", repairCounterplay = "repair machinery or shield core with cover", preview = "integrity, repair AP, objective delta", deterministic = true },
+}
+
 function ZoneCatalog.zone(id)
     return ZoneCatalog.zones[id]
 end
@@ -116,6 +139,55 @@ end
 function ZoneCatalog.rotationFacts(zoneId)
     local zone = ZoneCatalog.zone(zoneId)
     return zone and zone.rotationFacts or {}
+end
+
+function ZoneCatalog.destructibleRules()
+    return copyValue(ZoneCatalog.destructibleLocationRules)
+end
+
+local function hasObject(zoneId, objectId)
+    for _, object in ipairs(ZoneCatalog.objects(zoneId)) do
+        if object.id == objectId then
+            return true
+        end
+    end
+    return false
+end
+
+local function hasMechanic(zoneId, objectId)
+    for _, mechanic in ipairs(ZoneCatalog.tileMechanics(zoneId)) do
+        if mechanic.id == objectId then
+            return true
+        end
+    end
+    return false
+end
+
+function ZoneCatalog.auditDestructibleLocations()
+    local report = { ok = true, missing = {}, invalid = {}, coverage = {} }
+    for _, kind in ipairs(ZoneCatalog.requiredDestructibleKinds) do
+        local rule = ZoneCatalog.destructibleLocationRules[kind]
+        if not rule then
+            table.insert(report.missing, kind)
+        else
+            report.coverage[kind] = rule.objectId
+            if not (rule.zone and rule.source and rule.objectId and rule.hp and rule.apCost and rule.breakEffect and rule.repairCounterplay and rule.preview) then
+                table.insert(report.invalid, kind .. ".metadata")
+            end
+            if rule.deterministic ~= true then
+                table.insert(report.invalid, kind .. ".deterministic")
+            end
+            if rule.source == "object" and not hasObject(rule.zone, rule.objectId) then
+                table.insert(report.invalid, kind .. ".object")
+            elseif rule.source == "mechanic" and not hasMechanic(rule.zone, rule.objectId) then
+                table.insert(report.invalid, kind .. ".mechanic")
+            elseif rule.source ~= "object" and rule.source ~= "mechanic" and rule.source ~= "objective" then
+                table.insert(report.invalid, kind .. ".source")
+            end
+        end
+    end
+    report.ok = #report.missing == 0 and #report.invalid == 0
+    return report
 end
 
 return ZoneCatalog

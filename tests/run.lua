@@ -1374,6 +1374,18 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local audit = ZoneCatalog.auditDestructibleLocations()
+    expect(audit.ok, "destructible location audit should pass")
+    local rules = ZoneCatalog.destructibleRules()
+    for _, kind in ipairs(ZoneCatalog.requiredDestructibleKinds) do
+        local rule = rules[kind]
+        expect(rule and audit.coverage[kind] == rule.objectId, "destructible rule should cover kind: " .. kind)
+        expect(rule.hp > 0 and rule.apCost > 0 and rule.breakEffect and rule.repairCounterplay and rule.preview, "destructible rule should include gameplay metadata: " .. kind)
+        expect(rule.deterministic == true, "destructible rule should be deterministic: " .. kind)
+    end
+end
+
+tests[#tests + 1] = function()
     for _, zoneId in ipairs({ "buried_archive", "salt_cistern", "ember_warrens" }) do
         local facts = ZoneCatalog.rotationFacts(zoneId)
         expect(#facts >= 4, zoneId .. " should define at least 4 rotation facts")

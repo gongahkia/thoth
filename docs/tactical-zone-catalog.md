@@ -152,3 +152,27 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies every zone has at least 3 mechanics marked `helpsEitherSide`.
+
+## Z.9 Destructible Location Rules
+
+The catalog defines deterministic destructible rules for required location kinds:
+
+- `shelf`: Archive `rolling_shelf`, 5 HP, opens crush and LoS lanes when broken.
+- `bridge`: Archive `ledger_bridge_winch`, 4 HP, toggles split-squad crossing dependencies.
+- `valve`: Cistern `tide_valve`, 4 HP, drains or locks declared flood bands.
+- `kiln`: Warrens `kiln_mouth`, 5 HP, changes opaque heat sources and heat lanes.
+- `door`: Archive `sealed_stacks_door`, 4 HP, opens movement and LoS through sealed routes.
+- `floor`: Warrens `warrens_glass_floor`, 2 HP, creates fragile paths and shard hazards.
+- `machinery`: Cistern `machinery_core`, 4 integrity, damages objective and repair routes when broken.
+
+Rules:
+
+- Every required kind has zone, source, object id, HP/integrity, AP cost, break effect, repair counterplay, preview text, and `deterministic = true`.
+- Object-sourced rules must point at a zone object.
+- Mechanic-sourced rules must point at a zone tile mechanic.
+- Objective-sourced rules must expose objective integrity and repair preview.
+
+Acceptance proof:
+
+- `ZoneCatalog.auditDestructibleLocations()` rejects missing required kinds, missing metadata, nondeterministic rules, missing source objects, missing source mechanics, and invalid source types.
+- `tests/run.lua` verifies shelf, bridge, valve, kiln, door, floor, and machinery coverage.

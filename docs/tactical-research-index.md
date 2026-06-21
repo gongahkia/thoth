@@ -62,6 +62,7 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S50 | https://subsetgames.com/itb.html | Telegraphed enemy attacks make every enemy action analyzable and counterable before resolution. | Thoth enemy archetypes require preview text, exact intent metadata, and counterplay before common enemies enter a family. |
 | S51 | https://www.feralinteractive.com/en/manuals/xcom2/latest/steam/ | Tactical actions include movement, line of sight, cover, overwatch, hunker, hack, interact, carry, evac, and class-role actions. | Thoth maps enemy variety to board verbs: move, shoot, lob, push, pull, block, summon, repair, sabotage, watch, and break terrain. |
 | S52 | https://www.gearsofwar.com/dev-blog-bosses/ | Boss fights work as combat puzzles with marked impact zones, armored weak windows, adds, cover pressure, mines, and phase escalation. | Thoth boss phases require tile patterns, rotating weak points, terrain conversion, objective pressure, visible clocks, counterplay, and preview text. |
+| S53 | https://book.leveldesignbook.com/process/combat/cover | Cover objects block sightlines or shield units, and their implementation changes how players use combat spaces. | Thoth destructible location rules expose HP, LoS/cover state, break effects, repair counterplay, and previews for shelves, bridges, valves, kilns, doors, floors, and machinery. |
 
 ## Mechanic Handoffs
 
@@ -544,6 +545,22 @@ counterplay: brace, block landing, anchor target, move objective carrier, repair
 preview/UI: push/pull preview shows destination, blocked or occupied collision, friendly-fire marker, objective integrity delta, and threat-zone trigger.
 
 test/replay proof: `State.collisionRules()` exposes deterministic policy metadata, and `tests/run.lua` verifies objective collision, enemy friendly fire, blocked-tile collision, and threat-zone-after-step policy.
+
+### H31 Destructible Location Rules
+
+source pattern: Cover and environmental objects shape combat routes by blocking sightlines, shielding units, and changing how players use space.
+
+thoth transformation: Shelves, bridges, valves, kilns, doors, floors, and machinery each get deterministic HP/integrity, AP cost, source object or mechanic, break effect, repair counterplay, and preview text.
+
+board verb: break, open, drain, douse, lower, repair, route.
+
+zone fit: Archive owns shelves, sealed doors, and ledger bridges; Cistern owns valves and machinery cores; Warrens owns kilns and fragile/glass floors.
+
+counterplay: shove shelf, use hinge, lower bridge, turn valve, repair floodgate, douse kiln, route around glass, repair machinery, or shield objective with cover.
+
+preview/UI: tile inspector shows kind, HP/integrity, AP cost, source object, LoS/cover state, break effect, repair counterplay, and deterministic outcome.
+
+test/replay proof: `ZoneCatalog.auditDestructibleLocations()` rejects missing shelf/bridge/valve/kiln/door/floor/machinery rules, missing source metadata, nondeterministic rules, and missing source object/mechanic links.
 
 ## Rejection Rules
 
