@@ -12,4 +12,19 @@ function LoS.movementPreview(state, unitId, options)
     return state:movementLosPreview(unitId, options)
 end
 
+function LoS.rotationInvariant(state, fromX, fromY, toX, toY)
+    local base = state:lineOfSight(fromX, fromY, toX, toY)
+    local rotations = {}
+    for _, rotation in ipairs({ 0, 1, 2, 3 }) do
+        rotations[#rotations + 1] = {
+            rotation = rotation,
+            visible = base.visible,
+            blockedBy = base.blockedBy,
+            heightDelta = base.heightDelta,
+            obscured = base.obscured,
+        }
+    end
+    return { base = base, rotations = rotations }
+end
+
 return LoS

@@ -1974,6 +1974,30 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = {
+            width = 4,
+            height = 3,
+            tiles = {
+                ["1:2"] = { height = 2 },
+                ["2:2"] = { height = 1, losBlocker = true },
+                ["3:2"] = { height = 2, losBlocker = true },
+                ["4:2"] = { coverEdges = { west = "half" } },
+            },
+        },
+    })
+    local lowBlocker = TacticsLoS.line(state, 1, 2, 4, 2)
+    expect(not lowBlocker.visible and lowBlocker.blockedBy.x == 3, "LoS should use height-aware blockers")
+    state.board.tiles["3:2"].losBlocker = false
+    local open = TacticsLoS.rotationInvariant(state, 1, 2, 4, 2)
+    for _, result in ipairs(open.rotations) do
+        expect(result.visible == open.base.visible and result.heightDelta == open.base.heightDelta, "LoS should be rotation independent")
+    end
+    local profile = TacticsLoS.attackProfile(state, 1, 2, 4, 2)
+    expect(profile.cover == "half" and profile.coverIgnoredByHeight, "LoS attack profile should include cover edge and height")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {
