@@ -95,7 +95,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Implementation Gates
 
-- [ ] G.6 No borrowed pattern ships without documented Thoth transformation in `docs/tactical-research-index.md`.
 
 ## Prototype 0 - Tactical Board Proof
 

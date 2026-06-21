@@ -1924,6 +1924,18 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local gate = GateCatalog.gate("borrowed_pattern_ship")
+    local evidence = {}
+    local index = readFile("docs/tactical-research-index.md") or ""
+    expect(gate and gate.appliesTo == "borrowed pattern" and gate.sourceDocument == "docs/tactical-research-index.md", "borrowed pattern gate should point to research index")
+    for _, item in ipairs(gate.requiredEvidence) do
+        evidence[item] = true
+    end
+    expect(evidence.source_id and evidence.documented_thoth_transformation and evidence.research_index_entry, "borrowed pattern gate should require transformation evidence")
+    expect(index:find("Thoth transformation", 1, true) ~= nil, "research index should document Thoth transformation")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

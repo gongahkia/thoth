@@ -114,3 +114,26 @@ Phase chart and arena diagram must support the boss phase card and overlay previ
 
 test/replay proof:
 `tests/run.lua` verifies the boss ship gate requires phase chart, arena diagram, objective pressure, and replay proof.
+
+## G.6 Borrowed Pattern Ship Gate
+
+source pattern:
+Borrowed design patterns must be transformed into Thoth's rules and language before shipping.
+
+thoth transformation:
+No borrowed pattern ships without documented Thoth transformation in `docs/tactical-research-index.md`.
+
+board verb:
+Source, transform, document, gate.
+
+zone fit:
+Applies to mechanics, UI, procgen, classes, enemies, bosses, and run events.
+
+counterplay:
+Gate blocks copied mechanics that lack Thoth-specific board verbs and preview contracts.
+
+preview/UI:
+Research index must tie the source pattern to a Thoth transformation before implementation.
+
+test/replay proof:
+`tests/run.lua` verifies the borrowed-pattern gate points to `docs/tactical-research-index.md`, requires transformation evidence, and the index contains `Thoth transformation`.

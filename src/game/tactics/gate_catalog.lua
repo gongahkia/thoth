@@ -32,6 +32,13 @@ GateCatalog.gates = {
         requiredEvidence = { "phase_chart", "arena_diagram", "objective_pressure", "replay_proof" },
         blocker = "boss cannot ship",
     },
+    {
+        id = "borrowed_pattern_ship",
+        appliesTo = "borrowed pattern",
+        requiredEvidence = { "source_id", "documented_thoth_transformation", "research_index_entry" },
+        sourceDocument = "docs/tactical-research-index.md",
+        blocker = "borrowed pattern cannot ship",
+    },
 }
 
 function GateCatalog.gate(id)
