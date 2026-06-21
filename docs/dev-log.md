@@ -1,5 +1,19 @@
 # Dev Log
 
+## 2026-06-21 Tactical Scope Audit
+
+Decision:
+
+- Keep Phase 7 completion tied to inspectable data contracts: objective families, boss variants, option unlocks, ending routes, replay fixtures, procgen reports, asset checks, and CI smoke gates.
+
+Cut:
+
+- Do not keep completed roadmap rows in `TODO.md`; completion evidence lives in tactical docs, tests, CI, and git history.
+
+Risk:
+
+- Broad crosscutting rows can look complete while future additions bypass the gates; keep asset, replay, validator, and CI checks mandatory for new tactical work.
+
 ## 2026-06-20
 
 Learned:
