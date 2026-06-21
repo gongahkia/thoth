@@ -2039,6 +2039,22 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        defaultAp = 9,
+        board = { width = 1, height = 1 },
+        units = { { id = "unit", side = "player", x = 1, y = 1 } },
+    })
+    local total = 0
+    for _, action in ipairs({ "move", "dash", "attack", "interact", "brace", "overwatch", "reload", "cooldown", "class_special" }) do
+        local cost = TacticsAP.cost(action)
+        expect(cost and cost > 0, "missing AP cost for " .. action)
+        total = total + cost
+    end
+    expect(TacticsAP.spend(state, "unit", TacticsAP.cost("brace")) == 8, "AP module should spend action costs")
+    expect(total == 9, "default AP cost table should cover nine one-AP actions")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {

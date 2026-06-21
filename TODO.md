@@ -106,7 +106,6 @@ Goal: prove the new combat loop before touching broad content.
 
 Goal: replace expedition/rank combat with the tile tactics engine.
 
-- [ ] 1.5 Implement AP costs: move, dash, attack, interact, brace, overwatch, reload/cooldown, class special.
 - [ ] 1.6 Implement action preview: affected tiles, pushed path, collision, objective damage, cover break, hazard chain.
 - [ ] 1.7 Implement enemy activation, intent selection, intent preview, resolution, and next-turn declaration.
 - [ ] 1.8 Implement board rewind/debug replay for deterministic QA only, not as a player feature yet.
