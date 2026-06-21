@@ -799,6 +799,32 @@ local function coverDelta(fromTile, toTile)
     return gained, lost
 end
 
+local function attackDirection(fromX, fromY, toX, toY)
+    local dx = fromX - toX
+    local dy = fromY - toY
+    if math.abs(dx) >= math.abs(dy) and dx ~= 0 then
+        return dx < 0 and "west" or "east"
+    end
+    if dy ~= 0 then
+        return dy < 0 and "north" or "south"
+    end
+    return nil
+end
+
+function State:coverFromAttack(fromX, fromY, targetX, targetY)
+    local direction = attackDirection(fromX, fromY, targetX, targetY)
+    expect(direction, "attack direction required")
+    local edge = self:tileAt(targetX, targetY).coverEdges[direction] or "none"
+    return {
+        x = targetX,
+        y = targetY,
+        direction = direction,
+        cover = edge,
+        damageReduction = edge == "half" and 1 or 0,
+        blocked = edge == "full",
+    }
+end
+
 local function tileHazardCost(tile)
     local hazard = tile and tile.hazard or nil
     if not hazard then

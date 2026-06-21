@@ -195,6 +195,24 @@ end
 tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
+            width = 3,
+            height = 3,
+            tiles = {
+                ["2:2"] = { coverEdges = { west = "half", east = "full" } },
+            },
+        },
+    })
+    local half = state:coverFromAttack(1, 2, 2, 2)
+    expect(half.direction == "west" and half.cover == "half" and half.damageReduction == 1 and not half.blocked, "half cover should reduce deterministic damage from covered edge")
+    local full = state:coverFromAttack(3, 2, 2, 2)
+    expect(full.direction == "east" and full.cover == "full" and full.blocked, "full cover should block deterministic direct attack from covered edge")
+    local open = state:coverFromAttack(2, 1, 2, 2)
+    expect(open.direction == "north" and open.cover == "none" and open.damageReduction == 0 and not open.blocked, "uncovered edge should not reduce damage")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
             width = 4,
             height = 4,
             tiles = {
