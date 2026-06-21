@@ -38,6 +38,12 @@ local defaultQuirks = {
 
 local starterClassOrder = { "warden", "duelist", "mender", "harrier" }
 
+local legacyRankCombatQuarantine = {
+    system = "legacy_rank_combat",
+    quarantined = true,
+    replacement = "tactical_board",
+}
+
 local function copyList(values)
     local result = {}
     for _, value in ipairs(values or {}) do
@@ -330,6 +336,10 @@ end
 
 function Simulation.newEstate(seed)
     return Simulation.new(seed, { startInEstate = true })
+end
+
+function Simulation:legacyRankCombatQuarantine()
+    return copyMap(legacyRankCombatQuarantine)
 end
 
 Simulation.commands = {}
@@ -3432,6 +3442,9 @@ function Simulation:startCombat(encounterKey, roomKey, options)
     self.combat = {
         encounter = encounterKey,
         baseEncounter = baseEncounter,
+        combatSystem = legacyRankCombatQuarantine.system,
+        quarantined = legacyRankCombatQuarantine.quarantined,
+        replacement = legacyRankCombatQuarantine.replacement,
         roomKey = roomKey,
         enemies = enemies,
         round = 0,

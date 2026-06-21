@@ -2120,6 +2120,15 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local sim = Simulation.new(30)
+    expect(sim:startCombat("entry", "legacy_quarantine"), "legacy combat should still start")
+    expect(sim.combat.combatSystem == "legacy_rank_combat" and sim.combat.quarantined == true, "legacy rank combat should be quarantined")
+    expect(sim.combat.replacement == "tactical_board", "legacy rank combat should point at tactical replacement")
+    local quarantine = sim:legacyRankCombatQuarantine()
+    expect(quarantine.system == "legacy_rank_combat" and quarantine.quarantined == true, "legacy rank quarantine metadata should be inspectable")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
