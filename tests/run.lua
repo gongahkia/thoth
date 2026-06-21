@@ -18,6 +18,7 @@ local ModelPipeline = require("src.app.model_pipeline")
 local TileModelMap = require("assets.models.tile_model_map")
 local World = require("src.game.world")
 local Defs = require("src.game.defs")
+local TacticsState = require("src.game.tactics.state")
 
 local function expect(value, message)
     if not value then
@@ -111,6 +112,46 @@ local function makeActiveMerchant(sim, rank)
 end
 
 local tests = {}
+
+tests[#tests + 1] = function()
+    local function makeState()
+        return TacticsState.new({
+            board = {
+                width = 4,
+                height = 3,
+                tiles = {
+                    ["3:1"] = { kind = "seal_pillar", blocker = true, height = 1, tags = { "archive" } },
+                },
+            },
+            units = {
+                { id = "warden", side = "player", x = 1, y = 1, hp = 5, ap = 2 },
+                { id = "custodian", side = "enemy", x = 4, y = 3, hp = 3 },
+            },
+        })
+    end
+    local a = makeState()
+    local b = makeState()
+    local stream = {
+        TacticsState.commands.move("warden", "east"),
+        TacticsState.commands.move("custodian", "north"),
+        TacticsState.commands.wait("warden"),
+    }
+    for _, command in ipairs(stream) do
+        a:queue(command)
+        b:queue(command)
+        expect(a:step() and b:step(), "tactics state should step queued commands")
+    end
+    expect(Serialize.encode(a:snapshot()) == Serialize.encode(b:snapshot()), "tactics state should replay deterministically")
+    local loaded = TacticsState.fromSnapshot(a:snapshot())
+    expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(a:snapshot()), "tactics state snapshot should roundtrip")
+    local blocked = makeState()
+    blocked:queue(TacticsState.commands.move("warden", "east"))
+    blocked:step()
+    local ok, err = pcall(function()
+        blocked:apply(TacticsState.commands.move("warden", "east"))
+    end)
+    expect(not ok and err:find("blocked_tile", 1, true), "tactics state should reject blocked movement")
+end
 
 tests[#tests + 1] = function()
     expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
