@@ -2055,6 +2055,36 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = {
+            width = 4,
+            height = 2,
+            tiles = {
+                ["2:1"] = { blocker = true, losBlocker = true, destructibleHp = 2, coverEdges = { west = "half" } },
+                ["3:1"] = { hazard = { kind = "burn", active = true, damage = 1 } },
+            },
+        },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, hp = 4 },
+            { id = "enemy", side = "enemy", x = 2, y = 2, hp = 4 },
+        },
+        objectives = {
+            { id = "machine", x = 3, y = 2, integrity = 3, evacuateAt = { x = 4, y = 2 } },
+        },
+    })
+    local shove = TacticsResolution.actionPreview(state, TacticsState.commands.shove("warden", "enemy", "east", 1, 1))
+    expect(shove.pushedPath[1].x == 3 and shove.objectiveDamage[1].id == "machine", "action preview should show push path and objective damage")
+    local blocked = TacticsResolution.actionPreview(state, TacticsState.commands.shove("warden", "warden", "east", 1, 1))
+    expect(blocked.collision and blocked.collision.reason == "blocked_tile", "action preview should show collision")
+    local breakCover = TacticsResolution.actionPreview(state, TacticsState.commands.damageTile("warden", 2, 1, 2, 1))
+    expect(breakCover.coverBreak[1].breaks, "action preview should show cover break")
+    local hazard = TacticsResolution.actionPreview(state, TacticsState.commands.move("warden", "east"))
+    expect(hazard.affectedTiles[1].x == 2, "action preview should show affected movement tile")
+    local converted = TacticsResolution.actionPreview(state, TacticsState.commands.convertTile("warden", 3, 1, "burn", 1))
+    expect(converted.hazardChain[1].conversion == "burn", "action preview should show hazard chain")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {
