@@ -89,7 +89,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Procedural Board & Run Catalog
 
-- [ ] P.1 Define board templates for kill-light, protect-heavy, extraction, repair, stealth, split-squad, holdout, and boss-route boards.
 - [ ] P.2 Define board validator for reachability, LoS sanity, cover density, objective feasibility, enemy intent density, and exit access.
 - [ ] P.3 Define difficulty budget weights for enemies, objectives, hazards, cover, reinforcements, redacted intent, and boss modifiers.
 - [ ] P.4 Define route map node types: combat, repair, enclave, market, event, elite, boss, rest, cursed shortcut, high-reward extraction.

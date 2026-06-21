@@ -23,6 +23,7 @@ local ZoneCatalog = require("src.game.tactics.zone_catalog")
 local ClassCatalog = require("src.game.tactics.class_catalog")
 local EnemyCatalog = require("src.game.tactics.enemy_catalog")
 local BossCatalog = require("src.game.tactics.boss_catalog")
+local RunCatalog = require("src.game.tactics.run_catalog")
 
 local function expect(value, message)
     if not value then
@@ -1694,6 +1695,17 @@ tests[#tests + 1] = function()
         expect(contract.terrainMutation and contract.terrainMutation.effect, "boss should define terrain mutation: " .. boss.name)
         expect(contract.objectiveThreat and contract.objectiveThreat.effect, "boss should define objective threat: " .. boss.name)
         expect(contract.nonDamageCounter and contract.nonDamageCounter.damage == 0, "boss should define non-damage counter: " .. boss.name)
+    end
+end
+
+tests[#tests + 1] = function()
+    local ids = {}
+    for _, template in ipairs(RunCatalog.templates()) do
+        ids[template.id] = template
+        expect(template.objective and template.layout and template.pressure and template.validationFocus, "board template should include objective layout pressure validation: " .. template.id)
+    end
+    for _, id in ipairs({ "kill_light", "protect_heavy", "extraction", "repair", "stealth", "split_squad", "holdout", "boss_route" }) do
+        expect(ids[id] and RunCatalog.boardTemplate(id) == ids[id], "missing board template " .. id)
     end
 end
 
