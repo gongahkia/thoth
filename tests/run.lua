@@ -1634,6 +1634,15 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local boss = BossCatalog.boss("vault_regent")
+    expect(boss and boss.name == "Vault Regent" and boss.zone == "buried_archive", "Vault Regent boss catalog entry should exist")
+    expect(#boss.board.claimBeams == 2, "Vault Regent should define claim beams")
+    expect(#boss.board.nameCollateral == 2, "Vault Regent should define name collateral")
+    expect(#boss.board.legalCover == 2, "Vault Regent should define legal cover")
+    expect(#boss.board.writPillars == 3 and boss.board.writPillars[1].hp > 0, "Vault Regent should define destructible writ pillars")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

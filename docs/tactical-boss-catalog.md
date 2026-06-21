@@ -22,3 +22,26 @@ Show audit lines, AP penalty tiles, Open Register HP, and four rotation-revealed
 
 test/replay proof:
 `tests/run.lua` verifies the Codex Reeve board defines audit lines, AP disable tiles, Open Register weak point, and rotation back seals.
+
+## B.2 Vault Regent
+
+source pattern:
+Boss puzzle boards use telegraphed beams, cover pressure, objective collateral, and destructible support objects.
+
+thoth transformation:
+Vault Regent turns archive law into claim beams, named collateral, legal cover, and writ pillars that must be broken to open attack lanes.
+
+board verb:
+Claim, name collateral, shelter behind legal cover, destroy writ pillars.
+
+zone fit:
+Buried Archive supports claim lanes, seal walls, witness names, and desks that act as official cover.
+
+counterplay:
+Brace named collateral, flank legal cover from rear seals, destroy writ pillars, or force the Regent's claim beam into enemy cover.
+
+preview/UI:
+Show claim beam footprint, collateral names, cover authority edge, writ pillar HP, and the cover removed by each pillar.
+
+test/replay proof:
+`tests/run.lua` verifies the Vault Regent board defines claim beams, name collateral, legal cover, and destructible writ pillars.

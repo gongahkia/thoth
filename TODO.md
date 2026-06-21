@@ -86,7 +86,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Boss & Variant Catalog
 
-- [ ] B.2 Vault Regent boss board: claim beams, name collateral, legal cover, destructible writ pillars.
 - [ ] B.3 Pearl Choir boss board: reflooding lanes, choir throats, moving waterline, pressure bell adds.
 - [ ] B.4 Bell Diver boss board: hook lanes, bell-lung weak point, flood-toll countdown, low-ground punishment.
 - [ ] B.5 Kiln Vicar boss board: vitrify target, halo vents, douse routes, ash-choke cover.
