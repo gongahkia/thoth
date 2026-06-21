@@ -257,3 +257,28 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies damage, repair, relocation, blocked relocation rejection, sacrifice, partial success, extraction completion, and failure carryover.
+
+## M.12 Tactical Rewards
+
+Tactical rewards unlock options instead of raw permanent stat dominance.
+
+Allowed reward kinds:
+
+- `tool_unlock`
+- `class_option`
+- `route_option`
+- `interact_option`
+- `scout_option`
+- `cargo_option`
+
+Rules:
+
+- Rewards require `kind` and `id`.
+- Rewards are stored in `unlocks[kind][id]`.
+- Raw stat rewards using `stat`, `statBonus`, or `permanentStat` are rejected.
+- Unsupported reward kinds fail fast.
+- Unlocks snapshot deterministically.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies tool unlocks, route unlocks, raw-stat rejection, and snapshot roundtrip.

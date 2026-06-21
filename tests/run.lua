@@ -543,6 +543,20 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({ board = { width = 2, height = 2 } })
+    state:apply(TacticsState.commands.reward({ kind = "tool_unlock", id = "lamp_cone", option = "Lamplighter cone" }))
+    state:apply(TacticsState.commands.reward({ kind = "route_option", id = "repair_route", source = "route_machine" }))
+    expect(state.unlocks.tool_unlock.lamp_cone.option == "Lamplighter cone", "tactical rewards should unlock tool options")
+    expect(state.unlocks.route_option.repair_route.source == "route_machine", "tactical rewards should unlock route options")
+    local ok, err = pcall(function()
+        state:apply(TacticsState.commands.reward({ kind = "stat_bonus", id = "plus_damage", stat = "damage" }))
+    end)
+    expect(not ok and err:find("unsupported tactical reward", 1, true), "tactical rewards should reject raw stat dominance")
+    local loaded = TacticsState.fromSnapshot(state:snapshot())
+    expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(state:snapshot()), "tactical reward unlocks should snapshot deterministically")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 2,
         board = {

@@ -67,8 +67,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Core Board Mechanics
 
-- [ ] M.12 Define tactical rewards that unlock options, not raw permanent stat dominance.
-
 ### Intent & Counterplay Mechanics
 
 - [ ] I.1 Build exact intent: source tile, target tile(s), path, damage/effect, collision, and objective impact.

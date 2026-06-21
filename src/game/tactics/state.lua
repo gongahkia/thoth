@@ -236,6 +236,15 @@ local terrainConversions = {
     open_tile = true,
 }
 
+local rewardKinds = {
+    tool_unlock = true,
+    class_option = true,
+    route_option = true,
+    interact_option = true,
+    scout_option = true,
+    cargo_option = true,
+}
+
 local statusRules = {
     marked = { amount = 1 },
     exposed = { amount = 1 },
@@ -331,6 +340,7 @@ function State.new(options)
         phase = options.phase or "player",
         exposure = options.exposure or 0,
         selectedUnitId = options.selectedUnitId,
+        unlocks = copyMap(options.unlocks),
         rules = {
             defaultAp = options.defaultAp or options.apPerTurn or (options.rules and options.rules.defaultAp) or 2,
             moveApCost = options.moveApCost or (options.rules and options.rules.moveApCost) or 1,
@@ -394,6 +404,7 @@ function State.fromSnapshot(snapshot)
         phase = snapshot.phase or "player",
         exposure = snapshot.exposure or 0,
         selectedUnitId = snapshot.selectedUnitId,
+        unlocks = snapshot.unlocks or {},
         rules = snapshot.rules,
         board = snapshot.board or { width = snapshot.width, height = snapshot.height, tiles = snapshot.tiles },
         units = snapshot.units or {},
@@ -1228,6 +1239,22 @@ function State:convertTile(x, y, conversion)
     return tile
 end
 
+function State:grantReward(reward)
+    expect(type(reward) == "table", "reward must be a table")
+    local kind = expect(reward.kind, "reward kind required")
+    expect(rewardKinds[kind], "unsupported tactical reward " .. tostring(kind))
+    local id = expect(reward.id, "reward id required")
+    expect(not reward.stat and not reward.statBonus and not reward.permanentStat, "raw stat rewards are not tactical rewards")
+    self.unlocks[kind] = self.unlocks[kind] or {}
+    self.unlocks[kind][id] = {
+        id = id,
+        kind = kind,
+        option = reward.option or id,
+        source = reward.source,
+    }
+    return self.unlocks[kind][id]
+end
+
 function State:evacuateUnit(unitId, objectiveId)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     local objective = expect(self.objectives[objectiveId], "unknown objective " .. tostring(objectiveId))
@@ -1592,6 +1619,8 @@ function State:apply(command)
         self:applyStatus(command.target, command.status, command.turns, command.amount)
     elseif kind == "tickStatuses" then
         self:tickStatuses(command.unit)
+    elseif kind == "reward" then
+        self:grantReward(command.reward)
     else
         error("unknown command " .. tostring(kind), 2)
     end
@@ -1622,6 +1651,7 @@ function State:snapshot()
         phase = self.phase,
         exposure = self.exposure,
         selectedUnitId = self.selectedUnitId,
+        unlocks = copyMap(self.unlocks),
         rules = copyMap(self.rules),
         threatZones = copyMap(self.threatZones),
         intents = copyMap(self.intents),
@@ -1759,6 +1789,10 @@ end
 
 function commands.tickStatuses(unitId)
     return { type = "tickStatuses", unit = unitId }
+end
+
+function commands.reward(reward)
+    return { type = "reward", reward = reward }
 end
 
 State.commands = commands
