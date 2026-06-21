@@ -22,16 +22,7 @@ Current code is legacy baseline until replaced. Preserve useful systems only whe
 
 Every new content/mechanic batch must start with web research. Do not implement from memory alone.
 
-- [ ] R.0 Create `docs/tactical-research-index.md` with source URLs, checked dates, extracted patterns, and Thoth-specific transformations.
-- [ ] R.1 Research deterministic tactics constraints from Into the Breach, including telegraphed attacks, collateral defense, low-number UI, and least-bad outcomes.
-- [ ] R.2 Research cover, flanking, overwatch, LoS, and action economy from XCOM and Gears Tactics.
-- [ ] R.3 Research procedural tactical stealth from Invisible Inc: information gathering, guard intent, alarm pressure, and generated layouts.
-- [ ] R.4 Research free-movement tactics from Mario + Rabbids and similar games: dash, ally-assisted movement, movement-before-attack sequencing, and cover interaction.
-- [ ] R.5 Research tactics roguelikes and board games for compact spatial mechanics: forced movement, tile claims, action queues, objective clocks, and deterministic puzzle pressure.
-- [ ] R.6 Research boss encounter design for turn-based tactics: multi-turn pattern reads, arena mutation, weak-point exposure, add waves, and objective pressure.
-- [ ] R.7 Research readable tactical UI overlays: intent arrows, danger tiles, cover shields, LoS previews, path ghosting, tile inspectors, and colorblind-safe palettes.
-- [ ] R.8 For each researched mechanic, write a one-line source pattern and a one-line Thoth transformation. The transformation must change fiction, rules, costs, and UI language.
-- [ ] R.9 Reject any idea that remains recognizable after swapping nouns back to the source game.
+Completed research index: `docs/tactical-research-index.md`.
 
 Required handoff format for each research-backed TODO:
 
