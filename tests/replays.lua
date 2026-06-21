@@ -429,4 +429,42 @@ expect(Serialize.encode(chirurgeonA:snapshot()) == Serialize.encode(chirurgeonB:
 expect(chirurgeonA.units.ally.statuses.braced and chirurgeonA:objective("machine").integrity == 3, "Chirurgeon replay should brace and repair")
 io.stdout:write("tactics replay ok ", chirurgeonFixture, "\n")
 
+local function tacticalExileReplayState()
+    return TacticsState.new({
+        defaultAp = 4,
+        board = {
+            width = 4,
+            height = 3,
+            tiles = {
+                ["2:2"] = { destructibleHp = 2, blocker = true, losBlocker = true, coverEdges = { west = "half" } },
+            },
+        },
+        units = {
+            { id = "exile", side = "player", x = 1, y = 2, hp = 10, class = "exile" },
+            { id = "husk", side = "enemy", x = 3, y = 2, hp = 5 },
+        },
+    })
+end
+
+local tacticalExileFrames = {
+    { tick = 0, command = TacticsState.commands.damageTile("exile", 2, 2, 2, 1) },
+    { tick = 1, command = TacticsState.commands.attack("exile", "husk", 2, 1) },
+}
+
+local function runTacticalExileReplay()
+    local state = tacticalExileReplayState()
+    for _, frame in ipairs(tacticalExileFrames) do
+        state:apply(frame.command)
+    end
+    return state
+end
+
+local exileFixture = ClassCatalog.class("exile").replayFixture
+local exileA = runTacticalExileReplay()
+local exileB = runTacticalExileReplay()
+expect(exileFixture == "exile_break_cover", "Exile replay fixture should be registered")
+expect(Serialize.encode(exileA:snapshot()) == Serialize.encode(exileB:snapshot()), "Exile replay fixture should be deterministic")
+expect(exileA:tileAt(2, 2).destroyed and exileA.units.husk.hp == 3, "Exile replay should break cover and attack")
+io.stdout:write("tactics replay ok ", exileFixture, "\n")
+
 io.stdout:write("replay fixtures passed: ", #fixtures, "\n")

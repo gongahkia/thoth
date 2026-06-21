@@ -82,7 +82,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Class & Loadout Catalog
 
-- [ ] CL.7 Exile: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
 - [ ] CL.8 Lamplighter: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
 - [ ] CL.9 Merchant: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
 - [ ] CL.10 Define 20 character traits that alter AP, movement, LoS, cover, carry rules, reveal, cooldown, objective repair, or event outcomes.

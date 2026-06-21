@@ -213,3 +213,38 @@ Acceptance proof:
 
 - `tests/run.lua` verifies Chirurgeon loadout, tool, terrain interaction, weakness, and replay fixture counts.
 - `tests/replays.lua` runs deterministic Chirurgeon brace and machinery repair replay fixture `chirurgeon_stabilize_machine`.
+
+## CL.7 Exile
+
+The Exile defines 3 loadouts:
+
+- `faultbreaker`: terrain breaker using `ruin_maul` and `fault_step`.
+- `borderless`: hazard brawler using `hazard_hide` and `spite_breath`.
+- `thrown_oath`: forced-move bruiser using `exile_throw` and `broken_oath_grip`.
+
+The Exile defines 6 tools:
+
+- `ruin_maul`: destroy adjacent cover or brittle floor.
+- `fault_step`: move through one broken terrain tile.
+- `hazard_hide`: ignore first hazard tick this turn.
+- `spite_breath`: gain AP now and take deterministic self damage.
+- `exile_throw`: throw enemy or cargo one tile.
+- `broken_oath_grip`: pin target against blocker after shove.
+
+Terrain interactions:
+
+- `break_cover`: destroy adjacent cover and expose line.
+- `stand_in_hazard`: hold hazard tile without random action loss.
+
+Weakness:
+
+- `self_risk_spike`: AP spikes deal 1 deterministic self damage.
+
+Replay fixture:
+
+- `exile_break_cover`
+
+Acceptance proof:
+
+- `tests/run.lua` verifies Exile loadout, tool, terrain interaction, weakness, and replay fixture counts.
+- `tests/replays.lua` runs deterministic Exile cover break and attack replay fixture `exile_break_cover`.

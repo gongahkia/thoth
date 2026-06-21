@@ -1435,6 +1435,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local exile = ClassCatalog.class("exile")
+    expect(exile and exile.name == "Exile", "Exile catalog entry should exist")
+    expect(#ClassCatalog.loadouts("exile") == 3, "Exile should define 3 loadouts")
+    expect(#ClassCatalog.tools("exile") == 6, "Exile should define 6 tools")
+    expect(#ClassCatalog.terrainInteractions("exile") == 2, "Exile should define 2 terrain interactions")
+    expect(exile.weakness and exile.weakness.id == "self_risk_spike", "Exile should define weakness")
+    expect(exile.replayFixture == "exile_break_cover", "Exile should define replay fixture")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

@@ -133,6 +133,28 @@ ClassCatalog.classes = {
         weakness = { id = "clinical_delay", effect = "after stabilizing an ally, next attack costs +1 AP" },
         replayFixture = "chirurgeon_stabilize_machine",
     },
+    exile = {
+        name = "Exile",
+        loadouts = {
+            { id = "faultbreaker", role = "terrain breaker", tools = { "ruin_maul", "fault_step" } },
+            { id = "borderless", role = "hazard brawler", tools = { "hazard_hide", "spite_breath" } },
+            { id = "thrown_oath", role = "forced-move bruiser", tools = { "exile_throw", "broken_oath_grip" } },
+        },
+        tools = {
+            { id = "ruin_maul", effect = "destroy adjacent cover or brittle floor" },
+            { id = "fault_step", effect = "move through one broken terrain tile" },
+            { id = "hazard_hide", effect = "ignore first hazard tick this turn" },
+            { id = "spite_breath", effect = "gain AP now and take deterministic self damage" },
+            { id = "exile_throw", effect = "throw enemy or cargo one tile" },
+            { id = "broken_oath_grip", effect = "pin target against blocker after shove" },
+        },
+        terrainInteractions = {
+            { id = "break_cover", terrain = "cover", effect = "destroy adjacent cover and expose line" },
+            { id = "stand_in_hazard", terrain = "hazard", effect = "hold hazard tile without random action loss" },
+        },
+        weakness = { id = "self_risk_spike", effect = "AP spikes deal 1 deterministic self damage" },
+        replayFixture = "exile_break_cover",
+    },
 }
 
 function ClassCatalog.class(id)
