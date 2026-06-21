@@ -612,13 +612,18 @@ function Render.projectIso(view, x, y)
     return view.centerX + (rx - ry) * view.halfW, view.centerY + (rx + ry) * view.halfH
 end
 
-function Render.screenToWorld(view, x, y)
+function Render.screenToWorldPoint(view, x, y)
     local sx = x - view.centerX
     local sy = y - view.centerY
     local rx = (sx / view.halfW + sy / view.halfH) / 2
     local ry = (sy / view.halfH - sx / view.halfW) / 2
     local dx, dy = Render.unrotateDelta(rx, ry, view.rotation)
-    return math.floor(view.originX + dx + 0.5), math.floor(view.originY + dy + 0.5)
+    return view.originX + dx, view.originY + dy
+end
+
+function Render.screenToWorld(view, x, y)
+    local worldX, worldY = Render.screenToWorldPoint(view, x, y)
+    return math.floor(worldX + 0.5), math.floor(worldY + 0.5)
 end
 
 local function clamp(value, minValue, maxValue)
@@ -681,7 +686,7 @@ local function rotationAllowed(value, allowed)
     return false
 end
 
-local tacticalOverlayOrder = { "movement", "los", "cover", "flank", "intent", "hazard" }
+local tacticalOverlayOrder = { "movement", "los", "cover", "flank", "intent", "hazard", "blocker", "objective", "cursor" }
 local tacticalOverlayPalette = TacticsUICatalog.accessiblePalette().roles
 local tacticalOverlayColors = {
     movement = { 0.28, 0.58, 0.94, 0.5 },
@@ -690,6 +695,9 @@ local tacticalOverlayColors = {
     flank = { 0.94, 0.52, 0.18, 0.55 },
     intent = tacticalOverlayPalette.intent.color,
     hazard = tacticalOverlayPalette.hazard.color,
+    blocker = { 0.28, 0.3, 0.34, 0.58 },
+    objective = { 0.92, 0.74, 0.18, 0.58 },
+    cursor = { 1.0, 0.9, 0.28, 0.18 },
 }
 
 local tacticalOverlayStyles = {
@@ -699,6 +707,9 @@ local tacticalOverlayStyles = {
     flank = { icon = "angle", pattern = "chevron" },
     intent = { icon = tacticalOverlayPalette.intent.icon, pattern = tacticalOverlayPalette.intent.pattern },
     hazard = { icon = tacticalOverlayPalette.hazard.icon, pattern = tacticalOverlayPalette.hazard.pattern },
+    blocker = { icon = "x", pattern = "solid" },
+    objective = { icon = "!", pattern = "solid" },
+    cursor = { icon = "+", pattern = "outline" },
 }
 
 local function parseTileKey(key)
@@ -775,11 +786,28 @@ function Render.tacticalOverlayEntries(tactics, overlays)
             end
         end
     end
+    if tactics and tactics.board and overlays.blocker ~= false then
+        for key, tile in pairs(tactics.board.tiles or {}) do
+            if tile and tile.blocker then
+                local x, y = parseTileKey(key)
+                appendOverlayTile(entries, counts, seen, "blocker", x, y, { label = "blocker" })
+            end
+        end
+    end
+    if tactics and tactics.objectives and overlays.objective ~= false then
+        for _, id in ipairs(tactics.objectiveOrder or {}) do
+            local objective = tactics.objectives[id]
+            if objective then
+                appendOverlayTile(entries, counts, seen, "objective", objective.x, objective.y, { label = objective.id })
+            end
+        end
+    end
     appendOverlayList(entries, counts, seen, "movement", overlays.movement or overlays.movementRange)
     appendOverlayList(entries, counts, seen, "los", overlays.los or overlays.lineOfSight)
     appendOverlayList(entries, counts, seen, "flank", overlays.flanks or overlays.flank)
     appendOverlayList(entries, counts, seen, "intent", overlays.intent or overlays.intents)
     appendOverlayList(entries, counts, seen, "hazard", overlays.hazards)
+    appendOverlayList(entries, counts, seen, "cursor", overlays.cursor)
     table.sort(entries, function(a, b)
         if a.y == b.y then
             if a.x == b.x then
@@ -1164,9 +1192,9 @@ function Render.tacticalTileAt(app, screenX, screenY)
     if not (source and source.state and view) then
         return nil
     end
-    local worldX, worldY = Render.screenToWorld(view, screenX, screenY)
-    local tileX = worldX - (source.originX or 0)
-    local tileY = worldY - (source.originY or 0)
+    local worldX, worldY = Render.screenToWorldPoint(view, screenX, screenY)
+    local tileX = math.floor(worldX - (source.originX or 0))
+    local tileY = math.floor(worldY - (source.originY or 0))
     if not source.state:inBounds(tileX, tileY) then
         return nil
     end
@@ -1206,6 +1234,137 @@ local function drawTacticalOverlays(sim, app)
         end
     end
     return counts
+end
+
+local forecastDrawOrder = {
+    movement = 1,
+    cover = 2,
+    blocker = 3,
+    objective = 4,
+    hazard = 5,
+    intent = 6,
+    los = 7,
+    flank = 8,
+    cursor = 9,
+}
+
+local forecastTileColors = {
+    movement = { 0.1, 0.42, 0.95, 0.28 },
+    los = { 0.9, 0.82, 0.25, 0.24 },
+    cover = { 0.24, 0.72, 0.42, 0.2 },
+    flank = { 0.95, 0.58, 0.18, 0.34 },
+    intent = { 1.0, 0.16, 0.24, 0.46 },
+    hazard = { 0.98, 0.56, 0.12, 0.42 },
+    blocker = { 0.08, 0.09, 0.1, 0.52 },
+    objective = { 0.95, 0.78, 0.12, 0.5 },
+    cursor = { 1.0, 0.92, 0.22, 0.16 },
+}
+
+local forecastLineColors = {
+    movement = { 0.35, 0.72, 1.0, 0.78 },
+    los = { 0.96, 0.9, 0.42, 0.72 },
+    cover = { 0.36, 0.78, 0.46, 0.62 },
+    flank = { 1.0, 0.72, 0.2, 0.8 },
+    intent = { 1.0, 0.28, 0.36, 0.92 },
+    hazard = { 1.0, 0.62, 0.12, 0.82 },
+    blocker = { 0.42, 0.46, 0.52, 0.84 },
+    objective = { 1.0, 0.86, 0.24, 0.92 },
+    cursor = { 1.0, 0.94, 0.24, 1.0 },
+}
+
+local function tileScreenPoints(view, source, tileX, tileY)
+    local originX = source.originX or 0
+    local originY = source.originY or 0
+    local x = originX + tileX
+    local y = originY + tileY
+    local x1, y1 = Render.projectIso(view, x, y)
+    local x2, y2 = Render.projectIso(view, x + 1, y)
+    local x3, y3 = Render.projectIso(view, x + 1, y + 1)
+    local x4, y4 = Render.projectIso(view, x, y + 1)
+    return { x1, y1, x2, y2, x3, y3, x4, y4 }
+end
+
+local function tileScreenCenter(view, source, tileX, tileY)
+    return Render.projectIso(view, (source.originX or 0) + tileX + 0.5, (source.originY or 0) + tileY + 0.5)
+end
+
+local function drawForecastGlyph(entry, cx, cy)
+    local glyph = entry.kind == "intent" and "!"
+        or entry.kind == "objective" and "R"
+        or entry.kind == "blocker" and "X"
+        or entry.kind == "cursor" and "+"
+        or nil
+    if not glyph then
+        return
+    end
+    love.graphics.setColor(0.03, 0.035, 0.04, 0.82)
+    love.graphics.rectangle("fill", cx - 9, cy - 10, 18, 18)
+    love.graphics.setColor(0.96, 0.94, 0.84, 1)
+    love.graphics.printf(glyph, cx - 9, cy - 8, 18, "center")
+end
+
+local function drawForecastTile(view, source, entry)
+    local points = tileScreenPoints(view, source, entry.x, entry.y)
+    local fill = forecastTileColors[entry.kind] or { 1, 1, 1, 0.22 }
+    local line = forecastLineColors[entry.kind] or { 1, 1, 1, 0.72 }
+    love.graphics.setColor(fill)
+    love.graphics.polygon("fill", points)
+    love.graphics.setColor(line)
+    love.graphics.setLineWidth(entry.kind == "cursor" and 3 or entry.kind == "intent" and 2.5 or 1.5)
+    love.graphics.polygon("line", points)
+    local cx, cy = tileScreenCenter(view, source, entry.x, entry.y)
+    drawForecastGlyph(entry, cx, cy)
+end
+
+local function drawIntentArrow(view, source, intent)
+    local target = intent and intent.targetTiles and intent.targetTiles[1]
+    local sourceTile = intent and intent.sourceTile
+    if not (target and sourceTile) then
+        return
+    end
+    local sx, sy = tileScreenCenter(view, source, sourceTile.x, sourceTile.y)
+    local tx, ty = tileScreenCenter(view, source, target.x, target.y)
+    love.graphics.setColor(1.0, 0.26, 0.36, 0.92)
+    love.graphics.setLineWidth(3)
+    love.graphics.line(sx, sy, tx, ty)
+    local angle = math.atan2(ty - sy, tx - sx)
+    local size = 12
+    love.graphics.polygon("fill",
+        tx, ty,
+        tx - math.cos(angle - 0.45) * size, ty - math.sin(angle - 0.45) * size,
+        tx - math.cos(angle + 0.45) * size, ty - math.sin(angle + 0.45) * size)
+end
+
+function Render.drawTacticalForecast(sim, app)
+    if not (love and love.graphics and app and app.tacticalMode and app.worldView) then
+        return nil
+    end
+    local source = tacticalOverlaySource(sim, app)
+    if not (source and source.state) then
+        return nil
+    end
+    local entries = Render.tacticalOverlayEntries(source.state, source.overlays or {})
+    table.sort(entries, function(a, b)
+        local ao = forecastDrawOrder[a.kind] or 99
+        local bo = forecastDrawOrder[b.kind] or 99
+        if ao == bo then
+            if a.y == b.y then
+                return a.x < b.x
+            end
+            return a.y < b.y
+        end
+        return ao < bo
+    end)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    for _, entry in ipairs(entries) do
+        drawForecastTile(app.worldView, source, entry)
+    end
+    for _, unit in ipairs(source.state:unitsForSide("enemy")) do
+        drawIntentArrow(app.worldView, source, source.state:intentPreview(unit.id))
+    end
+    love.graphics.pop()
+    return #entries
 end
 
 local function applyCamera(sim, app)
@@ -1572,7 +1731,10 @@ function Render.drawWorld(sim, app)
     love.graphics.setColor(1, 1, 1, 1)
     model:draw()
     local tacticalOverlayCounts = drawTacticalOverlays(sim, app)
-    local architecture, architectureCount = buildArchitectureModel(sim, profile, app and app.settings)
+    local architecture, architectureCount = nil, 0
+    if not (app and app.tacticalMode) then
+        architecture, architectureCount = buildArchitectureModel(sim, profile, app and app.settings)
+    end
     if architecture then
         love.graphics.setColor(1, 1, 1, 1)
         architecture:draw()
@@ -2922,7 +3084,7 @@ function Render.drawTacticalSidePanel(sim, app)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Board Rules", x + 12, rowY)
     love.graphics.setColor(0.68, 0.72, 0.66, 1)
-    love.graphics.printf("Blue = reachable AP tiles\nRed = enemy intent target\nGold = route machine\nGreen = selected unit\nCover and hazard overlays come from tile data.", x + 12, rowY + 26, 286)
+    love.graphics.printf("Blue = reachable AP tiles\nRed = enemy intent target/arrow\nGold = route machine\nBlack = blocker\nGreen = selected unit\nForecasts draw above the board.", x + 12, rowY + 26, 286)
 end
 
 function Render.drawHud(sim, app)
@@ -3751,6 +3913,7 @@ function Render.draw(sim, app)
     local shakeX, shakeY = combatShakeOffset(app)
     love.graphics.translate(shakeX, shakeY)
     love.graphics.setDepthMode()
+    app.worldView.tacticalForecast = Render.drawTacticalForecast(sim, app)
     Render.drawHud(sim, app)
     Render.drawSidePanel(sim, app)
     Render.drawCombatStage(sim, app)

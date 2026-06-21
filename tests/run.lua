@@ -203,7 +203,7 @@ tests[#tests + 1] = function()
             rotation = 0,
         },
     }
-    local sx, sy = Render.projectIso(app.worldView, runtime.originX + 3, runtime.originY + 6)
+    local sx, sy = Render.projectIso(app.worldView, runtime.originX + 3.5, runtime.originY + 6.5)
     local tileX, tileY = Render.tacticalTileAt(app, sx, sy)
     expect(tileX == 3 and tileY == 6, "tactical mouse projection should map screen point to board tile")
     expect(runtime:handleMouseTile(tileX, tileY, 1), "left click should handle reachable board tile")

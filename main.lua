@@ -386,6 +386,7 @@ local function enterTacticalGame(state)
     state.status = "tactical prototype"
     state.tutorial = nil
     state.tutorialSeen = true
+    state.tacticalZoom = 1.25
     resetVisualState(state, sim)
     state.tactics = TacticalRuntime.new(sim)
     state.tacticalOverlays = state.tactics.overlays
@@ -1091,6 +1092,7 @@ local function printTacticalSmoke(state)
     print("tactical-smoke-enemy-units=" .. tostring(#(summary.enemies or {})))
     print("tactical-smoke-intents=" .. tostring(overlays.intent or 0))
     print("tactical-smoke-movement=" .. tostring(overlays.movement or 0))
+    print("tactical-smoke-forecast=" .. tostring(state.worldView and state.worldView.tacticalForecast or 0))
     print("tactical-smoke-zoom=" .. string.format("%.2f", Render.tacticalZoom(state)))
     print("tactical-smoke-objective=" .. tostring(summary.objective and summary.objective.integrity) .. "/" .. tostring(summary.objective and summary.objective.maxIntegrity))
 end

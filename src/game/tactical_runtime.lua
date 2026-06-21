@@ -188,6 +188,7 @@ function Runtime.refreshOverlays(runtime)
         intents = intents,
         los = selected and { { x = selected.x, y = selected.y, label = "selected" } } or {},
         flanks = { { x = runtime.cursor.x, y = runtime.cursor.y, label = "cursor" } },
+        cursor = { { x = runtime.cursor.x, y = runtime.cursor.y, label = "cursor" } },
     }
     return runtime.overlays
 end
