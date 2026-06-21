@@ -467,4 +467,47 @@ expect(Serialize.encode(exileA:snapshot()) == Serialize.encode(exileB:snapshot()
 expect(exileA:tileAt(2, 2).destroyed and exileA.units.husk.hp == 3, "Exile replay should break cover and attack")
 io.stdout:write("tactics replay ok ", exileFixture, "\n")
 
+local function tacticalLamplighterReplayState()
+    return TacticsState.new({
+        defaultAp = 3,
+        board = {
+            width = 4,
+            height = 3,
+            tiles = {
+                ["2:1"] = { revealed = false, revealClasses = { "lamplighter" }, weakPoint = "lantern_hook" },
+            },
+        },
+        units = {
+            { id = "lamplighter", side = "player", x = 1, y = 3, hp = 6, class = "lamplighter" },
+            { id = "hound", side = "enemy", x = 3, y = 2, hp = 4 },
+        },
+    })
+end
+
+local tacticalLamplighterFrames = {
+    { tick = 0, command = TacticsState.commands.intent("hound", {
+        mode = "hiddenFootprint",
+        category = "redacted",
+        targetTiles = { { x = 1, y = 3 } },
+        revealClasses = { "lamplighter" },
+    }) },
+    { tick = 1, command = TacticsState.commands.classReveal("lamplighter", { revealAction = "white_flare" }, 1) },
+}
+
+local function runTacticalLamplighterReplay()
+    local state = tacticalLamplighterReplayState()
+    for _, frame in ipairs(tacticalLamplighterFrames) do
+        state:apply(frame.command)
+    end
+    return state
+end
+
+local lamplighterFixture = ClassCatalog.class("lamplighter").replayFixture
+local lamplighterA = runTacticalLamplighterReplay()
+local lamplighterB = runTacticalLamplighterReplay()
+expect(lamplighterFixture == "lamplighter_beacon_reveal", "Lamplighter replay fixture should be registered")
+expect(Serialize.encode(lamplighterA:snapshot()) == Serialize.encode(lamplighterB:snapshot()), "Lamplighter replay fixture should be deterministic")
+expect(lamplighterA:intentPreview("hound").revealed and lamplighterA:tileAt(2, 1).weakPointRevealed, "Lamplighter replay should reveal beacon data")
+io.stdout:write("tactics replay ok ", lamplighterFixture, "\n")
+
 io.stdout:write("replay fixtures passed: ", #fixtures, "\n")

@@ -248,3 +248,38 @@ Acceptance proof:
 
 - `tests/run.lua` verifies Exile loadout, tool, terrain interaction, weakness, and replay fixture counts.
 - `tests/replays.lua` runs deterministic Exile cover break and attack replay fixture `exile_break_cover`.
+
+## CL.8 Lamplighter
+
+The Lamplighter defines 3 loadouts:
+
+- `beacon_runner`: route revealer using `route_beacon` and `white_flare`.
+- `cone_keeper`: overwatch controller using `mirror_lantern` and `wick_line`.
+- `ash_lamp`: hidden-intent reducer using `smoke_gel` and `safe_cinder`.
+
+The Lamplighter defines 6 tools:
+
+- `route_beacon`: reveal hidden route tile and extraction edge.
+- `white_flare`: force redacted intent into exact preview.
+- `mirror_lantern`: project overwatch cone around cover.
+- `wick_line`: connect two lit tiles for ally movement.
+- `smoke_gel`: turn smoke into light-blocking obscurant.
+- `safe_cinder`: mark one hazard tile safe for this turn.
+
+Terrain interactions:
+
+- `light_back_seal`: reveal back-face planning fact at range.
+- `anchor_beacon`: make extraction route visible through obscurant.
+
+Weakness:
+
+- `bright_target`: after placing a beacon, exact intents against Lamplighter deal +1 damage.
+
+Replay fixture:
+
+- `lamplighter_beacon_reveal`
+
+Acceptance proof:
+
+- `tests/run.lua` verifies Lamplighter loadout, tool, terrain interaction, weakness, and replay fixture counts.
+- `tests/replays.lua` runs deterministic Lamplighter beacon and intent reveal replay fixture `lamplighter_beacon_reveal`.

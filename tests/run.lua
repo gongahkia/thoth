@@ -1445,6 +1445,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local lamplighter = ClassCatalog.class("lamplighter")
+    expect(lamplighter and lamplighter.name == "Lamplighter", "Lamplighter catalog entry should exist")
+    expect(#ClassCatalog.loadouts("lamplighter") == 3, "Lamplighter should define 3 loadouts")
+    expect(#ClassCatalog.tools("lamplighter") == 6, "Lamplighter should define 6 tools")
+    expect(#ClassCatalog.terrainInteractions("lamplighter") == 2, "Lamplighter should define 2 terrain interactions")
+    expect(lamplighter.weakness and lamplighter.weakness.id == "bright_target", "Lamplighter should define weakness")
+    expect(lamplighter.replayFixture == "lamplighter_beacon_reveal", "Lamplighter should define replay fixture")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

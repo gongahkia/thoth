@@ -155,6 +155,28 @@ ClassCatalog.classes = {
         weakness = { id = "self_risk_spike", effect = "AP spikes deal 1 deterministic self damage" },
         replayFixture = "exile_break_cover",
     },
+    lamplighter = {
+        name = "Lamplighter",
+        loadouts = {
+            { id = "beacon_runner", role = "route revealer", tools = { "route_beacon", "white_flare" } },
+            { id = "cone_keeper", role = "overwatch controller", tools = { "mirror_lantern", "wick_line" } },
+            { id = "ash_lamp", role = "hidden-intent reducer", tools = { "smoke_gel", "safe_cinder" } },
+        },
+        tools = {
+            { id = "route_beacon", effect = "reveal hidden route tile and extraction edge" },
+            { id = "white_flare", effect = "force redacted intent into exact preview" },
+            { id = "mirror_lantern", effect = "project overwatch cone around cover" },
+            { id = "wick_line", effect = "connect two lit tiles for ally movement" },
+            { id = "smoke_gel", effect = "turn smoke into light-blocking obscurant" },
+            { id = "safe_cinder", effect = "mark one hazard tile safe for this turn" },
+        },
+        terrainInteractions = {
+            { id = "light_back_seal", terrain = "rotation_mark", effect = "reveal back-face planning fact at range" },
+            { id = "anchor_beacon", terrain = "route_node", effect = "make extraction route visible through obscurant" },
+        },
+        weakness = { id = "bright_target", effect = "after placing a beacon, exact intents against Lamplighter deal +1 damage" },
+        replayFixture = "lamplighter_beacon_reveal",
+    },
 }
 
 function ClassCatalog.class(id)
