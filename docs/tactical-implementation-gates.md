@@ -91,3 +91,26 @@ Required intent preview must be inspectable before resolution.
 
 test/replay proof:
 `tests/run.lua` verifies the enemy ship gate requires intent preview, counterplay path, and no-damage utility behavior.
+
+## G.5 Boss Ship Gate
+
+source pattern:
+Boss encounters need phase evidence, arena readability, objective pressure, and replay proof before shipping.
+
+thoth transformation:
+No boss ships without phase chart, arena diagram, objective pressure, and replay proof.
+
+board verb:
+Phase, diagram, pressure, replay.
+
+zone fit:
+Applies to all boss and boss-variant boards.
+
+counterplay:
+Gate blocks bosses that rely on surprise phases or unreadable arenas.
+
+preview/UI:
+Phase chart and arena diagram must support the boss phase card and overlay preview.
+
+test/replay proof:
+`tests/run.lua` verifies the boss ship gate requires phase chart, arena diagram, objective pressure, and replay proof.

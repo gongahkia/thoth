@@ -1912,6 +1912,18 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local gate = GateCatalog.gate("boss_ship")
+    local evidence = {}
+    expect(gate and gate.appliesTo == "boss" and gate.blocker, "boss ship gate should exist")
+    for _, item in ipairs(gate.requiredEvidence) do
+        evidence[item] = true
+    end
+    for _, item in ipairs({ "phase_chart", "arena_diagram", "objective_pressure", "replay_proof" }) do
+        expect(evidence[item], "boss ship gate missing evidence " .. item)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

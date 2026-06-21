@@ -26,6 +26,12 @@ GateCatalog.gates = {
         requiredEvidence = { "intent_preview", "counterplay_path", "no_damage_utility_behavior" },
         blocker = "enemy cannot ship",
     },
+    {
+        id = "boss_ship",
+        appliesTo = "boss",
+        requiredEvidence = { "phase_chart", "arena_diagram", "objective_pressure", "replay_proof" },
+        blocker = "boss cannot ship",
+    },
 }
 
 function GateCatalog.gate(id)
