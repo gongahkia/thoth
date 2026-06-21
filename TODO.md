@@ -69,7 +69,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Intent & Counterplay Mechanics
 
-- [ ] I.9 Build boss rotating intent masks that change by phase, turn, or camera-revealed weak point.
 - [ ] I.10 Add replay fixtures for every intent class.
 
 ### Cover, LoS, Visibility

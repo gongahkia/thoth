@@ -319,6 +319,33 @@ local function normalizeIntentPressure(rule)
     }
 end
 
+local function normalizeBossMasks(masks)
+    local result = {}
+    for _, mask in ipairs(masks or {}) do
+        local entry = {
+            mask = mask.mask,
+            phase = mask.phase,
+            turn = mask.turn,
+            rotation = mask.rotation,
+            revealRotation = mask.revealRotation,
+            weakPoint = mask.weakPoint,
+            stage = mask.stage,
+            stageCount = mask.stageCount,
+            revealed = mask.revealed == true,
+            targetTiles = normalizeTileList(mask.tiles or mask.targetTiles),
+        }
+        if entry.rotation ~= nil then
+            entry.rotation = expectInteger(entry.rotation, "boss mask rotation")
+        end
+        if entry.revealRotation ~= nil then
+            entry.revealRotation = expectInteger(entry.revealRotation, "boss mask reveal rotation")
+        end
+        expect(entry.mask or entry.revealed, "boss mask needs mask or reveal")
+        result[#result + 1] = entry
+    end
+    return result
+end
+
 local function normalizeIntent(intent)
     expect(type(intent) == "table", "intent must be a table")
     local mode = intent.mode or "exact"
@@ -388,6 +415,10 @@ local function normalizeIntent(intent)
         stage = intent.stage,
         stageCount = intent.stageCount,
         mask = intent.mask,
+        phase = intent.phase,
+        turn = intent.turn,
+        weakPoint = intent.weakPoint,
+        masks = normalizeBossMasks(intent.masks),
         label = intent.label,
     }
 end
@@ -1160,6 +1191,10 @@ function State:intentPreview(unitId, options)
         stage = intent.stage,
         stageCount = intent.stageCount,
         mask = intent.mask,
+        phase = intent.phase,
+        turn = intent.turn,
+        weakPoint = intent.weakPoint,
+        masks = copyValue(intent.masks),
         label = intent.label,
     }
     if intent.mode == "decoy" then
@@ -1409,6 +1444,72 @@ function State:advanceIntentPressure(unitId, outcome)
         return result
     end
     return { unit = unitId, outcome = outcome, decayed = false, ignoredTurns = 0 }
+end
+
+local function bossMaskMatches(mask, context)
+    if mask.phase ~= nil and mask.phase ~= context.phase then
+        return false
+    end
+    if mask.turn ~= nil and mask.turn ~= context.turn then
+        return false
+    end
+    local rotation = context.rotation
+    if rotation == nil then
+        rotation = context.viewRotation
+    end
+    if mask.rotation ~= nil and rotation ~= nil and mask.rotation % 4 ~= rotation % 4 then
+        return false
+    elseif mask.rotation ~= nil and rotation == nil then
+        return false
+    end
+    if mask.revealRotation ~= nil and rotation ~= nil and mask.revealRotation % 4 ~= rotation % 4 then
+        return false
+    elseif mask.revealRotation ~= nil and rotation == nil then
+        return false
+    end
+    if mask.weakPoint ~= nil and mask.weakPoint ~= context.weakPoint then
+        return false
+    end
+    return true
+end
+
+function State:bossIntentMask(unitId, context)
+    local intent = expect(self.intents[unitId], "unknown intent " .. tostring(unitId))
+    expect(intent.mode == "bossStage", "intent is not boss-stage")
+    context = context or {}
+    context.turn = context.turn or self.tick
+    for _, mask in ipairs(intent.masks or {}) do
+        if bossMaskMatches(mask, context) then
+            return mask
+        end
+    end
+    return nil
+end
+
+function State:advanceBossIntentMask(unitId, context)
+    context = context or {}
+    local intent = expect(self.intents[unitId], "unknown intent " .. tostring(unitId))
+    expect(intent.mode == "bossStage", "intent is not boss-stage")
+    local mask = expect(self:bossIntentMask(unitId, context), "no boss mask matched")
+    intent.phase = context.phase or intent.phase
+    intent.turn = context.turn or self.tick
+    intent.weakPoint = context.weakPoint or intent.weakPoint
+    intent.mask = mask.revealed and nil or mask.mask
+    intent.revealed = mask.revealed == true
+    intent.stage = mask.stage or intent.stage
+    intent.stageCount = mask.stageCount or intent.stageCount
+    if #(mask.targetTiles or {}) > 0 then
+        intent.targetTiles = copyValue(mask.targetTiles)
+    end
+    return {
+        unit = unitId,
+        mask = intent.mask,
+        revealed = intent.revealed,
+        phase = intent.phase,
+        turn = intent.turn,
+        weakPoint = intent.weakPoint,
+        stage = intent.stage,
+    }
 end
 
 local function containsUnitId(values, unitId)
@@ -2144,6 +2245,8 @@ function State:apply(command)
         self:interruptIntent(command.unit, command.interrupt)
     elseif kind == "advanceIntentPressure" then
         self:advanceIntentPressure(command.unit, command.outcome)
+    elseif kind == "advanceBossIntentMask" then
+        self:advanceBossIntentMask(command.unit, command.context)
     elseif kind == "reward" then
         self:grantReward(command.reward)
     else
@@ -2333,6 +2436,10 @@ end
 
 function commands.advanceIntentPressure(unitId, outcome)
     return { type = "advanceIntentPressure", unit = unitId, outcome = outcome }
+end
+
+function commands.advanceBossIntentMask(unitId, context)
+    return { type = "advanceBossIntentMask", unit = unitId, context = copyMap(context) }
 end
 
 function commands.reward(reward)

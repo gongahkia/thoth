@@ -207,3 +207,28 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies gated false preview, reveal-action truth, counterplay reveal, arbitrary-lie rejection, and snapshot stability.
+
+## I.9 Boss Rotating Intent Masks
+
+Boss-stage intents can rotate masks by phase, turn, or camera-revealed weak point.
+
+Mask fields:
+
+- `phase`: boss phase selector.
+- `turn`: turn selector.
+- `rotation` or `revealRotation`: camera snap selector.
+- `weakPoint`: required exposed weak point key.
+- `mask`: visible mask label.
+- `revealed`: expose footprint instead of hiding it.
+- `targetTiles`: footprint applied when the mask matches.
+
+Rules:
+
+- Boss mask entries must provide a mask or reveal flag.
+- Mask advancement selects the first matching entry.
+- Phase/turn masks keep the footprint hidden.
+- Camera/weak-point reveal masks can clear the mask and expose target tiles.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies phase masks, turn masks, camera weak-point reveal, footprint exposure, and snapshot stability.

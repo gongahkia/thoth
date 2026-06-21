@@ -719,6 +719,39 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = { width = 4, height = 4 },
+        units = {
+            { id = "regent", side = "enemy", x = 3, y = 3 },
+        },
+    })
+    state:apply(TacticsState.commands.intent("regent", {
+        mode = "bossStage",
+        category = "destroy",
+        stage = 1,
+        stageCount = 3,
+        mask = "front_seal",
+        targetTiles = { { x = 1, y = 1 } },
+        masks = {
+            { phase = "edict", turn = 1, mask = "front_seal", stage = 1, targetTiles = { { x = 1, y = 1 } } },
+            { phase = "choir", turn = 2, mask = "choir_seal", stage = 2, targetTiles = { { x = 2, y = 2 } } },
+            { revealRotation = 1, weakPoint = "rear_seal", revealed = true, stage = 3, targetTiles = { { x = 4, y = 4 } } },
+        },
+    }))
+    state:apply(TacticsState.commands.advanceBossIntentMask("regent", { phase = "edict", turn = 1 }))
+    local edict = state:intentPreview("regent")
+    expect(edict.mask == "front_seal" and edict.stage == 1 and edict.footprintHidden, "boss phase mask should hide phase footprint")
+    state:apply(TacticsState.commands.advanceBossIntentMask("regent", { phase = "choir", turn = 2 }))
+    local choir = state:intentPreview("regent")
+    expect(choir.mask == "choir_seal" and choir.stage == 2 and choir.footprintHidden, "boss turn mask should rotate by turn")
+    state:apply(TacticsState.commands.advanceBossIntentMask("regent", { rotation = 1, weakPoint = "rear_seal" }))
+    local revealed = state:intentPreview("regent")
+    expect(revealed.revealed and revealed.mask == nil and revealed.stage == 3 and revealed.targetTiles[1].x == 4, "camera weak-point mask should reveal boss footprint")
+    local loaded = TacticsState.fromSnapshot(state:snapshot())
+    expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(state:snapshot()), "boss mask state should snapshot deterministically")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {
