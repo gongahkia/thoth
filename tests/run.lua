@@ -1746,6 +1746,28 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local eliteAudit = EnemyCatalog.auditSliceElite()
+    local bossAudit = BossCatalog.auditSliceBoss()
+    local eliteSpec = EnemyCatalog.sliceEliteSpec()
+    local elite = EnemyCatalog.sliceElite()
+    local bossSpec = BossCatalog.sliceBossSpec()
+    local boss = BossCatalog.sliceBoss()
+    local routeSpec = TacticsProcgen.generateArchiveRouteBoard(eliteSpec.boardFixture, 3700)
+    local foundElite = false
+    expect(eliteAudit.ok and elite and elite.id == "shelf_knight", "slice should select one Archive elite")
+    expect(elite.maskedIntent and elite.maskedIntent.mode == "hiddenFootprint" and elite.weakPoints[1] == "rear_binding", "slice elite should expose masked intent and weak point")
+    for _, enemy in ipairs(routeSpec.encounterDirector.enemyMix) do
+        if enemy.id == elite.id and enemy.role == eliteSpec.role then
+            foundElite = true
+        end
+    end
+    expect(foundElite, "archive elite route should include selected slice elite")
+    expect(bossAudit.ok and boss and bossSpec.bossId == "vault_regent", "slice should select one Archive boss")
+    expect(boss.zone == "buried_archive" and boss.tacticalContract.exactIntent and boss.tacticalContract.nonDamageCounter.damage == 0, "slice boss should expose tactical contract")
+    expect(#boss.phaseProcedure == 3 and boss.phaseProcedure[1].clock.visible, "slice boss should expose visible phase procedure")
+end
+
+tests[#tests + 1] = function()
     local enemies = EnemyCatalog.common("cistern")
     expect(#enemies == 10, "Cistern should define 10 common enemies")
     local ids = {}

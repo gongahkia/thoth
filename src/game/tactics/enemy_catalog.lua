@@ -120,6 +120,14 @@ EnemyCatalog.families = {
     },
 }
 
+EnemyCatalog.sliceEliteSpecData = {
+    familyId = "archive",
+    eliteId = "shelf_knight",
+    boardFixture = "archive_elite_claim",
+    role = "partial_intent_pressure",
+    preview = "Shelf Knight guards archive claims with a masked footprint and rear-binding weak point",
+}
+
 EnemyCatalog.globalPressure = {
     { id = "survey_auditor", name = "Survey Auditor", faction = "survey_office", rareEvent = "audit_route", pressureEffect = "adds redacted intent to next board" },
     { id = "survey_levy_guard", name = "Survey Levy Guard", faction = "survey_office", rareEvent = "asset_seizure", pressureEffect = "guards extraction cargo" },
@@ -218,6 +226,45 @@ end
 function EnemyCatalog.elites(familyId)
     local family = EnemyCatalog.family(familyId)
     return family and family.elites or {}
+end
+
+function EnemyCatalog.elite(familyId, eliteId)
+    for _, enemy in ipairs(EnemyCatalog.elites(familyId)) do
+        if enemy.id == eliteId then
+            return enemy
+        end
+    end
+    return nil
+end
+
+function EnemyCatalog.sliceEliteSpec()
+    return EnemyCatalog.sliceEliteSpecData
+end
+
+function EnemyCatalog.sliceElite()
+    local spec = EnemyCatalog.sliceEliteSpecData
+    return EnemyCatalog.elite(spec.familyId, spec.eliteId)
+end
+
+function EnemyCatalog.auditSliceElite()
+    local report = { ok = true, missing = {}, invalid = {} }
+    local spec = EnemyCatalog.sliceEliteSpecData
+    local enemy = EnemyCatalog.sliceElite()
+    if not enemy then
+        report.missing[#report.missing + 1] = "sliceElite.enemy"
+    else
+        if not (spec.familyId == "archive" and spec.eliteId and spec.boardFixture and spec.role and spec.preview) then
+            report.invalid[#report.invalid + 1] = "sliceElite.spec"
+        end
+        if not (enemy.partialIntent and enemy.partialIntent.mode == "category" and enemy.maskedIntent and enemy.maskedIntent.mode == "hiddenFootprint") then
+            report.invalid[#report.invalid + 1] = "sliceElite.intent"
+        end
+        if not (enemy.weakPoints and enemy.weakPoints[1] and enemy.terrainInteraction and enemy.utilityBehavior) then
+            report.invalid[#report.invalid + 1] = "sliceElite.counterplay"
+        end
+    end
+    report.ok = #report.missing == 0 and #report.invalid == 0
+    return report
 end
 
 function EnemyCatalog.alpha(familyId)

@@ -1,5 +1,28 @@
 # Tactical Boss Catalog
 
+## B.0 Vertical Slice Boss
+
+source pattern:
+Boss boards work as readable tactical puzzles with declared threat patterns, objective pressure, weak-point counterplay, and visible phase clocks.
+
+thoth transformation:
+The content slice selects Vault Regent as the Buried Archive boss and binds it to the boss-gate route node.
+
+board verb:
+Claim, brace, break pillar, counter phase.
+
+zone fit:
+Buried Archive boss pressure uses claim beams, collateral names, legal cover, and writ pillars.
+
+counterplay:
+Brace named collateral, destroy writ pillars, inspect claim beams, and use the listed non-damage counter before phase clocks resolve.
+
+preview/UI:
+`BossCatalog.sliceBossSpec()` exposes boss id, zone, route node, board fixture, and preview; `BossCatalog.sliceBoss()` resolves the full boss contract.
+
+test/replay proof:
+`tests/run.lua` calls `BossCatalog.auditSliceBoss()` and verifies the selected boss has Archive zone, tactical contract, non-damage counter, and visible three-phase procedure.
+
 ## B.1 Codex Reeve
 
 source pattern:

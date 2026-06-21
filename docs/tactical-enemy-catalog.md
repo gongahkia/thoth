@@ -4,6 +4,22 @@ Checked: 2026-06-21
 
 Source of truth: `src/game/tactics/enemy_catalog.lua`.
 
+## E.0 Vertical Slice Elite
+
+The content slice selects one elite:
+
+- `shelf_knight`: Archive elite, partial guard intent, hidden-footprint mask, weak point `rear_binding`, terrain interaction `shove_shelf_wall`.
+
+Rules:
+
+- `EnemyCatalog.sliceEliteSpec()` returns the selected family, elite id, route fixture, role, and preview.
+- `EnemyCatalog.sliceElite()` resolves to the catalog elite.
+- The Archive elite route fixture includes the selected elite in the encounter director.
+
+Acceptance proof:
+
+- `tests/run.lua` calls `EnemyCatalog.auditSliceElite()`, verifies masked intent and weak point metadata, and checks that `archive_elite_claim` generates the selected elite.
+
 ## E.1 Archive Common Enemies
 
 The Archive family defines 10 common enemies. Each has exact intent metadata and one board verb:

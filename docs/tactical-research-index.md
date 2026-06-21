@@ -742,6 +742,22 @@ preview/UI: `State.objectiveTypes()` returns the three slice cards; generated Ar
 
 test/replay proof: tests audit the three objective types, verify command metadata, instantiate matching Archive route boards, and apply protect/extract/disable commands to deterministic result states.
 
+### H43 Slice Elite And Boss
+
+source pattern: Elite enemies can withhold exact footprints while preserving counterplay through intent category, weak points, and reveal gates; boss fights need visible phase clocks, terrain pressure, objective stakes, and non-damage counters.
+
+thoth transformation: The slice selects Shelf Knight as the single Archive elite and Vault Regent as the single Archive boss, then binds the elite to the Archive elite route and the boss to the boss-gate route.
+
+board verb: mask, reveal, claim, brace, break.
+
+zone fit: Shelf Knight uses shelf-wall and rear-binding pressure; Vault Regent uses claim beams, named collateral, legal cover, and writ pillars.
+
+counterplay: expose the elite weak point to reveal masked footprint, brace collateral, destroy writ pillars, and contest claim phases before visible clocks resolve.
+
+preview/UI: `EnemyCatalog.sliceEliteSpec()` and `BossCatalog.sliceBossSpec()` expose selected ids, route fixtures, roles, and previews for route cards.
+
+test/replay proof: tests audit the selected elite and boss, verify elite masked intent and weak point metadata, assert the elite appears in the generated Archive elite board, and verify the boss tactical contract and visible three-phase procedure.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

@@ -207,6 +207,14 @@ BossCatalog.bosses = {
     },
 }
 
+BossCatalog.sliceBossSpecData = {
+    bossId = "vault_regent",
+    zone = "buried_archive",
+    routeNode = "boss_gate",
+    boardFixture = "archive_boss_gate",
+    preview = "Vault Regent claim beams, collateral, legal cover, and writ pillars",
+}
+
 BossCatalog.phaseBlueprints = {
     codex_reeve = {
         { id = "audit_opening", tilePattern = "north_south_register line", rotatingWeakPoint = { id = "open_register", rotation = 0, reveal = "front desk" }, terrainConversion = { from = "spent audit tile", to = "paper swarm", effect = "obscures LoS after audit resolves" }, objectivePressure = { objective = "witness", effect = "integrity loss on failed audit" }, clock = { turns = 2, visible = true }, counterplay = "break register or block audit line", preview = "audit line, AP loss, register weak point" },
@@ -291,6 +299,35 @@ end
 
 function BossCatalog.boss(id)
     return BossCatalog.bosses[id]
+end
+
+function BossCatalog.sliceBossSpec()
+    return BossCatalog.sliceBossSpecData
+end
+
+function BossCatalog.sliceBoss()
+    return BossCatalog.boss(BossCatalog.sliceBossSpecData.bossId)
+end
+
+function BossCatalog.auditSliceBoss()
+    local report = { ok = true, missing = {}, invalid = {} }
+    local spec = BossCatalog.sliceBossSpecData
+    local boss = BossCatalog.sliceBoss()
+    if not boss then
+        report.missing[#report.missing + 1] = "sliceBoss.boss"
+    else
+        if not (spec.bossId and spec.zone == boss.zone and spec.routeNode and spec.boardFixture and spec.preview) then
+            report.invalid[#report.invalid + 1] = "sliceBoss.spec"
+        end
+        if not (boss.zone == "buried_archive" and boss.tacticalContract and boss.tacticalContract.exactIntent and boss.tacticalContract.partialIntent) then
+            report.invalid[#report.invalid + 1] = "sliceBoss.contract"
+        end
+        if not (boss.phaseProcedure and #boss.phaseProcedure == 3) then
+            report.invalid[#report.invalid + 1] = "sliceBoss.phaseProcedure"
+        end
+    end
+    report.ok = #report.missing == 0 and #report.invalid == 0
+    return report
 end
 
 function BossCatalog.allBosses()

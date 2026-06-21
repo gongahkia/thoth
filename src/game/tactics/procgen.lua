@@ -161,7 +161,7 @@ local archiveRouteVariants = {
         complication = "partial_intent_elite",
         preview = "elite claim pressure with one redacted footprint",
         generatorOptions = { width = 9, height = 8, objectiveId = "claim_docket", objectiveKind = "hold_claim" },
-        directorOptions = { includeElite = true, failureClock = 4, threatenedTiles = 7, reinforcementTurn = 4 },
+        directorOptions = { includeElite = true, eliteId = "shelf_knight", failureClock = 4, threatenedTiles = 7, reinforcementTurn = 4 },
     },
 }
 
@@ -356,7 +356,13 @@ function Procgen.directEncounter(zoneId, seed, boardSpec, options)
     local elites = EnemyCatalog.elites(familyId)
     local first = pickIndexed(common, rng:range(1, #common))
     local second = pickIndexed(common, rng:range(1, #common))
-    local elite = options.includeElite and pickIndexed(elites, rng:range(1, #elites)) or nil
+    local elite = nil
+    if options.includeElite then
+        elite = options.eliteId and EnemyCatalog.elite(familyId, options.eliteId) or pickIndexed(elites, rng:range(1, #elites))
+        if not elite then
+            error("unknown elite " .. tostring(options.eliteId), 2)
+        end
+    end
     local objective = boardSpec and boardSpec.objectives and boardSpec.objectives[1] or nil
     local components = boardSpec and boardSpec.grammar and boardSpec.grammar.components or {}
     local enemySpawn = components.spawnPockets and components.spawnPockets[2] or { id = "enemy_pressure", tiles = {} }
