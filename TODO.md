@@ -92,7 +92,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### UI & Readability Catalog
 
-- [ ] U.1 Define icon language for AP, move, cover, flanked, LoS, exact intent, partial intent, hazard, objective, destructible HP, weak point, and extraction.
 - [ ] U.2 Define overlay filters: movement, enemy intent, LoS, cover, objectives, hazards, hidden/revealed info.
 - [ ] U.3 Define tile inspector copy template with one-line mechanics and one-line lore.
 - [ ] U.4 Define preview contract: before commit, player sees AP cost, movement path, damage, push path, collision, cover change, objective change, and hazard result.

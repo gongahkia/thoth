@@ -24,6 +24,7 @@ local ClassCatalog = require("src.game.tactics.class_catalog")
 local EnemyCatalog = require("src.game.tactics.enemy_catalog")
 local BossCatalog = require("src.game.tactics.boss_catalog")
 local RunCatalog = require("src.game.tactics.run_catalog")
+local UICatalog = require("src.game.tactics.ui_catalog")
 
 local function expect(value, message)
     if not value then
@@ -1775,6 +1776,17 @@ tests[#tests + 1] = function()
     end
     for _, field in ipairs({ "route_choice", "board_modifier", "squad_state", "objective_reward", "faction_standing" }) do
         expect(alters[field], "event prompts should alter " .. field)
+    end
+end
+
+tests[#tests + 1] = function()
+    local icons = {}
+    for _, icon in ipairs(UICatalog.iconLanguage()) do
+        icons[icon.id] = icon
+        expect(icon.icon and icon.shape and icon.colorRole and icon.pattern and icon.label, "UI icon should define redundant language: " .. icon.id)
+    end
+    for _, id in ipairs({ "ap", "move", "cover", "flanked", "los", "exact_intent", "partial_intent", "hazard", "objective", "destructible_hp", "weak_point", "extraction" }) do
+        expect(icons[id] and UICatalog.icon(id) == icons[id], "missing UI icon " .. id)
     end
 end
 
