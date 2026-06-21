@@ -24,6 +24,10 @@ BossCatalog.bosses = {
                 { id = "west_back_seal", rotation = 3, reveals = "inactive witness diagonal" },
             },
         },
+        variants = {
+            { id = "redacted_register", arenaModifier = "paper swarm obscures one audit line", addFamily = "archive clerks", weakPointLocation = "rear open register", objectivePressure = "witness objective loses integrity on failed audit" },
+            { id = "sealed_index", arenaModifier = "sealed doors split the board", addFamily = "ledger hounds", weakPointLocation = "east back seal", objectivePressure = "route machine AP tax rises every two turns" },
+        },
     },
     vault_regent = {
         name = "Vault Regent",
@@ -46,6 +50,10 @@ BossCatalog.bosses = {
                 { id = "south_writ_pillar", hp = 4, destruction = "breaks cross claim beam for one turn" },
                 { id = "east_writ_pillar", hp = 3, destruction = "reveals Regent weak point lane" },
             },
+        },
+        variants = {
+            { id = "crowned_claim", arenaModifier = "claim beams start one tile wider", addFamily = "writ bailiffs", weakPointLocation = "east writ pillar lane", objectivePressure = "named collateral starts under legal cover" },
+            { id = "remand_chamber", arenaModifier = "custody benches rotate cover edges", addFamily = "contract guards", weakPointLocation = "south writ pillar", objectivePressure = "cargo collateral becomes claimable after turn three" },
         },
     },
     pearl_choir = {
@@ -70,6 +78,10 @@ BossCatalog.bosses = {
                 { id = "bell_cyst_cluster", spawn = "one pearl cyst cluster", trigger = "overflow waterline" },
             },
         },
+        variants = {
+            { id = "black_pearl_chorus", arenaModifier = "reflood lanes begin staggered", addFamily = "pearl cysts", weakPointLocation = "high choir throat", objectivePressure = "drain machinery floods if chorus resolves twice" },
+            { id = "brine_canticle", arenaModifier = "moving waterline skips ankle state", addFamily = "salt choir", weakPointLocation = "low choir throat", objectivePressure = "civilian cells become low ground on overflow" },
+        },
     },
     bell_diver = {
         name = "Bell Diver",
@@ -91,6 +103,10 @@ BossCatalog.bosses = {
                 { id = "drowned_step", trigger = "standing below waterline", effect = "movement costs +1 AP and next hook pull gains +1" },
                 { id = "undertow_claim", trigger = "flood toll reaches zero", effect = "objective carriers on low ground lose integrity" },
             },
+        },
+        variants = {
+            { id = "flood_toll", arenaModifier = "flood-toll countdown starts at two", addFamily = "reed-mouth divers", weakPointLocation = "bell lung behind chain lane", objectivePressure = "route machinery starts on low ground" },
+            { id = "undertow_hook", arenaModifier = "hook lanes fork through drain grates", addFamily = "brine stalkers", weakPointLocation = "bell lung behind reed lane", objectivePressure = "cargo is pulled before units when exposed" },
         },
     },
     kiln_vicar = {
@@ -116,6 +132,10 @@ BossCatalog.bosses = {
                 { id = "dense_ash_choke", cover = "full", tradeoff = "blocks vitrify but hides objective preview" },
             },
         },
+        variants = {
+            { id = "white_halo", arenaModifier = "halo vents begin overpressured", addFamily = "halo deacons", weakPointLocation = "east halo vent", objectivePressure = "most exposed objective is preferred vitrify target" },
+            { id = "ash_confessional", arenaModifier = "ash choke starts dense around center", addFamily = "ash husks", weakPointLocation = "rear ash-covered vent", objectivePressure = "douse route crosses one objective tile" },
+        },
     },
     cinder_prioress = {
         name = "Cinder Prioress",
@@ -135,6 +155,10 @@ BossCatalog.bosses = {
                 { id = "sacrifice_fuel_cart", choice = "destroy fuel", benefit = "prevents furnace phase escalation", cost = "objective cargo integrity -1" },
                 { id = "protect_fuel_store", choice = "guard fuel", benefit = "keeps repair reward intact", cost = "adds heat lane next turn" },
             },
+        },
+        variants = {
+            { id = "glass_crown", arenaModifier = "rear crown reflector starts active", addFamily = "glass cantors", weakPointLocation = "rear crown reflector", objectivePressure = "fuel stores protect final reward but widen heat lanes" },
+            { id = "cinder_liturgy", arenaModifier = "furnace phase advances after every fuel hit", addFamily = "cinder penitents", weakPointLocation = "north crown reflector", objectivePressure = "destroying fuel pauses phase but damages cargo" },
         },
     },
 }

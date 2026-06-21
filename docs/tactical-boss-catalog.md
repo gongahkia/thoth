@@ -137,3 +137,26 @@ Show active furnace phase, next mutation, reflector angle, fuel choice benefit/c
 
 test/replay proof:
 `tests/run.lua` verifies the Cinder Prioress board defines furnace phases, glass crown reflectors, and fuel-objective tradeoffs.
+
+## B.7 Boss Variants
+
+source pattern:
+Boss variants change arena rule, add mix, weak-point exposure, and objective pressure without hiding declared tactical outcomes.
+
+thoth transformation:
+Each Thoth boss gets two variants that preserve the core procedure while swapping arena modifier, add family, weak-point location, and objective pressure.
+
+board verb:
+Swap arena, change adds, move weak point, retune objective pressure.
+
+zone fit:
+Archive variants alter claims and audit cover; cistern variants alter waterline and hook pressure; warrens variants alter vents, ash, glass, and fuel.
+
+counterplay:
+Inspect variant card before board entry, rotate for the new weak-point location, block the changed add family, and plan around the listed objective pressure.
+
+preview/UI:
+Show variant id, arena modifier, add family, weak-point location, and objective pressure beside the boss phase card.
+
+test/replay proof:
+`tests/run.lua` verifies every boss in `BossCatalog.allBosses()` defines exactly two variants with arena modifier, add family, weak-point location, and objective pressure.

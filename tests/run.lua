@@ -1678,6 +1678,15 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    for _, boss in ipairs(BossCatalog.allBosses()) do
+        expect(#boss.variants == 2, "boss should define 2 variants: " .. boss.name)
+        for _, variant in ipairs(boss.variants) do
+            expect(variant.arenaModifier and variant.addFamily and variant.weakPointLocation and variant.objectivePressure, "boss variant should define all swap axes: " .. variant.id)
+        end
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

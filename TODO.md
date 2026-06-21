@@ -86,7 +86,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Boss & Variant Catalog
 
-- [ ] B.7 Design 2 variants per boss by swapping arena modifier, add family, weak-point location, and objective pressure.
 - [ ] B.8 Every boss must include one exact intent, one partial intent, one terrain mutation, one objective threat, and one non-damage counter.
 
 ### Procedural Board & Run Catalog
