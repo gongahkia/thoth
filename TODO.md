@@ -84,7 +84,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Enemy Family Catalog
 
-- [ ] E.1 Archive enemy family: design 10 common enemies with exact intents and one board verb each.
 - [ ] E.2 Archive elites: design 3 elites with partial intent, weak points, and terrain interaction.
 - [ ] E.3 Archive alpha: design one visible pre-board threat that changes route choice and board generation.
 - [ ] E.4 Cistern enemy family: design 10 common enemies with exact intents and water/pressure verbs.

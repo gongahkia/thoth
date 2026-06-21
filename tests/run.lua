@@ -21,6 +21,7 @@ local Defs = require("src.game.defs")
 local TacticsState = require("src.game.tactics.state")
 local ZoneCatalog = require("src.game.tactics.zone_catalog")
 local ClassCatalog = require("src.game.tactics.class_catalog")
+local EnemyCatalog = require("src.game.tactics.enemy_catalog")
 
 local function expect(value, message)
     if not value then
@@ -1503,6 +1504,18 @@ tests[#tests + 1] = function()
         expect(scale.enemyBudgetMultiplier and scale.objectivePressure and scale.reinforcementCap and scale.boardScale, "squad scaling should include budget metadata")
     end
     expect(ClassCatalog.squadScale(1) == nil and ClassCatalog.squadScale(7) == nil, "squad scaling should only cover 2 through 6")
+end
+
+tests[#tests + 1] = function()
+    local enemies = EnemyCatalog.common("archive")
+    expect(#enemies == 10, "Archive should define 10 common enemies")
+    local ids = {}
+    for _, enemy in ipairs(enemies) do
+        expect(enemy.id and enemy.name and enemy.boardVerb, "archive common enemy should include id name board verb")
+        expect(enemy.exactIntent and enemy.exactIntent.mode == "exact", "archive common enemy should include exact intent")
+        expect(not ids[enemy.id], "archive common enemy ids should be unique")
+        ids[enemy.id] = true
+    end
 end
 
 tests[#tests + 1] = function()
