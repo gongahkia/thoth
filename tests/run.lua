@@ -311,6 +311,57 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = { width = 6, height = 4 },
+        units = {
+            { id = "hound", side = "enemy", x = 2, y = 2 },
+            { id = "scribe", side = "enemy", x = 3, y = 2 },
+            { id = "reeve", side = "enemy", x = 4, y = 2 },
+            { id = "regent", side = "enemy", x = 5, y = 2 },
+        },
+    })
+    state:apply(TacticsState.commands.intent("hound", {
+        mode = "exact",
+        category = "attack",
+        targetTiles = { { x = 1, y = 2 } },
+        damage = 2,
+        effect = "filed",
+    }))
+    state:apply(TacticsState.commands.intent("scribe", {
+        mode = "category",
+        category = "repair",
+        effect = "restore_cover",
+    }))
+    state:apply(TacticsState.commands.intent("reeve", {
+        mode = "hiddenFootprint",
+        category = "redacted",
+        targetTiles = { { x = 1, y = 1 }, { x = 1, y = 2 } },
+        damage = 1,
+    }))
+    state:apply(TacticsState.commands.intent("regent", {
+        mode = "bossStage",
+        category = "destroy",
+        stage = 2,
+        stageCount = 3,
+        mask = "back_seal",
+        targetTiles = { { x = 2, y = 4 } },
+        objectiveImpact = "open_register",
+    }))
+    local exact = state:intentPreview("hound")
+    expect(exact.category == "attack" and exact.targetTiles[1].x == 1 and exact.damage == 2, "exact intent should preview target footprint and effect")
+    local category = state:intentPreview("scribe")
+    expect(category.categoryOnly and category.category == "repair" and category.targetTiles == nil, "category intent should hide footprint")
+    local hidden = state:intentPreview("reeve")
+    expect(hidden.footprintHidden and hidden.targetTiles == nil, "hidden footprint intent should withhold target tiles")
+    local revealed = state:intentPreview("reeve", { reveal = true })
+    expect(revealed.targetTiles[2].y == 2 and not revealed.footprintHidden, "revealed hidden intent should expose private footprint")
+    local boss = state:intentPreview("regent")
+    expect(boss.mode == "bossStage" and boss.stage == 2 and boss.stageCount == 3 and boss.footprintHidden and boss.mask == "back_seal", "boss-stage intent should expose stage and mask while hiding footprint")
+    local loaded = TacticsState.fromSnapshot(state:snapshot())
+    expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(state:snapshot()), "mixed intents should snapshot deterministically")
+end
+
+tests[#tests + 1] = function()
     expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
     expect(I18n.t("missing {value}", { value = "fallback" }) == "missing fallback", "i18n should interpolate fallback strings")
     local source = readFile("src/app/render.lua")

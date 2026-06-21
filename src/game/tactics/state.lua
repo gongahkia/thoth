@@ -107,6 +107,56 @@ local function normalizeTileList(values)
     return result
 end
 
+local intentCategories = {
+    attack = true,
+    move = true,
+    guard = true,
+    summon = true,
+    repair = true,
+    destroy = true,
+    buff = true,
+    debuff = true,
+    flee = true,
+    redacted = true,
+}
+
+local intentModes = {
+    exact = true,
+    category = true,
+    hiddenFootprint = true,
+    bossStage = true,
+}
+
+local function normalizeIntent(intent)
+    expect(type(intent) == "table", "intent must be a table")
+    local mode = intent.mode or "exact"
+    expect(intentModes[mode], "invalid intent mode " .. tostring(mode))
+    local category = intent.category or (mode == "hiddenFootprint" and "redacted") or "attack"
+    expect(intentCategories[category], "invalid intent category " .. tostring(category))
+    local tiles = normalizeTileList(intent.tiles or intent.targetTiles)
+    if mode == "exact" then
+        expect(#tiles > 0, "exact intent needs target tiles")
+    end
+    if mode == "hiddenFootprint" then
+        expect(#tiles > 0, "hidden footprint intent needs private target tiles")
+    end
+    return {
+        mode = mode,
+        category = category,
+        source = intent.source,
+        target = intent.target,
+        targetTiles = tiles,
+        path = normalizeTileList(intent.path),
+        damage = intent.damage or 0,
+        effect = intent.effect,
+        objectiveImpact = intent.objectiveImpact,
+        stage = intent.stage,
+        stageCount = intent.stageCount,
+        mask = intent.mask,
+        label = intent.label,
+    }
+end
+
 local function normalizeUnit(unit, index, defaultAp)
     expect(type(unit) == "table", "unit must be a table")
     local id = unit.id or ("unit_" .. tostring(index))
@@ -157,6 +207,7 @@ function State.new(options)
         units = {},
         unitOrder = {},
         threatZones = copyMap(options.threatZones),
+        intents = {},
         pending = {},
         log = copyList(options.log),
     }, State)
@@ -173,6 +224,9 @@ function State.new(options)
     if state.selectedUnitId then
         expect(state.units[state.selectedUnitId], "selected unit does not exist")
     end
+    for unitId, intent in pairs(options.intents or {}) do
+        state.intents[unitId] = normalizeIntent(intent)
+    end
     return state
 end
 
@@ -186,6 +240,7 @@ function State.fromSnapshot(snapshot)
         board = snapshot.board or { width = snapshot.width, height = snapshot.height, tiles = snapshot.tiles },
         units = snapshot.units or {},
         threatZones = snapshot.threatZones or {},
+        intents = snapshot.intents or {},
         log = snapshot.log or {},
     })
 end
@@ -329,6 +384,47 @@ function State:addThreatZone(unitId, tiles, options)
     return zone
 end
 
+function State:declareIntent(unitId, intent)
+    expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    local normalized = normalizeIntent(intent)
+    normalized.source = normalized.source or unitId
+    self.intents[unitId] = normalized
+    return normalized
+end
+
+function State:intentPreview(unitId, options)
+    local intent = self.intents[unitId]
+    if not intent then
+        return nil
+    end
+    options = options or {}
+    local reveal = options == true or options.reveal == true
+    local preview = {
+        mode = intent.mode,
+        category = intent.category,
+        source = intent.source,
+        target = intent.target,
+        damage = intent.damage,
+        effect = intent.effect,
+        objectiveImpact = intent.objectiveImpact,
+        stage = intent.stage,
+        stageCount = intent.stageCount,
+        mask = intent.mask,
+        label = intent.label,
+    }
+    if intent.mode == "exact" or (intent.mode == "hiddenFootprint" and reveal) or (intent.mode == "bossStage" and not intent.mask) then
+        preview.targetTiles = copyValue(intent.targetTiles)
+        preview.path = copyValue(intent.path)
+    elseif intent.mode == "hiddenFootprint" then
+        preview.footprintHidden = true
+    elseif intent.mode == "category" then
+        preview.categoryOnly = true
+    elseif intent.mode == "bossStage" then
+        preview.footprintHidden = true
+    end
+    return preview
+end
+
 function State:resolveThreatAt(unit)
     for _, zone in ipairs(self.threatZones or {}) do
         local source = self.units[zone.unit]
@@ -449,6 +545,8 @@ function State:apply(command)
     elseif kind == "damageTile" then
         self:spendAP(command.unit, command.cost or 1)
         self:damageTile(expectInteger(command.x, "tile x"), expectInteger(command.y, "tile y"), command.damage or 1)
+    elseif kind == "intent" then
+        self:declareIntent(command.unit, command.intent)
     else
         error("unknown command " .. tostring(kind), 2)
     end
@@ -472,6 +570,7 @@ function State:snapshot()
         selectedUnitId = self.selectedUnitId,
         rules = copyMap(self.rules),
         threatZones = copyMap(self.threatZones),
+        intents = copyMap(self.intents),
         board = {
             width = self.board.width,
             height = self.board.height,
@@ -524,6 +623,10 @@ end
 
 function commands.damageTile(unitId, x, y, damage, cost)
     return { type = "damageTile", unit = unitId, x = x, y = y, damage = damage, cost = cost }
+end
+
+function commands.intent(unitId, intent)
+    return { type = "intent", unit = unitId, intent = intent }
 end
 
 State.commands = commands
