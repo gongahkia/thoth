@@ -2085,6 +2085,27 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        defaultAp = 2,
+        board = { width = 3, height = 1 },
+        units = {
+            { id = "hero", side = "player", x = 1, y = 1, hp = 5 },
+            { id = "enemy", side = "enemy", x = 3, y = 1, hp = 4, ap = 0 },
+        },
+    })
+    local enemies = TacticsIntent.activateEnemies(state)
+    expect(enemies[1].id == "enemy" and enemies[1].ap == 2, "enemy activation should refresh enemy AP")
+    TacticsIntent.select(state, "enemy", {
+        { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 1 } }, damage = 2 },
+    })
+    expect(TacticsIntent.preview(state, "enemy").damage == 2, "enemy intent selection should expose preview")
+    local resolved = TacticsIntent.resolve(state, "enemy")
+    expect(resolved.units[1] == "hero" and state:unit("hero").hp == 3, "enemy intent resolution should damage target")
+    TacticsIntent.declareNextTurn(state, "enemy", { mode = "category", category = "move", effect = "reposition" })
+    expect(TacticsIntent.preview(state, "enemy").categoryOnly, "enemy next turn declaration should expose next preview")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {
