@@ -268,6 +268,49 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        defaultAp = 12,
+        board = {
+            width = 5,
+            height = 4,
+            tiles = {
+                ["3:2"] = {
+                    kind = "ledger_stack",
+                    blocker = true,
+                    losBlocker = true,
+                    destructibleHp = 2,
+                    coverEdges = { west = "full" },
+                },
+            },
+        },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 2, hp = 8 },
+            { id = "custodian", side = "enemy", x = 2, y = 2, hp = 5 },
+            { id = "bailiff", side = "enemy", x = 4, y = 2, hp = 4 },
+        },
+    })
+    state:apply(TacticsState.commands.attack("warden", "custodian", 2))
+    expect(state:unit("custodian").hp == 3, "direct attack should deal deterministic damage")
+    state:apply(TacticsState.commands.shove("warden", "custodian", "east", 1, 1))
+    expect(state:unit("custodian").x == 2 and state:unit("custodian").hp == 2, "shove into blocker should deal collision damage without moving target")
+    state:apply(TacticsState.commands.damageTile("warden", 3, 2, 2))
+    local broken = state:tileAt(3, 2)
+    expect(broken.destroyed and not broken.blocker and not broken.losBlocker and broken.coverEdges.west == "none", "terrain destruction should clear blocker, LoS, and cover")
+    state:apply(TacticsState.commands.shove("warden", "custodian", "east", 1, 1))
+    expect(state:unit("custodian").x == 3 and state:unit("custodian").y == 2, "shove should move target through cleared terrain")
+    state:apply(TacticsState.commands.pull("warden", "custodian", 1, 1))
+    expect(state:unit("custodian").x == 2 and state:unit("custodian").y == 2, "pull should move target toward actor")
+    state:apply(TacticsState.commands.aoe("warden", { { x = 2, y = 2 }, { x = 4, y = 2 } }, 1))
+    expect(state:unit("custodian").hp == 1 and state:unit("bailiff").hp == 3, "AoE should damage every unit on affected tiles")
+    state:apply(TacticsState.commands.overwatch("bailiff", { { x = 1, y = 1 } }, 2, 1))
+    state:apply(TacticsState.commands.move("warden", "north"))
+    expect(state:unit("warden").x == 1 and state:unit("warden").y == 1 and state:unit("warden").hp == 6, "overwatch threat zone should trigger on enemy movement")
+    expect(#state.threatZones == 0, "overwatch threat zone should expire after trigger limit")
+    local loaded = TacticsState.fromSnapshot(state:snapshot())
+    expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(state:snapshot()), "P0.6 tactical verbs should snapshot deterministically")
+end
+
+tests[#tests + 1] = function()
     expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
     expect(I18n.t("missing {value}", { value = "fallback" }) == "missing fallback", "i18n should interpolate fallback strings")
     local source = readFile("src/app/render.lua")

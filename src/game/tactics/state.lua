@@ -72,6 +72,10 @@ local function normalizeRotationMarks(marks)
     return result
 end
 
+local function emptyCoverEdges()
+    return normalizeCoverEdges()
+end
+
 local function normalizeTile(tile)
     tile = tile or {}
     local destructibleHp = tile.destructibleHp
@@ -89,9 +93,18 @@ local function normalizeTile(tile)
         hazard = copyMap(tile.hazard),
         objective = copyMap(tile.objective),
         revealed = tile.revealed ~= false,
+        destroyed = tile.destroyed == true,
         rotationMarks = normalizeRotationMarks(tile.rotationMarks or tile.marks),
         tags = copyList(tile.tags),
     }
+end
+
+local function normalizeTileList(values)
+    local result = {}
+    for _, value in ipairs(values or {}) do
+        result[#result + 1] = { x = expectInteger(value.x, "tile x"), y = expectInteger(value.y, "tile y") }
+    end
+    return result
 end
 
 local function normalizeUnit(unit, index, defaultAp)
@@ -143,6 +156,7 @@ function State.new(options)
         },
         units = {},
         unitOrder = {},
+        threatZones = copyMap(options.threatZones),
         pending = {},
         log = copyList(options.log),
     }, State)
@@ -171,6 +185,7 @@ function State.fromSnapshot(snapshot)
         rules = snapshot.rules,
         board = snapshot.board or { width = snapshot.width, height = snapshot.height, tiles = snapshot.tiles },
         units = snapshot.units or {},
+        threatZones = snapshot.threatZones or {},
         log = snapshot.log or {},
     })
 end
@@ -244,11 +259,127 @@ function State:spendAP(id, amount)
     return unit.ap
 end
 
+function State:damageUnit(unitOrId, amount)
+    local unit = type(unitOrId) == "table" and unitOrId or expect(self.units[unitOrId], "unknown unit " .. tostring(unitOrId))
+    amount = expectInteger(amount or 0, "damage")
+    expect(amount >= 0, "damage must be non-negative")
+    if amount == 0 or not unit.alive then
+        return unit.hp
+    end
+    unit.hp = math.max(0, (unit.hp or 0) - amount)
+    if unit.hp <= 0 then
+        unit.alive = false
+        unit.ap = 0
+    end
+    return unit.hp
+end
+
+function State:damageTile(x, y, amount)
+    expect(self:inBounds(x, y), "tile out of bounds")
+    amount = expectInteger(amount or 0, "tile damage")
+    expect(amount >= 0, "tile damage must be non-negative")
+    local key = tileKey(x, y)
+    local tile = self.board.tiles[key]
+    if not (tile and tile.destructibleHp ~= nil) then
+        return nil
+    end
+    tile.destructibleHp = math.max(0, tile.destructibleHp - amount)
+    if tile.destructibleHp <= 0 then
+        tile.blocker = false
+        tile.losBlocker = false
+        tile.coverEdges = emptyCoverEdges()
+        tile.destroyed = true
+    end
+    return tile.destructibleHp
+end
+
+local function tileInList(tiles, x, y)
+    for _, tile in ipairs(tiles or {}) do
+        if tile.x == x and tile.y == y then
+            return true
+        end
+    end
+    return false
+end
+
+function State:pruneThreatZones()
+    local active = {}
+    for _, zone in ipairs(self.threatZones or {}) do
+        if (zone.remaining or 0) > 0 and self.units[zone.unit] and self.units[zone.unit].alive then
+            active[#active + 1] = zone
+        end
+    end
+    self.threatZones = active
+end
+
+function State:addThreatZone(unitId, tiles, options)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    options = options or {}
+    local zone = {
+        unit = unitId,
+        side = unit.side,
+        tiles = normalizeTileList(tiles),
+        damage = options.damage or 1,
+        remaining = options.limit or options.remaining or 1,
+        label = options.label or "overwatch",
+    }
+    expect(#zone.tiles > 0, "threat zone needs at least one tile")
+    expect(zone.remaining > 0, "threat zone limit must be positive")
+    self.threatZones[#self.threatZones + 1] = zone
+    return zone
+end
+
+function State:resolveThreatAt(unit)
+    for _, zone in ipairs(self.threatZones or {}) do
+        local source = self.units[zone.unit]
+        if source and source.alive and zone.side ~= unit.side and (zone.remaining or 0) > 0 and tileInList(zone.tiles, unit.x, unit.y) then
+            self:damageUnit(unit, zone.damage or 1)
+            zone.remaining = zone.remaining - 1
+        end
+    end
+    self:pruneThreatZones()
+end
+
 function State:startTurn(side)
     self.phase = side or self.phase
     for _, unit in ipairs(self:unitsForSide(self.phase)) do
         unit.ap = unit.maxAp or self.rules.defaultAp
     end
+end
+
+function State:displaceUnit(unitOrId, dx, dy, distance, collisionDamage)
+    local unit = type(unitOrId) == "table" and unitOrId or expect(self.units[unitOrId], "unknown unit " .. tostring(unitOrId))
+    distance = distance or 1
+    collisionDamage = collisionDamage or 1
+    for _ = 1, distance do
+        local nx = unit.x + dx
+        local ny = unit.y + dy
+        local ok, reason = self:canEnter(nx, ny, unit.id)
+        if not ok then
+            self:damageUnit(unit, collisionDamage)
+            local occupant = self:inBounds(nx, ny) and self:unitAt(nx, ny) or nil
+            if occupant and occupant.id ~= unit.id then
+                self:damageUnit(occupant, collisionDamage)
+            end
+            return false, reason
+        end
+        unit.x = nx
+        unit.y = ny
+        self:resolveThreatAt(unit)
+    end
+    return true
+end
+
+local function pullDelta(actor, target)
+    local dx = actor.x - target.x
+    local dy = actor.y - target.y
+    if math.abs(dx) >= math.abs(dy) and dx ~= 0 then
+        return dx > 0 and 1 or -1, 0
+    end
+    if dy ~= 0 then
+        return 0, dy > 0 and 1 or -1
+    end
+    return 0, 0
 end
 
 function State:step()
@@ -277,6 +408,7 @@ function State:apply(command)
         self:spendAP(unit.id, command.cost or self.rules.moveApCost)
         unit.x = nx
         unit.y = ny
+        self:resolveThreatAt(unit)
     elseif kind == "wait" then
         expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
         self:spendAP(command.unit, command.cost or 0)
@@ -286,6 +418,37 @@ function State:apply(command)
         self:spendAP(command.unit, command.amount or 0)
     elseif kind == "endTurn" then
         self:startTurn(command.nextSide or command.side or self.phase)
+    elseif kind == "attack" then
+        expect(self.units[command.target], "unknown target " .. tostring(command.target))
+        self:spendAP(command.unit, command.cost or 1)
+        self:damageUnit(command.target, command.damage or 1)
+    elseif kind == "aoe" then
+        self:spendAP(command.unit, command.cost or 1)
+        local tiles = normalizeTileList(command.tiles)
+        for _, unit in pairs(self.units) do
+            if unit.alive and tileInList(tiles, unit.x, unit.y) then
+                self:damageUnit(unit, command.damage or 1)
+            end
+        end
+    elseif kind == "shove" then
+        expect(self.units[command.target], "unknown target " .. tostring(command.target))
+        local delta = Grid.directions[command.direction]
+        expect(delta, "unknown direction " .. tostring(command.direction))
+        self:spendAP(command.unit, command.cost or 1)
+        self:displaceUnit(command.target, delta.x, delta.y, command.distance or 1, command.collisionDamage or 1)
+    elseif kind == "pull" then
+        local actor = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
+        local target = expect(self.units[command.target], "unknown target " .. tostring(command.target))
+        local dx, dy = pullDelta(actor, target)
+        expect(dx ~= 0 or dy ~= 0, "target already adjacent to pull source")
+        self:spendAP(command.unit, command.cost or 1)
+        self:displaceUnit(target, dx, dy, command.distance or 1, command.collisionDamage or 1)
+    elseif kind == "overwatch" then
+        self:spendAP(command.unit, command.cost or 1)
+        self:addThreatZone(command.unit, command.tiles, { damage = command.damage, limit = command.limit, label = command.label })
+    elseif kind == "damageTile" then
+        self:spendAP(command.unit, command.cost or 1)
+        self:damageTile(expectInteger(command.x, "tile x"), expectInteger(command.y, "tile y"), command.damage or 1)
     else
         error("unknown command " .. tostring(kind), 2)
     end
@@ -308,6 +471,7 @@ function State:snapshot()
         phase = self.phase,
         selectedUnitId = self.selectedUnitId,
         rules = copyMap(self.rules),
+        threatZones = copyMap(self.threatZones),
         board = {
             width = self.board.width,
             height = self.board.height,
@@ -336,6 +500,30 @@ end
 
 function commands.endTurn(nextSide)
     return { type = "endTurn", nextSide = nextSide }
+end
+
+function commands.attack(unitId, targetId, damage, cost)
+    return { type = "attack", unit = unitId, target = targetId, damage = damage, cost = cost }
+end
+
+function commands.aoe(unitId, tiles, damage, cost)
+    return { type = "aoe", unit = unitId, tiles = tiles, damage = damage, cost = cost }
+end
+
+function commands.shove(unitId, targetId, direction, distance, collisionDamage, cost)
+    return { type = "shove", unit = unitId, target = targetId, direction = direction, distance = distance, collisionDamage = collisionDamage, cost = cost }
+end
+
+function commands.pull(unitId, targetId, distance, collisionDamage, cost)
+    return { type = "pull", unit = unitId, target = targetId, distance = distance, collisionDamage = collisionDamage, cost = cost }
+end
+
+function commands.overwatch(unitId, tiles, damage, limit, cost)
+    return { type = "overwatch", unit = unitId, tiles = tiles, damage = damage, limit = limit, cost = cost }
+end
+
+function commands.damageTile(unitId, x, y, damage, cost)
+    return { type = "damageTile", unit = unitId, x = x, y = y, damage = damage, cost = cost }
 end
 
 State.commands = commands

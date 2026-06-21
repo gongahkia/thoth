@@ -204,7 +204,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 Goal: prove the new combat loop before touching broad content.
 
-- [ ] P0.6 Implement deterministic movement, shove/pull, direct attack, AoE, overwatch/threat zone, and terrain destruction.
 - [ ] P0.7 Implement mixed enemy intent: exact, category-only, hidden footprint, and boss-stage intent.
 - [ ] P0.8 Add one objective type: protect route machinery plus evacuate at least one unit.
 - [ ] P0.9 Add replay test proving identical command stream produces identical board outcome.
