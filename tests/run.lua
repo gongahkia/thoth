@@ -1385,6 +1385,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local duelist = ClassCatalog.class("duelist")
+    expect(duelist and duelist.name == "Duelist", "Duelist catalog entry should exist")
+    expect(#ClassCatalog.loadouts("duelist") == 3, "Duelist should define 3 loadouts")
+    expect(#ClassCatalog.tools("duelist") == 6, "Duelist should define 6 tools")
+    expect(#ClassCatalog.terrainInteractions("duelist") == 2, "Duelist should define 2 terrain interactions")
+    expect(duelist.weakness and duelist.weakness.id == "overextends", "Duelist should define weakness")
+    expect(duelist.replayFixture == "duelist_flank_dash", "Duelist should define replay fixture")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

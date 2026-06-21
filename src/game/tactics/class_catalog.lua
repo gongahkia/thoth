@@ -23,6 +23,28 @@ ClassCatalog.classes = {
         weakness = { id = "slow_to_pivot", effect = "after guarding an objective, next move costs +1 AP" },
         replayFixture = "warden_brace_line",
     },
+    duelist = {
+        name = "Duelist",
+        loadouts = {
+            { id = "red_line", role = "dash striker", tools = { "razor_dash", "angle_step" } },
+            { id = "patron_shadow", role = "position trader", tools = { "swap_foil", "riposte_mark" } },
+            { id = "debt_blade", role = "flank finisher", tools = { "cloak_pin", "ledger_stiletto" } },
+        },
+        tools = {
+            { id = "razor_dash", effect = "dash through a safe lane before attacking" },
+            { id = "angle_step", effect = "shift one tile after a flank preview" },
+            { id = "swap_foil", effect = "swap with adjacent enemy or ally" },
+            { id = "riposte_mark", effect = "mark first enemy entering adjacent tile" },
+            { id = "cloak_pin", effect = "ignore first overwatch line while flanking" },
+            { id = "ledger_stiletto", effect = "bonus damage against isolated objective guards" },
+        },
+        terrainInteractions = {
+            { id = "vault_low_cover", terrain = "half_cover", effect = "vault low cover without ending movement" },
+            { id = "cut_hanging_line", terrain = "suspended_object", effect = "drop hanging cover into a flank lane" },
+        },
+        weakness = { id = "overextends", effect = "after dashing, adjacent enemies add +1 incoming damage" },
+        replayFixture = "duelist_flank_dash",
+    },
 }
 
 function ClassCatalog.class(id)

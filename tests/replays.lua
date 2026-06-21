@@ -244,4 +244,37 @@ expect(Serialize.encode(wardenA:snapshot()) == Serialize.encode(wardenB:snapshot
 expect(wardenA.units.scribe.y == 1 and wardenA:objective("shelf").integrity == 3, "Warden replay should shove and repair")
 io.stdout:write("tactics replay ok ", wardenFixture, "\n")
 
+local function tacticalDuelistReplayState()
+    return TacticsState.new({
+        defaultAp = 5,
+        board = { width = 5, height = 3 },
+        units = {
+            { id = "duelist", side = "player", x = 1, y = 2, hp = 8, class = "duelist" },
+            { id = "bailiff", side = "enemy", x = 4, y = 2, hp = 5 },
+        },
+    })
+end
+
+local tacticalDuelistFrames = {
+    { tick = 0, command = TacticsState.commands.dash("duelist", "east", 2, 1) },
+    { tick = 1, command = TacticsState.commands.attack("duelist", "bailiff", 3, 1) },
+    { tick = 2, command = TacticsState.commands.swap("duelist", "bailiff", 1) },
+}
+
+local function runTacticalDuelistReplay()
+    local state = tacticalDuelistReplayState()
+    for _, frame in ipairs(tacticalDuelistFrames) do
+        state:apply(frame.command)
+    end
+    return state
+end
+
+local duelistFixture = ClassCatalog.class("duelist").replayFixture
+local duelistA = runTacticalDuelistReplay()
+local duelistB = runTacticalDuelistReplay()
+expect(duelistFixture == "duelist_flank_dash", "Duelist replay fixture should be registered")
+expect(Serialize.encode(duelistA:snapshot()) == Serialize.encode(duelistB:snapshot()), "Duelist replay fixture should be deterministic")
+expect(duelistA.units.duelist.x == 4 and duelistA.units.bailiff.hp == 2, "Duelist replay should dash, strike, and swap")
+io.stdout:write("tactics replay ok ", duelistFixture, "\n")
+
 io.stdout:write("replay fixtures passed: ", #fixtures, "\n")
