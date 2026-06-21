@@ -126,6 +126,68 @@ UICatalog.tutorialSequence = {
     { id = "boss_weak_point", teaches = "boss weak point", board = "rotation reveals back-face weak point", exitCheck = "player rotates and counters boss procedure" },
 }
 
+UICatalog.tutorialBoardOrder = { "movement", "cover_flank", "intent", "push_pull", "destruction", "objectives" }
+
+UICatalog.tutorialBoardSpecs = {
+    movement = {
+        id = "movement",
+        teaches = "movement",
+        board = { width = 4, height = 3, tiles = { ["3:2"] = { hazard = { kind = "brine", active = true, damage = 1 } } } },
+        units = { { id = "warden", side = "player", x = 1, y = 2, ap = 2 } },
+        actions = { { kind = "move", unit = "warden", to = { x = 2, y = 2 }, preview = "movementPreview" } },
+        overlays = { "movement", "hazards" },
+        exitCheck = "preview safe route and spend one AP",
+    },
+    cover_flank = {
+        id = "cover_flank",
+        teaches = "cover/flanking",
+        board = { width = 4, height = 3, tiles = { ["2:2"] = { coverEdges = { west = "half" } } } },
+        units = { { id = "warden", side = "player", x = 1, y = 2, ap = 2 }, { id = "bailiff", side = "enemy", x = 2, y = 2, hp = 4 } },
+        actions = { { kind = "inspect_cover", from = { x = 1, y = 2 }, target = "bailiff", preview = "coverFromAttack" }, { kind = "flank", from = { x = 2, y = 3 }, target = "bailiff", preview = "flankFromAttack" } },
+        overlays = { "cover", "los" },
+        exitCheck = "identify protected edge and flank tile",
+    },
+    intent = {
+        id = "intent",
+        teaches = "intent",
+        board = { width = 3, height = 3 },
+        units = { { id = "warden", side = "player", x = 1, y = 2, ap = 2 }, { id = "bailiff", side = "enemy", x = 3, y = 2, hp = 3 } },
+        intents = { bailiff = { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 2 } }, damage = 1, effect = "strike" } },
+        actions = { { kind = "inspect_intent", unit = "bailiff", preview = "intentPreview" }, { kind = "move", unit = "warden", to = { x = 1, y = 1 }, preview = "movementPreview" } },
+        overlays = { "enemy_intent", "movement" },
+        exitCheck = "move out of exact footprint",
+    },
+    push_pull = {
+        id = "push_pull",
+        teaches = "push/pull",
+        board = { width = 5, height = 3, tiles = { ["4:2"] = { kind = "route_machine", objective = { id = "machine", kind = "protect", integrity = 2 } } } },
+        units = { { id = "warden", side = "player", x = 2, y = 2, ap = 2 }, { id = "custodian", side = "enemy", x = 3, y = 2, hp = 3 } },
+        actions = { { kind = "push", unit = "warden", target = "custodian", direction = "east", preview = "push_path" }, { kind = "pull", unit = "warden", target = "custodian", preview = "pull_path" } },
+        overlays = { "movement", "enemy_intent", "objectives" },
+        exitCheck = "preview push and pull before collision",
+    },
+    destruction = {
+        id = "destruction",
+        teaches = "destruction",
+        board = { width = 4, height = 2, tiles = { ["2:1"] = { blocker = true, losBlocker = true, destructibleHp = 2, coverEdges = { west = "half" } } } },
+        units = { { id = "exile", side = "player", x = 1, y = 1, ap = 2 }, { id = "husk", side = "enemy", x = 4, y = 1, hp = 4 } },
+        actions = { { kind = "damageTile", unit = "exile", tile = { x = 2, y = 1 }, damage = 2, preview = "coverBreak" } },
+        overlays = { "cover", "los" },
+        exitCheck = "break cover and open LoS",
+    },
+    objectives = {
+        id = "objectives",
+        teaches = "objectives",
+        board = { width = 4, height = 3 },
+        units = { { id = "warden", side = "player", x = 1, y = 2, ap = 2 }, { id = "bailiff", side = "enemy", x = 4, y = 2, hp = 3 } },
+        objectives = { { id = "machine", kind = "protect_route_machinery", x = 2, y = 2, integrity = 2, evacuateAt = { x = 1, y = 1 } } },
+        intents = { bailiff = { mode = "exact", category = "destroy", targetTiles = { { x = 2, y = 2 } }, damage = 1, objectiveImpact = "machine", effect = "sabotage" } },
+        actions = { { kind = "block_intent", unit = "warden", tile = { x = 2, y = 2 }, preview = "objective_change" } },
+        overlays = { "objectives", "enemy_intent" },
+        exitCheck = "protect objective from exact intent",
+    },
+}
+
 UICatalog.screenshotSmokeTarget = {
     id = "tactical_overlay_smoke",
     fixture = "overlay_all_layers",
@@ -387,6 +449,18 @@ end
 
 function UICatalog.tutorials()
     return UICatalog.tutorialSequence
+end
+
+function UICatalog.tutorialBoards()
+    local result = {}
+    for _, id in ipairs(UICatalog.tutorialBoardOrder) do
+        result[#result + 1] = UICatalog.tutorialBoardSpecs[id]
+    end
+    return result
+end
+
+function UICatalog.tutorialBoard(id)
+    return UICatalog.tutorialBoardSpecs[id]
 end
 
 function UICatalog.screenshotSmoke()

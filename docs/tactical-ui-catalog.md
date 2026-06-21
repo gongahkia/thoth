@@ -298,3 +298,26 @@ preview/UI:
 
 test/replay proof:
 `tests/run.lua` verifies joystick module enablement, button/axis mapping, tactical gamepad map fields, controller path bindings, five required stages, stage input/output/preview metadata, and cancel-before-commit support.
+
+## U.14 Tutorial Board Fixtures
+
+source pattern:
+Readable tactics tutorials isolate one board verb at a time and use tutorial/combat UI surfaces to keep the player inside the tactical context.
+
+thoth transformation:
+Thoth defines concrete tutorial board fixtures for movement, cover/flanking, intent, push/pull, destruction, and objectives.
+
+board verb:
+Move, flank, inspect, push, pull, break, protect.
+
+zone fit:
+The fixtures use generic tactical data, then map cleanly onto Archive, Cistern, and Warrens mechanics through hazards, cover, intent, destructible terrain, and objectives.
+
+counterplay:
+Each board teaches one counter before combining systems: safe routing, flank recognition, escaping intent, previewing forced movement, breaking cover, and protecting objective integrity.
+
+preview/UI:
+`UICatalog.tutorialBoards()` returns instantiable board specs with board data, units, objectives/intents when needed, actions, overlays, and exit checks.
+
+test/replay proof:
+`tests/run.lua` verifies all six tutorial boards exist, instantiate as `TacticsState`, expose actions/overlays/exit checks, and cover movement, cover/flank, exact intent, push plus pull, destructible cover, and objective pressure.

@@ -678,6 +678,22 @@ preview/UI: `UICatalog.controllerPath()` defines principles, bindings, and five 
 
 test/replay proof: Tests verify joystick module enablement, gamepad button/axis mapping, tactical map bindings, controller path stages, stage input/output/preview metadata, and cancel-before-commit support.
 
+### H39 Tutorial Board Fixtures
+
+source pattern: Into the Breach interface references include combat, tutorial, mission, environment, and objective surfaces; XCOM 2 onboarding points new players toward tutorialized tactical play.
+
+thoth transformation: Tutorial boards are concrete state fixtures that isolate movement, cover/flanking, intent, push/pull, destruction, and objectives before combining mechanics.
+
+board verb: move, flank, inspect, push, pull, break, protect.
+
+zone fit: Generic tutorial fixtures map to Archive paperwork cover, Cistern hazards, and Warrens destruction/objective pressure without requiring zone-specific UI schemas.
+
+counterplay: each board teaches one deterministic answer: safe route, protected edge versus flank, leave exact footprint, preview push/pull collision, break cover to open LoS, or block objective damage.
+
+preview/UI: `UICatalog.tutorialBoards()` provides board, units, objectives, intents, actions, overlays, and exit checks for six tutorial board ids.
+
+test/replay proof: Tests instantiate every tutorial board as `TacticsState` and verify required fixture metadata plus movement, cover, exact intent, push/pull, destructible cover, and objective pressure coverage.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

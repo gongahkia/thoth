@@ -2205,6 +2205,30 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local specs = {}
+    for _, spec in ipairs(UICatalog.tutorialBoards()) do
+        specs[spec.id] = spec
+        expect(spec.teaches and spec.board and spec.units and spec.actions and spec.overlays and spec.exitCheck, "tutorial board should define full fixture metadata: " .. spec.id)
+        local state = TacticsState.new({
+            board = spec.board,
+            units = spec.units,
+            objectives = spec.objectives,
+            intents = spec.intents,
+        })
+        expect(state.board.width == spec.board.width and state.board.height == spec.board.height, "tutorial board should instantiate: " .. spec.id)
+    end
+    for _, id in ipairs({ "movement", "cover_flank", "intent", "push_pull", "destruction", "objectives" }) do
+        expect(specs[id] and UICatalog.tutorialBoard(id) == specs[id], "missing tutorial board " .. id)
+    end
+    expect(specs.movement.actions[1].preview == "movementPreview" and specs.movement.board.tiles["3:2"].hazard, "movement tutorial should include safe/unsafe preview")
+    expect(specs.cover_flank.board.tiles["2:2"].coverEdges.west == "half" and specs.cover_flank.actions[2].kind == "flank", "cover tutorial should include flank preview")
+    expect(specs.intent.intents.bailiff.mode == "exact" and specs.intent.actions[1].preview == "intentPreview", "intent tutorial should include exact intent preview")
+    expect(specs.push_pull.actions[1].kind == "push" and specs.push_pull.actions[2].kind == "pull", "push/pull tutorial should include both forced movement verbs")
+    expect(specs.destruction.board.tiles["2:1"].destructibleHp == 2 and specs.destruction.actions[1].preview == "coverBreak", "destruction tutorial should include breakable cover")
+    expect(specs.objectives.objectives[1].integrity == 2 and specs.objectives.intents.bailiff.objectiveImpact == "machine", "objectives tutorial should include objective pressure")
+end
+
+tests[#tests + 1] = function()
     local smoke = UICatalog.screenshotSmoke()
     local overlays = {}
     expect(smoke.id == "tactical_overlay_smoke" and smoke.fixture and smoke.viewport.width > 0 and smoke.viewport.height > 0, "screenshot smoke target should define fixture and viewport")

@@ -144,7 +144,6 @@ Goal: make enemies readable, varied, and board-native.
 
 Goal: make dense tactics legible.
 
-- [ ] 5.7 Add tutorial boards for movement, cover/flanking, intent, push/pull, destruction, and objectives.
 
 **Exit criteria:** a new player can solve tutorial boards without reading external docs; all key tactical data is inspectable.
 
