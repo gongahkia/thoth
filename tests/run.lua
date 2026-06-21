@@ -225,15 +225,39 @@ tests[#tests + 1] = function()
     tileX, tileY = Render.tacticalTileAt(app, 350, 300)
     expect(tileX == 2 and tileY == 5, "g3d tactical mouse projection should follow camera left axis")
     app.worldView.tacticalCamera = nil
+    local selectAction = runtime:actionAtTile(2, 7)
+    expect(selectAction.kind == "select" and selectAction.enabled, "tactical click action should select squad units")
+    local moveAction = runtime:actionAtTile(3, 6)
+    expect(moveAction.kind == "move" and moveAction.enabled and moveAction.detail == "1 AP", "tactical click action should preview reachable moves")
+    local actionBar = runtime:actionBar({ x = 3, y = 6 })
+    expect(#actionBar == 9 and actionBar[1].label == "Move" and actionBar[1].key == "LMB" and actionBar[2].key == "WASD", "tactical action bar should expose contextual mouse controls")
+    runtime.state.units.audit_hound.x = 4
+    runtime.state.units.audit_hound.y = 6
+    TacticalRuntime.refreshOverlays(runtime)
+    local attackAction = runtime:actionAtTile(4, 6)
+    expect(attackAction.kind == "attack" and attackAction.enabled, "tactical click action should preview in-range enemy attacks")
+    expect(runtime:handleMouseTile(4, 6, 1), "left click should attack in-range enemy")
+    expect(runtime.state:unit("audit_hound").hp == 2 and runtime.state:unit("warden").ap == 2, "left click attack should spend AP and damage enemy")
     tileX, tileY = 3, 6
     expect(runtime:handleMouseTile(tileX, tileY, 1), "left click should handle reachable board tile")
-    expect(runtime.state:unit("warden").x == 3 and runtime.state:unit("warden").ap == 2, "left click should move selected unit to reachable tile")
+    expect(runtime.state:unit("warden").x == 3 and runtime.state:unit("warden").ap == 1, "left click should move selected unit to reachable tile")
     expect(runtime:handleMouseTile(2, 7, 1), "left click should select player unit")
     expect(runtime.selectedUnitId == "lamplighter", "left click should select clicked squad unit")
     expect(runtime:handleMouseTile(5, 6, 2), "right click should place cursor")
     expect(runtime.cursor.x == 5 and runtime.cursor.y == 6, "right click should move cursor without action")
     expect(Render.adjustTacticalZoom(app, 3) > 1, "wheel up should zoom in")
     expect(Render.adjustTacticalZoom(app, -20) == 0.65, "wheel down should clamp zoom out")
+end
+
+tests[#tests + 1] = function()
+    local diagonal = Render.tacticalGridArrowSegments({ x = 2, y = 2 }, { x = 5, y = 4 }, 0, 0)
+    expect(#diagonal == 2, "diagonal tactical intent should route as two grid segments")
+    for _, segment in ipairs(diagonal) do
+        expect(segment.x1 == segment.x2 or segment.y1 == segment.y2, "tactical intent arrow segment should not be diagonal")
+    end
+    expect(diagonal[1].y1 == diagonal[1].y2 and diagonal[2].x1 == diagonal[2].x2, "dominant x tactical intent should turn once on the grid")
+    local straight = Render.tacticalGridArrowSegments({ x = 2, y = 2 }, { x = 2, y = 6 }, 0, 0)
+    expect(#straight == 1 and straight[1].x1 == straight[1].x2 and straight[1].uy == 1, "straight tactical intent should stay one grid segment")
 end
 
 tests[#tests + 1] = function()

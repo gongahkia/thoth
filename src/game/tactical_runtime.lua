@@ -148,6 +148,8 @@ function Runtime.new(sim)
         handleKey = Runtime.handleKey,
         setCursor = Runtime.setCursor,
         handleMouseTile = Runtime.handleMouseTile,
+        actionAtTile = Runtime.actionAtTile,
+        actionBar = Runtime.actionBar,
     }
     Runtime.declareEnemyIntents(runtime)
     Runtime.refreshOverlays(runtime)
@@ -247,6 +249,60 @@ function Runtime.moveSelectedToCursor(runtime)
     setStatus(runtime, selected.id .. " moved")
     Runtime.refreshOverlays(runtime)
     return true
+end
+
+function Runtime.actionAtTile(runtime, x, y)
+    local state = runtime and runtime.state
+    if not (state and state:inBounds(x, y)) then
+        return { kind = "none", label = "No tile", key = "LMB", enabled = false, detail = "" }
+    end
+    local unit = state:unitAt(x, y)
+    local selected = Runtime.selectedUnit(runtime)
+    if unit and unit.side == "player" then
+        return { kind = "select", label = "Select", key = "LMB", enabled = true, detail = unit.id .. " @" .. x .. "," .. y }
+    end
+    if unit and unit.side == "enemy" then
+        local distance = selected and Grid.manhattan(selected.x, selected.y, unit.x, unit.y) or nil
+        local enabled = selected and selected.ap >= 1 and distance and distance <= 3
+        local detail = distance and ("range " .. tostring(distance) .. "/3") or "no selected unit"
+        if selected and selected.ap < 1 then
+            detail = "need AP"
+        end
+        return { kind = "attack", label = "Attack", key = "LMB/A", enabled = enabled == true, detail = unit.id .. " " .. detail }
+    end
+    if selected and selected.side == "player" then
+        local tile = reachableByKey(state:movementPreview(selected.id))[tostring(x) .. ":" .. tostring(y)]
+        if tile and (tile.apCost or 0) > 0 then
+            return { kind = "move", label = "Move", key = "LMB/Enter", enabled = true, detail = tostring(tile.apCost or 0) .. " AP" }
+        elseif tile then
+            return { kind = "hold", label = "Hold", key = "LMB", enabled = false, detail = "already here" }
+        end
+    end
+    return { kind = "cursor", label = "Inspect tile", key = "RMB", enabled = true, detail = tostring(x) .. "," .. tostring(y) }
+end
+
+function Runtime.actionBar(runtime, hover)
+    local selected = Runtime.selectedUnit(runtime)
+    local cursorAction = Runtime.actionAtTile(runtime, runtime.cursor.x, runtime.cursor.y)
+    local hoverAction = hover and Runtime.actionAtTile(runtime, hover.x, hover.y) or nil
+    local context = hoverAction or cursorAction
+    if hoverAction then
+        context = { id = context.id, key = "LMB", label = context.label, detail = context.detail, enabled = context.enabled, primary = context.primary }
+    end
+    local canAttack = cursorAction.kind == "attack" and cursorAction.enabled
+    local canMove = cursorAction.kind == "move" and cursorAction.enabled
+    local playerCount = livingPlayers(runtime.state)
+    return {
+        { id = "context", key = context.key or "LMB", label = context.label, detail = context.detail, enabled = context.enabled, primary = true },
+        { id = "cursor", key = "WASD", label = "Cursor", detail = "aim tile", enabled = true },
+        { id = "move", key = "Enter", label = "Move", detail = canMove and cursorAction.detail or "target blue tile", enabled = canMove },
+        { id = "attack", key = "A", label = "Attack", detail = canAttack and cursorAction.detail or "target enemy", enabled = canAttack },
+        { id = "brace", key = "B", label = "Brace", detail = "1 AP guard", enabled = selected and selected.ap >= 1 },
+        { id = "unit", key = "Tab", label = "Unit", detail = tostring(playerCount) .. " squad", enabled = playerCount > 1 },
+        { id = "rotate", key = "[ ]", label = "Rotate", detail = "view", enabled = true },
+        { id = "end", key = "E", label = "End Turn", detail = "resolve red", enabled = true },
+        { id = "zoom", key = "Wheel", label = "Zoom", detail = "board scale", enabled = true },
+    }
 end
 
 function Runtime.handleMouseTile(runtime, x, y, button)

@@ -1725,6 +1725,51 @@ local function pushGroundArrowHead(vertices, tx, ty, ux, uy, z, u)
     vertices[#vertices + 1] = tileVertex(baseX - px, baseY - py, z, u)
 end
 
+local function appendGridArrowSegment(segments, x1, y1, x2, y2, startInset, endInset)
+    local dx = x2 - x1
+    local dy = y2 - y1
+    local length = math.abs(dx) + math.abs(dy)
+    if length <= 0 then
+        return
+    end
+    local ux = dx ~= 0 and (dx > 0 and 1 or -1) or 0
+    local uy = dy ~= 0 and (dy > 0 and 1 or -1) or 0
+    local sx = x1 + ux * (startInset or 0)
+    local sy = y1 + uy * (startInset or 0)
+    local tx = x2 - ux * (endInset or 0)
+    local ty = y2 - uy * (endInset or 0)
+    if math.abs(tx - sx) + math.abs(ty - sy) <= 0.02 then
+        return
+    end
+    segments[#segments + 1] = { x1 = sx, y1 = sy, x2 = tx, y2 = ty, ux = ux, uy = uy }
+end
+
+function Render.tacticalGridArrowSegments(sourceTile, targetTile, originX, originY)
+    if not (sourceTile and targetTile) then
+        return {}
+    end
+    local sx = (originX or 0) + sourceTile.x + 0.5
+    local sy = (originY or 0) + sourceTile.y + 0.5
+    local tx = (originX or 0) + targetTile.x + 0.5
+    local ty = (originY or 0) + targetTile.y + 0.5
+    local dx = targetTile.x - sourceTile.x
+    local dy = targetTile.y - sourceTile.y
+    local points = { { x = sx, y = sy } }
+    if dx ~= 0 and dy ~= 0 then
+        if math.abs(dx) >= math.abs(dy) then
+            points[#points + 1] = { x = tx, y = sy }
+        else
+            points[#points + 1] = { x = sx, y = ty }
+        end
+    end
+    points[#points + 1] = { x = tx, y = ty }
+    local segments = {}
+    for index = 1, #points - 1 do
+        appendGridArrowSegment(segments, points[index].x, points[index].y, points[index + 1].x, points[index + 1].y, index == 1 and 0.28 or 0, index == #points - 1 and 0.24 or 0)
+    end
+    return segments
+end
+
 local function drawTacticalIntentArrows(sim, app)
     local source = tacticalOverlaySource(sim, app)
     local tactics = source and source.state
@@ -1741,28 +1786,14 @@ local function drawTacticalIntentArrows(sim, app)
         local target = intent and intent.targetTiles and intent.targetTiles[1]
         local sourceTile = intent and intent.sourceTile
         if target and sourceTile then
-            local sx = originX + sourceTile.x + 0.5
-            local sy = originY + sourceTile.y + 0.5
-            local tx = originX + target.x + 0.5
-            local ty = originY + target.y + 0.5
-            local dx = tx - sx
-            local dy = ty - sy
-            local length = math.sqrt(dx * dx + dy * dy)
-            if length > 0 then
-                local ux = dx / length
-                local uy = dy / length
-                local maxLength = 2.2
-                if length > maxLength then
-                    sx = tx - ux * maxLength
-                    sy = ty - uy * maxLength
-                else
-                    sx = sx + ux * 0.28
-                    sy = sy + uy * 0.28
+            local segments = Render.tacticalGridArrowSegments(sourceTile, target, originX, originY)
+            for index, segment in ipairs(segments) do
+                pushGroundLine(vertices, segment.x1, segment.y1, segment.x2, segment.y2, z, 0.04, 0.5)
+                if index == #segments then
+                    pushGroundArrowHead(vertices, segment.x2, segment.y2, segment.ux, segment.uy, z, 0.5)
                 end
-                tx = tx - ux * 0.24
-                ty = ty - uy * 0.24
-                pushGroundLine(vertices, sx, sy, tx, ty, z, 0.04, 0.5)
-                pushGroundArrowHead(vertices, tx, ty, ux, uy, z, 0.5)
+            end
+            if #segments > 0 then
                 count = count + 1
             end
         end
@@ -3149,6 +3180,47 @@ local function tacticalSummary(app)
     return app and app.tacticalSummary or nil
 end
 
+function Render.tacticalActionBar(app)
+    if app and app.tactics and app.tactics.actionBar then
+        return app.tactics:actionBar(app.tacticalHover)
+    end
+    return {}
+end
+
+local function drawTacticalActionSlot(action, x, y, w, h)
+    local enabled = action.enabled == true
+    local primary = action.primary == true
+    local alpha = enabled and 0.92 or 0.58
+    love.graphics.setColor(primary and 0.13 or 0.075, primary and 0.12 or 0.085, primary and 0.09 or 0.095, alpha)
+    love.graphics.rectangle("fill", x, y, w, h)
+    love.graphics.setColor(enabled and (primary and 0.92 or 0.42) or 0.22, enabled and (primary and 0.78 or 0.48) or 0.24, enabled and (primary and 0.36 or 0.52) or 0.26, 0.95)
+    love.graphics.rectangle("line", x, y, w, h)
+    love.graphics.setColor(enabled and 0.96 or 0.42, enabled and 0.94 or 0.44, enabled and 0.78 or 0.42, 1)
+    love.graphics.printf(tostring(action.key or "-"), x + 7, y + 6, w - 14, "left")
+    love.graphics.setColor(enabled and 0.9 or 0.48, enabled and 0.92 or 0.5, enabled and 0.86 or 0.48, 1)
+    love.graphics.printf(tostring(action.label or "-"), x + 7, y + 25, w - 14, "center")
+    love.graphics.setColor(enabled and 0.62 or 0.36, enabled and 0.68 or 0.38, enabled and 0.64 or 0.36, 1)
+    love.graphics.printf(tostring(action.detail or ""), x + 7, y + 43, w - 14, "center")
+end
+
+function Render.drawTacticalActionBar(app)
+    local actions = Render.tacticalActionBar(app)
+    if #actions == 0 then
+        return 0
+    end
+    local width, height = love.graphics.getDimensions()
+    local gap = 6
+    local barW = math.min(width - 32, 928)
+    local slotW = math.floor((barW - gap * (#actions - 1)) / #actions)
+    local slotH = 62
+    local x = math.floor((width - (slotW * #actions + gap * (#actions - 1))) / 2)
+    local y = height - slotH - 18
+    for index, action in ipairs(actions) do
+        drawTacticalActionSlot(action, x + (index - 1) * (slotW + gap), y, slotW, slotH)
+    end
+    return #actions
+end
+
 function Render.drawTacticalHud(sim, app)
     local summary = tacticalSummary(app)
     local width = love.graphics.getWidth()
@@ -3176,6 +3248,7 @@ function Render.drawTacticalHud(sim, app)
     love.graphics.printf("route machine " .. tostring(objective.integrity or 0) .. "/" .. tostring(objective.maxIntegrity or 0), width - 244, 28, 216, "right")
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
     love.graphics.printf("red forecasts resolve after End Turn; no hit chance", width - 244, 52, 216, "right")
+    Render.drawTacticalActionBar(app)
 end
 
 function Render.drawTacticalSidePanel(sim, app)
