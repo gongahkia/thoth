@@ -589,6 +589,51 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local function interact(kind, tile)
+        local state = TacticsState.new({
+            board = {
+                width = 2,
+                height = 2,
+                tiles = {
+                    ["1:1"] = tile or { kind = kind, interact = { kind = kind } },
+                    ["2:2"] = { revealed = false },
+                },
+            },
+            units = {
+                { id = "warden", side = "player", x = 1, y = 1, ap = 9 },
+            },
+        })
+        state:apply(TacticsState.commands.interactTile("warden", 1, 1, 0))
+        return state, state:tileAt(1, 1)
+    end
+    local _, valve = interact("valve")
+    expect(valve.state == "open" and valve.hazard.kind == "flood" and valve.hazard.active == true, "valve interaction should toggle flood hazard")
+    local _, door = interact("door", { kind = "door", interact = { kind = "door" }, blocker = true, losBlocker = true })
+    expect(door.state == "open" and not door.blocker and not door.losBlocker, "door interaction should open blockers")
+    local _, seal = interact("seal")
+    expect(seal.state == "sealed" and seal.blocker and seal.losBlocker, "seal interaction should close movement and LoS")
+    local _, shelf = interact("shelf")
+    expect(shelf.state == "braced" and shelf.coverEdges.north == "full" and shelf.losBlocker, "shelf interaction should create cover")
+    local _, furnace = interact("furnace")
+    expect(furnace.state == "lit" and furnace.hazard.kind == "heat" and furnace.hazard.active, "furnace interaction should toggle heat")
+    local _, bridge = interact("bridge", { kind = "bridge", interact = { kind = "bridge" }, blocker = true, losBlocker = true })
+    expect(bridge.state == "lowered" and not bridge.blocker and contains(bridge.tags, "bridge_lowered"), "bridge interaction should lower route")
+    local terminalState = interact("terminal")
+    expect(terminalState:tileAt(2, 2).revealed == true, "terminal interaction should reveal hidden board tiles")
+    local bellState, bell = interact("bell", { kind = "bell", interact = { kind = "bell", exposure = 2 } })
+    expect(bell.state == "rung" and bellState.exposure == 2, "bell interaction should raise exposure")
+    local extraction = TacticsState.new({
+        board = { width = 1, height = 1, tiles = { ["1:1"] = { kind = "extraction", interact = { kind = "extraction" } } } },
+        units = { { id = "thief", side = "player", x = 1, y = 1, ap = 2 } },
+        cargo = { { id = "crate", kind = "loot_crate", x = 1, y = 1, carriedBy = "thief" } },
+    })
+    extraction:apply(TacticsState.commands.interactTile("thief", 1, 1, 0))
+    expect(extraction:cargoItem("crate").extracted and not extraction:unit("thief").carryingCargo, "extraction interaction should extract carried cargo")
+    extraction:apply(TacticsState.commands.interactTile("thief", 1, 1, 0))
+    expect(extraction:unit("thief").evacuated, "extraction interaction should evacuate unit with no cargo")
+end
+
+tests[#tests + 1] = function()
     expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
     expect(I18n.t("missing {value}", { value = "fallback" }) == "missing fallback", "i18n should interpolate fallback strings")
     local source = readFile("src/app/render.lua")

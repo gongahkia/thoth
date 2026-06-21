@@ -156,3 +156,30 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies line, cone, and arc geometry, shape-created threat zones, one-trigger limit expiry, and no retrigger after expiry.
+
+## M.8 Interactions
+
+Tile interactions are driven by `tile.interact.kind` or tile `kind`.
+
+Supported interactions:
+
+- `valve`: toggles open/closed and sets a flood hazard active state.
+- `door`: opens movement and LoS blockers.
+- `seal`: closes movement and LoS blockers.
+- `shelf`: braces into cover and LoS blocking terrain.
+- `furnace`: toggles heat hazard.
+- `bridge`: lowers route blockers and tags the tile.
+- `terminal`: reveals hidden board tiles.
+- `bell`: raises exposure.
+- `extraction`: extracts carried cargo, then evacuates the unit if no cargo remains.
+
+Rules:
+
+- Interaction requires an active unit on or adjacent to the tile.
+- Interaction validates target/kind before spending AP.
+- Unsupported interactions fail fast.
+- Effects are deterministic tile/unit/cargo state changes.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies all supported interaction kinds, blocker/LoS changes, exposure, reveal, cargo extraction, and unit evacuation.

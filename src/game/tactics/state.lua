@@ -92,6 +92,7 @@ local function normalizeTile(tile)
     return {
         kind = tile.kind or tile.id or "floor",
         material = tile.material or tile.zoneMaterial or "archive",
+        state = tile.state,
         height = expectInteger(tile.height or 0, "tile height"),
         coverEdges = normalizeCoverEdges(tile.coverEdges or tile.cover),
         blocker = tile.blocker == true,
@@ -99,6 +100,7 @@ local function normalizeTile(tile)
         destructibleHp = destructibleHp,
         hazard = copyMap(tile.hazard),
         objective = copyMap(tile.objective),
+        interact = copyMap(tile.interact),
         revealed = tile.revealed ~= false,
         destroyed = tile.destroyed == true,
         rotationMarks = normalizeRotationMarks(tile.rotationMarks or tile.marks),
@@ -204,6 +206,18 @@ local cargoDefaultWeight = {
     wounded_hero = 1,
 }
 
+local interactionKinds = {
+    valve = true,
+    door = true,
+    seal = true,
+    shelf = true,
+    furnace = true,
+    bridge = true,
+    terminal = true,
+    bell = true,
+    extraction = true,
+}
+
 local function normalizeCargo(cargo, index)
     expect(type(cargo) == "table", "cargo must be a table")
     local id = cargo.id or ("cargo_" .. tostring(index))
@@ -266,6 +280,7 @@ function State.new(options)
     local state = setmetatable({
         tick = options.tick or 0,
         phase = options.phase or "player",
+        exposure = options.exposure or 0,
         selectedUnitId = options.selectedUnitId,
         rules = {
             defaultAp = options.defaultAp or options.apPerTurn or (options.rules and options.rules.defaultAp) or 2,
@@ -328,6 +343,7 @@ function State.fromSnapshot(snapshot)
     return State.new({
         tick = snapshot.tick or 0,
         phase = snapshot.phase or "player",
+        exposure = snapshot.exposure or 0,
         selectedUnitId = snapshot.selectedUnitId,
         rules = snapshot.rules,
         board = snapshot.board or { width = snapshot.width, height = snapshot.height, tiles = snapshot.tiles },
@@ -906,6 +922,79 @@ function State:dragCargo(unitId, cargoId, direction)
     return cargo
 end
 
+local function addTag(tags, value)
+    for _, tag in ipairs(tags or {}) do
+        if tag == value then
+            return
+        end
+    end
+    tags[#tags + 1] = value
+end
+
+function State:interactTile(unitId, x, y)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    x = expectInteger(x, "interact x")
+    y = expectInteger(y, "interact y")
+    expect(unit.alive and not unit.evacuated, "unit is not active")
+    expect(self:inBounds(x, y), "interact tile out of bounds")
+    expect(Grid.manhattan(unit.x, unit.y, x, y) <= 1, "interact tile is not adjacent")
+    local key = tileKey(x, y)
+    local tile = self.board.tiles[key] or normalizeTile()
+    local kind = tile.interact.kind or tile.kind
+    if kind == "valve" then
+        tile.state = tile.state == "open" and "closed" or "open"
+        tile.hazard.kind = tile.hazard.kind or "flood"
+        tile.hazard.active = tile.state == "open"
+    elseif kind == "door" then
+        tile.state = "open"
+        tile.blocker = false
+        tile.losBlocker = false
+    elseif kind == "seal" then
+        tile.state = "sealed"
+        tile.blocker = true
+        tile.losBlocker = true
+    elseif kind == "shelf" then
+        tile.state = "braced"
+        tile.coverEdges = { north = "full", east = "half", south = "full", west = "half" }
+        tile.losBlocker = true
+    elseif kind == "furnace" then
+        tile.state = tile.state == "lit" and "doused" or "lit"
+        tile.hazard.kind = "heat"
+        tile.hazard.damage = tile.state == "lit" and (tile.hazard.damage or 1) or 0
+        tile.hazard.active = tile.state == "lit"
+    elseif kind == "bridge" then
+        tile.state = "lowered"
+        tile.blocker = false
+        tile.losBlocker = false
+        addTag(tile.tags, "bridge_lowered")
+    elseif kind == "terminal" then
+        tile.state = "used"
+        for _, boardTile in pairs(self.board.tiles) do
+            boardTile.revealed = true
+        end
+    elseif kind == "bell" then
+        tile.state = "rung"
+        self.exposure = self.exposure + (tile.interact.exposure or 1)
+    elseif kind == "extraction" then
+        tile.state = "used"
+        if unit.carryingCargo then
+            local cargo = self.cargo[unit.carryingCargo]
+            if cargo then
+                cargo.extracted = true
+                cargo.carriedBy = nil
+            end
+            unit.carryingCargo = nil
+        else
+            unit.evacuated = true
+            unit.ap = 0
+        end
+    else
+        error("unsupported interaction " .. tostring(kind), 2)
+    end
+    self.board.tiles[key] = tile
+    return tile
+end
+
 function State:evacuateUnit(unitId, objectiveId)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     local objective = expect(self.objectives[objectiveId], "unknown objective " .. tostring(objectiveId))
@@ -1216,6 +1305,17 @@ function State:apply(command)
         expect(not self:cargoAt(cargo.x + delta.x, cargo.y + delta.y), "drag tile has cargo")
         self:spendAP(command.unit, command.cost or 1)
         self:dragCargo(command.unit, command.cargo, command.direction)
+    elseif kind == "interactTile" then
+        local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
+        local x = expectInteger(command.x, "interact x")
+        local y = expectInteger(command.y, "interact y")
+        expect(unit.alive and not unit.evacuated, "unit is not active")
+        expect(self:inBounds(x, y), "interact tile out of bounds")
+        expect(Grid.manhattan(unit.x, unit.y, x, y) <= 1, "interact tile is not adjacent")
+        local tile = self.board.tiles[tileKey(x, y)] or normalizeTile()
+        expect(interactionKinds[tile.interact.kind or tile.kind], "unsupported interaction " .. tostring(tile.interact.kind or tile.kind))
+        self:spendAP(command.unit, command.cost or 1)
+        self:interactTile(command.unit, command.x, command.y)
     else
         error("unknown command " .. tostring(kind), 2)
     end
@@ -1244,6 +1344,7 @@ function State:snapshot()
         version = 1,
         tick = self.tick,
         phase = self.phase,
+        exposure = self.exposure,
         selectedUnitId = self.selectedUnitId,
         rules = copyMap(self.rules),
         threatZones = copyMap(self.threatZones),
@@ -1350,6 +1451,10 @@ end
 
 function commands.dragCargo(unitId, cargoId, direction, cost)
     return { type = "dragCargo", unit = unitId, cargo = cargoId, direction = direction, cost = cost }
+end
+
+function commands.interactTile(unitId, x, y, cost)
+    return { type = "interactTile", unit = unitId, x = x, y = y, cost = cost }
 end
 
 State.commands = commands
