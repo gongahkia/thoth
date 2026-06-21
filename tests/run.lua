@@ -1992,6 +1992,35 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local map = RunCatalog.generateArchiveSliceMap(3905)
+    local report = RunCatalog.validateArchiveSliceMap(map)
+    local nodeKinds = {}
+    local variants = {}
+    expect(map.id == "buried_archive_slice_map" and map.zone == "buried_archive" and report.valid, "archive slice map should validate")
+    expect(#map.choices == 2 and map.bossGate == "boss_gate", "archive slice map should expose choices and boss gate")
+    for _, node in ipairs(map.nodes) do
+        nodeKinds[node.kind] = true
+        if node.kind ~= "start" then
+            expect(node.reward and node.complication and node.preview and node.preview.visible, "archive slice map node should expose reward complication preview: " .. node.id)
+        end
+        if node.boardVariant then
+            variants[node.boardVariant] = true
+            expect(TacticsProcgen.archiveRouteVariant(node.boardVariant), "archive slice map should reference known board variant: " .. node.boardVariant)
+            expect(node.boardSeed, "archive slice map board node should include board seed: " .. node.id)
+        end
+    end
+    for _, kind in ipairs({ "combat", "enclave", "event", "repair", "elite", "boss", "cursed_shortcut", "high_reward_extraction" }) do
+        expect(nodeKinds[kind], "archive slice map missing route kind " .. kind)
+    end
+    for _, variantId in ipairs({ "archive_entry_audit", "archive_shelf_protection", "archive_proof_extract", "archive_ledger_repair", "archive_sealed_shortcut", "archive_elite_claim" }) do
+        expect(variants[variantId], "archive slice map missing board variant " .. variantId)
+    end
+    expect(map.nodeById.elite_claim.complication.id == "partial_intent_elite" and map.nodeById.boss_gate.bossId == BossCatalog.sliceBossSpec().bossId, "archive slice map should bind elite complication and boss")
+    expect(report.counts.rewards >= 6 and report.counts.complications >= 6, "archive slice map should count route rewards and complications")
+    expect(Serialize.encode(map) == Serialize.encode(RunCatalog.generateArchiveSliceMap(3905)), "archive slice map should serialize deterministically")
+end
+
+tests[#tests + 1] = function()
     local timings = {}
     for _, rule in ipairs(RunCatalog.eventRules()) do
         expect(rule.roll and rule.effect, "event RNG rule should define roll and effect: " .. rule.id)

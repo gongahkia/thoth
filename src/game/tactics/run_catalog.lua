@@ -166,6 +166,14 @@ local function eventRuleFor(timing)
     return matches
 end
 
+local function routeReward(kind, amount, detail)
+    return { kind = kind, amount = amount, detail = detail, visible = true }
+end
+
+local function routeComplication(id, effect, detail)
+    return { id = id, effect = effect, detail = detail, visible = true }
+end
+
 local function node(id, kind, depth, data)
     local result = copyValue(data or {})
     result.id = id
@@ -338,6 +346,66 @@ function RunCatalog.generateMap(seed, options)
     }
 end
 
+function RunCatalog.generateArchiveSliceMap(seed)
+    seed = seed or 1
+    local function boardNode(id, kind, depth, variantId, reward, complication, nextNodes)
+        return node(id, kind, depth, {
+            zone = "buried_archive",
+            boardVariant = variantId,
+            boardSeed = boardSeedFor(seed, id, depth),
+            reward = reward,
+            complication = complication,
+            preview = preview(complication.effect, reward.detail, complication.detail),
+            next = nextNodes,
+        })
+    end
+    local nodes = {
+        node("start", "start", 0, {
+            zone = "buried_archive",
+            preview = preview("none", "choose archive route", "entry branch shows reward and complication"),
+            next = { "entry_audit", "custodian_annex" },
+        }),
+        boardNode("entry_audit", "combat", 1, "archive_entry_audit", routeReward("salvage", 2, "baseline salvage and proof"), routeComplication("audit_static_claim_line", "audit static", "central lane starts marked"), { "proof_cache", "archive_event" }),
+        boardNode("custodian_annex", "enclave", 1, "archive_shelf_protection", routeReward("standing", 1, "custodian standing and repair aid"), routeComplication("custodian_no_collateral", "faction demand", "shelves must survive for full reward"), { "ledger_repair", "sealed_shortcut" }),
+        boardNode("proof_cache", "high_reward_extraction", 2, "archive_proof_extract", routeReward("proof", 3, "extra proof cache"), routeComplication("exit_access_pressure", "exit pressure", "enemy spawn threatens evacuation edge"), { "elite_claim", "boss_gate" }),
+        boardNode("ledger_repair", "repair", 2, "archive_ledger_repair", routeReward("route_integrity", 1, "repair route integrity"), routeComplication("repair_ap_timing", "AP timing", "machinery loses value after clock"), { "elite_claim", "boss_gate" }),
+        boardNode("sealed_shortcut", "cursed_shortcut", 2, "archive_sealed_shortcut", routeReward("skip_pressure", 1, "skip one route pressure"), routeComplication("audit_lens_lock", "dread cost", "audit lens must be disabled before shortcut locks"), { "boss_gate" }),
+        node("archive_event", "event", 2, {
+            zone = "buried_archive",
+            eventId = "event_board_05",
+            eventTiming = "board_modifier",
+            reward = routeReward("route_option", 1, "open one sealed side door"),
+            complication = routeComplication("misfiled_door", "LoS shift", "one route opens and one sight lane closes"),
+            preview = preview("pre-board modifier", "sealed side door", "misfiled route changes LoS before deployment"),
+            next = { "elite_claim", "boss_gate" },
+        }),
+        boardNode("elite_claim", "elite", 3, "archive_elite_claim", routeReward("class_option", 1, "archive claim counter unlock"), routeComplication("partial_intent_elite", "masked elite", "Shelf Knight hides footprint until weak point reveal"), { "boss_gate" }),
+        node("boss_gate", "boss", 4, {
+            zone = "buried_archive",
+            bossId = "vault_regent",
+            gate = { boss = "vault_regent", requires = { "one depth-2 node cleared" }, preview = "claim beams and legal cover" },
+            reward = routeReward("seal_progress", 1, "advance archive seal"),
+            complication = routeComplication("regent_claim_beams", "boss procedure", "Vault Regent claim beams threaten collateral"),
+            preview = preview("boss procedure", "seal progress", "Vault Regent boss gate"),
+            next = {},
+        }),
+    }
+    local byId = {}
+    for _, entry in ipairs(nodes) do
+        byId[entry.id] = entry
+    end
+    return {
+        id = "buried_archive_slice_map",
+        seed = seed,
+        zone = "buried_archive",
+        start = "start",
+        bossGate = "boss_gate",
+        choices = { "entry_audit", "custodian_annex" },
+        nodes = nodes,
+        nodeById = byId,
+    }
+end
+
 function RunCatalog.rollEvent(seed, timing, context)
     context = context or {}
     if timing ~= "pre_board" and timing ~= "post_board" then
@@ -412,6 +480,56 @@ function RunCatalog.validateMap(map)
             report.valid = false
             report.missing[#report.missing + 1] = kind
         end
+    end
+    return report
+end
+
+function RunCatalog.validateArchiveSliceMap(map)
+    local report = RunCatalog.validateMap(map)
+    report.counts.rewards = 0
+    report.counts.complications = 0
+    if not map or map.id ~= "buried_archive_slice_map" or map.zone ~= "buried_archive" then
+        report.valid = false
+        report.missing[#report.missing + 1] = "archiveSlice.identity"
+    end
+    local variants = {
+        archive_entry_audit = true,
+        archive_shelf_protection = true,
+        archive_proof_extract = true,
+        archive_ledger_repair = true,
+        archive_sealed_shortcut = true,
+        archive_elite_claim = true,
+    }
+    for _, entry in ipairs(map and map.nodes or {}) do
+        if entry.kind ~= "start" then
+            if entry.reward and entry.reward.kind and entry.reward.detail and entry.reward.visible == true then
+                report.counts.rewards = report.counts.rewards + 1
+            else
+                report.valid = false
+                report.missing[#report.missing + 1] = entry.id .. ".reward"
+            end
+            if entry.complication and entry.complication.id and entry.complication.effect and entry.complication.detail and entry.complication.visible == true then
+                report.counts.complications = report.counts.complications + 1
+            else
+                report.valid = false
+                report.missing[#report.missing + 1] = entry.id .. ".complication"
+            end
+            if entry.kind == "boss" then
+                if entry.bossId ~= "vault_regent" then
+                    report.valid = false
+                    report.missing[#report.missing + 1] = entry.id .. ".boss"
+                end
+            elseif entry.kind ~= "event" then
+                if not (entry.boardVariant and variants[entry.boardVariant] and entry.boardSeed) then
+                    report.valid = false
+                    report.missing[#report.missing + 1] = entry.id .. ".boardVariant"
+                end
+            end
+        end
+    end
+    if report.counts.rewards < 6 or report.counts.complications < 6 then
+        report.valid = false
+        report.missing[#report.missing + 1] = "archiveSlice.routePayloads"
     end
     return report
 end

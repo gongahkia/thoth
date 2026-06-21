@@ -758,6 +758,22 @@ preview/UI: `EnemyCatalog.sliceEliteSpec()` and `BossCatalog.sliceBossSpec()` ex
 
 test/replay proof: tests audit the selected elite and boss, verify elite masked intent and weak point metadata, assert the elite appears in the generated Archive elite board, and verify the boss tactical contract and visible three-phase procedure.
 
+### H44 Archive Slice Run Map
+
+source pattern: Slay the Spire-style and roguelite maps create agency through visible branches, rewards, elite detours, events, and boss gates; pre-action randomness should produce assessable conditions before commitment.
+
+thoth transformation: The Archive slice map is one deterministic branch graph with reward and complication payloads on route nodes, fixed board variant ids, fixed board seeds, one event node, one elite node, and one boss gate.
+
+board verb: branch, preview, reward, complicate, gate.
+
+zone fit: Archive route nodes use proof caches, custodian annex pressure, ledger repair, sealed shortcuts, Shelf Knight elite pressure, and Vault Regent boss gate.
+
+counterplay: compare reward value against visible route costs before choosing a node; no tactical result is randomized after board start.
+
+preview/UI: `RunCatalog.generateArchiveSliceMap(seed)` exposes choices, rewards, complications, board variants, board seeds, elite pressure, event modifier, and boss gate data.
+
+test/replay proof: tests validate the map, require reward/complication payloads, require all six Archive board variants, cover combat/enclave/event/repair/elite/boss/shortcut/extraction nodes, bind the selected boss, and verify deterministic serialization.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

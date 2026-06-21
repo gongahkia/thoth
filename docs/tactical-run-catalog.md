@@ -229,3 +229,26 @@ Route UI consumes `Procgen.archiveRoute()` for order/count and `Procgen.archiveR
 
 test/replay proof:
 `tests/run.lua` verifies six route variants, template coverage, route node pressure coverage, valid generated boards, instantiated states, accepted budgets, reinforcement audits, and deterministic serialization.
+
+## P.9 Archive Slice Run Map
+
+source pattern:
+Roguelite route maps need visible branching choices, node pressure, rewards, complications, elite detours, and boss endpoints before commitment.
+
+thoth transformation:
+The Archive slice map binds the six Archive board variants into one deterministic route graph with start, combat, enclave, high-reward extraction, repair, cursed shortcut, event, elite, and boss nodes.
+
+board verb:
+Branch, preview, reward, complicate, gate.
+
+zone fit:
+All nodes stay in Buried Archive and reference Archive board variants, Shelf Knight elite pressure, and Vault Regent boss gate.
+
+counterplay:
+Players can compare proof, standing, route integrity, shortcut skip pressure, class option, and seal progress against audit static, collateral demands, exit pressure, AP timing, dread cost, LoS shifts, masked elite pressure, and boss procedure.
+
+preview/UI:
+`RunCatalog.generateArchiveSliceMap(seed)` emits node rewards, complications, previews, board variants, board seeds, choices, and boss gate data; `RunCatalog.validateArchiveSliceMap(map)` checks route payload coverage.
+
+test/replay proof:
+`tests/run.lua` verifies the Archive slice map validates, exposes rewards and complications, references all six board variants, covers required node kinds, binds the selected boss, counts route payloads, and serializes deterministically.
