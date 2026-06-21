@@ -1,5 +1,7 @@
 local BossCatalog = {}
 
+BossCatalog.order = { "codex_reeve", "vault_regent", "pearl_choir", "bell_diver", "kiln_vicar", "cinder_prioress" }
+
 BossCatalog.bosses = {
     codex_reeve = {
         name = "Codex Reeve",
@@ -205,16 +207,102 @@ BossCatalog.bosses = {
     },
 }
 
+BossCatalog.phaseBlueprints = {
+    codex_reeve = {
+        { id = "audit_opening", tilePattern = "north_south_register line", rotatingWeakPoint = { id = "open_register", rotation = 0, reveal = "front desk" }, terrainConversion = { from = "spent audit tile", to = "paper swarm", effect = "obscures LoS after audit resolves" }, objectivePressure = { objective = "witness", effect = "integrity loss on failed audit" }, clock = { turns = 2, visible = true }, counterplay = "break register or block audit line", preview = "audit line, AP loss, register weak point" },
+        { id = "seal_rotation", tilePattern = "witness diagonal", rotatingWeakPoint = { id = "east_back_seal", rotation = 1, reveal = "flank lane" }, terrainConversion = { from = "sealed desk", to = "claim blocker", effect = "desk becomes blocker until seal breaks" }, objectivePressure = { objective = "route_machine", effect = "AP tax if seal remains" }, clock = { turns = 2, visible = true }, counterplay = "rotate and break back seal", preview = "diagonal, seal, route tax" },
+        { id = "register_sentence", tilePattern = "cross audit lines", rotatingWeakPoint = { id = "west_back_seal", rotation = 3, reveal = "inactive line" }, terrainConversion = { from = "paper swarm", to = "redacted cover", effect = "cover hides next footprint" }, objectivePressure = { objective = "open_register", effect = "claim objective loses integrity" }, clock = { turns = 1, visible = true }, counterplay = "file objection at witness drawer", preview = "cross lines, redacted cover, objection prompt" },
+    },
+    vault_regent = {
+        { id = "claim_opening", tilePattern = "orthogonal claim beam", rotatingWeakPoint = { id = "east_writ_pillar", rotation = 1, reveal = "weak point lane" }, terrainConversion = { from = "brief wall", to = "legal cover", effect = "full cover blocks direct attacks" }, objectivePressure = { objective = "named_witness", effect = "collateral integrity loss" }, clock = { turns = 2, visible = true }, counterplay = "brace collateral tile", preview = "claim beam, collateral, writ pillar" },
+        { id = "collateral_cross", tilePattern = "cross claim beam", rotatingWeakPoint = { id = "south_writ_pillar", rotation = 2, reveal = "beam breaker" }, terrainConversion = { from = "custody bench", to = "rotated cover", effect = "cover edge changes by rotation" }, objectivePressure = { objective = "cargo", effect = "cargo becomes legal cover" }, clock = { turns = 2, visible = true }, counterplay = "destroy south pillar", preview = "cross beam, cargo claim, cover edge" },
+        { id = "remand_order", tilePattern = "split claim lanes", rotatingWeakPoint = { id = "north_writ_pillar", rotation = 0, reveal = "wall removal" }, terrainConversion = { from = "sealed brief wall", to = "open lane", effect = "pillar break opens attack lane" }, objectivePressure = { objective = "route_machine", effect = "legal claim escalates every turn" }, clock = { turns = 1, visible = true }, counterplay = "contest claim before clock resolves", preview = "split lanes, pillar hp, claim clock" },
+    },
+    pearl_choir = {
+        { id = "low_chorus", tilePattern = "west reflood row", rotatingWeakPoint = { id = "low_throat", rotation = 0, reveal = "low waterline throat" }, terrainConversion = { from = "drained lane", to = "ankle flood", effect = "lane becomes flood hazard" }, objectivePressure = { objective = "drain_machinery", effect = "integrity loss if reflood resolves" }, clock = { turns = 2, visible = true }, counterplay = "silence low throat", preview = "row reflood, throat, waterline" },
+        { id = "high_chorus", tilePattern = "east reflood column", rotatingWeakPoint = { id = "high_throat", rotation = 1, reveal = "core exposure" }, terrainConversion = { from = "ankle flood", to = "waist flood", effect = "low cover floats one tile" }, objectivePressure = { objective = "civilian_cells", effect = "cells become low ground" }, clock = { turns = 2, visible = true }, counterplay = "lower waterline before chorus", preview = "column reflood, high throat, cell risk" },
+        { id = "overflow_refrain", tilePattern = "overflow cross", rotatingWeakPoint = { id = "choir_core", rotation = 2, reveal = "silenced core" }, terrainConversion = { from = "waist flood", to = "overflow", effect = "low ground turns hostile" }, objectivePressure = { objective = "route_exit", effect = "exit route floods" }, clock = { turns = 1, visible = true }, counterplay = "block pressure bell spawns", preview = "overflow cross, add spawn, exit risk" },
+    },
+    bell_diver = {
+        { id = "toll_opening", tilePattern = "chain hook line", rotatingWeakPoint = { id = "bell_lung", rotation = 0, reveal = "behind chain lane" }, terrainConversion = { from = "low ground", to = "undertow", effect = "pull distance increases" }, objectivePressure = { objective = "route_machinery", effect = "carrier pulled toward low ground" }, clock = { turns = 3, visible = true }, counterplay = "block hook lane", preview = "hook line, toll clock, bell lung" },
+        { id = "reed_fork", tilePattern = "forked reed hook", rotatingWeakPoint = { id = "reed_lung", rotation = 1, reveal = "drain grate side" }, terrainConversion = { from = "drain grate", to = "open undertow", effect = "fork path redirects cargo" }, objectivePressure = { objective = "cargo", effect = "cargo is pulled before units" }, clock = { turns = 2, visible = true }, counterplay = "open drain grate", preview = "fork hook, cargo priority, drain" },
+        { id = "undertow_bell", tilePattern = "low-ground ring", rotatingWeakPoint = { id = "deep_bell", rotation = 2, reveal = "rear toll crack" }, terrainConversion = { from = "undertow", to = "hostile flood", effect = "all low ground becomes hostile" }, objectivePressure = { objective = "objective_carrier", effect = "carrier loses integrity on low ground" }, clock = { turns = 1, visible = true }, counterplay = "break bell lung before toll zero", preview = "ring, hostile flood, carrier risk" },
+    },
+    kiln_vicar = {
+        { id = "vitrify_mark", tilePattern = "vitrify reflection line", rotatingWeakPoint = { id = "east_halo_vent", rotation = 1, reveal = "reflection break" }, terrainConversion = { from = "floor", to = "glass hazard", effect = "target tile becomes reflector hazard" }, objectivePressure = { objective = "exposed_objective", effect = "objective can be selected as target" }, clock = { turns = 2, visible = true }, counterplay = "douse halo vent", preview = "vitrify line, vent, glass result" },
+        { id = "halo_overpressure", tilePattern = "north south heat lanes", rotatingWeakPoint = { id = "north_halo_vent", rotation = 0, reveal = "north heat source" }, terrainConversion = { from = "heat tile", to = "burning glass", effect = "heat lane blocks safe route" }, objectivePressure = { objective = "douse_route", effect = "route crosses objective tile" }, clock = { turns = 2, visible = true }, counterplay = "route water through heat lane", preview = "heat lanes, vent hp, route cost" },
+        { id = "ash_confession", tilePattern = "ash choke fan", rotatingWeakPoint = { id = "south_halo_vent", rotation = 2, reveal = "south douse lane" }, terrainConversion = { from = "ash choke", to = "dense ash cover", effect = "blocks LoS but hides objective preview" }, objectivePressure = { objective = "most_exposed", effect = "objective preferred if unshielded" }, clock = { turns = 1, visible = true }, counterplay = "break LoS with ash choke", preview = "ash fan, target selector, dense cover" },
+    },
+    cinder_prioress = {
+        { id = "liturgy_phase", tilePattern = "active furnace lane", rotatingWeakPoint = { id = "north_crown_reflector", rotation = 0, reveal = "first reflection angle" }, terrainConversion = { from = "furnace mouth", to = "heat lane", effect = "lights two furnace mouths" }, objectivePressure = { objective = "fuel_store", effect = "fuel heats next lane" }, clock = { turns = 2, visible = true }, counterplay = "douse fuel line", preview = "furnace lane, reflector, fuel pressure" },
+        { id = "veil_phase", tilePattern = "reflected side lane", rotatingWeakPoint = { id = "south_crown_reflector", rotation = 2, reveal = "safe douse route" }, terrainConversion = { from = "floor", to = "ash choke", effect = "adds smoke lines and cover" }, objectivePressure = { objective = "repair_reward", effect = "guard fuel to keep reward intact" }, clock = { turns = 2, visible = true }, counterplay = "use reflector to bend douse route", preview = "side lane, ash choke, reward risk" },
+        { id = "cinder_phase", tilePattern = "fuel-store burn cross", rotatingWeakPoint = { id = "rear_crown_reflector", rotation = 3, reveal = "Prioress weak point" }, terrainConversion = { from = "fuel cart", to = "burn lane", effect = "fuel stores count down into heat lanes" }, objectivePressure = { objective = "objective_cargo", effect = "destroying fuel costs cargo integrity" }, clock = { turns = 1, visible = true }, counterplay = "sacrifice or protect fuel before clock", preview = "burn cross, rear reflector, fuel bargain" },
+    },
+}
+
+for bossId, phases in pairs(BossCatalog.phaseBlueprints) do
+    if BossCatalog.bosses[bossId] then
+        BossCatalog.bosses[bossId].phaseProcedure = phases
+    end
+end
+
+function BossCatalog.auditPhaseProcedures()
+    local report = { ok = true, missing = {}, invalid = {}, coverage = {} }
+    for bossId, boss in pairs(BossCatalog.bosses) do
+        local phases = boss.phaseProcedure or {}
+        report.coverage[bossId] = #phases
+        if #phases < 3 then
+            table.insert(report.missing, bossId .. ".phaseProcedure")
+        end
+        local rotations = {}
+        for _, phase in ipairs(phases) do
+            if not (phase.id and phase.tilePattern and phase.counterplay and phase.preview) then
+                table.insert(report.invalid, bossId .. "." .. tostring(phase.id) .. ".metadata")
+            end
+            local weak = phase.rotatingWeakPoint
+            if not (weak and weak.id and weak.rotation ~= nil and weak.reveal) then
+                table.insert(report.invalid, bossId .. "." .. tostring(phase.id) .. ".rotatingWeakPoint")
+            else
+                rotations[weak.rotation] = true
+            end
+            local terrain = phase.terrainConversion
+            if not (terrain and terrain.from and terrain.to and terrain.effect) then
+                table.insert(report.invalid, bossId .. "." .. tostring(phase.id) .. ".terrainConversion")
+            end
+            local objective = phase.objectivePressure
+            if not (objective and objective.objective and objective.effect) then
+                table.insert(report.invalid, bossId .. "." .. tostring(phase.id) .. ".objectivePressure")
+            end
+            if not (phase.clock and phase.clock.visible == true and phase.clock.turns and phase.clock.turns >= 1) then
+                table.insert(report.invalid, bossId .. "." .. tostring(phase.id) .. ".clock")
+            end
+        end
+        local rotationCount = 0
+        for _ in pairs(rotations) do
+            rotationCount = rotationCount + 1
+        end
+        if rotationCount < 2 then
+            table.insert(report.invalid, bossId .. ".rotatingWeakPointCoverage")
+        end
+    end
+    report.ok = #report.missing == 0 and #report.invalid == 0
+    return report
+end
+
 function BossCatalog.boss(id)
     return BossCatalog.bosses[id]
 end
 
 function BossCatalog.allBosses()
     local bosses = {}
-    for _, id in ipairs({ "codex_reeve", "vault_regent", "pearl_choir", "bell_diver", "kiln_vicar", "cinder_prioress" }) do
+    for _, id in ipairs(BossCatalog.order) do
         bosses[#bosses + 1] = BossCatalog.boss(id)
     end
     return bosses
+end
+
+function BossCatalog.allBossIds()
+    return BossCatalog.order
 end
 
 return BossCatalog

@@ -61,6 +61,7 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S49 | https://www.ubisoft.com/en-us/game/mario-rabbids/sparks-of-hope/news-updates/5h386nVuiWuW3OcxFDJgih/mario-rabbids-sparks-of-hope-a-tactical-game-for-everyone | Three-hero teams combine special abilities and external powers for battle synergies. | Thoth keeps small squad sizes readable and scales board variance only within 2-6 units. |
 | S50 | https://subsetgames.com/itb.html | Telegraphed enemy attacks make every enemy action analyzable and counterable before resolution. | Thoth enemy archetypes require preview text, exact intent metadata, and counterplay before common enemies enter a family. |
 | S51 | https://www.feralinteractive.com/en/manuals/xcom2/latest/steam/ | Tactical actions include movement, line of sight, cover, overwatch, hunker, hack, interact, carry, evac, and class-role actions. | Thoth maps enemy variety to board verbs: move, shoot, lob, push, pull, block, summon, repair, sabotage, watch, and break terrain. |
+| S52 | https://www.gearsofwar.com/dev-blog-bosses/ | Boss fights work as combat puzzles with marked impact zones, armored weak windows, adds, cover pressure, mines, and phase escalation. | Thoth boss phases require tile patterns, rotating weak points, terrain conversion, objective pressure, visible clocks, counterplay, and preview text. |
 
 ## Mechanic Handoffs
 
@@ -511,6 +512,22 @@ counterplay: expose weak point, unseal intent, sound depth, clear ash/glass, bre
 preview/UI: elite inspector shows category icon, mask kind, hidden-footprint cue, weak point gate, reveal action, and counterplay line without exposing private tiles until reveal.
 
 test/replay proof: `EnemyCatalog.auditEliteMaskedIntents()` rejects missing category partials, missing hidden-footprint masks, category mismatch, missing reveal gates, weak-point mismatch, missing zone counterplay, and incomplete elite-family coverage.
+
+### H29 Boss Phase Procedures
+
+source pattern: Gears Tactics boss fights use marked impact zones, weak windows, adds, cover pressure, mines, and escalating phases; Into the Breach keeps dangerous enemy actions telegraphed.
+
+thoth transformation: Every boss receives a three-step phase procedure with tile pattern, rotating weak point, terrain conversion, objective pressure, visible clock, counterplay, and phase preview text.
+
+board verb: pattern, rotate, expose, convert, pressure, counter.
+
+zone fit: Archive phases use audit and claim lanes; Cistern phases use reflood and hook lanes; Warrens phases use vitrify, halo, ash, furnace, glass, and fuel lanes.
+
+counterplay: break weak point, rotate camera, block lanes, douse vents, drain water, brace collateral, contest claims, protect or sacrifice fuel, or trigger the listed non-damage counter.
+
+preview/UI: boss phase card shows phase id, tile pattern, weak-point rotation, terrain conversion, objective pressure, visible turn clock, counterplay, and preview text.
+
+test/replay proof: `BossCatalog.auditPhaseProcedures()` rejects missing phase charts, missing tile patterns, missing rotating weak points, missing terrain conversion, missing objective pressure, missing visible clocks, missing counterplay/preview, and weak-point rotation coverage below two rotations.
 
 ## Rejection Rules
 

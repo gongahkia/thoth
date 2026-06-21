@@ -1832,6 +1832,20 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local audit = BossCatalog.auditPhaseProcedures()
+    expect(audit.ok, "boss phase-procedure audit should pass")
+    for _, bossId in ipairs(BossCatalog.allBossIds()) do
+        local boss = BossCatalog.boss(bossId)
+        expect(audit.coverage[bossId] == 3, "boss should define 3 phase procedures: " .. boss.name)
+        for _, phase in ipairs(boss.phaseProcedure) do
+            expect(phase.tilePattern and phase.rotatingWeakPoint and phase.rotatingWeakPoint.rotation ~= nil, "boss phase should define tile pattern and rotating weak point: " .. boss.name)
+            expect(phase.terrainConversion and phase.terrainConversion.to and phase.objectivePressure and phase.objectivePressure.effect, "boss phase should define terrain conversion and objective pressure: " .. boss.name)
+            expect(phase.clock and phase.clock.visible == true and phase.counterplay and phase.preview, "boss phase should define visible clock, counterplay, and preview: " .. boss.name)
+        end
+    end
+end
+
+tests[#tests + 1] = function()
     local ids = {}
     for _, template in ipairs(RunCatalog.templates()) do
         ids[template.id] = template

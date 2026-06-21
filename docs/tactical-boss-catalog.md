@@ -183,3 +183,26 @@ Boss phase card must show exact intent, partial category hint, next terrain muta
 
 test/replay proof:
 `tests/run.lua` verifies every boss in `BossCatalog.allBosses()` defines the full tactical contract and every non-damage counter has `damage = 0`.
+
+## B.9 Boss Phase Procedures
+
+source pattern:
+Gears Tactics boss fights are combat puzzles with marked impact zones, weak windows, adds, cover pressure, and phase escalation.
+
+thoth transformation:
+Every boss defines a three-step phase procedure around tile pattern, rotating weak point, terrain conversion, objective pressure, visible clock, counterplay, and preview text.
+
+board verb:
+Pattern, rotate, expose, convert terrain, pressure objective, counter.
+
+zone fit:
+Archive phase procedures use audit lines, claim beams, paper swarms, seals, and legal cover. Cistern procedures use reflood lanes, hook lanes, waterline shifts, and low-ground pressure. Warrens procedures use vitrify lines, halo vents, ash choke, furnace lanes, reflectors, and fuel carts.
+
+counterplay:
+Break weak points, rotate for exposed backs, block lines, douse vents, drain lanes, brace objectives, contest claims, sacrifice or protect fuel, or use listed non-damage counters.
+
+preview/UI:
+Boss phase card shows current phase id, tile pattern, weak-point rotation, terrain conversion, objective pressure, visible turn clock, counterplay, and preview text.
+
+test/replay proof:
+`BossCatalog.auditPhaseProcedures()` rejects missing phase charts, missing tile patterns, missing rotating weak points, missing terrain conversion, missing objective pressure, missing visible clocks, missing counterplay/preview metadata, and weak-point rotation coverage below two rotations.
