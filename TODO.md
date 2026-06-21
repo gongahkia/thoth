@@ -156,7 +156,7 @@ Goal: ship one replayable tactical slice.
 - [x] 6.3 Three objective types: protect, extract, disable.
 - [x] 6.4 One elite and one boss.
 - [x] 6.5 One run map with route rewards and complications.
-- [ ] 6.6 One public alpha package and feedback form.
+- [x] 6.6 One public alpha package and feedback form.
 
 **Exit criteria:** players can complete multiple runs with different boards, squad choices, and route outcomes.
 

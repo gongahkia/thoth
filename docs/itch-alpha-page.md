@@ -2,7 +2,7 @@
 
 Page title: `Thoth - Buried Archive Alpha`
 
-Short description: `A compact expedition RPG about debt, light, and getting out before the Archive prices your names.`
+Short description: `A compact tactics roguelite about debt, declared threats, and getting out before the Archive prices your names.`
 
 Upload file: `dist/thoth.love`
 
@@ -10,13 +10,15 @@ Download button label: `Download Buried Archive Alpha`
 
 ## Description
 
-Thoth is a turn-based expedition RPG built in LOVE2D. Lead four ruined specialists into the Buried Archive, scout rooms, manage torchlight, camp at cold markers, and retreat with enough proof to keep the Estate alive.
+Thoth is a turn-based tactics roguelite built in LOVE2D. Lead four specialists through a Buried Archive route, choose loadouts, read declared enemy pressure, and extract proof before the route prices your names.
 
-This alpha contains the Phase 4 vertical slice:
+This alpha contains the Phase 6 tactical vertical slice:
 
-- Buried Archive Tier I mission chain.
-- Four starter classes: Warden, Duelist, Apothecary, Thief.
-- Estate prep, recruitment, recovery, provisions, trinkets, camping, combat, boss route, save/load, keyboard/controller input.
+- One Buried Archive run map with visible route rewards and complications.
+- Six procedural tactical board variants.
+- Four starter classes with two loadouts each: Warden, Duelist, Apothecary, Thief.
+- Three objective types: protect, extract, disable.
+- One selected elite, Shelf Knight, and one selected boss, Vault Regent.
 - Accessibility toggles for colorblind modes, high contrast, subtitles, font scale, and reduced motion.
 
 ## Controls
@@ -39,10 +41,16 @@ Animated GIF:
 
 - `assets/previews/alpha-loop.gif`
 
+## Feedback
+
+Use the GitHub Issues template `Alpha feedback`.
+
+High-value reports include route node, board variant, objective type, class loadout, enemy intent, visible complication, and whether counterplay was clear.
+
 ## Tags
 
 `rpg`, `turn-based`, `dungeon-crawler`, `dark-fantasy`, `love2d`, `lua`, `prototype`, `singleplayer`
 
 ## Devlog
 
-This is an early alpha for feedback on route pressure, combat readability, settings/accessibility, and the Buried Archive loop. Balance, art coverage, and content breadth are still in progress.
+This Phase 6 alpha is for feedback on route-map rewards and complications, tactical readability, class loadouts, objective clarity, elite/boss pressure, settings/accessibility, and the Buried Archive loop. Balance, art coverage, and content breadth are still in progress.

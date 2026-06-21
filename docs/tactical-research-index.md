@@ -774,6 +774,22 @@ preview/UI: `RunCatalog.generateArchiveSliceMap(seed)` exposes choices, rewards,
 
 test/replay proof: tests validate the map, require reward/complication payloads, require all six Archive board variants, cover combat/enclave/event/repair/elite/boss/shortcut/extraction nodes, bind the selected boss, and verify deterministic serialization.
 
+### H45 Phase 6 Public Alpha Package
+
+source pattern: Public alpha releases need a reproducible build artifact, page copy, feedback intake, and verification steps so players and triage see the same slice.
+
+thoth transformation: The Phase 6 package binds `dist/thoth.love`, itch alpha page copy, a `phase6-alpha` upload channel, and the GitHub `Alpha feedback` issue form to the Buried Archive tactical slice.
+
+board verb: package, publish, report, triage.
+
+zone fit: The public package frames route-map pressure, six Archive board variants, starter loadouts, protect/extract/disable objectives, Shelf Knight elite pressure, and Vault Regent boss pressure as the feedback surface.
+
+counterplay: Players can report route node, board variant, objective type, loadout, enemy intent, complication, and whether visible counterplay was clear.
+
+preview/UI: `docs/itch-alpha-page.md` carries public page copy; `.github/ISSUE_TEMPLATE/alpha_feedback.yml` carries the tactical feedback form; `docs/phase6-alpha-package.md` carries packaging commands and status.
+
+test/replay proof: tests verify package manifest/page/form contents; package verification uses `make package-build` and `luajit tests/package.lua dist/thoth.love`.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

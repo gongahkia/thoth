@@ -2413,6 +2413,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local manifest = readFile("docs/phase6-alpha-package.md") or ""
+    local page = readFile("docs/itch-alpha-page.md") or ""
+    local form = readFile(".github/ISSUE_TEMPLATE/alpha_feedback.yml") or ""
+    expect(manifest:find("dist/thoth.love", 1, true) and manifest:find("phase6-alpha", 1, true), "phase 6 package manifest should identify artifact and channel")
+    expect(manifest:find(".github/ISSUE_TEMPLATE/alpha_feedback.yml", 1, true) and manifest:find("make package-build", 1, true), "phase 6 package manifest should identify form and build command")
+    expect(page:find("Phase 6", 1, true) and page:find("Six procedural tactical board variants", 1, true), "alpha page should describe phase 6 boards")
+    expect(page:find("Shelf Knight", 1, true) and page:find("Vault Regent", 1, true), "alpha page should name selected elite and boss")
+    expect(page:find("Alpha feedback", 1, true), "alpha page should point to feedback form")
+    expect(form:find("Phase 6", 1, true) and form:find("Tactical readability", 1, true), "alpha feedback form should identify tactical alpha category")
+    expect(form:find("Route map or loadout", 1, true) and form:find("tactical_context", 1, true), "alpha feedback form should collect tactical context")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsBoard.new({
         defaultAp = 3,
         board = {

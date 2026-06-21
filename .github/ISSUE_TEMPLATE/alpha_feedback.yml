@@ -1,11 +1,11 @@
 name: Alpha feedback
-description: Report Phase 4 alpha feedback by category.
+description: Report Phase 6 Buried Archive tactical alpha feedback by category.
 title: "[Alpha feedback]: "
 body:
   - type: markdown
     attributes:
       value: |
-        Use this for the Buried Archive alpha. Pick one primary category so triage can sort feedback quickly.
+        Use this for the Phase 6 Buried Archive tactical alpha. Pick one primary category so triage can sort feedback quickly.
   - type: dropdown
     id: category
     attributes:
@@ -14,6 +14,8 @@ body:
         - Bug
         - Balance
         - Feel
+        - Tactical readability
+        - Route map or loadout
         - Scope
     validations:
       required: true
@@ -47,7 +49,12 @@ body:
     id: reproduction
     attributes:
       label: Reproduction or play context
-      description: For bugs, list steps. For balance/feel/scope, describe party, mission, week, and route state.
+      description: For bugs, list steps. For balance/feel/scope, describe route node, board variant, objective type, class loadout, and turn state.
+  - type: textarea
+    id: tactical_context
+    attributes:
+      label: Tactical context
+      description: Note objective type, selected unit/loadout, enemy intent, visible complication, and whether the counterplay was clear.
   - type: textarea
     id: evidence
     attributes:
