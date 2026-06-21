@@ -112,7 +112,6 @@ Goal: replace expedition/rank combat with the tile tactics engine.
 
 Goal: make runs varied without sacrificing readability.
 
-- [ ] 2.2 Add zone generators for Buried Archive, Salt Cistern, and Ember Warrens.
 - [ ] 2.3 Add encounter director: enemy mix, intent density, objective pressure, reinforcement timing, and retreat routes.
 - [ ] 2.4 Add run map: route choices, risk/reward previews, enclave requests, boss gates, and event nodes.
 - [ ] 2.5 Add RNG event layer for pre/post mission complications; tactical combat remains deterministic after board start.

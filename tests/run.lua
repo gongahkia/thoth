@@ -1988,6 +1988,26 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local expected = {
+        buried_archive = { material = "archive", hazardKind = "audit_static", objectiveKind = "protect_archive_shelf" },
+        salt_cistern = { material = "salt", hazardKind = "flood", objectiveKind = "repair_floodgate" },
+        ember_warrens = { material = "ember", hazardKind = "burn", objectiveKind = "disable_kiln" },
+    }
+    expect(#TacticsProcgen.zoneGenerators() == 3, "procgen should expose three zone generators")
+    for zoneId, expectation in pairs(expected) do
+        local generator = TacticsProcgen.zoneGenerator(zoneId)
+        local spec = TacticsProcgen.generateZoneBoard(zoneId, 2202)
+        expect(generator and generator.zone == zoneId, zoneId .. " generator should exist")
+        expect(spec.zone == zoneId and spec.generator.id == generator.id, zoneId .. " board should record generator")
+        expect(spec.generator.material == expectation.material and spec.generator.hazardKind == expectation.hazardKind, zoneId .. " generator should apply terrain dressing")
+        expect(spec.objectives[1].kind == expectation.objectiveKind, zoneId .. " generator should apply objective kind")
+        expect(TacticsProcgen.validateGrammarBoard(spec).valid, zoneId .. " generated board should validate")
+        expect(TacticsProcgen.zoneState(zoneId, 2202):tileAt(spec.objectives[1].x, spec.objectives[1].y).material == expectation.material, zoneId .. " generated state should keep material")
+        expect(Serialize.encode(spec) == Serialize.encode(TacticsProcgen.generateZoneBoard(zoneId, 2202)), zoneId .. " generator should be deterministic per seed")
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
             width = 4,

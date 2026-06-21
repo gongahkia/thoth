@@ -31,6 +31,9 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S19 | https://media.gdcvault.com/gdc2018/presentations/Hess_Brian_PlotAndParcel.pdf | XCOM 2 procedural plots use object spacing, cover density, and LoS as level-quality constraints. | Thoth board grammar emits cover fields, sight breaks, and validation-facing component counts before the board ships. |
 | S20 | https://procedural-generation.isaackarth.com/2017/05/04/priorities-in-generation-generalizing-from.html | Invisible Inc-style generation favors playable rooms, corridors, goals, exits, patrols, and gated paths over realistic interiors. | Thoth generators carve explicit tactical rooms, corridors, objective anchors, spawn pockets, and hazard gates first. |
 | S21 | https://www.wired.com/story/into-the-breach-review-ftl-developers-new-game-subset-games/ | Compact deterministic boards keep tactical state readable and failures attributable to decisions. | Thoth board grammar starts small, exposes hazards/objectives/spawns, and keeps RNG before board load. |
+| S22 | https://journal.stuffwithstuff.com/2014/12/21/rooms-and-mazes/ | Dungeon generators can connect every reachable cell while producing different room/corridor layouts. | Zone boards use the shared connected grammar, then vary local terrain rules. |
+| S23 | https://www.gamedeveloper.com/design/level-design-in-procedural-generation | Procedural levels can preserve critical path, side-room risk/reward, and testing discipline. | Thoth zone generators keep the grammar path stable while swapping zone-specific objective pressure and hazard rewards. |
+| S24 | https://www.gridsagegames.com/blog/2014/06/procedural-map-generation/ | Map generators should choose methods that fit gameplay; prefabs provide control over important spaces. | Thoth starts from controlled tactical grammar pieces and uses zone dressing for replay variety. |
 
 ## Mechanic Handoffs
 
@@ -241,6 +244,22 @@ counterplay: route around hazards, use or destroy cover, break LoS, block spawns
 preview/UI: debug overlays can toggle grammar components; player overlays expose objective, cover, LoS, hazard, and spawn-risk facts.
 
 test/replay proof: fixed seed generation validates every grammar component and serializes identically from the same seed.
+
+### H14 Zone Generators
+
+source pattern: procedural dungeon generators can reuse connected room/corridor methods, preserve critical path pressure, and rely on controlled pieces where gameplay needs precision.
+
+thoth transformation: Buried Archive, Salt Cistern, and Ember Warrens generators reuse the same board grammar while changing material, hazard kind, objective kind, and sight-break object.
+
+board verb: localize, dress, threaten, validate.
+
+zone fit: Archive audit-static shelves, Cistern floodgate/sluice pressure, Warrens kiln/burn pressure.
+
+counterplay: same readable board skeleton, different hazard/objective answers per zone.
+
+preview/UI: route preview can show generator id, zone, hazard, and objective kind before board load.
+
+test/replay proof: each zone generator validates and serializes deterministically for a fixed seed.
 
 ## Rejection Rules
 
