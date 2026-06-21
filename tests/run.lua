@@ -1362,6 +1362,18 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    for _, zoneId in ipairs({ "buried_archive", "salt_cistern", "ember_warrens" }) do
+        local count = 0
+        for _, mechanic in ipairs(ZoneCatalog.tileMechanics(zoneId)) do
+            if mechanic.helpsEitherSide then
+                count = count + 1
+            end
+        end
+        expect(count >= 3, zoneId .. " should define at least 3 double-edged terrain mechanics")
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

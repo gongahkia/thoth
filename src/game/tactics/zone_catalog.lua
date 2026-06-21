@@ -3,17 +3,17 @@ local ZoneCatalog = {}
 ZoneCatalog.zones = {
     buried_archive = {
         tileMechanics = {
-            { id = "archive_shelf_shift", subject = "shelves", verb = "shove", effect = "moves full cover and can crush lanes" },
+            { id = "archive_shelf_shift", subject = "shelves", verb = "shove", effect = "moves full cover and can crush lanes", helpsEitherSide = true },
             { id = "archive_claim_desk", subject = "desks", verb = "claim", effect = "half cover claim tile for hold objectives" },
             { id = "archive_claim_line", subject = "claim lines", verb = "hold", effect = "scores presence while intents escalate" },
             { id = "archive_sealed_door", subject = "sealed doors", verb = "seal_open", effect = "blocks movement and LoS until opened" },
             { id = "archive_witness_drawer", subject = "witness drawers", verb = "reveal", effect = "exposes redacted intent or hidden tile marks" },
             { id = "archive_falling_records", subject = "falling records", verb = "collapse", effect = "delayed fuse creates blocker and damage" },
             { id = "archive_name_lock", subject = "name locks", verb = "disable", effect = "spend AP/tool to open route or objective" },
-            { id = "archive_audit_beam", subject = "audit beams", verb = "line", effect = "visible LoS lane pressures movement" },
+            { id = "archive_audit_beam", subject = "audit beams", verb = "line", effect = "visible LoS lane pressures movement", helpsEitherSide = true },
             { id = "archive_misfile_pit", subject = "misfile pits", verb = "drop", effect = "forced movement hazard changes elevation" },
             { id = "archive_ledger_bridge", subject = "ledger bridges", verb = "toggle", effect = "opens split-squad crossing dependency" },
-            { id = "archive_paper_swarm", subject = "paper swarms", verb = "obscure", effect = "visible obscurant with countdown" },
+            { id = "archive_paper_swarm", subject = "paper swarms", verb = "obscure", effect = "visible obscurant with countdown", helpsEitherSide = true },
             { id = "archive_back_face_seal", subject = "back-face seals", verb = "rotate_reveal", effect = "rotation mark reveals planning fact only" },
         },
         objects = {
@@ -36,16 +36,16 @@ ZoneCatalog.zones = {
     salt_cistern = {
         tileMechanics = {
             { id = "cistern_valve_turn", subject = "valves", verb = "turn", effect = "raises or drains declared water bands" },
-            { id = "cistern_sluice_current", subject = "sluice currents", verb = "push", effect = "moves units along previewed arrows after actions" },
+            { id = "cistern_sluice_current", subject = "sluice currents", verb = "push", effect = "moves units along previewed arrows after actions", helpsEitherSide = true },
             { id = "cistern_flood_lane", subject = "flood lanes", verb = "surge", effect = "delayed line hazard fills marked tiles" },
-            { id = "cistern_brine_pool", subject = "brine pools", verb = "wade", effect = "slows movement and threatens blight damage" },
+            { id = "cistern_brine_pool", subject = "brine pools", verb = "wade", effect = "slows movement and threatens blight damage", helpsEitherSide = true },
             { id = "cistern_salt_mist", subject = "salt mist", verb = "obscure", effect = "visible obscurant changes LoS and reveal ranges" },
             { id = "cistern_pressure_bell", subject = "pressure bells", verb = "ring", effect = "signals enemy intent escalation on flooded rows" },
             { id = "cistern_pearl_cyst", subject = "pearl cysts", verb = "burst", effect = "creates blocker shards and brine splash" },
             { id = "cistern_pump_bridge", subject = "pump bridges", verb = "pump", effect = "toggles crossing tiles by waterline state" },
             { id = "cistern_undertow_tile", subject = "undertow tiles", verb = "drag", effect = "pulls exposed units toward drains" },
             { id = "cistern_drain_grate", subject = "drain grates", verb = "open", effect = "removes nearby flood lane and creates pit risk" },
-            { id = "cistern_floating_cover", subject = "floating cover", verb = "drift", effect = "moves half cover with currents" },
+            { id = "cistern_floating_cover", subject = "floating cover", verb = "drift", effect = "moves half cover with currents", helpsEitherSide = true },
             { id = "cistern_waterline_height", subject = "waterline height", verb = "rise_fall", effect = "changes movement cost and LoS height bands" },
         },
         objects = {
@@ -68,10 +68,10 @@ ZoneCatalog.zones = {
     ember_warrens = {
         tileMechanics = {
             { id = "warrens_kiln_heat", subject = "kilns", verb = "stoke", effect = "creates declared heat around kiln mouths" },
-            { id = "warrens_ash_choke", subject = "ash choke", verb = "clog", effect = "slows movement and obscures low LoS" },
-            { id = "warrens_bellows_cone", subject = "bellows cones", verb = "blast", effect = "pushes heat and units through previewed cone" },
+            { id = "warrens_ash_choke", subject = "ash choke", verb = "clog", effect = "slows movement and obscures low LoS", helpsEitherSide = true },
+            { id = "warrens_bellows_cone", subject = "bellows cones", verb = "blast", effect = "pushes heat and units through previewed cone", helpsEitherSide = true },
             { id = "warrens_glass_floor", subject = "glass floors", verb = "crack", effect = "reveals fragile path and shard hazard" },
-            { id = "warrens_vitrified_cover", subject = "vitrified cover", verb = "reflect", effect = "half cover reflects first line effect until shattered" },
+            { id = "warrens_vitrified_cover", subject = "vitrified cover", verb = "reflect", effect = "half cover reflects first line effect until shattered", helpsEitherSide = true },
             { id = "warrens_heat_lane", subject = "heat lanes", verb = "burn", effect = "delayed line damage on marked rows" },
             { id = "warrens_fuel_store", subject = "fuel stores", verb = "ignite", effect = "creates timed fire burst and smoke" },
             { id = "warrens_ember_oil", subject = "ember oil", verb = "spread", effect = "extends burn tiles until doused" },

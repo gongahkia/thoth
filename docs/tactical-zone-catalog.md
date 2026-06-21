@@ -135,3 +135,20 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies every zone has at least 4 rotation facts and each one is metadata-only.
+
+## Z.8 Double-Edged Terrain Mechanics
+
+Each zone defines at least 3 terrain mechanics marked `helpsEitherSide = true`:
+
+- Buried Archive: shelf shift, audit beam, paper swarm.
+- Salt Cistern: sluice current, brine pool, floating cover.
+- Ember Warrens: ash choke, bellows cone, vitrified cover.
+
+Rules:
+
+- Double-edged mechanics can help player or enemy depending on positioning.
+- The preview data stays deterministic.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies every zone has at least 3 mechanics marked `helpsEitherSide`.

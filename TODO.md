@@ -80,8 +80,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Zone Terrain Catalogs
 
-- [ ] Z.8 Each zone must include at least 3 terrain mechanics that can help either side.
-
 ### Class & Loadout Catalog
 
 - [ ] CL.1 Warden: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
