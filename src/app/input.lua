@@ -113,6 +113,17 @@ local function requestMove(app, screenDirection)
     app.activeMoveDirection = screenDirection
 end
 
+local function copyValue(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local result = {}
+    for key, nested in pairs(value) do
+        result[key] = copyValue(nested)
+    end
+    return result
+end
+
 local function rotateView(app, delta)
     local from = app.viewRotationVisual or app.viewRotation or 0
     local target = ((app.viewRotation or 0) + delta) % 4
@@ -191,6 +202,18 @@ end
 
 function Input.gamepadButtonKey(button)
     return gamepadButtonKeys[button]
+end
+
+function Input.tacticalGamepadMap()
+    return copyValue({
+        cursor = { axes = { "leftx", "lefty" }, digital = { "dpup", "dpright", "dpdown", "dpleft" } },
+        select = { button = "a", key = gamepadButtonKeys.a },
+        back = { button = "b", key = gamepadButtonKeys.b },
+        inspect = { button = "x", key = gamepadButtonKeys.x },
+        focus = { button = "y", key = gamepadButtonKeys.y },
+        rotateLeft = { button = "leftshoulder", key = gamepadButtonKeys.leftshoulder },
+        rotateRight = { button = "rightshoulder", key = gamepadButtonKeys.rightshoulder },
+    })
 end
 
 function Input.gamepadAxisKey(axis, value, axisState)

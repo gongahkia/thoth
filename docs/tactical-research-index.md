@@ -65,6 +65,8 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S53 | https://book.leveldesignbook.com/process/combat/cover | Cover objects block sightlines or shield units, and their implementation changes how players use combat spaces. | Thoth destructible location rules expose HP, LoS/cover state, break effects, repair counterplay, and previews for shelves, bridges, valves, kilns, doors, floors, and machinery. |
 | S54 | https://www.w3.org/WAI/WCAG22/Techniques/css/C39 | Interaction-triggered motion should be suppressible when reduced motion is enabled. | Thoth reduced motion replaces tactical animation with static cues for rotation, destruction, knockback, and explosions. |
 | S55 | https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Media_queries/Using_for_accessibility | Reduced motion should minimize non-essential movement while preserving essential information. | Thoth motion plans preserve tile coordinates, terrain state, final unit tile, and affected blast tiles through non-animated equivalents. |
+| S56 | https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/107 | Games should provide alternate input mechanisms, analog and digital navigation, remappable actions, and avoid unnecessary input complexity. | Thoth controller flow uses single-press staged actions for selecting units, tiles, actions, targets, and previews. |
+| S57 | https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/112 | UI navigation should be consistent, predictable, and fully operable with controller and digital input. | Thoth maps tactical controller prompts to consistent select, back, inspect, focus, rotate, and cursor controls. |
 
 ## Mechanic Handoffs
 
@@ -659,6 +661,22 @@ counterplay: players can inspect view angle, destroyed tile state, forced-moveme
 preview/UI: `Render.motionPlan()` emits reduced plans with `animation = "none"`, static equivalent text, cue id, preserved state domain, source/target, and affected tiles.
 
 test/replay proof: `Render.reducedMotionEquivalents()`, `Render.motionPlan()`, UI pulse suppression, and reduced-motion rotation snap are tested for all four required effect families.
+
+### H38 Tactical Controller Path
+
+source pattern: Xbox accessibility guidance recommends alternate input mechanisms, analog and digital UI navigation, single-press operation, remappable actions, consistent focus order, and predictable controller prompts.
+
+thoth transformation: Tactical controller flow is staged as select unit, select tile, select action, select target, and confirm preview, with inspect/focus/back/rotate controls available before commit.
+
+board verb: focus, select, inspect, target, confirm, cancel.
+
+zone fit: Archive, Cistern, and Warrens boards use the same controller path while local tile facts and intent traces populate previews.
+
+counterplay: controller-only players can reach the same selected AP, tile inspector, move preview, action preview, target preview, and before-commit preview as mouse/keyboard players.
+
+preview/UI: `UICatalog.controllerPath()` defines principles, bindings, and five stages; `Input.tacticalGamepadMap()` exposes select, back, inspect, focus, shoulder rotation, and analog/digital cursor inputs.
+
+test/replay proof: Tests verify joystick module enablement, gamepad button/axis mapping, tactical map bindings, controller path stages, stage input/output/preview metadata, and cancel-before-commit support.
 
 ## Rejection Rules
 

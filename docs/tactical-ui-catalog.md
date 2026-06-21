@@ -275,3 +275,26 @@ preview/UI:
 
 test/replay proof:
 `tests/run.lua` verifies all four equivalents, reduced and animated plans, preserved tile metadata, UI pulse suppression, and reduced-motion camera rotation snap.
+
+## U.13 Tactical Controller Path
+
+source pattern:
+Accessible game UI supports analog and digital navigation, single-press actions, consistent prompts, remapping, and predictable focus.
+
+thoth transformation:
+Thoth defines a controller path for selecting units, selecting tiles, choosing actions, selecting targets, and confirming previews.
+
+board verb:
+Focus, select, inspect, target, confirm, cancel.
+
+zone fit:
+All zone boards share the same controller path while local objectives, hazards, and intents feed preview text.
+
+counterplay:
+The player can inspect a unit, tile, action, target, and before-commit preview with controller-only input and cancel before queuing the command.
+
+preview/UI:
+`UICatalog.controllerPath()` defines principles, bindings, and stages; `Input.tacticalGamepadMap()` exposes select, back, inspect, focus, rotation shoulders, and analog/digital cursor controls.
+
+test/replay proof:
+`tests/run.lua` verifies joystick module enablement, button/axis mapping, tactical gamepad map fields, controller path bindings, five required stages, stage input/output/preview metadata, and cancel-before-commit support.

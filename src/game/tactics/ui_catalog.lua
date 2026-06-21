@@ -81,6 +81,27 @@ UICatalog.tacticalHudContract = {
     },
 }
 
+UICatalog.controllerPathContract = {
+    id = "tactical_controller_path",
+    principles = { "single_press_steps", "analog_or_digital_cursor", "cancel_before_commit", "preview_before_commit" },
+    bindings = {
+        cursor = "left_stick_or_dpad",
+        select = "a",
+        back = "b",
+        inspect = "x",
+        focus = "y",
+        rotateLeft = "leftshoulder",
+        rotateRight = "rightshoulder",
+    },
+    stages = {
+        { id = "select_unit", input = "cursor plus select", output = "selectedUnitId", preview = "selectedUnitAp" },
+        { id = "select_tile", input = "cursor plus inspect", output = "tileCursor", preview = "tileInspectorSummary and movePreview" },
+        { id = "select_action", input = "focus action rail plus select", output = "pendingAction", preview = "actionPreview" },
+        { id = "select_target", input = "cursor or shoulder cycle plus select", output = "target", preview = "targetPreview and intentTraces" },
+        { id = "confirm_preview", input = "select confirm or back cancel", output = "queuedCommand", preview = "beforeCommitPreview" },
+    },
+}
+
 UICatalog.rotationReadability = {
     rotations = { 0, 90, 180, 270 },
     appliesTo = { "movement", "enemy_intent", "los", "cover", "objectives", "hazards", "hidden_revealed" },
@@ -277,6 +298,10 @@ end
 
 function UICatalog.tacticalHud()
     return UICatalog.tacticalHudContract
+end
+
+function UICatalog.controllerPath()
+    return UICatalog.controllerPathContract
 end
 
 function UICatalog.tileInspectorSummary(state, x, y, options)

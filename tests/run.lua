@@ -2161,6 +2161,24 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local path = UICatalog.controllerPath()
+    expect(path.id == "tactical_controller_path" and #path.principles == 4, "controller path should define principles")
+    local map = Input.tacticalGamepadMap()
+    expect(path.bindings.select == map.select.button and path.bindings.back == map.back.button, "controller path should align select/back bindings")
+    expect(path.bindings.inspect == map.inspect.button and path.bindings.focus == map.focus.button, "controller path should align inspect/focus bindings")
+    expect(path.bindings.rotateLeft == map.rotateLeft.button and path.bindings.rotateRight == map.rotateRight.button, "controller path should align rotation bindings")
+    local stages = {}
+    for _, stage in ipairs(path.stages) do
+        stages[stage.id] = stage
+        expect(stage.input and stage.output and stage.preview, "controller path stage should expose input output preview: " .. stage.id)
+    end
+    for _, id in ipairs({ "select_unit", "select_tile", "select_action", "select_target", "confirm_preview" }) do
+        expect(stages[id], "controller path missing stage " .. id)
+    end
+    expect(stages.confirm_preview.input:find("back cancel", 1, true), "controller path should support cancel before commit")
+end
+
+tests[#tests + 1] = function()
     local readability = UICatalog.rotationChecks()
     local applies = {}
     expect(#readability.rotations == 4, "rotation readability should check four rotations")
@@ -3493,6 +3511,11 @@ tests[#tests + 1] = function()
     expect(confText:find("t.modules.joystick = true", 1, true) ~= nil, "controller support should enable joystick module")
     expect(Input.gamepadButtonKey("a") == "return" and Input.gamepadButtonKey("b") == "escape", "gamepad buttons should map to select and back")
     expect(Input.gamepadButtonKey("x") == "space" and Input.gamepadButtonKey("y") == "tab", "gamepad buttons should map to interact and focus")
+    local tacticalMap = Input.tacticalGamepadMap()
+    expect(tacticalMap.select.button == "a" and tacticalMap.select.key == "return", "tactical gamepad map should expose select")
+    expect(tacticalMap.back.button == "b" and tacticalMap.inspect.button == "x" and tacticalMap.focus.button == "y", "tactical gamepad map should expose back inspect focus")
+    expect(tacticalMap.rotateLeft.button == "leftshoulder" and tacticalMap.rotateRight.button == "rightshoulder", "tactical gamepad map should expose rotation shoulders")
+    expect(tacticalMap.cursor.axes[1] == "leftx" and tacticalMap.cursor.digital[1] == "dpup", "tactical gamepad map should expose analog and digital cursor")
     local axisState = {}
     expect(Input.gamepadAxisKey("leftx", 0.8, axisState) == "right", "left stick should map positive x to right")
     expect(Input.gamepadAxisKey("leftx", 0.9, axisState) == nil, "held stick should not repeat until recentered")
