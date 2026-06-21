@@ -1772,6 +1772,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local layer = RunCatalog.rollEventLayer(2505, {
+        preBoard = { alters = "board_modifier" },
+        postBoard = { alters = "objective_reward" },
+    })
+    local report = RunCatalog.validateEventLayer(layer)
+    expect(report.valid, "event layer should validate")
+    expect(layer.preBoard.timing == "pre_board" and layer.preBoard.alters == "board_modifier", "event layer should roll pre-board complication")
+    expect(layer.postBoard.timing == "post_board" and layer.postBoard.alters == "objective_reward", "event layer should roll post-board complication")
+    expect(layer.tacticalResolutionRng == false and layer.boardStartLocksRng == true, "event layer should lock tactical RNG after board start")
+    expect(Serialize.encode(layer) == Serialize.encode(RunCatalog.rollEventLayer(2505, { preBoard = { alters = "board_modifier" }, postBoard = { alters = "objective_reward" } })), "event layer should be deterministic per seed")
+end
+
+tests[#tests + 1] = function()
     local export = RunCatalog.seededExport()
     local fields = {}
     expect(export.version == 1, "seeded run export should define version")

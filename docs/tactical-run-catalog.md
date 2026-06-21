@@ -138,6 +138,29 @@ Event card labels timing as pre-board or post-board and describes the board/run 
 test/replay proof:
 `tests/run.lua` verifies every event RNG rule runs only pre-board or post-board and covers both timing windows.
 
+## P.5b Event RNG Layer
+
+source pattern:
+Pre-randomness gives the player varied conditions to assess before action; post-action randomness inside tactical resolution reduces agency if it changes committed outcomes.
+
+thoth transformation:
+Thoth rolls event complications before board load and after board resolution, records both rolls, and marks tactical resolution RNG as disabled once the board starts.
+
+board verb:
+Roll, preview, lock, resolve, record.
+
+zone fit:
+All zones can use pre-board board modifiers, offers, squad state changes, and post-board rewards/consequences without randomizing declared attacks.
+
+counterplay:
+Players see event prompts before deployment or after extraction; no event roll changes an already declared tactical hit, miss, cover result, or damage number.
+
+preview/UI:
+Event layer shows timing, event id, altered system, prompt, rule id, and whether board-start RNG lock is active.
+
+test/replay proof:
+`tests/run.lua` verifies event layers contain pre-board and post-board rolls, validate the tactical RNG lock, and serialize deterministically from the same seed.
+
 ## P.6 Seeded Full-Run Export
 
 source pattern:

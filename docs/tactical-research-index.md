@@ -40,6 +40,9 @@ Use this file before any mechanic/content batch enters implementation. A borrowe
 | S28 | https://thehexagarden.com/blog/lets-make-a-map-1 | Roguelite maps create agency through branching paths with visible risk/reward and node variety. | Thoth run maps expose route choices, enclave requests, events, elite/repair routes, and boss gates. |
 | S29 | https://www.diva-portal.org/smash/get/diva2%3A1565751/FULLTEXT02 | Slay the Spire-style maps use connected node types like enemy, elite, shop/event/resource, and boss, where path choice balances risk and power. | Thoth node previews state tactical risk, run reward, and boss-gate requirements before commitment. |
 | S30 | https://thom.ee/blog/what-makes-or-breaks-agency-in-roguelikes/ | Roguelike agency improves when randomness happens before decisions and choices remain meaningful across a run. | Thoth route/event data is visible pre-action; tactical resolution stays deterministic after board load. |
+| S31 | https://www.gamedeveloper.com/design/randomness-in-games-why- | Pre-randomness varies conditions before action; post-randomness changes results after action and can frustrate skill expression. | Thoth event RNG rolls before/after boards and locks tactical resolution after board start. |
+| S32 | https://www.gridsagegames.com/blog/2025/08/designing-for-mastery-in-roguelikes-w-roguelike-radio/ | Procedural runs can preserve mastery by telegraphing notable changes and offering control before or after major events. | Thoth event layers record timing and prompts so route/deployment choices remain inspectable. |
+| S33 | https://beigemoth.blog/2019/03/20/towards-a-better-roguelike-types-of-randomness/ | Randomness should create challenges without stripping the player's core ability to act. | Thoth event modifiers alter run context, not declared tactical command resolution. |
 
 ## Mechanic Handoffs
 
@@ -298,6 +301,22 @@ counterplay: accept or avoid pressure based on visible risk/reward before the ne
 preview/UI: map node preview lists kind, risk, reward, detail, event id, enclave request, and boss gate requirement.
 
 test/replay proof: fixed seed run map validates all required node kinds and serializes identically.
+
+### H17 Event RNG Layer
+
+source pattern: pre-action randomness creates varied conditions to assess; post-action randomness inside committed resolution reduces agency.
+
+thoth transformation: Event layer rolls pre-board and post-board complications, records prompts and altered systems, and disables tactical resolution RNG after board start.
+
+board verb: roll, preview, lock, resolve, record.
+
+zone fit: all zones can apply route, board, squad, reward, and faction events outside tactical resolution.
+
+counterplay: read event timing and prompt before deployment or after extraction; no random event changes declared tactical hit/damage/cover outcomes.
+
+preview/UI: event card lists timing, event id, altered system, prompt, rule id, and RNG-lock state.
+
+test/replay proof: fixed seed event layer validates pre/post timings and serializes identically.
 
 ## Rejection Rules
 

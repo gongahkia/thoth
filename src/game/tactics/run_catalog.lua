@@ -145,6 +145,26 @@ local function eventFor(seed)
     return RunCatalog.eventPrompts[rng:range(1, #RunCatalog.eventPrompts)]
 end
 
+local function eventsForAlter(alter)
+    local result = {}
+    for _, event in ipairs(RunCatalog.eventPrompts) do
+        if not alter or event.alters == alter then
+            result[#result + 1] = event
+        end
+    end
+    return #result > 0 and result or RunCatalog.eventPrompts
+end
+
+local function eventRuleFor(timing)
+    local matches = {}
+    for _, rule in ipairs(RunCatalog.eventRngRules) do
+        if rule.timing == timing then
+            matches[#matches + 1] = rule
+        end
+    end
+    return matches
+end
+
 local function node(id, kind, depth, data)
     local result = copyValue(data or {})
     result.id = id
@@ -254,6 +274,57 @@ function RunCatalog.generateMap(seed, options)
         nodes = nodes,
         nodeById = byId,
     }
+end
+
+function RunCatalog.rollEvent(seed, timing, context)
+    context = context or {}
+    if timing ~= "pre_board" and timing ~= "post_board" then
+        error("event roll timing must be pre_board or post_board", 2)
+    end
+    local rng = Rng.new((seed or 1) + (timing == "pre_board" and 7001 or 9001))
+    local rules = eventRuleFor(timing)
+    local rule = rules[rng:range(1, #rules)]
+    local events = eventsForAlter(context.alters)
+    local event = events[rng:range(1, #events)]
+    return {
+        timing = timing,
+        ruleId = rule.id,
+        roll = rule.roll,
+        effect = rule.effect,
+        eventId = event.id,
+        alters = event.alters,
+        prompt = event.prompt,
+        boardStarted = false,
+    }
+end
+
+function RunCatalog.rollEventLayer(seed, context)
+    context = context or {}
+    return {
+        seed = seed or 1,
+        boardSeed = context.boardSeed or ((seed or 1) + 1),
+        preBoard = RunCatalog.rollEvent(seed, "pre_board", context.preBoard),
+        postBoard = RunCatalog.rollEvent(seed, "post_board", context.postBoard),
+        tacticalResolutionRng = false,
+        boardStartLocksRng = true,
+    }
+end
+
+function RunCatalog.validateEventLayer(layer)
+    local report = { valid = true, missing = {} }
+    if not layer or not layer.preBoard or layer.preBoard.timing ~= "pre_board" then
+        report.valid = false
+        report.missing[#report.missing + 1] = "pre_board"
+    end
+    if not layer or not layer.postBoard or layer.postBoard.timing ~= "post_board" then
+        report.valid = false
+        report.missing[#report.missing + 1] = "post_board"
+    end
+    if not layer or layer.tacticalResolutionRng ~= false or layer.boardStartLocksRng ~= true then
+        report.valid = false
+        report.missing[#report.missing + 1] = "tactical_rng_lock"
+    end
+    return report
 end
 
 function RunCatalog.validateMap(map)
