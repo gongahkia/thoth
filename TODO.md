@@ -84,8 +84,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Enemy Family Catalog
 
-- [ ] E.11 Every enemy must have a no-damage utility behavior so kill-first is not always optimal.
-
 ### Boss & Variant Catalog
 
 - [ ] B.1 Codex Reeve boss board: audit lines, AP disable tiles, Open Register weak point, rotation-revealed back seals.

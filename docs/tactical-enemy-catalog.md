@@ -161,3 +161,21 @@ The catalog defines 8 cross-zone pressure units for rare events:
 Acceptance proof:
 
 - `tests/run.lua` verifies there are exactly 8 global pressure enemies, ids are unique, required metadata is present, and Survey Office, Lamplighter, and Merchant factions are represented.
+
+## E.11 No-Damage Utility Behavior
+
+Every catalog enemy has a deterministic no-damage utility behavior:
+
+- Archive enemies can claim, reveal, seal, or reposition records without damage.
+- Cistern enemies can shift water, bell pressure, or drain state without damage.
+- Warrens enemies can alter heat, ash, glass, or fuel state without damage.
+- Global pressure enemies can apply rare-event pressure without damage.
+
+Rules:
+
+- Utility behavior has an id, effect, and `damage = 0`.
+- Enemy ids are deduplicated when auditing all enemies.
+
+Acceptance proof:
+
+- `tests/run.lua` audits every enemy returned by `EnemyCatalog.allEnemies()` and verifies each has a no-damage utility behavior.

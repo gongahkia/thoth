@@ -95,6 +95,33 @@ EnemyCatalog.globalPressure = {
     { id = "contract_knight", name = "Contract Knight", faction = "merchant", rareEvent = "called_collateral", pressureEffect = "protects enemy objective with legal cover" },
 }
 
+local utilityEffects = {
+    archive = "claim, reveal, seal, or reposition records without damage",
+    cistern = "shift water, bell pressure, or drain state without damage",
+    warrens = "alter heat, ash, glass, or fuel state without damage",
+    global = "apply rare-event pressure without damage",
+}
+
+local function assignUtility(enemy, familyId)
+    if enemy and not enemy.utilityBehavior then
+        enemy.utilityBehavior = { id = enemy.id .. "_utility", damage = 0, effect = utilityEffects[familyId] }
+    end
+end
+
+for familyId, family in pairs(EnemyCatalog.families) do
+    for _, enemy in ipairs(family.common or {}) do
+        assignUtility(enemy, familyId)
+    end
+    for _, enemy in ipairs(family.elites or {}) do
+        assignUtility(enemy, familyId)
+    end
+    assignUtility(family.alpha, familyId)
+end
+
+for _, enemy in ipairs(EnemyCatalog.globalPressure) do
+    assignUtility(enemy, "global")
+end
+
 function EnemyCatalog.family(id)
     return EnemyCatalog.families[id]
 end
@@ -116,6 +143,31 @@ end
 
 function EnemyCatalog.globalEnemies()
     return EnemyCatalog.globalPressure
+end
+
+function EnemyCatalog.allEnemies()
+    local enemies = {}
+    local seen = {}
+    local function add(enemy)
+        if enemy and not seen[enemy.id] then
+            enemies[#enemies + 1] = enemy
+            seen[enemy.id] = true
+        end
+    end
+    for _, familyId in ipairs({ "archive", "cistern", "warrens" }) do
+        local family = EnemyCatalog.family(familyId)
+        for _, enemy in ipairs(family.common or {}) do
+            add(enemy)
+        end
+        for _, enemy in ipairs(family.elites or {}) do
+            add(enemy)
+        end
+        add(family.alpha)
+    end
+    for _, enemy in ipairs(EnemyCatalog.globalPressure) do
+        add(enemy)
+    end
+    return enemies
 end
 
 return EnemyCatalog

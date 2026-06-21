@@ -1617,6 +1617,13 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    for _, enemy in ipairs(EnemyCatalog.allEnemies()) do
+        expect(enemy.utilityBehavior and enemy.utilityBehavior.effect, "enemy should include no-damage utility behavior: " .. enemy.id)
+        expect(enemy.utilityBehavior.damage == 0, "enemy utility behavior should deal no damage: " .. enemy.id)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
