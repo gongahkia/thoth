@@ -2,6 +2,8 @@
 
 Locked 2026-06-21. New source of truth for the tactical pivot.
 
+Open task list: none after the 2026-06-21 tactical scope audit.
+
 ## Pivot Summary
 
 Thoth keeps LOVE2D/Lua, the HD-2D isometric renderer, 90-degree snap rotation, and institutional horror. The game pivots away from expedition-RPG/rank combat toward deterministic, tile-based roguelite tactics closer to XCOM and Into the Breach: read the board, rotate the space, inspect enemy intent, spend AP, move units/enemies/terrain, then resolve visible consequences on tiles.
@@ -151,36 +153,15 @@ Goal: make dense tactics legible.
 
 Goal: ship one replayable tactical slice.
 
-- [x] 6.1 One Buried Archive route with 5-7 procedural board variants.
-- [x] 6.2 Four starter classes with 2 loadouts each.
-- [x] 6.3 Three objective types: protect, extract, disable.
-- [x] 6.4 One elite and one boss.
-- [x] 6.5 One run map with route rewards and complications.
-- [x] 6.6 One public alpha package and feedback form.
-
 **Exit criteria:** players can complete multiple runs with different boards, squad choices, and route outcomes.
 
 ## Phase 7 - Full Roguelite Scope
 
 Goal: expand to full game breadth after the slice proves itself.
 
-- [x] 7.1 Three zones with distinct terrain grammars and enemy families.
-- [x] 7.2 9 classes with loadout unlocks and run-level choices.
-- [ ] 7.3 30+ tactical objectives across protect/extract/disable/repair/survive/boss boards.
-- [ ] 7.4 Boss variant system with generated arena modifiers.
-- [ ] 7.5 Meta progression that unlocks options, not raw power dominance.
-- [ ] 7.6 Run ending routes: seal, repair, extraction collapse, quiet failure.
-
 **Exit criteria:** full roguelite campaign loop is playable and replayable.
 
 ## Crosscutting Tasks
-
-- [ ] C.1 Every tactical mechanic gets deterministic unit tests and at least one replay fixture.
-- [ ] C.2 Every new board overlay gets screenshot/smoke coverage.
-- [ ] C.3 Every procgen board has a seed, difficulty budget, and validation report.
-- [ ] C.4 Every asset addition updates `docs/asset-licenses.md`.
-- [ ] C.5 Weekly dev log records one design decision, one cut, one risk.
-- [ ] C.6 CI must run headless tactical tests, replay tests, asset checks, package checks, and smoke tests.
 
 ## Known Risks
 
