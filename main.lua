@@ -386,7 +386,7 @@ local function enterTacticalGame(state)
     state.status = "tactical prototype"
     state.tutorial = nil
     state.tutorialSeen = true
-    state.tacticalZoom = 1.5
+    state.tacticalZoom = 1.75
     state.tacticalHover = nil
     resetVisualState(state, sim)
     state.tactics = TacticalRuntime.new(sim)

@@ -16,7 +16,7 @@ local cameraPitch = math.rad(30)
 local cameraDistance = 26
 local cameraViewSize = 24
 local minTacticalZoom = 0.65
-local maxTacticalZoom = 2.1
+local maxTacticalZoom = 2.4
 local baseYaw = math.rad(45)
 local visibleRadius = 10
 local atlasColumns = 8
@@ -1110,15 +1110,15 @@ end
 
 local function tacticalTileColor(tileId)
     if tileId == "sealed_name" then
-        return { 154, 116, 38 }
+        return { 184, 132, 48 }
     end
     if tileId == "false_index" then
-        return { 34, 72, 78 }
+        return { 46, 104, 112 }
     end
     if tileId == "archive_monolith" then
-        return { 54, 58, 64 }
+        return { 86, 88, 92 }
     end
-    return { 104, 112, 96 }
+    return { 130, 142, 114 }
 end
 
 local function tacticalBoardBounds(sim, app)
@@ -1320,14 +1320,77 @@ local function tileScreenCenter(view, source, tileX, tileY)
     return Render.projectIso(view, (source.originX or 0) + tileX + 0.5, (source.originY or 0) + tileY + 0.5)
 end
 
+local function drawTileDiamond(points, fill, line, lineWidth)
+    love.graphics.setColor(fill)
+    love.graphics.polygon("fill", points)
+    love.graphics.setColor(line)
+    love.graphics.setLineWidth(lineWidth or 1)
+    love.graphics.polygon("line", points)
+end
+
+local function drawTacticalTerrainDetails(sim, app)
+    local source = tacticalOverlaySource(sim, app)
+    local tactics = source and source.state
+    local view = app and app.worldView
+    if not (app and app.tacticalMode and tactics and tactics.board and view) then
+        return
+    end
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    for y = 1, tactics.board.height do
+        for x = 1, tactics.board.width do
+            local points = tileScreenPoints(view, source, x, y)
+            local bright = ((x + y) % 2) == 0 and 0.34 or 0.28
+            love.graphics.setColor(0.34, 0.46, 0.32, bright)
+            love.graphics.polygon("fill", points)
+            love.graphics.setColor(0.95, 1.0, 0.88, 0.18)
+            love.graphics.setLineWidth(1)
+            love.graphics.polygon("line", points)
+        end
+    end
+    for key, tile in pairs(tactics.board.tiles or {}) do
+        local x, y = parseTileKey(key)
+        local cx, cy = tileScreenCenter(view, source, x, y)
+        local points = tileScreenPoints(view, source, x, y)
+        if tile.blocker then
+            drawTileDiamond(points, { 0.04, 0.045, 0.05, 0.62 }, { 0.58, 0.62, 0.66, 0.82 }, 2)
+            love.graphics.setColor(0.7, 0.74, 0.78, 0.9)
+            love.graphics.rectangle("fill", cx - 10, cy - 21, 20, 18)
+            love.graphics.setColor(0.08, 0.09, 0.1, 0.88)
+            love.graphics.rectangle("line", cx - 10, cy - 21, 20, 18)
+        elseif tile.hazard then
+            drawTileDiamond(points, { 0.08, 0.36, 0.4, 0.42 }, { 0.36, 0.8, 0.88, 0.78 }, 1.5)
+            love.graphics.setColor(0.62, 0.95, 0.98, 0.78)
+            love.graphics.circle("line", cx - 5, cy - 3, 6)
+            love.graphics.circle("line", cx + 7, cy + 3, 4)
+        elseif tileHasCover(tile) then
+            love.graphics.setColor(0.22, 0.72, 0.42, 0.8)
+            love.graphics.setLineWidth(4)
+            love.graphics.line(points[1], points[2], points[3], points[4])
+            love.graphics.line(points[7], points[8], points[5], points[6])
+        end
+    end
+    for _, id in ipairs(tactics.objectiveOrder or {}) do
+        local objective = tactics.objectives[id]
+        if objective then
+            local cx, cy = tileScreenCenter(view, source, objective.x, objective.y)
+            love.graphics.setColor(1.0, 0.82, 0.24, 0.95)
+            love.graphics.setLineWidth(3)
+            love.graphics.circle("line", cx, cy - 14, 9)
+            love.graphics.line(cx, cy - 5, cx, cy + 9)
+        end
+    end
+    love.graphics.pop()
+end
+
 local function drawForecastGlyph(entry, cx, cy)
     if entry.kind == "intent" then
         love.graphics.setColor(0.03, 0.035, 0.04, 0.86)
-        love.graphics.circle("fill", cx, cy, 10)
+        love.graphics.circle("fill", cx, cy, 8)
         love.graphics.setColor(1.0, 0.78, 0.76, 1)
         love.graphics.setLineWidth(2)
-        love.graphics.line(cx, cy - 5, cx, cy + 1)
-        love.graphics.points(cx, cy + 5)
+        love.graphics.line(cx, cy - 4, cx, cy + 1)
+        love.graphics.points(cx, cy + 4)
     elseif entry.kind == "objective" then
         love.graphics.setColor(1.0, 0.84, 0.26, 0.92)
         love.graphics.polygon("line", cx, cy - 11, cx + 12, cy, cx, cy + 11, cx - 12, cy)
@@ -1373,8 +1436,8 @@ local function drawIntentArrow(view, source, intent)
     if length <= 0 then
         return
     end
-    local maxLength = 150
-    local inset = 16
+    local maxLength = 110
+    local inset = 20
     local ux = dx / length
     local uy = dy / length
     if length > maxLength then
@@ -1387,10 +1450,10 @@ local function drawIntentArrow(view, source, intent)
     tx = tx - ux * inset
     ty = ty - uy * inset
     love.graphics.setColor(1.0, 0.26, 0.36, 0.92)
-    love.graphics.setLineWidth(3)
+    love.graphics.setLineWidth(2.5)
     love.graphics.line(sx, sy, tx, ty)
     local angle = math.atan2(ty - sy, tx - sx)
-    local size = 12
+    local size = 10
     love.graphics.polygon("fill",
         tx, ty,
         tx - math.cos(angle - 0.45) * size, ty - math.sin(angle - 0.45) * size,
@@ -1758,6 +1821,20 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
             else
                 drawLitModel(model, lightAt(sim, x, y, profile))
             end
+            local sx, sy = tileScreenCenter(app.worldView, source, unit.x, unit.y)
+            love.graphics.push("all")
+            love.graphics.setDepthMode()
+            local hpRatio = clamp((unit.hp or 0) / math.max(1, unit.maxHp or unit.hp or 1), 0, 1)
+            love.graphics.setColor(0.04, 0.045, 0.05, 0.9)
+            love.graphics.rectangle("fill", sx - 16, sy - 31, 32, 6)
+            love.graphics.setColor(unit.side == "enemy" and 0.95 or 0.38, unit.side == "enemy" and 0.22 or 0.95, unit.side == "enemy" and 0.24 or 0.42, 0.95)
+            love.graphics.rectangle("fill", sx - 15, sy - 30, 30 * hpRatio, 4)
+            if selected then
+                love.graphics.setColor(1.0, 0.94, 0.24, 0.95)
+                love.graphics.setLineWidth(2)
+                love.graphics.circle("line", sx, sy - 7, 18)
+            end
+            love.graphics.pop()
             drawn = drawn + 1
         end
     end
@@ -1777,9 +1854,9 @@ function Render.drawWorld(sim, app)
     app.worldView.mode = "render3d-placeholder"
     local screenWidth = love and love.graphics and love.graphics.getWidth() or 0
     local screenHeight = love and love.graphics and love.graphics.getHeight() or 0
-    local infoWidth = app and app.tacticalMode and math.min(340, math.max(280, screenWidth * 0.22)) or 0
-    app.worldView.centerX = app and app.tacticalMode and ((screenWidth - infoWidth) / 2) or (screenWidth / 2)
-    app.worldView.centerY = app and app.tacticalMode and (screenHeight * 0.56) or (screenHeight / 2)
+    local infoWidth = app and app.tacticalMode and math.min(244, math.max(208, screenWidth * 0.17)) or 0
+    app.worldView.centerX = app and app.tacticalMode and ((screenWidth - infoWidth) * 0.46) or (screenWidth / 2)
+    app.worldView.centerY = app and app.tacticalMode and (screenHeight * 0.59) or (screenHeight / 2)
     local zoom = app and app.tacticalMode and Render.tacticalZoom(app) or 1
     app.worldView.halfW = 32 * zoom
     app.worldView.halfH = 16 * zoom
@@ -1796,6 +1873,7 @@ function Render.drawWorld(sim, app)
     local model = buildWorldTileModel(sim, profile, app and app.settings, app)
     love.graphics.setColor(1, 1, 1, 1)
     model:draw()
+    drawTacticalTerrainDetails(sim, app)
     local tacticalOverlayCounts = drawTacticalOverlays(sim, app)
     local architecture, architectureCount = nil, 0
     if not (app and app.tacticalMode) then
@@ -3107,37 +3185,37 @@ function Render.drawTacticalHud(sim, app)
     local summary = tacticalSummary(app)
     local width = love.graphics.getWidth()
     local hover = app and app.tacticalHover
-    panel(16, 14, 420, 88, 0.88)
+    panel(16, 14, 400, 82, 0.88)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.printf("End Turn  E", 32, 28, 142, "center", 0, 1.2, 1.2)
     love.graphics.setColor(0.48, 0.54, 0.58, 1)
     love.graphics.rectangle("line", 28, 24, 156, 48)
     love.graphics.setColor(0.82, 0.86, 0.78, 1)
-    love.graphics.print("turn " .. tostring(summary and summary.turn or 1) .. "  " .. tostring(summary and summary.phase or "-") .. "  view " .. tostring((app.viewRotation or 0) * 90), 204, 26)
-    love.graphics.print("selected " .. tostring(summary and summary.selected or "-") .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0), 204, 48)
+    love.graphics.print("turn " .. tostring(summary and summary.turn or 1) .. "  " .. tostring(summary and summary.phase or "-") .. "  view " .. tostring((app.viewRotation or 0) * 90), 204, 24)
+    love.graphics.print("selected " .. tostring(summary and summary.selected or "-") .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0), 204, 45)
     love.graphics.setColor(0.76, 0.8, 0.72, 1)
-    love.graphics.print("cursor " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-") .. "  hover " .. (hover and (hover.x .. "," .. hover.y) or "-") .. "  zoom " .. tostring(math.floor(Render.tacticalZoom(app) * 100 + 0.5)) .. "%", 204, 70)
+    love.graphics.print("cursor " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-") .. "  hover " .. (hover and (hover.x .. "," .. hover.y) or "-") .. "  zoom " .. tostring(math.floor(Render.tacticalZoom(app) * 100 + 0.5)) .. "%", 204, 66)
     local objective = summary and summary.objective or {}
-    panel(width - 304, 14, 288, 72, 0.88)
+    panel(width - 256, 14, 240, 72, 0.88)
     love.graphics.setColor(0.9, 0.82, 0.48, 1)
-    love.graphics.printf("route machine " .. tostring(objective.integrity or 0) .. "/" .. tostring(objective.maxIntegrity or 0), width - 292, 28, 264, "right")
+    love.graphics.printf("route machine " .. tostring(objective.integrity or 0) .. "/" .. tostring(objective.maxIntegrity or 0), width - 244, 28, 216, "right")
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
-    love.graphics.printf("red forecasts resolve after End Turn; no hit chance", width - 292, 52, 264, "right")
+    love.graphics.printf("red forecasts resolve after End Turn; no hit chance", width - 244, 52, 216, "right")
 end
 
 function Render.drawTacticalSidePanel(sim, app)
     local summary = tacticalSummary(app)
     local width, height = love.graphics.getDimensions()
-    local x = width - 294
+    local x = width - 236
     local y = 110
-    local panelH = math.min(358, height - 126)
-    panel(x, y, 278, panelH, 0.88)
+    local panelH = math.min(304, height - 126)
+    panel(x, y, 220, panelH, 0.88)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Squad", x + 12, y + 12)
     local rowY = y + 38
     for _, unit in ipairs((summary and summary.players) or {}) do
         love.graphics.setColor(unit.selected and 0.9 or 0.72, unit.selected and 0.9 or 0.78, unit.selected and 0.58 or 0.72, 1)
-        love.graphics.print((unit.selected and "> " or "  ") .. unit.id .. "  HP " .. tostring(unit.hp) .. "  AP " .. tostring(unit.ap) .. "  @" .. tostring(unit.x) .. "," .. tostring(unit.y), x + 12, rowY)
+        love.graphics.print((unit.selected and "> " or "  ") .. unit.id .. " HP" .. tostring(unit.hp) .. " AP" .. tostring(unit.ap) .. " @" .. tostring(unit.x) .. "," .. tostring(unit.y), x + 12, rowY)
         rowY = rowY + 24
     end
     rowY = rowY + 14
@@ -3147,7 +3225,7 @@ function Render.drawTacticalSidePanel(sim, app)
     for _, enemy in ipairs((summary and summary.enemies) or {}) do
         local target = enemy.targetTiles and enemy.targetTiles[1]
         love.graphics.setColor(0.9, 0.46, 0.38, 1)
-        love.graphics.print(enemy.id .. "  HP " .. tostring(enemy.hp), x + 12, rowY)
+        love.graphics.print(enemy.id .. " HP" .. tostring(enemy.hp), x + 12, rowY)
         love.graphics.setColor(0.7, 0.74, 0.68, 1)
         love.graphics.print(tostring(enemy.intent) .. " -> " .. (target and (target.x .. "," .. target.y) or "-"), x + 12, rowY + 18)
         rowY = rowY + 52
@@ -3156,7 +3234,7 @@ function Render.drawTacticalSidePanel(sim, app)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Board Rules", x + 12, rowY)
     love.graphics.setColor(0.68, 0.72, 0.66, 1)
-    love.graphics.printf("Blue move\nRed intent\nGold objective\nBlack blocker\nYellow cursor\nWhite hover", x + 12, rowY + 26, 246)
+    love.graphics.printf("Blue move\nRed intent\nGold objective\nBlack blocker\nYellow cursor\nWhite hover", x + 12, rowY + 26, 196)
 end
 
 function Render.drawHud(sim, app)

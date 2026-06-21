@@ -267,7 +267,7 @@ tactical-smoke:
 	grep -q "tactical-smoke-enemy-units=2" $$tmp; \
 	grep -q "tactical-smoke-intents=2" $$tmp; \
 	grep -q "tactical-smoke-forecast=[1-9]" $$tmp; \
-	grep -q "tactical-smoke-zoom=1.50" $$tmp; \
+	grep -q "tactical-smoke-zoom=1.75" $$tmp; \
 	grep -q "tactical-smoke-objective=4/4" $$tmp; \
 	rm -f $$tmp
 
