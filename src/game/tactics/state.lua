@@ -493,18 +493,28 @@ local function shouldRevealIntentFootprint(intent, options)
     return false
 end
 
+local objectiveKinds = {
+    protect_route_machinery = "protect",
+    protect_route_machine = "protect",
+    protect_enclave_shelter = "protect",
+    protect_archive_shelf = "protect",
+    protect_civilian_cell = "protect",
+    protect_pressure_node = "protect",
+}
+
 local function normalizeObjective(objective, index)
     expect(type(objective) == "table", "objective must be a table")
     local id = objective.id or ("objective_" .. tostring(index))
     expect(type(id) == "string" and id ~= "", "objective id must be a non-empty string")
     local kind = objective.kind or "protect_route_machinery"
-    expect(kind == "protect_route_machinery", "unsupported objective kind " .. tostring(kind))
+    expect(objectiveKinds[kind], "unsupported objective kind " .. tostring(kind))
     local integrity = objective.integrity or objective.maxIntegrity or 1
     local evacuateAt = objective.evacuateAt or objective.exit
     expect(evacuateAt and evacuateAt.x and evacuateAt.y, "objective needs evacuation tile")
     return {
         id = id,
         kind = kind,
+        family = objective.family or objectiveKinds[kind],
         x = expectInteger(objective.x, "objective x"),
         y = expectInteger(objective.y, "objective y"),
         integrity = integrity,

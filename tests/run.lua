@@ -957,6 +957,30 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local kinds = {
+        "protect_route_machine",
+        "protect_enclave_shelter",
+        "protect_archive_shelf",
+        "protect_civilian_cell",
+        "protect_pressure_node",
+    }
+    local objectives = {}
+    for index, kind in ipairs(kinds) do
+        objectives[#objectives + 1] = { id = kind, kind = kind, x = index, y = 1, integrity = 2, evacuateAt = { x = 5, y = 2 } }
+    end
+    local state = TacticsState.new({
+        board = { width = 5, height = 2 },
+        units = { { id = "warden", side = "player", x = 1, y = 2 } },
+        objectives = objectives,
+    })
+    for _, kind in ipairs(kinds) do
+        expect(state:objective(kind).family == "protect" and state:objectiveStatus(kind) == "active", "protect objective kind should be accepted: " .. kind)
+    end
+    state:apply(TacticsState.commands.damageObjective("warden", "protect_pressure_node", 2, 0))
+    expect(state:objectiveStatus("protect_pressure_node") == "failed", "protect objective should fail on zero integrity")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
