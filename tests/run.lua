@@ -1750,6 +1750,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local export = RunCatalog.seededExport()
+    local fields = {}
+    expect(export.version == 1, "seeded run export should define version")
+    for _, field in ipairs(export.fields) do
+        fields[field.id] = field
+        expect(field.type and field.source, "seeded export field should define type and source: " .. field.id)
+    end
+    for _, id in ipairs({ "runSeed", "boardSeeds", "routeChoices", "squadLoadout", "eventRolls", "replayHashes" }) do
+        expect(fields[id], "missing seeded export field " .. id)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

@@ -50,6 +50,18 @@ RunCatalog.eventRngRules = {
     { id = "post_board_consequence", timing = "post_board", roll = "after extraction or loss", effect = "apply injury, dread, faction, or route event" },
 }
 
+RunCatalog.seededRunExport = {
+    version = 1,
+    fields = {
+        { id = "runSeed", type = "integer", source = "campaign start seed" },
+        { id = "boardSeeds", type = "list", source = "per-board generator seeds" },
+        { id = "routeChoices", type = "list", source = "chosen route node ids" },
+        { id = "squadLoadout", type = "list", source = "unit class, tools, traits, injuries, debt" },
+        { id = "eventRolls", type = "list", source = "pre-board and post-board event outcomes" },
+        { id = "replayHashes", type = "list", source = "deterministic replay hash per board" },
+    },
+}
+
 function RunCatalog.boardTemplate(id)
     for _, template in ipairs(RunCatalog.boardTemplates) do
         if template.id == id then
@@ -77,6 +89,10 @@ end
 
 function RunCatalog.eventRules()
     return RunCatalog.eventRngRules
+end
+
+function RunCatalog.seededExport()
+    return RunCatalog.seededRunExport
 end
 
 return RunCatalog

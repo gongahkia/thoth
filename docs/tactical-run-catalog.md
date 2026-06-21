@@ -114,3 +114,26 @@ Event card labels timing as pre-board or post-board and describes the board/run 
 
 test/replay proof:
 `tests/run.lua` verifies every event RNG rule runs only pre-board or post-board and covers both timing windows.
+
+## P.6 Seeded Full-Run Export
+
+source pattern:
+Fixed seeds and replay hashes make procedural runs inspectable and reproducible.
+
+thoth transformation:
+Thoth full-run export records run seed, board seeds, route choices, squad/loadout, event rolls, and replay hashes.
+
+board verb:
+Seed, choose, roll, hash, export.
+
+zone fit:
+All generated boards and routes write into the same export schema.
+
+counterplay:
+Export lets QA replay the exact board sequence and compare declared outcomes.
+
+preview/UI:
+Debug export view shows schema version and field list; player-facing replay sharing can hide raw internals later.
+
+test/replay proof:
+`tests/run.lua` verifies the seeded export schema version and all six required fields.
