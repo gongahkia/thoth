@@ -1255,209 +1255,23 @@ local function drawTacticalOverlays(sim, app)
     end
     local entries, counts = Render.tacticalOverlayEntries(source.state, source.overlays or {})
     counts.total = #entries
-    if #entries > 0 and state.g3d and state.assets.white then
-        local model = buildTacticalOverlayModel(entries, source, app and app.settings, ((sim and sim.player and sim.player.z) or 0) + 0.035)
+    local drawnEntries = {}
+    for _, entry in ipairs(entries) do
+        if entry.kind == "intent" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor" then
+            drawnEntries[#drawnEntries + 1] = entry
+        end
+    end
+    if app and app.tacticalHover then
+        drawnEntries[#drawnEntries + 1] = { kind = "hover", x = app.tacticalHover.x, y = app.tacticalHover.y, label = "hover" }
+    end
+    if #drawnEntries > 0 and state.g3d and state.assets.white then
+        local model = buildTacticalOverlayModel(drawnEntries, source, app and app.settings, ((sim and sim.player and sim.player.z) or 0) + 0.035)
         if model then
             love.graphics.setColor(1, 1, 1, 1)
             model:draw()
         end
     end
     return counts
-end
-
-local forecastDrawOrder = {
-    movement = 1,
-    cover = 2,
-    blocker = 3,
-    objective = 4,
-    hazard = 5,
-    intent = 6,
-    los = 7,
-    flank = 8,
-    cursor = 9,
-    hover = 10,
-}
-
-local forecastTileColors = {
-    movement = { 0.1, 0.42, 0.95, 0.28 },
-    los = { 0.9, 0.82, 0.25, 0.24 },
-    cover = { 0.24, 0.72, 0.42, 0.2 },
-    flank = { 0.95, 0.58, 0.18, 0.34 },
-    intent = { 1.0, 0.16, 0.24, 0.46 },
-    hazard = { 0.98, 0.56, 0.12, 0.42 },
-    blocker = { 0.08, 0.09, 0.1, 0.52 },
-    objective = { 0.95, 0.78, 0.12, 0.5 },
-    cursor = { 1.0, 0.92, 0.22, 0.12 },
-    hover = { 1.0, 1.0, 1.0, 0.05 },
-}
-
-local forecastLineColors = {
-    movement = { 0.35, 0.72, 1.0, 0.78 },
-    los = { 0.96, 0.9, 0.42, 0.72 },
-    cover = { 0.36, 0.78, 0.46, 0.62 },
-    flank = { 1.0, 0.72, 0.2, 0.8 },
-    intent = { 1.0, 0.28, 0.36, 0.92 },
-    hazard = { 1.0, 0.62, 0.12, 0.82 },
-    blocker = { 0.42, 0.46, 0.52, 0.84 },
-    objective = { 1.0, 0.86, 0.24, 0.92 },
-    cursor = { 1.0, 0.94, 0.24, 1.0 },
-    hover = { 0.92, 0.94, 0.9, 0.95 },
-}
-
-local function tileScreenPoints(view, source, tileX, tileY)
-    local originX = source.originX or 0
-    local originY = source.originY or 0
-    local x = originX + tileX
-    local y = originY + tileY
-    local x1, y1 = Render.projectIso(view, x, y)
-    local x2, y2 = Render.projectIso(view, x + 1, y)
-    local x3, y3 = Render.projectIso(view, x + 1, y + 1)
-    local x4, y4 = Render.projectIso(view, x, y + 1)
-    return { x1, y1, x2, y2, x3, y3, x4, y4 }
-end
-
-local function tileScreenCenter(view, source, tileX, tileY)
-    return Render.projectIso(view, (source.originX or 0) + tileX + 0.5, (source.originY or 0) + tileY + 0.5)
-end
-
-local function drawTileDiamond(points, fill, line, lineWidth)
-    love.graphics.setColor(fill)
-    love.graphics.polygon("fill", points)
-    love.graphics.setColor(line)
-    love.graphics.setLineWidth(lineWidth or 1)
-    love.graphics.polygon("line", points)
-end
-
-local function drawTacticalTerrainDetails(sim, app)
-    local source = tacticalOverlaySource(sim, app)
-    local tactics = source and source.state
-    local view = app and app.worldView
-    if not (app and app.tacticalMode and tactics and tactics.board and view) then
-        return
-    end
-    love.graphics.push("all")
-    love.graphics.setDepthMode()
-    for y = 1, tactics.board.height do
-        for x = 1, tactics.board.width do
-            local points = tileScreenPoints(view, source, x, y)
-            local bright = ((x + y) % 2) == 0 and 0.34 or 0.28
-            love.graphics.setColor(0.34, 0.46, 0.32, bright)
-            love.graphics.polygon("fill", points)
-            love.graphics.setColor(0.95, 1.0, 0.88, 0.18)
-            love.graphics.setLineWidth(1)
-            love.graphics.polygon("line", points)
-        end
-    end
-    for key, tile in pairs(tactics.board.tiles or {}) do
-        local x, y = parseTileKey(key)
-        local cx, cy = tileScreenCenter(view, source, x, y)
-        local points = tileScreenPoints(view, source, x, y)
-        if tile.blocker then
-            drawTileDiamond(points, { 0.04, 0.045, 0.05, 0.62 }, { 0.58, 0.62, 0.66, 0.82 }, 2)
-            love.graphics.setColor(0.7, 0.74, 0.78, 0.9)
-            love.graphics.rectangle("fill", cx - 10, cy - 21, 20, 18)
-            love.graphics.setColor(0.08, 0.09, 0.1, 0.88)
-            love.graphics.rectangle("line", cx - 10, cy - 21, 20, 18)
-        elseif tile.hazard then
-            drawTileDiamond(points, { 0.08, 0.36, 0.4, 0.42 }, { 0.36, 0.8, 0.88, 0.78 }, 1.5)
-            love.graphics.setColor(0.62, 0.95, 0.98, 0.78)
-            love.graphics.circle("line", cx - 5, cy - 3, 6)
-            love.graphics.circle("line", cx + 7, cy + 3, 4)
-        elseif tileHasCover(tile) then
-            love.graphics.setColor(0.22, 0.72, 0.42, 0.8)
-            love.graphics.setLineWidth(4)
-            love.graphics.line(points[1], points[2], points[3], points[4])
-            love.graphics.line(points[7], points[8], points[5], points[6])
-        end
-    end
-    for _, id in ipairs(tactics.objectiveOrder or {}) do
-        local objective = tactics.objectives[id]
-        if objective then
-            local cx, cy = tileScreenCenter(view, source, objective.x, objective.y)
-            love.graphics.setColor(1.0, 0.82, 0.24, 0.95)
-            love.graphics.setLineWidth(3)
-            love.graphics.circle("line", cx, cy - 14, 9)
-            love.graphics.line(cx, cy - 5, cx, cy + 9)
-        end
-    end
-    love.graphics.pop()
-end
-
-local function drawForecastGlyph(entry, cx, cy)
-    if entry.kind == "intent" then
-        love.graphics.setColor(0.03, 0.035, 0.04, 0.86)
-        love.graphics.circle("fill", cx, cy, 8)
-        love.graphics.setColor(1.0, 0.78, 0.76, 1)
-        love.graphics.setLineWidth(2)
-        love.graphics.line(cx, cy - 4, cx, cy + 1)
-        love.graphics.points(cx, cy + 4)
-    elseif entry.kind == "objective" then
-        love.graphics.setColor(1.0, 0.84, 0.26, 0.92)
-        love.graphics.polygon("line", cx, cy - 11, cx + 12, cy, cx, cy + 11, cx - 12, cy)
-    elseif entry.kind == "blocker" then
-        love.graphics.setColor(0.72, 0.76, 0.82, 0.92)
-        love.graphics.setLineWidth(2)
-        love.graphics.line(cx - 6, cy - 6, cx + 6, cy + 6)
-        love.graphics.line(cx + 6, cy - 6, cx - 6, cy + 6)
-    elseif entry.kind == "cursor" then
-        love.graphics.setColor(1.0, 0.94, 0.24, 1)
-        love.graphics.setLineWidth(2)
-        love.graphics.line(cx - 12, cy - 9, cx - 5, cy - 9)
-        love.graphics.line(cx - 12, cy - 9, cx - 12, cy - 3)
-        love.graphics.line(cx + 12, cy + 9, cx + 5, cy + 9)
-        love.graphics.line(cx + 12, cy + 9, cx + 12, cy + 3)
-    end
-end
-
-local function drawForecastTile(view, source, entry)
-    local points = tileScreenPoints(view, source, entry.x, entry.y)
-    local fill = forecastTileColors[entry.kind] or { 1, 1, 1, 0.22 }
-    local line = forecastLineColors[entry.kind] or { 1, 1, 1, 0.72 }
-    love.graphics.setColor(fill)
-    love.graphics.polygon("fill", points)
-    love.graphics.setColor(line)
-    love.graphics.setLineWidth(entry.kind == "cursor" and 3 or entry.kind == "hover" and 2.5 or entry.kind == "intent" and 2.5 or 1.5)
-    love.graphics.polygon("line", points)
-    local cx, cy = tileScreenCenter(view, source, entry.x, entry.y)
-    drawForecastGlyph(entry, cx, cy)
-end
-
-local function drawIntentArrow(view, source, intent)
-    local target = intent and intent.targetTiles and intent.targetTiles[1]
-    local sourceTile = intent and intent.sourceTile
-    if not (target and sourceTile) then
-        return
-    end
-    local sx, sy = tileScreenCenter(view, source, sourceTile.x, sourceTile.y)
-    local tx, ty = tileScreenCenter(view, source, target.x, target.y)
-    local dx = tx - sx
-    local dy = ty - sy
-    local length = math.sqrt(dx * dx + dy * dy)
-    if length <= 0 then
-        return
-    end
-    local maxLength = 110
-    local inset = 20
-    local ux = dx / length
-    local uy = dy / length
-    if length > maxLength then
-        sx = tx - ux * maxLength
-        sy = ty - uy * maxLength
-    else
-        sx = sx + ux * inset
-        sy = sy + uy * inset
-    end
-    tx = tx - ux * inset
-    ty = ty - uy * inset
-    love.graphics.setColor(1.0, 0.26, 0.36, 0.92)
-    love.graphics.setLineWidth(2.5)
-    love.graphics.line(sx, sy, tx, ty)
-    local angle = math.atan2(ty - sy, tx - sx)
-    local size = 10
-    love.graphics.polygon("fill",
-        tx, ty,
-        tx - math.cos(angle - 0.45) * size, ty - math.sin(angle - 0.45) * size,
-        tx - math.cos(angle + 0.45) * size, ty - math.sin(angle + 0.45) * size)
 end
 
 function Render.drawTacticalForecast(sim, app)
@@ -1472,26 +1286,6 @@ function Render.drawTacticalForecast(sim, app)
     if app.tacticalHover then
         entries[#entries + 1] = { kind = "hover", x = app.tacticalHover.x, y = app.tacticalHover.y, label = "hover" }
     end
-    table.sort(entries, function(a, b)
-        local ao = forecastDrawOrder[a.kind] or 99
-        local bo = forecastDrawOrder[b.kind] or 99
-        if ao == bo then
-            if a.y == b.y then
-                return a.x < b.x
-            end
-            return a.y < b.y
-        end
-        return ao < bo
-    end)
-    love.graphics.push("all")
-    love.graphics.setDepthMode()
-    for _, entry in ipairs(entries) do
-        drawForecastTile(app.worldView, source, entry)
-    end
-    for _, unit in ipairs(source.state:unitsForSide("enemy")) do
-        drawIntentArrow(app.worldView, source, source.state:intentPreview(unit.id))
-    end
-    love.graphics.pop()
     return #entries
 end
 
@@ -1507,7 +1301,8 @@ local function applyCamera(sim, app)
     local y = targetY - math.sin(yaw) * horizontal
     local z = targetZ + math.sin(cameraPitch) * cameraDistance
     state.g3d.camera.lookAt(x, y, z, targetX, targetY, targetZ)
-    state.g3d.camera.updateOrthographicMatrix(cameraViewSize / zoom)
+    local viewSize = app and app.tacticalMode and (cameraViewSize * 0.58) or cameraViewSize
+    state.g3d.camera.updateOrthographicMatrix(viewSize / zoom)
     return yaw
 end
 
@@ -1796,6 +1591,86 @@ local function drawEnemyBillboards(sim, app, yaw, profile)
     return drawWorldEnemyBillboards(sim, app, yaw, profile)
 end
 
+local function pushGroundLine(vertices, x1, y1, x2, y2, z, halfWidth, u)
+    local dx = x2 - x1
+    local dy = y2 - y1
+    local length = math.sqrt(dx * dx + dy * dy)
+    if length <= 0 then
+        return
+    end
+    local px = -dy / length * halfWidth
+    local py = dx / length * halfWidth
+    pushFace(vertices,
+        { x1 + px, y1 + py, z },
+        { x2 + px, y2 + py, z },
+        { x2 - px, y2 - py, z },
+        { x1 - px, y1 - py, z },
+        u)
+end
+
+local function pushGroundArrowHead(vertices, tx, ty, ux, uy, z, u)
+    local baseX = tx - ux * 0.22
+    local baseY = ty - uy * 0.22
+    local px = -uy * 0.16
+    local py = ux * 0.16
+    vertices[#vertices + 1] = tileVertex(tx, ty, z, u)
+    vertices[#vertices + 1] = tileVertex(baseX + px, baseY + py, z, u)
+    vertices[#vertices + 1] = tileVertex(baseX - px, baseY - py, z, u)
+end
+
+local function drawTacticalIntentArrows(sim, app)
+    local source = tacticalOverlaySource(sim, app)
+    local tactics = source and source.state
+    if not (app and app.tacticalMode and tactics and state.g3d and state.assets.white) then
+        return 0
+    end
+    local vertices = {}
+    local originX = source.originX or 0
+    local originY = source.originY or 0
+    local z = ((sim and sim.player and sim.player.z) or 0) + 0.08
+    local count = 0
+    for _, unit in ipairs(tactics:unitsForSide("enemy")) do
+        local intent = tactics:intentPreview(unit.id)
+        local target = intent and intent.targetTiles and intent.targetTiles[1]
+        local sourceTile = intent and intent.sourceTile
+        if target and sourceTile then
+            local sx = originX + sourceTile.x + 0.5
+            local sy = originY + sourceTile.y + 0.5
+            local tx = originX + target.x + 0.5
+            local ty = originY + target.y + 0.5
+            local dx = tx - sx
+            local dy = ty - sy
+            local length = math.sqrt(dx * dx + dy * dy)
+            if length > 0 then
+                local ux = dx / length
+                local uy = dy / length
+                local maxLength = 2.2
+                if length > maxLength then
+                    sx = tx - ux * maxLength
+                    sy = ty - uy * maxLength
+                else
+                    sx = sx + ux * 0.28
+                    sy = sy + uy * 0.28
+                end
+                tx = tx - ux * 0.24
+                ty = ty - uy * 0.24
+                pushGroundLine(vertices, sx, sy, tx, ty, z, 0.04, 0.5)
+                pushGroundArrowHead(vertices, tx, ty, ux, uy, z, 0.5)
+                count = count + 1
+            end
+        end
+    end
+    if #vertices == 0 then
+        return 0
+    end
+    local model = state.g3d.newModel(vertices, state.assets.white)
+    model:makeNormals()
+    love.graphics.setColor(1.0, 0.22, 0.32, 0.92)
+    model:draw()
+    love.graphics.setColor(1, 1, 1, 1)
+    return count
+end
+
 local function drawTacticalBillboards(sim, app, yaw, profile)
     local source = tacticalOverlaySource(sim, app)
     local tactics = source and source.state
@@ -1821,20 +1696,6 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
             else
                 drawLitModel(model, lightAt(sim, x, y, profile))
             end
-            local sx, sy = tileScreenCenter(app.worldView, source, unit.x, unit.y)
-            love.graphics.push("all")
-            love.graphics.setDepthMode()
-            local hpRatio = clamp((unit.hp or 0) / math.max(1, unit.maxHp or unit.hp or 1), 0, 1)
-            love.graphics.setColor(0.04, 0.045, 0.05, 0.9)
-            love.graphics.rectangle("fill", sx - 16, sy - 31, 32, 6)
-            love.graphics.setColor(unit.side == "enemy" and 0.95 or 0.38, unit.side == "enemy" and 0.22 or 0.95, unit.side == "enemy" and 0.24 or 0.42, 0.95)
-            love.graphics.rectangle("fill", sx - 15, sy - 30, 30 * hpRatio, 4)
-            if selected then
-                love.graphics.setColor(1.0, 0.94, 0.24, 0.95)
-                love.graphics.setLineWidth(2)
-                love.graphics.circle("line", sx, sy - 7, 18)
-            end
-            love.graphics.pop()
             drawn = drawn + 1
         end
     end
@@ -1873,8 +1734,8 @@ function Render.drawWorld(sim, app)
     local model = buildWorldTileModel(sim, profile, app and app.settings, app)
     love.graphics.setColor(1, 1, 1, 1)
     model:draw()
-    drawTacticalTerrainDetails(sim, app)
     local tacticalOverlayCounts = drawTacticalOverlays(sim, app)
+    drawTacticalIntentArrows(sim, app)
     local architecture, architectureCount = nil, 0
     if not (app and app.tacticalMode) then
         architecture, architectureCount = buildArchitectureModel(sim, profile, app and app.settings)
@@ -3234,7 +3095,7 @@ function Render.drawTacticalSidePanel(sim, app)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Board Rules", x + 12, rowY)
     love.graphics.setColor(0.68, 0.72, 0.66, 1)
-    love.graphics.printf("Blue move\nRed intent\nGold objective\nBlack blocker\nYellow cursor\nWhite hover", x + 12, rowY + 26, 196)
+    love.graphics.printf("Red arrows intent\nGold objective\nBlack blocker\nYellow cursor\nWhite hover", x + 12, rowY + 26, 196)
 end
 
 function Render.drawHud(sim, app)
