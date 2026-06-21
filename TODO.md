@@ -72,7 +72,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Cover, LoS, Visibility
 
-- [ ] L.8 Define LoS preview for movement destinations before committing.
 - [ ] L.9 Define accessibility-safe LoS and cover overlays for all four rotations.
 
 ### Objective Families

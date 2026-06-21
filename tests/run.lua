@@ -280,6 +280,36 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        defaultAp = 3,
+        board = {
+            width = 4,
+            height = 2,
+            tiles = {
+                ["2:1"] = { losBlocker = true, height = 1 },
+            },
+        },
+        units = {
+            { id = "scout", side = "player", x = 1, y = 2, ap = 3 },
+            { id = "target", side = "enemy", x = 4, y = 1 },
+        },
+    })
+    local preview = state:movementLosPreview("scout", { targets = { { id = "target" } } })
+    local blocked
+    local visible
+    for _, destination in ipairs(preview.destinations) do
+        if destination.x == 1 and destination.y == 1 then
+            blocked = destination.targets[1]
+        elseif destination.x == 3 and destination.y == 2 then
+            visible = destination.targets[1]
+        end
+    end
+    expect(blocked and not blocked.visible and blocked.blockedBy.x == 2, "movement LoS preview should show blocked destination sightline")
+    expect(visible and visible.visible, "movement LoS preview should show visible destination sightline")
+    expect(state:unit("scout").x == 1 and state:unit("scout").y == 2, "movement LoS preview should not move unit")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         board = {
             width = 4,
             height = 1,

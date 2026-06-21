@@ -136,3 +136,18 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies Lamplighter reveal exposes redacted intent, a hidden tile, and a boss weak-point mask.
+
+## L.8 Movement LoS Preview
+
+Movement LoS preview evaluates sightlines from reachable destinations before commitment.
+
+Rules:
+
+- Preview reuses deterministic movement reachability.
+- Each reachable destination can report LoS to explicit targets or visible enemies.
+- Preview returns visible, blocked, obscured, modifier, and blocker data.
+- Preview does not move the unit.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies blocked and visible destination sightlines and confirms unit position is unchanged.

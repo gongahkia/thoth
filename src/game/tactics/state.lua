@@ -1094,6 +1094,54 @@ function State:movementPreview(unitId, options)
     return { unit = unitId, ap = unit.ap, reachable = reachable, collisions = collisions }
 end
 
+local function normalizeLosTargets(state, targets)
+    local result = {}
+    if targets then
+        for _, target in ipairs(targets) do
+            if target.id and state.units[target.id] then
+                local unit = state.units[target.id]
+                result[#result + 1] = { id = target.id, x = unit.x, y = unit.y }
+            else
+                result[#result + 1] = { id = target.id, x = expectInteger(target.x, "target x"), y = expectInteger(target.y, "target y") }
+            end
+        end
+    else
+        for _, unit in pairs(state.units) do
+            if unit.side == "enemy" and unit.alive and not unit.evacuated then
+                result[#result + 1] = { id = unit.id, x = unit.x, y = unit.y }
+            end
+        end
+    end
+    table.sort(result, function(a, b)
+        return tostring(a.id or "") < tostring(b.id or "")
+    end)
+    return result
+end
+
+function State:movementLosPreview(unitId, options)
+    options = options or {}
+    local movement = self:movementPreview(unitId, options)
+    local targets = normalizeLosTargets(self, options.targets)
+    local destinations = {}
+    for _, tile in ipairs(movement.reachable) do
+        local entry = { x = tile.x, y = tile.y, apCost = tile.apCost, targets = {} }
+        for _, target in ipairs(targets) do
+            local los = self:lineOfSight(tile.x, tile.y, target.x, target.y)
+            entry.targets[#entry.targets + 1] = {
+                id = target.id,
+                x = target.x,
+                y = target.y,
+                visible = los.visible,
+                blockedBy = copyMap(los.blockedBy),
+                obscured = los.obscured,
+                modifiers = copyValue(los.modifiers),
+            }
+        end
+        destinations[#destinations + 1] = entry
+    end
+    return { unit = unitId, ap = movement.ap, destinations = destinations }
+end
+
 function State:queue(command)
     expect(type(command) == "table", "command must be a table")
     self.pending[#self.pending + 1] = command
