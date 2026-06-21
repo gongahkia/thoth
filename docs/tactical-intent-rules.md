@@ -28,3 +28,30 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies exact intent source tile, path, target footprint, damage/effect, collision, and objective impact preview.
+
+## I.2 Category Intent
+
+Category intent exposes only threat type when exact footprint is not knowable yet.
+
+Supported categories:
+
+- `attack`
+- `move`
+- `guard`
+- `summon`
+- `repair`
+- `destroy`
+- `buff`
+- `debuff`
+- `flee`
+- `redacted`
+
+Rules:
+
+- Category intent must use one of the supported categories.
+- Preview marks category intent as `categoryOnly`.
+- Preview withholds target tiles and path even if private target tiles were stored.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies all supported categories are accepted and previewed without footprint disclosure.

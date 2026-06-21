@@ -451,6 +451,16 @@ tests[#tests + 1] = function()
     expect(exact.collision.push == "west" and exact.objectiveImpact == "route_machine", "exact intent should preview collision and objective impact")
     local category = state:intentPreview("scribe")
     expect(category.categoryOnly and category.category == "repair" and category.targetTiles == nil, "category intent should hide footprint")
+    for _, categoryName in ipairs({ "attack", "move", "guard", "summon", "repair", "destroy", "buff", "debuff", "flee", "redacted" }) do
+        state:apply(TacticsState.commands.intent("scribe", {
+            mode = "category",
+            category = categoryName,
+            targetTiles = { { x = 1, y = 1 } },
+            effect = categoryName,
+        }))
+        local preview = state:intentPreview("scribe")
+        expect(preview.categoryOnly and preview.category == categoryName and preview.targetTiles == nil, "category intent should accept " .. categoryName)
+    end
     local hidden = state:intentPreview("reeve")
     expect(hidden.footprintHidden and hidden.targetTiles == nil, "hidden footprint intent should withhold target tiles")
     local revealed = state:intentPreview("reeve", { reveal = true })

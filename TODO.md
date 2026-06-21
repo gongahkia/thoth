@@ -69,7 +69,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Intent & Counterplay Mechanics
 
-- [ ] I.2 Build category intent: attack, move, guard, summon, repair, destroy, buff, debuff, flee, redacted.
 - [ ] I.3 Build redacted footprint intent: category visible, exact tiles hidden until rotation/reveal/class action.
 - [ ] I.4 Build delayed fuse intent: visible countdown on tile/object/enemy with deterministic trigger.
 - [ ] I.5 Build conditional intent: declared branch such as "if target moves, fire cone; otherwise repair seal."
