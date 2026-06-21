@@ -1639,6 +1639,21 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local audit = EnemyCatalog.auditEliteMaskedIntents()
+    expect(audit.ok, "elite masked-intent audit should pass")
+    for _, familyId in ipairs({ "archive", "cistern", "warrens" }) do
+        expect(audit.coverage[familyId] == #EnemyCatalog.elites(familyId), "masked-intent audit should cover all elites in " .. familyId)
+        for _, enemy in ipairs(EnemyCatalog.elites(familyId)) do
+            local masked = enemy.maskedIntent
+            expect(enemy.partialIntent and enemy.partialIntent.mode == "category", "elite should keep category partial intent: " .. enemy.id)
+            expect(masked and masked.mode == "hiddenFootprint" and masked.category == enemy.partialIntent.category, "elite should define masked footprint intent: " .. enemy.id)
+            expect(masked.revealGate and masked.revealGate.weakPoint == enemy.weakPoints[1], "elite masked intent should reveal through weak point: " .. enemy.id)
+            expect(masked.counterplay and #masked.counterplay >= 2 and masked.footprintHidden == true, "elite masked intent should include counterplay and hidden footprint: " .. enemy.id)
+        end
+    end
+end
+
+tests[#tests + 1] = function()
     local elites = EnemyCatalog.elites("archive")
     expect(#elites == 3, "Archive should define 3 elites")
     local ids = {}

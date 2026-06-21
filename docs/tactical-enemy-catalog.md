@@ -60,7 +60,7 @@ The Cistern family defines 10 common enemies. Each has exact intent metadata and
 - `valve_thrall`: exact destroy, `turn_valve`.
 - `brine_midwife`: exact summon, `birth_brine`.
 - `sluice_eel`: exact move, `ride_sluice`.
-- `salt_choir`: exact buff, `ring_pressure`.
+- `salt_choir`: exact repair, `ring_pressure`.
 - `pearl_cyst`: exact guard, `burst_pool`.
 - `halocline_tender`: exact debuff, `shift_halocline`.
 - `drowned_pilgrim`: exact attack, `kneel_flood`.
@@ -104,7 +104,7 @@ The Warrens family defines 10 common enemies. Each has exact intent metadata and
 
 - `ash_husk`: exact attack, `kick_ash`.
 - `kiln_imp`: exact move, `spark_jump`.
-- `kiln_nurse`: exact buff, `cautery_stoke`.
+- `kiln_nurse`: exact repair, `cautery_stoke`.
 - `glass_penitent`: exact guard, `raise_glass`.
 - `clinker_butcher`: exact attack, `hook_clinker`.
 - `white_furnace`: exact destroy, `pressure_coal`.
@@ -236,3 +236,32 @@ Acceptance proof:
 
 - `EnemyCatalog.auditExactBasicIntents()` rejects missing exact intents, non-exact modes, missing source/category/target/damage, missing target/path/effect/preview metadata, missing counterplay, missing objective impact, nondeterministic flags, forced-movement intents without collision, and incomplete family coverage.
 - `tests/run.lua` verifies exact-intent coverage and metadata for every common enemy in Archive, Cistern, and Warrens.
+
+## E.14 Elite Partial And Masked Intents
+
+Every elite keeps a category-visible partial intent and gains a hidden-footprint masked intent blueprint.
+
+Fields:
+
+- `partialIntent`: category-only preview used by encounter generation.
+- `maskedIntent`: hidden-footprint preview blueprint.
+- `mask`: zone mask such as seal, waterline, or ash/glass.
+- `targetPattern`: hidden footprint rule before board coordinates are known.
+- `pathPattern`: hidden trace rule before board coordinates are known.
+- `revealGate`: weak point, reveal class, and reveal action.
+- `counterplay`: weak-point exposure plus zone counterplay.
+- `preview`: inspector-facing masked preview cue.
+- `deterministic`: always `true`.
+- `footprintHidden`: always `true` until reveal.
+
+Rules:
+
+- Masked intent category must match partial intent category.
+- Reveal gate weak point must be the elite's first listed weak point.
+- Runtime hidden-footprint declarations still supply board-specific private `targetTiles`.
+- Every elite must keep zone counterplay metadata.
+
+Acceptance proof:
+
+- `EnemyCatalog.auditEliteMaskedIntents()` rejects missing partial intents, non-category partials, missing masked intents, non-hidden-footprint masks, category mismatch, missing preview metadata, missing reveal gates, weak-point mismatch, missing counterplay, nondeterministic flags, unhidden footprint flags, missing zone counterplay, and incomplete family coverage.
+- `tests/run.lua` verifies masked-intent coverage and weak-point reveal metadata for every elite in Archive, Cistern, and Warrens.

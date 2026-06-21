@@ -30,6 +30,12 @@ EnemyCatalog.exactIntentBlueprints = {
     ["terrain-breaker"] = { targetPattern = "terrain tile", pathPattern = "conversion trace", effect = "terrain conversion", objectiveImpact = "opens or closes route", counterplay = { "stabilize_tile", "evacuate_tile" } },
 }
 
+EnemyCatalog.eliteMaskBlueprints = {
+    archive = { mask = "seal", targetPattern = "sealed claim footprint", pathPattern = "audit beam or shelf trace", revealClass = "arcanist", revealAction = "unseal_intent", counterplay = "break seal line", preview = "category icon plus sealed footprint" },
+    cistern = { mask = "waterline", targetPattern = "submerged pressure footprint", pathPattern = "flood lane or undertow trace", revealClass = "lamplighter", revealAction = "sound_depth", counterplay = "drain pressure source", preview = "category icon plus waterline mask" },
+    warrens = { mask = "ash_glass", targetPattern = "ash or glass reflection footprint", pathPattern = "heat lane or reflector trace", revealClass = "chirurgeon", revealAction = "clear_ash_glass", counterplay = "douse or shatter reflector", preview = "category icon plus ash/glass mask" },
+}
+
 EnemyCatalog.families = {
     archive = {
         common = {
@@ -158,12 +164,39 @@ local function assignExactIntentBlueprint(enemy)
     end
 end
 
+local function zoneCounterplay(enemy)
+    return enemy.terrainInteraction or enemy.floodDrainCounterplay or enemy.burnDouseGlassCounterplay
+end
+
+local function assignEliteMaskedIntent(enemy, familyId)
+    if not (enemy and enemy.partialIntent and enemy.weakPoints and enemy.weakPoints[1]) then
+        return
+    end
+    local blueprint = EnemyCatalog.eliteMaskBlueprints[familyId] or {}
+    if not enemy.maskedIntent then
+        enemy.maskedIntent = {
+            mode = "hiddenFootprint",
+            category = enemy.partialIntent.category,
+            source = "self",
+            mask = blueprint.mask,
+            targetPattern = blueprint.targetPattern,
+            pathPattern = blueprint.pathPattern,
+            revealGate = { weakPoint = enemy.weakPoints[1], class = blueprint.revealClass, action = blueprint.revealAction },
+            counterplay = { "expose_weak_point", blueprint.counterplay, zoneCounterplay(enemy) },
+            preview = blueprint.preview,
+            deterministic = true,
+            footprintHidden = true,
+        }
+    end
+end
+
 for familyId, family in pairs(EnemyCatalog.families) do
     for _, enemy in ipairs(family.common or {}) do
         assignExactIntentBlueprint(enemy)
         assignUtility(enemy, familyId)
     end
     for _, enemy in ipairs(family.elites or {}) do
+        assignEliteMaskedIntent(enemy, familyId)
         assignUtility(enemy, familyId)
     end
     assignUtility(family.alpha, familyId)
@@ -282,6 +315,56 @@ function EnemyCatalog.auditExactBasicIntents()
     for _, familyId in ipairs({ "archive", "cistern", "warrens" }) do
         if (report.coverage[familyId] or 0) < 8 then
             table.insert(report.missing, familyId .. ".exactIntentCoverage")
+        end
+    end
+    report.ok = #report.missing == 0 and #report.invalid == 0
+    return report
+end
+
+function EnemyCatalog.auditEliteMaskedIntents()
+    local report = { ok = true, missing = {}, invalid = {}, coverage = {} }
+    for familyId, family in pairs(EnemyCatalog.families) do
+        report.coverage[familyId] = 0
+        for _, enemy in ipairs(family.elites or {}) do
+            local partial = enemy.partialIntent
+            local masked = enemy.maskedIntent
+            if not partial then
+                table.insert(report.missing, enemy.id .. ".partialIntent")
+            elseif partial.mode ~= "category" or not partial.category then
+                table.insert(report.invalid, enemy.id .. ".partialIntent")
+            end
+            if not masked then
+                table.insert(report.missing, enemy.id .. ".maskedIntent")
+            elseif masked.mode ~= "hiddenFootprint" then
+                table.insert(report.invalid, enemy.id .. ".maskedIntent.mode")
+            else
+                report.coverage[familyId] = report.coverage[familyId] + 1
+                if partial and masked.category ~= partial.category then
+                    table.insert(report.invalid, enemy.id .. ".maskedIntent.category")
+                end
+                if not (masked.source and masked.mask and masked.targetPattern and masked.pathPattern and masked.preview) then
+                    table.insert(report.invalid, enemy.id .. ".maskedIntent.preview")
+                end
+                if not (masked.revealGate and masked.revealGate.weakPoint and masked.revealGate.class and masked.revealGate.action) then
+                    table.insert(report.invalid, enemy.id .. ".maskedIntent.revealGate")
+                elseif masked.revealGate.weakPoint ~= enemy.weakPoints[1] then
+                    table.insert(report.invalid, enemy.id .. ".maskedIntent.weakPoint")
+                end
+                if not (masked.counterplay and #masked.counterplay >= 2) then
+                    table.insert(report.invalid, enemy.id .. ".maskedIntent.counterplay")
+                end
+                if masked.deterministic ~= true or masked.footprintHidden ~= true then
+                    table.insert(report.invalid, enemy.id .. ".maskedIntent.flags")
+                end
+                if not zoneCounterplay(enemy) then
+                    table.insert(report.invalid, enemy.id .. ".zoneCounterplay")
+                end
+            end
+        end
+    end
+    for _, familyId in ipairs({ "archive", "cistern", "warrens" }) do
+        if (report.coverage[familyId] or 0) ~= #EnemyCatalog.elites(familyId) then
+            table.insert(report.missing, familyId .. ".maskedIntentCoverage")
         end
     end
     report.ok = #report.missing == 0 and #report.invalid == 0

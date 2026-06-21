@@ -496,6 +496,22 @@ preview/UI: common enemy inspector shows exact category, target pattern, path pa
 
 test/replay proof: `EnemyCatalog.auditExactBasicIntents()` rejects missing exact intent mode, missing exact preview fields, missing objective impact, missing counterplay, nondeterministic flags, forced movement without collision, and incomplete common-family coverage.
 
+### H28 Elite Partial And Masked Intents
+
+source pattern: Slay the Spire-style intent symbols expose action categories while Into the Breach-style tactics require counterplay before resolution.
+
+thoth transformation: Elites keep category-visible partial intents for encounter generation and add hidden-footprint masked intent blueprints gated by weak points, reveal classes, reveal actions, and zone counterplay.
+
+board verb: mask, reveal, expose, counter, resolve.
+
+zone fit: Archive masks footprints behind seals; Cistern masks footprints below waterlines; Warrens masks footprints through ash/glass reflection.
+
+counterplay: expose weak point, unseal intent, sound depth, clear ash/glass, break seal line, drain pressure source, douse, or shatter reflector.
+
+preview/UI: elite inspector shows category icon, mask kind, hidden-footprint cue, weak point gate, reveal action, and counterplay line without exposing private tiles until reveal.
+
+test/replay proof: `EnemyCatalog.auditEliteMaskedIntents()` rejects missing category partials, missing hidden-footprint masks, category mismatch, missing reveal gates, weak-point mismatch, missing zone counterplay, and incomplete elite-family coverage.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.
