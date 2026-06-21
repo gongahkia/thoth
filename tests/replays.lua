@@ -312,4 +312,47 @@ expect(Serialize.encode(apothecaryA:snapshot()) == Serialize.encode(apothecaryB:
 expect(apothecaryA:objective("patient").integrity == 3, "Apothecary replay should smoke and repair")
 io.stdout:write("tactics replay ok ", apothecaryFixture, "\n")
 
+local function tacticalArcanistReplayState()
+    return TacticsState.new({
+        defaultAp = 3,
+        board = {
+            width = 4,
+            height = 3,
+            tiles = {
+                ["1:1"] = { revealed = false, revealClasses = { "arcanist" }, weakPoint = "seal_glyph" },
+            },
+        },
+        units = {
+            { id = "arcanist", side = "player", x = 1, y = 3, hp = 6, class = "arcanist" },
+            { id = "redactor", side = "enemy", x = 3, y = 2, hp = 4 },
+        },
+    })
+end
+
+local tacticalArcanistFrames = {
+    { tick = 0, command = TacticsState.commands.intent("redactor", {
+        mode = "hiddenFootprint",
+        category = "redacted",
+        targetTiles = { { x = 1, y = 3 } },
+        revealClasses = { "arcanist" },
+    }) },
+    { tick = 1, command = TacticsState.commands.classReveal("arcanist", { revealAction = "read_seal" }, 1) },
+}
+
+local function runTacticalArcanistReplay()
+    local state = tacticalArcanistReplayState()
+    for _, frame in ipairs(tacticalArcanistFrames) do
+        state:apply(frame.command)
+    end
+    return state
+end
+
+local arcanistFixture = ClassCatalog.class("arcanist").replayFixture
+local arcanistA = runTacticalArcanistReplay()
+local arcanistB = runTacticalArcanistReplay()
+expect(arcanistFixture == "arcanist_seal_read", "Arcanist replay fixture should be registered")
+expect(Serialize.encode(arcanistA:snapshot()) == Serialize.encode(arcanistB:snapshot()), "Arcanist replay fixture should be deterministic")
+expect(arcanistA:intentPreview("redactor").revealed and arcanistA:tileAt(1, 1).weakPointRevealed, "Arcanist replay should reveal intent and seal")
+io.stdout:write("tactics replay ok ", arcanistFixture, "\n")
+
 io.stdout:write("replay fixtures passed: ", #fixtures, "\n")

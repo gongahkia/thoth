@@ -108,3 +108,38 @@ Acceptance proof:
 
 - `tests/run.lua` verifies Apothecary loadout, tool, terrain interaction, weakness, and replay fixture counts.
 - `tests/replays.lua` runs deterministic Apothecary smoke and repair replay fixture `apothecary_smoke_triage`.
+
+## CL.4 Arcanist
+
+The Arcanist defines 3 loadouts:
+
+- `seal_reader`: hidden-info reader using `seal_lantern` and `syntax_hook`.
+- `line_bender`: LoS manipulator using `glyph_prism` and `angle_wax`.
+- `intent_breaker`: intent disruptor using `hush_formula` and `permission_key`.
+
+The Arcanist defines 6 tools:
+
+- `seal_lantern`: reveal class-gated marks and weak points.
+- `syntax_hook`: pull one redacted intent into exact preview.
+- `glyph_prism`: bend one visible LoS ray around cover.
+- `angle_wax`: mark a tile as readable from current rotation.
+- `hush_formula`: interrupt one ritual or category intent.
+- `permission_key`: treat one sealed tile as passable for a move.
+
+Terrain interactions:
+
+- `read_back_seal`: reveal planning fact from reverse face.
+- `bend_audit_beam`: redirect one audit or heat line preview.
+
+Weakness:
+
+- `overread`: after revealing hidden info, next incoming stress is +2.
+
+Replay fixture:
+
+- `arcanist_seal_read`
+
+Acceptance proof:
+
+- `tests/run.lua` verifies Arcanist loadout, tool, terrain interaction, weakness, and replay fixture counts.
+- `tests/replays.lua` runs deterministic Arcanist seal and intent reveal replay fixture `arcanist_seal_read`.

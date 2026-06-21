@@ -67,6 +67,28 @@ ClassCatalog.classes = {
         weakness = { id = "triage_burden", effect = "after repairing an objective, next carry or drag costs +1 AP" },
         replayFixture = "apothecary_smoke_triage",
     },
+    arcanist = {
+        name = "Arcanist",
+        loadouts = {
+            { id = "seal_reader", role = "hidden-info reader", tools = { "seal_lantern", "syntax_hook" } },
+            { id = "line_bender", role = "LoS manipulator", tools = { "glyph_prism", "angle_wax" } },
+            { id = "intent_breaker", role = "intent disruptor", tools = { "hush_formula", "permission_key" } },
+        },
+        tools = {
+            { id = "seal_lantern", effect = "reveal class-gated marks and weak points" },
+            { id = "syntax_hook", effect = "pull one redacted intent into exact preview" },
+            { id = "glyph_prism", effect = "bend one visible LoS ray around cover" },
+            { id = "angle_wax", effect = "mark a tile as readable from current rotation" },
+            { id = "hush_formula", effect = "interrupt one ritual or category intent" },
+            { id = "permission_key", effect = "treat one sealed tile as passable for a move" },
+        },
+        terrainInteractions = {
+            { id = "read_back_seal", terrain = "rotation_mark", effect = "reveal planning fact from reverse face" },
+            { id = "bend_audit_beam", terrain = "los_lane", effect = "redirect one audit or heat line preview" },
+        },
+        weakness = { id = "overread", effect = "after revealing hidden info, next incoming stress is +2" },
+        replayFixture = "arcanist_seal_read",
+    },
 }
 
 function ClassCatalog.class(id)

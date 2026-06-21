@@ -1405,6 +1405,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local arcanist = ClassCatalog.class("arcanist")
+    expect(arcanist and arcanist.name == "Arcanist", "Arcanist catalog entry should exist")
+    expect(#ClassCatalog.loadouts("arcanist") == 3, "Arcanist should define 3 loadouts")
+    expect(#ClassCatalog.tools("arcanist") == 6, "Arcanist should define 6 tools")
+    expect(#ClassCatalog.terrainInteractions("arcanist") == 2, "Arcanist should define 2 terrain interactions")
+    expect(arcanist.weakness and arcanist.weakness.id == "overread", "Arcanist should define weakness")
+    expect(arcanist.replayFixture == "arcanist_seal_read", "Arcanist should define replay fixture")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
