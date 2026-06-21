@@ -535,6 +535,49 @@ end
 tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
+        board = { width = 4, height = 3 },
+        units = {
+            { id = "warden", side = "player", x = 2, y = 2, hp = 5 },
+            { id = "oracle", side = "enemy", x = 4, y = 2 },
+        },
+        objectives = {
+            { id = "seal", x = 1, y = 1, integrity = 1, maxIntegrity = 3, evacuateAt = { x = 4, y = 3 } },
+        },
+    })
+    local function declareConditional()
+        state:apply(TacticsState.commands.intent("oracle", {
+            mode = "conditional",
+            category = "attack",
+            branches = {
+                {
+                    condition = { kind = "targetMoved", target = "warden" },
+                    intent = { mode = "exact", category = "attack", targetTiles = { { x = 2, y = 3 } }, damage = 2, effect = "fire_cone" },
+                    trigger = { kind = "damage", target = "warden", damage = 2 },
+                },
+                {
+                    condition = "otherwise",
+                    intent = { mode = "exact", category = "repair", targetTiles = { { x = 1, y = 1 } }, effect = "repair_seal" },
+                    trigger = { kind = "repairObjective", objective = "seal", amount = 1 },
+                },
+            },
+        }))
+    end
+    declareConditional()
+    local preview = state:intentPreview("oracle")
+    expect(preview.mode == "conditional" and #preview.branches == 2 and preview.branches[1].condition.from.x == 2, "conditional intent should preview declared branches and source condition")
+    state:apply(TacticsState.commands.resolveConditionalIntent("oracle"))
+    expect(state:objective("seal").integrity == 2 and state:unit("warden").hp == 5, "conditional otherwise branch should repair seal")
+    declareConditional()
+    state:apply(TacticsState.commands.move("warden", "south"))
+    state:apply(TacticsState.commands.resolveConditionalIntent("oracle"))
+    expect(state:unit("warden").hp == 3 and state:intentPreview("oracle") == nil, "conditional targetMoved branch should fire after movement")
+    local loaded = TacticsState.fromSnapshot(state:snapshot())
+    expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(state:snapshot()), "conditional intents should snapshot deterministically")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        defaultAp = 3,
         board = { width = 5, height = 3 },
         units = {
             { id = "warden", side = "player", x = 5, y = 2 },

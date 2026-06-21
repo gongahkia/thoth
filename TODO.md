@@ -69,7 +69,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### Intent & Counterplay Mechanics
 
-- [ ] I.5 Build conditional intent: declared branch such as "if target moves, fire cone; otherwise repair seal."
 - [ ] I.6 Build interrupt rules: stun, shove, LoS break, cover raise, seal, hack, douse, drain, expose weak point.
 - [ ] I.7 Build intent decay/escalation for ignored threats.
 - [ ] I.8 Build fake/decoy intent only if a reveal/counterplay rule exists; no arbitrary lies.

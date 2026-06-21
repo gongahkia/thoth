@@ -106,3 +106,25 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies tile, object, and enemy anchors, visible countdown, delayed trigger, deterministic damage/status effects, and snapshot stability.
+
+## I.5 Conditional Intent
+
+Conditional intent declares multiple visible branches and resolves the first true branch.
+
+Supported conditions:
+
+- `targetMoved`: target unit left its declaration tile.
+- `targetOnTile`: target unit is on a declared tile.
+- `otherwise`: fallback branch.
+
+Rules:
+
+- Conditional intent must include at least two branches.
+- Conditional intent must include an `otherwise` branch.
+- `targetMoved` records the target source tile when intent is declared.
+- Preview exposes all branches, conditions, and deterministic branch payloads.
+- Resolution selects the first true condition, applies its deterministic trigger, and removes the intent.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies `targetMoved`/`otherwise` branch preview, repair fallback, movement-triggered attack branch, and snapshot stability.

@@ -154,13 +154,21 @@ local intentModes = {
     hiddenFootprint = true,
     bossStage = true,
     fuse = true,
+    conditional = true,
 }
 
 local fuseTriggerKinds = {
     damage = true,
     damageObjective = true,
+    repairObjective = true,
     convertTile = true,
     status = true,
+}
+
+local conditionKinds = {
+    targetMoved = true,
+    targetOnTile = true,
+    otherwise = true,
 }
 
 local function normalizeFuseAnchor(anchor)
@@ -196,6 +204,9 @@ local function normalizeFuseTrigger(trigger)
     }
     if kind == "damageObjective" then
         expect(type(result.objective) == "string" and result.objective ~= "", "fuse objective required")
+    elseif kind == "repairObjective" then
+        expect(type(result.objective) == "string" and result.objective ~= "", "fuse objective required")
+        result.amount = trigger.amount or trigger.repair or 1
     elseif kind == "convertTile" then
         expect(type(result.conversion) == "string" and result.conversion ~= "", "fuse conversion required")
         expect(#result.targetTiles > 0, "fuse conversion needs target tiles")
@@ -204,6 +215,79 @@ local function normalizeFuseTrigger(trigger)
         expect(type(result.status) == "string" and result.status ~= "", "fuse status required")
     end
     return result
+end
+
+local function normalizeCondition(condition)
+    if type(condition) == "string" then
+        condition = { kind = condition }
+    end
+    condition = condition or { kind = "otherwise" }
+    local kind = condition.kind or condition.type or condition.when
+    expect(conditionKinds[kind], "unsupported intent condition " .. tostring(kind))
+    local result = {
+        kind = kind,
+        target = condition.target,
+    }
+    if condition.from then
+        result.from = { x = expectInteger(condition.from.x, "condition from x"), y = expectInteger(condition.from.y, "condition from y") }
+    end
+    if kind == "targetMoved" then
+        expect(type(result.target) == "string" and result.target ~= "", "targetMoved condition target required")
+    elseif kind == "targetOnTile" then
+        expect(type(result.target) == "string" and result.target ~= "", "targetOnTile condition target required")
+        result.x = expectInteger(condition.x, "condition x")
+        result.y = expectInteger(condition.y, "condition y")
+    end
+    return result
+end
+
+local function normalizeBranchIntent(intent)
+    intent = intent or {}
+    local mode = intent.mode or "exact"
+    expect(intentModes[mode] and mode ~= "conditional", "invalid branch intent mode " .. tostring(mode))
+    local category = intent.category or "attack"
+    expect(intentCategories[category], "invalid intent category " .. tostring(category))
+    return {
+        mode = mode,
+        category = category,
+        target = intent.target,
+        targetTiles = normalizeTileList(intent.tiles or intent.targetTiles),
+        path = normalizeTileList(intent.path),
+        damage = intent.damage or 0,
+        effect = intent.effect,
+        objectiveImpact = intent.objectiveImpact,
+        trigger = copyMap(intent.trigger),
+    }
+end
+
+local function normalizeConditionalBranches(intent)
+    local sourceBranches = intent.branches
+    if not sourceBranches then
+        sourceBranches = {
+            { condition = intent.condition or intent.when, intent = intent.ifTrue or intent.thenIntent, trigger = intent.thenTrigger },
+            { condition = "otherwise", intent = intent.otherwise or intent.elseIntent, trigger = intent.elseTrigger },
+        }
+    end
+    local branches = {}
+    local hasOtherwise = false
+    for _, branch in ipairs(sourceBranches or {}) do
+        local branchIntent = normalizeBranchIntent(branch.intent or branch.preview or branch)
+        local condition = normalizeCondition(branch.condition or branch.when)
+        if condition.kind == "otherwise" then
+            hasOtherwise = true
+        end
+        local branchTrigger = normalizeFuseTrigger(branch.trigger or branchIntent.trigger)
+        expect(#branchIntent.targetTiles > 0 or #branchTrigger.targetTiles > 0 or branchTrigger.target or branchTrigger.objective, "conditional branch needs target or trigger")
+        branches[#branches + 1] = {
+            condition = condition,
+            intent = branchIntent,
+            trigger = branchTrigger,
+            label = branch.label,
+        }
+    end
+    expect(#branches >= 2, "conditional intent needs at least two branches")
+    expect(hasOtherwise, "conditional intent needs otherwise branch")
+    return branches
 end
 
 local function normalizeIntent(intent)
@@ -229,6 +313,10 @@ local function normalizeIntent(intent)
         anchor = normalizeFuseAnchor(intent.anchor)
         expect(#tiles > 0 or #trigger.targetTiles > 0 or trigger.target or trigger.objective, "fuse intent needs target or trigger")
     end
+    local branches = nil
+    if mode == "conditional" then
+        branches = normalizeConditionalBranches(intent)
+    end
     return {
         mode = mode,
         category = category,
@@ -244,6 +332,7 @@ local function normalizeIntent(intent)
         countdown = countdown,
         anchor = anchor,
         trigger = trigger,
+        branches = branches,
         revealRotations = normalizeRotationList(intent.revealRotations),
         revealActions = copyList(intent.revealActions),
         revealClasses = copyList(intent.revealClasses),
@@ -961,6 +1050,19 @@ function State:addThreatZoneShape(unitId, shape, options)
     return self:addThreatZone(unitId, tiles, options)
 end
 
+local function hydrateConditionalIntent(state, intent)
+    if intent.mode ~= "conditional" then
+        return
+    end
+    for _, branch in ipairs(intent.branches or {}) do
+        local condition = branch.condition
+        if condition.kind == "targetMoved" and not condition.from then
+            local target = expect(state.units[condition.target], "unknown condition target " .. tostring(condition.target))
+            condition.from = { x = target.x, y = target.y }
+        end
+    end
+end
+
 function State:declareIntent(unitId, intent)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     local normalized = normalizeIntent(intent)
@@ -968,6 +1070,7 @@ function State:declareIntent(unitId, intent)
     if not normalized.sourceTile.x then
         normalized.sourceTile = { x = unit.x, y = unit.y }
     end
+    hydrateConditionalIntent(self, normalized)
     self.intents[unitId] = normalized
     return normalized
 end
@@ -992,6 +1095,7 @@ function State:intentPreview(unitId, options)
         countdown = intent.countdown,
         anchor = copyMap(intent.anchor),
         trigger = copyMap(intent.trigger),
+        branches = copyValue(intent.branches),
         revealRotations = copyList(intent.revealRotations),
         revealActions = copyList(intent.revealActions),
         revealClasses = copyList(intent.revealClasses),
@@ -1013,10 +1117,9 @@ function State:intentPreview(unitId, options)
     return preview
 end
 
-function State:resolveIntentFuse(unitId, intent)
-    intent = intent or expect(self.intents[unitId], "unknown intent " .. tostring(unitId))
-    expect(intent.mode == "fuse", "intent is not a fuse")
-    local trigger = intent.trigger or {}
+function State:resolveIntentTrigger(unitId, intent, trigger)
+    intent = intent or {}
+    trigger = trigger or intent.trigger or {}
     local damage = trigger.damage or intent.damage or 0
     local tiles = (#(trigger.targetTiles or {}) > 0) and trigger.targetTiles or intent.targetTiles
     local result = {
@@ -1031,15 +1134,23 @@ function State:resolveIntentFuse(unitId, intent)
         conversions = {},
     }
     if trigger.kind == "damage" then
+        local damagedUnits = {}
+        local function damageUnitOnce(unitOrId)
+            local unit = type(unitOrId) == "table" and unitOrId or expect(self.units[unitOrId], "unknown unit " .. tostring(unitOrId))
+            if damagedUnits[unit.id] then
+                return
+            end
+            self:damageUnit(unit, damage)
+            damagedUnits[unit.id] = true
+            result.units[#result.units + 1] = unit.id
+        end
         if trigger.target then
-            self:damageUnit(trigger.target, damage)
-            result.units[#result.units + 1] = trigger.target
+            damageUnitOnce(trigger.target)
         end
         for _, tile in ipairs(tiles or {}) do
             local unit = self:unitAt(tile.x, tile.y)
             if unit then
-                self:damageUnit(unit, damage)
-                result.units[#result.units + 1] = unit.id
+                damageUnitOnce(unit)
             end
             local objective = self:objectiveAt(tile.x, tile.y)
             if objective then
@@ -1055,6 +1166,9 @@ function State:resolveIntentFuse(unitId, intent)
     elseif trigger.kind == "damageObjective" then
         self:damageObjective(trigger.objective, damage)
         result.objectives[#result.objectives + 1] = trigger.objective
+    elseif trigger.kind == "repairObjective" then
+        self:repairObjective(trigger.objective, trigger.amount or 1)
+        result.objectives[#result.objectives + 1] = trigger.objective
     elseif trigger.kind == "convertTile" then
         for _, tile in ipairs(tiles or {}) do
             self:convertTile(tile.x, tile.y, trigger.conversion)
@@ -1069,6 +1183,12 @@ function State:resolveIntentFuse(unitId, intent)
     return result
 end
 
+function State:resolveIntentFuse(unitId, intent)
+    intent = intent or expect(self.intents[unitId], "unknown intent " .. tostring(unitId))
+    expect(intent.mode == "fuse", "intent is not a fuse")
+    return self:resolveIntentTrigger(unitId, intent, intent.trigger)
+end
+
 function State:tickIntentFuse(unitId)
     local intent = expect(self.intents[unitId], "unknown intent " .. tostring(unitId))
     expect(intent.mode == "fuse", "intent is not a fuse")
@@ -1077,6 +1197,42 @@ function State:tickIntentFuse(unitId)
         return { triggered = false, source = unitId, countdown = intent.countdown }
     end
     local result = self:resolveIntentFuse(unitId, intent)
+    self.intents[unitId] = nil
+    return result
+end
+
+function State:intentConditionMet(condition)
+    if condition.kind == "otherwise" then
+        return true
+    elseif condition.kind == "targetMoved" then
+        local unit = expect(self.units[condition.target], "unknown condition target " .. tostring(condition.target))
+        local from = expect(condition.from, "targetMoved condition missing source tile")
+        return unit.x ~= from.x or unit.y ~= from.y
+    elseif condition.kind == "targetOnTile" then
+        local unit = expect(self.units[condition.target], "unknown condition target " .. tostring(condition.target))
+        return unit.x == condition.x and unit.y == condition.y
+    end
+    error("unknown intent condition " .. tostring(condition.kind), 2)
+end
+
+function State:selectConditionalBranch(unitId)
+    local intent = expect(self.intents[unitId], "unknown intent " .. tostring(unitId))
+    expect(intent.mode == "conditional", "intent is not conditional")
+    for index, branch in ipairs(intent.branches or {}) do
+        if self:intentConditionMet(branch.condition) then
+            return branch, index
+        end
+    end
+    return nil
+end
+
+function State:resolveConditionalIntent(unitId)
+    local intent = expect(self.intents[unitId], "unknown intent " .. tostring(unitId))
+    expect(intent.mode == "conditional", "intent is not conditional")
+    local branch, index = expect(self:selectConditionalBranch(unitId), "conditional intent had no matching branch")
+    local result = self:resolveIntentTrigger(unitId, branch.intent, branch.trigger)
+    result.branch = index
+    result.condition = copyValue(branch.condition)
     self.intents[unitId] = nil
     return result
 end
@@ -1808,6 +1964,8 @@ function State:apply(command)
         self:tickStatuses(command.unit)
     elseif kind == "tickIntentFuse" then
         self:tickIntentFuse(command.unit)
+    elseif kind == "resolveConditionalIntent" then
+        self:resolveConditionalIntent(command.unit)
     elseif kind == "reward" then
         self:grantReward(command.reward)
     else
@@ -1982,6 +2140,10 @@ end
 
 function commands.tickIntentFuse(unitId)
     return { type = "tickIntentFuse", unit = unitId }
+end
+
+function commands.resolveConditionalIntent(unitId)
+    return { type = "resolveConditionalIntent", unit = unitId }
 end
 
 function commands.reward(reward)
