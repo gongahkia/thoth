@@ -1465,6 +1465,22 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local traits = ClassCatalog.characterTraits()
+    expect(#traits == 20, "class catalog should define 20 character traits")
+    local domains = {}
+    local ids = {}
+    for _, trait in ipairs(traits) do
+        expect(trait.id and trait.domain and trait.effect, "character trait should include id domain effect")
+        expect(not ids[trait.id], "character trait ids should be unique")
+        ids[trait.id] = true
+        domains[trait.domain] = true
+    end
+    for _, domain in ipairs({ "ap", "movement", "los", "cover", "carry", "reveal", "cooldown", "objectiveRepair", "eventOutcome" }) do
+        expect(domains[domain], "character traits should cover domain " .. domain)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

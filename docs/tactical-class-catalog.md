@@ -318,3 +318,32 @@ Acceptance proof:
 
 - `tests/run.lua` verifies Merchant loadout, tool, terrain interaction, weakness, and replay fixture counts.
 - `tests/replays.lua` runs deterministic Merchant appraise and objective insurance replay fixture `merchant_appraise_debt`.
+
+## CL.10 Character Traits
+
+The catalog defines 20 deterministic character traits:
+
+- `quick_account`: AP, +1 AP on first objective interaction.
+- `slow_oath`: AP, first attack costs +1 AP.
+- `sure_stride`: movement, ignore first rough-terrain move cost.
+- `salt_limp`: movement, water or brine movement costs +1 AP.
+- `beam_reader`: LoS, preview audit and heat lanes one tile farther.
+- `smoke_shy`: LoS, cannot reveal through obscurant.
+- `cover_drilled`: cover, first claimed cover improves by one step.
+- `flank_careless`: cover, flanked damage against this unit is +1.
+- `porter_arms`: carry, first cargo carry costs 0 AP.
+- `fragile_grip`: carry, dragging cargo through hazard deals +1 cargo damage.
+- `seal_literate`: reveal, rotation marks reveal at adjacent range.
+- `mark_blind`: reveal, class reveal actions cost +1 AP.
+- `short_fuse`: cooldown, first tool cooldown is reduced by one tick.
+- `long_recovery`: cooldown, next cooldown gains one tick after a tool use.
+- `repair_hands`: objective repair, first objective repair restores +1 integrity.
+- `clumsy_patch`: objective repair, repairing destructible cover costs +1 AP.
+- `enclave_favor`: event outcome, enclave events start one step friendlier.
+- `debt_shadow`: event outcome, Merchant debt events add one pressure.
+- `ledger_memory`: event outcome, audit events reveal one extra route clause.
+- `cold_focus`: AP, ignore first AP tax from stress debt.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies there are exactly 20 traits, every trait has id/domain/effect metadata, ids are unique, and all required domains are covered.

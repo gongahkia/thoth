@@ -201,6 +201,29 @@ ClassCatalog.classes = {
     },
 }
 
+ClassCatalog.traits = {
+    { id = "quick_account", domain = "ap", effect = "+1 AP on first objective interaction" },
+    { id = "slow_oath", domain = "ap", effect = "first attack each board costs +1 AP" },
+    { id = "sure_stride", domain = "movement", effect = "ignore first rough-terrain move cost" },
+    { id = "salt_limp", domain = "movement", effect = "water or brine movement costs +1 AP" },
+    { id = "beam_reader", domain = "los", effect = "preview audit and heat lanes one tile farther" },
+    { id = "smoke_shy", domain = "los", effect = "cannot reveal through obscurant" },
+    { id = "cover_drilled", domain = "cover", effect = "first claimed cover improves by one step" },
+    { id = "flank_careless", domain = "cover", effect = "flanked damage against this unit is +1" },
+    { id = "porter_arms", domain = "carry", effect = "first cargo carry costs 0 AP" },
+    { id = "fragile_grip", domain = "carry", effect = "dragging cargo through hazard deals +1 cargo damage" },
+    { id = "seal_literate", domain = "reveal", effect = "rotation marks reveal at adjacent range" },
+    { id = "mark_blind", domain = "reveal", effect = "class reveal actions cost +1 AP" },
+    { id = "short_fuse", domain = "cooldown", effect = "first tool cooldown is reduced by one tick" },
+    { id = "long_recovery", domain = "cooldown", effect = "after a tool use, next cooldown gains one tick" },
+    { id = "repair_hands", domain = "objectiveRepair", effect = "first objective repair restores +1 integrity" },
+    { id = "clumsy_patch", domain = "objectiveRepair", effect = "repairing destructible cover costs +1 AP" },
+    { id = "enclave_favor", domain = "eventOutcome", effect = "enclave events start one step friendlier" },
+    { id = "debt_shadow", domain = "eventOutcome", effect = "Merchant debt events add one pressure" },
+    { id = "ledger_memory", domain = "eventOutcome", effect = "audit events reveal one extra route clause" },
+    { id = "cold_focus", domain = "ap", effect = "ignore first AP tax from stress debt" },
+}
+
 function ClassCatalog.class(id)
     return ClassCatalog.classes[id]
 end
@@ -218,6 +241,10 @@ end
 function ClassCatalog.terrainInteractions(id)
     local class = ClassCatalog.class(id)
     return class and class.terrainInteractions or {}
+end
+
+function ClassCatalog.characterTraits()
+    return ClassCatalog.traits
 end
 
 return ClassCatalog
