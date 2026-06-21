@@ -146,6 +146,8 @@ function Runtime.new(sim)
         state = makeState(),
         summary = Runtime.summary,
         handleKey = Runtime.handleKey,
+        setCursor = Runtime.setCursor,
+        handleMouseTile = Runtime.handleMouseTile,
     }
     Runtime.declareEnemyIntents(runtime)
     Runtime.refreshOverlays(runtime)
@@ -213,6 +215,17 @@ function Runtime.moveCursor(runtime, dx, dy)
     Runtime.refreshOverlays(runtime)
 end
 
+function Runtime.setCursor(runtime, x, y)
+    local state = runtime and runtime.state
+    if not (state and state:inBounds(x, y)) then
+        return false
+    end
+    runtime.cursor.x = x
+    runtime.cursor.y = y
+    Runtime.refreshOverlays(runtime)
+    return true
+end
+
 function Runtime.moveSelectedToCursor(runtime)
     local state = runtime.state
     local selected = Runtime.selectedUnit(runtime)
@@ -232,6 +245,37 @@ function Runtime.moveSelectedToCursor(runtime)
     end
     setStatus(runtime, selected.id .. " moved")
     Runtime.refreshOverlays(runtime)
+    return true
+end
+
+function Runtime.handleMouseTile(runtime, x, y, button)
+    if button ~= 1 and button ~= 2 then
+        return false
+    end
+    if not Runtime.setCursor(runtime, x, y) then
+        return false
+    end
+    local state = runtime.state
+    local unit = state:unitAt(x, y)
+    if button == 2 then
+        setStatus(runtime, "cursor " .. tostring(x) .. "," .. tostring(y))
+        return true
+    end
+    if unit and unit.side == "player" then
+        runtime.selectedUnitId = unit.id
+        setStatus(runtime, "selected " .. unit.id)
+        Runtime.refreshOverlays(runtime)
+        return true
+    end
+    if unit and unit.side == "enemy" then
+        return Runtime.attackCursor(runtime)
+    end
+    local selected = Runtime.selectedUnit(runtime)
+    local preview = selected and state:movementPreview(selected.id)
+    if selected and reachableByKey(preview)[tostring(x) .. ":" .. tostring(y)] then
+        return Runtime.moveSelectedToCursor(runtime)
+    end
+    setStatus(runtime, "cursor " .. tostring(x) .. "," .. tostring(y))
     return true
 end
 

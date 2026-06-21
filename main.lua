@@ -1091,6 +1091,7 @@ local function printTacticalSmoke(state)
     print("tactical-smoke-enemy-units=" .. tostring(#(summary.enemies or {})))
     print("tactical-smoke-intents=" .. tostring(overlays.intent or 0))
     print("tactical-smoke-movement=" .. tostring(overlays.movement or 0))
+    print("tactical-smoke-zoom=" .. string.format("%.2f", Render.tacticalZoom(state)))
     print("tactical-smoke-objective=" .. tostring(summary.objective and summary.objective.integrity) .. "/" .. tostring(summary.objective and summary.objective.maxIntegrity))
 end
 
@@ -1794,6 +1795,38 @@ local function handleKey(key)
     Input.keypressed(sim, app, key)
 end
 
+local function updateTacticalMouseCursor(x, y)
+    if not (app and app.tacticalMode and app.uiState == "game" and app.tactics and not app.paused and not app.confirmDialog) then
+        return false
+    end
+    local tileX, tileY = Render.tacticalTileAt(app, x, y)
+    if not tileX then
+        return false
+    end
+    if app.tactics:setCursor(tileX, tileY) then
+        app.tacticalOverlays = app.tactics.overlays
+        TacticalRuntime.syncWorld(sim, app.tactics)
+        return true
+    end
+    return false
+end
+
+local function mouseTactical(x, y, button)
+    if not updateTacticalMouseCursor(x, y) then
+        playUi(app, "invalid")
+        return true
+    end
+    local tileX, tileY = Render.tacticalTileAt(app, x, y)
+    if app.tactics:handleMouseTile(tileX, tileY, button) then
+        app.tacticalOverlays = app.tactics.overlays
+        TacticalRuntime.syncWorld(sim, app.tactics)
+        Audio.play(app.audio, "tick")
+    else
+        playUi(app, "invalid")
+    end
+    return true
+end
+
 function love.keypressed(key)
     if key == "c" and love.keyboard.isDown("lctrl", "rctrl") then
         requestQuit(app)
@@ -1860,6 +1893,10 @@ function love.mousepressed(x, y, button)
         mousePause(app, x, y)
         return
     end
+    if app.tacticalMode and app.uiState == "game" then
+        mouseTactical(x, y, button)
+        return
+    end
     Input.mousepressed(sim, app, x, y, button)
 end
 
@@ -1871,6 +1908,12 @@ function love.mousereleased(x, y, button)
 end
 
 function love.wheelmoved(_, y)
+    if app.tacticalMode and app.uiState == "game" and not app.paused and not app.confirmDialog and y ~= 0 then
+        local zoom = Render.adjustTacticalZoom(app, y)
+        app.status = "zoom " .. tostring(math.floor(zoom * 100 + 0.5)) .. "%"
+        Audio.play(app.audio, "tick")
+        return
+    end
     if app.uiState == "credits" then
         app.creditsScroll = math.max(0, (app.creditsScroll or 0) - y)
     end
@@ -1879,6 +1922,9 @@ end
 function love.mousemoved(x, y)
     local _, group, index = Render.hitboxAt(app, x, y)
     app.uiHot = group and { group = group, index = index } or nil
+    if not group then
+        updateTacticalMouseCursor(x, y)
+    end
 end
 
 function love.quit()

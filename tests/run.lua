@@ -187,6 +187,36 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local tacticalSim = Simulation.new(9002)
+    local runtime = TacticalRuntime.new(tacticalSim)
+    local app = {
+        tacticalMode = true,
+        tactics = runtime,
+        tacticalOverlays = runtime.overlays,
+        worldView = {
+            centerX = 400,
+            centerY = 260,
+            halfW = 32,
+            halfH = 16,
+            originX = tacticalSim.player.x,
+            originY = tacticalSim.player.y,
+            rotation = 0,
+        },
+    }
+    local sx, sy = Render.projectIso(app.worldView, runtime.originX + 3, runtime.originY + 6)
+    local tileX, tileY = Render.tacticalTileAt(app, sx, sy)
+    expect(tileX == 3 and tileY == 6, "tactical mouse projection should map screen point to board tile")
+    expect(runtime:handleMouseTile(tileX, tileY, 1), "left click should handle reachable board tile")
+    expect(runtime.state:unit("warden").x == 3 and runtime.state:unit("warden").ap == 2, "left click should move selected unit to reachable tile")
+    expect(runtime:handleMouseTile(2, 7, 1), "left click should select player unit")
+    expect(runtime.selectedUnitId == "lamplighter", "left click should select clicked squad unit")
+    expect(runtime:handleMouseTile(5, 6, 2), "right click should place cursor")
+    expect(runtime.cursor.x == 5 and runtime.cursor.y == 6, "right click should move cursor without action")
+    expect(Render.adjustTacticalZoom(app, 3) > 1, "wheel up should zoom in")
+    expect(Render.adjustTacticalZoom(app, -20) == 0.65, "wheel down should clamp zoom out")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
             width = 3,

@@ -9,7 +9,7 @@ Open task list:
 - [ ] Replace legacy expedition/rank-combat progression with tactical route flow after the tactical prototype.
 - [ ] Replace the RPG tutorial modal with tactical onboarding for AP, cursor, intent, cover, objective pressure, and rotation.
 - [ ] Make tactical boards load from procgen route nodes instead of the fixed prototype board.
-- [ ] Add mouse/controller tactical cursor support; keyboard is first proof only.
+- [ ] Add controller tactical cursor support; mouse cursor and wheel zoom are in the prototype.
 - [ ] Remove or quarantine legacy party-rank combat from default New Game and release smoke paths.
 - [ ] Expand tactical enemy AI beyond fixed posted intents while keeping deterministic resolution.
 

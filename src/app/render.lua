@@ -15,6 +15,8 @@ local state = {
 local cameraPitch = math.rad(30)
 local cameraDistance = 26
 local cameraViewSize = 24
+local minTacticalZoom = 0.65
+local maxTacticalZoom = 1.85
 local baseYaw = math.rad(45)
 local visibleRadius = 10
 local atlasColumns = 8
@@ -619,6 +621,28 @@ function Render.screenToWorld(view, x, y)
     return math.floor(view.originX + dx + 0.5), math.floor(view.originY + dy + 0.5)
 end
 
+local function clamp(value, minValue, maxValue)
+    return math.max(minValue, math.min(maxValue, value))
+end
+
+function Render.tacticalZoom(app)
+    return clamp(tonumber(app and app.tacticalZoom) or 1, minTacticalZoom, maxTacticalZoom)
+end
+
+function Render.adjustTacticalZoom(app, steps)
+    if not app then
+        return 1
+    end
+    local count = math.abs(math.floor(tonumber(steps) or 0))
+    local zoom = Render.tacticalZoom(app)
+    local factor = steps and steps < 0 and (1 / 1.12) or 1.12
+    for _ = 1, count do
+        zoom = zoom * factor
+    end
+    app.tacticalZoom = clamp(zoom, minTacticalZoom, maxTacticalZoom)
+    return app.tacticalZoom
+end
+
 function Render.tileHeight(tileDef)
     return math.max(0, tonumber(tileDef and tileDef.height) or 0)
 end
@@ -1134,6 +1158,21 @@ local function tacticalOverlaySource(sim, app)
     return source
 end
 
+function Render.tacticalTileAt(app, screenX, screenY)
+    local source = tacticalOverlaySource(nil, app)
+    local view = app and app.worldView
+    if not (source and source.state and view) then
+        return nil
+    end
+    local worldX, worldY = Render.screenToWorld(view, screenX, screenY)
+    local tileX = worldX - (source.originX or 0)
+    local tileY = worldY - (source.originY or 0)
+    if not source.state:inBounds(tileX, tileY) then
+        return nil
+    end
+    return tileX, tileY
+end
+
 local function buildTacticalOverlayModel(entries, source, settings, z)
     if #entries == 0 then
         return nil
@@ -1173,6 +1212,7 @@ local function applyCamera(sim, app)
     local visualRotation = app.viewRotationVisual or app.viewRotation or 0
     local yaw = baseYaw + visualRotation * math.pi / 2
     local horizontal = math.cos(cameraPitch) * cameraDistance
+    local zoom = app and app.tacticalMode and Render.tacticalZoom(app) or 1
     local targetX = sim.player.x + 0.5
     local targetY = sim.player.y + 0.5
     local targetZ = sim.player.z or 0
@@ -1180,7 +1220,7 @@ local function applyCamera(sim, app)
     local y = targetY - math.sin(yaw) * horizontal
     local z = targetZ + math.sin(cameraPitch) * cameraDistance
     state.g3d.camera.lookAt(x, y, z, targetX, targetY, targetZ)
-    state.g3d.camera.updateOrthographicMatrix(cameraViewSize)
+    state.g3d.camera.updateOrthographicMatrix(cameraViewSize / zoom)
     return yaw
 end
 
@@ -1515,8 +1555,9 @@ function Render.drawWorld(sim, app)
     local screenHeight = love and love.graphics and love.graphics.getHeight() or 0
     app.worldView.centerX = screenWidth / 2
     app.worldView.centerY = screenHeight / 2
-    app.worldView.halfW = 32
-    app.worldView.halfH = 16
+    local zoom = app and app.tacticalMode and Render.tacticalZoom(app) or 1
+    app.worldView.halfW = 32 * zoom
+    app.worldView.halfH = 16 * zoom
     app.worldView.originX = sim and sim.player and sim.player.x or 0
     app.worldView.originY = sim and sim.player and sim.player.y or 0
     app.worldView.rotation = app.viewRotation or 0
@@ -2844,11 +2885,11 @@ function Render.drawTacticalHud(sim, app)
     love.graphics.setColor(0.76, 0.8, 0.72, 1)
     love.graphics.printf("goal: protect route machine; enemy red tiles are declared attacks; no hit chance", 16, 34, width - 32)
     local objective = summary and summary.objective or {}
-    love.graphics.printf("selected " .. tostring(summary and summary.selected or "-") .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0) .. "    cursor " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-"), 16, 58, width - 32)
+    love.graphics.printf("selected " .. tostring(summary and summary.selected or "-") .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0) .. "    cursor " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-") .. "    zoom " .. tostring(math.floor(Render.tacticalZoom(app) * 100 + 0.5)) .. "%", 16, 58, width - 32)
     love.graphics.setColor(0.9, 0.82, 0.48, 1)
     love.graphics.printf("route machine " .. tostring(objective.integrity or 0) .. "/" .. tostring(objective.maxIntegrity or 0) .. " " .. tostring(objective.status or "active"), width - 420, 58, 404, "right")
     love.graphics.setColor(0.58, 0.64, 0.58, 1)
-    love.graphics.printf("arrows/WASD cursor  Enter move  A attack  B brace  Tab unit  E resolve intents  [ ] rotate  Esc pause", 16, 82, width - 32)
+    love.graphics.printf("mouse cursor/action  wheel zoom  arrows/WASD cursor  Enter move  A attack  B brace  Tab unit  E resolve intents  [ ] rotate", 16, 82, width - 32)
 end
 
 function Render.drawTacticalSidePanel(sim, app)
