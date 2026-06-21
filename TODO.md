@@ -204,7 +204,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 Goal: prove the new combat loop before touching broad content.
 
-- [ ] P0.4 Keep `[` and `]` rotation; verify rotation changes occlusion/LoS readability without changing logical coordinates.
 - [ ] P0.5 Implement AP controls for 3-5 variable squad units.
 - [ ] P0.6 Implement deterministic movement, shove/pull, direct attack, AoE, overwatch/threat zone, and terrain destruction.
 - [ ] P0.7 Implement mixed enemy intent: exact, category-only, hidden footprint, and boss-stage intent.

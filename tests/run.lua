@@ -2615,6 +2615,51 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local tactics = TacticsState.new({
+        board = {
+            width = 4,
+            height = 4,
+            tiles = {
+                ["2:2"] = { coverEdges = { north = "half" } },
+            },
+        },
+        units = {
+            { id = "arcanist", x = 1, y = 1 },
+        },
+    })
+    local entries = Render.tacticalOverlayEntries(tactics, {
+        los = { ["3:1"] = true },
+        movement = { { x = 2, y = 1 } },
+        intents = { { x = 4, y = 3 } },
+    })
+    local view = {
+        centerX = 400,
+        centerY = 260,
+        halfW = 32,
+        halfH = 16,
+        originX = 1,
+        originY = 1,
+    }
+    local changedScreenPosition = false
+    for _, entry in ipairs(entries) do
+        view.rotation = 0
+        local sx0, sy0 = Render.projectIso(view, entry.x, entry.y)
+        view.rotation = 1
+        local sx1, sy1 = Render.projectIso(view, entry.x, entry.y)
+        if math.abs(sx0 - sx1) > 0.001 or math.abs(sy0 - sy1) > 0.001 then
+            changedScreenPosition = true
+        end
+        for rotation = 0, 3 do
+            view.rotation = rotation
+            local sx, sy = Render.projectIso(view, entry.x, entry.y)
+            local wx, wy = Render.screenToWorld(view, sx, sy)
+            expect(wx == entry.x and wy == entry.y, "rotation should not change tactical overlay logical coordinates")
+        end
+    end
+    expect(changedScreenPosition, "rotation should change tactical overlay screen readability")
+end
+
+tests[#tests + 1] = function()
     local sim = Simulation.new(101)
     sim.world:setTile(1, -1, 0, { id = "archive_monolith", data = 0 })
     local app = { viewRotation = 0 }
