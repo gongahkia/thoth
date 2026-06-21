@@ -1249,6 +1249,32 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local mechanics = ZoneCatalog.tileMechanics("salt_cistern")
+    expect(#mechanics == 12, "Salt Cistern should define 12 tile mechanics")
+    local seen = {}
+    for _, mechanic in ipairs(mechanics) do
+        seen[mechanic.id] = mechanic
+        expect(mechanic.subject and mechanic.verb and mechanic.effect, "cistern tile mechanic should include subject verb effect")
+    end
+    for _, id in ipairs({
+        "cistern_valve_turn",
+        "cistern_sluice_current",
+        "cistern_flood_lane",
+        "cistern_brine_pool",
+        "cistern_salt_mist",
+        "cistern_pressure_bell",
+        "cistern_pearl_cyst",
+        "cistern_pump_bridge",
+        "cistern_undertow_tile",
+        "cistern_drain_grate",
+        "cistern_floating_cover",
+        "cistern_waterline_height",
+    }) do
+        expect(seen[id], "missing cistern tile mechanic " .. id)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

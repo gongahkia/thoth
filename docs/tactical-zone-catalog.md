@@ -41,3 +41,24 @@ The Buried Archive defines 8 destructible or interactable objects:
 Acceptance proof:
 
 - `tests/run.lua` verifies the Buried Archive exposes exactly 8 objects and each has AP cost, HP, LoS effect, cover state, and rotation metadata.
+
+## Z.3 Salt Cistern Tile Mechanics
+
+The Salt Cistern defines 12 deterministic tile mechanics:
+
+- `cistern_valve_turn`: valves raise or drain declared water bands.
+- `cistern_sluice_current`: sluice currents push units along previewed arrows after actions.
+- `cistern_flood_lane`: flood lanes surge as delayed line hazards.
+- `cistern_brine_pool`: brine pools slow movement and threaten blight damage.
+- `cistern_salt_mist`: salt mist visibly obscures LoS and reveal ranges.
+- `cistern_pressure_bell`: pressure bells escalate enemy intent on flooded rows.
+- `cistern_pearl_cyst`: pearl cysts burst into blocker shards and brine splash.
+- `cistern_pump_bridge`: pump bridges toggle crossings by waterline state.
+- `cistern_undertow_tile`: undertow tiles drag exposed units toward drains.
+- `cistern_drain_grate`: drain grates remove nearby flood lanes and create pit risk.
+- `cistern_floating_cover`: floating cover drifts with currents as half cover.
+- `cistern_waterline_height`: waterline height changes movement cost and LoS height bands.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies the Salt Cistern exposes exactly 12 tile mechanics and each has subject, verb, and effect metadata.

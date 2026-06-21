@@ -27,6 +27,22 @@ ZoneCatalog.zones = {
             { id = "ledger_bridge_winch", apCost = 2, hp = 4, losEffect = "no block, toggles crossing", coverState = "none", rotation = "reverse side marks bridge latch" },
         },
     },
+    salt_cistern = {
+        tileMechanics = {
+            { id = "cistern_valve_turn", subject = "valves", verb = "turn", effect = "raises or drains declared water bands" },
+            { id = "cistern_sluice_current", subject = "sluice currents", verb = "push", effect = "moves units along previewed arrows after actions" },
+            { id = "cistern_flood_lane", subject = "flood lanes", verb = "surge", effect = "delayed line hazard fills marked tiles" },
+            { id = "cistern_brine_pool", subject = "brine pools", verb = "wade", effect = "slows movement and threatens blight damage" },
+            { id = "cistern_salt_mist", subject = "salt mist", verb = "obscure", effect = "visible obscurant changes LoS and reveal ranges" },
+            { id = "cistern_pressure_bell", subject = "pressure bells", verb = "ring", effect = "signals enemy intent escalation on flooded rows" },
+            { id = "cistern_pearl_cyst", subject = "pearl cysts", verb = "burst", effect = "creates blocker shards and brine splash" },
+            { id = "cistern_pump_bridge", subject = "pump bridges", verb = "pump", effect = "toggles crossing tiles by waterline state" },
+            { id = "cistern_undertow_tile", subject = "undertow tiles", verb = "drag", effect = "pulls exposed units toward drains" },
+            { id = "cistern_drain_grate", subject = "drain grates", verb = "open", effect = "removes nearby flood lane and creates pit risk" },
+            { id = "cistern_floating_cover", subject = "floating cover", verb = "drift", effect = "moves half cover with currents" },
+            { id = "cistern_waterline_height", subject = "waterline height", verb = "rise_fall", effect = "changes movement cost and LoS height bands" },
+        },
+    },
 }
 
 function ZoneCatalog.zone(id)
