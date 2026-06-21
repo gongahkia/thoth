@@ -335,13 +335,14 @@ end
 
 function State:selectUnit(id)
     local unit = expect(self.units[id], "unknown unit " .. tostring(id))
-    expect(unit.alive, "unit is not alive")
+    expect(unit.alive and not unit.evacuated, "unit is not active")
     self.selectedUnitId = id
     return unit
 end
 
 function State:spendAP(id, amount)
     local unit = expect(self.units[id], "unknown unit " .. tostring(id))
+    expect(unit.alive and not unit.evacuated, "unit is not active")
     amount = expectInteger(amount, "ap cost")
     expect(amount >= 0, "ap cost must be non-negative")
     expect((unit.ap or 0) >= amount, "insufficient_ap")
@@ -589,7 +590,7 @@ function State:apply(command)
     local kind = expect(command.type, "command type required")
     if kind == "move" then
         local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
-        expect(unit.alive, "unit is not alive")
+        expect(unit.alive and not unit.evacuated, "unit is not active")
         local delta = Grid.directions[command.direction]
         expect(delta, "unknown direction " .. tostring(command.direction))
         local nx = unit.x + delta.x
@@ -645,9 +646,15 @@ function State:apply(command)
     elseif kind == "intent" then
         self:declareIntent(command.unit, command.intent)
     elseif kind == "damageObjective" then
+        expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
         self:spendAP(command.unit, command.cost or 0)
         self:damageObjective(command.objective, command.damage or 1)
     elseif kind == "evacuate" then
+        local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
+        local objective = expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
+        expect(unit.alive and not unit.evacuated, "unit cannot evacuate")
+        expect(unit.x == objective.evacuateAt.x and unit.y == objective.evacuateAt.y, "unit is not on evacuation tile")
+        expect(self:evaluateObjective(objective) ~= "failed", "objective already failed")
         self:spendAP(command.unit, command.cost or 1)
         self:evacuateUnit(command.unit, command.objective)
     else
@@ -666,6 +673,10 @@ function State:snapshot()
     for _, id in ipairs(self.unitOrder) do
         units[#units + 1] = copyMap(self.units[id])
     end
+    local objectives = {}
+    for _, id in ipairs(self.objectiveOrder) do
+        objectives[#objectives + 1] = copyMap(self.objectives[id])
+    end
     return {
         version = 1,
         tick = self.tick,
@@ -674,6 +685,7 @@ function State:snapshot()
         rules = copyMap(self.rules),
         threatZones = copyMap(self.threatZones),
         intents = copyMap(self.intents),
+        objectives = objectives,
         board = {
             width = self.board.width,
             height = self.board.height,
@@ -730,6 +742,14 @@ end
 
 function commands.intent(unitId, intent)
     return { type = "intent", unit = unitId, intent = intent }
+end
+
+function commands.damageObjective(unitId, objectiveId, damage, cost)
+    return { type = "damageObjective", unit = unitId, objective = objectiveId, damage = damage, cost = cost }
+end
+
+function commands.evacuate(unitId, objectiveId, cost)
+    return { type = "evacuate", unit = unitId, objective = objectiveId, cost = cost }
 end
 
 State.commands = commands

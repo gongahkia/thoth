@@ -362,6 +362,47 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        defaultAp = 3,
+        board = { width = 5, height = 3 },
+        units = {
+            { id = "warden", side = "player", x = 5, y = 2 },
+            { id = "arcanist", side = "player", x = 1, y = 2 },
+        },
+        objectives = {
+            {
+                id = "route_machine",
+                kind = "protect_route_machinery",
+                x = 3,
+                y = 2,
+                integrity = 3,
+                evacuateAt = { x = 5, y = 2 },
+                evacuationsRequired = 1,
+            },
+        },
+    })
+    expect(state:objectiveStatus("route_machine") == "active", "route machinery objective should start active")
+    state:apply(TacticsState.commands.damageObjective("arcanist", "route_machine", 1, 0))
+    expect(state:objective("route_machine").integrity == 2 and state:objectiveStatus("route_machine") == "active", "protected machinery should survive partial damage")
+    state:apply(TacticsState.commands.evacuate("warden", "route_machine", 1))
+    expect(state:objectiveStatus("route_machine") == "complete" and state:unit("warden").evacuated, "objective should complete after machinery survives and one unit evacuates")
+    expect(#state:unitsForSide("player") == 1 and not state:unitAt(5, 2), "evacuated unit should leave active board state")
+    local loaded = TacticsState.fromSnapshot(state:snapshot())
+    expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(state:snapshot()), "objective state should snapshot deterministically")
+    local failed = TacticsState.new({
+        board = { width = 3, height = 3 },
+        units = {
+            { id = "thief", side = "player", x = 1, y = 1 },
+        },
+        objectives = {
+            { id = "pump", x = 2, y = 2, integrity = 1, evacuateAt = { x = 3, y = 3 } },
+        },
+    })
+    failed:apply(TacticsState.commands.damageObjective("thief", "pump", 1, 0))
+    expect(failed:objectiveStatus("pump") == "failed", "objective should fail when route machinery integrity reaches zero")
+end
+
+tests[#tests + 1] = function()
     expect(I18n.t("New Game") == "New Game", "i18n should load English strings")
     expect(I18n.t("missing {value}", { value = "fallback" }) == "missing fallback", "i18n should interpolate fallback strings")
     local source = readFile("src/app/render.lua")
