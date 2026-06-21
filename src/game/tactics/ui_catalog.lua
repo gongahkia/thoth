@@ -61,6 +61,17 @@ UICatalog.rotationReadability = {
     },
 }
 
+UICatalog.tutorialSequence = {
+    { id = "movement", teaches = "movement", board = "two AP path with safe and unsafe route", exitCheck = "player previews AP path then commits move" },
+    { id = "cover_flank", teaches = "cover/flank", board = "half cover lane with one flank tile", exitCheck = "player identifies protected and flanked edge" },
+    { id = "intent", teaches = "intent", board = "one enemy exact attack footprint", exitCheck = "player prevents declared hit" },
+    { id = "forced_movement", teaches = "forced movement", board = "push enemy out of objective lane", exitCheck = "player previews push path and collision" },
+    { id = "destructible_terrain", teaches = "destructible terrain", board = "break cover to open LoS", exitCheck = "player previews cover HP and post-break line" },
+    { id = "objective_pressure", teaches = "objective pressure", board = "protect machinery under exact intent", exitCheck = "player preserves objective integrity" },
+    { id = "redacted_intent", teaches = "redacted intent", board = "partial elite footprint with reveal tool", exitCheck = "player reveals category into exact tiles" },
+    { id = "boss_weak_point", teaches = "boss weak point", board = "rotation reveals back-face weak point", exitCheck = "player rotates and counters boss procedure" },
+}
+
 function UICatalog.icon(id)
     for _, icon in ipairs(UICatalog.icons) do
         if icon.id == id then
@@ -88,6 +99,10 @@ end
 
 function UICatalog.rotationChecks()
     return UICatalog.rotationReadability
+end
+
+function UICatalog.tutorials()
+    return UICatalog.tutorialSequence
 end
 
 return UICatalog

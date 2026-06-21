@@ -1843,6 +1843,17 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local tutorials = {}
+    for _, step in ipairs(UICatalog.tutorials()) do
+        tutorials[step.id] = step
+        expect(step.teaches and step.board and step.exitCheck, "tutorial step should define teaches board exit check: " .. step.id)
+    end
+    for _, id in ipairs({ "movement", "cover_flank", "intent", "forced_movement", "destructible_terrain", "objective_pressure", "redacted_intent", "boss_weak_point" }) do
+        expect(tutorials[id], "missing tutorial step " .. id)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },

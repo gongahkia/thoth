@@ -114,3 +114,26 @@ Readability contract lists four rotations, applicable overlays, and required che
 
 test/replay proof:
 `tests/run.lua` verifies all overlay filters are covered by the four-rotation readability contract and each check defines a rule.
+
+## U.6 Tutorial Board Sequence
+
+source pattern:
+Tactics tutorials work best when each board isolates one board verb before combining systems.
+
+thoth transformation:
+Thoth tutorial sequence teaches movement, cover/flank, intent, forced movement, destructible terrain, objective pressure, redacted intent, and boss weak point.
+
+board verb:
+Teach, preview, commit, verify.
+
+zone fit:
+Sequence starts with generic board verbs and ends with Thoth-specific redaction and rotation weak points.
+
+counterplay:
+Each tutorial exit check confirms the player used the intended counter before adding complexity.
+
+preview/UI:
+Tutorial catalog defines id, taught concept, board sketch, and exit check.
+
+test/replay proof:
+`tests/run.lua` verifies all eight tutorial steps exist and each defines taught concept, board sketch, and exit check.

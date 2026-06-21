@@ -92,7 +92,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 ### UI & Readability Catalog
 
-- [ ] U.6 Define tutorial board sequence: movement, cover/flank, intent, forced movement, destructible terrain, objective pressure, redacted intent, boss weak point.
 - [ ] U.7 Define screenshot-smoke target for tactical overlays.
 
 ### Implementation Gates
