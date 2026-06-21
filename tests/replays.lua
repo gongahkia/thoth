@@ -2,6 +2,8 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 
 local Replay = require("src.game.replay")
 local Simulation = require("src.game.simulation")
+local Serialize = require("src.core.serialize")
+local TacticsState = require("src.game.tactics.state")
 
 local function expect(value, message)
     if not value then
@@ -100,5 +102,48 @@ for _, fixture in ipairs(fixtures) do
     fixture.validate(sim)
     io.stdout:write("replay ok ", fixture.name, "\n")
 end
+
+local function tacticalReplayState()
+    return TacticsState.new({
+        defaultAp = 8,
+        board = {
+            width = 5,
+            height = 3,
+            tiles = {
+                ["3:2"] = { kind = "route_machine", destructibleHp = 2, coverEdges = { west = "half" } },
+            },
+        },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 2, hp = 8 },
+            { id = "lamplighter", side = "player", x = 5, y = 2, hp = 5 },
+            { id = "custodian", side = "enemy", x = 2, y = 2, hp = 4 },
+        },
+        objectives = {
+            { id = "route_machine", x = 3, y = 2, integrity = 2, evacuateAt = { x = 5, y = 2 } },
+        },
+    })
+end
+
+local tacticalFrames = {
+    { tick = 0, command = TacticsState.commands.attack("warden", "custodian", 1) },
+    { tick = 1, command = TacticsState.commands.shove("warden", "custodian", "south", 1, 1) },
+    { tick = 2, command = TacticsState.commands.intent("custodian", { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 2 } }, damage = 1 }) },
+    { tick = 3, command = TacticsState.commands.damageObjective("warden", "route_machine", 1, 0) },
+    { tick = 4, command = TacticsState.commands.evacuate("lamplighter", "route_machine", 1) },
+}
+
+local function runTacticalReplay()
+    local state = tacticalReplayState()
+    for _, frame in ipairs(tacticalFrames) do
+        state:apply(frame.command)
+    end
+    return state
+end
+
+local tacticalA = runTacticalReplay()
+local tacticalB = runTacticalReplay()
+expect(Serialize.encode(tacticalA:snapshot()) == Serialize.encode(tacticalB:snapshot()), "tactical replay command stream should be deterministic")
+expect(tacticalA:objectiveStatus("route_machine") == "complete", "tactical replay should complete protect/evacuate objective")
+io.stdout:write("tactics replay ok prototype_board\n")
 
 io.stdout:write("replay fixtures passed: ", #fixtures, "\n")

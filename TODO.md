@@ -204,7 +204,6 @@ These tasks define the content/mechanic catalog. Prototype only a narrow slice f
 
 Goal: prove the new combat loop before touching broad content.
 
-- [ ] P0.9 Add replay test proving identical command stream produces identical board outcome.
 - [ ] P0.10 Write `docs/tactical-pivot-prototype.md` with results and cuts.
 
 **Exit criteria:** one board is playable start to finish; no hit chance; all visible intents resolve deterministically; rotation improves planning; replay deterministic.
