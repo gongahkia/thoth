@@ -81,3 +81,19 @@ The Cistern family defines 3 elites with partial intent, weak points, and flood/
 Acceptance proof:
 
 - `tests/run.lua` verifies the Cistern has exactly 3 elites and each one has unique id, name, partial intent, weak point, and flood/drain counterplay metadata.
+
+## E.6 Cistern Alpha
+
+Cistern alpha:
+
+- `depth_bailiff`: visible pre-board threat.
+
+Effects:
+
+- Pre-board threat: posts a depth warrant on the route map.
+- Route choice change: floods one shallow route and discounts one pump route.
+- Board generation change: adds one pressure bell, two flood lanes, and raised low-ground punishment.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies the Cistern alpha is visible before board reveal and defines pre-board, route-choice, and board-generation effects.

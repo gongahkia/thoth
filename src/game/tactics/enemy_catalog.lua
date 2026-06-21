@@ -46,6 +46,14 @@ EnemyCatalog.families = {
             { id = "pearl_choir", name = "Pearl Choir", partialIntent = { mode = "category", category = "summon" }, weakPoints = { "choir_throat" }, floodDrainCounterplay = "lower waterline before chorus" },
             { id = "undertow_notary", name = "Undertow Notary", partialIntent = { mode = "category", category = "move" }, weakPoints = { "tide_stamp" }, floodDrainCounterplay = "open drain grate to break pull lane" },
         },
+        alpha = {
+            id = "depth_bailiff",
+            name = "Depth Bailiff",
+            visiblePreBoard = true,
+            preBoardThreat = "posts a depth warrant on the route map",
+            routeChoiceChange = "floods one shallow route and discounts one pump route",
+            boardGenerationChange = "adds one pressure bell, two flood lanes, and raised low-ground punishment",
+        },
     },
 }
 

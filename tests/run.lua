@@ -1564,6 +1564,13 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local alpha = EnemyCatalog.alpha("cistern")
+    expect(alpha and alpha.id == "depth_bailiff", "Cistern should define Depth Bailiff alpha")
+    expect(alpha.visiblePreBoard == true, "Cistern alpha should be visible before board")
+    expect(alpha.preBoardThreat and alpha.routeChoiceChange and alpha.boardGenerationChange, "Cistern alpha should alter route and board generation")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         defaultAp = 3,
         board = { width = 5, height = 3 },
