@@ -562,6 +562,22 @@ preview/UI: tile inspector shows kind, HP/integrity, AP cost, source object, LoS
 
 test/replay proof: `ZoneCatalog.auditDestructibleLocations()` rejects missing shelf/bridge/valve/kiln/door/floor/machinery rules, missing source metadata, nondeterministic rules, and missing source object/mechanic links.
 
+### H32 Visible Reinforcement And Spawn Blocking
+
+source pattern: Reinforcements can create time pressure when their timing and relationship to objectives are readable; director systems should author consistent spawn pressure instead of surprise runtime spawns.
+
+thoth transformation: Encounter directors emit visible reinforcement timing, warning turn, spawn pocket, blockable flag, spawn block rule, cap, and blocked outcome before board start.
+
+board verb: warn, spawn, block, delay, cap.
+
+zone fit: Archive uses audited entry pockets, Cistern uses pressure bell pockets, Warrens uses heat/fuel edge pockets.
+
+counterplay: occupy or block all spawn tiles, break the summoner/source, retreat before turn, spend AP to seal pocket, or accept delayed pressure.
+
+preview/UI: route/debug preview shows reinforcement turn, warning turn, spawn pocket, enemy id, blockable state, block condition, on-blocked result, and cap.
+
+test/replay proof: `Procgen.auditReinforcementRules()` rejects missing visible warning timing, invalid spawn pocket links, missing blockable metadata, missing spawn block rules, hidden block rules, and missing reinforcement schedules.
+
 ## Rejection Rules
 
 - Reject hidden hit/miss RNG after board load.

@@ -2205,7 +2205,9 @@ tests[#tests + 1] = function()
         expect(director.zone == zoneId and #director.enemyMix == 3, zoneId .. " director should create enemy mix")
         expect(director.intentDensity.exact == 2 and director.intentDensity.partial == 1 and director.intentDensity.cap >= director.intentDensity.threatenedTiles, zoneId .. " director should define intent density")
         expect(director.objectivePressure.objectiveKind == spec.objectives[1].kind and director.objectivePressure.visible, zoneId .. " director should bind objective pressure")
-        expect(director.reinforcementTiming[1].turn >= 3 and director.reinforcementTiming[1].visibleWarningTurn == 1, zoneId .. " director should schedule visible reinforcements")
+        expect(director.reinforcementTiming[1].turn >= 3 and director.reinforcementTiming[1].visibleWarningTurn == 1 and director.reinforcementTiming[1].blockable, zoneId .. " director should schedule visible blockable reinforcements")
+        expect(director.spawnBlockRules[1].visible and director.spawnBlockRules[1].spawnPocket == director.reinforcementTiming[1].spawnPocket, zoneId .. " director should define visible spawn blocking")
+        expect(TacticsProcgen.auditReinforcementRules(spec).ok, zoneId .. " reinforcement audit should pass")
         expect(#director.retreatRoutes[1].tiles > 0 and director.retreatRoutes[1].to.x == spec.objectives[1].evacuateAt.x, zoneId .. " director should define retreat route")
         expect(Serialize.encode(spec) == Serialize.encode(TacticsProcgen.generateDirectedZoneBoard(zoneId, 2303, { includeElite = true })), zoneId .. " director should be deterministic per seed")
     end
@@ -2220,6 +2222,10 @@ tests[#tests + 1] = function()
     spec.encounterDirector.intentDensity.threatenedTiles = spec.encounterDirector.intentDensity.cap + 1
     local unreadable = TacticsProcgen.difficultyBudget(spec)
     expect(not unreadable.accepted and contains(unreadable.rejectReasons, "intent_density_exceeded"), "difficulty budget should reject unreadable intent density")
+    spec.encounterDirector.intentDensity.threatenedTiles = 1
+    spec.encounterDirector.spawnBlockRules = {}
+    local unblocked = TacticsProcgen.difficultyBudget(spec)
+    expect(not unblocked.accepted and contains(unblocked.rejectReasons, "spawn_block_rule_missing"), "difficulty budget should reject missing spawn block rules")
 end
 
 tests[#tests + 1] = function()

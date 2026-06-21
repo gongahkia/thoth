@@ -54,7 +54,7 @@ source pattern:
 Encounter design sources frame fights as pacing with a beginning, middle, and ending; tactical combat sources emphasize clarity, determinism, and spatial objectives; director-style spawning systems evaluate battlefield state to produce consistent pressure.
 
 thoth transformation:
-Thoth's encounter director writes enemy mix, intent density, objective pressure, reinforcement timing, and retreat routes into generated board specs before tactical play starts.
+Thoth's encounter director writes enemy mix, intent density, objective pressure, reinforcement timing, spawn block rules, and retreat routes into generated board specs before tactical play starts.
 
 board verb:
 Compose, pressure, reinforce, retreat, preview.
@@ -63,13 +63,13 @@ zone fit:
 Archive pulls from archive enemy families, Cistern from cistern families, and Warrens from warrens families while sharing the same director fields.
 
 counterplay:
-Enemy composition, objective clock, visible reinforcement warning, and retreat path are inspectable before and during a mission.
+Enemy composition, objective clock, visible reinforcement warning, spawn blocking, and retreat path are inspectable before and during a mission.
 
 preview/UI:
-Route or debug preview can show director id, family, enemy count, intent cap, objective clock, reinforcement turn, and retreat route.
+Route or debug preview can show director id, family, enemy count, intent cap, objective clock, reinforcement turn, spawn pocket, spawn blocking rule, and retreat route.
 
 test/replay proof:
-`tests/run.lua` verifies directed zone boards contain enemy mix, intent density, objective pressure, visible reinforcement timing, retreat routes, and deterministic serialization from the same seed.
+`tests/run.lua` verifies directed zone boards contain enemy mix, intent density, objective pressure, visible blockable reinforcement timing, spawn block rules, retreat routes, and deterministic serialization from the same seed.
 
 ## 2.6 Difficulty Budget
 

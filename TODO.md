@@ -137,7 +137,6 @@ Initial class direction:
 
 Goal: make enemies readable, varied, and board-native.
 
-- [ ] 4.7 Add visible reinforcement rules and spawn blocking.
 
 **Exit criteria:** every zone has one enemy family, one elite, and one boss prototype using deterministic intents and terrain interaction.
 

@@ -258,12 +258,58 @@ function Procgen.directEncounter(zoneId, seed, boardSpec, options)
             visible = true,
         },
         reinforcementTiming = {
-            { turn = options.reinforcementTurn or rng:range(3, 4), enemy = pickIndexed(common, rng:range(1, #common)).id, spawnPocket = enemySpawn.id, visibleWarningTurn = 1, cap = 1 },
+            { turn = options.reinforcementTurn or rng:range(3, 4), enemy = pickIndexed(common, rng:range(1, #common)).id, spawnPocket = enemySpawn.id, visibleWarningTurn = 1, cap = 1, blockable = true, warning = "marked spawn pocket", onBlocked = "delay_one_turn_until_cap" },
+        },
+        spawnBlockRules = {
+            { spawnPocket = enemySpawn.id, blocker = "unit_or_blocker_on_all_spawn_tiles", checked = "start_of_reinforcement_turn", onBlocked = "delay_one_turn_until_cap", cap = 1, visible = true, preview = "spawn pocket marks blocked tiles and delayed enemy" },
         },
         retreatRoutes = {
             { id = "route_to_entry", from = retreatFrom, to = retreatTo, tiles = pathTiles(retreatFrom, retreatTo), consequence = "retreat_costs_route_pressure" },
         },
     }
+end
+
+local function spawnPocketIds(spec)
+    local ids = {}
+    local pockets = spec and spec.grammar and spec.grammar.components and spec.grammar.components.spawnPockets or {}
+    for _, pocket in ipairs(pockets) do
+        ids[pocket.id] = true
+    end
+    return ids
+end
+
+function Procgen.auditReinforcementRules(spec)
+    local report = { ok = true, missing = {}, invalid = {}, coverage = {} }
+    local director = spec and spec.encounterDirector or spec
+    local pockets = spawnPocketIds(spec)
+    local blockRules = {}
+    for _, rule in ipairs(director and director.spawnBlockRules or {}) do
+        blockRules[rule.spawnPocket] = rule
+    end
+    for _, reinforcement in ipairs(director and director.reinforcementTiming or {}) do
+        local id = reinforcement.spawnPocket or "unknown"
+        report.coverage[id] = (report.coverage[id] or 0) + 1
+        if not (reinforcement.turn and reinforcement.visibleWarningTurn and reinforcement.visibleWarningTurn < reinforcement.turn and reinforcement.enemy and reinforcement.spawnPocket) then
+            table.insert(report.invalid, id .. ".reinforcement")
+        end
+        if reinforcement.blockable ~= true or not reinforcement.onBlocked then
+            table.insert(report.invalid, id .. ".blockable")
+        end
+        if next(pockets) and not pockets[reinforcement.spawnPocket] then
+            table.insert(report.invalid, id .. ".spawnPocket")
+        end
+        local rule = blockRules[reinforcement.spawnPocket]
+        if not rule then
+            table.insert(report.missing, id .. ".spawnBlockRule")
+        elseif not (rule.blocker and rule.checked and rule.onBlocked and rule.visible == true and rule.preview) then
+            table.insert(report.invalid, id .. ".spawnBlockRule")
+        end
+    end
+    if not director or #(director.reinforcementTiming or {}) == 0 then
+        table.insert(report.missing, "reinforcementTiming")
+    end
+    report.ok = #report.missing == 0 and #report.invalid == 0
+    return report
 end
 
 function Procgen.difficultyBudget(spec, options)
@@ -318,6 +364,9 @@ function Procgen.difficultyBudget(spec, options)
     end
     if director and (not director.retreatRoutes or not director.retreatRoutes[1] or #(director.retreatRoutes[1].tiles or {}) == 0) then
         reject("retreat_route_missing")
+    end
+    if director and #(director.reinforcementTiming or {}) > 0 and #(director.spawnBlockRules or {}) == 0 then
+        reject("spawn_block_rule_missing")
     end
     if total > report.max then
         reject("budget_exceeded")
