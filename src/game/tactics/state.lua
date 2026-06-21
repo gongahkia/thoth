@@ -765,6 +765,37 @@ function State:blockerAt(x, y)
     }
 end
 
+local function rotationDirection(rotation)
+    rotation = expectInteger(rotation or 0, "view rotation") % 4
+    return Grid.order[rotation + 1]
+end
+
+function State:rotationMarkAt(x, y, rotation)
+    local direction = rotationDirection(rotation)
+    local mark = self:tileAt(x, y).rotationMarks[direction]
+    return { x = x, y = y, direction = direction, mark = mark, visible = mark ~= nil }
+end
+
+function State:visibleRotationMarks(rotation)
+    local result = {}
+    for key, tile in pairs(self.board.tiles) do
+        local x, y = key:match("^(%-?%d+):(%-?%d+)$")
+        if x and y then
+            local mark = tile.rotationMarks[rotationDirection(rotation)]
+            if mark ~= nil then
+                result[#result + 1] = { x = tonumber(x), y = tonumber(y), mark = mark, direction = rotationDirection(rotation) }
+            end
+        end
+    end
+    table.sort(result, function(a, b)
+        if a.y == b.y then
+            return a.x < b.x
+        end
+        return a.y < b.y
+    end)
+    return result
+end
+
 function State:unit(id)
     return self.units[id]
 end

@@ -98,3 +98,18 @@ Rules:
 Acceptance proof:
 
 - `tests/run.lua` verifies all three obscurant kinds, LoS modifier reporting, countdown ticks, and expiry.
+
+## L.6 Rotation Marks
+
+Back-face marks are hidden facts keyed to camera rotation.
+
+Rules:
+
+- Marks are stored in `rotationMarks` by direction.
+- Rotation 0/1/2/3 maps to north/east/south/west.
+- A mark is visible only when the current rotation matches its direction.
+- Visible mark lists expose only marks for the active rotation.
+
+Acceptance proof:
+
+- `tests/run.lua` verifies wrong-rotation hiding, matching-rotation reveal, and filtered visible mark lists.

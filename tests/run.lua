@@ -229,6 +229,24 @@ end
 tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
+            width = 2,
+            height = 2,
+            tiles = {
+                ["1:1"] = { rotationMarks = { east = "rear_seal", south = "audit_scratch" } },
+                ["2:1"] = { rotationMarks = { east = "witness_mark" } },
+            },
+        },
+    })
+    expect(not state:rotationMarkAt(1, 1, 0).visible, "hidden back-face mark should stay hidden at wrong rotation")
+    local east = state:rotationMarkAt(1, 1, 1)
+    expect(east.visible and east.direction == "east" and east.mark == "rear_seal", "matching rotation should reveal back-face mark")
+    local marks = state:visibleRotationMarks(1)
+    expect(#marks == 2 and marks[1].mark == "rear_seal" and marks[2].mark == "witness_mark", "visible rotation marks should include only matching direction")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
             width = 4,
             height = 1,
             tiles = {
