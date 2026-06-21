@@ -16,7 +16,7 @@ local cameraPitch = math.rad(30)
 local cameraDistance = 26
 local cameraViewSize = 24
 local minTacticalZoom = 0.65
-local maxTacticalZoom = 1.85
+local maxTacticalZoom = 2.1
 local baseYaw = math.rad(45)
 local visibleRadius = 10
 local atlasColumns = 8
@@ -698,6 +698,7 @@ local tacticalOverlayColors = {
     blocker = { 0.28, 0.3, 0.34, 0.58 },
     objective = { 0.92, 0.74, 0.18, 0.58 },
     cursor = { 1.0, 0.9, 0.28, 0.18 },
+    hover = { 1.0, 1.0, 1.0, 0.08 },
 }
 
 local tacticalOverlayStyles = {
@@ -710,6 +711,7 @@ local tacticalOverlayStyles = {
     blocker = { icon = "x", pattern = "solid" },
     objective = { icon = "!", pattern = "solid" },
     cursor = { icon = "+", pattern = "outline" },
+    hover = { icon = "hover", pattern = "outline" },
 }
 
 local function parseTileKey(key)
@@ -1106,13 +1108,40 @@ local function litTileColor(rgb, light, settings)
     return color[1], color[2], color[3], color[4]
 end
 
-local function buildWorldTileModel(sim, profile, settings)
+local function tacticalTileColor(tileId)
+    if tileId == "sealed_name" then
+        return { 154, 116, 38 }
+    end
+    if tileId == "false_index" then
+        return { 34, 72, 78 }
+    end
+    if tileId == "archive_monolith" then
+        return { 54, 58, 64 }
+    end
+    return { 104, 112, 96 }
+end
+
+local function tacticalBoardBounds(sim, app)
+    local source = (app and app.tactics) or (sim and sim.tactics)
+    local tactics = source and (source.state or source)
+    if not (tactics and tactics.board) then
+        return nil
+    end
+    local originX = source.originX or 0
+    local originY = source.originY or 0
+    return originX + 1, originX + tactics.board.width, originY + 1, originY + tactics.board.height
+end
+
+local function buildWorldTileModel(sim, profile, settings, app)
     local vertices = {}
     local z = sim.player.z or 0
-    local minX = sim.player.x - visibleRadius
-    local maxX = sim.player.x + visibleRadius
-    local minY = sim.player.y - visibleRadius
-    local maxY = sim.player.y + visibleRadius
+    local minX, maxX, minY, maxY = tacticalBoardBounds(sim, app)
+    if not minX then
+        minX = sim.player.x - visibleRadius
+        maxX = sim.player.x + visibleRadius
+        minY = sim.player.y - visibleRadius
+        maxY = sim.player.y + visibleRadius
+    end
     local width = maxX - minX + 1
     local height = maxY - minY + 1
     local data = love.image.newImageData(width * height, 1)
@@ -1121,8 +1150,8 @@ local function buildWorldTileModel(sim, profile, settings)
         for x = minX, maxX do
             index = index + 1
             local tile = sim.world:peekTile(x, y, z)
-            local rgb = Defs.tile(tile.id).color or { 255, 255, 255 }
-            local light = lightAt(sim, x, y, profile)
+            local rgb = app and app.tacticalMode and tacticalTileColor(tile.id) or (Defs.tile(tile.id).color or { 255, 255, 255 })
+            local light = app and app.tacticalMode and 0.98 or lightAt(sim, x, y, profile)
             data:setPixel(index - 1, 0, litTileColor(rgb, light, settings))
             local u = (index - 0.5) / (width * height)
             pushTileQuad(vertices, x, y, z, u)
@@ -1246,6 +1275,7 @@ local forecastDrawOrder = {
     los = 7,
     flank = 8,
     cursor = 9,
+    hover = 10,
 }
 
 local forecastTileColors = {
@@ -1257,7 +1287,8 @@ local forecastTileColors = {
     hazard = { 0.98, 0.56, 0.12, 0.42 },
     blocker = { 0.08, 0.09, 0.1, 0.52 },
     objective = { 0.95, 0.78, 0.12, 0.5 },
-    cursor = { 1.0, 0.92, 0.22, 0.16 },
+    cursor = { 1.0, 0.92, 0.22, 0.12 },
+    hover = { 1.0, 1.0, 1.0, 0.05 },
 }
 
 local forecastLineColors = {
@@ -1270,6 +1301,7 @@ local forecastLineColors = {
     blocker = { 0.42, 0.46, 0.52, 0.84 },
     objective = { 1.0, 0.86, 0.24, 0.92 },
     cursor = { 1.0, 0.94, 0.24, 1.0 },
+    hover = { 0.92, 0.94, 0.9, 0.95 },
 }
 
 local function tileScreenPoints(view, source, tileX, tileY)
@@ -1289,18 +1321,29 @@ local function tileScreenCenter(view, source, tileX, tileY)
 end
 
 local function drawForecastGlyph(entry, cx, cy)
-    local glyph = entry.kind == "intent" and "!"
-        or entry.kind == "objective" and "R"
-        or entry.kind == "blocker" and "X"
-        or entry.kind == "cursor" and "+"
-        or nil
-    if not glyph then
-        return
+    if entry.kind == "intent" then
+        love.graphics.setColor(0.03, 0.035, 0.04, 0.86)
+        love.graphics.circle("fill", cx, cy, 10)
+        love.graphics.setColor(1.0, 0.78, 0.76, 1)
+        love.graphics.setLineWidth(2)
+        love.graphics.line(cx, cy - 5, cx, cy + 1)
+        love.graphics.points(cx, cy + 5)
+    elseif entry.kind == "objective" then
+        love.graphics.setColor(1.0, 0.84, 0.26, 0.92)
+        love.graphics.polygon("line", cx, cy - 11, cx + 12, cy, cx, cy + 11, cx - 12, cy)
+    elseif entry.kind == "blocker" then
+        love.graphics.setColor(0.72, 0.76, 0.82, 0.92)
+        love.graphics.setLineWidth(2)
+        love.graphics.line(cx - 6, cy - 6, cx + 6, cy + 6)
+        love.graphics.line(cx + 6, cy - 6, cx - 6, cy + 6)
+    elseif entry.kind == "cursor" then
+        love.graphics.setColor(1.0, 0.94, 0.24, 1)
+        love.graphics.setLineWidth(2)
+        love.graphics.line(cx - 12, cy - 9, cx - 5, cy - 9)
+        love.graphics.line(cx - 12, cy - 9, cx - 12, cy - 3)
+        love.graphics.line(cx + 12, cy + 9, cx + 5, cy + 9)
+        love.graphics.line(cx + 12, cy + 9, cx + 12, cy + 3)
     end
-    love.graphics.setColor(0.03, 0.035, 0.04, 0.82)
-    love.graphics.rectangle("fill", cx - 9, cy - 10, 18, 18)
-    love.graphics.setColor(0.96, 0.94, 0.84, 1)
-    love.graphics.printf(glyph, cx - 9, cy - 8, 18, "center")
 end
 
 local function drawForecastTile(view, source, entry)
@@ -1310,7 +1353,7 @@ local function drawForecastTile(view, source, entry)
     love.graphics.setColor(fill)
     love.graphics.polygon("fill", points)
     love.graphics.setColor(line)
-    love.graphics.setLineWidth(entry.kind == "cursor" and 3 or entry.kind == "intent" and 2.5 or 1.5)
+    love.graphics.setLineWidth(entry.kind == "cursor" and 3 or entry.kind == "hover" and 2.5 or entry.kind == "intent" and 2.5 or 1.5)
     love.graphics.polygon("line", points)
     local cx, cy = tileScreenCenter(view, source, entry.x, entry.y)
     drawForecastGlyph(entry, cx, cy)
@@ -1324,6 +1367,25 @@ local function drawIntentArrow(view, source, intent)
     end
     local sx, sy = tileScreenCenter(view, source, sourceTile.x, sourceTile.y)
     local tx, ty = tileScreenCenter(view, source, target.x, target.y)
+    local dx = tx - sx
+    local dy = ty - sy
+    local length = math.sqrt(dx * dx + dy * dy)
+    if length <= 0 then
+        return
+    end
+    local maxLength = 150
+    local inset = 16
+    local ux = dx / length
+    local uy = dy / length
+    if length > maxLength then
+        sx = tx - ux * maxLength
+        sy = ty - uy * maxLength
+    else
+        sx = sx + ux * inset
+        sy = sy + uy * inset
+    end
+    tx = tx - ux * inset
+    ty = ty - uy * inset
     love.graphics.setColor(1.0, 0.26, 0.36, 0.92)
     love.graphics.setLineWidth(3)
     love.graphics.line(sx, sy, tx, ty)
@@ -1344,6 +1406,9 @@ function Render.drawTacticalForecast(sim, app)
         return nil
     end
     local entries = Render.tacticalOverlayEntries(source.state, source.overlays or {})
+    if app.tacticalHover then
+        entries[#entries + 1] = { kind = "hover", x = app.tacticalHover.x, y = app.tacticalHover.y, label = "hover" }
+    end
     table.sort(entries, function(a, b)
         local ao = forecastDrawOrder[a.kind] or 99
         local bo = forecastDrawOrder[b.kind] or 99
@@ -1712,8 +1777,9 @@ function Render.drawWorld(sim, app)
     app.worldView.mode = "render3d-placeholder"
     local screenWidth = love and love.graphics and love.graphics.getWidth() or 0
     local screenHeight = love and love.graphics and love.graphics.getHeight() or 0
-    app.worldView.centerX = screenWidth / 2
-    app.worldView.centerY = screenHeight / 2
+    local infoWidth = app and app.tacticalMode and math.min(340, math.max(280, screenWidth * 0.22)) or 0
+    app.worldView.centerX = app and app.tacticalMode and ((screenWidth - infoWidth) / 2) or (screenWidth / 2)
+    app.worldView.centerY = app and app.tacticalMode and (screenHeight * 0.56) or (screenHeight / 2)
     local zoom = app and app.tacticalMode and Render.tacticalZoom(app) or 1
     app.worldView.halfW = 32 * zoom
     app.worldView.halfH = 16 * zoom
@@ -1727,7 +1793,7 @@ function Render.drawWorld(sim, app)
     local profile = lightProfile(sim)
     app.worldView.light = { torch = profile.torch, ambient = profile.ambient, radius = profile.radius }
     local yaw = applyCamera(sim, app)
-    local model = buildWorldTileModel(sim, profile, app and app.settings)
+    local model = buildWorldTileModel(sim, profile, app and app.settings, app)
     love.graphics.setColor(1, 1, 1, 1)
     model:draw()
     local tacticalOverlayCounts = drawTacticalOverlays(sim, app)
@@ -3040,26 +3106,32 @@ end
 function Render.drawTacticalHud(sim, app)
     local summary = tacticalSummary(app)
     local width = love.graphics.getWidth()
-    panel(0, 0, width, 104, 0.92)
+    local hover = app and app.tacticalHover
+    panel(16, 14, 420, 88, 0.88)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Thoth  tick " .. tostring(summary and summary.tick or 0) .. "  tactical board  turn " .. tostring(summary and summary.turn or 1) .. "  phase " .. tostring(summary and summary.phase or "-") .. "  view " .. tostring((app.viewRotation or 0) * 90), 16, 10)
-    love.graphics.printf("status " .. tostring(summary and summary.message or app.status or "tactical"), width - 420, 10, 404, "right")
+    love.graphics.printf("End Turn  E", 32, 28, 142, "center", 0, 1.2, 1.2)
+    love.graphics.setColor(0.48, 0.54, 0.58, 1)
+    love.graphics.rectangle("line", 28, 24, 156, 48)
+    love.graphics.setColor(0.82, 0.86, 0.78, 1)
+    love.graphics.print("turn " .. tostring(summary and summary.turn or 1) .. "  " .. tostring(summary and summary.phase or "-") .. "  view " .. tostring((app.viewRotation or 0) * 90), 204, 26)
+    love.graphics.print("selected " .. tostring(summary and summary.selected or "-") .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0), 204, 48)
     love.graphics.setColor(0.76, 0.8, 0.72, 1)
-    love.graphics.printf("goal: protect route machine; enemy red tiles are declared attacks; no hit chance", 16, 34, width - 32)
+    love.graphics.print("cursor " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-") .. "  hover " .. (hover and (hover.x .. "," .. hover.y) or "-") .. "  zoom " .. tostring(math.floor(Render.tacticalZoom(app) * 100 + 0.5)) .. "%", 204, 70)
     local objective = summary and summary.objective or {}
-    love.graphics.printf("selected " .. tostring(summary and summary.selected or "-") .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0) .. "    cursor " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-") .. "    zoom " .. tostring(math.floor(Render.tacticalZoom(app) * 100 + 0.5)) .. "%", 16, 58, width - 32)
+    panel(width - 304, 14, 288, 72, 0.88)
     love.graphics.setColor(0.9, 0.82, 0.48, 1)
-    love.graphics.printf("route machine " .. tostring(objective.integrity or 0) .. "/" .. tostring(objective.maxIntegrity or 0) .. " " .. tostring(objective.status or "active"), width - 420, 58, 404, "right")
-    love.graphics.setColor(0.58, 0.64, 0.58, 1)
-    love.graphics.printf("mouse cursor/action  wheel zoom  arrows/WASD cursor  Enter move  A attack  B brace  Tab unit  E resolve intents  [ ] rotate", 16, 82, width - 32)
+    love.graphics.printf("route machine " .. tostring(objective.integrity or 0) .. "/" .. tostring(objective.maxIntegrity or 0), width - 292, 28, 264, "right")
+    love.graphics.setColor(0.74, 0.78, 0.72, 1)
+    love.graphics.printf("red forecasts resolve after End Turn; no hit chance", width - 292, 52, 264, "right")
 end
 
 function Render.drawTacticalSidePanel(sim, app)
     local summary = tacticalSummary(app)
     local width, height = love.graphics.getDimensions()
-    local x = width - 330
-    local y = 118
-    panel(x, y, 314, height - 134, 0.9)
+    local x = width - 294
+    local y = 110
+    local panelH = math.min(358, height - 126)
+    panel(x, y, 278, panelH, 0.88)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Squad", x + 12, y + 12)
     local rowY = y + 38
@@ -3084,7 +3156,7 @@ function Render.drawTacticalSidePanel(sim, app)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Board Rules", x + 12, rowY)
     love.graphics.setColor(0.68, 0.72, 0.66, 1)
-    love.graphics.printf("Blue = reachable AP tiles\nRed = enemy intent target/arrow\nGold = route machine\nBlack = blocker\nGreen = selected unit\nForecasts draw above the board.", x + 12, rowY + 26, 286)
+    love.graphics.printf("Blue move\nRed intent\nGold objective\nBlack blocker\nYellow cursor\nWhite hover", x + 12, rowY + 26, 246)
 end
 
 function Render.drawHud(sim, app)

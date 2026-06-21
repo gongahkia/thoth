@@ -386,7 +386,8 @@ local function enterTacticalGame(state)
     state.status = "tactical prototype"
     state.tutorial = nil
     state.tutorialSeen = true
-    state.tacticalZoom = 1.25
+    state.tacticalZoom = 1.5
+    state.tacticalHover = nil
     resetVisualState(state, sim)
     state.tactics = TacticalRuntime.new(sim)
     state.tacticalOverlays = state.tactics.overlays
@@ -1797,24 +1798,21 @@ local function handleKey(key)
     Input.keypressed(sim, app, key)
 end
 
-local function updateTacticalMouseCursor(x, y)
+local function updateTacticalMouseHover(x, y)
     if not (app and app.tacticalMode and app.uiState == "game" and app.tactics and not app.paused and not app.confirmDialog) then
         return false
     end
     local tileX, tileY = Render.tacticalTileAt(app, x, y)
     if not tileX then
+        app.tacticalHover = nil
         return false
     end
-    if app.tactics:setCursor(tileX, tileY) then
-        app.tacticalOverlays = app.tactics.overlays
-        TacticalRuntime.syncWorld(sim, app.tactics)
-        return true
-    end
-    return false
+    app.tacticalHover = { x = tileX, y = tileY }
+    return true
 end
 
 local function mouseTactical(x, y, button)
-    if not updateTacticalMouseCursor(x, y) then
+    if not updateTacticalMouseHover(x, y) then
         playUi(app, "invalid")
         return true
     end
@@ -1925,7 +1923,7 @@ function love.mousemoved(x, y)
     local _, group, index = Render.hitboxAt(app, x, y)
     app.uiHot = group and { group = group, index = index } or nil
     if not group then
-        updateTacticalMouseCursor(x, y)
+        updateTacticalMouseHover(x, y)
     end
 end
 
