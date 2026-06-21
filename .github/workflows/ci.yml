@@ -107,5 +107,10 @@ jobs:
           SDL_AUDIODRIVER: dummy
         run: make render-smoke
 
+      - name: Run tactical smoke
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make tactical-smoke
+
       - name: Build love package
         run: make package

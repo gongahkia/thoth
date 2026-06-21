@@ -1469,6 +1469,45 @@ local function drawEnemyBillboards(sim, app, yaw, profile)
     return drawWorldEnemyBillboards(sim, app, yaw, profile)
 end
 
+local function drawTacticalBillboards(sim, app, yaw, profile)
+    local source = tacticalOverlaySource(sim, app)
+    local tactics = source and source.state
+    if not (app and app.tacticalMode and tactics and state.g3d and (state.assets.spriteAtlas or state.assets.white)) then
+        return 0
+    end
+    local originX = source.originX or 0
+    local originY = source.originY or 0
+    local drawn = 0
+    for _, id in ipairs(tactics.unitOrder or {}) do
+        local unit = tactics.units[id]
+        if unit and unit.alive and not unit.evacuated then
+            local x = originX + unit.x + 0.5
+            local y = originY + unit.y + 0.5
+            local selected = app.tactics and app.tactics.selectedUnitId == unit.id
+            local width, height = unit.side == "enemy" and enemySize("threat") or 0.86, unit.side == "enemy" and 1.12 or 1.08
+            local frame = unit.side == "enemy" and enemyFrame("threat", unit.kind) or heroFrame({ classId = unit.class })
+            local model = newBillboard(width, height, frame, x, y, sim.player.z or 0, yaw, state.assets.spriteAtlas or state.assets.white)
+            if unit.side == "enemy" then
+                drawTintedModel(model, { 0.9, 0.36, 0.28, 1 }, lightAt(sim, x, y, profile), 1)
+            elseif selected then
+                drawTintedModel(model, { 0.72, 0.9, 0.58, 1 }, lightAt(sim, x, y, profile), 1)
+            else
+                drawLitModel(model, lightAt(sim, x, y, profile))
+            end
+            drawn = drawn + 1
+        end
+    end
+    local objective = tactics.objectives and tactics.objectives.route_machine
+    if objective and state.assets.white then
+        local x = originX + objective.x + 0.5
+        local y = originY + objective.y + 0.5
+        local model = newBillboard(0.5, 0.68, 0, x, y, (sim.player.z or 0) + 0.05, yaw, state.assets.white)
+        drawTintedModel(model, { 0.84, 0.68, 0.32, 1 }, lightAt(sim, x, y, profile), 0.95)
+        drawn = drawn + 1
+    end
+    return drawn
+end
+
 function Render.drawWorld(sim, app)
     app.worldView = app.worldView or {}
     app.worldView.mode = "render3d-placeholder"
@@ -1497,9 +1536,15 @@ function Render.drawWorld(sim, app)
         love.graphics.setColor(1, 1, 1, 1)
         architecture:draw()
     end
-    local visibleObjects, hiddenObjects, rotationPuzzles = drawWorldObjectMarkers(sim, app, yaw, profile)
-    drawHeroBillboards(sim, yaw, profile)
-    local visibleEnemies, hiddenEnemies = drawEnemyBillboards(sim, app, yaw, profile)
+    local visibleObjects, hiddenObjects, rotationPuzzles = 0, 0, 0
+    local visibleEnemies, hiddenEnemies = 0, 0
+    if app and app.tacticalMode then
+        visibleObjects = drawTacticalBillboards(sim, app, yaw, profile)
+    else
+        visibleObjects, hiddenObjects, rotationPuzzles = drawWorldObjectMarkers(sim, app, yaw, profile)
+        drawHeroBillboards(sim, yaw, profile)
+        visibleEnemies, hiddenEnemies = drawEnemyBillboards(sim, app, yaw, profile)
+    end
     app.worldView.architecture = architectureCount or 0
     app.worldView.revealedObjects = (visibleObjects or 0) + (visibleEnemies or 0)
     app.worldView.hiddenObjects = (hiddenObjects or 0) + (hiddenEnemies or 0)
@@ -2782,7 +2827,67 @@ function Render.drawAudioSubtitle(app)
     return text
 end
 
+local function tacticalSummary(app)
+    if app and app.tactics and app.tactics.summary then
+        return app.tactics:summary()
+    end
+    return app and app.tacticalSummary or nil
+end
+
+function Render.drawTacticalHud(sim, app)
+    local summary = tacticalSummary(app)
+    local width = love.graphics.getWidth()
+    panel(0, 0, width, 104, 0.92)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Thoth  tick " .. tostring(summary and summary.tick or 0) .. "  tactical board  turn " .. tostring(summary and summary.turn or 1) .. "  phase " .. tostring(summary and summary.phase or "-") .. "  view " .. tostring((app.viewRotation or 0) * 90), 16, 10)
+    love.graphics.printf("status " .. tostring(summary and summary.message or app.status or "tactical"), width - 420, 10, 404, "right")
+    love.graphics.setColor(0.76, 0.8, 0.72, 1)
+    love.graphics.printf("goal: protect route machine; enemy red tiles are declared attacks; no hit chance", 16, 34, width - 32)
+    local objective = summary and summary.objective or {}
+    love.graphics.printf("selected " .. tostring(summary and summary.selected or "-") .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0) .. "    cursor " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-"), 16, 58, width - 32)
+    love.graphics.setColor(0.9, 0.82, 0.48, 1)
+    love.graphics.printf("route machine " .. tostring(objective.integrity or 0) .. "/" .. tostring(objective.maxIntegrity or 0) .. " " .. tostring(objective.status or "active"), width - 420, 58, 404, "right")
+    love.graphics.setColor(0.58, 0.64, 0.58, 1)
+    love.graphics.printf("arrows/WASD cursor  Enter move  A attack  B brace  Tab unit  E resolve intents  [ ] rotate  Esc pause", 16, 82, width - 32)
+end
+
+function Render.drawTacticalSidePanel(sim, app)
+    local summary = tacticalSummary(app)
+    local width, height = love.graphics.getDimensions()
+    local x = width - 330
+    local y = 118
+    panel(x, y, 314, height - 134, 0.9)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Squad", x + 12, y + 12)
+    local rowY = y + 38
+    for _, unit in ipairs((summary and summary.players) or {}) do
+        love.graphics.setColor(unit.selected and 0.9 or 0.72, unit.selected and 0.9 or 0.78, unit.selected and 0.58 or 0.72, 1)
+        love.graphics.print((unit.selected and "> " or "  ") .. unit.id .. "  HP " .. tostring(unit.hp) .. "  AP " .. tostring(unit.ap) .. "  @" .. tostring(unit.x) .. "," .. tostring(unit.y), x + 12, rowY)
+        rowY = rowY + 24
+    end
+    rowY = rowY + 14
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Posted Enemy Intent", x + 12, rowY)
+    rowY = rowY + 28
+    for _, enemy in ipairs((summary and summary.enemies) or {}) do
+        local target = enemy.targetTiles and enemy.targetTiles[1]
+        love.graphics.setColor(0.9, 0.46, 0.38, 1)
+        love.graphics.print(enemy.id .. "  HP " .. tostring(enemy.hp), x + 12, rowY)
+        love.graphics.setColor(0.7, 0.74, 0.68, 1)
+        love.graphics.print(tostring(enemy.intent) .. " -> " .. (target and (target.x .. "," .. target.y) or "-"), x + 12, rowY + 18)
+        rowY = rowY + 52
+    end
+    rowY = rowY + 12
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Board Rules", x + 12, rowY)
+    love.graphics.setColor(0.68, 0.72, 0.66, 1)
+    love.graphics.printf("Blue = reachable AP tiles\nRed = enemy intent target\nGold = route machine\nGreen = selected unit\nCover and hazard overlays come from tile data.", x + 12, rowY + 26, 286)
+end
+
 function Render.drawHud(sim, app)
+    if app and app.tacticalMode then
+        return Render.drawTacticalHud(sim, app)
+    end
     local width = love.graphics.getWidth()
     panel(0, 0, width, 92, 0.9)
     if app.eventFlash and not Render.reducedMotion(app) then
@@ -2808,6 +2913,9 @@ function Render.drawHud(sim, app)
 end
 
 function Render.drawSidePanel(sim, app)
+    if app and app.tacticalMode then
+        return Render.drawTacticalSidePanel(sim, app)
+    end
     local width, height = love.graphics.getDimensions()
     local x = width - 306
     local y = 104

@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke sprite-import-smoke model-import-smoke test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke tactical-smoke sprite-import-smoke model-import-smoke test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -252,6 +252,23 @@ render-smoke:
 	grep -q "render-smoke-overlay-hazard=1" $$tmp; \
 	rm -f $$tmp
 
+tactical-smoke:
+	@set -e; \
+	tmp=$$(mktemp); \
+	if command -v xvfb-run >/dev/null 2>&1; then \
+		SDL_AUDIODRIVER=dummy xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --tactical-smoke | tee $$tmp; \
+	else \
+		SDL_AUDIODRIVER=dummy $(LOVE) . --tactical-smoke | tee $$tmp; \
+	fi; \
+	grep -q "tactical-smoke-mode=tactical" $$tmp; \
+	grep -q "tactical-smoke-legacy-expedition=false" $$tmp; \
+	grep -q "tactical-smoke-phase=player" $$tmp; \
+	grep -q "tactical-smoke-player-units=2" $$tmp; \
+	grep -q "tactical-smoke-enemy-units=2" $$tmp; \
+	grep -q "tactical-smoke-intents=2" $$tmp; \
+	grep -q "tactical-smoke-objective=4/4" $$tmp; \
+	rm -f $$tmp
+
 sprite-import-smoke:
 	@set -e; \
 	rm -rf dist/sprite-import-smoke; \
@@ -299,6 +316,7 @@ check: test
 	$(MAKE) package-build
 	$(LUAJIT) tests/package.lua $(PACKAGE)
 	$(MAKE) benchmark-smoke
+	$(MAKE) tactical-smoke
 
 merchant-balance-pass:
 	$(LUAJIT) tools/merchant_balance_pass.lua

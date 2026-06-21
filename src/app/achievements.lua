@@ -29,6 +29,9 @@ function Achievements.update(sim, app)
     if not (sim and app) then
         return
     end
+    if app.tacticalMode then
+        return
+    end
     if sim.expedition and sim.expedition.active then
         Achievements.unlock(app, "first_steps")
     end

@@ -35,6 +35,7 @@ local TacticsIntent = require("src.game.tactics.intent")
 local TacticsResolution = require("src.game.tactics.resolution")
 local TacticsProcgen = require("src.game.tactics.procgen")
 local TacticsReplay = require("src.game.tactics.replay")
+local TacticalRuntime = require("src.game.tactical_runtime")
 
 local function expect(value, message)
     if not value then
@@ -167,6 +168,22 @@ tests[#tests + 1] = function()
         blocked:apply(TacticsState.commands.move("warden", "east"))
     end)
     expect(not ok and err:find("blocked_tile", 1, true), "tactics state should reject blocked movement")
+end
+
+tests[#tests + 1] = function()
+    local tacticalSim = Simulation.new(9001)
+    local runtime = TacticalRuntime.new(tacticalSim)
+    local summary = runtime:summary()
+    expect(tacticalSim.mode == "tactical" and summary.mode == "tactical", "runtime should put the game in tactical mode")
+    expect(#summary.players == 2 and #summary.enemies == 2, "runtime should expose tactical squad and enemies")
+    expect(#runtime.overlays.intents == 2 and runtime.state:intentPreview("claim_lens").targetTiles[1].x == 5, "runtime should show exact enemy intents")
+    runtime:handleKey("right")
+    runtime:handleKey("return")
+    expect(runtime.state:unit("warden").x == 3 and runtime.state:unit("warden").ap == 2, "runtime should spend AP to move selected unit")
+    runtime:handleKey("e")
+    expect(runtime.state:objective("route_machine").integrity == 3, "enemy intent should damage declared objective deterministically")
+    expect(runtime.state:unit("warden").hp == 6, "moving off declared tile should avoid old enemy target")
+    expect(runtime.state.phase == "player" and runtime.state:unit("warden").ap == 3, "runtime should return to player phase with AP refreshed")
 end
 
 tests[#tests + 1] = function()

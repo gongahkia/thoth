@@ -13,6 +13,7 @@ local Achievements = require("src.app.achievements")
 local SpritePipeline = require("src.app.sprite_pipeline")
 local ModelPipeline = require("src.app.model_pipeline")
 local TacticsState = require("src.game.tactics.state")
+local TacticalRuntime = require("src.game.tactical_runtime")
 
 local sim
 local app
@@ -301,6 +302,26 @@ local function resetVisualState(state, simulation)
     state.pendingTargetSide = nil
 end
 
+local function turnView(state, delta)
+    local from = state.viewRotationVisual or state.viewRotation or 0
+    local target = ((state.viewRotation or 0) + delta) % 4
+    local diff = target - from
+    while diff > 2 do
+        diff = diff - 4
+    end
+    while diff < -2 do
+        diff = diff + 4
+    end
+    state.viewRotation = target
+    if Render.reducedMotion(state) then
+        state.viewRotationVisual = target
+        state.viewTurn = nil
+    else
+        state.viewTurn = { from = from, to = from + diff, t = 0, duration = 0.24 }
+    end
+    state.status = "view " .. (state.viewRotation * 90)
+end
+
 local function startTutorial(state)
     if state.tutorialSeen then
         return
@@ -342,6 +363,9 @@ end
 
 local function enterGame(state, simulation, status)
     sim = simulation
+    state.tacticalMode = false
+    state.tactics = nil
+    state.tacticalOverlays = nil
     state.uiState = "game"
     state.status = status or "ready"
     resetVisualState(state, sim)
@@ -353,6 +377,19 @@ local function enterGame(state, simulation, status)
         state.uiState = "gameover"
         state.gameOverMenuIndex = 1
     end
+end
+
+local function enterTacticalGame(state)
+    sim = Simulation.new(20260618)
+    state.tacticalMode = true
+    state.uiState = "game"
+    state.status = "tactical prototype"
+    state.tutorial = nil
+    state.tutorialSeen = true
+    resetVisualState(state, sim)
+    state.tactics = TacticalRuntime.new(sim)
+    state.tacticalOverlays = state.tactics.overlays
+    TacticalRuntime.syncWorld(sim, state.tactics)
 end
 
 local function requestQuit(state)
@@ -415,7 +452,7 @@ end
 
 local function activateTitleAction(state, action)
     if action == "new" then
-        enterGame(state, Simulation.new(20260618), "new game")
+        enterTacticalGame(state)
         return
     end
     if action == "continue" then
@@ -641,7 +678,7 @@ local function openPause(state)
 end
 
 local function midExpedition()
-    return sim and sim.expedition and sim.expedition.active == true
+    return not (app and app.tacticalMode) and sim and sim.mode ~= "tactical" and sim.expedition and sim.expedition.active == true
 end
 
 local function openConfirm(state, title, body, confirmAction)
@@ -656,6 +693,9 @@ end
 
 local function quitToTitle(state)
     sim = Simulation.new(20260618)
+    state.tacticalMode = false
+    state.tactics = nil
+    state.tacticalOverlays = nil
     state.paused = false
     state.uiState = "title"
     state.pauseStatus = nil
@@ -829,12 +869,15 @@ end
 
 local function activateGameOverAction(state, action)
     if action == "restart" then
-        enterGame(state, Simulation.new(20260618), "new game")
+        enterTacticalGame(state)
         Audio.play(state.audio, "tick")
         return
     end
     if action == "title" then
         sim = Simulation.new(20260618)
+        state.tacticalMode = false
+        state.tactics = nil
+        state.tacticalOverlays = nil
         state.paused = false
         state.uiState = "title"
         state.gameOverStatus = nil
@@ -1031,6 +1074,24 @@ local function printRenderSmoke(state)
     print("render-smoke-overlay-flank=" .. tostring(overlays.flank or 0))
     print("render-smoke-overlay-intent=" .. tostring(overlays.intent or 0))
     print("render-smoke-overlay-hazard=" .. tostring(overlays.hazard or 0))
+end
+
+local function printTacticalSmoke(state)
+    if not state.tacticalSmoke or state.tacticalSmokePrinted then
+        return
+    end
+    state.tacticalSmokePrinted = true
+    local summary = state.tactics and state.tactics:summary() or {}
+    local overlays = (state.worldView and state.worldView.tacticalOverlays) or {}
+    print("tactical-smoke-mode=" .. tostring(summary.mode))
+    print("tactical-smoke-legacy-expedition=" .. tostring(sim and sim.mode == "expedition"))
+    print("tactical-smoke-phase=" .. tostring(summary.phase))
+    print("tactical-smoke-selected=" .. tostring(summary.selected))
+    print("tactical-smoke-player-units=" .. tostring(#(summary.players or {})))
+    print("tactical-smoke-enemy-units=" .. tostring(#(summary.enemies or {})))
+    print("tactical-smoke-intents=" .. tostring(overlays.intent or 0))
+    print("tactical-smoke-movement=" .. tostring(overlays.movement or 0))
+    print("tactical-smoke-objective=" .. tostring(summary.objective and summary.objective.integrity) .. "/" .. tostring(summary.objective and summary.objective.maxIntegrity))
 end
 
 local function printTitleSmoke(state)
@@ -1296,8 +1357,9 @@ function love.load(args)
     local tutorialSmoke = hasArg(args, "--tutorial-smoke")
     local toastSmoke = hasArg(args, "--toast-smoke")
     local polishSmoke = hasArg(args, "--polish-smoke")
+    local tacticalSmoke = hasArg(args, "--tactical-smoke")
     local accessibilityExport = argValue(args, "--accessibility-export", nil)
-    local smoke = hasArg(args, "--smoke") or accessibilityExport ~= nil or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke or tutorialSmoke or toastSmoke or polishSmoke
+    local smoke = hasArg(args, "--smoke") or accessibilityExport ~= nil or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke or tutorialSmoke or toastSmoke or polishSmoke or tacticalSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
     local previewCapture = argValue(args, "--preview-capture", nil)
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
@@ -1378,6 +1440,7 @@ function love.load(args)
         tutorialSmoke = tutorialSmoke,
         toastSmoke = toastSmoke,
         polishSmoke = polishSmoke,
+        tacticalSmoke = tacticalSmoke,
         achievements = {},
         toasts = {},
         renderBenchmarkFrames = renderBenchmarkFrames,
@@ -1433,6 +1496,11 @@ function love.load(args)
                 intents = { { x = 4, y = 2, label = "audit_line" } },
             },
         }
+    end
+    if tacticalSmoke then
+        enterTacticalGame(app)
+        app.tacticalSmoke = true
+        app.smoke = true
     end
     if pauseSmoke then
         openPause(app)
@@ -1494,6 +1562,18 @@ function love.update(dt)
         return
     end
     if syncGameOverState(app) then
+        return
+    end
+    if app.tacticalMode then
+        if app.tactics then
+            TacticalRuntime.syncWorld(sim, app.tactics)
+        end
+        if app.smoke then
+            app.smokeFrames = app.smokeFrames + 1
+            if app.smokeFrames >= 3 then
+                love.event.quit(0)
+            end
+        end
         return
     end
     if not app.paused and not hitPaused then
@@ -1580,6 +1660,7 @@ function love.draw()
     local started = app.renderBenchmark and love.timer.getTime() or nil
     Render.draw(sim, app)
     printRenderSmoke(app)
+    printTacticalSmoke(app)
     printEstateSmoke(app)
     printCombatSmoke(app)
     printCurioSmoke(app)
@@ -1678,6 +1759,9 @@ local function handleKey(key)
         local loaded, err = Save.read("save.thoth")
         if loaded then
             sim = loaded
+            app.tacticalMode = false
+            app.tactics = nil
+            app.tacticalOverlays = nil
             app.status = "loaded"
             app.lastCueStatus = sim.status
             app.lastVisualEventId = sim.eventSerial or 0
@@ -1687,6 +1771,22 @@ local function handleKey(key)
             playUi(app, "load")
         else
             app.status = "load failed: " .. tostring(err)
+            playUi(app, "invalid")
+        end
+        return
+    end
+    if app.tacticalMode then
+        if key == "[" then
+            turnView(app, -1)
+            Audio.play(app.audio, "tick")
+        elseif key == "]" then
+            turnView(app, 1)
+            Audio.play(app.audio, "tick")
+        elseif app.tactics and app.tactics:handleKey(key) then
+            app.tacticalOverlays = app.tactics.overlays
+            TacticalRuntime.syncWorld(sim, app.tactics)
+            Audio.play(app.audio, "tick")
+        else
             playUi(app, "invalid")
         end
         return

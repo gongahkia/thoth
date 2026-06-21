@@ -2,7 +2,16 @@
 
 Locked 2026-06-21. New source of truth for the tactical pivot.
 
-Open task list: none after the 2026-06-21 tactical scope audit.
+Status correction 2026-06-21: docs/data/tests existed, but playable New Game still showed legacy expedition/RPG. The tactical pivot is not complete until the live path plays as tile tactics by default.
+
+Open task list:
+
+- [ ] Replace legacy expedition/rank-combat progression with tactical route flow after the tactical prototype.
+- [ ] Replace the RPG tutorial modal with tactical onboarding for AP, cursor, intent, cover, objective pressure, and rotation.
+- [ ] Make tactical boards load from procgen route nodes instead of the fixed prototype board.
+- [ ] Add mouse/controller tactical cursor support; keyboard is first proof only.
+- [ ] Remove or quarantine legacy party-rank combat from default New Game and release smoke paths.
+- [ ] Expand tactical enemy AI beyond fixed posted intents while keeping deterministic resolution.
 
 ## Pivot Summary
 
