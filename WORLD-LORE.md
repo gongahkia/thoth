@@ -10,6 +10,14 @@ North star for content, naming, tone, and future implementation. Mechanics in co
 - [Darkest Dungeon affliction design](https://www.gamedeveloper.com/design/game-design-deep-dive-i-darkest-dungeon-s-i-affliction-system): inspiration for stress as clear feedback with unpredictable human reactions.
 - [Fear & Hunger: Termina](https://mirohaver.itch.io/fear-hunger-termina): inspiration for open-ended routes, ruthless resource pressure, and body-target combat pressure; do not import explicit content.
 - [World History Encyclopedia: Ereshkigal](https://www.worldhistory.org/Ereshkigal/): inspiration for gates, underworld custody, dead kept where they belong, and the living trespassing where they should not.
+- [Into the Breach](https://subsetgames.com/itb.html): inspiration for deterministic tile tactics, telegraphed enemy attacks, collateral defense, and compact tactical boards.
+- [Into the Breach Design Postmortem](https://media.gdcvault.com/gdc2019/presentations/Into%20the%20Breach%20Postmortem%20Final.pdf): inspiration for following design constraints, reducing random chance, visible threat promises, and low-number readability.
+- [XCOM cover/flanking](https://xcom.fandom.com/wiki/Cover): inspiration for directional cover, flanking, destructible protection, and tile-based squad risk.
+- [Slay the Spire enemy intents](https://slay-the-spire.fandom.com/wiki/Intent): inspiration for mixed enemy intent categories: attack, defend, buff, debuff, escape, stunned, and unknown.
+- [Invisible Inc design interview](https://www.shacknews.com/article/89531/invisible-inc-programmer-discusses-design-stealth-and-procedurally-generated-stages): inspiration for procedural tactical stealth, information gathering, readable guard intent, dependable planning, and generated layouts.
+- [Invisible Inc procedural stealth talk](https://gdcvault.com/play/1021919/Designing-Procedural-Stealth-for-Invisible): inspiration for the hidden costs of novel procedural mechanics and validation discipline.
+- [Gears Tactics gameplay pillars](https://www.gearsofwar.com/en-us/news/dev-blog-gameplay/): inspiration for AP flexibility, cover-to-cover movement, and player-authored overwatch cones.
+- [Mario + Rabbids Sparks of Hope](https://www.ubisoft.com/en-us/game/mario-rabbids/sparks-of-hope): inspiration for free movement inside turn-based tactics, dashes, team jumps, cover, and loadout synergies.
 
 These are reference directions, not content to copy.
 
@@ -25,6 +33,8 @@ It expanded downward and outward through old courts, cisterns, kilns, tombs, hos
 
 The party are not clean heroes. They are compromised salvagers working inside a colonial survey economy. They may protect survivors and repair damage, but the Estate still profits from extraction.
 
+The pivot makes the Stack a tactical board before it is a dungeon. Every room is a procedure made visible: claims become cover lines, audits become threat cones, valves become flood lanes, shelves become destructible blockers, and sealed names become tile permissions. The party wins by reading what the room is about to do, then moving people, threats, and terrain until the least-bad outcome is acceptable.
+
 ## Tone Pillars
 
 - Scale is hostile. Rooms should feel like small usable fragments of an architecture that continues far beyond the screen.
@@ -33,9 +43,11 @@ The party are not clean heroes. They are compromised salvagers working inside a 
 - Violence should stay tense and physical without becoming splatter-first.
 - No explicit sexual violence.
 - The player should feel practical pressure, not random cruelty. Hunger, torch, injury, scouting, and pack limits should explain why bad choices happen.
+- Tactical cruelty must be declared before it resolves. The room may be unfair in motive, not unclear in rules.
 - The Estate should be useful and morally compromised. It is home, employer, exploiter, hospital, creditor, and cage.
 - Survivors inside the Stack are people, not loot dressing. Content should create friction between extraction and repair.
 - Mystery should come from missing context and vast systems, not from incoherent proper nouns.
+- Board readability is tone. A clean threat preview should feel like a bureaucratic notice: cold, exact, and hard to ignore.
 
 ## What Thoth Is Not
 
@@ -44,6 +56,101 @@ The party are not clean heroes. They are compromised salvagers working inside a 
 - Not Pokemon with collectible monsters. The useful lesson is field behavior and observation.
 - Not Darkest Dungeon with renamed classes. Stress and ranks are mechanical lineage, but lore, factions, enemies, and architecture must be original.
 - Not heroic archaeology. The party are taking things from inhabited ruins.
+- Not an XCOM clone with hit percentages. Cover and flanking are useful; random tactical hit/miss is not the direction.
+- Not an Into the Breach clone with mechs and cities. The useful lesson is deterministic consequence, not the setting or unit fantasy.
+
+## Tactical North Star
+
+The new combat identity:
+
+- Turn-based, tile-based, deterministic, AP-driven squad tactics.
+- Square logical boards rendered as rotatable isometric spaces.
+- Variable squad size and class loadouts.
+- Attacks, hazards, cover, line of sight, hidden information, objectives, and enemy intent are represented directly on tiles.
+- Enemy intents mix exact forecasts, category forecasts, and limited unknowns. Unknown means "the type is withheld," not "damage appears from nowhere."
+- Player actions should move board state: push, pull, swap, block, brace, reveal, destroy, raise cover, drop cover, flood, burn, seal, open, extract.
+- Runs are roguelite: procedural boards, route choices, event variance, unlocks, boss variants, and persistent records.
+
+Hybrid randomness in this world:
+
+- Allowed: route generation, enemy families, event offers, board modifiers, rewards, boss variants, and partial intent masks.
+- Not allowed: declared attacks randomly missing, hidden damage after the player committed, or cover secretly changing math after preview.
+
+Rotation as fiction:
+
+- The Stack was built to be read from official angles. Surveyors rotate the view to expose filing marks, blind ledgers, witness lanes, and cover faces.
+- A tile may be physically visible from one angle but tactically understood only after another angle reveals its seal, edge, line, or shadow.
+- Rotation never changes the board's logical state. It changes what the player can inspect.
+
+## Research-To-Originality Rules
+
+Research is mandatory for new tactical systems, but references are pattern sources only.
+
+- Reference games may supply constraints, UI patterns, pacing lessons, and mechanic categories.
+- References may not supply names, factions, enemy identities, plot beats, boss procedures, board layouts, prose, or exact ability kits.
+- Every source-inspired idea must answer: what does the Stack think this tile/action means?
+- Every mechanic must be rewritten through Thoth's language: procedure, claim, seal, debt, light, water, ash, glass, bone, vellum, route, witness, and repair.
+- Every borrowed pattern needs a different cost structure, counterplay path, and board role.
+- If the mechanic is still recognizable after replacing Thoth nouns with source-game nouns, cut or redesign it.
+- Use web research to widen the design space; use WORLD-LORE to narrow it back into Thoth.
+
+## Board Content Bible
+
+### Buried Archive Boards
+
+Archive boards are about being seen, named, filed, and claimed.
+
+- Cover forms: shelf ranks, witness desks, docket carts, seal pillars, ledger stacks, rib shelves, archive shutters.
+- LoS forms: audit beams, claim lanes, clerk sight lines, back-face seals, witness holes, indexing slits.
+- Hazard forms: falling shelves, paper swarms, name-lock tiles, ink spread, misfile pits, redaction fog.
+- Objective forms: records, witnesses, bound dead, Open Register, debt seals, claim engines, intake doors.
+- Destructible forms: shelves become debris cover; ledgers burst into redaction fog; seal pillars break claim lanes.
+- Rotation secrets: rear stamps, hidden witness lanes, back-side weak points, false cover marks.
+- Board question: can the party break the procedure without becoming the record?
+
+### Salt Cistern Boards
+
+Cistern boards are about pressure, waterline, preservation, and drowning access.
+
+- Cover forms: valve blocks, bulkheads, pump housings, salt barricades, reed screens, floating debris.
+- LoS forms: salt mist, water glare, pressure-glass windows, submerged sight breaks, raised sluice walks.
+- Hazard forms: flood lanes, undertow pulls, brine pools, pressure bells, pearl cyst bursts, drain suction.
+- Objective forms: valves, pump hearts, enclave shelters, children/witnesses, drinkable water nodes, sluice keys.
+- Destructible forms: valve wheels change flood direction; bulkheads release water; cysts create or block lanes.
+- Rotation secrets: waterline marks, hidden drain grates, rear valve labels, submerged pressure cracks.
+- Board question: can the party control the route without deciding who drowns?
+
+### Ember Warrens Boards
+
+Warrens boards are about purification, heat, glass, fuel, and whether erasure is mercy.
+
+- Cover forms: kiln walls, ash heaps, clinker barricades, glass screens, fuel carts, fired-clay pews.
+- LoS forms: bellows cones, smoke veils, heat shimmer, glass reflectors, furnace slits, halo lenses.
+- Hazard forms: heat lanes, ash choke, ignition tiles, vitrification beams, white-coal pressure, cinder collapse.
+- Objective forms: fuel stores, douse valves, ash names, false vows, furnace gates, trapped witnesses.
+- Destructible forms: glass reflects until shattered; fuel carts ignite; kiln doors seal or vent heat.
+- Rotation secrets: mirror angles, back-side vents, hidden douse lines, ash-covered weak points.
+- Board question: can the party free the dead without burning the living proof?
+
+## Unique Mechanic Seeds
+
+Use these as starting points for research-backed tasks; each still needs implementation design and tests.
+
+- Rotation-revealed back seals: a tile looks like cover from one angle, but another angle reveals it is a claim conduit.
+- Redacted intent: enemy category is visible; exact tiles require light, rotation, Arcanist reading, or Lamplighter beacon.
+- Filing lane: a visible line disables AP on its next pulse unless blocked with cover, body, seal, or enemy.
+- Evidence cover: destroying cover creates proof fragments that can be extracted, ignored, or used as hazardous debris.
+- Movable objective: the player can drag a route machine or witness, but each move lowers integrity or raises exposure.
+- Enemy repairer: some enemies restore cover, seals, or hazards unless shoved, pinned, or line-broken.
+- Angle weak point: elite/boss weak point is targetable only when rotation reveals the procedural back face.
+- Claim mirror: glass terrain reflects LoS and intent previews until cracked or smoked.
+- Waterline clock: Cistern boards gain or lose rows of traversable ground on declared turns.
+- Douse chain: Ember hazards can be converted to smoke cover, then ash choke, then safe floor through repeated actions.
+- Name collateral: some attacks target a record/objective paired with a hero, forcing a squad-vs-objective choice.
+- Debt AP: Merchant tools can borrow AP now and add future route/event debt.
+- Witness tile: standing on it reveals intent but also makes the unit a legal target.
+- Seal inversion: repairing a seal blocks enemy intent but also closes an extraction or loot route.
+- Hostile cover: some cover protects from damage while increasing redaction, heat, or pressure exposure.
 
 ## World Structure
 
@@ -60,8 +167,12 @@ Known behaviors:
 - It treats light as inspection authority, not safety.
 - It treats names as keys.
 - It treats water, salt, ash, and bone as storage media.
+- It declares procedures before enforcing them when the target is officially recorded.
+- It hides procedures when the party lacks angle, light, name, or witness authority.
 
 The Stack is not fully sentient in a human way. It behaves like law, infrastructure, and immune system fused together.
+
+Tactical implication: the Stack is strongest when it has line of sight, cover of law, and a declared procedure. The party survives by breaking those three conditions.
 
 ### The Estate
 
@@ -342,18 +453,23 @@ Sub-areas by tier:
 
 ## Mechanics-To-Lore Mapping
 
-- Torch: inspection authority and morale. High light reveals routes and threats, but also tells the Stack where the party is.
-- Scouting: reading the Stack before it reads you. Scouting should reduce ambush odds and expose moral context.
-- Noise: procedural attention. Noise is not just sound; it is paperwork, heat, scent, wake, and route disturbance.
-- Visible threats: inhabitants with field behavior. They can guard, stalk, flee, call help, or bait the party.
-- Alpha threats: rare dominant maintenance bodies or survivor-made horrors that own a route.
-- Weak points: procedural organs on elite enemies. Breaking them disables a function; it is not a general dismemberment sim.
-- Injuries: expedition-long readable wounds. They should imply place and source: salt swelling, glass scarring, crushed hand, nerve burn.
-- Curios: interfaces with the Stack. Every curio should answer "what old function is still operating?"
-- Camp: trespass pause. Rest helps the party, but smoke, prayer, and cooking mark them as present.
-- Loot capacity: the moral and tactical limit of extraction.
-- Dread: the Estate and Stack both worsening because of failed or greedy expeditions.
-- Renown: proof that the Estate can sell hope.
+- AP: attention, breath, and authorization. Spending AP means forcing a body or tool through a procedure before the room completes its own.
+- Movement: trespass path. A route is never just distance; it crosses claims, witness lanes, pressure seams, heat, water, and sight.
+- Rotation: survey angle. Rotating the room exposes official marks, rear seals, cover faces, hidden lines, and sight gaps.
+- Line of sight: recognition. If a procedure can see and name a target, it can act on that target.
+- Cover: contested authority. Desks, shelves, valve blocks, barricades, bodies, and mobile shields interrupt recognition.
+- Flanking: invalidated protection. A unit is flanked when its chosen authority is no longer between it and the claimant.
+- Enemy intent: posted notice. The Stack and its factions declare many actions before resolving them. The horror is seeing the harm scheduled.
+- Partial intent: redacted notice. Elites and bosses can hide exact footprints, but must show enough category information for planning.
+- Push/pull/swap: misfiling bodies. Movement effects are not physics jokes; they are the party exploiting procedures and sight lines.
+- Destructible terrain: broken record media. Destroying cover, floors, valves, shelves, or kilns changes what the room can prove.
+- Hazards: active clauses. Flood, ash, heat, falling shelves, audit beams, and pressure lanes are tile rules with visible timing.
+- Overwatch/threat zones: pending inspection. A watched tile is a place where movement becomes testimony.
+- Objectives: people and machinery the Estate wants classified. Protecting both squad and objective creates the moral bind.
+- Injuries: run-long constraints. They should change movement, AP, cover use, LoS, or loadout handling without stealing random turns.
+- Loot capacity: extraction limit. Taking proof competes with rescue, repair, and tactical positioning.
+- Dread: the Estate and Stack both worsening because of failed, greedy, or destructive boards.
+- Renown: proof that the Estate can sell competence.
 
 ## Hero Class Hooks
 
@@ -361,82 +477,87 @@ Sub-areas by tier:
 
 A former route guard or debt enforcer. Believes lines matter because people die when lines break.
 
-Content angle: strongest tension with Estate orders; may protect survivors even while serving survey contracts.
+Tactical angle: mobile cover, brace, shove, shield-line denial, and objective blocking. Strongest tension with Estate orders; may protect survivors even while serving survey contracts.
 
 ### Duelist
 
 A paid blade from Estate patron circles or a debtor trained for spectacle.
 
-Content angle: treats the Stack as a stage until injuries make it personal.
+Tactical angle: flank conversion, dash strikes, position swaps, and single-target repositioning. Treats the Stack as a stage until injuries make it personal.
 
 ### Apothecary
 
 Field herbalist trained on salvage crews, more practical than holy. Carries tinctures, triage tools, and a working knowledge of which salts keep flesh from rotting.
 
-Content angle: sees bodies as patients first and records second. Dissonance: a classic-trade name applied to a profession the Stack copied first.
+Tactical angle: area stabilizers, smoke, cleanse hazards, rescue objectives, and controlled debuffs. Sees bodies as patients first and records second.
 
 ### Arcanist
 
 Interpreter of old Stack signs, half scholar and half liability.
 
-Content angle: understands enough procedures to exploit them and enough to fear them.
+Tactical angle: LoS bending, reveal marks, intent disruption, seal reading, and tile permission tricks. Understands enough procedures to exploit them and enough to fear them.
 
 ### Thief
 
 Scout, poacher, courier, and route thief. Has lifted from Estate caravans and Stack curios with equal patience.
 
-Content angle: best at reading visible threats; least loyal to official maps. Dissonance: the only honest profession in a town that calls extraction "survey."
+Tactical angle: stealth lanes, trap disarm, hidden-tile reveal, objective extraction, and escape routes. Least loyal to official maps.
 
 ### Chirurgeon
 
 Estate-trained wound specialist who knows preservation methods came from the Stack.
 
-Content angle: most body-horror aware; can treat injuries but recognizes copied techniques.
+Tactical angle: repair bodies and machinery, stabilize injuries, convert wounds into predictable constraints, and keep objectives functioning. Most body-horror aware.
 
 ### Exile
 
 Former enclave member, criminal, deserter, or failed surveyor.
 
-Content angle: gives the party a non-Estate view without making that view pure.
+Tactical angle: terrain break, throw, slam, hazard immunity pockets, and self-risk AP spikes. Gives the party a non-Estate view without making that view pure.
 
 ### Lamplighter
 
 Route worker from the crews who keep expeditions possible.
 
-Content angle: knows light is both comfort and signal; should carry the game's exploration identity.
+Tactical angle: reveal, overwatch cones, light authority, route beacons, and hidden-intent reduction. Knows light is both comfort and signal.
 
 ### Merchant
 
 Itinerant ledger-keeper contracted by the Estate to weigh, tally, and witness on the field. Carries scales, sealed coin, and the writ that lets the party draw against future salvage.
 
-Content angle: the only class that profits as dread rises; turns mercy, salvage, and triage into transactions the party can refuse but rarely afford to. Dissonance: a classic-fantasy guild title naturalized into the Stack's institutional economy, more comfortable in a survey office than in a debt chancel and yet most fluent in both.
+Tactical angle: objective insurance, debt trades, salvage drones, risk conversion, and delayed payment mechanics. The only class that profits as dread rises; turns mercy, salvage, and triage into transactions the party can refuse but rarely afford to.
 
 ## Enemy Design Rules
 
 - Give every enemy a job in the place.
 - Prefer two readable mechanics over four vague ones.
-- Elite parts should map to skills by fiction: bell lung, ledger hand, crown seal, halo vent.
-- Swarms should threaten supplies, torch, or stress more than raw HP.
-- Guards should alter targeting or route access.
-- Casters should produce stress for legible reasons: audit call, hymn, pressure chant, bell note, furnace litany.
-- Trappers should move ranks, mark heroes, or create injury risk.
-- Alphas should be visible before combat whenever possible.
+- Every enemy needs a board verb: move, shoot, push, pull, block, repair, summon, overwrite, reveal, hide, burn, flood, seal, or destroy.
+- Basic enemies should show exact intent tiles.
+- Elites may show partial intent, but their category must be clear.
+- Bosses can rotate intent masks, alter terrain, expose weak points by angle, and threaten objectives across multiple turns.
+- Elite parts should map to board functions by fiction: bell lung, ledger hand, crown seal, halo vent, valve throat.
+- Swarms should threaten objectives, cover, LoS, AP tax, or extraction routes more than raw HP.
+- Guards should alter targeting, cover, movement lanes, or route access.
+- Casters should produce stress or redacted intent for legible reasons: audit call, hymn, pressure chant, bell note, furnace litany.
+- Trappers should move units, mark tiles, bind AP, or create injury risk.
+- Alphas should be visible on the run map or board before they force a fight.
 - Bosses should embody the zone procedure, not just be larger enemies.
 
 ## Curio Design Rules
 
-Each curio needs:
+Each curio becomes either an interactable tile, objective anchor, hazard source, or destructible board object. Each needs:
 
 - Surface read: what the player sees.
 - Old function: what it was built to do.
-- Safe use: item or class-aware path.
-- Greedy use: better loot or faster objective with higher cost.
+- Safe use: AP/item/class-aware path.
+- Greedy use: better loot or faster objective with higher board cost.
 - Repair use: lower dread or faction gain with lower loot.
 - Leave option: valid when supplies are low.
+- Board consequence: cover, LoS, hazard, objective, spawn, intent, or extraction effect.
 
 Good curio question:
 
-- "Do we take the record, fix the machine, or leave the dead named?"
+- "Do we take the record, fix the machine, move the body, or leave the dead named?"
 
 Bad curio question:
 
@@ -461,6 +582,19 @@ Mission outcomes should increasingly support:
 - Extraction: more gold, heirlooms, trinkets, Estate favor, possible dread.
 - Repair: less loot, lower dread, enclave favor, safer future routes.
 - Abandonment: immediate survival, dread increase, possible town pressure.
+
+Mission boards should be built around one main tactical question:
+
+- Which objective can we afford to lose?
+- Which attack must be redirected instead of stopped?
+- Which cover must be destroyed now to survive later?
+- Which hidden line appears only after rotation?
+- Which enemy must live because killing it opens a worse route?
+- Which unit extracts while the others hold the room?
+
+Bad mission board:
+
+- Empty floor, scattered enemies, no objective pressure, and damage as the only answer.
 
 ## Narration Voice
 
@@ -525,13 +659,16 @@ Tooltips can be blunt:
 
 ## Campaign Arc
 
-V1 campaign spine:
+Roguelite campaign spine:
 
-1. The Estate needs proof that deeper routes can be monetized.
-2. The Buried Archive reveals that names are being used as debt locks.
-3. The Salt Cistern reveals that living enclaves depend on systems the Estate wants opened.
-4. The Ember Warrens reveals that burning records can free people or erase them.
-5. Final pressure asks whether the Estate seals the Stack for ownership, repairs selected systems, or keeps extracting until collapse.
+1. The Estate selects a survey route and squad from incomplete intelligence.
+2. Each board is a room-procedure with declared threats, objectives, and destructible record media.
+3. Between boards, the player chooses routes, repairs, extractions, enclave bargains, and loadout changes.
+4. The Buried Archive teaches names, cover, claims, hidden angles, and audit intent.
+5. The Salt Cistern adds water pressure, floods, valves, moving cover, and route machinery.
+6. The Ember Warrens adds fire, ash, glass, terrain conversion, and purge/repair choices.
+7. Boss boards ask whether the player can preserve both people and procedure under visible pressure.
+8. Final pressure asks whether the Estate seals the Stack for ownership, repairs selected systems, or keeps extracting until collapse.
 
 Possible endings later:
 
@@ -542,10 +679,12 @@ Possible endings later:
 
 ## Campaign Pressure (Weeks And Dread)
 
-V1 campaign uses two readable timers running in parallel. Either reaching cap ends the run.
+The roguelite campaign uses readable timers and route pressure. Either reaching cap can end or warp the run.
 
-- Week timer: hard cap of estate weeks. Each survey advances one week. Reaching the cap forces a final reckoning whether or not the player feels ready.
-- Dread timer: rises with greedy extraction, hero death, abandoned missions, enclave betrayal, and certain town events. Falls with repair missions, vigils, enclave compacts, and quiet weeks.
+- Week timer: hard cap of route cycles. Each board or route node advances time. Reaching the cap forces a final reckoning whether or not the player feels ready.
+- Dread timer: rises with greedy extraction, objective loss, hero death, destructive board solutions, enclave betrayal, and certain events. Falls with repair objectives, clean extractions, enclave compacts, and quiet routes.
+- Exposure: local board pressure. Exposure rises from noise, visible trespass, broken seals, failed stealth, and redacted intent. It should affect reinforcements and future board modifiers.
+- Integrity: objective health for machinery, enclaves, civilians, route seals, or archive records. Integrity is the main non-squad failure pressure.
 
 End conditions:
 
@@ -557,27 +696,27 @@ End conditions:
 Pacing rules:
 
 - The two timers should never both be hidden. At least one is always shown blunt in the UI.
-- Late weeks should add mission pressure modifiers, not new rooms. Pressure is the cheap way to escalate.
+- Late weeks should add board modifiers, not longer boards. Pressure is the cheap way to escalate.
 - Dread should sometimes drop. A timer that only rises is a punishment timer, not a pressure timer.
-- A 3-5 hour run should land near 10-14 surveys including a finale. Pad with town events, not longer dungeons.
+- A 2-4 hour run should land near 8-12 boards including a finale. Pad with route choices and events, not longer rooms.
 
 ## Zone Sub-Tiers
 
-Each zone deepens across the campaign rather than swapping for a new zone.
+Each zone deepens across the run rather than just swapping for a new tileset.
 
-- Tier I: surface routes. Standard enemies, one mini-boss warden, scouted curios, mid-stakes missions.
-- Tier II: opens after the zone's first mission cleared. Adds branch rooms, mid-tier enemies, harder curios, named documents, and an enclave petition.
-- Tier III: opens after the mini-boss warden is felled or repaired. Adds the boss gate, terminal documents, and the zone's hardest weak-points.
+- Tier I: readable boards. Exact intents, basic cover, one objective, limited destructible terrain.
+- Tier II: pressure boards. Partial intents, active hazards, multiple objectives, route machinery, enclave requests.
+- Tier III: boss-route boards. Staged intents, rotating weak points, terrain conversion, hidden angle information, high objective pressure.
 
 Tier transitions should be diegetic. The Stack has noticed the party. The route changes.
 
 ## Mini-Boss Wardens
 
-Each zone has one mini-boss warden between trash and the final boss. They are visible alphas first. The party should see them before fighting them.
+Each zone has one mini-boss warden between normal boards and the final boss. They are visible alphas first. The party should see their board rule before fighting them.
 
-- Buried Archive: Codex Reeve. Calls audit on a marked hero; that hero loses one skill for the encounter unless the Open Register is broken.
-- Salt Cistern: Pearl Choir. Flooded survivors fused at the cyst; sings under water and re-floods drained rooms unless silenced.
-- Ember Warrens: Kiln Vicar. Penitent saint who tries to vitrify the most injured hero; doused with carried ember oil.
+- Buried Archive: Codex Reeve. Posts audit lines that disable AP on marked tiles unless the Open Register is broken.
+- Salt Cistern: Pearl Choir. Refloods drained lanes and turns low ground into hostile movement unless choir throats are silenced.
+- Ember Warrens: Kiln Vicar. Vitrifies the most exposed unit or objective unless halo vents are doused or line of sight is broken.
 
 Wardens are not zone bosses. They guard a route or a record, not the procedure. Defeating one should change the zone's behavior, not end it.
 
@@ -688,3 +827,24 @@ New content fits if it answers these:
 - How does the mechanic stay deterministic and readable?
 
 If a content idea only sounds cool but has no role in place, cut it.
+
+## Content Acceptance Standard v2
+
+Use this stricter gate for the tactical pivot.
+
+- It is deterministic after board load.
+- It is previewable before commitment.
+- It changes movement, position, cover, LoS, terrain, objective state, or future intent; pure number tuning is not enough.
+- It has at least one counterplay path that does not require killing the source.
+- It creates a squad/objective/route/resource tradeoff when possible.
+- It has a Thoth explanation in procedural language, not source-game language.
+- It has UI language short enough for a tile inspector.
+- It has at least one replay fixture or fixed-seed validation case.
+- It has a web-researched source pattern and a documented Thoth transformation when inspired by another game.
+
+Cut it if:
+
+- It adds hidden randomness to tactical resolution.
+- It cannot be displayed clearly in all four rotations.
+- It makes damage the only good answer.
+- It copies a reference game's identity, fiction, or exact ability loop.

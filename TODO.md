@@ -1,188 +1,354 @@
-# Thoth — Roadmap & Tasks
-
-Locked 2026-06-19. Single source of truth. `TODO-CONTENT.md` merged into this file.
-
-## Lock-in decisions
-
-- **Engine:** stay LOVE2D + Lua. Add 3D lib (g3d or 3DreamEngine, TBD via Phase 0 spike).
-- **Rendering:** HD-2D — 3D world geometry, billboarded 2D sprites for characters/enemies.
-- **Camera:** isometric, 90° rotation snaps (Fez-style), no smooth 360°.
-- **Distribution:** itch.io + GitHub releases. No Steam. Balatro polish bar (feel/UX/audio), not Balatro art bar.
-- **Scope:** no cuts. All 3 zones (Buried Archive lead), 32 missions, 8 existing classes + new Merchant = 9 classes total.
-- **Tone:** institutional horror preserved; classic-fantasy class names create deliberate dissonance.
-- **Timeline:** grad +2yr is alpha milestone, 1.0 expected 4–6 yr from now. No hard deadline.
-- **Audio:** royalty-free music (freepd.com, Pixabay Music). SFX from OGA or self-recorded.
-- **Art:** OGA character sprites (billboarded). CC0 3D environment geometry (KayKit/Quaternius/Kenney). AI fill only as last resort after OGA exhausted.
-
-## Class roster
-
-| ID (code) | Display name | Status | Touch points |
-|---|---|---|---|
-| `warden` | Warden | unchanged | registry.lua:257 |
-| `duelist` | Duelist | unchanged | registry.lua:264 |
-| `mender` | **Apothecary** | **renamed** | registry.lua:271 |
-| `arcanist` | Arcanist | unchanged | registry.lua:278 |
-| `harrier` | **Thief** | **renamed** | registry.lua:285 |
-| `chirurgeon` | Chirurgeon | unchanged | registry.lua:292 |
-| `exile` | Exile | unchanged | registry.lua:299 |
-| `lamplighter` | Lamplighter | unchanged | registry.lua:306 |
-| `merchant` | **Merchant** | **new** | TBD — added after `lamplighter` |
-
-Class IDs in code stay as `mender`/`harrier` for save-file compat. Display strings update.
-
-## Merchant kit v1
-
-Design artifact: `docs/merchant-kit.md`.
-
-Tone: the Stack's hand. Counts and weighs while others kill and salvage. Treats heroes as inventory entries. Lore tension: party benefits from Merchant economy while becoming Merchant's ledger.
-
-**Skills (3):**
-
-1. `appraise_weak_point` - Ranks 3-4. Enemy ranks 1-4. Applies `marked` for 2 turns; the next direct hero hit ignores armor and gains crit pressure.
-2. `brokered_mercy` - Ranks 2-4. Ally ranks 1-4. Heals 6 HP and adds 3 stress to the Merchant.
-3. `settle_accounts` - Ranks 1-2. Enemy ranks 1-2. Deals modest direct damage plus missing-HP scaling.
-
-**Camp skills (2):**
-
-- `audit_books` - Party stress heal 4. Consumes one carried trinket as an audit loss.
-- `cancel_debt` - Cures one disease on one hero. Costs 2 Survivor Enclave standing (`enclave_meter`) if available.
-
-**Passive:**
-
-- `merchant_cut` - Dread tier 2+: +1 pack slot while Merchant is on the expedition. Dread tier 4+: first room-loot coin/relic payout gains +1 bonus stack. Reverse-pressure: Estate decay makes the Merchant more profitable.
-
-**Lore/barks:**
-
-- Origin: `"The Merchant learned that mercy is an entry; debt outlasts the body."`
-- Arrival: `"A Merchant arrives with the ledger already opened."`
-- First death: `"The account closed at a loss."`
-- Faction shift: `"A Merchant marks faction weather as price movement."`
-
----
-
-## Phase 0 — Engine spike (Week 1, ~20h total)
-
-Goal: prove HD-2D rotatable iso works in LOVE2D + Lua at perf, or fail fast.
-
-### Day 1 — Library bake-off setup (~4h)
-
-### Day 2 — 3D world spike (~4h)
-
-### Day 3 — Billboard sprite spike (~4h)
-
-### Day 4 — Perf + integration spike (~4h)
-
-### Day 5 — Decision + writeup (~4h)
-
-**Phase 0 exit criteria:** all 5 spike days pass; engine lib chosen; ≥60fps with 34 billboards + 400 tiles + 4-snap rotation; existing save/load unaffected.
-
----
-
-## Phase 1 — Engine port (~3 months, ~360h)
-
-Goal: replace `src/app/render.lua` (1,458 lines, isometric 2D) with HD-2D render layer. Keep `simulation.lua` untouched.
-
-**Phase 1 exit criteria:** game boots into HD-2D world, all 24 cutscenes play, rotation works, all existing tests pass, save/load works, benchmarks ≥ old perf.
-
----
-
-## Phase 2 — UI layer (~6 months, ~720h)
-
-Goal: build every missing player-facing screen. Game must boot from title → load campaign → play → quit gracefully.
-
-**Phase 2 exit criteria:** every player decision currently in code is accessible via UI. No keyboard-shortcut-only features. Controller can play the game start to finish.
-
----
-
-## Phase 3 — Asset integration (~4 months, ~480h)
-
-Goal: replace `assets/sprites/thoth_atlas.png` (single 128×80 placeholder) with cohesive OGA pack + CC0 3D world geometry.
-
-**Phase 3 exit criteria:** zero placeholder art remaining. All audio/visual assets attributed in credits. License audit clean.
-
----
-
-## Phase 4 — Vertical slice alpha (~3 months, ~360h)
-
-Goal: full playthrough of Buried Archive Tier I (3 missions) end-to-end, with 4 starter classes (Warden, Duelist, Apothecary, Thief).
-
-- [ ] 4.11 Drop free alpha on itch.io; share to 3 communities (r/love2d, r/IndieDev, RPG Maker horror Discord) (4h)
-- [ ] 4.12 Collect feedback for 4 weeks. Categorize: bug / balance / feel / scope (16h)
-- [ ] 4.13 Triage feedback; write `docs/alpha-feedback-triage.md` (8h)
-- [ ] 4.14 Tag commit `phase4-alpha-released` (0.5h)
-
-**Phase 4 exit criteria:** ≥50 unique alpha downloads, ≥10 feedback responses, ≥1 full playthrough recorded by a stranger.
-
----
-
-## Phase 5 — Content scale-up (~12 months, ~1500h)
-
-Goal: fill out Buried Archive (12 missions), Salt Cistern (10 missions), Ember Warrens (9 missions) with hand-tuned polish.
-
-- [ ] 5.14 Beta itch.io drop (24h)
-- [ ] 5.15 Collect 8 weeks of beta feedback (16h)
-- [ ] 5.16 Triage + fix top 50 bugs from beta (160h)
-- [ ] 5.17 Tag commit `phase5-content-complete` (0.5h)
-
-**Phase 5 exit criteria:** all 32 missions playable, all 4 endings reachable, beta feedback triaged.
-
----
-
-## Phase 6 — Merchant integration (~3 months, ~360h)
-
-Goal: ship 9th class. Late-game design choice: introduce dissonance at the point players have made peace with the institutional tone.
-
-- [ ] 6.14 Balance pass: 10 playthroughs with Merchant in party at various tiers (80h)
-- [ ] 6.15 Balance pass: 10 playthroughs without Merchant — verify game still tuned for 8-class roster (60h)
-- [ ] 6.19 Tag commit `phase6-merchant-complete` (0.5h)
-
-**Phase 6 exit criteria:** Merchant integrated, balanced, no regressions in 8-class playthroughs, save/replay deterministic.
-
----
-
-## Phase 7 — Polish & audio (~6 months, ~720h)
-
-Goal: Balatro-feel polish on every interaction. Audio mix. Final accessibility pass.
-
-**Phase 7 exit criteria:** Balatro-feel polish bar met (subjective; verify via 5 external playtesters' "feel" ratings). No accessibility regressions. Perf budget hit.
-
----
-
-## Phase 8 — Release candidate + 1.0 (~3 months, ~360h)
-
-Goal: ship 1.0 on itch.io + GitHub releases.
-
-- [ ] 8.4 Verify clean install on Windows, macOS, Linux from scratch (24h)
-- [ ] 8.6 itch.io store page final: 5 screenshots, 1 trailer (record from gameplay), description copy, tags (16h)
-- [ ] 8.7 Trailer production: 60–90s gameplay edit + music (40h)
-- [ ] 8.8 RC1 → 6-week paid-beta on itch.io for feedback ($0–5 suggested donation, no required purchase) (n/a)
-- [ ] 8.9 Triage RC feedback; fix top 20 bugs (120h)
-- [ ] 8.10 RC2 → final regression sweep (16h)
-- [ ] 8.11 Press kit: presskit() format, screenshots at 1080p/4K, logo at multiple sizes (16h)
-- [ ] 8.12 Launch announcement: r/love2d, r/IndieDev, RPG-horror Discords, Bluesky/Mastodon (4h)
-- [ ] 8.13 Set `conf.lua` version to `1.0.0`. Bump save version. Tag commit `v1.0.0` (1h)
-- [ ] 8.14 Launch (0h — let it happen)
-- [ ] 8.15 Post-launch monitor: first-week bug intake, hotfix patch within 7 days if critical bugs (40h)
-
-**Phase 8 exit criteria:** 1.0 live on itch.io + GitHub releases. Hotfix patch deployable within 24h of critical bug report.
-
----
-
-## Crosscutting / continuous tasks
-
-- [ ] C.1 Weekly: write down 3 things learned, 1 risk introduced (use `docs/dev-log.md`, append-only)
-- [ ] C.2 Monthly: full test suite run + benchmark; record perf delta vs prior month
-- [ ] C.3 Per-phase: verify CI workflow still green (`.github/workflows/ci.yml`)
-- [ ] C.4 Per-feature: write a deterministic replay test under `tests/` proving the feature works
-- [ ] C.5 Per-asset-add: append license entry to `docs/asset-licenses.md`
-
----
-
-## Known risks (track and revisit)
-
-- **R1 Engine perf:** g3d/3DreamEngine may not hit 60fps with full mission scene. Phase 0 falsifies this. Mitigation if fails: reduce visible tile count, LOD-cull distant tiles, swap to 3D model batching.
-- **R2 Billboard angle:** OGA sprites drawn for top-down may look wrong at 30° iso camera. Mitigation: pick packs drawn for 3/4-view characters specifically (DawnLike, 2DPIXX), or commission angle-correct redraws.
-- **R3 Rotation puzzle design conflict:** 90° rotation works mechanically, but Fez-style rotation-as-puzzle conflicts with procgen mission grammar. Mitigation: rotation is exploration aid (view occluded tiles), not puzzle mechanic, in initial design. Revisit if a rotation-as-puzzle pillar emerges.
-- **R4 Scope creep:** "as long as needed" can extend indefinitely. Mitigation: every 6 months, evaluate whether 1.0 cut is closer; if not, examine which phase is bleeding time.
-- **R5 Solo burnout:** 4–6 years solo is long. Mitigation: 1 day/week off-project minimum; alpha drops at Phase 4 and beta at Phase 5 for external motivation; do not skip the playtest community feedback loops.
-- **R6 Post-grad income loss:** project must survive transition to part-time when grad employment kicks in. Mitigation: front-load Phase 0–4 (engine + UI + alpha) into the 2-year full-time window; treat Phase 5+ as part-time-compatible.
+# Thoth - Pivot Roadmap & Tasks
+
+Locked 2026-06-21. New source of truth for the tactical pivot.
+
+## Pivot Summary
+
+Thoth keeps LOVE2D/Lua, the HD-2D isometric renderer, 90-degree snap rotation, and institutional horror. The game pivots away from expedition-RPG/rank combat toward deterministic, tile-based roguelite tactics closer to XCOM and Into the Breach: read the board, rotate the space, inspect enemy intent, spend AP, move units/enemies/terrain, then resolve visible consequences on tiles.
+
+Current code is legacy baseline until replaced. Preserve useful systems only when they serve the new board game.
+
+## Research Anchors
+
+- Into the Breach: small deterministic battles, telegraphed attacks, collateral defense, enemy manipulation, low UI noise.
+- XCOM: squad tactics, AP pacing, cover, flanking, line of sight, overwatch-style threat zones.
+- Slay the Spire: mixed enemy intents where the player sees attack/buff/debuff/unknown categories before choosing.
+- Invisible Inc: procedural tactical stealth, information gathering, readable guard intent, dependable planning.
+- Gears Tactics: AP flexibility, cover-to-cover movement, player-drawn overwatch cones, large boss arenas.
+- Mario + Rabbids: free movement inside a turn, dash/team movement, cover usage, loadout synergies.
+- Spatial board games and tactics roguelikes: compact board states, forced movement, clear threat math, repeatable procgen validation.
+
+## Required Research Protocol
+
+Every new content/mechanic batch must start with web research. Do not implement from memory alone.
+
+- [ ] R.0 Create `docs/tactical-research-index.md` with source URLs, checked dates, extracted patterns, and Thoth-specific transformations.
+- [ ] R.1 Research deterministic tactics constraints from Into the Breach, including telegraphed attacks, collateral defense, low-number UI, and least-bad outcomes.
+- [ ] R.2 Research cover, flanking, overwatch, LoS, and action economy from XCOM and Gears Tactics.
+- [ ] R.3 Research procedural tactical stealth from Invisible Inc: information gathering, guard intent, alarm pressure, and generated layouts.
+- [ ] R.4 Research free-movement tactics from Mario + Rabbids and similar games: dash, ally-assisted movement, movement-before-attack sequencing, and cover interaction.
+- [ ] R.5 Research tactics roguelikes and board games for compact spatial mechanics: forced movement, tile claims, action queues, objective clocks, and deterministic puzzle pressure.
+- [ ] R.6 Research boss encounter design for turn-based tactics: multi-turn pattern reads, arena mutation, weak-point exposure, add waves, and objective pressure.
+- [ ] R.7 Research readable tactical UI overlays: intent arrows, danger tiles, cover shields, LoS previews, path ghosting, tile inspectors, and colorblind-safe palettes.
+- [ ] R.8 For each researched mechanic, write a one-line source pattern and a one-line Thoth transformation. The transformation must change fiction, rules, costs, and UI language.
+- [ ] R.9 Reject any idea that remains recognizable after swapping nouns back to the source game.
+
+Required handoff format for each research-backed TODO:
+
+```text
+source pattern:
+thoth transformation:
+board verb:
+zone fit:
+counterplay:
+preview/UI:
+test/replay proof:
+```
+
+## Lock-in Decisions
+
+- **Engine:** stay LOVE2D + Lua + g3d.
+- **Rendering:** keep HD-2D isometric 3D tiles with billboarded or modelled units.
+- **Camera:** keep 90-degree snap rotation on `[` and `]`; rotation is gameplay information, not only presentation.
+- **Core combat:** deterministic. No hit/miss rolls in player-facing tactical resolution.
+- **Hybrid definition:** allowed RNG lives in map generation, enemy roster, event rolls, rewards, and optional hidden/partial intent categories. It must not make a declared attack randomly miss or randomly hit.
+- **Turn model:** use team turns with AP per unit as the first prototype: player spends AP across squad, confirms, enemy intents resolve, enemies reposition/declare next intents. Revisit alternating initiative only after the prototype.
+- **Grid:** square logical grid rendered isometrically, with height, cover edges, blockers, hazards, destructible objects, and tile tags.
+- **Cover:** XCOM-style directional cover and flanking, but deterministic. Cover blocks/reduces defined effects; flanking removes cover protection.
+- **Enemy intent:** mixed forecast. Common enemies show exact tiles/effects. Elites may show category plus partial footprint. Bosses may have staged or rotating intent masks, but never pure surprise damage.
+- **Failure pressure:** protect both squad and objectives. Objectives include civilians, enclaves, route machinery, archives, power/pressure nodes, exits, and extraction cargo.
+- **Run structure:** roguelite campaigns with procedural boards, route choices, persistent unlocks, class loadouts, and boss variants.
+- **Tone:** institutional horror preserved. Mechanics should feel like procedures, audits, gates, pressure systems, claims, and corrections acting on tiles.
+- **Distribution:** itch.io + GitHub releases. No Steam unless the strategy changes later.
+
+## Tactical Pillars
+
+1. **The board tells the truth.** Movement, attacks, cover, hazards, LoS, hidden rooms, and objective damage are visible or inspectable before commitment.
+2. **Rotation is planning.** Rotating reveals occluded cover edges, LoS, hidden route marks, back-facing weak points, and intent traces.
+3. **Actions move state.** Good turns reposition units, enemies, objects, hazards, and future attacks. Damage alone should be the least interesting answer.
+4. **Terrain is a tool.** Walls, shelves, valves, furnaces, desks, bridges, doors, pressure plates, and records can be damaged, pushed, sealed, raised, flooded, burned, or used as cover.
+5. **Threats are promises.** Declared attacks resolve unless prevented by movement, block, stun, destruction, cover, line break, or objective sacrifice.
+6. **Runs create stories.** Procedural boards and events create pressure, but tactical resolution stays deterministic.
+
+## Full-Game Mechanic Backlog
+
+These tasks define the content/mechanic catalog. Prototype only a narrow slice first, but design toward this breadth.
+
+### Core Board Mechanics
+
+- [ ] M.1 Define tile schema for floor, height, cover edges, blocker, LoS blocker, destructible HP, hazard, objective, reveal state, rotation-visible marks, and zone material.
+- [ ] M.2 Define AP baseline: 2 AP default, move/action split allowed, AP debt allowed only by explicit class/tool rules.
+- [ ] M.3 Define deterministic movement preview: reachable tiles, AP cost, collision result, hazard cost, cover gained/lost, objective carry effects.
+- [ ] M.4 Define shove/pull/swap rules: pathing, collision damage, blocked movement, edge cases against objectives, and enemy friendly fire.
+- [ ] M.5 Define dash/vault/climb/drop rules for height and cover without creating hidden LoS exceptions.
+- [ ] M.6 Define carry/drag rules for civilians, bodies, machinery cores, loot crates, and wounded heroes.
+- [ ] M.7 Define overwatch/threat-zone rules with cones, lines, arcs, and trigger limits.
+- [ ] M.8 Define interact rules for valves, doors, seals, shelves, furnaces, bridges, terminals, bells, and extraction tiles.
+- [ ] M.9 Define terrain conversion rules: flood, drain, burn, ash choke, glassify, collapse, raise cover, lower cover, seal tile, open tile.
+- [ ] M.10 Define deterministic status rules: marked, exposed, pinned, bound, burning, flooded, corroded, filed, redacted, sealed, blinded, braced.
+- [ ] M.11 Define objective integrity rules: damage, repair, relocation, sacrifice, partial success, extraction, and failure carryover.
+- [ ] M.12 Define tactical rewards that unlock options, not raw permanent stat dominance.
+
+### Intent & Counterplay Mechanics
+
+- [ ] I.1 Build exact intent: source tile, target tile(s), path, damage/effect, collision, and objective impact.
+- [ ] I.2 Build category intent: attack, move, guard, summon, repair, destroy, buff, debuff, flee, redacted.
+- [ ] I.3 Build redacted footprint intent: category visible, exact tiles hidden until rotation/reveal/class action.
+- [ ] I.4 Build delayed fuse intent: visible countdown on tile/object/enemy with deterministic trigger.
+- [ ] I.5 Build conditional intent: declared branch such as "if target moves, fire cone; otherwise repair seal."
+- [ ] I.6 Build interrupt rules: stun, shove, LoS break, cover raise, seal, hack, douse, drain, expose weak point.
+- [ ] I.7 Build intent decay/escalation for ignored threats.
+- [ ] I.8 Build fake/decoy intent only if a reveal/counterplay rule exists; no arbitrary lies.
+- [ ] I.9 Build boss rotating intent masks that change by phase, turn, or camera-revealed weak point.
+- [ ] I.10 Add replay fixtures for every intent class.
+
+### Cover, LoS, Visibility
+
+- [ ] L.1 Define directional half cover and full cover from tile edges.
+- [ ] L.2 Define hard blockers, low blockers, transparent blockers, and destructible blockers.
+- [ ] L.3 Define flanking as deterministic cover invalidation from attack vector.
+- [ ] L.4 Define height effects for LoS and cover without hit-chance math.
+- [ ] L.5 Define smoke/salt mist/ash cloud as visible LoS modifiers with turn countdowns.
+- [ ] L.6 Define hidden back-face marks visible only after rotation.
+- [ ] L.7 Define class reveal actions that expose redacted intent, hidden tiles, and weak points.
+- [ ] L.8 Define LoS preview for movement destinations before committing.
+- [ ] L.9 Define accessibility-safe LoS and cover overlays for all four rotations.
+
+### Objective Families
+
+- [ ] O.1 Protect objective: route machine, enclave shelter, archive shelf, civilian cell, pressure node.
+- [ ] O.2 Extract objective: carry record, civilian, body, machine core, ledger, fuel, medicine, or witness to exit.
+- [ ] O.3 Disable objective: break seal, silence bell, jam valve, douse kiln, collapse audit lens.
+- [ ] O.4 Repair objective: spend AP/tools to restore cover, machinery, floodgate, bridge, or ward.
+- [ ] O.5 Hold objective: maintain presence on claim tile for N turns while intents escalate.
+- [ ] O.6 Evacuate objective: leave with minimum units/objectives before board collapse.
+- [ ] O.7 Split-squad objective: simultaneous switches/rooms with rotation-revealed dependency.
+- [ ] O.8 Stealth-read objective: gather information and leave without raising exposure cap.
+- [ ] O.9 Sacrifice-choice objective: save squad HP, objective integrity, loot, or faction standing, but not all.
+- [ ] O.10 Boss-procedure objective: counter multi-turn board ritual through weak points and terrain interactions.
+
+## Full-Game Content Catalog Backlog
+
+### Zone Terrain Catalogs
+
+- [ ] Z.1 Buried Archive: design 12 tile mechanics around shelves, desks, claim lines, sealed doors, witness drawers, falling records, name locks, audit beams, misfile pits, ledger bridges, paper swarms, and back-face seals.
+- [ ] Z.2 Buried Archive: design 8 destructible/interactable objects with AP costs, HP, LoS effects, cover states, and rotation info.
+- [ ] Z.3 Salt Cistern: design 12 tile mechanics around valves, sluice currents, flood lanes, brine pools, salt mist, pressure bells, pearl cysts, pump bridges, undertow tiles, drain grates, floating cover, and waterline height.
+- [ ] Z.4 Salt Cistern: design 8 destructible/interactable objects with flood/drain consequences and objective integrity effects.
+- [ ] Z.5 Ember Warrens: design 12 tile mechanics around kilns, ash choke, bellows cones, glass floors, vitrified cover, heat lanes, fuel stores, ember oil, furnace doors, cinder vents, white-coal pressure, and meltable bridges.
+- [ ] Z.6 Ember Warrens: design 8 destructible/interactable objects with burn/douse/glassify consequences.
+- [ ] Z.7 Each zone must include at least 4 rotation-revealed facts that alter planning but not logical board state.
+- [ ] Z.8 Each zone must include at least 3 terrain mechanics that can help either side.
+
+### Class & Loadout Catalog
+
+- [ ] CL.1 Warden: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
+- [ ] CL.2 Duelist: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
+- [ ] CL.3 Apothecary: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
+- [ ] CL.4 Arcanist: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
+- [ ] CL.5 Thief: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
+- [ ] CL.6 Chirurgeon: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
+- [ ] CL.7 Exile: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
+- [ ] CL.8 Lamplighter: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
+- [ ] CL.9 Merchant: design 3 loadouts, 6 tools, 2 terrain interactions, 1 weakness, 1 replay fixture.
+- [ ] CL.10 Define 20 character traits that alter AP, movement, LoS, cover, carry rules, reveal, cooldown, objective repair, or event outcomes.
+- [ ] CL.11 Define 15 injuries/debts that create deterministic tactical constraints without random action loss.
+- [ ] CL.12 Define squad-size scaling for 2, 3, 4, 5, and 6 units.
+
+### Enemy Family Catalog
+
+- [ ] E.1 Archive enemy family: design 10 common enemies with exact intents and one board verb each.
+- [ ] E.2 Archive elites: design 3 elites with partial intent, weak points, and terrain interaction.
+- [ ] E.3 Archive alpha: design one visible pre-board threat that changes route choice and board generation.
+- [ ] E.4 Cistern enemy family: design 10 common enemies with exact intents and water/pressure verbs.
+- [ ] E.5 Cistern elites: design 3 elites with partial intent, weak points, and flood/drain counterplay.
+- [ ] E.6 Cistern alpha: design one visible pre-board threat that changes route choice and board generation.
+- [ ] E.7 Warrens enemy family: design 10 common enemies with exact intents and heat/ash/glass verbs.
+- [ ] E.8 Warrens elites: design 3 elites with partial intent, weak points, and burn/douse/glass counterplay.
+- [ ] E.9 Warrens alpha: design one visible pre-board threat that changes route choice and board generation.
+- [ ] E.10 Global enemies: design 8 cross-zone Survey Office/Lamplighter/Merchant pressure units for rare events.
+- [ ] E.11 Every enemy must have a no-damage utility behavior so kill-first is not always optimal.
+
+### Boss & Variant Catalog
+
+- [ ] B.1 Codex Reeve boss board: audit lines, AP disable tiles, Open Register weak point, rotation-revealed back seals.
+- [ ] B.2 Vault Regent boss board: claim beams, name collateral, legal cover, destructible writ pillars.
+- [ ] B.3 Pearl Choir boss board: reflooding lanes, choir throats, moving waterline, pressure bell adds.
+- [ ] B.4 Bell Diver boss board: hook lanes, bell-lung weak point, flood-toll countdown, low-ground punishment.
+- [ ] B.5 Kiln Vicar boss board: vitrify target, halo vents, douse routes, ash-choke cover.
+- [ ] B.6 Cinder Prioress boss board: furnace phases, glass crown reflectors, fuel-objective tradeoffs.
+- [ ] B.7 Design 2 variants per boss by swapping arena modifier, add family, weak-point location, and objective pressure.
+- [ ] B.8 Every boss must include one exact intent, one partial intent, one terrain mutation, one objective threat, and one non-damage counter.
+
+### Procedural Board & Run Catalog
+
+- [ ] P.1 Define board templates for kill-light, protect-heavy, extraction, repair, stealth, split-squad, holdout, and boss-route boards.
+- [ ] P.2 Define board validator for reachability, LoS sanity, cover density, objective feasibility, enemy intent density, and exit access.
+- [ ] P.3 Define difficulty budget weights for enemies, objectives, hazards, cover, reinforcements, redacted intent, and boss modifiers.
+- [ ] P.4 Define route map node types: combat, repair, enclave, market, event, elite, boss, rest, cursed shortcut, high-reward extraction.
+- [ ] P.5 Define event RNG rules that happen before/after boards, not during declared tactical resolution.
+- [ ] P.6 Define seeded full-run export with board seeds, route choices, squad/loadout, event rolls, and replay hashes.
+- [ ] P.7 Define 50 event prompts that alter route choice, board modifier, squad state, objective reward, or faction standing.
+
+### UI & Readability Catalog
+
+- [ ] U.1 Define icon language for AP, move, cover, flanked, LoS, exact intent, partial intent, hazard, objective, destructible HP, weak point, and extraction.
+- [ ] U.2 Define overlay filters: movement, enemy intent, LoS, cover, objectives, hazards, hidden/revealed info.
+- [ ] U.3 Define tile inspector copy template with one-line mechanics and one-line lore.
+- [ ] U.4 Define preview contract: before commit, player sees AP cost, movement path, damage, push path, collision, cover change, objective change, and hazard result.
+- [ ] U.5 Define four-rotation readability checks for every overlay.
+- [ ] U.6 Define tutorial board sequence: movement, cover/flank, intent, forced movement, destructible terrain, objective pressure, redacted intent, boss weak point.
+- [ ] U.7 Define screenshot-smoke target for tactical overlays.
+
+### Implementation Gates
+
+- [ ] G.1 No mechanic enters implementation without completed research handoff, preview/UI spec, and replay acceptance test.
+- [ ] G.2 No procedural board type ships without validator results for at least 25 fixed seeds.
+- [ ] G.3 No class loadout ships without one board where it is strong and one board where it is awkward.
+- [ ] G.4 No enemy ships without an intent preview, a counterplay path, and a no-damage utility behavior.
+- [ ] G.5 No boss ships without a phase chart, arena diagram, objective pressure, and replay proof.
+- [ ] G.6 No borrowed pattern ships without documented Thoth transformation in `docs/tactical-research-index.md`.
+
+## Prototype 0 - Tactical Board Proof
+
+Goal: prove the new combat loop before touching broad content.
+
+- [ ] P0.1 Build a small deterministic tactical state module separate from legacy `simulation.lua`.
+- [ ] P0.2 Add square-grid board data: tile height, cover edges, blockers, hazards, destructible HP, reveal flags.
+- [ ] P0.3 Render board overlays in the existing iso renderer: movement range, LoS, cover, flanks, intent tiles, hazard tiles.
+- [ ] P0.4 Keep `[` and `]` rotation; verify rotation changes occlusion/LoS readability without changing logical coordinates.
+- [ ] P0.5 Implement AP controls for 3-5 variable squad units.
+- [ ] P0.6 Implement deterministic movement, shove/pull, direct attack, AoE, overwatch/threat zone, and terrain destruction.
+- [ ] P0.7 Implement mixed enemy intent: exact, category-only, hidden footprint, and boss-stage intent.
+- [ ] P0.8 Add one objective type: protect route machinery plus evacuate at least one unit.
+- [ ] P0.9 Add replay test proving identical command stream produces identical board outcome.
+- [ ] P0.10 Write `docs/tactical-pivot-prototype.md` with results and cuts.
+
+**Exit criteria:** one board is playable start to finish; no hit chance; all visible intents resolve deterministically; rotation improves planning; replay deterministic.
+
+## Phase 1 - Core Tactical Engine
+
+Goal: replace expedition/rank combat with the tile tactics engine.
+
+- [ ] 1.1 Define `src/game/tactics/` modules for board, unit, AP, LoS, cover, intent, resolution, procgen, and replay.
+- [ ] 1.2 Implement deterministic LoS with height, blockers, cover edges, and rotation-independent logic.
+- [ ] 1.3 Implement cover classes: none, half, full, hard blocker, destructible, mobile cover.
+- [ ] 1.4 Implement flanking rules and UI preview from any candidate tile.
+- [ ] 1.5 Implement AP costs: move, dash, attack, interact, brace, overwatch, reload/cooldown, class special.
+- [ ] 1.6 Implement action preview: affected tiles, pushed path, collision, objective damage, cover break, hazard chain.
+- [ ] 1.7 Implement enemy activation, intent selection, intent preview, resolution, and next-turn declaration.
+- [ ] 1.8 Implement board rewind/debug replay for deterministic QA only, not as a player feature yet.
+- [ ] 1.9 Remove or quarantine legacy rank-combat code from player flow.
+
+**Exit criteria:** tactical missions use tile/AP/intent resolution; legacy rank combat no longer blocks the new loop; tests cover LoS, cover, push, destructible terrain, and replay determinism.
+
+## Phase 2 - Procedural Boards & Roguelite Runs
+
+Goal: make runs varied without sacrificing readability.
+
+- [ ] 2.1 Build board grammar: rooms, corridors, height bands, cover fields, sight breaks, objective anchors, hazard lanes, spawn pockets.
+- [ ] 2.2 Add zone generators for Buried Archive, Salt Cistern, and Ember Warrens.
+- [ ] 2.3 Add encounter director: enemy mix, intent density, objective pressure, reinforcement timing, and retreat routes.
+- [ ] 2.4 Add run map: route choices, risk/reward previews, enclave requests, boss gates, and event nodes.
+- [ ] 2.5 Add RNG event layer for pre/post mission complications; tactical combat remains deterministic after board start.
+- [ ] 2.6 Add difficulty budget so generated boards can be rejected if unsolvable or unreadable.
+- [ ] 2.7 Add seeded-run replay export.
+
+**Exit criteria:** seeded roguelite run generates multiple valid boards, route choices matter, and all tactical outcomes remain deterministic after mission load.
+
+## Phase 3 - Classes, Loadouts, Units
+
+Goal: make variable squads and class loadouts the main progression layer.
+
+- [ ] 3.1 Redefine classes around board verbs, not RPG roles.
+- [ ] 3.2 Each class ships with 2 loadout slots, 3-5 weapons/tools, and at least one terrain interaction.
+- [ ] 3.3 Add character traits that alter AP, movement, LoS, cooldowns, cover use, or objective handling.
+- [ ] 3.4 Add loadout unlocks through runs, not permanent stat inflation only.
+- [ ] 3.5 Add injury/debt consequences that change tactical constraints without random turn loss.
+- [ ] 3.6 Add squad-size variance rules and board scaling.
+
+Initial class direction:
+
+- Warden: mobile cover, brace, shove, shield-line denial.
+- Duelist: flank conversion, dash strikes, position swaps.
+- Apothecary: area stabilizers, smoke, cleanse hazards, rescue objectives.
+- Arcanist: LoS bending, reveal marks, intent disruption.
+- Thief: stealth lanes, trap disarm, loot/extract under pressure.
+- Chirurgeon: repair bodies and machinery; convert injuries into temporary constraints.
+- Exile: terrain break, throw, slam, self-risk AP spikes.
+- Lamplighter: reveal, overwatch cones, light authority, route beacons.
+- Merchant: objective insurance, debt trades, salvage drones, risk conversion.
+
+**Exit criteria:** at least 6 classes have distinct board verbs and deterministic counters; squad composition changes how boards are solved.
+
+## Phase 4 - Enemy Families & Boss Design
+
+Goal: make enemies readable, varied, and board-native.
+
+- [ ] 4.1 Build enemy archetypes: mover, shooter, artillery, pusher, puller, blocker, summoner, repairer, saboteur, overwatch, terrain-breaker.
+- [ ] 4.2 Add exact intents for basic enemies.
+- [ ] 4.3 Add partial/masked intents for elites.
+- [ ] 4.4 Add boss phases built around tile patterns, rotating weak points, terrain conversion, and objective pressure.
+- [ ] 4.5 Add friendly fire and enemy-vs-objective collision rules.
+- [ ] 4.6 Add destructible location rules for shelves, bridges, valves, kilns, doors, floors, and machinery.
+- [ ] 4.7 Add visible reinforcement rules and spawn blocking.
+
+**Exit criteria:** every zone has one enemy family, one elite, and one boss prototype using deterministic intents and terrain interaction.
+
+## Phase 5 - UI, Readability, Accessibility
+
+Goal: make dense tactics legible.
+
+- [ ] 5.1 Add tactical HUD: selected unit AP, move preview, action preview, enemy intents, objective risk, turn order.
+- [ ] 5.2 Add tile inspector for terrain, cover, LoS, hazards, destructible HP, hidden info, and current intent traces.
+- [ ] 5.3 Add rotation-aware overlays that stay readable at all four camera snaps.
+- [ ] 5.4 Add colorblind-safe intent/cover/hazard palette.
+- [ ] 5.5 Add reduced-motion equivalents for rotation, destruction, knockback, and explosions.
+- [ ] 5.6 Add controller path for selecting units, tiles, actions, targets, and previews.
+- [ ] 5.7 Add tutorial boards for movement, cover/flanking, intent, push/pull, destruction, and objectives.
+
+**Exit criteria:** a new player can solve tutorial boards without reading external docs; all key tactical data is inspectable.
+
+## Phase 6 - Content Vertical Slice
+
+Goal: ship one replayable tactical slice.
+
+- [ ] 6.1 One Buried Archive route with 5-7 procedural board variants.
+- [ ] 6.2 Four starter classes with 2 loadouts each.
+- [ ] 6.3 Three objective types: protect, extract, disable.
+- [ ] 6.4 One elite and one boss.
+- [ ] 6.5 One run map with route rewards and complications.
+- [ ] 6.6 One public alpha package and feedback form.
+
+**Exit criteria:** players can complete multiple runs with different boards, squad choices, and route outcomes.
+
+## Phase 7 - Full Roguelite Scope
+
+Goal: expand to full game breadth after the slice proves itself.
+
+- [ ] 7.1 Three zones with distinct terrain grammars and enemy families.
+- [ ] 7.2 9 classes with loadout unlocks and run-level choices.
+- [ ] 7.3 30+ tactical objectives across protect/extract/disable/repair/survive/boss boards.
+- [ ] 7.4 Boss variant system with generated arena modifiers.
+- [ ] 7.5 Meta progression that unlocks options, not raw power dominance.
+- [ ] 7.6 Run ending routes: seal, repair, extraction collapse, quiet failure.
+
+**Exit criteria:** full roguelite campaign loop is playable and replayable.
+
+## Crosscutting Tasks
+
+- [ ] C.1 Every tactical mechanic gets deterministic unit tests and at least one replay fixture.
+- [ ] C.2 Every new board overlay gets screenshot/smoke coverage.
+- [ ] C.3 Every procgen board has a seed, difficulty budget, and validation report.
+- [ ] C.4 Every asset addition updates `docs/asset-licenses.md`.
+- [ ] C.5 Weekly dev log records one design decision, one cut, one risk.
+- [ ] C.6 CI must run headless tactical tests, replay tests, asset checks, package checks, and smoke tests.
+
+## Known Risks
+
+- **R1 Readability collapse:** cover, LoS, height, intent, hazards, and rotation can overload the player. Mitigation: tile inspector, overlay filters, tutorial boards, and strict icon budget.
+- **R2 Procgen unfairness:** deterministic tactics can become impossible if generation creates unsolvable boards. Mitigation: board validator and reject budget.
+- **R3 Rotation confusion:** rotating for information can obscure coordinate planning. Mitigation: stable tile IDs, ghost arrows, compass, and rotation-independent previews.
+- **R4 Scope explosion:** XCOM breadth plus Into the Breach precision is expensive. Mitigation: prove 1-board prototype before broad content.
+- **R5 Cover math opacity:** XCOM-style cover can feel arbitrary. Mitigation: deterministic preview from each tile, no hidden aim math.
+- **R6 Legacy drag:** old systems may bias the pivot back toward RPG dungeon crawling. Mitigation: quarantine legacy rank combat and write new tactical modules first.
