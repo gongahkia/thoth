@@ -322,12 +322,14 @@ local function argValue(args, flag, fallback)
 end
 
 function Validator.main(args)
+    local budget = tonumber(argValue(args, "--reject-budget", "0")) or 0
     local report = Validator.run({ outputPath = argValue(args, "--out", "dist/validator-report.json") })
     print("validator=" .. tostring(report.validator))
     print("validator-seeds=" .. tostring(report.seedCount))
+    print("validator-budget=" .. tostring(budget))
     print("validator-rejects=" .. tostring(report.rejectCount))
     print("validator-report=" .. tostring(report.outputPath))
-    return report.accepted and 0 or 1
+    return report.rejectCount <= budget and 0 or 1
 end
 
 local moduleName = ...

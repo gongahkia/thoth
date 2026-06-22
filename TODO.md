@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(C) 2026-06-22 Integrate validator into Makefile (make validate) and CI; fail the build if reject count exceeds budget +procgen-validator @build
 (C) 2026-06-22 Document the validator invariants in docs/tactical-procgen-grammar.md and add fixture seeds to tests/run.lua replay determinism suite +procgen-validator @docs
 (D) 2026-06-22 Rewrite docs/market-audit.md to describe the XCOM-lite tactical pivot, target audience (ITB+XCOM crossover, institutional-horror fans), and competitive set; remove every reference to expedition/rank combat +docs @docs
 (D) 2026-06-22 Rewrite README.md pitch paragraph to match the new market-audit; add a one-screenshot/one-gif hero block once the tile inspector lands +docs @docs

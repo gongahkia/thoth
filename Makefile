@@ -1,9 +1,10 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke legacy-combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke tactical-smoke sprite-import-smoke model-import-smoke test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke legacy-combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke tactical-smoke sprite-import-smoke model-import-smoke validate test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
 PACKAGE := dist/thoth.love
 PACKAGE_INPUTS := main.lua conf.lua src assets vendor/g3d/g3d vendor/g3d/LICENSE TODO.md docs
+VALIDATOR_REJECT_BUDGET ?= 0
 
 run:
 	$(LOVE) .
@@ -328,6 +329,17 @@ model-import-smoke:
 
 test:
 	$(LUAJIT) tests/run.lua
+
+validate:
+	@set -e; \
+	tmp=$$(mktemp); \
+	$(LUAJIT) tools/validator.lua --out dist/validator-report.json --reject-budget $(VALIDATOR_REJECT_BUDGET) | tee $$tmp; \
+	grep -q "validator=procgen_validator_v1" $$tmp; \
+	grep -q "validator-seeds=25" $$tmp; \
+	grep -q "validator-budget=$(VALIDATOR_REJECT_BUDGET)" $$tmp; \
+	grep -q "validator-rejects=" $$tmp; \
+	test -s dist/validator-report.json; \
+	rm -f $$tmp
 
 check: test
 	$(LUAJIT) tests/replays.lua
