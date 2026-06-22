@@ -100,13 +100,13 @@ source pattern:
 Compact tactics boards need route-level variety without hiding objective, spawn, hazard, or exit pressure; procedural references stress fixed seeds, connected spaces, and validator evidence before shipping generated content.
 
 thoth transformation:
-Thoth exposes one Buried Archive vertical-slice route with six ordered procedural variants: entry audit, shelf protection, proof extraction, ledger repair, sealed shortcut, and elite claim pressure.
+Thoth exposes one Buried Archive vertical-slice route with six ordered procedural mission variants: entry audit, shelf protection, proof extraction, ledger repair, sealed shortcut, and Vault Regent final. The Shelf Knight elite claim remains a callable detour fixture outside the ordered six.
 
 board verb:
 Route, vary, validate, instantiate, replay.
 
 zone fit:
-All variants stay inside Buried Archive material, audit-static hazards, archive objectives, and rolling-shelf sight breaks while changing template, dimensions, route node pressure, objective copy, reward, and complication metadata.
+All ordered variants stay inside Buried Archive material, audit-static hazards, archive objectives, and rolling-shelf sight breaks while changing template, dimensions, route node pressure, objective family, reward, and complication metadata.
 
 counterplay:
 Each route card exposes template, node kind, reward, complication, objective, reinforcement, spawn-blocking, and retreat-route data before tactical commitment.
@@ -115,4 +115,4 @@ preview/UI:
 `Procgen.archiveRoute()` exposes route metadata and ordered variant ids; `Procgen.archiveRouteVariants()` exposes template/node/reward/complication previews; generated specs carry `archiveRoute` and generator variant fields.
 
 test/replay proof:
-`tests/run.lua` verifies the route exposes 5-7 variants, all templates exist, each generated board validates grammar/reinforcements/budget, each instantiates as `TacticsState`, and fixed seeds serialize deterministically.
+`tests/run.lua` verifies the route exposes exactly 6 ordered variants, each uses a distinct objective family, all templates exist, each generated board validates grammar/reinforcements/budget, each instantiates as `TacticsState`, and fixed seeds serialize deterministically.

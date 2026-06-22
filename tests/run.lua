@@ -2585,10 +2585,10 @@ tests[#tests + 1] = function()
     for _, kind in ipairs({ "combat", "enclave", "event", "repair", "elite", "boss", "cursed_shortcut", "high_reward_extraction" }) do
         expect(nodeKinds[kind], "archive slice map missing route kind " .. kind)
     end
-    for _, variantId in ipairs({ "archive_entry_audit", "archive_shelf_protection", "archive_proof_extract", "archive_ledger_repair", "archive_sealed_shortcut", "archive_elite_claim" }) do
+    for _, variantId in ipairs({ "archive_entry_audit", "archive_shelf_protection", "archive_proof_extract", "archive_ledger_repair", "archive_sealed_shortcut", "archive_vault_regent_final", "archive_elite_claim" }) do
         expect(variants[variantId], "archive slice map missing board variant " .. variantId)
     end
-    expect(map.nodeById.elite_claim.complication.id == "partial_intent_elite" and map.nodeById.boss_gate.bossId == BossCatalog.sliceBossSpec().bossId, "archive slice map should bind elite complication and boss")
+    expect(map.nodeById.elite_claim.complication.id == "partial_intent_elite" and map.nodeById.boss_gate.bossId == BossCatalog.sliceBossSpec().bossId and map.nodeById.boss_gate.boardVariant == "archive_vault_regent_final", "archive slice map should bind elite complication and boss")
     expect(report.counts.rewards >= 6 and report.counts.complications >= 6, "archive slice map should count route rewards and complications")
     expect(Serialize.encode(map) == Serialize.encode(RunCatalog.generateArchiveSliceMap(3905)), "archive slice map should serialize deterministically")
 end
@@ -3200,18 +3200,23 @@ tests[#tests + 1] = function()
     local ids = {}
     local templates = {}
     local nodeKinds = {}
+    local objectiveFamilies = {}
+    local expectedOrder = { "archive_entry_audit", "archive_shelf_protection", "archive_proof_extract", "archive_ledger_repair", "archive_sealed_shortcut", "archive_vault_regent_final" }
     expect(route.id == "buried_archive_vertical_slice" and route.zone == "buried_archive", "archive route should define Buried Archive route metadata")
-    expect(#variants >= 5 and #variants <= 7 and route.boardCount == #variants, "archive route should expose 5-7 board variants")
+    expect(#variants == 6 and route.boardCount == #variants, "archive route should expose exactly 6 mission variants")
     for index, variant in ipairs(variants) do
         ids[variant.id] = true
         templates[variant.template] = true
         nodeKinds[variant.nodeKind] = true
-        expect(route.variantOrder[index] == variant.id and variant.zone == "buried_archive", "archive route should keep ordered archive variants")
+        expect(route.variantOrder[index] == variant.id and variant.id == expectedOrder[index] and variant.zone == "buried_archive", "archive route should keep ordered archive variants")
         expect(RunCatalog.boardTemplate(variant.template), "archive route variant should use known template: " .. variant.id)
         expect(variant.reward and variant.complication and variant.preview, "archive route variant should expose reward complication preview: " .. variant.id)
         local seed = 3000 + index
         local spec = TacticsProcgen.generateArchiveRouteBoard(variant.id, seed)
         local state = TacticsProcgen.archiveRouteState(variant.id, seed)
+        local family = state:objective(spec.objectives[1].id).family
+        expect(not objectiveFamilies[family], "archive route objective family should be distinct: " .. family)
+        objectiveFamilies[family] = variant.id
         expect(spec.zone == "buried_archive" and spec.archiveRoute.variantId == variant.id, "archive route board should bind variant metadata: " .. variant.id)
         expect(spec.generator.variantId == variant.id and spec.generator.template == variant.template and spec.generator.routeId == route.id, "archive route board should bind generator metadata: " .. variant.id)
         expect(spec.validation.valid and TacticsProcgen.validateGrammarBoard(spec).valid, "archive route board should validate grammar: " .. variant.id)
@@ -3223,8 +3228,11 @@ tests[#tests + 1] = function()
     for _, id in ipairs(route.variantOrder) do
         expect(ids[id], "archive route order should reference existing variant " .. id)
     end
-    expect(templates.kill_light and templates.protect_heavy and templates.extraction and templates.repair and templates.stealth and templates.holdout, "archive route should cover six tactical templates")
-    expect(nodeKinds.combat and nodeKinds.repair and nodeKinds.elite and nodeKinds.high_reward_extraction and nodeKinds.cursed_shortcut, "archive route should cover route node pressure")
+    for _, family in ipairs({ "stealth", "protect", "extract", "repair", "disable", "boss" }) do
+        expect(objectiveFamilies[family], "archive route missing objective family " .. family)
+    end
+    expect(templates.kill_light and templates.protect_heavy and templates.extraction and templates.repair and templates.stealth and templates.boss_route, "archive route should cover six tactical templates")
+    expect(nodeKinds.combat and nodeKinds.repair and nodeKinds.boss and nodeKinds.high_reward_extraction and nodeKinds.cursed_shortcut, "archive route should cover route node pressure")
 end
 
 tests[#tests + 1] = function()

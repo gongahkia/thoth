@@ -213,13 +213,13 @@ source pattern:
 Roguelite routes work best when board risk, reward, and route pressure are visible before commitment; procedural tactics boards need fixed-seed validation for every shipped variant.
 
 thoth transformation:
-The Buried Archive vertical-slice route is an ordered six-board manifest over procedural board variants: combat entry, protect-heavy shelf, proof extraction, ledger repair, sealed shortcut, and elite holdout.
+The Buried Archive vertical-slice route is an ordered six-board manifest over procedural board variants: entry audit, shelf protection, proof extraction, ledger repair, sealed shortcut, and Vault Regent final. The elite claim board remains a route-map detour fixture.
 
 board verb:
 Preview, choose, generate, validate, replay.
 
 zone fit:
-The route stays Archive-only, using audit-static hazards, shelves, claim dockets, proof caches, ledger machinery, and Archive enemy families.
+The route stays Archive-only, using audit-static hazards, shelves, proof caches, ledger machinery, audit lenses, Vault Regent boss procedure data, and Archive enemy families.
 
 counterplay:
 Players can read node kind, template, reward, complication, objective pressure, reinforcement timing, spawn blocking, and retreat path before accepting the next board.
@@ -228,7 +228,7 @@ preview/UI:
 Route UI consumes `Procgen.archiveRoute()` for order/count and `Procgen.archiveRouteVariants()` for card fields.
 
 test/replay proof:
-`tests/run.lua` verifies six route variants, template coverage, route node pressure coverage, valid generated boards, instantiated states, accepted budgets, reinforcement audits, and deterministic serialization.
+`tests/run.lua` verifies six ordered route variants, distinct objective families, template coverage, route node pressure coverage, valid generated boards, instantiated states, accepted budgets, reinforcement audits, and deterministic serialization.
 
 ## P.9 Archive Slice Run Map
 
@@ -236,13 +236,13 @@ source pattern:
 Roguelite route maps need visible branching choices, node pressure, rewards, complications, elite detours, and boss endpoints before commitment.
 
 thoth transformation:
-The Archive slice map binds the six Archive board variants into one deterministic route graph with start, combat, enclave, high-reward extraction, repair, cursed shortcut, event, elite, and boss nodes.
+The Archive slice map binds the six ordered Archive board variants plus the elite detour fixture into one deterministic route graph with start, combat, enclave, high-reward extraction, repair, cursed shortcut, event, elite, and boss nodes.
 
 board verb:
 Branch, preview, reward, complicate, gate.
 
 zone fit:
-All nodes stay in Buried Archive and reference Archive board variants, Shelf Knight elite pressure, and Vault Regent boss gate.
+All nodes stay in Buried Archive and reference Archive board variants, Shelf Knight elite pressure, and the Vault Regent final board.
 
 counterplay:
 Players can compare proof, standing, route integrity, shortcut skip pressure, class option, and seal progress against audit static, collateral demands, exit pressure, AP timing, dread cost, LoS shifts, masked elite pressure, and boss procedure.
@@ -251,4 +251,4 @@ preview/UI:
 `RunCatalog.generateArchiveSliceMap(seed)` emits node rewards, complications, previews, board variants, board seeds, choices, and boss gate data; `RunCatalog.validateArchiveSliceMap(map)` checks route payload coverage.
 
 test/replay proof:
-`tests/run.lua` verifies the Archive slice map validates, exposes rewards and complications, references all six board variants, covers required node kinds, binds the selected boss, counts route payloads, and serializes deterministically.
+`tests/run.lua` verifies the Archive slice map validates, exposes rewards and complications, references all six ordered board variants plus the elite fixture, covers required node kinds, binds the selected boss final, counts route payloads, and serializes deterministically.

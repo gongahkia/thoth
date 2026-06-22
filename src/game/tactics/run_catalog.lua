@@ -350,8 +350,8 @@ end
 
 function RunCatalog.generateArchiveSliceMap(seed)
     seed = seed or 1
-    local function boardNode(id, kind, depth, variantId, reward, complication, nextNodes)
-        return node(id, kind, depth, {
+    local function boardNode(id, kind, depth, variantId, reward, complication, nextNodes, extra)
+        local data = {
             zone = "buried_archive",
             boardVariant = variantId,
             boardSeed = boardSeedFor(seed, id, depth),
@@ -359,7 +359,11 @@ function RunCatalog.generateArchiveSliceMap(seed)
             complication = complication,
             preview = preview(complication.effect, reward.detail, complication.detail),
             next = nextNodes,
-        })
+        }
+        for key, value in pairs(extra or {}) do
+            data[key] = value
+        end
+        return node(id, kind, depth, data)
     end
     local nodes = {
         node("start", "start", 0, {
@@ -382,15 +386,7 @@ function RunCatalog.generateArchiveSliceMap(seed)
             next = { "elite_claim", "boss_gate" },
         }),
         boardNode("elite_claim", "elite", 3, "archive_elite_claim", routeReward("class_option", 1, "archive claim counter unlock"), routeComplication("partial_intent_elite", "masked elite", "Shelf Knight hides footprint until weak point reveal"), { "boss_gate" }),
-        node("boss_gate", "boss", 4, {
-            zone = "buried_archive",
-            bossId = "vault_regent",
-            gate = { boss = "vault_regent", requires = { "one depth-2 node cleared" }, preview = "claim beams and legal cover" },
-            reward = routeReward("seal_progress", 1, "advance archive seal"),
-            complication = routeComplication("regent_claim_beams", "boss procedure", "Vault Regent claim beams threaten collateral"),
-            preview = preview("boss procedure", "seal progress", "Vault Regent boss gate"),
-            next = {},
-        }),
+        boardNode("boss_gate", "boss", 4, "archive_vault_regent_final", routeReward("seal_progress", 1, "advance archive seal"), routeComplication("regent_claim_beams", "boss procedure", "Vault Regent claim beams threaten collateral"), {}, { bossId = "vault_regent", gate = { boss = "vault_regent", requires = { "one depth-2 node cleared" }, preview = "claim beams and legal cover" } }),
     }
     local byId = {}
     for _, entry in ipairs(nodes) do
@@ -501,6 +497,7 @@ function RunCatalog.validateArchiveSliceMap(map)
         archive_ledger_repair = true,
         archive_sealed_shortcut = true,
         archive_elite_claim = true,
+        archive_vault_regent_final = true,
     }
     for _, entry in ipairs(map and map.nodes or {}) do
         if entry.kind ~= "start" then
@@ -520,6 +517,10 @@ function RunCatalog.validateArchiveSliceMap(map)
                 if entry.bossId ~= "vault_regent" then
                     report.valid = false
                     report.missing[#report.missing + 1] = entry.id .. ".boss"
+                end
+                if not (entry.boardVariant and variants[entry.boardVariant] and entry.boardSeed) then
+                    report.valid = false
+                    report.missing[#report.missing + 1] = entry.id .. ".boardVariant"
                 end
             elseif entry.kind ~= "event" then
                 if not (entry.boardVariant and variants[entry.boardVariant] and entry.boardSeed) then

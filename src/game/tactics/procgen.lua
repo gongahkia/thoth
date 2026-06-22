@@ -57,7 +57,7 @@ local archiveRouteVariantOrder = {
     "archive_proof_extract",
     "archive_ledger_repair",
     "archive_sealed_shortcut",
-    "archive_elite_claim",
+    "archive_vault_regent_final",
 }
 
 local archiveRouteVariants = {
@@ -70,8 +70,8 @@ local archiveRouteVariants = {
         seed = 6101,
         reward = { salvage = 2, proof = 1 },
         complication = "audit_static_claim_line",
-        preview = "compact entry stacks with known audit-static lane",
-        generatorOptions = { width = 8, height = 8, objectiveId = "entry_shelf" },
+        preview = "compact entry stacks with known audit-static lane and a stealth-read docket",
+        generatorOptions = { width = 8, height = 8, objectiveId = "entry_shelf", objectiveKind = "stealth_read" },
         directorOptions = { failureClock = 3, threatenedTiles = 4, reinforcementTurn = 3 },
     },
     archive_shelf_protection = {
@@ -84,7 +84,7 @@ local archiveRouteVariants = {
         reward = { salvage = 1, standing = "custodian" },
         complication = "two_turn_shelf_pressure",
         preview = "wider stacks around a higher-integrity shelf anchor",
-        generatorOptions = { width = 9, height = 8, objectiveId = "deep_shelf", objectiveIntegrity = 4 },
+        generatorOptions = { width = 9, height = 8, objectiveId = "deep_shelf", objectiveKind = "protect_archive_shelf", objectiveIntegrity = 4 },
         directorOptions = { failureClock = 4, threatenedTiles = 5, reinforcementTurn = 4 },
     },
     archive_proof_extract = {
@@ -139,6 +139,20 @@ local archiveRouteVariants = {
         generatorOptions = { width = 9, height = 8, objectiveId = "claim_docket", objectiveKind = "hold_claim" },
         directorOptions = { includeElite = true, eliteId = "shelf_knight", eliteIds = { "codex_advocate", "shelf_knight", "writ_cantor" }, failureClock = 4, threatenedTiles = 7, reinforcementTurn = 4 },
     },
+    archive_vault_regent_final = {
+        id = "archive_vault_regent_final",
+        zone = "buried_archive",
+        nodeKind = "boss",
+        template = "boss_route",
+        routeDepth = 4,
+        seed = 6106,
+        reward = { sealProgress = 1, classOption = "boss_claim_counter" },
+        complication = "regent_claim_beams",
+        preview = "Vault Regent final procedure with staged claim beams and legal cover",
+        bossId = "vault_regent",
+        generatorOptions = { width = 9, height = 7, objectiveId = "vault_regent", objectiveKind = "boss_procedure", objectiveIntegrity = 5 },
+        directorOptions = { bossId = "vault_regent", failureClock = 5, threatenedTiles = 8, intentCap = 10, reinforcementTurn = 4 },
+    },
 }
 
 local archiveRoute = {
@@ -149,8 +163,8 @@ local archiveRoute = {
     boardCount = #archiveRouteVariantOrder,
     preview = {
         risk = "audit static, shelf cover, and visible reinforcements",
-        reward = "proof, salvage, route integrity, and one rare unlock",
-        detail = "six deterministic Buried Archive procedural board variants",
+        reward = "proof, salvage, route integrity, shortcut pressure, and seal progress",
+        detail = "six deterministic Buried Archive mission variants with distinct objective families",
         visible = true,
     },
 }
@@ -526,10 +540,12 @@ function Procgen.directEncounter(zoneId, seed, boardSpec, options)
         family = familyId,
         enemyMix = enemyMix,
         alphaSpawn = alphaSpawn,
+        boss = options.bossId and { id = options.bossId, intent = "boss_stage_masks", objectiveKind = objective and objective.kind } or nil,
         intentDensity = {
             exact = 2,
             partial = elite and 1 or 0,
             alpha = alpha and 1 or 0,
+            boss = options.bossId and 1 or 0,
             threatenedTiles = options.threatenedTiles or (elite and 6 or 4),
             cap = options.intentCap or 8,
         },
@@ -875,6 +891,7 @@ function Procgen.generateArchiveRouteBoard(variantId, seed, options)
         reward = copyValue(variant.reward),
         complication = variant.complication,
         preview = variant.preview,
+        bossId = variant.bossId,
     }
     spec.validation = Procgen.validateGrammarBoard(spec)
     spec.budget = Procgen.difficultyBudget(spec)
