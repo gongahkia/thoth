@@ -23,6 +23,7 @@ local sliceBoardActions = {
     mender = { "field_triage", "stabilize", "smoke_binder" },
     harrier = { "ghost_route", "courier_cut" },
     arcanist = { "seal_reader", "line_bender", "intent_breaker" },
+    lamplighter = { "beacon_runner", "cone_keeper", "ash_lamp" },
 }
 local enemyIntentSpecs = {
     audit_hound = { label = "bite notice", target = "nearest_player" },
@@ -620,6 +621,8 @@ local function previewCommandSequence(state, commands)
         preview.status = commandPreview.status or preview.status
         preview.reveal = commandPreview.reveal or preview.reveal
         preview.intentInterrupt = commandPreview.intentInterrupt or preview.intentInterrupt
+        preview.intentReduction = commandPreview.intentReduction or preview.intentReduction
+        preview.overwatch = commandPreview.overwatch or preview.overwatch
         if commandPreview.obscurant then
             preview.obscurants[#preview.obscurants + 1] = commandPreview.obscurant
         end
@@ -876,6 +879,39 @@ local function arcanistPreview(runtime, selected, verb)
     return previewCommandSequence(runtime.state, commands)
 end
 
+local function lamplighterCommands(runtime, selected, verb)
+    local state = runtime.state
+    if verb == "beacon_runner" then
+        return { TacticsState.commands.classReveal(selected.id, { revealClass = "lamplighter", revealAction = "beacon_runner" }, 1) }
+    end
+    if verb == "cone_keeper" then
+        local direction = directionBetween(selected.x, selected.y, runtime.cursor.x, runtime.cursor.y)
+        return { { type = "overwatch", unit = selected.id, cone = true, facing = direction, range = 4, arc = 2, reaction = { kind = "mark", turns = 2, amount = 2 }, limit = 1, cost = 1, label = "cone_keeper" } }
+    end
+    if verb == "ash_lamp" then
+        local target = cursorUnit(runtime)
+        if not (target and target.side == "enemy") then
+            return nil, "ash_lamp needs enemy"
+        end
+        if not state:intentPreview(target.id, { reveal = true }) then
+            return nil, "ash_lamp needs intent"
+        end
+        if not Runtime.enemyVisible(runtime, target) then
+            return nil, "ash_lamp target hidden"
+        end
+        return { TacticsState.commands.reduceIntent(selected.id, target.id, 1, 1) }
+    end
+    return nil, "unknown Lamplighter verb"
+end
+
+local function lamplighterPreview(runtime, selected, verb)
+    local commands, err = lamplighterCommands(runtime, selected, verb)
+    if not commands then
+        return { error = err }
+    end
+    return previewCommandSequence(runtime.state, commands)
+end
+
 local function classVerbPreview(runtime, selected, verb)
     if selected and selected.class == "warden" then
         return wardenPreview(runtime, selected, verb)
@@ -891,6 +927,9 @@ local function classVerbPreview(runtime, selected, verb)
     end
     if selected and selected.class == "arcanist" then
         return arcanistPreview(runtime, selected, verb)
+    end
+    if selected and selected.class == "lamplighter" then
+        return lamplighterPreview(runtime, selected, verb)
     end
     return nil
 end
@@ -1180,6 +1219,19 @@ function Runtime.activateClassVerb(runtime, index)
     end
     if selected.class == "arcanist" then
         local commands, err = arcanistCommands(runtime, selected, verb)
+        if not commands then
+            setStatus(runtime, err)
+            return false
+        end
+        if tryApplyCommands(runtime, commands) then
+            Runtime.refreshOverlays(runtime)
+            setStatus(runtime, selected.id .. " " .. verb)
+            return true
+        end
+        return false
+    end
+    if selected.class == "lamplighter" then
+        local commands, err = lamplighterCommands(runtime, selected, verb)
         if not commands then
             setStatus(runtime, err)
             return false

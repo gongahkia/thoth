@@ -312,14 +312,14 @@ tests[#tests + 1] = function()
         { id = "apothecary", verbs = { "field_triage", "stabilize", "smoke_binder" } },
         { id = "thief", verbs = { "ghost_route", "courier_cut" } },
         { id = "arcanist", verbs = { "seal_reader", "line_bender", "intent_breaker" } },
-        { id = "lamplighter", verbs = { "reveal_route", "project_cone", "anchor_beacon", "safe_hazard" } },
+        { id = "lamplighter", verbs = { "beacon_runner", "cone_keeper", "ash_lamp" } },
     }
     for _, entry in ipairs(expectedVerbs) do
         runtime.selectedUnitId = entry.id
         local bar = runtime:actionBar()
         for index, verb in ipairs(entry.verbs) do
             local action = bar[4 + index]
-            local contextSensitive = entry.id == "warden" or entry.id == "duelist" or entry.id == "apothecary" or entry.id == "thief" or entry.id == "arcanist"
+            local contextSensitive = entry.id == "warden" or entry.id == "duelist" or entry.id == "apothecary" or entry.id == "thief" or entry.id == "arcanist" or entry.id == "lamplighter"
             local enabledOk = action and (action.enabled or contextSensitive)
             expect(action and action.id == "class:" .. verb and action.key == tostring(index) and enabledOk, entry.id .. " class verb should be callable from input bar")
             if not contextSensitive then
@@ -546,6 +546,60 @@ tests[#tests + 1] = function()
     local first = runArcanist()
     local second = runArcanist()
     expect(Serialize.encode(first:snapshot()) == Serialize.encode(second:snapshot()), "Arcanist seal_reader line_bender intent_breaker sequence should replay deterministically")
+end
+
+tests[#tests + 1] = function()
+    local function runLamplighter()
+        local state = TacticsState.new({
+            defaultAp = 3,
+            board = {
+                width = 5,
+                height = 3,
+                tiles = {
+                    ["2:1"] = { kind = "lantern_hook", revealed = false, revealClasses = { "lamplighter" }, weakPoint = "beacon_hook" },
+                },
+            },
+            units = {
+                { id = "lamplighter", side = "player", class = "lamplighter", x = 1, y = 2, hp = 4, ap = 3, maxAp = 3, visionRadius = 8 },
+                { id = "hound", side = "enemy", x = 4, y = 2, hp = 4, ap = 1, visionRadius = 8 },
+            },
+            objectives = {
+                { id = "dummy", x = 1, y = 1, integrity = 3, maxIntegrity = 3, evacuateAt = { x = 5, y = 3 } },
+            },
+        })
+        state:declareIntent("hound", {
+            mode = "hiddenFootprint",
+            category = "attack",
+            targetTiles = { { x = 1, y = 2 } },
+            damage = 3,
+            revealClasses = { "lamplighter" },
+        })
+        local runtime = { state = state, selectedUnitId = "lamplighter", cursor = { x = 2, y = 1 }, turn = 1, lastSeenEnemies = {} }
+        TacticalRuntime.refreshOverlays(runtime)
+        local beacon = TacticalRuntime.actionBar(runtime)[5]
+        expect(beacon.classVerb == "beacon_runner" and beacon.enabled and beacon.preview.reveal.tiles[1].weakPoint == "beacon_hook", "Lamplighter beacon_runner should preview beacon reveal")
+        expect(TacticalRuntime.handleKey(runtime, "1"), "Lamplighter beacon_runner should activate from input bar")
+        expect(state:tileAt(2, 1).weakPointRevealed and state:intentPreview("hound").revealed and state:unit("lamplighter").ap == 2, "Lamplighter beacon_runner should reveal route data and spend AP")
+        runtime.cursor.x = 5
+        runtime.cursor.y = 2
+        local cone = TacticalRuntime.actionBar(runtime)[6]
+        expect(cone.classVerb == "cone_keeper" and cone.enabled and cone.preview.overwatch.reaction == "mark" and #cone.preview.affectedTiles > 4, "Lamplighter cone_keeper should preview upgraded overwatch cone")
+        expect(TacticalRuntime.handleKey(runtime, "2"), "Lamplighter cone_keeper should activate from input bar")
+        expect(state.threatZones[1].label == "cone_keeper" and state.threatZones[1].reaction.kind == "mark" and state:unit("lamplighter").ap == 1, "Lamplighter cone_keeper should spend AP and create mark overwatch")
+        runtime.cursor.x = 4
+        runtime.cursor.y = 2
+        local ash = TacticalRuntime.actionBar(runtime)[7]
+        expect(ash.classVerb == "ash_lamp" and ash.enabled and ash.preview.intentReduction.damageAfter == 2, "Lamplighter ash_lamp should preview intent damage reduction")
+        expect(TacticalRuntime.handleKey(runtime, "3"), "Lamplighter ash_lamp should activate from input bar")
+        expect(state:intentPreview("hound", { reveal = true }).damage == 2 and state:unit("lamplighter").ap == 0, "Lamplighter ash_lamp should reduce enemy intent and spend AP")
+        state:startTurn("enemy")
+        state:apply(TacticsState.commands.move("hound", "north"))
+        expect(state:hasStatus("hound", "marked") and state.lastOverwatchTrigger.reaction == "mark", "Lamplighter cone_keeper should mark enemy movement through overwatch")
+        return state
+    end
+    local first = runLamplighter()
+    local second = runLamplighter()
+    expect(Serialize.encode(first:snapshot()) == Serialize.encode(second:snapshot()), "Lamplighter beacon_runner cone_keeper ash_lamp sequence should replay deterministically")
 end
 
 tests[#tests + 1] = function()

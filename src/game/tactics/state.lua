@@ -2109,6 +2109,16 @@ function State:advanceIntentPressure(unitId, outcome)
     return { unit = unitId, outcome = outcome, decayed = false, ignoredTurns = 0 }
 end
 
+function State:reduceIntent(unitId, amount)
+    local intent = expect(self.intents[unitId], "unknown intent " .. tostring(unitId))
+    amount = expectInteger(amount or 1, "intent reduction")
+    expect(amount >= 0, "intent reduction must be non-negative")
+    local before = intent.damage or 0
+    intent.damage = math.max(0, before - amount)
+    intent.effect = intent.effect or "ash_reduced"
+    return { unit = unitId, damage = intent.damage, reduced = before - intent.damage }
+end
+
 local function bossMaskMatches(mask, context)
     if mask.phase ~= nil and mask.phase ~= context.phase then
         return false
@@ -3224,6 +3234,10 @@ function State:apply(command)
         self:interruptIntent(command.unit, command.interrupt)
     elseif kind == "advanceIntentPressure" then
         self:advanceIntentPressure(command.unit, command.outcome)
+    elseif kind == "reduceIntent" then
+        expect(self.units[command.target], "unknown unit " .. tostring(command.target))
+        self:spendAP(command.unit, command.cost or 1)
+        self:reduceIntent(command.target, command.amount or 1)
     elseif kind == "advanceBossIntentMask" then
         self:advanceBossIntentMask(command.unit, command.context)
     elseif kind == "classReveal" then
@@ -3466,6 +3480,10 @@ end
 
 function commands.advanceIntentPressure(unitId, outcome)
     return { type = "advanceIntentPressure", unit = unitId, outcome = outcome }
+end
+
+function commands.reduceIntent(unitId, targetId, amount, cost)
+    return { type = "reduceIntent", unit = unitId, target = targetId, amount = amount, cost = cost }
 end
 
 function commands.advanceBossIntentMask(unitId, context)

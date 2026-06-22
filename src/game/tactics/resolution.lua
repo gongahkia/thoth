@@ -145,6 +145,17 @@ function Resolution.actionPreview(state, command)
             addTile(preview.affectedTiles, unit.x, unit.y)
             addTile(preview.affectedTiles, target.x, target.y)
         end
+    elseif command.type == "overwatch" then
+        if command.cone then
+            preview.affectedTiles = state:threatZoneTiles(command.unit, "cone", { direction = command.facing or command.direction, length = command.range or command.length, width = command.arc or command.width })
+            preview.overwatch = { kind = "cone", range = command.range or command.length, arc = command.arc or command.width, reaction = command.reaction and command.reaction.kind, label = command.label }
+        elseif command.shape then
+            preview.affectedTiles = state:threatZoneTiles(command.unit, command.shape, { direction = command.direction, length = command.length, width = command.width })
+            preview.overwatch = { kind = command.shape, range = command.length, reaction = command.reaction and command.reaction.kind, label = command.label }
+        else
+            preview.affectedTiles = copyTiles(command.tiles)
+            preview.overwatch = { kind = "tiles", reaction = command.reaction and command.reaction.kind, label = command.label }
+        end
     elseif command.type == "damageTile" then
         addTile(preview.affectedTiles, command.x, command.y)
         local tile = state:tileAt(command.x, command.y)
@@ -193,6 +204,13 @@ function Resolution.actionPreview(state, command)
         if unit then
             addTile(preview.affectedTiles, unit.x, unit.y)
             preview.intentInterrupt = { target = command.unit, kind = command.interrupt and command.interrupt.kind }
+        end
+    elseif command.type == "reduceIntent" then
+        local unit = state:unit(command.target)
+        local intent = state:intentPreview(command.target, { reveal = true })
+        if unit and intent then
+            addTile(preview.affectedTiles, unit.x, unit.y)
+            preview.intentReduction = { target = command.target, amount = command.amount or 1, damageAfter = math.max(0, (intent.damage or 0) - (command.amount or 1)) }
         end
     elseif command.type == "classReveal" then
         local unit = state:unit(command.unit)
