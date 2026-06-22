@@ -2794,6 +2794,26 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        board = { width = 5, height = 1 },
+        units = {
+            { id = "hero", side = "player", x = 1, y = 1, visionRadius = 1 },
+            { id = "enemy", side = "enemy", x = 5, y = 1, hp = 4 },
+        },
+    })
+    TacticsIntent.declare(state, "enemy", { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 1 } }, damage = 2, label = "strike" })
+    local hidden = TacticsIntent.preview(state, "enemy")
+    expect(hidden.categoryOnly and hidden.hiddenByVision and hidden.category == "attack" and hidden.targetTiles == nil and hidden.damage == nil, "out-of-vision enemy intent should expose category only")
+    expect(state:intentPreview("enemy").targetTiles[1].x == 1, "vision gating should not alter committed intent footprint")
+    state:unit("enemy").x = 2
+    local revealed = TacticsIntent.preview(state, "enemy")
+    expect(revealed.revealed and revealed.targetTiles[1].x == 1 and revealed.damage == 2, "enemy entering vision should reveal full committed footprint")
+    state:unit("enemy").x = 5
+    local remembered = TacticsIntent.preview(state, "enemy")
+    expect(remembered.revealed and remembered.targetTiles[1].x == 1, "revealed current-turn intent should stay readable after leaving vision")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 2,
         board = { width = 3, height = 1 },
         units = { { id = "unit", side = "player", x = 1, y = 1, hp = 4 } },

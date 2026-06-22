@@ -1,5 +1,6 @@
 local Grid = require("src.core.grid")
 local TacticsState = require("src.game.tactics.state")
+local TacticsIntent = require("src.game.tactics.intent")
 local Procgen = require("src.game.tactics.procgen")
 
 local Runtime = {}
@@ -400,6 +401,7 @@ function Runtime.refreshOverlays(runtime)
     local state = runtime.state
     local selected = Runtime.selectedUnit(runtime)
     local visibility = Runtime.visibilityGrid(runtime)
+    TacticsIntent.revealVisible(state, "player")
     local movement = {}
     if selected and selected.side == "player" and selected.alive and selected.ap > 0 then
         for _, tile in ipairs(state:movementPreview(selected.id).reachable) do
@@ -409,7 +411,7 @@ function Runtime.refreshOverlays(runtime)
     local intents = {}
     for _, enemy in ipairs(state:unitsForSide("enemy")) do
         if Runtime.enemyVisible(runtime, enemy, visibility) then
-            local preview = state:intentPreview(enemy.id)
+            local preview = TacticsIntent.preview(state, enemy.id, { side = "player" })
             for _, tile in ipairs((preview and preview.targetTiles) or {}) do
                 if visibility.visible[tileKey(tile.x, tile.y)] then
                     intents[#intents + 1] = { x = tile.x, y = tile.y, label = preview.label or preview.category }
@@ -734,7 +736,7 @@ function Runtime.summary(runtime)
     local enemies = {}
     for _, enemy in ipairs(state:unitsForSide("enemy")) do
         if Runtime.enemyVisible(runtime, enemy, visibility) then
-            local intent = state:intentPreview(enemy.id)
+            local intent = TacticsIntent.preview(state, enemy.id, { side = "player" })
             enemies[#enemies + 1] = {
                 id = enemy.id,
                 hp = enemy.hp,
