@@ -972,6 +972,87 @@ function Render.tacticalOverlayRotationAudit(tactics, overlays, view)
     return result
 end
 
+function Render.rotationCompass(rotation)
+    local r = (rotation or 0) % 4
+    local labels = {
+        [0] = { top = "N", right = "E", bottom = "S", left = "W" },
+        [1] = { top = "W", right = "N", bottom = "E", left = "S" },
+        [2] = { top = "S", right = "W", bottom = "N", left = "E" },
+        [3] = { top = "E", right = "S", bottom = "W", left = "N" },
+    }
+    local compass = copyValue(labels[r])
+    compass.rotation = r
+    compass.degrees = r * 90
+    return compass
+end
+
+local function addBearingTile(list, seen, kind, x, y)
+    if not (x and y) then
+        return
+    end
+    local key = tostring(x) .. ":" .. tostring(y)
+    if seen[key] then
+        return
+    end
+    seen[key] = true
+    list[#list + 1] = { kind = kind, x = x, y = y, tileId = key }
+end
+
+function Render.tacticalBearingTiles(app)
+    local runtime = app and app.tactics
+    local tactics = runtime and runtime.state
+    local result, seen = {}, {}
+    if not tactics then
+        return result
+    end
+    addBearingTile(result, seen, "cursor", runtime.cursor and runtime.cursor.x, runtime.cursor and runtime.cursor.y)
+    local selected = runtime.selectedUnitId and tactics:unit(runtime.selectedUnitId)
+    addBearingTile(result, seen, "selected", selected and selected.x, selected and selected.y)
+    for _, objectiveId in ipairs(sortedMapKeys(tactics.objectives or {})) do
+        local objective = tactics:objective(objectiveId)
+        addBearingTile(result, seen, "objective", objective.x, objective.y)
+    end
+    for _, unitId in ipairs(sortedMapKeys(tactics.intents or {})) do
+        local preview = tactics:intentPreview(unitId, { side = "player" })
+        for _, tile in ipairs((preview and preview.targetTiles) or {}) do
+            addBearingTile(result, seen, "intent", tile.x, tile.y)
+        end
+    end
+    return result
+end
+
+function Render.tacticalGhostArrowEntries(app)
+    local view = app and app.worldView
+    if not view then
+        return {}
+    end
+    local current = (app.viewRotation or view.rotation or 0) % 4
+    local previous = app.previousViewRotation
+    if previous == nil or previous == current then
+        previous = (current + 3) % 4
+    end
+    local fromView = rotationAuditView(view, previous)
+    local toView = rotationAuditView(view, current)
+    local arrows = {}
+    for _, tile in ipairs(Render.tacticalBearingTiles(app)) do
+        local fromX, fromY = Render.projectIso(fromView, tile.x, tile.y)
+        local toX, toY = Render.projectIso(toView, tile.x, tile.y)
+        arrows[#arrows + 1] = {
+            tileId = tile.tileId,
+            kind = tile.kind,
+            x = tile.x,
+            y = tile.y,
+            fromX = fromX,
+            fromY = fromY,
+            toX = toX,
+            toY = toY,
+            fromRotation = previous,
+            toRotation = current,
+        }
+    end
+    return arrows
+end
+
 local function objectRevealRotations(object, tileDef)
     if object and object.revealRotations then
         return object.revealRotations
@@ -3708,6 +3789,55 @@ local function drawTileInspectorPanel(rect, inspector)
     end
 end
 
+local function drawRotationCompass(x, y, size, rotation)
+    local compass = Render.rotationCompass(rotation)
+    local cx = x + size * 0.5
+    local cy = y + size * 0.5
+    love.graphics.setColor(0.08, 0.09, 0.09, 0.86)
+    love.graphics.circle("fill", cx, cy, size * 0.46)
+    love.graphics.setColor(0.52, 0.56, 0.48, 1)
+    love.graphics.circle("line", cx, cy, size * 0.46)
+    love.graphics.line(cx, y + 4, cx, y + size - 4)
+    love.graphics.line(x + 4, cy, x + size - 4, cy)
+    love.graphics.setColor(0.96, 0.78, 0.34, 1)
+    love.graphics.printf(compass.top, x, y + 2, size, "center")
+    love.graphics.printf(compass.bottom, x, y + size - 14, size, "center")
+    love.graphics.printf(compass.left, x + 3, cy - 6, 14, "center")
+    love.graphics.printf(compass.right, x + size - 17, cy - 6, 14, "center")
+end
+
+local function drawArrowHead(x1, y1, x2, y2)
+    local dx = x2 - x1
+    local dy = y2 - y1
+    local len = math.sqrt(dx * dx + dy * dy)
+    if len <= 0.01 then
+        return
+    end
+    local ux = dx / len
+    local uy = dy / len
+    local px = -uy
+    local py = ux
+    local size = 8
+    love.graphics.line(x2, y2, x2 - ux * size + px * size * 0.55, y2 - uy * size + py * size * 0.55)
+    love.graphics.line(x2, y2, x2 - ux * size - px * size * 0.55, y2 - uy * size - py * size * 0.55)
+end
+
+local function drawTacticalGhostArrows(app)
+    local arrows = Render.tacticalGhostArrowEntries(app)
+    for _, arrow in ipairs(arrows) do
+        local dx = arrow.toX - arrow.fromX
+        local dy = arrow.toY - arrow.fromY
+        if dx * dx + dy * dy > 16 then
+            love.graphics.setColor(0.92, 0.8, 0.42, 0.42)
+            love.graphics.line(arrow.fromX, arrow.fromY, arrow.toX, arrow.toY)
+            drawArrowHead(arrow.fromX, arrow.fromY, arrow.toX, arrow.toY)
+            love.graphics.setColor(0.94, 0.86, 0.58, 0.74)
+            love.graphics.printf(arrow.tileId, arrow.toX - 24, arrow.toY - 18, 48, "center")
+        end
+    end
+    return #arrows
+end
+
 function Render.drawTacticalIntentLegend(app, layout)
     local entries = Render.tacticalIntentLegendEntries(app)
     if #entries == 0 then
@@ -3791,6 +3921,7 @@ function Render.drawTacticalHud(sim, app)
     local summary = tacticalSummary(app)
     local width, height = love.graphics.getDimensions()
     local layout = Render.tacticalHudLayout(width, height, math.max(6, #((summary and summary.players) or {})))
+    drawTacticalGhostArrows(app)
     local hover = app and app.tacticalHover
     local selectedAt = "-"
     for _, unit in ipairs((summary and summary.players) or {}) do
@@ -3804,8 +3935,9 @@ function Render.drawTacticalHud(sim, app)
     love.graphics.printf("End Turn  E", layout.topLeft.x + 16, layout.topLeft.y + 14, 142, "center", 0, 1.2, 1.2)
     love.graphics.setColor(0.48, 0.54, 0.58, 1)
     love.graphics.rectangle("line", layout.topLeft.x + 12, layout.topLeft.y + 10, 156, 48)
+    drawRotationCompass(layout.topLeft.x + 174, layout.topLeft.y + 10, 48, app.viewRotation or 0)
     love.graphics.setColor(0.82, 0.86, 0.78, 1)
-    local textX = layout.topLeft.x + 188
+    local textX = layout.topLeft.x + 236
     love.graphics.print("turn " .. tostring(summary and summary.turn or 1) .. "  " .. tostring(summary and summary.phase or "-") .. "  view " .. tostring((app.viewRotation or 0) * 90), textX, layout.topLeft.y + 10)
     love.graphics.print("selected " .. tostring(summary and summary.selected or "-") .. " @" .. selectedAt .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0), textX, layout.topLeft.y + 31)
     love.graphics.setColor(0.76, 0.8, 0.72, 1)

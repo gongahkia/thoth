@@ -141,6 +141,7 @@ local function rotateView(app, delta)
     while diff < -2 do
         diff = diff + 4
     end
+    app.previousViewRotation = (app.viewRotation or 0) % 4
     app.viewRotation = target
     if Render.reducedMotion(app) then
         app.viewRotationVisual = target

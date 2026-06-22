@@ -228,6 +228,7 @@ local function turnView(state, delta)
     while diff < -2 do
         diff = diff + 4
     end
+    state.previousViewRotation = (state.viewRotation or 0) % 4
     state.viewRotation = target
     if Render.reducedMotion(state) then
         state.viewRotationVisual = target
@@ -1102,6 +1103,9 @@ local function printTacticalSmoke(state)
     end
     print("tactical-smoke-intent-legend=" .. tostring(#legend))
     print("tactical-smoke-intent-targets=" .. tostring(legendTargets))
+    local compass = Render.rotationCompass(state.viewRotation or 0)
+    print("tactical-smoke-compass=" .. tostring(compass.degrees))
+    print("tactical-smoke-ghost-arrows=" .. tostring(#Render.tacticalGhostArrowEntries(state)))
     io.stdout:flush()
     os.exit(0)
 end

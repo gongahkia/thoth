@@ -2908,6 +2908,34 @@ tests[#tests + 1] = function()
     for _, check in ipairs(readability.checks) do
         expect(check.id and check.rule, "rotation readability check should include rule")
     end
+    local compass = Render.rotationCompass(1)
+    expect(compass.rotation == 1 and compass.degrees == 90 and compass.top == "W" and compass.right == "N", "rotation compass should map world directions at 90 degrees")
+    local state = TacticsState.new({
+        board = { width = 4, height = 4 },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, ap = 2 },
+            { id = "bailiff", side = "enemy", x = 4, y = 4, ap = 1 },
+        },
+        objectives = {
+            { id = "machine", kind = "protect_route_machinery", x = 2, y = 2, integrity = 2, evacuateAt = { x = 1, y = 1 } },
+        },
+        intents = {
+            bailiff = { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 1 } }, damage = 1 },
+        },
+    })
+    local app = {
+        tactics = { state = state, selectedUnitId = "warden", cursor = { x = 3, y = 3 } },
+        viewRotation = 1,
+        previousViewRotation = 0,
+        worldView = { centerX = 400, centerY = 300, halfW = 32, halfH = 16, originX = 0, originY = 0, rotation = 1 },
+    }
+    local arrows = Render.tacticalGhostArrowEntries(app)
+    local byTile = {}
+    for _, arrow in ipairs(arrows) do
+        byTile[arrow.tileId] = arrow
+        expect(arrow.fromRotation == 0 and arrow.toRotation == 1 and arrow.x .. ":" .. arrow.y == arrow.tileId, "ghost arrow should preserve logical tile id")
+    end
+    expect(byTile["1:1"] and byTile["2:2"] and byTile["3:3"], "ghost arrows should cover selected, objective, and cursor tiles")
 end
 
 tests[#tests + 1] = function()

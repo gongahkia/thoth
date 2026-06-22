@@ -227,7 +227,7 @@ source pattern:
 Isometric tactics UI uses camera rotation as a planning tool, so overlays must move on screen while preserving logical tile identity.
 
 thoth transformation:
-Thoth projects tactical overlay entries at all four camera snaps and records screen position, logical stability, upright label orientation, icon/pattern readability, and occlusion offsets.
+Thoth projects tactical overlay entries at all four camera snaps and records screen position, logical stability, upright label orientation, icon/pattern readability, and occlusion offsets. The tactical HUD also renders a rotation compass and stable tile-ID ghost arrows for cursor, selected unit, objectives, and intent targets.
 
 board verb:
 Rotate, inspect, compare, preserve.
@@ -239,10 +239,10 @@ counterplay:
 The player can rotate to inspect occluded plans without losing which tile an intent, hazard, cover edge, or LoS marker belongs to.
 
 preview/UI:
-`Render.tacticalOverlayRotationAudit()` returns four rotation buckets with projected entries, stable logical coordinates, readable symbols, and occlusion metadata.
+`Render.tacticalOverlayRotationAudit()` returns four rotation buckets with projected entries, stable logical coordinates, readable symbols, and occlusion metadata. `Render.rotationCompass()` maps world directions to the current 90-degree view. `Render.tacticalGhostArrowEntries()` projects tile IDs from the previous rotation to the current rotation without changing logical coordinates.
 
 test/replay proof:
-`tests/run.lua` verifies the audit covers four snaps, preserves entry count and logical tile coordinates, keeps labels upright, keeps icon/pattern metadata, exposes occlusion offsets, and changes screen positions across rotations.
+`tests/run.lua` verifies the audit covers four snaps, preserves entry count and logical tile coordinates, keeps labels upright, keeps icon/pattern metadata, exposes occlusion offsets, changes screen positions across rotations, maps the 90-degree compass, and keeps ghost-arrow tile IDs stable. `make tactical-smoke` verifies compass output and non-empty ghost-arrow output.
 
 ## U.11 Colorblind-Safe Tactical Palette
 
