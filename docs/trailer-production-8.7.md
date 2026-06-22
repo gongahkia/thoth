@@ -28,8 +28,8 @@ Static preview capture:
 ```sh
 SDL_AUDIODRIVER=dummy love . --title-smoke --preview-capture assets/previews/final-title.png
 SDL_AUDIODRIVER=dummy love . --estate-smoke --preview-capture assets/previews/final-estate.png
-SDL_AUDIODRIVER=dummy love . --smoke --render-smoke --preview-capture assets/previews/final-expedition.png
-SDL_AUDIODRIVER=dummy love . --combat-smoke --preview-capture assets/previews/final-combat.png
+SDL_AUDIODRIVER=dummy love . --tactical-smoke --preview-capture assets/previews/final-route.png
+SDL_AUDIODRIVER=dummy love . --tactical-smoke --preview-capture assets/previews/final-tactical.png
 SDL_AUDIODRIVER=dummy love . --gameover-smoke --preview-capture assets/previews/final-gameover.png
 ```
 

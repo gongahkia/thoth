@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke tactical-smoke sprite-import-smoke model-import-smoke test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke legacy-combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke tactical-smoke sprite-import-smoke model-import-smoke test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -9,7 +9,7 @@ run:
 	$(LOVE) .
 
 smoke:
-	$(LOVE) . --smoke
+	$(MAKE) tactical-smoke
 
 title-smoke:
 	@set -e; \
@@ -55,7 +55,7 @@ estate-smoke:
 	grep -q "estate-smoke-missions=" $$tmp; \
 	rm -f $$tmp
 
-combat-smoke:
+legacy-combat-smoke:
 	@set -e; \
 	tmp=$$(mktemp); \
 	if command -v xvfb-run >/dev/null 2>&1; then \
@@ -331,13 +331,13 @@ merchant-balance-pass:
 	$(LUAJIT) tools/merchant_balance_pass.lua
 
 benchmark:
-	$(LUAJIT) benchmarks/rpg_expedition.lua
+	$(LUAJIT) benchmarks/tactical_route.lua
 
 benchmark-smoke:
-	THOTH_BENCH_TICKS=60 THOTH_BENCH_RUNS=4 $(LUAJIT) benchmarks/rpg_expedition.lua
+	THOTH_BENCH_TICKS=60 THOTH_BENCH_RUNS=4 $(LUAJIT) benchmarks/tactical_route.lua
 
 benchmark-scaled:
-	THOTH_BENCH_TICKS=900 THOTH_BENCH_RUNS=24 $(LUAJIT) benchmarks/rpg_expedition.lua
+	THOTH_BENCH_TICKS=900 THOTH_BENCH_RUNS=24 $(LUAJIT) benchmarks/tactical_route.lua
 
 render-benchmark:
 	@if command -v xvfb-run >/dev/null 2>&1; then \

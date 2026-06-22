@@ -786,9 +786,9 @@ zone fit: The public package frames route-map pressure, six Archive board varian
 
 counterplay: Players can report route node, board variant, objective type, loadout, enemy intent, complication, and whether visible counterplay was clear.
 
-preview/UI: `docs/itch-alpha-page.md` carries public page copy; `.github/ISSUE_TEMPLATE/alpha_feedback.yml` carries the tactical feedback form; `docs/phase6-alpha-package.md` carries packaging commands and status.
+preview/UI: `docs/itch-alpha-page.md` carries public page copy; `.github/ISSUE_TEMPLATE/alpha_feedback.yml` carries the tactical feedback form; `docs/phase6-alpha-package.md` carries packaging commands and status; Makefile release smoke and benchmark paths now point at tactical route runtime, with rank combat kept behind `legacy-combat-smoke`.
 
-test/replay proof: tests verify package manifest/page/form contents; package verification uses `make package-build` and `luajit tests/package.lua dist/thoth.love`.
+test/replay proof: tests verify package manifest/page/form contents; package verification uses `make package-build` and `luajit tests/package.lua dist/thoth.love`; `make smoke`, `make benchmark-smoke`, `make tactical-smoke`, and `make legacy-combat-smoke` prove tactical release paths and explicit legacy quarantine.
 
 ### H46 Full Scope Zone Terrain And Enemy Families
 
