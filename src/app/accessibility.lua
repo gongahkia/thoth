@@ -10,7 +10,11 @@ local function settingText(settings)
     settings = settings or {}
     return table.concat({
         "high_contrast=" .. tostring(settings.highContrast == true),
+        "high_contrast_tiles=" .. tostring(settings.highContrastTiles == true),
         "colorblind=" .. tostring(settings.colorblindMode or "off"),
+        "cover_edge_palette=" .. tostring(settings.coverEdgePalette or "colorblind"),
+        "intent_icon_scale=" .. tostring(settings.intentIconScale or 1),
+        "intent_text=" .. tostring(settings.intentText == true),
         "font_scale=" .. tostring(settings.fontScale or 1),
         "ambient_volume=" .. tostring(settings.ambientVolume or 0.7),
         "reduced_motion=" .. tostring(settings.reducedMotion == true),

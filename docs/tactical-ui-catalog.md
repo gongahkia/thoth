@@ -250,7 +250,7 @@ source pattern:
 Accessible visual systems avoid red/green dependence, vary lightness, and pair color with texture, symbols, or annotation.
 
 thoth transformation:
-Thoth defines a shared intent/cover/hazard palette using distinct vermillion, blue, and yellow roles plus icon, pattern, and shape redundancy.
+Thoth defines a shared intent/cover/hazard palette using distinct vermillion, blue, and yellow roles plus icon, pattern, and shape redundancy. The settings panel exposes tactical accessibility controls for high-contrast tiles, intent icon scale, cover edge palette, and duplicated intent text.
 
 board verb:
 Mark, distinguish, verify, inspect.
@@ -262,10 +262,10 @@ counterplay:
 The player can distinguish enemy intent, cover, and hazards through color, icon, pattern, and shape even under colorblind display modes.
 
 preview/UI:
-`UICatalog.accessiblePalette()` returns role metadata, supported simulation modes, review checks, RGBA colors, hex values, icons, patterns, and shapes; render overlay defaults consume the same role data.
+`UICatalog.accessiblePalette()` returns role metadata, supported simulation modes, review checks, RGBA colors, hex values, icons, patterns, and shapes; render overlay defaults consume the same role data. `Settings.accessibilityControls()` groups tactical readability settings, and `Render.tacticalAccessibility()` applies them to tactical tile colors, cover entries, intent icon scale, and intent text.
 
 test/replay proof:
-`tests/run.lua` verifies palette roles, modes, checks, simulated color separation for off/deuteranopia/protanopia/tritanopia, and render overlay color/icon/pattern alignment.
+`tests/run.lua` verifies palette roles, modes, checks, simulated color separation for off/deuteranopia/protanopia/tritanopia, render overlay color/icon/pattern alignment, tactical settings persistence, tile contrast transforms, intent scale/text metadata, and settings-panel hitboxes. `make settings-smoke` verifies the tactical accessibility controls are present.
 
 ## U.12 Reduced-Motion Tactical Equivalents
 

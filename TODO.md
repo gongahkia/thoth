@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(C) 2026-06-22 Add accessibility settings panel: high-contrast tile mode, intent-icon size scaling, colorblind-safe cover edge palette, optional intent-text duplication +readability @ui
 (C) 2026-06-22 Procgen validator: write tools/validator.lua that loads 25 fixed seeds, generates a board per seed, runs sanity checks (objective reachable, squad spawn safe, no unsolvable enemy placement), and emits a reject log to dist/validator-report.json +procgen-validator @tests
 (C) 2026-06-22 Integrate validator into Makefile (make validate) and CI; fail the build if reject count exceeds budget +procgen-validator @build
 (C) 2026-06-22 Document the validator invariants in docs/tactical-procgen-grammar.md and add fixture seeds to tests/run.lua replay determinism suite +procgen-validator @docs

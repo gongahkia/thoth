@@ -634,7 +634,7 @@ test/replay proof: `Render.tacticalOverlayRotationAudit()` is tested for four ro
 
 source pattern: Accessible color guidance warns against red/green reliance, recommends varying lightness, using tested palettes, checking simulations, and not conveying information by color alone.
 
-thoth transformation: Intent, cover, and hazard overlays use a shared colorblind-safe role palette plus icon, pattern, and shape redundancy consumed by render defaults.
+thoth transformation: Intent, cover, and hazard overlays use a shared colorblind-safe role palette plus icon, pattern, and shape redundancy consumed by render defaults. Tactical accessibility settings add high-contrast tile mode, intent icon scale, cover edge palette selection, and optional intent text duplication.
 
 board verb: mark, distinguish, inspect, verify.
 
@@ -642,9 +642,9 @@ zone fit: Archive notices, Cistern hazard lanes, and Warrens burn/glass pressure
 
 counterplay: players can separate enemy intent, cover, and hazard cues under default, deuteranopia, protanopia, and tritanopia modes before committing AP.
 
-preview/UI: palette contract defines `intent`, `cover`, and `hazard` roles with RGBA, hex, icon, pattern, shape, visibility, simulation modes, and review checks.
+preview/UI: palette contract defines `intent`, `cover`, and `hazard` roles with RGBA, hex, icon, pattern, shape, visibility, simulation modes, and review checks. `Settings.accessibilityControls()` exposes the tactical panel controls, while `Render.tacticalAccessibility()` feeds overlay metadata and tile color transforms.
 
-test/replay proof: `UICatalog.accessiblePalette()` and `Render.tacticalOverlayEntries()` are tested for role metadata, simulation separation, and render color/icon/pattern alignment.
+test/replay proof: `UICatalog.accessiblePalette()`, `Render.tacticalOverlayEntries()`, `Render.tileAccessibleColor()`, and settings persistence are tested for role metadata, simulation separation, render color/icon/pattern alignment, high-contrast tile changes, intent scale/text metadata, and settings-panel hitboxes.
 
 ### H37 Reduced-Motion Tactical Equivalents
 

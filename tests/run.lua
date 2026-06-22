@@ -2728,6 +2728,16 @@ tests[#tests + 1] = function()
         local role = palette.roles[id]
         expect(entry and sameColor(entry.color, role.color) and entry.icon == role.icon and entry.pattern == role.pattern, "render overlay should use accessible palette role: " .. id)
     end
+    local tacticalSettings = { coverEdgePalette = "colorblind", intentIconScale = 1.6, intentText = true }
+    local tacticalEntries = Render.tacticalOverlayEntries(state, { intents = { { x = 3, y = 1, label = "strike" } } }, tacticalSettings)
+    local tacticalByKind = {}
+    for _, entry in ipairs(tacticalEntries) do
+        tacticalByKind[entry.kind] = tacticalByKind[entry.kind] or entry
+    end
+    expect(tacticalByKind.intent.iconScale == 1.6 and tacticalByKind.intent.text == "strike", "intent accessibility settings should scale icons and duplicate text")
+    expect(tacticalByKind.cover.palette == "colorblind" and sameColor(tacticalByKind.cover.color, palette.roles.cover.color), "cover palette setting should select colorblind-safe cover edges")
+    local standardCover = Render.tacticalOverlayEntries(state, {}, { coverEdgePalette = "standard" })[1]
+    expect(standardCover.palette == "standard" and not sameColor(standardCover.color, palette.roles.cover.color), "cover palette setting should expose standard fallback")
 end
 
 tests[#tests + 1] = function()
@@ -3943,10 +3953,17 @@ tests[#tests + 1] = function()
     local settings = Settings.defaults()
     expect(settings.masterVolume == 1 and settings.sfxVolume == 1 and settings.ambientVolume == 0.7, "settings defaults should expose audio volumes")
     expect(settings.screenShake == true, "settings defaults should enable screen shake")
+    expect(settings.highContrastTiles == false and settings.coverEdgePalette == "colorblind" and settings.intentIconScale == 1 and settings.intentText == false, "settings defaults should expose tactical accessibility controls")
     Settings.adjust(settings, "masterVolume", -4)
     expect(settings.masterVolume > 0.59 and settings.masterVolume < 0.61, "settings slider should step and clamp")
     Settings.toggle(settings, "highContrast")
     expect(settings.highContrast == true, "settings toggle should flip accessibility flags")
+    Settings.toggle(settings, "highContrastTiles")
+    Settings.toggle(settings, "intentText")
+    Settings.adjust(settings, "intentIconScale", 3)
+    Settings.cycle(settings, "coverEdgePalette", 1)
+    expect(settings.highContrastTiles and settings.intentText and settings.intentIconScale == 1.3 and settings.coverEdgePalette == "standard", "settings controls should update tactical accessibility flags")
+    expect(#Settings.accessibilityControls() >= 10, "settings should expose an accessibility control group")
     Settings.toggle(settings, "screenShake")
     expect(settings.screenShake == false and not Render.screenShakeEnabled(settings), "screen shake toggle should disable shake")
     Settings.cycle(settings, "colorblindMode", 1)
@@ -3955,10 +3972,13 @@ tests[#tests + 1] = function()
     expect(Render.fontScale(settings) == 1.4, "font scale should clamp through render")
     local shifted = Render.accessibleColor(settings, { 0.9, 0.1, 0.1, 1 })
     expect(shifted[1] ~= 0.9 and shifted[2] ~= 0.1, "colorblind mode should transform cue colors")
+    local tileNormal = Render.tileAccessibleColor({ highContrastTiles = false }, { 0.45, 0.48, 0.5, 1 })
+    local tileContrast = Render.tileAccessibleColor({ highContrastTiles = true }, { 0.45, 0.48, 0.5, 1 })
+    expect(tileNormal[1] ~= tileContrast[1] and Render.tacticalAccessibility(settings).intentText, "tactical accessibility helpers should transform tile contrast and expose intent text")
     local app = { settings = settings, eventFlash = { cue = "hit_slash", status = "Mara hit" } }
     expect(Render.audioSubtitle(app) == "slash hit: Mara hit", "subtitles should expose audio cue and status")
     local export = Accessibility.text(makeTacticalSim(84), app)
-    expect(export:find("Thoth accessibility export", 1, true) and export:find("high_contrast=true", 1, true) and export:find("ambient_volume=0.7", 1, true) and export:find("screen_shake=false", 1, true), "accessibility export should expose screen-reader text")
+    expect(export:find("Thoth accessibility export", 1, true) and export:find("high_contrast=true", 1, true) and export:find("high_contrast_tiles=true", 1, true) and export:find("cover_edge_palette=standard", 1, true) and export:find("intent_text=true", 1, true) and export:find("ambient_volume=0.7", 1, true) and export:find("screen_shake=false", 1, true), "accessibility export should expose screen-reader text")
     expect(export:find("party:", 1, true) and export:find("controls:", 1, true), "accessibility export should expose party and controls")
     settings.subtitles = false
     expect(Render.audioSubtitle(app) == nil, "subtitles should respect setting")
@@ -3981,10 +4001,10 @@ tests[#tests + 1] = function()
     local settingsText = Settings.toText(settings)
     expect(settingsText:match("^THOTH_LUA_SETTINGS 1"), "settings should write separate v1 header")
     local loadedSettings = assert(Settings.fromText(settingsText))
-    expect(loadedSettings.masterVolume == settings.masterVolume and loadedSettings.ambientVolume == 0.7 and loadedSettings.highContrast and loadedSettings.colorblindMode == "deuteranopia" and loadedSettings.screenShake == false, "settings text round trip should preserve values")
+    expect(loadedSettings.masterVolume == settings.masterVolume and loadedSettings.ambientVolume == 0.7 and loadedSettings.highContrast and loadedSettings.highContrastTiles and loadedSettings.intentText and loadedSettings.intentIconScale == 1.3 and loadedSettings.coverEdgePalette == "standard" and loadedSettings.colorblindMode == "deuteranopia" and loadedSettings.screenShake == false, "settings text round trip should preserve values")
     expect(Settings.keyForAction(loadedSettings, "moveUp") == "i", "settings text round trip should preserve keybinds")
-    local clampedSettings = assert(Settings.fromText("THOTH_LUA_SETTINGS 1\n{[\"fontScale\"]=9,[\"masterVolume\"]=-4,[\"colorblindMode\"]=\"bad\",[\"keybinds\"]={[\"moveUp\"]=\"escape\",[\"moveDown\"]=\"j\"}}\n"))
-    expect(clampedSettings.fontScale == 1.4 and clampedSettings.masterVolume == 0 and clampedSettings.colorblindMode == "off", "settings loader should clamp values")
+    local clampedSettings = assert(Settings.fromText("THOTH_LUA_SETTINGS 1\n{[\"fontScale\"]=9,[\"masterVolume\"]=-4,[\"intentIconScale\"]=9,[\"coverEdgePalette\"]=\"bad\",[\"colorblindMode\"]=\"bad\",[\"keybinds\"]={[\"moveUp\"]=\"escape\",[\"moveDown\"]=\"j\"}}\n"))
+    expect(clampedSettings.fontScale == 1.4 and clampedSettings.masterVolume == 0 and clampedSettings.intentIconScale == 1.75 and clampedSettings.coverEdgePalette == "colorblind" and clampedSettings.colorblindMode == "off", "settings loader should clamp values")
     expect(Settings.keyForAction(clampedSettings, "moveUp") == "w" and Settings.keyForAction(clampedSettings, "moveDown") == "j", "settings loader should reject reserved keybinds")
     local tempSettingsPath = "test-settings.thoth.tmp"
     os.remove(tempSettingsPath)
@@ -4073,12 +4093,19 @@ tests[#tests + 1] = function()
     local hasBack = false
     local hasBind = false
     local hasAdjust = false
+    local tacticalControls = {}
     for _, hitbox in ipairs(app.ui.settingsButtons) do
         hasBack = hasBack or hitbox.action == "back"
         hasBind = hasBind or hitbox.action == "bind"
         hasAdjust = hasAdjust or hitbox.action == "slider" or hitbox.action == "adjust"
+        if hitbox.setting then
+            tacticalControls[hitbox.setting] = true
+        end
     end
     expect(hasBack and hasBind and hasAdjust, "settings draw should populate back, bind, and slider hitboxes")
+    for _, setting in ipairs({ "highContrastTiles", "intentIconScale", "coverEdgePalette", "intentText" }) do
+        expect(tacticalControls[setting], "settings draw should expose tactical accessibility control " .. setting)
+    end
 end
 
 tests[#tests + 1] = function()

@@ -3,6 +3,7 @@ local Serialize = require("src.core.serialize")
 local Settings = {}
 
 local colorblindModes = { "off", "deuteranopia", "protanopia", "tritanopia" }
+local coverEdgePalettes = { "colorblind", "standard" }
 local settingsVersion = 1
 local settingsHeader = "THOTH_LUA_SETTINGS"
 
@@ -24,23 +25,32 @@ local keybindActions = {
     "pause",
 }
 
+local cycleOptions = {
+    colorblindMode = colorblindModes,
+    coverEdgePalette = coverEdgePalettes,
+}
+
 local controls = {
-    { kind = "slider", setting = "masterVolume", label = "Master Volume", step = 0.1, min = 0, max = 1 },
-    { kind = "slider", setting = "musicVolume", label = "Music Volume", step = 0.1, min = 0, max = 1 },
-    { kind = "slider", setting = "ambientVolume", label = "Ambient Volume", step = 0.1, min = 0, max = 1 },
-    { kind = "slider", setting = "sfxVolume", label = "SFX Volume", step = 0.1, min = 0, max = 1 },
-    { kind = "bind", binding = "moveUp", label = "Move Up" },
-    { kind = "bind", binding = "moveDown", label = "Move Down" },
-    { kind = "bind", binding = "moveLeft", label = "Move Left" },
-    { kind = "bind", binding = "moveRight", label = "Move Right" },
-    { kind = "bind", binding = "interact", label = "Interact" },
-    { kind = "bind", binding = "pause", label = "Pause" },
-    { kind = "toggle", setting = "highContrast", label = "High Contrast" },
-    { kind = "cycle", setting = "colorblindMode", label = "Colorblind Mode" },
-    { kind = "toggle", setting = "reducedMotion", label = "Reduced Motion" },
-    { kind = "toggle", setting = "screenShake", label = "Screen Shake" },
-    { kind = "toggle", setting = "subtitles", label = "Subtitles" },
-    { kind = "slider", setting = "fontScale", label = "Font Scale", step = 0.05, min = 0.8, max = 1.4 },
+    { kind = "slider", setting = "masterVolume", label = "Master Volume", step = 0.1, min = 0, max = 1, group = "audio" },
+    { kind = "slider", setting = "musicVolume", label = "Music Volume", step = 0.1, min = 0, max = 1, group = "audio" },
+    { kind = "slider", setting = "ambientVolume", label = "Ambient Volume", step = 0.1, min = 0, max = 1, group = "audio" },
+    { kind = "slider", setting = "sfxVolume", label = "SFX Volume", step = 0.1, min = 0, max = 1, group = "audio" },
+    { kind = "bind", binding = "moveUp", label = "Move Up", group = "input" },
+    { kind = "bind", binding = "moveDown", label = "Move Down", group = "input" },
+    { kind = "bind", binding = "moveLeft", label = "Move Left", group = "input" },
+    { kind = "bind", binding = "moveRight", label = "Move Right", group = "input" },
+    { kind = "bind", binding = "interact", label = "Interact", group = "input" },
+    { kind = "bind", binding = "pause", label = "Pause", group = "input" },
+    { kind = "toggle", setting = "highContrast", label = "High Contrast", group = "accessibility" },
+    { kind = "toggle", setting = "highContrastTiles", label = "High-Contrast Tiles", group = "accessibility" },
+    { kind = "cycle", setting = "colorblindMode", label = "Colorblind Mode", group = "accessibility" },
+    { kind = "cycle", setting = "coverEdgePalette", label = "Cover Edge Palette", group = "accessibility" },
+    { kind = "slider", setting = "intentIconScale", label = "Intent Icon Scale", step = 0.1, min = 0.75, max = 1.75, group = "accessibility" },
+    { kind = "toggle", setting = "intentText", label = "Intent Text", group = "accessibility" },
+    { kind = "toggle", setting = "reducedMotion", label = "Reduced Motion", group = "accessibility" },
+    { kind = "toggle", setting = "screenShake", label = "Screen Shake", group = "accessibility" },
+    { kind = "toggle", setting = "subtitles", label = "Subtitles", group = "accessibility" },
+    { kind = "slider", setting = "fontScale", label = "Font Scale", step = 0.05, min = 0.8, max = 1.4, group = "accessibility" },
     { kind = "back", label = "Back" },
 }
 
@@ -62,8 +72,8 @@ local function clamp(value, minValue, maxValue)
     return value
 end
 
-local function validColorblindMode(value)
-    for _, mode in ipairs(colorblindModes) do
+local function validCycleValue(setting, value)
+    for _, mode in ipairs(cycleOptions[setting] or {}) do
         if mode == value then
             return true
         end
@@ -82,7 +92,11 @@ function Settings.defaults()
         ambientVolume = 0.7,
         sfxVolume = 1,
         highContrast = false,
+        highContrastTiles = false,
         colorblindMode = "off",
+        coverEdgePalette = "colorblind",
+        intentIconScale = 1,
+        intentText = false,
         reducedMotion = false,
         screenShake = true,
         subtitles = true,
@@ -100,7 +114,7 @@ function Settings.normalize(source)
             result[setting] = clamp(source[setting], control.min, control.max)
         elseif control.kind == "toggle" and type(source[setting]) == "boolean" then
             result[setting] = source[setting]
-        elseif control.kind == "cycle" and validColorblindMode(source[setting]) then
+        elseif control.kind == "cycle" and validCycleValue(setting, source[setting]) then
             result[setting] = source[setting]
         end
     end
@@ -175,6 +189,16 @@ function Settings.controls()
     return controls
 end
 
+function Settings.accessibilityControls()
+    local result = {}
+    for _, control in ipairs(controls) do
+        if control.group == "accessibility" then
+            result[#result + 1] = control
+        end
+    end
+    return result
+end
+
 function Settings.keyForAction(settings, action, fallback)
     local keybinds = settings and settings.keybinds or defaultKeybinds
     return keybinds[action] or defaultKeybinds[action] or fallback
@@ -203,19 +227,20 @@ function Settings.toggle(settings, setting)
 end
 
 function Settings.cycle(settings, setting, delta)
-    if setting ~= "colorblindMode" then
+    local options = cycleOptions[setting]
+    if not options then
         return false
     end
-    local current = settings.colorblindMode or "off"
+    local current = settings[setting] or options[1]
     local index = 1
-    for candidate, mode in ipairs(colorblindModes) do
+    for candidate, mode in ipairs(options) do
         if mode == current then
             index = candidate
             break
         end
     end
-    index = ((index - 1 + (delta or 1)) % #colorblindModes) + 1
-    settings.colorblindMode = colorblindModes[index]
+    index = ((index - 1 + (delta or 1)) % #options) + 1
+    settings[setting] = options[index]
     return true
 end
 

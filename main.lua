@@ -1131,14 +1131,19 @@ local function printSettingsSmoke(state)
     end
     state.settingsSmokePrinted = true
     local actions = {}
+    local settings = {}
     for _, hitbox in ipairs((state.ui and state.ui.settingsButtons) or {}) do
         actions[hitbox.action] = true
+        if hitbox.setting then
+            settings[hitbox.setting] = true
+        end
     end
     print("settings-smoke-state=" .. tostring(state.uiState))
     print("settings-smoke-controls=" .. tostring(#Settings.controls()))
     print("settings-smoke-adjust=" .. tostring(actions.adjust == true))
     print("settings-smoke-bind=" .. tostring(actions.bind == true))
     print("settings-smoke-toggle=" .. tostring(actions.toggle == true))
+    print("settings-smoke-tactical-accessibility=" .. tostring(settings.highContrastTiles and settings.intentIconScale and settings.coverEdgePalette and settings.intentText))
 end
 
 local function printEstateSmoke(state)

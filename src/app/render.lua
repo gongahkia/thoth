@@ -169,6 +169,17 @@ function Render.accessibleColor(settings, color)
     return { clamp(r, 0, 1), clamp(g, 0, 1), clamp(b, 0, 1), a }
 end
 
+function Render.tileAccessibleColor(settings, color)
+    settings = accessibilitySettings(settings)
+    local adjusted = Render.accessibleColor(settings, color)
+    if settings and settings.highContrastTiles then
+        adjusted[1] = clamp((adjusted[1] - 0.5) * 1.6 + 0.5, 0, 1)
+        adjusted[2] = clamp((adjusted[2] - 0.5) * 1.6 + 0.5, 0, 1)
+        adjusted[3] = clamp((adjusted[3] - 0.5) * 1.6 + 0.5, 0, 1)
+    end
+    return adjusted
+end
+
 local function fontForScale(scale)
     if not (love and love.graphics) then
         return nil
@@ -776,6 +787,31 @@ local tacticalOverlayStyles = {
     selected = { icon = "unit", pattern = "ring" },
 }
 
+local tacticalCoverEdgePalettes = {
+    colorblind = {
+        color = tacticalOverlayPalette.cover.color,
+        icon = tacticalOverlayPalette.cover.icon,
+        pattern = tacticalOverlayPalette.cover.pattern,
+    },
+    standard = {
+        color = { 0.42, 0.58, 0.82, 0.48 },
+        icon = "shield",
+        pattern = "edge",
+    },
+}
+
+function Render.tacticalAccessibility(appOrSettings)
+    local settings = accessibilitySettings(appOrSettings) or {}
+    local coverPalette = settings.coverEdgePalette == "standard" and "standard" or "colorblind"
+    return {
+        highContrastTiles = settings.highContrastTiles == true,
+        intentIconScale = clamp(settings.intentIconScale or 1, 0.75, 1.75),
+        intentText = settings.intentText == true,
+        coverEdgePalette = coverPalette,
+        coverEdge = copyValue(tacticalCoverEdgePalettes[coverPalette]),
+    }
+end
+
 local function parseTileKey(key)
     local x, y = tostring(key):match("^(-?%d+):(-?%d+)$")
     return tonumber(x), tonumber(y)
@@ -821,7 +857,26 @@ local function appendOverlayTile(entries, counts, seen, kind, x, y, options)
         color = (options and options.color) or tacticalOverlayColors[kind],
         icon = (options and options.icon) or (tacticalOverlayStyles[kind] and tacticalOverlayStyles[kind].icon),
         pattern = (options and options.pattern) or (tacticalOverlayStyles[kind] and tacticalOverlayStyles[kind].pattern),
+        iconScale = options and options.iconScale,
+        text = options and options.text,
     }
+end
+
+local function applyTacticalAccessibility(entries, settings)
+    local access = Render.tacticalAccessibility(settings)
+    for _, entry in ipairs(entries) do
+        if entry.kind == "intent" then
+            entry.iconScale = access.intentIconScale
+            if access.intentText then
+                entry.text = entry.label or "intent"
+            end
+        elseif entry.kind == "cover" then
+            entry.color = access.coverEdge.color
+            entry.icon = access.coverEdge.icon
+            entry.pattern = access.coverEdge.pattern
+            entry.palette = access.coverEdgePalette
+        end
+    end
 end
 
 local function appendOverlayList(entries, counts, seen, kind, values)
@@ -842,7 +897,7 @@ local function appendOverlayList(entries, counts, seen, kind, values)
     end
 end
 
-function Render.tacticalOverlayEntries(tactics, overlays)
+function Render.tacticalOverlayEntries(tactics, overlays, settings)
     local entries = {}
     local counts = {}
     local seen = {}
@@ -886,6 +941,7 @@ function Render.tacticalOverlayEntries(tactics, overlays)
     appendOverlayList(entries, counts, seen, "overwatch", overlays.overwatch or overlays.overwatchPreview)
     appendOverlayList(entries, counts, seen, "hazard", overlays.hazards)
     appendOverlayList(entries, counts, seen, "cursor", overlays.cursor)
+    applyTacticalAccessibility(entries, settings)
     table.sort(entries, function(a, b)
         if a.y == b.y then
             if a.x == b.x then
@@ -1261,7 +1317,7 @@ local function litTileColor(rgb, light, settings)
     local r = clamp((rgb[1] / 255) * light * 1.08, 0, 1)
     local g = clamp((rgb[2] / 255) * light * (0.9 + light * 0.1), 0, 1)
     local b = clamp((rgb[3] / 255) * light * (0.78 + light * 0.22), 0, 1)
-    local color = Render.accessibleColor(settings, { r, g, b, 1 })
+    local color = Render.tileAccessibleColor(settings, { r, g, b, 1 })
     return color[1], color[2], color[3], color[4]
 end
 
@@ -1508,18 +1564,20 @@ local tacticalRingSpecs = {
     hover = { inset = 0.24, width = 0.035, z = 0.13 },
 }
 
-local function pushTileRing(vertices, x, y, baseZ, kind, u)
+local function pushTileRing(vertices, x, y, baseZ, kind, u, scale)
     local spec = tacticalRingSpecs[kind] or tacticalRingSpecs.movement
-    local inset = spec.inset
+    scale = clamp(scale or 1, 0.75, 1.75)
+    local inset = clamp(spec.inset - ((scale - 1) * 0.055), 0.02, 0.42)
     local left = x + inset
     local right = x + 1 - inset
     local top = y + inset
     local bottom = y + 1 - inset
     local z = baseZ + spec.z
-    pushOverlayLine(vertices, left, top, right, top, z, spec.width, u)
-    pushOverlayLine(vertices, right, top, right, bottom, z, spec.width, u)
-    pushOverlayLine(vertices, right, bottom, left, bottom, z, spec.width, u)
-    pushOverlayLine(vertices, left, bottom, left, top, z, spec.width, u)
+    local width = spec.width * scale
+    pushOverlayLine(vertices, left, top, right, top, z, width, u)
+    pushOverlayLine(vertices, right, top, right, bottom, z, width, u)
+    pushOverlayLine(vertices, right, bottom, left, bottom, z, width, u)
+    pushOverlayLine(vertices, left, bottom, left, top, z, width, u)
 end
 
 local function buildTacticalOverlayModel(entries, source, settings, z)
@@ -1533,7 +1591,7 @@ local function buildTacticalOverlayModel(entries, source, settings, z)
     for index, entry in ipairs(entries) do
         local color = Render.accessibleColor(settings, entry.color or tacticalOverlayColors[entry.kind] or { 1, 1, 1, 0.5 })
         data:setPixel(index - 1, 0, color[1], color[2], color[3], color[4] or 0.5)
-        pushTileRing(vertices, originX + entry.x, originY + entry.y, z or 0, entry.kind, (index - 0.5) / #entries)
+        pushTileRing(vertices, originX + entry.x, originY + entry.y, z or 0, entry.kind, (index - 0.5) / #entries, entry.iconScale or 1)
     end
     local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()
@@ -1545,7 +1603,7 @@ local function drawTacticalOverlays(sim, app)
     if not (source and source.state) then
         return nil
     end
-    local entries, counts = Render.tacticalOverlayEntries(source.state, source.overlays or {})
+    local entries, counts = Render.tacticalOverlayEntries(source.state, source.overlays or {}, app and app.settings)
     counts.total = #entries
     local drawnEntries = {}
     for _, entry in ipairs(entries) do
@@ -1621,7 +1679,7 @@ function Render.drawTacticalForecast(sim, app)
     if not (source and source.state) then
         return nil
     end
-    local entries = Render.tacticalOverlayEntries(source.state, source.overlays or {})
+    local entries = Render.tacticalOverlayEntries(source.state, source.overlays or {}, app and app.settings)
     if app.tacticalHover then
         entries[#entries + 1] = { kind = "hover", x = app.tacticalHover.x, y = app.tacticalHover.y, label = "hover" }
     end
@@ -3133,12 +3191,16 @@ function Render.drawSettings(app)
     love.graphics.print(i18n.t("Settings"), 72, 72)
     local controls = Settings.controls()
     app.settingsFocus = clamp(app.settingsFocus or 1, 1, #controls)
-    local rowX = 72
-    local rowW = width - 144
+    local gap = 24
+    local rowW = math.floor((width - 144 - gap) / 2)
     local rowY = 126
+    local maxRows = math.ceil(#controls / 2)
     for index, control in ipairs(controls) do
         control.index = index
-        local y = rowY + (index - 1) * 34
+        local column = math.floor((index - 1) / maxRows)
+        local row = (index - 1) % maxRows
+        local rowX = 72 + column * (rowW + gap)
+        local y = rowY + row * 34
         if y > height - 126 then
             break
         end
@@ -3705,6 +3767,7 @@ end
 function Render.tacticalIntentLegendEntries(app)
     local runtime = app and app.tactics
     local tactics = runtime and runtime.state
+    local access = Render.tacticalAccessibility(app)
     local entries = {}
     for _, unitId in ipairs(sortedMapKeys(tactics and tactics.intents or {})) do
         local unit = tactics and tactics:unit(unitId)
@@ -3721,6 +3784,8 @@ function Render.tacticalIntentLegendEntries(app)
                 icon = string.upper(string.sub(category or "INT", 1, 3)),
                 category = category,
                 label = label,
+                iconScale = access.intentIconScale,
+                text = access.intentText and (tostring(category) .. " " .. tostring(label)) or nil,
                 hidden = preview and (preview.hiddenByVision == true or preview.categoryOnly == true) or false,
                 targetTiles = copyValue((preview and preview.targetTiles) or {}),
                 sourceTile = copyValue(sourceTile),
@@ -3865,10 +3930,11 @@ function Render.drawTacticalIntentLegend(app, layout)
         love.graphics.rectangle("fill", x, rect.y + 6, w, rect.h - 12)
         love.graphics.setColor(hot and 1.0 or 0.58, hot and 0.64 or 0.32, hot and 0.28 or 0.26, 1)
         love.graphics.rectangle("line", x, rect.y + 6, w, rect.h - 12)
+        local iconW = math.floor(34 * clamp(entry.iconScale or 1, 0.75, 1.75))
         love.graphics.setColor(0.96, 0.78, 0.38, 1)
-        love.graphics.printf(entry.icon, x + 6, rect.y + 12, 34, "left")
+        love.graphics.printf(entry.icon, x + 6, rect.y + 12, iconW, "left")
         love.graphics.setColor(entry.hidden and 0.58 or 0.86, entry.hidden and 0.56 or 0.78, entry.hidden and 0.52 or 0.66, 1)
-        love.graphics.printf(shortText(entry.unit .. " " .. entry.label, 26), x + 40, rect.y + 12, w - 46, "left")
+        love.graphics.printf(shortText(entry.text or (entry.unit .. " " .. entry.label), 26), x + 12 + iconW, rect.y + 12, w - 18 - iconW, "left")
         app.ui.tacticalIntentButtons[#app.ui.tacticalIntentButtons + 1] = {
             x = x,
             y = rect.y + 6,

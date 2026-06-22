@@ -35,6 +35,7 @@ settings-smoke:
 	grep -q "settings-smoke-adjust=true" $$tmp; \
 	grep -q "settings-smoke-bind=true" $$tmp; \
 	grep -q "settings-smoke-toggle=true" $$tmp; \
+	grep -q "settings-smoke-tactical-accessibility=true" $$tmp; \
 	rm -f $$tmp
 
 estate-smoke:
