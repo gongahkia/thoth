@@ -682,17 +682,17 @@ test/replay proof: Tests verify joystick module enablement, gamepad button/axis 
 
 source pattern: Into the Breach interface references include combat, tutorial, mission, environment, and objective surfaces; XCOM 2 onboarding points new players toward tutorialized tactical play.
 
-thoth transformation: Tutorial boards are concrete state fixtures that isolate movement, cover/flanking, intent, push/pull, destruction, and objectives before combining mechanics.
+thoth transformation: Tutorial boards and the live tutorial smoke isolate AP/cursor movement, posted intent, cover/flanking, push/pull, objective pressure, and rotation before combining mechanics.
 
 board verb: move, flank, inspect, push, pull, break, protect.
 
 zone fit: Generic tutorial fixtures map to Archive paperwork cover, Cistern hazards, and Warrens destruction/objective pressure without requiring zone-specific UI schemas.
 
-counterplay: each board teaches one deterministic answer: safe route, protected edge versus flank, leave exact footprint, preview push/pull collision, break cover to open LoS, or block objective damage.
+counterplay: each board teaches one deterministic answer: inspect before commit, safe AP route, protected edge versus flank, leave exact footprint, preview push/pull collision, block objective damage, or rotate to read tile truth.
 
-preview/UI: `UICatalog.tutorialBoards()` provides board, units, objectives, intents, actions, overlays, and exit checks for six tutorial board ids.
+preview/UI: `Render.tutorialSteps()` now exposes tactical onboarding pages backed by `UICatalog.tutorialBoards()` fixtures and rotation readability checks; `--tutorial-smoke` boots tactical mode before drawing tutorial controls.
 
-test/replay proof: Tests instantiate every tutorial board as `TacticsState` and verify required fixture metadata plus movement, cover, exact intent, push/pull, destructible cover, and objective pressure coverage.
+test/replay proof: Tests instantiate every tutorial board as `TacticsState` and verify fixture metadata plus movement, cover, exact intent, push/pull, destructible cover, objective pressure, live tactical tutorial steps, and tactical-mode tutorial smoke.
 
 ### H40 Buried Archive Vertical Slice Route
 

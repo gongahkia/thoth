@@ -2556,9 +2556,12 @@ function Render.drawJournal(sim, app)
 end
 
 local tutorialSteps = {
-    { key = "torch", title = i18n.t("Torch"), body = i18n.t("Torch falls as the party advances. Spend carried torches before dark rooms turn pressure into ambush.") },
-    { key = "stress", title = i18n.t("Stress"), body = i18n.t("Stress can break heroes before HP does. Camp skills, curios, and retreat are pressure valves.") },
-    { key = "rank", title = i18n.t("Rank"), body = i18n.t("Rank controls skills and targets. Front and back positions decide who can act and who can be hit.") },
+    { key = "ap_cursor", title = i18n.t("AP / Cursor"), body = i18n.t("Select a unit, move the tile cursor, inspect the preview, then commit. Blue rings show reachable AP tiles."), board = TacticsUICatalog.tutorialBoard("movement"), controls = "mouse/D-pad/left stick cursor, Enter/A commit, Space/X inspect" },
+    { key = "intent", title = i18n.t("Enemy Intent"), body = i18n.t("Red traces are posted enemy actions. They resolve after End Turn, so move, block, or disrupt them first."), board = TacticsUICatalog.tutorialBoard("intent"), controls = "hover or inspect red tiles before committing AP" },
+    { key = "cover", title = i18n.t("Cover / Flank"), body = i18n.t("Cover protects edges, not whole units. Rotate and attack from an exposed edge to make the board answerable."), board = TacticsUICatalog.tutorialBoard("cover_flank"), controls = "[ and ] rotate, inspect cover edges" },
+    { key = "push_pull", title = i18n.t("Forced Movement"), body = i18n.t("Push and pull previews show collision paths before resolution. Use them to move threats off declared lines."), board = TacticsUICatalog.tutorialBoard("push_pull"), controls = "attack previews show forced-move path" },
+    { key = "objective_pressure", title = i18n.t("Objective Pressure"), body = i18n.t("Gold tiles are route machinery. Losing integrity is the fail state, so blocking damage can beat killing."), board = TacticsUICatalog.tutorialBoard("objectives"), controls = "End Turn only after route machine risk is readable" },
+    { key = "rotation", title = i18n.t("Rotation"), body = i18n.t("Rotate the board to read line of sight, cover edges, hidden lanes, and objective risk without changing tile truth."), board = TacticsUICatalog.rotationChecks(), controls = "[ and ] rotate view" },
 }
 
 function Render.tutorialSteps()
@@ -2566,9 +2569,9 @@ function Render.tutorialSteps()
 end
 
 local function layoutTutorialButtons(app, x, y, w)
-    app.ui.tutorialButtons[#app.ui.tutorialButtons + 1] = { x = x + 18, y = y + 148, w = 92, h = 34, action = "skip", enabled = true, index = 1 }
-    app.ui.tutorialButtons[#app.ui.tutorialButtons + 1] = { x = x + w - 226, y = y + 148, w = 92, h = 34, action = "prev", enabled = (app.tutorial.index or 1) > 1, index = 2 }
-    app.ui.tutorialButtons[#app.ui.tutorialButtons + 1] = { x = x + w - 122, y = y + 148, w = 104, h = 34, action = "next", enabled = true, index = 3 }
+    app.ui.tutorialButtons[#app.ui.tutorialButtons + 1] = { x = x + 18, y = y + 180, w = 92, h = 34, action = "skip", enabled = true, index = 1 }
+    app.ui.tutorialButtons[#app.ui.tutorialButtons + 1] = { x = x + w - 226, y = y + 180, w = 92, h = 34, action = "prev", enabled = (app.tutorial.index or 1) > 1, index = 2 }
+    app.ui.tutorialButtons[#app.ui.tutorialButtons + 1] = { x = x + w - 122, y = y + 180, w = 104, h = 34, action = "next", enabled = true, index = 3 }
 end
 
 function Render.drawTutorial(app)
@@ -2577,7 +2580,7 @@ function Render.drawTutorial(app)
     end
     Render.prepareUi(app)
     app.tutorial.index = clamp(app.tutorial.index or 1, 1, #tutorialSteps)
-    local w, h = 480, 204
+    local w, h = 520, 236
     layoutTutorialButtons(app, 1280 - w - 36, 116, w)
     if not (love and love.graphics) then
         return tutorialSteps
@@ -2594,7 +2597,8 @@ function Render.drawTutorial(app)
     love.graphics.setColor(0.68, 0.72, 0.66, 1)
     love.graphics.printf(step.body, x + 18, y + 52, w - 36)
     love.graphics.setColor(0.58, 0.62, 0.58, 1)
-    love.graphics.printf(tostring(app.tutorial.index) .. "/" .. tostring(#tutorialSteps), x + 18, y + 120, w - 36, "right")
+    love.graphics.printf(step.controls or "", x + 18, y + 126, w - 36)
+    love.graphics.printf(tostring(app.tutorial.index) .. "/" .. tostring(#tutorialSteps), x + 18, y + 152, w - 36, "right")
     for _, button in ipairs(app.ui.tutorialButtons) do
         love.graphics.setColor(button.enabled and 0.11 or 0.07, button.enabled and 0.13 or 0.07, button.enabled and 0.11 or 0.07, 1)
         love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)

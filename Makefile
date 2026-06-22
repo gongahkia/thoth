@@ -174,8 +174,10 @@ tutorial-smoke:
 	else \
 		$(LOVE) . --tutorial-smoke | tee $$tmp; \
 	fi; \
+	grep -q "tutorial-smoke-mode=tactical" $$tmp; \
 	grep -q "tutorial-smoke-active=true" $$tmp; \
-	grep -q "tutorial-smoke-steps=3" $$tmp; \
+	grep -q "tutorial-smoke-steps=6" $$tmp; \
+	grep -q "tutorial-smoke-first=ap_cursor" $$tmp; \
 	grep -q "tutorial-smoke-buttons=3" $$tmp; \
 	rm -f $$tmp
 

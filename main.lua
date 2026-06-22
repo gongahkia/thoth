@@ -1309,8 +1309,12 @@ local function printTutorialSmoke(state)
         return
     end
     state.tutorialSmokePrinted = true
+    local steps = Render.tutorialSteps()
+    local first = steps[1] or {}
+    print("tutorial-smoke-mode=" .. tostring(sim and sim.mode))
     print("tutorial-smoke-active=" .. tostring(state.tutorial and state.tutorial.active == true))
-    print("tutorial-smoke-steps=" .. tostring(#Render.tutorialSteps()))
+    print("tutorial-smoke-steps=" .. tostring(#steps))
+    print("tutorial-smoke-first=" .. tostring(first.key))
     print("tutorial-smoke-buttons=" .. tostring(#((state.ui and state.ui.tutorialButtons) or {})))
 end
 
@@ -1524,6 +1528,7 @@ function love.load(args)
         openJournal(app, "game")
     end
     if tutorialSmoke then
+        enterTacticalGame(app)
         app.tutorialSeen = false
         startTutorial(app)
     end
