@@ -280,6 +280,8 @@ tactical-smoke:
 	grep -q "tactical-smoke-hud-portraits=6" $$tmp; \
 	grep -q "tactical-smoke-hud-ap-pools=6" $$tmp; \
 	grep -q "tactical-smoke-hud-overlaps=0" $$tmp; \
+	grep -q "tactical-smoke-inspector=true" $$tmp; \
+	grep -q "tactical-smoke-inspector-lines=[1-9]" $$tmp; \
 	rm -f $$tmp
 
 sprite-import-smoke:

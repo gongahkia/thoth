@@ -334,6 +334,8 @@ tests[#tests + 1] = function()
     local sx, sy = Render.projectIso(app.worldView, runtime.originX + 3.5, runtime.originY + 6.5)
     local tileX, tileY = Render.tacticalTileAt(app, sx, sy)
     expect(tileX == 3 and tileY == 6, "tactical mouse projection should map screen point to board tile")
+    expect(Input.updateTacticalHover(app, sx, sy) and app.tacticalHover.x == 3 and app.tacticalHover.y == 6, "tactical hover should track projected board tile")
+    expect(app.tacticalInspector and app.tacticalInspector.terrain.x == 3 and app.tacticalInspector.source == "hover", "tactical hover should populate tile inspector summary")
     app.worldView.tacticalCamera = {
         eyeX = runtime.originX + 3.5 + 10,
         eyeY = runtime.originY + 6.5 - 10,
@@ -2744,7 +2746,7 @@ tests[#tests + 1] = function()
         facts[fact.id] = fact
         expect(fact.source and fact.visible == true, "tile inspector fact should define source and visibility: " .. fact.id)
     end
-    for _, id in ipairs({ "terrain", "cover", "los", "hazards", "destructible_hp", "hidden_info", "intent_traces" }) do
+    for _, id in ipairs({ "terrain", "cover", "los", "hazards", "destructible_hp", "hidden_info", "vision_sources", "intent_traces" }) do
         expect(facts[id], "tile inspector missing fact " .. id)
     end
 end
@@ -2774,7 +2776,8 @@ tests[#tests + 1] = function()
         },
         selectedUnitId = "warden",
         units = {
-            { id = "warden", side = "player", x = 1, y = 2, ap = 2 },
+            { id = "warden", side = "player", x = 1, y = 2, ap = 2, visionRadius = 3 },
+            { id = "spotter", side = "player", x = 2, y = 1, ap = 2, visionRadius = 3 },
             { id = "bailiff", side = "enemy", x = 4, y = 2, ap = 1 },
         },
         intents = {
@@ -2788,7 +2791,12 @@ tests[#tests + 1] = function()
     expect(summary.hazards.kind == "brine" and summary.hazards.active == true, "tile inspector should expose hazards")
     expect(summary.destructibleHp.hp == 4 and summary.destructibleHp.destructible, "tile inspector should expose destructible HP")
     expect(summary.hiddenInfo.hidden and summary.hiddenInfo.currentRotationMark.mark == "rear_valve_label", "tile inspector should expose hidden info without revealing all states")
+    expect(#summary.visionSources == 2 and summary.visionSources[1].unit == "warden" and summary.visionSources[2].unit == "spotter", "tile inspector should expose vision sources")
     expect(summary.intentTraces[1].unit == "bailiff" and summary.intentTraces[1].role == "target" and summary.intentTraces[1].category == "attack", "tile inspector should expose current intent traces")
+    local lines = table.concat(Render.tacticalTileInspectorLines(summary), "\n")
+    expect(lines:find("tags cistern", 1, true) and lines:find("cover west half", 1, true), "render tile inspector lines should show tags and cover edges")
+    expect(lines:find("hazard brine active true dmg 1 timer 2", 1, true) and lines:find("terrain HP 4", 1, true), "render tile inspector lines should show hazard timers and terrain HP")
+    expect(lines:find("vision warden@1,2 spotter@2,1", 1, true) and lines:find("intent bailiff target attack dmg 1", 1, true), "render tile inspector lines should show vision sources and intent footprints")
 end
 
 tests[#tests + 1] = function()

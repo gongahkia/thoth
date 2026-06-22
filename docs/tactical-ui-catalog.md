@@ -190,7 +190,7 @@ source pattern:
 Readable tactics UI exposes tactical tile facts, projected effects, and short tooltip-style explanations at the point of decision.
 
 thoth transformation:
-Thoth tile inspector exposes terrain, cover, LoS, hazards, destructible HP, hidden info state, and current intent traces from a deterministic state summary.
+Thoth tile inspector exposes terrain, tile tags, cover edges, LoS, hazards with timers, destructible terrain HP, hidden info state, squad vision sources, and current intent traces from a deterministic state summary.
 
 board verb:
 Inspect, reveal, compare, counter.
@@ -202,10 +202,10 @@ counterplay:
 The player can inspect whether a tile blocks movement/LoS, grants cover, carries hazard cost, hides rotation facts, can be broken, or is targeted before spending AP.
 
 preview/UI:
-`UICatalog.tileInspectorSummary()` returns `terrain`, `cover`, `los`, `hazards`, `destructibleHp`, `hiddenInfo`, and `intentTraces`.
+`UICatalog.tileInspectorSummary()` returns `terrain`, `cover`, `los`, `hazards`, `destructibleHp`, `hiddenInfo`, `visionSources`, and `intentTraces`. `Input.updateTacticalHover()` updates `app.tacticalHover` and `app.tacticalInspector`; `Render.tacticalTileInspectorLines()` formats the facts for the lower-right tactical panel.
 
 test/replay proof:
-`tests/run.lua` verifies the tile inspector contract fields and builds a deterministic summary from a tile with terrain, cover, LoS, active hazard, destructible HP, hidden rotation mark, reveal metadata, and exact enemy intent trace.
+`tests/run.lua` verifies the tile inspector contract fields and builds a deterministic summary from a tile with terrain, tags, cover, LoS, active hazard timer, destructible HP, hidden rotation mark, reveal metadata, squad vision sources, and exact enemy intent trace. It also verifies mouse hover populates the rendered inspector summary.
 
 ## U.10 Rotation-Aware Overlay Audit
 

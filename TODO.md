@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(C) 2026-06-22 Build tile inspector in src/app/render.lua + src/app/input.lua: cursor hover shows tile tags, cover edges, hazard timers, intent footprints reaching that tile, vision sources, terrain HP +readability @ui
 (C) 2026-06-22 Build intent legend overlay: bottom-bar list of every declared enemy intent this turn with icon, target tiles highlighted on hover, source enemy highlighted +readability @ui
 (C) 2026-06-22 Add rotation compass + stable tile-ID ghost arrows so the player can keep their bearings across 90-degree rotations +readability @ui
 (C) 2026-06-22 Build a tutorial board (single-screen, 6x6, scripted enemy intents) that teaches: select unit, move, rotate camera, declare overwatch, end turn, react to revealed intent - all without text walls +readability @engine
