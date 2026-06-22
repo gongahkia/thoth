@@ -1531,6 +1531,28 @@ local function tileInList(tiles, x, y)
     return false
 end
 
+local overwatchReactionKinds = {
+    shoot = true,
+    stun = true,
+    mark = true,
+}
+
+local function normalizeOverwatchReaction(reaction, damage)
+    if type(reaction) == "string" then
+        reaction = { kind = reaction }
+    end
+    reaction = reaction or { kind = "shoot", damage = damage or 1 }
+    local kind = reaction.kind or "shoot"
+    expect(overwatchReactionKinds[kind], "unsupported overwatch reaction " .. tostring(kind))
+    return {
+        kind = kind,
+        damage = reaction.damage or damage or (kind == "shoot" and 1 or 0),
+        status = kind == "stun" and "stunned" or (kind == "mark" and "marked" or nil),
+        turns = reaction.turns or 1,
+        amount = reaction.amount,
+    }
+end
+
 function State:pruneThreatZones()
     local active = {}
     for _, zone in ipairs(self.threatZones or {}) do
@@ -1552,11 +1574,35 @@ function State:addThreatZone(unitId, tiles, options)
         damage = options.damage or 1,
         remaining = options.limit or options.remaining or 1,
         label = options.label or "overwatch",
+        kind = options.kind,
+        origin = copyMap(options.origin),
+        facing = options.facing or options.direction,
+        arc = options.arc or options.width,
+        range = options.range or options.length,
+        triggerPhase = options.triggerPhase,
+        reaction = normalizeOverwatchReaction(options.reaction, options.damage or 1),
     }
     expect(#zone.tiles > 0, "threat zone needs at least one tile")
     expect(zone.remaining > 0, "threat zone limit must be positive")
     self.threatZones[#self.threatZones + 1] = zone
     return zone
+end
+
+function State:applyThreatReaction(source, unit, zone)
+    local reaction = zone.reaction or normalizeOverwatchReaction(nil, zone.damage)
+    local result = { source = source.id, target = unit.id, reaction = reaction.kind, x = unit.x, y = unit.y }
+    if reaction.kind == "shoot" then
+        result.hp = self:damageUnit(unit, reaction.damage or zone.damage or 1)
+        result.damage = reaction.damage or zone.damage or 1
+    elseif reaction.kind == "stun" then
+        self:applyStatus(unit.id, "stunned", reaction.turns or 1, reaction.amount)
+        result.status = "stunned"
+    elseif reaction.kind == "mark" then
+        self:applyStatus(unit.id, "marked", reaction.turns or 1, reaction.amount or 1)
+        result.status = "marked"
+    end
+    self.lastOverwatchTrigger = result
+    return result
 end
 
 local function perpendicularDirections(direction)
@@ -1643,6 +1689,29 @@ function State:addThreatZoneShape(unitId, shape, options)
     options = options or {}
     local tiles = self:threatZoneTiles(unitId, shape, options)
     return self:addThreatZone(unitId, tiles, options)
+end
+
+function State:declareOverwatch(unitId, options)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    expect(unit.alive and not unit.evacuated, "unit is not active")
+    expect(not self:hasStatus(unit, "blinded"), "unit is blinded")
+    options = options or {}
+    local facing = options.facing or options.direction or unit.facing or "east"
+    local range = options.range or options.length or 3
+    local arc = options.arc or options.width or 1
+    local tiles = self:threatZoneTiles(unitId, "cone", { direction = facing, length = range, width = arc })
+    return self:addThreatZone(unitId, tiles, {
+        kind = "overwatch",
+        origin = { x = unit.x, y = unit.y },
+        facing = facing,
+        arc = arc,
+        range = range,
+        triggerPhase = options.triggerPhase or "enemy",
+        reaction = options.reaction or { kind = options.reactionKind or "shoot", damage = options.damage or 1, turns = options.turns, amount = options.amount },
+        damage = options.damage or 1,
+        limit = options.limit or 1,
+        label = options.label or "overwatch",
+    })
 end
 
 local function hydrateConditionalIntent(state, intent)
@@ -2657,8 +2726,9 @@ end
 function State:resolveThreatAt(unit)
     for _, zone in ipairs(self.threatZones or {}) do
         local source = self.units[zone.unit]
-        if source and source.alive and zone.side ~= unit.side and (zone.remaining or 0) > 0 and tileInList(zone.tiles, unit.x, unit.y) then
-            self:damageUnit(unit, zone.damage or 1)
+        local phaseOk = not zone.triggerPhase or self.phase == zone.triggerPhase
+        if phaseOk and source and source.alive and zone.side ~= unit.side and (zone.remaining or 0) > 0 and tileInList(zone.tiles, unit.x, unit.y) then
+            self:applyThreatReaction(source, unit, zone)
             zone.remaining = zone.remaining - 1
         end
     end
@@ -2897,16 +2967,20 @@ function State:apply(command)
     elseif kind == "overwatch" then
         local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
         expect(not self:hasStatus(unit, "blinded"), "unit is blinded")
-        if command.shape then
+        if command.cone then
+            self:threatZoneTiles(command.unit, "cone", { direction = command.facing or command.direction, length = command.range or command.length, width = command.arc or command.width })
+        elseif command.shape then
             self:threatZoneTiles(command.unit, command.shape, { direction = command.direction, length = command.length, width = command.width })
         else
             normalizeTileList(command.tiles)
         end
         self:spendAP(command.unit, command.cost or 1)
-        if command.shape then
-            self:addThreatZoneShape(command.unit, command.shape, { direction = command.direction, length = command.length, width = command.width, damage = command.damage, limit = command.limit, label = command.label })
+        if command.cone then
+            self:declareOverwatch(command.unit, { facing = command.facing or command.direction, range = command.range or command.length, arc = command.arc or command.width, reaction = command.reaction, reactionKind = command.reactionKind, damage = command.damage, turns = command.turns, amount = command.amount, limit = command.limit, label = command.label })
+        elseif command.shape then
+            self:addThreatZoneShape(command.unit, command.shape, { direction = command.direction, length = command.length, width = command.width, damage = command.damage, limit = command.limit, label = command.label, reaction = command.reaction })
         else
-            self:addThreatZone(command.unit, command.tiles, { damage = command.damage, limit = command.limit, label = command.label })
+            self:addThreatZone(command.unit, command.tiles, { damage = command.damage, limit = command.limit, label = command.label, reaction = command.reaction })
         end
     elseif kind == "damageTile" then
         self:spendAP(command.unit, command.cost or 1)
@@ -3152,6 +3226,10 @@ end
 
 function commands.threatZone(unitId, shape, direction, length, width, damage, limit, cost)
     return { type = "overwatch", unit = unitId, shape = shape, direction = direction, length = length, width = width, damage = damage, limit = limit, cost = cost }
+end
+
+function commands.overwatchCone(unitId, facing, range, arc, reaction, cost)
+    return { type = "overwatch", unit = unitId, cone = true, facing = facing, range = range, arc = arc, reaction = reaction, cost = cost }
 end
 
 function commands.damageTile(unitId, x, y, damage, cost)

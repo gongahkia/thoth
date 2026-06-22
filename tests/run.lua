@@ -778,6 +778,51 @@ end
 
 tests[#tests + 1] = function()
     local state = TacticsState.new({
+        defaultAp = 2,
+        board = { width = 6, height = 5 },
+        units = {
+            { id = "warden", side = "player", x = 2, y = 3, ap = 2 },
+            { id = "runner", side = "enemy", x = 4, y = 2, hp = 3, ap = 2 },
+            { id = "bailiff", side = "enemy", x = 5, y = 4, hp = 3, ap = 2 },
+        },
+    })
+    state:apply(TacticsState.commands.overwatchCone("warden", "east", 3, 1, { kind = "shoot", damage = 2 }, 1))
+    local zone = state.threatZones[1]
+    expect(state:unit("warden").ap == 1 and zone.kind == "overwatch" and zone.origin.x == 2 and zone.facing == "east" and zone.range == 3 and zone.arc == 1, "overwatch cone should spend AP and store cone metadata")
+    state:apply(TacticsState.commands.move("runner", "south"))
+    expect(state:unit("runner").hp == 3 and #state.threatZones == 1, "overwatch cone should not trigger outside enemy phase")
+    state:startTurn("enemy")
+    state:apply(TacticsState.commands.move("bailiff", "north"))
+    expect(state:unit("bailiff").hp == 1 and state.lastOverwatchTrigger.reaction == "shoot", "overwatch cone should shoot first enemy entering during enemy phase")
+    expect(#state.threatZones == 0, "overwatch cone should expire after first trigger")
+
+    local stun = TacticsState.new({
+        board = { width = 4, height = 3 },
+        units = {
+            { id = "lamp", side = "player", x = 1, y = 2 },
+            { id = "hound", side = "enemy", x = 3, y = 1, hp = 3 },
+        },
+    })
+    stun:apply(TacticsState.commands.overwatchCone("lamp", "east", 3, 1, { kind = "stun", turns = 1 }, 0))
+    stun:startTurn("enemy")
+    stun:apply(TacticsState.commands.move("hound", "south"))
+    expect(stun:hasStatus("hound", "stunned") and stun.lastOverwatchTrigger.reaction == "stun", "overwatch cone should support stun reaction")
+
+    local mark = TacticsState.new({
+        board = { width = 4, height = 3 },
+        units = {
+            { id = "lamp", side = "player", x = 1, y = 2 },
+            { id = "hound", side = "enemy", x = 3, y = 1, hp = 3 },
+        },
+    })
+    mark:apply(TacticsState.commands.overwatchCone("lamp", "east", 3, 1, { kind = "mark", turns = 2, amount = 2 }, 0))
+    mark:startTurn("enemy")
+    mark:apply(TacticsState.commands.move("hound", "south"))
+    expect(mark:status("hound", "marked").amount == 2 and mark.lastOverwatchTrigger.reaction == "mark", "overwatch cone should support mark reaction")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
         defaultAp = 6,
         board = { width = 5, height = 3 },
         units = {
