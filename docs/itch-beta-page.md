@@ -46,6 +46,7 @@ Current screenshots:
 Current GIF:
 
 - `assets/previews/readme-tactical-loop.gif`
+- `assets/previews/itch-tactical-devlog-30s.gif`
 
 Storefront rule:
 

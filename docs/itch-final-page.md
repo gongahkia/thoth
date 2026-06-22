@@ -70,14 +70,18 @@ Current local media:
 
 - `assets/previews/readme-tactical.png` - current 1280x720 tactical view with six-unit AP HUD, intent legend, tile inspector, objective pressure, and route board.
 - `assets/previews/readme-tactical-loop.gif` - current 640x360 tactical GIF preview derived from the current tactical smoke capture.
+- `assets/previews/itch-tactical-devlog-30s.gif` - 30-second 640x360 tactical GIF for the vertical slice devlog draft.
+- `assets/previews/itch-tactical-fog.png` - 1280x720 fog-of-war tactical screenshot.
+- `assets/previews/itch-tactical-overwatch.png` - 1280x720 overwatch cone tactical screenshot.
+- `assets/previews/itch-tactical-intent-legend.png` - 1280x720 intent legend tactical screenshot.
 
-Storefront screenshots still required before public release:
+Higher-resolution storefront screenshots still required before public release:
 
 - Fog-of-war reveal on a Buried Archive board.
 - Overwatch cone declaration with affected tiles visible.
 - Intent legend hover/selection with tile inspector populated.
 
-Trailer or gameplay GIF required:
+Public trailer or gameplay GIF still required:
 
 - 30-90 seconds.
 - Public YouTube/Vimeo URL or downloadable GIF/MP4.

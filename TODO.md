@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(E) 2026-06-22 Draft itch.io devlog post for the vertical slice release; include the rewritten pitch line and a 30-second gameplay GIF +release @docs
 
 ## Notes for the executing agent
 
