@@ -219,6 +219,40 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = { width = 5, height = 1 },
+        units = {
+            { id = "scout", side = "player", x = 1, y = 1, ap = 2, visionRadius = 1 },
+            { id = "near", side = "enemy", x = 2, y = 1, hp = 2 },
+            { id = "far", side = "enemy", x = 5, y = 1, hp = 2 },
+        },
+        objectives = {
+            { id = "machine", kind = "protect_archive_shelf", x = 1, y = 1, integrity = 3, maxIntegrity = 3, evacuateAt = { x = 1, y = 1 } },
+        },
+    })
+    state:declareIntent("near", { mode = "exact", category = "attack", source = "near", sourceTile = { x = 2, y = 1 }, targetTiles = { { x = 1, y = 1 } }, damage = 1, label = "near hit" })
+    state:declareIntent("far", { mode = "exact", category = "attack", source = "far", sourceTile = { x = 5, y = 1 }, targetTiles = { { x = 1, y = 1 } }, damage = 1, label = "far hit" })
+    local runtime = { state = state, selectedUnitId = "scout", cursor = { x = 1, y = 1 }, turn = 1, lastSeenEnemies = {} }
+    TacticalRuntime.refreshOverlays(runtime)
+    expect(runtime.overlays.fog.fog["5:1"] and #runtime.overlays.intents == 1 and runtime.overlays.intents[1].label == "near hit", "fog overlay should hide out-of-vision enemy intents")
+    local summary = TacticalRuntime.summary(runtime)
+    expect(#summary.enemies == 1 and summary.enemies[1].id == "near" and #summary.lastSeenEnemies == 0, "tactical summary should show only visible enemies")
+    local fogSummary = Render.tacticalFogSummary(runtime)
+    expect(fogSummary.visibleTiles == 2 and fogSummary.fogTiles == 3 and fogSummary.visibleEnemies == 1 and fogSummary.hiddenEnemies == 1, "render fog summary should count visible and dimmed tiles")
+    state.units.near.x = 4
+    state.units.near.y = 1
+    TacticalRuntime.refreshOverlays(runtime)
+    summary = TacticalRuntime.summary(runtime)
+    expect(#runtime.overlays.intents == 0 and #summary.enemies == 0, "enemy leaving vision should hide unit and intent overlays")
+    expect(#summary.lastSeenEnemies == 1 and summary.lastSeenEnemies[1].id == "near" and summary.lastSeenEnemies[1].x == 2, "enemy leaving vision should persist last-seen marker")
+    expect(TacticalRuntime.actionAtTile(runtime, 4, 1).kind == "cursor", "hidden enemy tile should not expose attack action")
+    runtime.cursor.x = 4
+    runtime.cursor.y = 1
+    expect(not TacticalRuntime.attackCursor(runtime), "hidden enemy should not be attackable by cursor")
+    expect(Render.tacticalFogSummary(runtime).ghostEnemies == 1, "render fog summary should count last-seen ghost markers")
+end
+
+tests[#tests + 1] = function()
     local runtime = TacticalRuntime.new(Simulation.new(9007))
     runtime.state:objective("entry_shelf").integrity = 1
     TacticalRuntime.declareEnemyIntents(runtime)

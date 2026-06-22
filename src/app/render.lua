@@ -772,6 +772,19 @@ local function parseTileKey(key)
     return tonumber(x), tonumber(y)
 end
 
+local function tileKey(x, y)
+    return tostring(x) .. ":" .. tostring(y)
+end
+
+local function sortedMapKeys(values)
+    local keys = {}
+    for key in pairs(values or {}) do
+        keys[#keys + 1] = key
+    end
+    table.sort(keys)
+    return keys
+end
+
 local function tileHasCover(tile)
     for _, direction in ipairs({ "north", "east", "south", "west" }) do
         if tile and tile.coverEdges and tile.coverEdges[direction] and tile.coverEdges[direction] ~= "none" then
@@ -1266,6 +1279,96 @@ local function tacticalOverlaySource(sim, app)
         return { state = source, overlays = app and app.tacticalOverlays or {} }
     end
     return source
+end
+
+local function tacticalVisibilityGrid(source, app)
+    if app and app.tactics and app.tactics.visibilityGrid then
+        return app.tactics:visibilityGrid()
+    end
+    if source and source.overlays and source.overlays.fog and source.overlays.fog.visible then
+        return source.overlays.fog
+    end
+    if source and source.state and source.state.fogGrid then
+        return source.state:fogGrid("player")
+    end
+    return nil
+end
+
+function Render.tacticalFogSummary(tactics, visibility, lastSeenEnemies)
+    local stateSource = tactics and tactics.state or tactics
+    if not visibility and tactics and tactics.visibilityGrid then
+        visibility = tactics:visibilityGrid()
+    end
+    if not visibility and stateSource and stateSource.fogGrid then
+        visibility = stateSource:fogGrid("player")
+    end
+    local summary = { visibleTiles = 0, fogTiles = 0, visibleEnemies = 0, hiddenEnemies = 0, ghostEnemies = 0 }
+    for _, fogged in pairs((visibility and visibility.fog) or {}) do
+        if fogged then
+            summary.fogTiles = summary.fogTiles + 1
+        else
+            summary.visibleTiles = summary.visibleTiles + 1
+        end
+    end
+    if stateSource then
+        for _, enemy in ipairs(stateSource:unitsForSide("enemy")) do
+            if visibility and visibility.visible[tileKey(enemy.x, enemy.y)] then
+                summary.visibleEnemies = summary.visibleEnemies + 1
+            else
+                summary.hiddenEnemies = summary.hiddenEnemies + 1
+            end
+        end
+    end
+    for _, sighting in pairs(lastSeenEnemies or (tactics and tactics.lastSeenEnemies) or {}) do
+        local enemy = stateSource and stateSource:unit(sighting.id)
+        if enemy and enemy.alive and not (visibility and visibility.visible[tileKey(enemy.x, enemy.y)]) then
+            summary.ghostEnemies = summary.ghostEnemies + 1
+        end
+    end
+    return summary
+end
+
+local function buildTacticalFogModel(source, visibility, z)
+    local tactics = source and source.state
+    if not (tactics and visibility and visibility.fog and state.g3d and state.assets.white) then
+        return nil, 0
+    end
+    local tiles = {}
+    for y = 1, tactics.board.height do
+        for x = 1, tactics.board.width do
+            if visibility.fog[tileKey(x, y)] then
+                tiles[#tiles + 1] = { x = x, y = y }
+            end
+        end
+    end
+    if #tiles == 0 then
+        return nil, 0
+    end
+    local vertices = {}
+    local data = love.image.newImageData(#tiles, 1)
+    local originX = source.originX or 0
+    local originY = source.originY or 0
+    for index, tile in ipairs(tiles) do
+        data:setPixel(index - 1, 0, 0.008, 0.01, 0.012, 0.68)
+        pushTileQuad(vertices, originX + tile.x, originY + tile.y, z or 0, (index - 0.5) / #tiles)
+    end
+    local model = state.g3d.newModel(vertices, newImageFromData(data))
+    model:makeNormals()
+    return model, #tiles
+end
+
+local function drawTacticalFog(sim, app)
+    local source = tacticalOverlaySource(sim, app)
+    if not (app and app.tacticalMode and source and source.state and love and love.graphics) then
+        return 0
+    end
+    local visibility = tacticalVisibilityGrid(source, app)
+    local model, count = buildTacticalFogModel(source, visibility, ((sim and sim.player and sim.player.z) or 0) + 0.026)
+    if model then
+        love.graphics.setColor(1, 1, 1, 1)
+        model:draw()
+    end
+    return count
 end
 
 function Render.tacticalTileAt(app, screenX, screenY)
@@ -1789,12 +1892,15 @@ local function drawTacticalIntentArrows(sim, app)
     local originX = source.originX or 0
     local originY = source.originY or 0
     local z = ((sim and sim.player and sim.player.z) or 0) + 0.08
+    local visibility = tacticalVisibilityGrid(source, app)
     local count = 0
     for _, unit in ipairs(tactics:unitsForSide("enemy")) do
         local intent = tactics:intentPreview(unit.id)
         local target = intent and intent.targetTiles and intent.targetTiles[1]
         local sourceTile = intent and intent.sourceTile
-        if target and sourceTile then
+        local sourceVisible = not visibility or visibility.visible[tileKey(unit.x, unit.y)] == true
+        local targetVisible = target and (not visibility or visibility.visible[tileKey(target.x, target.y)] == true)
+        if target and sourceTile and sourceVisible and targetVisible then
             local segments = Render.tacticalGridArrowSegments(sourceTile, target, originX, originY)
             for index, segment in ipairs(segments) do
                 pushGroundLine(vertices, segment.x1, segment.y1, segment.x2, segment.y2, z, 0.04, 0.5)
@@ -1826,10 +1932,16 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
     end
     local originX = source.originX or 0
     local originY = source.originY or 0
+    local visibility = tacticalVisibilityGrid(source, app)
     local drawn = 0
+    local visibleEnemies = {}
     for _, id in ipairs(tactics.unitOrder or {}) do
         local unit = tactics.units[id]
         if unit and unit.alive and not unit.evacuated then
+            local enemyHidden = unit.side == "enemy" and visibility and not visibility.visible[tileKey(unit.x, unit.y)]
+            if enemyHidden then
+                goto continue
+            end
             local x = originX + unit.x + 0.5
             local y = originY + unit.y + 0.5
             local selected = app.tactics and app.tactics.selectedUnitId == unit.id
@@ -1843,6 +1955,22 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
             else
                 drawLitModel(model, lightAt(sim, x, y, profile))
             end
+            if unit.side == "enemy" then
+                visibleEnemies[unit.id] = true
+            end
+            drawn = drawn + 1
+        end
+        ::continue::
+    end
+    local sightings = app and app.tactics and app.tactics.lastSeenEnemies or {}
+    for _, id in ipairs(sortedMapKeys(sightings)) do
+        local sighting = sightings[id]
+        local unit = tactics:unit(id)
+        if sighting and unit and unit.alive and not visibleEnemies[id] then
+            local x = originX + sighting.x + 0.5
+            local y = originY + sighting.y + 0.5
+            local model = newBillboard(0.66, 0.8, enemyFrame("threat", sighting.kind), x, y, (sim.player.z or 0) + 0.03, yaw, state.assets.spriteAtlas or state.assets.white)
+            drawTintedModel(model, { 0.36, 0.4, 0.42, 1 }, lightAt(sim, x, y, profile), 0.38)
             drawn = drawn + 1
         end
     end
@@ -1881,6 +2009,7 @@ function Render.drawWorld(sim, app)
     local model = buildWorldTileModel(sim, profile, app and app.settings, app)
     love.graphics.setColor(1, 1, 1, 1)
     model:draw()
+    local tacticalFogCount = drawTacticalFog(sim, app)
     local tacticalOverlayCounts = drawTacticalOverlays(sim, app)
     drawTacticalIntentArrows(sim, app)
     local architecture, architectureCount = nil, 0
@@ -1905,6 +2034,7 @@ function Render.drawWorld(sim, app)
     app.worldView.hiddenObjects = (hiddenObjects or 0) + (hiddenEnemies or 0)
     app.worldView.rotationPuzzles = rotationPuzzles or 0
     app.worldView.tacticalOverlays = tacticalOverlayCounts
+    app.worldView.tacticalFog = tacticalFogCount
 end
 
 function Render.titleMenuItems(app)
@@ -3289,6 +3419,13 @@ function Render.drawTacticalSidePanel(sim, app)
         love.graphics.print(enemy.id .. " HP" .. tostring(enemy.hp), x + 12, rowY)
         love.graphics.setColor(0.7, 0.74, 0.68, 1)
         love.graphics.print(tostring(enemy.intent) .. " -> " .. (target and (target.x .. "," .. target.y) or "-"), x + 12, rowY + 18)
+        rowY = rowY + 52
+    end
+    for _, enemy in ipairs((summary and summary.lastSeenEnemies) or {}) do
+        love.graphics.setColor(0.46, 0.5, 0.5, 1)
+        love.graphics.print(enemy.id .. " last seen", x + 12, rowY)
+        love.graphics.setColor(0.52, 0.56, 0.54, 1)
+        love.graphics.print("ghost @" .. tostring(enemy.x) .. "," .. tostring(enemy.y), x + 12, rowY + 18)
         rowY = rowY + 52
     end
     rowY = rowY + 12

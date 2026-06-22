@@ -20,6 +20,19 @@ local function copyList(values)
     return result
 end
 
+local function tileKey(x, y)
+    return tostring(x) .. ":" .. tostring(y)
+end
+
+local function sortedKeys(values)
+    local keys = {}
+    for key in pairs(values or {}) do
+        keys[#keys + 1] = key
+    end
+    table.sort(keys)
+    return keys
+end
+
 local function nearestPlayer(state, enemy)
     local best
     local bestDistance
@@ -290,6 +303,8 @@ function Runtime.new(sim, options)
         inspectCursor = Runtime.inspectCursor,
         actionAtTile = Runtime.actionAtTile,
         actionBar = Runtime.actionBar,
+        visibilityGrid = Runtime.visibilityGrid,
+        enemyVisible = Runtime.enemyVisible,
     }
     Runtime.declareEnemyIntents(runtime)
     Runtime.refreshOverlays(runtime)
@@ -324,6 +339,55 @@ function Runtime.selectedUnit(runtime)
     return runtime and runtime.state:unit(runtime.selectedUnitId) or nil
 end
 
+function Runtime.updateEnemySightings(runtime, visibility)
+    if not (runtime and runtime.state and visibility) then
+        return {}
+    end
+    runtime.lastSeenEnemies = runtime.lastSeenEnemies or {}
+    local live = {}
+    for _, enemy in ipairs(runtime.state:unitsForSide("enemy")) do
+        live[enemy.id] = true
+        if visibility.visible[tileKey(enemy.x, enemy.y)] then
+            runtime.lastSeenEnemies[enemy.id] = {
+                id = enemy.id,
+                kind = enemy.kind,
+                hp = enemy.hp,
+                x = enemy.x,
+                y = enemy.y,
+                turn = runtime.turn or 1,
+                tick = runtime.state.tick,
+            }
+        end
+    end
+    for id in pairs(runtime.lastSeenEnemies) do
+        if not live[id] then
+            runtime.lastSeenEnemies[id] = nil
+        end
+    end
+    return runtime.lastSeenEnemies
+end
+
+function Runtime.visibilityGrid(runtime)
+    local visibility = runtime.state:fogGrid("player")
+    runtime.fog = visibility
+    Runtime.updateEnemySightings(runtime, visibility)
+    return visibility
+end
+
+function Runtime.enemyVisible(runtime, enemy, visibility)
+    if not (runtime and runtime.state) then
+        return false
+    end
+    if type(enemy) ~= "table" then
+        enemy = runtime.state:unit(enemy)
+    end
+    if not enemy then
+        return false
+    end
+    visibility = visibility or Runtime.visibilityGrid(runtime)
+    return visibility.visible[tileKey(enemy.x, enemy.y)] == true
+end
+
 local function reachableByKey(preview)
     local result = {}
     for _, tile in ipairs((preview and preview.reachable) or {}) do
@@ -335,6 +399,7 @@ end
 function Runtime.refreshOverlays(runtime)
     local state = runtime.state
     local selected = Runtime.selectedUnit(runtime)
+    local visibility = Runtime.visibilityGrid(runtime)
     local movement = {}
     if selected and selected.side == "player" and selected.alive and selected.ap > 0 then
         for _, tile in ipairs(state:movementPreview(selected.id).reachable) do
@@ -343,9 +408,13 @@ function Runtime.refreshOverlays(runtime)
     end
     local intents = {}
     for _, enemy in ipairs(state:unitsForSide("enemy")) do
-        local preview = state:intentPreview(enemy.id)
-        for _, tile in ipairs((preview and preview.targetTiles) or {}) do
-            intents[#intents + 1] = { x = tile.x, y = tile.y, label = preview.label or preview.category }
+        if Runtime.enemyVisible(runtime, enemy, visibility) then
+            local preview = state:intentPreview(enemy.id)
+            for _, tile in ipairs((preview and preview.targetTiles) or {}) do
+                if visibility.visible[tileKey(tile.x, tile.y)] then
+                    intents[#intents + 1] = { x = tile.x, y = tile.y, label = preview.label or preview.category }
+                end
+            end
         end
     end
     runtime.overlays = {
@@ -354,6 +423,7 @@ function Runtime.refreshOverlays(runtime)
         los = selected and { { x = selected.x, y = selected.y, label = "selected" } } or {},
         flanks = { { x = runtime.cursor.x, y = runtime.cursor.y, label = "cursor" } },
         cursor = { { x = runtime.cursor.x, y = runtime.cursor.y, label = "cursor" } },
+        fog = visibility,
     }
     return runtime.overlays
 end
@@ -439,6 +509,9 @@ function Runtime.actionAtTile(runtime, x, y)
         return { kind = "select", label = "Select", key = "LMB", enabled = true, detail = unit.id }
     end
     if unit and unit.side == "enemy" then
+        if not Runtime.enemyVisible(runtime, unit) then
+            return { kind = "cursor", label = "Inspect tile", key = "RMB", enabled = true, detail = tostring(x) .. "," .. tostring(y) }
+        end
         local distance = selected and Grid.manhattan(selected.x, selected.y, unit.x, unit.y) or nil
         local enabled = selected and selected.ap >= 1 and distance and distance <= 3
         local detail = distance and ("HP" .. tostring(unit.hp) .. " r" .. tostring(distance) .. "/3") or "no unit"
@@ -501,7 +574,7 @@ function Runtime.handleMouseTile(runtime, x, y, button)
         Runtime.refreshOverlays(runtime)
         return true
     end
-    if unit and unit.side == "enemy" then
+    if unit and unit.side == "enemy" and Runtime.enemyVisible(runtime, unit) then
         return Runtime.attackCursor(runtime)
     end
     local selected = Runtime.selectedUnit(runtime)
@@ -517,7 +590,7 @@ function Runtime.attackCursor(runtime)
     local state = runtime.state
     local selected = Runtime.selectedUnit(runtime)
     local target = state:unitAt(runtime.cursor.x, runtime.cursor.y)
-    if not (selected and target and target.side == "enemy") then
+    if not (selected and target and target.side == "enemy" and Runtime.enemyVisible(runtime, target)) then
         setStatus(runtime, "no enemy on cursor")
         return false
     end
@@ -657,17 +730,39 @@ function Runtime.summary(runtime)
     local state = runtime.state
     local selected = Runtime.selectedUnit(runtime)
     local objective = objectiveState(state)
+    local visibility = Runtime.visibilityGrid(runtime)
     local enemies = {}
     for _, enemy in ipairs(state:unitsForSide("enemy")) do
-        local intent = state:intentPreview(enemy.id)
-        enemies[#enemies + 1] = {
-            id = enemy.id,
-            hp = enemy.hp,
-            x = enemy.x,
-            y = enemy.y,
-            intent = intent and intent.label or "-",
-            targetTiles = intent and intent.targetTiles or {},
-        }
+        if Runtime.enemyVisible(runtime, enemy, visibility) then
+            local intent = state:intentPreview(enemy.id)
+            enemies[#enemies + 1] = {
+                id = enemy.id,
+                hp = enemy.hp,
+                x = enemy.x,
+                y = enemy.y,
+                visible = true,
+                intent = intent and intent.label or "-",
+                targetTiles = intent and intent.targetTiles or {},
+            }
+        end
+    end
+    local lastSeenEnemies = {}
+    for _, id in ipairs(sortedKeys(runtime.lastSeenEnemies)) do
+        local sighting = runtime.lastSeenEnemies[id]
+        local enemy = state:unit(id)
+        if sighting and enemy and enemy.alive and not Runtime.enemyVisible(runtime, enemy, visibility) then
+            lastSeenEnemies[#lastSeenEnemies + 1] = {
+                id = sighting.id,
+                hp = sighting.hp,
+                x = sighting.x,
+                y = sighting.y,
+                turn = sighting.turn,
+                tick = sighting.tick,
+                ghost = true,
+                intent = "last seen",
+                targetTiles = {},
+            }
+        end
     end
     local players = {}
     for _, unit in ipairs(state:unitsForSide("player")) do
@@ -688,6 +783,8 @@ function Runtime.summary(runtime)
         routeCount = runtime.routeOrder and #runtime.routeOrder or nil,
         players = players,
         enemies = enemies,
+        lastSeenEnemies = lastSeenEnemies,
+        fog = visibility,
         message = runtime.message,
         complete = runtime.complete == true,
         routeComplete = runtime.routeComplete == true,
