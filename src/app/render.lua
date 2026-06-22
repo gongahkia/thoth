@@ -1,8 +1,17 @@
 local Defs = require("src.game.defs")
 local Settings = require("src.app.settings")
 local Credits = require("src.app.credits")
-local i18n = require("src.app.i18n")
 local TacticsUICatalog = require("src.game.tactics.ui_catalog")
+
+local function t(key, vars)
+    local text = tostring(key or "")
+    for name, value in pairs(vars or {}) do
+        text = text:gsub("{" .. name .. "}", tostring(value))
+    end
+    return text
+end
+
+local i18n = { t = t }
 
 local Render = {}
 local state = {
