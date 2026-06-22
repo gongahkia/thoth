@@ -21,6 +21,14 @@ North star for content, naming, tone, and future implementation. Mechanics in co
 
 These are reference directions, not content to copy.
 
+## Vertical Slice = Buried Archive Only
+
+The current playable vertical slice is the Buried Archive only.
+
+Salt Cistern and Ember Warrens are future-zone content. Keep their lore, mechanics, factions, and boss hooks as roadmap direction, not shipped/current content, until their boards, enemies, hazards, screenshots, validator runs, replay checks, and release docs pass the same gates as the Buried Archive slice.
+
+Current slice language may reference Buried Archive boards, Estate pressure, six-class tactical roles, tactical readability, Shelf Knight, Vault Regent, route choice, procgen validation, and deterministic replay.
+
 ## Core Premise
 
 The world ended by administration, not by a single war.
@@ -96,7 +104,7 @@ Research is mandatory for new tactical systems, but references are pattern sourc
 
 ## Board Content Bible
 
-### Buried Archive Boards
+### Buried Archive Boards (Current Vertical Slice)
 
 Archive boards are about being seen, named, filed, and claimed.
 
@@ -108,7 +116,7 @@ Archive boards are about being seen, named, filed, and claimed.
 - Rotation secrets: rear stamps, hidden witness lanes, back-side weak points, false cover marks.
 - Board question: can the party break the procedure without becoming the record?
 
-### Salt Cistern Boards
+### Salt Cistern Boards (Future Zone)
 
 Cistern boards are about pressure, waterline, preservation, and drowning access.
 
@@ -120,7 +128,7 @@ Cistern boards are about pressure, waterline, preservation, and drowning access.
 - Rotation secrets: waterline marks, hidden drain grates, rear valve labels, submerged pressure cracks.
 - Board question: can the party control the route without deciding who drowns?
 
-### Ember Warrens Boards
+### Ember Warrens Boards (Future Zone)
 
 Warrens boards are about purification, heat, glass, fuel, and whether erasure is mercy.
 
@@ -293,9 +301,9 @@ Content hooks:
 - Contradictory mission briefs.
 - Local names for enemy types.
 
-## Current Zone Identities
+## Current And Future Zone Identities
 
-### Buried Archive
+### Buried Archive (Current Vertical Slice)
 
 Core idea: dead records still enforcing living debt.
 
@@ -347,7 +355,7 @@ Sub-areas by tier:
 - Tier II (Misfile Court): misfiled morgues, witness drawers, the Codex Reeve's audit floor.
 - Tier III (Sealed Register): debt vaults, regent's gate, the Open Register weak-point chain.
 
-### Salt Cistern
+### Salt Cistern (Future Zone)
 
 Core idea: water infrastructure as underworld border.
 
@@ -399,7 +407,7 @@ Sub-areas by tier:
 - Tier II (Drowned Market): submerged enclave streets, brine intakes, the Pearl Choir's cyst chamber.
 - Tier III (Deep Sluice): bell diver gate, flood-toll, the Bell Lung weak-point chain.
 
-### Ember Warrens
+### Ember Warrens (Future Zone)
 
 Core idea: purification as violence.
 
@@ -659,14 +667,14 @@ Tooltips can be blunt:
 
 ## Campaign Arc
 
-Roguelite campaign spine:
+Roguelite campaign spine for the full campaign beyond the current vertical slice:
 
 1. The Estate selects a survey route and squad from incomplete intelligence.
 2. Each board is a room-procedure with declared threats, objectives, and destructible record media.
 3. Between boards, the player chooses routes, repairs, extractions, enclave bargains, and loadout changes.
 4. The Buried Archive teaches names, cover, claims, hidden angles, and audit intent.
-5. The Salt Cistern adds water pressure, floods, valves, moving cover, and route machinery.
-6. The Ember Warrens adds fire, ash, glass, terrain conversion, and purge/repair choices.
+5. Future-zone Salt Cistern adds water pressure, floods, valves, moving cover, and route machinery.
+6. Future-zone Ember Warrens adds fire, ash, glass, terrain conversion, and purge/repair choices.
 7. Boss boards ask whether the player can preserve both people and procedure under visible pressure.
 8. Final pressure asks whether the Estate seals the Stack for ownership, repairs selected systems, or keeps extracting until collapse.
 
@@ -715,8 +723,8 @@ Tier transitions should be diegetic. The Stack has noticed the party. The route 
 Each zone has one mini-boss warden between normal boards and the final boss. They are visible alphas first. The party should see their board rule before fighting them.
 
 - Buried Archive: Codex Reeve. Posts audit lines that disable AP on marked tiles unless the Open Register is broken.
-- Salt Cistern: Pearl Choir. Refloods drained lanes and turns low ground into hostile movement unless choir throats are silenced.
-- Ember Warrens: Kiln Vicar. Vitrifies the most exposed unit or objective unless halo vents are doused or line of sight is broken.
+- Salt Cistern (future zone): Pearl Choir. Refloods drained lanes and turns low ground into hostile movement unless choir throats are silenced.
+- Ember Warrens (future zone): Kiln Vicar. Vitrifies the most exposed unit or objective unless halo vents are doused or line of sight is broken.
 
 Wardens are not zone bosses. They guard a route or a record, not the procedure. Defeating one should change the zone's behavior, not end it.
 
@@ -737,17 +745,17 @@ Fixture content should never explain everything. They should be useful, partial,
 
 One or two named enclave leaders per zone. They are not noble. They have already made compromises to keep their people alive.
 
-### Buried Archive
+### Buried Archive (Current Vertical Slice)
 
 - Page-Keeper Ilse: lives among shelves, knows which names unlock which doors. Will trade a route for a record left intact.
 - Bound Scribe Cael: sutured to a ledger but still talks. Half-Custodian; useful, dangerous, possibly already lost.
 
-### Salt Cistern
+### Salt Cistern (Future Zone)
 
 - Valve-Mother Tov: decides who drinks. Can flood a route or spare an enclave. Wants a child returned from a drowned market.
 - Pressure Father Sett: former Estate dredger who defected after the Brine Midwives took his crew. Knows shortcut valves.
 
-### Ember Warrens
+### Ember Warrens (Future Zone)
 
 - Ash Vicar Mira: believes purging frees the dead. Will help the party burn a record if it frees a name.
 - Glass-Burnt Aron: skeptic; thinks the kilns lie. Wants the fires doused, even if it traps the dead.
