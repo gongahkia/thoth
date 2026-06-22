@@ -1,4 +1,5 @@
 local Grid = require("src.core.grid")
+local Cover = require("src.game.tactics.cover")
 
 local State = {}
 State.__index = State
@@ -836,6 +837,7 @@ function State.new(options)
         rules = {
             defaultAp = options.defaultAp or options.apPerTurn or (options.rules and options.rules.defaultAp) or 2,
             moveApCost = options.moveApCost or (options.rules and options.rules.moveApCost) or 1,
+            flanking = Cover.flankingRule(options.flanking or (options.rules and options.rules.flanking)),
         },
         board = {
             width = width,
@@ -1206,6 +1208,8 @@ end
 function State:attackProfile(fromX, fromY, targetX, targetY)
     local los = self:lineOfSight(fromX, fromY, targetX, targetY)
     local cover = self:coverFromAttack(fromX, fromY, targetX, targetY)
+    local flank = self:flankFromAttack(fromX, fromY, targetX, targetY)
+    local flankingRule = Cover.flankingRule(self)
     local effectiveCover = cover.cover
     local damageReduction = cover.damageReduction
     local coverIgnoredByHeight = false
@@ -1215,6 +1219,10 @@ function State:attackProfile(fromX, fromY, targetX, targetY)
         coverIgnoredByHeight = true
     elseif los.heightDelta <= -2 then
         damageReduction = damageReduction + 1
+    end
+    if flank.flanked then
+        effectiveCover = "none"
+        damageReduction = 0
     end
     return {
         visible = los.visible,
@@ -1227,9 +1235,30 @@ function State:attackProfile(fromX, fromY, targetX, targetY)
         cover = cover.cover,
         effectiveCover = effectiveCover,
         damageReduction = damageReduction,
-        blocked = cover.blocked,
+        blocked = cover.blocked and not flank.flanked,
         coverIgnoredByHeight = coverIgnoredByHeight,
+        flanked = flank.flanked,
+        invalidatedCover = copyValue(flank.invalidated),
+        flankingRule = copyValue(flankingRule),
     }
+end
+
+function State:attackResolution(unitId, targetId, baseDamage)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    local target = expect(self.units[targetId], "unknown target " .. tostring(targetId))
+    baseDamage = expectInteger(baseDamage or 1, "damage")
+    expect(baseDamage >= 0, "damage must be non-negative")
+    local profile = self:attackProfile(unit.x, unit.y, target.x, target.y)
+    local damage = profile.blocked and 0 or math.max(0, baseDamage - (profile.damageReduction or 0))
+    local flankingBonus = 0
+    if profile.flanked and damage > 0 then
+        damage, flankingBonus = Cover.flankingDamage(damage, profile.flankingRule)
+    end
+    profile.baseDamage = baseDamage
+    profile.damageReductionApplied = baseDamage - (profile.blocked and 0 or math.max(0, baseDamage - (profile.damageReduction or 0)))
+    profile.flankingBonus = flankingBonus
+    profile.damage = damage
+    return profile
 end
 
 local function tileHazardCost(tile)
@@ -2921,8 +2950,9 @@ function State:apply(command)
         self:startTurn(command.nextSide or command.side or self.phase)
     elseif kind == "attack" then
         expect(self.units[command.target], "unknown target " .. tostring(command.target))
+        local resolved = self:attackResolution(command.unit, command.target, command.damage or 1)
         self:spendAP(command.unit, command.cost or 1)
-        self:damageUnit(command.target, command.damage or 1)
+        self:damageUnit(command.target, resolved.damage)
     elseif kind == "aoe" then
         self:spendAP(command.unit, command.cost or 1)
         local tiles = normalizeTileList(command.tiles)

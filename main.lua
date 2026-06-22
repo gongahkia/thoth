@@ -996,6 +996,8 @@ local function printTacticalSmoke(state)
     print("tactical-smoke-forecast=" .. tostring(state.worldView and state.worldView.tacticalForecast or 0))
     print("tactical-smoke-zoom=" .. string.format("%.2f", Render.tacticalZoom(state)))
     print("tactical-smoke-objective=" .. tostring(summary.objective and summary.objective.integrity) .. "/" .. tostring(summary.objective and summary.objective.maxIntegrity))
+    io.stdout:flush()
+    os.exit(0)
 end
 
 local function printTitleSmoke(state)

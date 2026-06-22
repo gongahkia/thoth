@@ -67,8 +67,20 @@ function Resolution.actionPreview(state, command)
     elseif command.type == "attack" then
         local target = state:unit(command.target)
         if target then
+            local attack = state:attackResolution(command.unit, command.target, command.damage or 1)
             addTile(preview.affectedTiles, target.x, target.y)
-            addTileEffects(state, preview, target.x, target.y, command.damage or 1)
+            addTileEffects(state, preview, target.x, target.y, attack.damage)
+            preview.baseDamage = attack.baseDamage
+            preview.damage = attack.damage
+            preview.cover = attack.cover
+            preview.effectiveCover = attack.effectiveCover
+            preview.damageReduction = attack.damageReduction
+            preview.damageReductionApplied = attack.damageReductionApplied
+            preview.blocked = attack.blocked
+            preview.flanked = attack.flanked
+            preview.invalidatedCover = attack.invalidatedCover
+            preview.flankingBonus = attack.flankingBonus
+            preview.flankingRule = attack.flankingRule
         end
     elseif command.type == "aoe" then
         preview.affectedTiles = copyTiles(command.tiles)

@@ -276,9 +276,9 @@ tests[#tests + 1] = function()
     runtime.state.units.claimant.y = 4
     TacticalRuntime.refreshOverlays(runtime)
     local attackAction = runtime:actionAtTile(2, 4)
-    expect(attackAction.kind == "attack" and attackAction.enabled, "tactical click action should preview in-range enemy attacks")
+    expect(attackAction.kind == "attack" and attackAction.enabled and attackAction.detail:find("dmg2 flank", 1, true), "tactical click action should preview in-range flanking attacks")
     expect(runtime:handleMouseTile(2, 4, 1), "left click should attack in-range enemy")
-    expect(runtime.state:unit("claimant").hp == 3 and runtime.state:unit("warden").ap == 1, "left click attack should spend AP and damage enemy")
+    expect(runtime.state:unit("claimant").hp == 2 and runtime.state:unit("warden").ap == 1 and runtime.status == "warden hit claimant for 2", "left click attack should spend AP and apply flanking damage")
     tileX, tileY = 1, 3
     expect(runtime:handleMouseTile(tileX, tileY, 1), "left click should handle reachable board tile")
     expect(runtime.state:unit("warden").x == 1 and runtime.state:unit("warden").y == 3 and runtime.state:unit("warden").ap == 0, "left click should move selected unit to reachable tile")
@@ -372,6 +372,41 @@ tests[#tests + 1] = function()
     expect(not protected.flanked and protected.cover == "half", "covered attack vector should not flank")
     local flanked = state:flankFromAttack(2, 3, 2, 2)
     expect(flanked.flanked and flanked.direction == "south" and #flanked.invalidated == 2, "uncovered attack vector should deterministically invalidate other cover")
+end
+
+tests[#tests + 1] = function()
+    local flanked = TacticsState.new({
+        board = { width = 3, height = 3, tiles = { ["2:2"] = { coverEdges = { west = "half" } } } },
+        units = {
+            { id = "warden", side = "player", x = 3, y = 2, hp = 6 },
+            { id = "target", side = "enemy", x = 2, y = 2, hp = 6 },
+        },
+    })
+    local preview = TacticsResolution.actionPreview(flanked, TacticsState.commands.attack("warden", "target", 2, 0))
+    expect(preview.flanked and preview.damage == 3 and preview.flankingBonus == 1 and preview.effectiveCover == "none", "flanking preview should expose default damage bonus")
+    flanked:apply(TacticsState.commands.attack("warden", "target", 2, 0))
+    expect(flanked:unit("target").hp == 3, "flanking attack should apply deterministic damage bonus")
+
+    local protected = TacticsState.new({
+        board = { width = 3, height = 3, tiles = { ["2:2"] = { coverEdges = { west = "half" } } } },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 2, hp = 6 },
+            { id = "target", side = "enemy", x = 2, y = 2, hp = 6 },
+        },
+    })
+    preview = TacticsResolution.actionPreview(protected, TacticsState.commands.attack("warden", "target", 2, 0))
+    expect(not preview.flanked and preview.damage == 1 and preview.damageReductionApplied == 1, "protected cover edge should reduce attack damage")
+
+    local invalidationOnly = TacticsState.new({
+        rules = { flanking = { mode = "removeCover" } },
+        board = { width = 3, height = 3, tiles = { ["2:2"] = { coverEdges = { west = "half" } } } },
+        units = {
+            { id = "warden", side = "player", x = 3, y = 2, hp = 6 },
+            { id = "target", side = "enemy", x = 2, y = 2, hp = 6 },
+        },
+    })
+    preview = TacticsResolution.actionPreview(invalidationOnly, TacticsState.commands.attack("warden", "target", 2, 0))
+    expect(preview.flanked and preview.damage == 2 and preview.flankingBonus == 0 and preview.flankingRule.mode == "removeCover", "flanking mode should support cover invalidation without bonus damage")
 end
 
 tests[#tests + 1] = function()

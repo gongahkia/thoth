@@ -55,6 +55,7 @@ Rules:
 - Attack direction is derived from attacker tile to target tile.
 - If the target has any cover but not on the attacked edge, the target is flanked.
 - Flanking invalidates existing cover for that attack only.
+- Default flanking applies +50% deterministic damage after cover reduction; boards can set `rules.flanking.mode = "removeCover"` for invalidation-only flanks.
 - Flanking does not use hit chance math.
 
 Acceptance proof:

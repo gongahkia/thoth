@@ -558,7 +558,8 @@ function Runtime.actionAtTile(runtime, x, y)
         end
         local distance = selected and Grid.manhattan(selected.x, selected.y, unit.x, unit.y) or nil
         local enabled = selected and selected.ap >= 1 and distance and distance <= 3
-        local detail = distance and ("HP" .. tostring(unit.hp) .. " r" .. tostring(distance) .. "/3") or "no unit"
+        local attack = selected and distance and distance <= 3 and state:attackResolution(selected.id, unit.id, 1) or nil
+        local detail = distance and ("HP" .. tostring(unit.hp) .. " r" .. tostring(distance) .. "/3" .. (attack and (" dmg" .. tostring(attack.damage) .. (attack.flanked and " flank" or "")) or "")) or "no unit"
         if selected and selected.ap < 1 then
             detail = "need AP"
         end
@@ -643,11 +644,12 @@ function Runtime.attackCursor(runtime)
         setStatus(runtime, "target outside deterministic range")
         return false
     end
+    local attack = state:attackResolution(selected.id, target.id, 1)
     if tryApply(runtime, TacticsState.commands.attack(selected.id, target.id, 1, 1)) then
         if not target.alive then
             state.intents[target.id] = nil
         end
-        setStatus(runtime, selected.id .. " hit " .. target.id .. " for 1")
+        setStatus(runtime, selected.id .. " hit " .. target.id .. " for " .. tostring(attack.damage))
     end
     Runtime.refreshOverlays(runtime)
     return true
