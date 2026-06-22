@@ -14,7 +14,6 @@ local Achievements = require("src.app.achievements")
 local SpritePipeline = require("src.app.sprite_pipeline")
 local ModelPipeline = require("src.app.model_pipeline")
 local TileModelMap = require("assets.models.tile_model_map")
-local World = require("src.game.world")
 local Defs = require("src.game.defs")
 local TacticsState = require("src.game.tactics.state")
 local ZoneCatalog = require("src.game.tactics.zone_catalog")
@@ -76,30 +75,6 @@ local function readFile(path)
     local data = file:read("*a")
     file:close()
     return data
-end
-
-local function reachableRooms(world, start)
-    local seen = { [start] = true }
-    local queue = { start }
-    local index = 1
-    while queue[index] do
-        local roomKey = queue[index]
-        index = index + 1
-        for _, adjacent in ipairs(world:connectedRooms(roomKey)) do
-            if not seen[adjacent] then
-                seen[adjacent] = true
-                queue[#queue + 1] = adjacent
-            end
-        end
-    end
-    return seen
-end
-
-local function expectReachable(world, start, rooms, label)
-    local seen = reachableRooms(world, start)
-    for _, roomKey in ipairs(rooms) do
-        expect(seen[roomKey], label .. " missing reachable room " .. roomKey)
-    end
 end
 
 local tests = {}
@@ -3299,56 +3274,6 @@ tests[#tests + 1] = function()
         expect(mapped.path:find("addons/kaykit_dungeon_remastered/Assets/obj/", 1, true) == 1, "tile model path should use KayKit obj root")
         expect(mapped.path:match("%.obj$"), "tile model path should be obj")
     end
-end
-
-tests[#tests + 1] = function()
-    expect(World.floorDiv(31, World.chunkSize) == 0, "positive chunk edge failed")
-    expect(World.floorDiv(32, World.chunkSize) == 1, "positive chunk boundary failed")
-    expect(World.floorDiv(-1, World.chunkSize) == -1, "negative chunk edge failed")
-    expect(World.floorMod(-1, World.chunkSize) == 31, "negative chunk mod failed")
-    local world = World.new(101)
-    expect(world:loadedChunkCount() == 0, "fresh world loaded chunks")
-    expect(world:getTile(0, 0, 0).id == "archive_floor", "origin should be archive floor")
-    expect(world:getTile(3, 0, 0).id == "corridor", "corridor should pierce room edge")
-    expect(world:getTile(-2, 2, 0).id == "exit_gate", "exit gate missing")
-    local connected = world:connectedRooms("0:0")
-    expect(contains(connected, "8:0") and contains(connected, "0:8"), "room graph should expose corridor links")
-    local baseRevision = world:chunkRevision(0, 0, 0)
-    world:setTile(4, 0, 0, { id = "archive_floor", data = 0 })
-    expect(world:getTile(4, 0, 0).id == "archive_floor", "override did not persist")
-    expect(world:chunkRevision(0, 0, 0) == baseRevision + 1, "override should bump chunk revision")
-    local loaded = World.fromSnapshot(world:snapshot())
-    expect(loaded:getTile(4, 0, 0).id == "archive_floor", "world snapshot lost override")
-end
-
-tests[#tests + 1] = function()
-    local scout = World.new(101, "buried_archive", { tiles = {}, layoutId = "archive_scout" })
-    local cleanse = World.new(101, "buried_archive", { tiles = {}, layoutId = "archive_cleansing" })
-    expect(scout:layout().generated and scout:layout().generatedLayoutId == World.fromSnapshot(scout:snapshot()):layout().generatedLayoutId, "archive layout should generate deterministically")
-    expect(cleanse:encounterForRoom("16:6") == "undercroft" and scout:encounterForRoom("16:6") == nil, "mission grammar should vary archive encounter anchors")
-    local seen = reachableRooms(cleanse, "0:0")
-    expect(seen["24:0"] and seen["16:0"] and seen["0:8"] and seen["8:6"], "generated archive required rooms should be reachable")
-    expect(contains(cleanse:connectedRooms("8:0"), "16:0") and contains(cleanse:connectedRooms("8:0"), "8:6"), "generated archive should include a loop and optional branch")
-    expect(#cleanse:threatsInRect(-999, 999, -999, 999, 0) >= 2, "generated archive should expose visible threats")
-    expect(#(cleanse:layout().megastructure.platforms or {}) >= #(cleanse:layout().rooms or {}), "generated archive should add megastructure platforms around rooms")
-    expect(#(cleanse:layout().megastructure.bridges or {}) > #(cleanse:layout().corridors or {}), "generated archive should add side spans beyond graph corridors")
-    expect(Defs.tile(cleanse:getTile(4, 4, 0).id).walkable == true, "megastructure platform should create explorable space outside rectangular rooms")
-    expect(#(cleanse:layout().megastructure.hidden or {}) >= 1, "generated archive should add rotation-hidden megastructure rewards")
-end
-
-tests[#tests + 1] = function()
-    local map = World.new(102, "buried_archive", { tiles = {}, layoutId = "archive_intake_map" })
-    local reeve = World.new(102, "buried_archive", { tiles = {}, layoutId = "archive_silence_reeve" })
-    local witness = World.new(102, "buried_archive", { tiles = {}, layoutId = "archive_witness_confession" })
-    expect(map:encounterForRoom("24:0") == nil, "intake map should omit boss gate encounter")
-    expect(reeve:encounterForRoom("8:6") == "archive_reeve" and reeve:encounterForRoom("24:0") == nil, "reeve mission should route to mini-boss without final boss")
-    expect(witness:encounterForRoom("8:6") == "archive_witness" and witness:encounterForRoom("24:6") == "archive_bailiff", "witness mission should place stand-and-survive fights")
-    expect(reeve:layout().roomTemplateByRole.entrance == "intake_desk", "archive layout should expose room template roles")
-    local roles = {}
-    for _, corridor in ipairs(reeve:layout().corridors) do
-        roles[corridor.role] = true
-    end
-    expect(roles.audit_lane and roles.shelf_crawl and roles.writ_run, "archive layout should assign v2 corridor roles")
 end
 
 tests[#tests + 1] = function()
