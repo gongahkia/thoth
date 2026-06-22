@@ -2938,6 +2938,7 @@ tests[#tests + 1] = function()
         tactics = { state = state, selectedUnitId = "warden", cursor = { x = 3, y = 3 } },
         viewRotation = 1,
         previousViewRotation = 0,
+        viewTurn = { from = 0, to = 1, t = 0, duration = 0.24 },
         worldView = { centerX = 400, centerY = 300, halfW = 32, halfH = 16, originX = 0, originY = 0, rotation = 1 },
     }
     local arrows = Render.tacticalGhostArrowEntries(app)
@@ -2947,6 +2948,11 @@ tests[#tests + 1] = function()
         expect(arrow.fromRotation == 0 and arrow.toRotation == 1 and arrow.x .. ":" .. arrow.y == arrow.tileId, "ghost arrow should preserve logical tile id")
     end
     expect(byTile["1:1"] and byTile["2:2"] and byTile["3:3"], "ghost arrows should cover selected, objective, and cursor tiles")
+    app.viewTurn = nil
+    expect(#Render.tacticalGhostArrowEntries(app) == 0, "ghost arrows should hide outside active rotation")
+    app.viewTurn = { from = 1, to = 2, t = 0, duration = 0.24 }
+    app.previousViewRotation = nil
+    expect(#Render.tacticalGhostArrowEntries(app) == 0, "ghost arrows should not invent a previous rotation")
 end
 
 tests[#tests + 1] = function()

@@ -1079,13 +1079,17 @@ end
 
 function Render.tacticalGhostArrowEntries(app)
     local view = app and app.worldView
-    if not view then
+    if not (view and app.viewTurn) then
         return {}
     end
     local current = (app.viewRotation or view.rotation or 0) % 4
     local previous = app.previousViewRotation
-    if previous == nil or previous == current then
-        previous = (current + 3) % 4
+    if previous == nil then
+        return {}
+    end
+    previous = previous % 4
+    if previous == current then
+        return {}
     end
     local fromView = rotationAuditView(view, previous)
     local toView = rotationAuditView(view, current)
