@@ -19,6 +19,7 @@ The TODO line says "10 screens" but names 11. This file covers all 11 named scre
 |---|---|---|
 | `title` | save probe, settings | new game, continue, settings, quit |
 | `new_game` | seed, timer/difficulty defaults | create `Simulation.new(seed)` |
+| `squad_loadout` | six slice classes, starter loadouts | confirm one distinct unit per class |
 | `estate` | `sim.estate`, mission board, roster | recruit, recover, train, upgrade, buy, launch |
 | `party` | roster, `sim.party`, mission | `assignParty`, buy provisions |
 | `equipment` | selected hero, gear, skills | `upgradeSkill`, `upgradeGear`, treatment |
@@ -32,7 +33,7 @@ The TODO line says "10 screens" but names 11. This file covers all 11 named scre
 ## Flow
 
 ```text
-title -> new_game -> estate -> party -> expedition_hud -> estate
+title -> squad_loadout -> expedition_hud -> estate
 title -> continue -> estate|expedition_hud|game_over
 any gameplay state -> pause -> settings
 estate -> equipment|trinkets|credits
@@ -91,6 +92,29 @@ Notes:
 - Seed edit is optional first pass; if omitted, display generated seed before launch.
 - Start creates `Simulation.new(seed)` and enters estate.
 - Back returns to title without mutating existing save.
+
+## Squad Loadout
+
+Purpose: choose the first tactical squad before mission 1.
+
+```text
++------------------------------------------------------------------------------+
+| Squad Loadout                                           mission 1 / 6 of 6    |
+|------------------------------------------------------------------------------|
+| [x] Warden        cover and objective guard       line_guard / claim_anchor   |
+| [x] Duelist       flank and reposition            red_line / patron_shadow    |
+| [x] Apothecary    repair and rescue support       field_triage / smoke_binder |
+| [x] Thief         route and extraction utility    ghost_route / courier_cut   |
+| [x] Arcanist      seal and intent control         seal_reader / line_bender   |
+| [x] Lamplighter   route light and overwatch       beacon_runner / cone_keeper |
+|                                                                              |
+| [Back]                                                     [Start Mission]    |
++------------------------------------------------------------------------------+
+```
+
+Notes:
+- Duplicate classes are disabled for mission 1; the first slice ships one tactical role implementation per class.
+- Start is disabled unless all six distinct slice classes are selected.
 
 ## Estate Hub
 

@@ -215,6 +215,8 @@ ClassCatalog.starterRoster = {
     { classId = "duelist", loadoutIds = { "red_line", "patron_shadow" }, routeRole = "flank and reposition", preview = "dash through safe lanes or swap adjacency", strongBoardFixture = "archive_entry_audit", awkwardBoardFixture = "archive_shelf_protection" },
     { classId = "mender", loadoutIds = { "field_triage", "smoke_binder" }, routeRole = "repair and rescue support", preview = "stabilize objectives or place smoke", strongBoardFixture = "archive_ledger_repair", awkwardBoardFixture = "archive_elite_claim" },
     { classId = "harrier", loadoutIds = { "ghost_route", "courier_cut" }, routeRole = "route and extraction utility", preview = "open quiet paths or move proof cargo", strongBoardFixture = "archive_proof_extract", awkwardBoardFixture = "archive_sealed_shortcut" },
+    { classId = "arcanist", loadoutIds = { "seal_reader", "line_bender" }, routeRole = "seal and intent control", preview = "reveal sealed facts or bend LoS", strongBoardFixture = "archive_sealed_shortcut", awkwardBoardFixture = "archive_proof_extract" },
+    { classId = "lamplighter", loadoutIds = { "beacon_runner", "cone_keeper" }, routeRole = "route light and overwatch control", preview = "anchor beacon routes or project cones", strongBoardFixture = "archive_entry_audit", awkwardBoardFixture = "archive_elite_claim" },
 }
 
 ClassCatalog.traits = {
@@ -541,7 +543,7 @@ end
 
 function ClassCatalog.auditStarterRoster()
     local report = { valid = true, missing = {} }
-    if #ClassCatalog.starterRoster ~= 4 then
+    if #ClassCatalog.starterRoster ~= 6 then
         report.valid = false
         table.insert(report.missing, "starter.count")
     end

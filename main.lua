@@ -13,6 +13,7 @@ local SpritePipeline = require("src.app.sprite_pipeline")
 local ModelPipeline = require("src.app.model_pipeline")
 local TacticsState = require("src.game.tactics.state")
 local TacticalRuntime = require("src.game.tactical_runtime")
+local SquadLoadout = require("src.game.tactics.squad_loadout")
 
 local sim
 local app
@@ -276,7 +277,7 @@ local function refreshReplayState(state)
     state.replayStatus = data and Replay.summary(data) or "no replay"
 end
 
-local function enterTacticalGame(state)
+local function enterTacticalGame(state, squadLoadout)
     sim = newTacticalSim(20260618)
     state.tacticalMode = true
     state.uiState = "game"
@@ -286,9 +287,36 @@ local function enterTacticalGame(state)
     state.tacticalZoom = 1.75
     state.tacticalHover = nil
     resetVisualState(state, sim)
-    state.tactics = TacticalRuntime.new(sim)
+    state.squadLoadout = squadLoadout or state.squadLoadout
+    state.squadSelect = nil
+    state.tactics = TacticalRuntime.new(sim, { squadLoadout = state.squadLoadout })
     state.tacticalOverlays = state.tactics.overlays
     TacticalRuntime.syncWorld(sim, state.tactics)
+end
+
+local function enterSquadLoadout(state)
+    sim = newTacticalSim(20260618)
+    state.tacticalMode = false
+    state.uiState = "squad_loadout"
+    state.status = "squad loadout"
+    state.tutorial = nil
+    state.tacticalHover = nil
+    state.tactics = nil
+    state.tacticalOverlays = nil
+    state.squadLoadout = nil
+    state.squadSelect = SquadLoadout.defaultSelection()
+    resetVisualState(state, sim)
+end
+
+local function startSelectedSquad(state)
+    local loadout, err = SquadLoadout.runtimeLoadout(state.squadSelect or SquadLoadout.defaultSelection())
+    if not loadout then
+        state.status = tostring(err)
+        playUi(state, "invalid")
+        return false
+    end
+    enterTacticalGame(state, loadout)
+    return true
 end
 
 local function requestQuit(state)
@@ -351,7 +379,7 @@ end
 
 local function activateTitleAction(state, action)
     if action == "new" then
-        enterTacticalGame(state)
+        enterSquadLoadout(state)
         return
     end
     if action == "continue" then
@@ -434,6 +462,63 @@ local function mouseTitle(state, x, y)
                 state.titleMenuIndex = hitbox.index
                 activateTitleAction(state, hitbox.action)
                 playUi(state, hitbox.action == "quit" and "invalid" or "tick")
+            end
+            return true
+        end
+    end
+    return false
+end
+
+local function keySquadLoadout(state, key)
+    state.squadSelect = state.squadSelect or SquadLoadout.defaultSelection()
+    if key == "up" or key == "w" then
+        SquadLoadout.moveFocus(state.squadSelect, -1)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "down" or key == "s" then
+        SquadLoadout.moveFocus(state.squadSelect, 1)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "space" then
+        SquadLoadout.toggle(state.squadSelect)
+        Audio.play(state.audio, "tick")
+        return
+    end
+    if key == "return" or key == "kpenter" then
+        if startSelectedSquad(state) then
+            Audio.play(state.audio, "tick")
+        end
+        return
+    end
+    if key == "escape" or key == "backspace" then
+        state.uiState = "title"
+        state.squadSelect = nil
+        refreshContinueState(state)
+        Audio.play(state.audio, "tick")
+    end
+end
+
+local function mouseSquadLoadout(state, x, y)
+    state.squadSelect = state.squadSelect or SquadLoadout.defaultSelection()
+    for _, hitbox in ipairs((state.ui and state.ui.squadLoadoutButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            if hitbox.index then
+                state.squadSelect.focus = hitbox.index
+            end
+            if hitbox.action == "toggle" then
+                SquadLoadout.toggle(state.squadSelect, hitbox.index)
+                Audio.play(state.audio, "tick")
+            elseif hitbox.action == "start" then
+                if startSelectedSquad(state) then
+                    Audio.play(state.audio, "tick")
+                end
+            elseif hitbox.action == "back" then
+                state.uiState = "title"
+                state.squadSelect = nil
+                refreshContinueState(state)
+                Audio.play(state.audio, "tick")
             end
             return true
         end
@@ -596,6 +681,9 @@ local function quitToTitle(state)
     sim = newTacticalSim(20260618)
     state.tactics = nil
     state.tacticalOverlays = nil
+    state.tacticalMode = false
+    state.squadSelect = nil
+    state.squadLoadout = nil
     state.paused = false
     state.uiState = "title"
     state.pauseStatus = nil
@@ -769,7 +857,7 @@ end
 
 local function activateGameOverAction(state, action)
     if action == "restart" then
-        enterTacticalGame(state)
+        enterSquadLoadout(state)
         Audio.play(state.audio, "tick")
         return
     end
@@ -777,6 +865,9 @@ local function activateGameOverAction(state, action)
         sim = newTacticalSim(20260618)
         state.tactics = nil
         state.tacticalOverlays = nil
+        state.tacticalMode = false
+        state.squadSelect = nil
+        state.squadLoadout = nil
         state.paused = false
         state.uiState = "title"
         state.gameOverStatus = nil
@@ -1511,6 +1602,11 @@ function love.draw()
         capturePreviewIfNeeded(app)
         return
     end
+    if app.uiState == "squad_loadout" then
+        Render.drawSquadLoadout(sim, app)
+        capturePreviewIfNeeded(app)
+        return
+    end
     if app.uiState == "gameover" then
         Render.drawGameOver(sim, app)
         printGameOverSmoke(app)
@@ -1581,6 +1677,10 @@ local function handleKey(key)
     end
     if app.uiState == "settings" then
         keySettings(app, key)
+        return
+    end
+    if app.uiState == "squad_loadout" then
+        keySquadLoadout(app, key)
         return
     end
     if app.uiState == "gameover" then
@@ -1722,6 +1822,10 @@ function love.mousepressed(x, y, button)
     end
     if button == 1 and app.uiState == "settings" then
         mouseSettings(app, x, y)
+        return
+    end
+    if button == 1 and app.uiState == "squad_loadout" then
+        mouseSquadLoadout(app, x, y)
         return
     end
     if button == 1 and app.uiState == "gameover" then

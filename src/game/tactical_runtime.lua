@@ -77,14 +77,27 @@ local function straightLineDirection(fromX, fromY, toX, toY)
     return nil, 0
 end
 
-local function classLoadoutPayload(classId)
+local function classLoadoutPayload(classId, loadoutIds)
     local class = ClassCatalog.class(classId)
     local loadouts = {}
     local tools = {}
-    for index, loadout in ipairs(ClassCatalog.loadouts(classId)) do
-        if index > (ClassCatalog.loadoutSlots(classId) or 2) then
-            break
+    local selectedLoadouts = {}
+    for _, loadoutId in ipairs(loadoutIds or {}) do
+        local loadout = ClassCatalog.loadout(classId, loadoutId)
+        if not loadout then
+            error("unknown tactical loadout " .. tostring(classId) .. "." .. tostring(loadoutId), 2)
         end
+        selectedLoadouts[#selectedLoadouts + 1] = loadout
+    end
+    if #selectedLoadouts == 0 then
+        for index, loadout in ipairs(ClassCatalog.loadouts(classId)) do
+            if index > (ClassCatalog.loadoutSlots(classId) or 2) then
+                break
+            end
+            selectedLoadouts[#selectedLoadouts + 1] = loadout
+        end
+    end
+    for _, loadout in ipairs(selectedLoadouts) do
         loadouts[#loadouts + 1] = { id = loadout.id, boardVerb = loadout.boardVerb, tools = copyList(loadout.tools) }
         for _, tool in ipairs(loadout.tools or {}) do
             tools[#tools + 1] = tool
@@ -143,11 +156,36 @@ local function deploymentTiles(spec, count)
     return result
 end
 
-local function applyLiveClassSquad(spec)
-    local deployments = deploymentTiles(spec, #liveClassRoster)
+local function normalizeSquadLoadout(loadout)
+    local source = loadout and (loadout.units or loadout) or liveClassRoster
+    local allowDuplicateClasses = loadout and loadout.allowDuplicateClasses == true
+    local roster = {}
+    local seenClasses = {}
+    for index, entry in ipairs(source or {}) do
+        local classId = entry.classId
+        if not ClassCatalog.class(classId) then
+            error("unknown tactical class " .. tostring(classId), 2)
+        end
+        if not allowDuplicateClasses and seenClasses[classId] then
+            error("duplicate tactical class " .. tostring(classId), 2)
+        end
+        seenClasses[classId] = true
+        roster[#roster + 1] = {
+            id = entry.id or (classId .. "_" .. tostring(index)),
+            classId = classId,
+            hp = entry.hp or 4,
+            loadoutIds = copyList(entry.loadoutIds),
+        }
+    end
+    return roster
+end
+
+local function applyLiveClassSquad(spec, squadLoadout)
+    local roster = normalizeSquadLoadout(squadLoadout)
+    local deployments = deploymentTiles(spec, #roster)
     local units = {}
-    for index, entry in ipairs(liveClassRoster) do
-        local class, loadouts, boardVerbs, tools = classLoadoutPayload(entry.classId)
+    for index, entry in ipairs(roster) do
+        local class, loadouts, boardVerbs, tools = classLoadoutPayload(entry.classId, entry.loadoutIds)
         units[#units + 1] = {
             id = entry.id,
             name = class and class.name or entry.id,
@@ -406,7 +444,7 @@ local function makeRouteState(options)
     local variantId = (options and options.variantId) or route.start
     local seed = options and options.seed
     local spec = Procgen.generateArchiveRouteBoard(variantId, seed)
-    applyLiveClassSquad(spec)
+    applyLiveClassSquad(spec, options and options.squadLoadout)
     return TacticsState.new(spec), spec
 end
 
@@ -440,6 +478,7 @@ function Runtime.new(sim, options)
         message = boardSpec and boardSpec.archiveRoute.preview or "read intents, spend AP, protect the route machine",
         turn = 1,
         sim = sim,
+        squadLoadout = options.squadLoadout,
         state = state,
         boardSpec = boardSpec,
         route = boardSpec and boardSpec.archiveRoute or nil,
@@ -467,7 +506,7 @@ function Runtime.new(sim, options)
 end
 
 function Runtime.loadRouteVariant(runtime, variantId)
-    local state, boardSpec = makeRouteState({ variantId = variantId })
+    local state, boardSpec = makeRouteState({ variantId = variantId, squadLoadout = runtime.squadLoadout })
     local selectedUnitId = state.selectedUnitId or firstPlayerId(state)
     local selected = selectedUnitId and state:unit(selectedUnitId) or nil
     runtime.state = state
@@ -1461,7 +1500,7 @@ function Runtime.summary(runtime)
     end
     local players = {}
     for _, unit in ipairs(state:unitsForSide("player")) do
-        players[#players + 1] = { id = unit.id, hp = unit.hp, ap = unit.ap, x = unit.x, y = unit.y, selected = selected and selected.id == unit.id }
+        players[#players + 1] = { id = unit.id, class = unit.class, className = unit.className, loadouts = unit.loadouts, hp = unit.hp, ap = unit.ap, x = unit.x, y = unit.y, selected = selected and selected.id == unit.id }
     end
     return {
         mode = "tactical",

@@ -2,6 +2,7 @@ local Defs = require("src.game.defs")
 local Settings = require("src.app.settings")
 local Credits = require("src.app.credits")
 local TacticsUICatalog = require("src.game.tactics.ui_catalog")
+local SquadLoadout = require("src.game.tactics.squad_loadout")
 
 local function t(key, vars)
     local text = tostring(key or "")
@@ -47,6 +48,7 @@ local uiHitboxGroups = {
     "creditsButtons",
     "journalButtons",
     "tutorialButtons",
+    "squadLoadoutButtons",
     "curioButtons",
     "campSkillButtons",
     "campHeroButtons",
@@ -440,6 +442,7 @@ function Render.prepareUi(app)
     app.ui.creditsButtons = app.ui.creditsButtons or {}
     app.ui.journalButtons = app.ui.journalButtons or {}
     app.ui.tutorialButtons = app.ui.tutorialButtons or {}
+    app.ui.squadLoadoutButtons = app.ui.squadLoadoutButtons or {}
     app.ui.titleButtons = app.ui.titleButtons or {}
     app.ui.settingsButtons = app.ui.settingsButtons or {}
     clearList(app.ui.skillButtons)
@@ -461,6 +464,7 @@ function Render.prepareUi(app)
     clearList(app.ui.creditsButtons)
     clearList(app.ui.journalButtons)
     clearList(app.ui.tutorialButtons)
+    clearList(app.ui.squadLoadoutButtons)
     clearList(app.ui.titleButtons)
     clearList(app.ui.settingsButtons)
 end
@@ -2884,6 +2888,94 @@ function Render.drawTitle(sim, app)
     Render.drawUiMicroAnimations(app)
     love.graphics.pop()
     return items
+end
+
+local function layoutSquadLoadoutButtons(app, width, height)
+    local selection = app.squadSelect or SquadLoadout.defaultSelection()
+    app.squadSelect = selection
+    local buttons = app.ui.squadLoadoutButtons
+    local x = math.max(48, math.floor(width * 0.08))
+    local y = math.max(112, math.floor(height * 0.16))
+    local rowW = math.min(720, width - x * 2)
+    local rowH = clamp(math.floor((height - y - 154) / math.max(1, #selection.classes)) - 8, 42, 62)
+    for index in ipairs(selection.classes) do
+        buttons[#buttons + 1] = { x = x, y = y + (index - 1) * (rowH + 8), w = rowW, h = rowH, action = "toggle", index = index }
+    end
+    local buttonY = height - 82
+    buttons[#buttons + 1] = { x = x, y = buttonY, w = 176, h = 42, action = "back" }
+    buttons[#buttons + 1] = { x = x + rowW - 212, y = buttonY, w = 212, h = 42, action = "start", enabled = SquadLoadout.ready(selection) }
+    return buttons
+end
+
+function Render.squadLoadoutSummary(app)
+    return SquadLoadout.summary((app and app.squadSelect) or SquadLoadout.defaultSelection())
+end
+
+local function loadoutText(entry)
+    local parts = {}
+    for _, loadoutId in ipairs(entry.loadoutIds or {}) do
+        parts[#parts + 1] = tostring(loadoutId)
+    end
+    return table.concat(parts, " / ")
+end
+
+local function drawSquadLoadoutRow(app, entry, button)
+    local active = app.squadSelect and app.squadSelect.focus == entry.index
+    local selected = entry.selected == true
+    love.graphics.setColor(selected and 0.11 or 0.07, selected and 0.14 or 0.08, selected and 0.13 or 0.08, 0.94)
+    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(active and 0.84 or 0.28, active and 0.68 or 0.34, active and 0.34 or 0.28, selected and 1 or 0.65)
+    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(selected and 0.92 or 0.46, selected and 0.92 or 0.46, selected and 0.84 or 0.46, 1)
+    love.graphics.printf((selected and "[x] " or "[ ] ") .. tostring(entry.className), button.x + 12, button.y + 8, 220, "left")
+    love.graphics.setColor(0.72, 0.78, 0.7, 1)
+    love.graphics.printf(tostring(entry.routeRole or "-"), button.x + 230, button.y + 8, button.w - 242, "left")
+    love.graphics.setColor(0.58, 0.64, 0.58, 1)
+    love.graphics.printf(loadoutText(entry), button.x + 230, button.y + 30, button.w - 242, "left")
+end
+
+local function drawSquadLoadoutCommand(app, button, label, enabled)
+    love.graphics.setColor(enabled and 0.12 or 0.07, enabled and 0.14 or 0.08, enabled and 0.12 or 0.08, enabled and 0.96 or 0.58)
+    love.graphics.rectangle("fill", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(enabled and 0.72 or 0.28, enabled and 0.62 or 0.3, enabled and 0.34 or 0.26, 1)
+    love.graphics.rectangle("line", button.x, button.y, button.w, button.h)
+    love.graphics.setColor(enabled and 0.92 or 0.44, enabled and 0.92 or 0.44, enabled and 0.84 or 0.44, 1)
+    love.graphics.printf(label, button.x + 12, button.y + 13, button.w - 24, "center")
+end
+
+function Render.drawSquadLoadout(sim, app)
+    Render.prepareUi(app)
+    layoutSquadLoadoutButtons(app, 1280, 720)
+    if not (love and love.graphics) then
+        return Render.squadLoadoutSummary(app)
+    end
+    local width, height = love.graphics.getDimensions()
+    love.graphics.clear(0.04, 0.043, 0.047, 1)
+    Render.drawWorld(sim, app)
+    clearList(app.ui.squadLoadoutButtons)
+    local buttons = layoutSquadLoadoutButtons(app, width, height)
+    local summary = Render.squadLoadoutSummary(app)
+    love.graphics.push("all")
+    love.graphics.setDepthMode()
+    love.graphics.setColor(0.012, 0.014, 0.016, 0.72)
+    love.graphics.rectangle("fill", 0, 0, width, height)
+    panel(48, 48, width - 96, height - 96, 0.92)
+    love.graphics.setColor(0.92, 0.9, 0.8, 1)
+    love.graphics.print("Squad Loadout", 72, 72)
+    love.graphics.setColor(0.62, 0.68, 0.62, 1)
+    love.graphics.printf("mission 1  " .. tostring(summary.selected) .. "/" .. tostring(summary.required) .. "  duplicates off", 72, 96, width - 144, "left")
+    for index, entry in ipairs(app.squadSelect.classes or {}) do
+        drawSquadLoadoutRow(app, entry, buttons[index])
+    end
+    local back = buttons[#buttons - 1]
+    local start = buttons[#buttons]
+    drawSquadLoadoutCommand(app, back, "Back", true)
+    drawSquadLoadoutCommand(app, start, "Start Mission", start.enabled ~= false)
+    love.graphics.setColor(0.58, 0.62, 0.58, 1)
+    love.graphics.printf(tostring(app.status or summary.duplicatePolicy), 72, height - 34, width - 144, "left")
+    Render.drawUiMicroAnimations(app)
+    love.graphics.pop()
+    return summary
 end
 
 local function drawSliderControl(app, control, x, y, w, active)

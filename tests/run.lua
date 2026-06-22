@@ -34,6 +34,7 @@ local TacticsProcgen = require("src.game.tactics.procgen")
 local ArchivedTactics = require("src.game.tactics.archive.future_zones")
 local TacticsReplay = require("src.game.tactics.replay")
 local TacticalRuntime = require("src.game.tactical_runtime")
+local SquadLoadout = require("src.game.tactics.squad_loadout")
 
 local function expect(value, message)
     if not value then
@@ -149,6 +150,30 @@ tests[#tests + 1] = function()
     expect(runtime.state:objective("entry_shelf").integrity == 3, "enemy intent should leave untargeted objective intact")
     expect(runtime.state:unit("warden").hp == 5, "visible enemy intent should update to the moved unit")
     expect(runtime.state.phase == "player" and runtime.state:unit("warden").ap == 2, "runtime should return to player phase with AP refreshed")
+end
+
+tests[#tests + 1] = function()
+    local selection = SquadLoadout.defaultSelection()
+    local summary = SquadLoadout.summary(selection)
+    local expected = { "warden", "duelist", "mender", "harrier", "arcanist", "lamplighter" }
+    expect(summary.selected == 6 and summary.required == 6 and summary.ready and summary.allowDuplicateClasses == false, "squad loadout should default to six distinct slice classes")
+    for index, classId in ipairs(expected) do
+        local entry = selection.classes[index]
+        expect(entry and entry.classId == classId and entry.selected and #entry.loadoutIds == 2, "squad loadout should expose starter loadouts for " .. classId)
+    end
+    local payload = SquadLoadout.runtimeLoadout(selection)
+    expect(payload and #payload.units == 6 and payload.allowDuplicateClasses == false, "squad loadout should export runtime payload")
+    SquadLoadout.toggle(selection, 1)
+    local ok, err = SquadLoadout.validate(selection)
+    expect(not ok and err == "select six distinct classes", "squad loadout should reject squads below six distinct classes")
+    local app = { squadSelect = selection, ui = { squadLoadoutButtons = { { stale = true } } } }
+    local renderSummary = Render.drawSquadLoadout(nil, app)
+    expect(renderSummary.selected == 5 and #app.ui.squadLoadoutButtons == 8 and app.ui.squadLoadoutButtons[#app.ui.squadLoadoutButtons].enabled == false, "squad loadout screen should expose class rows plus disabled start")
+    SquadLoadout.toggle(selection, 1)
+    local readyPayload = SquadLoadout.runtimeLoadout(selection)
+    local runtime = TacticalRuntime.new(makeTacticalSim(9018), { squadLoadout = readyPayload })
+    local players = runtime:summary().players
+    expect(#players == 6 and players[6].class == "lamplighter" and #players[6].loadouts == 2, "runtime should instantiate selected squad loadout")
 end
 
 tests[#tests + 1] = function()
@@ -2122,9 +2147,9 @@ end
 tests[#tests + 1] = function()
     local audit = ClassCatalog.auditStarterRoster()
     local ids = ClassCatalog.starterClassIds()
-    local expected = { "warden", "duelist", "mender", "harrier" }
-    expect(audit.valid, "starter roster should expose four classes with two loadouts each")
-    expect(#ids == 4, "starter roster should define exactly four classes")
+    local expected = { "warden", "duelist", "mender", "harrier", "arcanist", "lamplighter" }
+    expect(audit.valid, "starter roster should expose six classes with two loadouts each")
+    expect(#ids == 6, "starter roster should define exactly six classes")
     for index, classId in ipairs(expected) do
         expect(ids[index] == classId, "starter roster should preserve starter class order")
         local loadouts = ClassCatalog.starterLoadouts(classId)
@@ -2136,7 +2161,7 @@ tests[#tests + 1] = function()
             expect(ClassCatalog.loadout(classId, loadout.id), classId .. " starter loadout should reference class catalog loadout")
         end
     end
-    expect(#ClassCatalog.starterLoadouts("arcanist") == 0 and #ClassCatalog.starterLoadouts("merchant") == 0, "advanced classes should not enter starter roster")
+    expect(#ClassCatalog.starterLoadouts("merchant") == 0 and #ClassCatalog.starterLoadouts("chirurgeon") == 0 and #ClassCatalog.starterLoadouts("exile") == 0, "non-slice classes should not enter starter roster")
 end
 
 tests[#tests + 1] = function()
@@ -3804,6 +3829,7 @@ tests[#tests + 1] = function()
             creditsButtons = { { stale = true } },
             journalButtons = { { stale = true } },
             tutorialButtons = { { stale = true } },
+            squadLoadoutButtons = { { stale = true } },
             titleButtons = { { stale = true } },
             settingsButtons = { { stale = true } },
         },
@@ -3822,7 +3848,7 @@ tests[#tests + 1] = function()
     expect(#app.ui.partyRankSlots == 0, "prepareUi should clear party rank slots")
     expect(#app.ui.curioButtons == 0, "prepareUi should clear curio buttons")
     expect(#app.ui.campSkillButtons == 0 and #app.ui.campHeroButtons == 0, "prepareUi should clear camp buttons")
-    expect(#app.ui.pauseButtons == 0 and #app.ui.confirmButtons == 0 and #app.ui.gameOverButtons == 0 and #app.ui.creditsButtons == 0 and #app.ui.journalButtons == 0 and #app.ui.tutorialButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
+    expect(#app.ui.pauseButtons == 0 and #app.ui.confirmButtons == 0 and #app.ui.gameOverButtons == 0 and #app.ui.creditsButtons == 0 and #app.ui.journalButtons == 0 and #app.ui.tutorialButtons == 0 and #app.ui.squadLoadoutButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
     app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
     app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }
     Render.prepareUi(app)
