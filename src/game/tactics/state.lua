@@ -748,6 +748,7 @@ local statusRules = {
     blinded = {},
     braced = { amount = 1 },
     stabilized = {},
+    ghosted = {},
 }
 
 local function normalizeStatuses(statuses)
@@ -1038,7 +1039,20 @@ function State:visibilityGrid(side)
             fog[key] = not isVisible
         end
     end
-    return { side = side, width = self.board.width, height = self.board.height, visible = visible, fog = fog, tiles = tiles }
+    local units = {}
+    local hiddenUnits = {}
+    for _, id in ipairs(self.unitOrder) do
+        local unit = self.units[id]
+        if unit and unit.alive and not unit.evacuated then
+            local tileVisible = visible[tileKey(unit.x, unit.y)] == true
+            local hidden = tileVisible and self:unitHiddenFromSide(unit, side)
+            units[id] = tileVisible and not hidden
+            if hidden then
+                hiddenUnits[id] = true
+            end
+        end
+    end
+    return { side = side, width = self.board.width, height = self.board.height, visible = visible, fog = fog, tiles = tiles, units = units, hiddenUnits = hiddenUnits }
 end
 
 function State:computeSquadVisibility(side)
@@ -1417,6 +1431,14 @@ end
 function State:status(unitOrId, kind)
     local unit = type(unitOrId) == "table" and unitOrId or expect(self.units[unitOrId], "unknown unit " .. tostring(unitOrId))
     return unit.statuses and unit.statuses[kind] or nil
+end
+
+function State:unitHiddenFromSide(unitOrId, side)
+    local unit = type(unitOrId) == "table" and unitOrId or expect(self.units[unitOrId], "unknown unit " .. tostring(unitOrId))
+    if not unit.alive or unit.evacuated or unit.side == side then
+        return false
+    end
+    return self:hasStatus(unit, "ghosted")
 end
 
 function State:hasStatus(unitOrId, kind)
@@ -2350,6 +2372,23 @@ function State:extractObjective(id)
     return objective
 end
 
+function State:extractCargo(unitId, objectiveId)
+    local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
+    local cargoId = expect(unit.carryingCargo, "unit is not carrying cargo")
+    local cargo = expect(self.cargo[cargoId], "unknown cargo " .. tostring(cargoId))
+    local objective = expect(self.objectives[objectiveId], "unknown objective " .. tostring(objectiveId))
+    local atObjective = unit.x == objective.x and unit.y == objective.y
+    local atEvac = objective.evacuateAt and unit.x == objective.evacuateAt.x and unit.y == objective.evacuateAt.y
+    expect(atObjective or atEvac, "unit is not on extraction tile")
+    self:extractObjective(objectiveId)
+    cargo.extracted = true
+    cargo.carriedBy = nil
+    cargo.x = unit.x
+    cargo.y = unit.y
+    unit.carryingCargo = nil
+    return cargo
+end
+
 function State:disableObjective(id, reason)
     local objective = expect(self.objectives[id], "unknown objective " .. tostring(id))
     expect(not objective.failed, "objective already failed")
@@ -3071,6 +3110,10 @@ function State:apply(command)
         expect(not objective.failed, "objective already failed")
         self:spendAP(command.unit, command.cost or 1)
         self:extractObjective(command.objective)
+    elseif kind == "extractCargo" then
+        expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
+        self:spendAP(command.unit, command.cost or 1)
+        self:extractCargo(command.unit, command.objective)
     elseif kind == "disableObjective" then
         expect(self.objectives[command.objective], "unknown objective " .. tostring(command.objective))
         self:spendAP(command.unit, command.cost or 1)
@@ -3229,8 +3272,8 @@ function State:snapshot()
     }
 end
 
-function commands.move(unitId, direction)
-    return { type = "move", unit = unitId, direction = direction }
+function commands.move(unitId, direction, cost)
+    return { type = "move", unit = unitId, direction = direction, cost = cost }
 end
 
 function commands.wait(unitId)
@@ -3323,6 +3366,10 @@ end
 
 function commands.extractObjective(unitId, objectiveId, cost)
     return { type = "extractObjective", unit = unitId, objective = objectiveId, cost = cost }
+end
+
+function commands.extractCargo(unitId, objectiveId, cost)
+    return { type = "extractCargo", unit = unitId, objective = objectiveId, cost = cost }
 end
 
 function commands.disableObjective(unitId, objectiveId, reason, cost)

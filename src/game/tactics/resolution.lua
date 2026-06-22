@@ -153,6 +153,27 @@ function Resolution.actionPreview(state, command)
             addTile(preview.affectedTiles, objective.x, objective.y)
             preview.objectiveRepair = { id = objective.id, x = objective.x, y = objective.y, amount = amount, integrityAfter = math.min(objective.maxIntegrity or objective.integrity or 0, (objective.integrity or 0) + amount) }
         end
+    elseif command.type == "extractObjective" then
+        local objective = state:objective(command.objective)
+        if objective then
+            addTile(preview.affectedTiles, objective.x, objective.y)
+            preview.objectiveExtract = { id = objective.id, x = objective.x, y = objective.y }
+        end
+    elseif command.type == "carryCargo" then
+        local cargo = state:cargoItem(command.cargo)
+        if cargo then
+            addTile(preview.affectedTiles, cargo.x, cargo.y)
+            preview.cargo = { id = cargo.id, x = cargo.x, y = cargo.y, kind = cargo.kind, action = "carry" }
+        end
+    elseif command.type == "extractCargo" then
+        local unit = state:unit(command.unit)
+        local objective = state:objective(command.objective)
+        local cargo = unit and unit.carryingCargo and state:cargoItem(unit.carryingCargo) or nil
+        if unit and objective then
+            addTile(preview.affectedTiles, unit.x, unit.y)
+            preview.cargo = { id = cargo and cargo.id or unit.carryingCargo, x = unit.x, y = unit.y, action = "extract" }
+            preview.objectiveExtract = { id = objective.id, x = objective.x, y = objective.y }
+        end
     elseif command.type == "convertTile" then
         addTile(preview.affectedTiles, command.x, command.y)
         preview.hazardChain[#preview.hazardChain + 1] = { x = command.x, y = command.y, conversion = command.conversion }

@@ -21,6 +21,7 @@ local sliceBoardActions = {
     warden = { "line_guard", "brace", "shove" },
     duelist = { "red_line", "dash_strike", "position_swap" },
     mender = { "field_triage", "stabilize", "smoke_binder" },
+    harrier = { "ghost_route", "courier_cut" },
 }
 local enemyIntentSpecs = {
     audit_hound = { label = "bite notice", target = "nearest_player" },
@@ -197,6 +198,9 @@ end
 
 local function enemyCanSeeUnit(state, enemy, unit)
     if not (enemy and unit) then
+        return false
+    end
+    if state:unitHiddenFromSide(unit, enemy.side or "enemy") then
         return false
     end
     if activeObscurantAt(state, unit.x, unit.y) then
@@ -610,6 +614,8 @@ local function previewCommandSequence(state, commands)
         preview.swap = commandPreview.swap or preview.swap
         preview.healing = commandPreview.healing or preview.healing
         preview.objectiveRepair = commandPreview.objectiveRepair or preview.objectiveRepair
+        preview.objectiveExtract = commandPreview.objectiveExtract or preview.objectiveExtract
+        preview.cargo = commandPreview.cargo or preview.cargo
         preview.status = commandPreview.status or preview.status
         if commandPreview.obscurant then
             preview.obscurants[#preview.obscurants + 1] = commandPreview.obscurant
@@ -640,6 +646,18 @@ local function areaTiles(state, cx, cy)
         end
     end
     return tiles
+end
+
+local function movementDestination(state, selected, x, y, options)
+    return reachableByKey(state:movementPreview(selected.id, options))[tostring(x) .. ":" .. tostring(y)]
+end
+
+local function movementCommands(unitId, path, cost)
+    local commands = {}
+    for index, direction in ipairs(path or {}) do
+        commands[#commands + 1] = TacticsState.commands.move(unitId, direction, index == 1 and cost or 0)
+    end
+    return commands
 end
 
 local function cursorUnit(runtime)
@@ -757,6 +775,61 @@ local function menderPreview(runtime, selected, verb)
     return previewCommandSequence(runtime.state, commands)
 end
 
+local function extractionObjectiveAt(state, x, y)
+    local objective = state:objectiveAt(x, y)
+    if objective then
+        return objective
+    end
+    for _, id in ipairs(state.objectiveOrder or {}) do
+        objective = state:objective(id)
+        if objective and objective.evacuateAt and objective.evacuateAt.x == x and objective.evacuateAt.y == y then
+            return objective
+        end
+    end
+    return nil
+end
+
+local function harrierCommands(runtime, selected, verb)
+    local state = runtime.state
+    if verb == "ghost_route" then
+        local destination = movementDestination(state, selected, runtime.cursor.x, runtime.cursor.y, { maxCost = 3 })
+        if not destination or #(destination.path or {}) == 0 then
+            return nil, "ghost_route needs reachable lane"
+        end
+        local commands = { TacticsState.commands.status(selected.id, selected.id, "ghosted", 2, 1, 1) }
+        for _, command in ipairs(movementCommands(selected.id, destination.path, 0)) do
+            commands[#commands + 1] = command
+        end
+        return commands
+    end
+    if verb == "courier_cut" then
+        if selected.carryingCargo then
+            local objective = extractionObjectiveAt(state, selected.x, selected.y) or extractionObjectiveAt(state, runtime.cursor.x, runtime.cursor.y)
+            if not objective then
+                return nil, "courier_cut needs extraction tile"
+            end
+            return { TacticsState.commands.extractCargo(selected.id, objective.id, 1) }
+        end
+        local cargo = state:cargoAt(runtime.cursor.x, runtime.cursor.y) or state:cargoAt(selected.x, selected.y)
+        if not cargo then
+            return nil, "courier_cut needs cargo"
+        end
+        if Grid.manhattan(selected.x, selected.y, cargo.x, cargo.y) > 1 then
+            return nil, "courier_cut cargo adjacent"
+        end
+        return { TacticsState.commands.carryCargo(selected.id, cargo.id, 1) }
+    end
+    return nil, "unknown Thief verb"
+end
+
+local function harrierPreview(runtime, selected, verb)
+    local commands, err = harrierCommands(runtime, selected, verb)
+    if not commands then
+        return { error = err }
+    end
+    return previewCommandSequence(runtime.state, commands)
+end
+
 local function classVerbPreview(runtime, selected, verb)
     if selected and selected.class == "warden" then
         return wardenPreview(runtime, selected, verb)
@@ -766,6 +839,9 @@ local function classVerbPreview(runtime, selected, verb)
     end
     if selected and selected.class == "mender" then
         return menderPreview(runtime, selected, verb)
+    end
+    if selected and selected.class == "harrier" then
+        return harrierPreview(runtime, selected, verb)
     end
     return nil
 end
@@ -1029,6 +1105,19 @@ function Runtime.activateClassVerb(runtime, index)
     end
     if selected.class == "mender" then
         local commands, err = menderCommands(runtime, selected, verb)
+        if not commands then
+            setStatus(runtime, err)
+            return false
+        end
+        if tryApplyCommands(runtime, commands) then
+            Runtime.refreshOverlays(runtime)
+            setStatus(runtime, selected.id .. " " .. verb)
+            return true
+        end
+        return false
+    end
+    if selected.class == "harrier" then
+        local commands, err = harrierCommands(runtime, selected, verb)
         if not commands then
             setStatus(runtime, err)
             return false

@@ -310,7 +310,7 @@ tests[#tests + 1] = function()
         { id = "warden", verbs = { "line_guard", "brace", "shove" } },
         { id = "duelist", verbs = { "red_line", "dash_strike", "position_swap" } },
         { id = "apothecary", verbs = { "field_triage", "stabilize", "smoke_binder" } },
-        { id = "thief", verbs = { "sneak", "disarm", "extract", "mark_route" } },
+        { id = "thief", verbs = { "ghost_route", "courier_cut" } },
         { id = "arcanist", verbs = { "reveal", "bend_los", "unredact_intent", "pass_seal" } },
         { id = "lamplighter", verbs = { "reveal_route", "project_cone", "anchor_beacon", "safe_hazard" } },
     }
@@ -319,7 +319,7 @@ tests[#tests + 1] = function()
         local bar = runtime:actionBar()
         for index, verb in ipairs(entry.verbs) do
             local action = bar[4 + index]
-            local contextSensitive = entry.id == "warden" or entry.id == "duelist" or entry.id == "apothecary"
+            local contextSensitive = entry.id == "warden" or entry.id == "duelist" or entry.id == "apothecary" or entry.id == "thief"
             local enabledOk = action and (action.enabled or contextSensitive)
             expect(action and action.id == "class:" .. verb and action.key == tostring(index) and enabledOk, entry.id .. " class verb should be callable from input bar")
             if not contextSensitive then
@@ -450,6 +450,50 @@ tests[#tests + 1] = function()
     local first = runApothecary()
     local second = runApothecary()
     expect(Serialize.encode(first:snapshot()) == Serialize.encode(second:snapshot()), "Apothecary field_triage stabilize smoke_binder sequence should replay deterministically")
+end
+
+tests[#tests + 1] = function()
+    local function runThief()
+        local state = TacticsState.new({
+            defaultAp = 4,
+            board = { width = 5, height = 3 },
+            units = {
+                { id = "harrier", side = "player", class = "harrier", x = 1, y = 2, hp = 4, ap = 4, maxAp = 4, visionRadius = 8 },
+                { id = "watcher", side = "enemy", x = 5, y = 1, hp = 4, ap = 1, visionRadius = 8 },
+            },
+            cargo = {
+                { id = "ledger", kind = "ledger", x = 3, y = 2, integrity = 1 },
+            },
+            objectives = {
+                { id = "ledger_extract", kind = "extract_ledger", x = 5, y = 2, integrity = 1, evacuateAt = { x = 5, y = 2 } },
+            },
+        })
+        local runtime = { state = state, selectedUnitId = "harrier", cursor = { x = 3, y = 2 }, turn = 1, lastSeenEnemies = {} }
+        TacticalRuntime.refreshOverlays(runtime)
+        expect(state:fogGrid("enemy").units.harrier == true, "enemy fog should see unstealthed Thief unit on visible tile")
+        local ghost = TacticalRuntime.actionBar(runtime)[5]
+        expect(ghost.classVerb == "ghost_route" and ghost.enabled and ghost.preview.apCost == 1 and ghost.preview.status.kind == "ghosted", "Thief ghost_route should preview stealth lane")
+        expect(TacticalRuntime.handleKey(runtime, "1"), "Thief ghost_route should activate from input bar")
+        local enemyFog = state:fogGrid("enemy")
+        expect(state:unit("harrier").x == 3 and state:hasStatus("harrier", "ghosted") and state:unit("harrier").ap == 3, "Thief ghost_route should move, stealth, and spend AP once")
+        expect(enemyFog.visible["3:2"] and enemyFog.units.harrier == false and enemyFog.hiddenUnits.harrier == true, "ghost_route should hide Thief unit from enemy fog while tile stays visible")
+        local pickup = TacticalRuntime.actionBar(runtime)[6]
+        expect(pickup.classVerb == "courier_cut" and pickup.enabled and pickup.preview.cargo.id == "ledger", "Thief courier_cut should preview cargo pickup")
+        expect(TacticalRuntime.handleKey(runtime, "2"), "Thief courier_cut should pick up cargo")
+        expect(state:unit("harrier").carryingCargo == "ledger" and state:cargoItem("ledger").carriedBy == "harrier" and state:unit("harrier").ap == 2, "Thief courier_cut should carry cargo and spend AP")
+        runtime.cursor.x = 5
+        runtime.cursor.y = 2
+        expect(TacticalRuntime.handleKey(runtime, "1"), "Thief ghost_route should move carried cargo along stealth lane")
+        expect(state:unit("harrier").x == 5 and state:cargoItem("ledger").x == 5 and state:unit("harrier").ap == 1, "Thief ghost_route should move carried cargo to extraction")
+        local extract = TacticalRuntime.actionBar(runtime)[6]
+        expect(extract.classVerb == "courier_cut" and extract.enabled and extract.preview.objectiveExtract.id == "ledger_extract", "Thief courier_cut should preview cargo extraction")
+        expect(TacticalRuntime.handleKey(runtime, "2"), "Thief courier_cut should extract carried cargo")
+        expect(state:cargoItem("ledger").extracted and state:unit("harrier").carryingCargo == nil and state:objectiveStatus("ledger_extract") == "complete" and state:unit("harrier").ap == 0, "Thief courier_cut should extract cargo, complete objective, and spend AP")
+        return state
+    end
+    local first = runThief()
+    local second = runThief()
+    expect(Serialize.encode(first:snapshot()) == Serialize.encode(second:snapshot()), "Thief ghost_route courier_cut sequence should replay deterministically")
 end
 
 tests[#tests + 1] = function()
