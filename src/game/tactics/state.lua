@@ -795,7 +795,9 @@ local function normalizeUnit(unit, index, defaultAp)
     expect(visionRadius >= 0, "unit vision radius must be non-negative")
     return {
         id = id,
+        name = unit.name,
         class = unit.class,
+        className = unit.className,
         side = unit.side or "player",
         x = expectInteger(unit.x, "unit x"),
         y = expectInteger(unit.y, "unit y"),
@@ -808,6 +810,10 @@ local function normalizeUnit(unit, index, defaultAp)
         evacuated = unit.evacuated == true,
         carryingObjective = unit.carryingObjective,
         carryingCargo = unit.carryingCargo,
+        loadouts = copyValue(unit.loadouts),
+        boardVerbs = copyList(unit.boardVerbs),
+        tools = copyList(unit.tools),
+        catalogBoardVerbs = copyList(unit.catalogBoardVerbs),
         statuses = normalizeStatuses(unit.statuses),
         tags = copyList(unit.tags),
     }

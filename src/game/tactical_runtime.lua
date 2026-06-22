@@ -1,12 +1,21 @@
 local Grid = require("src.core.grid")
 local TacticsState = require("src.game.tactics.state")
 local TacticsIntent = require("src.game.tactics.intent")
+local ClassCatalog = require("src.game.tactics.class_catalog")
 local Procgen = require("src.game.tactics.procgen")
 
 local Runtime = {}
 
 local originX = -5
 local originY = -5
+local liveClassRoster = {
+    { id = "warden", classId = "warden", hp = 6 },
+    { id = "duelist", classId = "duelist", hp = 5 },
+    { id = "apothecary", classId = "mender", hp = 4 },
+    { id = "thief", classId = "harrier", hp = 4 },
+    { id = "arcanist", classId = "arcanist", hp = 4 },
+    { id = "lamplighter", classId = "lamplighter", hp = 4 },
+}
 local enemyIntentSpecs = {
     audit_hound = { label = "bite notice", target = "nearest_player" },
     claim_lens = { label = "claim beam", target = "objective" },
@@ -23,6 +32,108 @@ end
 
 local function tileKey(x, y)
     return tostring(x) .. ":" .. tostring(y)
+end
+
+local function labelForVerb(verb)
+    local words = {}
+    for part in tostring(verb or ""):gmatch("[^_]+") do
+        words[#words + 1] = part:sub(1, 1):upper() .. part:sub(2)
+    end
+    return table.concat(words, " ")
+end
+
+local function classLoadoutPayload(classId)
+    local class = ClassCatalog.class(classId)
+    local loadouts = {}
+    local tools = {}
+    for index, loadout in ipairs(ClassCatalog.loadouts(classId)) do
+        if index > (ClassCatalog.loadoutSlots(classId) or 2) then
+            break
+        end
+        loadouts[#loadouts + 1] = { id = loadout.id, boardVerb = loadout.boardVerb, tools = copyList(loadout.tools) }
+        for _, tool in ipairs(loadout.tools or {}) do
+            tools[#tools + 1] = tool
+        end
+    end
+    return class, loadouts, ClassCatalog.boardVerbs(classId), tools
+end
+
+local function addDeploymentCandidate(result, used, spec, x, y)
+    if not (spec and spec.board and x and y and x >= 1 and y >= 1 and x <= spec.board.width and y <= spec.board.height) then
+        return
+    end
+    local key = tileKey(x, y)
+    local tile = (spec.board.tiles or {})[key] or {}
+    if used[key] or tile.blocker then
+        return
+    end
+    used[key] = true
+    result[#result + 1] = { x = x, y = y }
+end
+
+local function deploymentTiles(spec, count)
+    local result = {}
+    local used = {}
+    for _, unit in ipairs(spec.units or {}) do
+        if unit.side ~= "player" then
+            used[tileKey(unit.x, unit.y)] = true
+        end
+    end
+    for _, pocket in ipairs((((spec.grammar or {}).components or {}).spawnPockets) or {}) do
+        if pocket.side == "player" then
+            for _, tile in ipairs(pocket.tiles or {}) do
+                addDeploymentCandidate(result, used, spec, tile.x, tile.y)
+            end
+            local lead = pocket.tiles and pocket.tiles[1]
+            if lead then
+                used[tileKey(lead.x + 1, lead.y)] = true
+                used[tileKey(lead.x, lead.y - 1)] = true
+                used[tileKey(lead.x + 1, lead.y - 1)] = true
+            end
+        end
+    end
+    for x = 1, math.min(3, spec.board.width) do
+        for y = 1, spec.board.height do
+            addDeploymentCandidate(result, used, spec, x, y)
+        end
+    end
+    for x = 1, spec.board.width do
+        for y = 1, spec.board.height do
+            addDeploymentCandidate(result, used, spec, x, y)
+        end
+    end
+    if #result < count then
+        error("not enough deployment tiles for live tactical squad", 2)
+    end
+    return result
+end
+
+local function applyLiveClassSquad(spec)
+    local deployments = deploymentTiles(spec, #liveClassRoster)
+    local units = {}
+    for index, entry in ipairs(liveClassRoster) do
+        local class, loadouts, boardVerbs, tools = classLoadoutPayload(entry.classId)
+        units[#units + 1] = {
+            id = entry.id,
+            name = class and class.name or entry.id,
+            side = "player",
+            class = entry.classId,
+            className = class and class.name or entry.classId,
+            x = deployments[index].x,
+            y = deployments[index].y,
+            hp = entry.hp,
+            loadouts = loadouts,
+            boardVerbs = boardVerbs,
+            tools = tools,
+            catalogBoardVerbs = ClassCatalog.boardVerbs(entry.classId),
+        }
+    end
+    for _, unit in ipairs(spec.units or {}) do
+        if unit.side ~= "player" then
+            units[#units + 1] = unit
+        end
+    end
+    spec.units = units
 end
 
 local function sortedKeys(values)
@@ -257,6 +368,7 @@ local function makeRouteState(options)
     local variantId = (options and options.variantId) or route.start
     local seed = options and options.seed
     local spec = Procgen.generateArchiveRouteBoard(variantId, seed)
+    applyLiveClassSquad(spec)
     return TacticsState.new(spec), spec
 end
 
@@ -587,17 +699,32 @@ function Runtime.actionBar(runtime, hover)
     local canAttack = cursorAction.kind == "attack" and cursorAction.enabled
     local canMove = cursorAction.kind == "move" and cursorAction.enabled
     local playerCount = livingPlayers(runtime.state)
-    return {
+    local actions = {
         { id = "context", key = context.key or "LMB", label = context.label, detail = context.detail, enabled = context.enabled, primary = true },
         { id = "cursor", key = "WASD", label = "Cursor", detail = "aim tile", enabled = true },
         { id = "move", key = "Enter", label = "Move", detail = canMove and cursorAction.detail or "blue tile", enabled = canMove },
         { id = "attack", key = "A", label = "Attack", detail = canAttack and cursorAction.detail or "enemy", enabled = canAttack },
-        { id = "brace", key = "B", label = "Brace", detail = "1 AP guard", enabled = selected and selected.ap >= 1 },
-        { id = "unit", key = "Tab", label = "Unit", detail = tostring(playerCount) .. " squad", enabled = playerCount > 1 },
-        { id = "rotate", key = "[ ]", label = "Rotate", detail = "view", enabled = true },
-        { id = "end", key = "E", label = "End Turn", detail = "resolve red", enabled = true },
-        { id = "zoom", key = "Wheel", label = "Zoom", detail = "board scale", enabled = true },
     }
+    for index, verb in ipairs(selected and selected.boardVerbs or {}) do
+        actions[#actions + 1] = { id = "class:" .. verb, key = tostring(index), label = labelForVerb(verb), detail = selected.className or selected.class, enabled = selected and selected.ap >= 1, classVerb = verb }
+    end
+    actions[#actions + 1] = { id = "brace", key = "B", label = "Brace", detail = "1 AP guard", enabled = selected and selected.ap >= 1 }
+    actions[#actions + 1] = { id = "unit", key = "Tab", label = "Unit", detail = tostring(playerCount) .. " squad", enabled = playerCount > 1 }
+    actions[#actions + 1] = { id = "rotate", key = "[ ]", label = "Rotate", detail = "view", enabled = true }
+    actions[#actions + 1] = { id = "end", key = "E", label = "End Turn", detail = "resolve red", enabled = true }
+    actions[#actions + 1] = { id = "zoom", key = "Wheel", label = "Zoom", detail = "board scale", enabled = true }
+    return actions
+end
+
+function Runtime.activateClassVerb(runtime, index)
+    local selected = Runtime.selectedUnit(runtime)
+    local verb = selected and selected.boardVerbs and selected.boardVerbs[index]
+    if not verb then
+        setStatus(runtime, "no class verb")
+        return false
+    end
+    setStatus(runtime, selected.id .. " ready " .. verb)
+    return true
 end
 
 function Runtime.handleMouseTile(runtime, x, y, button)
@@ -753,6 +880,8 @@ function Runtime.handleKey(runtime, key)
         Runtime.moveCursor(runtime, 1, 0)
     elseif key == "tab" then
         Runtime.cycleUnit(runtime)
+    elseif key:match("^[1-9]$") then
+        Runtime.activateClassVerb(runtime, tonumber(key))
     elseif key == "return" or key == "kpenter" or key == "space" then
         if key == "space" then
             Runtime.inspectCursor(runtime)

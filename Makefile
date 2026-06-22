@@ -270,7 +270,7 @@ tactical-smoke:
 	grep -q "tactical-smoke-route-step=1/6" $$tmp; \
 	grep -q "tactical-smoke-legacy-expedition=false" $$tmp; \
 	grep -q "tactical-smoke-phase=player" $$tmp; \
-	grep -q "tactical-smoke-player-units=2" $$tmp; \
+	grep -q "tactical-smoke-player-units=6" $$tmp; \
 	grep -q "tactical-smoke-enemy-units=1" $$tmp; \
 	grep -q "tactical-smoke-intents=1" $$tmp; \
 	grep -q "tactical-smoke-forecast=[1-9]" $$tmp; \

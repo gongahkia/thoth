@@ -125,8 +125,23 @@ tests[#tests + 1] = function()
     local summary = runtime:summary()
     expect(tacticalSim.mode == "tactical" and summary.mode == "tactical", "runtime should put the game in tactical mode")
     expect(summary.route and summary.route.variantId == "archive_entry_audit", "runtime should load tactical board from archive route procgen")
-    expect(#summary.players == 2 and #summary.enemies == 1, "runtime should expose procgen tactical squad and enemies")
-    expect(#runtime.overlays.intents == 1 and runtime.state:intentPreview("claimant").targetTiles[1].x == 1, "runtime should show exact procgen enemy intents")
+    expect(#summary.players == 6 and #summary.enemies == 1, "runtime should expose procgen tactical squad and enemies")
+    local liveClasses = {
+        { id = "warden", classId = "warden" },
+        { id = "duelist", classId = "duelist" },
+        { id = "apothecary", classId = "mender" },
+        { id = "thief", classId = "harrier" },
+        { id = "arcanist", classId = "arcanist" },
+        { id = "lamplighter", classId = "lamplighter" },
+    }
+    for _, entry in ipairs(liveClasses) do
+        local unit = runtime.state:unit(entry.id)
+        expect(unit and unit.class == entry.classId and #unit.boardVerbs == #ClassCatalog.boardVerbs(entry.classId) and #unit.loadouts == 2, entry.id .. " should instantiate from class catalog loadouts")
+    end
+    local claimantIntent = runtime.state:intentPreview("claimant")
+    local claimantTarget = claimantIntent and claimantIntent.targetTiles and claimantIntent.targetTiles[1]
+    local claimantTargetUnit = claimantTarget and runtime.state:unitAt(claimantTarget.x, claimantTarget.y)
+    expect(#runtime.overlays.intents == 1 and claimantTargetUnit and claimantTargetUnit.side == "player", "runtime should show exact procgen enemy intents")
     runtime:handleKey("right")
     runtime:handleKey("return")
     expect(runtime.state:unit("warden").x == 2 and runtime.state:unit("warden").ap == 1, "runtime should spend AP to move selected unit")
@@ -159,7 +174,9 @@ tests[#tests + 1] = function()
     runtime.state.units.claimant.x = 4
     runtime.state.units.claimant.y = 4
     TacticalRuntime.declareEnemyIntents(runtime)
-    expect(runtime.state:intentPreview("claimant").targetTiles[1].x == 1, "enemy intent should start on the posted pre-move target")
+    local posted = runtime.state:intentPreview("claimant").targetTiles[1]
+    local postedUnit = runtime.state:unitAt(posted.x, posted.y)
+    expect(postedUnit and postedUnit.side == "player" and not (posted.x == 2 and posted.y == 4), "enemy intent should start on the posted pre-move target")
     runtime:setCursor(2, 4)
     expect(runtime:moveSelectedToCursor(), "visible tactical move should apply")
     local adjusted = runtime.state:intentPreview("claimant")
@@ -236,11 +253,12 @@ tests[#tests + 1] = function()
     runtime.state.units.claimant.x = 4
     runtime.state.units.claimant.y = 4
     TacticalRuntime.declareEnemyIntents(runtime)
+    local posted = runtime.state:intentPreview("claimant").targetTiles[1]
     runtime.state:addObscurant(2, 4, "smoke", 2)
     runtime:setCursor(2, 4)
     expect(runtime:moveSelectedToCursor(), "smoke-covered tactical move should apply")
     local held = runtime.state:intentPreview("claimant")
-    expect(held.targetTiles[1].x == 1 and held.targetTiles[1].y == 4, "obscured movement should keep the old enemy intent")
+    expect(held.targetTiles[1].x == posted.x and held.targetTiles[1].y == posted.y, "obscured movement should keep the old enemy intent")
 end
 
 tests[#tests + 1] = function()
@@ -287,7 +305,26 @@ tests[#tests + 1] = function()
     local moveAction = runtime:actionAtTile(2, 4)
     expect(moveAction.kind == "move" and moveAction.enabled and moveAction.detail == "1 AP", "tactical click action should preview reachable moves")
     local actionBar = runtime:actionBar({ x = 2, y = 4 })
-    expect(#actionBar == 9 and actionBar[1].label == "Move" and actionBar[1].key == "LMB" and actionBar[2].key == "WASD", "tactical action bar should expose contextual mouse controls")
+    expect(#actionBar == 13 and actionBar[1].label == "Move" and actionBar[1].key == "LMB" and actionBar[2].key == "WASD", "tactical action bar should expose contextual mouse controls")
+    local expectedVerbs = {
+        { id = "warden", verbs = { "brace", "raise_cover", "shove", "redirect_objective_hit" } },
+        { id = "duelist", verbs = { "dash", "flank", "swap", "riposte" } },
+        { id = "apothecary", verbs = { "stabilize", "smoke", "cleanse_hazard", "rescue" } },
+        { id = "thief", verbs = { "sneak", "disarm", "extract", "mark_route" } },
+        { id = "arcanist", verbs = { "reveal", "bend_los", "unredact_intent", "pass_seal" } },
+        { id = "lamplighter", verbs = { "reveal_route", "project_cone", "anchor_beacon", "safe_hazard" } },
+    }
+    for _, entry in ipairs(expectedVerbs) do
+        runtime.selectedUnitId = entry.id
+        local bar = runtime:actionBar()
+        for index, verb in ipairs(entry.verbs) do
+            local action = bar[4 + index]
+            expect(action and action.id == "class:" .. verb and action.key == tostring(index) and action.enabled, entry.id .. " class verb should be callable from input bar")
+            runtime:handleKey(tostring(index))
+            expect(runtime.status == entry.id .. " ready " .. verb, entry.id .. " class verb key should activate")
+        end
+    end
+    runtime.selectedUnitId = "warden"
     runtime.state.units.claimant.x = 2
     runtime.state.units.claimant.y = 4
     TacticalRuntime.refreshOverlays(runtime)

@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(B) 2026-06-22 Wire 6 classes (Warden, Duelist, Apothecary, Thief, Arcanist, Lamplighter) from src/game/tactics/class_catalog.lua into the live unit factory in tactical_runtime.lua; each must instantiate with its board verbs callable from input bar +slice-content @data
 (B) 2026-06-22 Implement Warden board verbs (line_guard, brace, shove) end-to-end with AP costs, previews, and replay-deterministic resolution +slice-content @engine
 (B) 2026-06-22 Implement Duelist board verbs (red_line dash strike, position swap) end-to-end +slice-content @engine
 (B) 2026-06-22 Implement Apothecary board verbs (field_triage stabilize, smoke_binder area smoke that modifies LoS) end-to-end +slice-content @engine
