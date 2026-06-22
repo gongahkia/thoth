@@ -1,10 +1,29 @@
 # Tactical Research Index
 
-Checked: 2026-06-21
+Checked: 2026-06-22
 
 Purpose: source-backed design constraints for Thoth's tactical pivot. These notes are pattern references only. They are not permission to copy names, factions, layouts, UI art, prose, or ability kits.
 
 Use this file before any mechanic/content batch enters implementation. A borrowed pattern is acceptable only if the Thoth version changes fiction, rules, costs, UI language, and counterplay.
+
+## Phase Decisions 2026-06-22
+
+Source IDs cite the source index below. These are decisions taken for the Buried Archive vertical slice, not general permission to copy the referenced games.
+
+| Decision | Source pattern citations | Thoth phase decision | Implementation evidence |
+| --- | --- | --- | --- |
+| XCOM-lite pivot, not tactical RPG legacy | S1, S2, S3, S4, S8, S13, S31 | Ship deterministic tile tactics with AP, cover, LoS, objectives, and declared outcomes. Reject hit-percentage attacks, random tactical damage, and post-commit combat RNG. RNG stays in route/board setup, enemy roster selection, and rewards. | `TODO.md` pitch/exit criteria; `docs/tactical-core-rules.md`; `src/game/tactics/state.lua`; `tests/run.lua` deterministic intent, AP, replay, and validator checks. |
+| Fog-of-war plus hidden intent | S4, S8, S9, S11, S47 | Fog hides enemies and intent footprints outside visible tiles, but the hidden intent is authored before reveal. Reveal/rotation/light changes UI knowledge only; it does not reroll the action. | `tests/run.lua` fog summary, ghost markers, hidden intent reveal, and reveal-as-UI-data checks; `docs/tactical-intent-rules.md`; `src/game/tactics/los.lua`. |
+| Overwatch cones and threat zones | S4, S6, S48 | Overwatch is an AP-spend board commitment with explicit watched tiles, source, reaction, trigger limit, and phase timing. Cone geometry is Thoth's operational form; the source pattern is reaction fire/area denial, not copied UI. | `src/game/tactics/state.lua` `commands.overwatchCone`; `tests/run.lua` overwatch cone, stun/mark reactions, trigger expiry, and overlay checks; `docs/tactical-ui-catalog.md`. |
+| Directional cover and flanking | S4, S5, S19, S36, S47, S53 | Cover is stored as tile-edge authority. Flanking is deterministic edge invalidation plus previewed damage/cost rules; it never changes hidden hit odds. | `src/game/tactics/cover.lua`; `docs/tactical-los-cover-rules.md`; `tests/run.lua` flank preview, protected vector, flanking damage, and remove-cover mode checks. |
+| Six-unit starter squad | S4, S40, S41, S42, S48, S49 | Vertical slice uses six distinct starter classes with board verbs and two readable loadout choices each. Class identity must describe actions on tiles, cover, objectives, LoS, or intent, not abstract RPG roles. | `src/game/tactics/class_catalog.lua`; `tests/run.lua` six-class roster audit, six HUD portraits/AP pools, AP economy, loadout unlock, and class replay fixture checks. |
+| Buried Archive only for current slice | S1, S2, S9, S34, S35 | Salt Cistern and Ember Warrens stay future-zone content until they pass the same validator, replay, readability, screenshot, and release gates as Buried Archive boards. | `WORLD-LORE.md` vertical-slice header; `src/game/tactics/archive/future_zones.lua`; `tests/run.lua` future-zone archive/live-catalog separation. |
+
+Phase guardrails:
+
+- Exact citations do not prove a mechanic belongs in Thoth. They only justify the source pattern under review.
+- Fan/community sources such as S5 and S11 are acceptable as mechanics summaries, but phase decisions should prefer official/manual/interview sources where available.
+- Any mechanic added after this phase needs a `Thoth transformation` entry, preview/UI proof, and replay or validator proof before it leaves prototype status.
 
 ## Source Index
 
