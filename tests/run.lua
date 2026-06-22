@@ -68,6 +68,10 @@ local function contains(list, value)
     return false
 end
 
+local function firstEnemy(runtime)
+    return (runtime.state:unitsForSide("enemy"))[1]
+end
+
 local function readFile(path)
     local file = io.open(path, "rb")
     if not file then
@@ -126,7 +130,7 @@ tests[#tests + 1] = function()
     local summary = runtime:summary()
     expect(tacticalSim.mode == "tactical" and summary.mode == "tactical", "runtime should put the game in tactical mode")
     expect(summary.route and summary.route.variantId == "archive_entry_audit", "runtime should load tactical board from archive route procgen")
-    expect(#summary.players == 6 and #summary.enemies == 1, "runtime should expose procgen tactical squad and enemies")
+    expect(#summary.players == 6 and #summary.enemies == 2, "runtime should expose procgen tactical squad and catalog enemies")
     local liveClasses = {
         { id = "warden", classId = "warden" },
         { id = "duelist", classId = "duelist" },
@@ -139,16 +143,25 @@ tests[#tests + 1] = function()
         local unit = runtime.state:unit(entry.id)
         expect(unit and unit.class == entry.classId and #unit.boardVerbs == #ClassCatalog.boardVerbs(entry.classId) and #unit.loadouts == 2, entry.id .. " should instantiate from class catalog loadouts")
     end
-    local claimantIntent = runtime.state:intentPreview("claimant")
+    local enemy = firstEnemy(runtime)
+    local claimantIntent = runtime.state:intentPreview(enemy.id)
     local claimantTarget = claimantIntent and claimantIntent.targetTiles and claimantIntent.targetTiles[1]
     local claimantTargetUnit = claimantTarget and runtime.state:unitAt(claimantTarget.x, claimantTarget.y)
-    expect(#runtime.overlays.intents == 1 and claimantTargetUnit and claimantTargetUnit.side == "player", "runtime should show exact procgen enemy intents")
+    expect(#runtime.overlays.intents == 2 and claimantIntent.intentType and claimantTargetUnit and claimantTargetUnit.side == "player", "runtime should show exact catalog enemy intents")
     runtime:handleKey("right")
     runtime:handleKey("return")
     expect(runtime.state:unit("warden").x == 2 and runtime.state:unit("warden").ap == 1, "runtime should spend AP to move selected unit")
+    local hpBefore = 0
+    for _, unit in ipairs(runtime.state:unitsForSide("player")) do
+        hpBefore = hpBefore + unit.hp
+    end
     runtime:handleKey("e")
+    local hpAfter = 0
+    for _, unit in ipairs(runtime.state:unitsForSide("player")) do
+        hpAfter = hpAfter + unit.hp
+    end
     expect(runtime.state:objective("entry_shelf").integrity == 3, "enemy intent should leave untargeted objective intact")
-    expect(runtime.state:unit("warden").hp == 5, "visible enemy intent should update to the moved unit")
+    expect(hpAfter < hpBefore, "catalog enemy intents should damage posted player targets deterministically")
     expect(runtime.state.phase == "player" and runtime.state:unit("warden").ap == 2, "runtime should return to player phase with AP refreshed")
 end
 
@@ -178,16 +191,28 @@ end
 
 tests[#tests + 1] = function()
     local runtime = TacticalRuntime.new(makeTacticalSim(9006))
-    runtime.state.units.claimant.x = 2
-    runtime.state.units.claimant.y = 4
-    runtime.state.units.claimant.hp = 1
+    local enemy = firstEnemy(runtime)
+    for _, other in ipairs(runtime.state:unitsForSide("enemy")) do
+        if other.id ~= enemy.id then
+            other.alive = false
+        end
+    end
+    enemy.x = 2
+    enemy.y = 4
+    enemy.hp = 1
     runtime:setCursor(2, 4)
     runtime:handleKey("a")
     expect(runtime.route.variantId == "archive_shelf_protection" and runtime.routeIndex == 2 and not runtime.complete, "cleared board should advance to next archive route variant")
     TacticalRuntime.loadRouteVariant(runtime, runtime.routeOrder[#runtime.routeOrder])
-    runtime.state.units.claimant.x = 2
-    runtime.state.units.claimant.y = 4
-    runtime.state.units.claimant.hp = 1
+    enemy = firstEnemy(runtime)
+    for _, other in ipairs(runtime.state:unitsForSide("enemy")) do
+        if other.id ~= enemy.id then
+            other.alive = false
+        end
+    end
+    enemy.x = 2
+    enemy.y = 4
+    enemy.hp = 1
     runtime:setCursor(2, 4)
     runtime:handleKey("a")
     expect(runtime.complete and runtime.routeComplete and runtime.route.variantId == runtime.routeOrder[#runtime.routeOrder], "last cleared board should complete tactical route")
@@ -196,15 +221,16 @@ end
 tests[#tests + 1] = function()
     local tacticalSim = makeTacticalSim(9003)
     local runtime = TacticalRuntime.new(tacticalSim)
-    runtime.state.units.claimant.x = 4
-    runtime.state.units.claimant.y = 4
+    local enemy = firstEnemy(runtime)
+    enemy.x = 4
+    enemy.y = 4
     TacticalRuntime.declareEnemyIntents(runtime)
-    local posted = runtime.state:intentPreview("claimant").targetTiles[1]
+    local posted = runtime.state:intentPreview(enemy.id).targetTiles[1]
     local postedUnit = runtime.state:unitAt(posted.x, posted.y)
     expect(postedUnit and postedUnit.side == "player" and not (posted.x == 2 and posted.y == 4), "enemy intent should start on the posted pre-move target")
     runtime:setCursor(2, 4)
     expect(runtime:moveSelectedToCursor(), "visible tactical move should apply")
-    local adjusted = runtime.state:intentPreview("claimant")
+    local adjusted = runtime.state:intentPreview(enemy.id)
     expect(adjusted.targetTiles[1].x == 2 and adjusted.targetTiles[1].y == 4, "visible movement should update enemy intent to the new tile")
     expect(runtime.message:find("enemies adjusted", 1, true), "visible movement should report enemy intent adjustment")
 end
@@ -261,28 +287,30 @@ end
 
 tests[#tests + 1] = function()
     local runtime = TacticalRuntime.new(makeTacticalSim(9007))
+    local enemy = firstEnemy(runtime)
     runtime.state:objective("entry_shelf").integrity = 1
     TacticalRuntime.declareEnemyIntents(runtime)
-    local finisher = runtime.state:intentPreview("claimant")
+    local finisher = runtime.state:intentPreview(enemy.id)
     expect(finisher.category == "destroy" and finisher.objectiveImpact == "entry_shelf" and finisher.targetTiles[1].x == 7, "critical objective should make enemy choose deterministic finisher intent")
     runtime.state:objective("entry_shelf").integrity = 3
-    runtime.state.units.claimant.hp = 1
+    enemy.hp = 1
     TacticalRuntime.declareEnemyIntents(runtime)
-    local guard = runtime.state:intentPreview("claimant")
-    expect(guard.category == "guard" and guard.damage == 0 and guard.targetTiles[1].x == runtime.state.units.claimant.x, "wounded enemy should choose deterministic guard intent")
+    local guard = runtime.state:intentPreview(enemy.id)
+    expect(guard.category == "guard" and guard.damage == 0 and guard.targetTiles[1].x == enemy.x, "wounded enemy should choose deterministic guard intent")
 end
 
 tests[#tests + 1] = function()
     local tacticalSim = makeTacticalSim(9004)
     local runtime = TacticalRuntime.new(tacticalSim)
-    runtime.state.units.claimant.x = 4
-    runtime.state.units.claimant.y = 4
+    local enemy = firstEnemy(runtime)
+    enemy.x = 4
+    enemy.y = 4
     TacticalRuntime.declareEnemyIntents(runtime)
-    local posted = runtime.state:intentPreview("claimant").targetTiles[1]
+    local posted = runtime.state:intentPreview(enemy.id).targetTiles[1]
     runtime.state:addObscurant(2, 4, "smoke", 2)
     runtime:setCursor(2, 4)
     expect(runtime:moveSelectedToCursor(), "smoke-covered tactical move should apply")
-    local held = runtime.state:intentPreview("claimant")
+    local held = runtime.state:intentPreview(enemy.id)
     expect(held.targetTiles[1].x == posted.x and held.targetTiles[1].y == posted.y, "obscured movement should keep the old enemy intent")
 end
 
@@ -354,13 +382,14 @@ tests[#tests + 1] = function()
         end
     end
     runtime.selectedUnitId = "warden"
-    runtime.state.units.claimant.x = 2
-    runtime.state.units.claimant.y = 4
+    local enemy = firstEnemy(runtime)
+    enemy.x = 2
+    enemy.y = 4
     TacticalRuntime.refreshOverlays(runtime)
     local attackAction = runtime:actionAtTile(2, 4)
     expect(attackAction.kind == "attack" and attackAction.enabled and attackAction.detail:find("dmg2 flank", 1, true), "tactical click action should preview in-range flanking attacks")
     expect(runtime:handleMouseTile(2, 4, 1), "left click should attack in-range enemy")
-    expect(runtime.state:unit("claimant").hp == 2 and runtime.state:unit("warden").ap == 1 and runtime.status == "warden hit claimant for 2", "left click attack should spend AP and apply flanking damage")
+    expect(runtime.state:unit(enemy.id).hp == 2 and runtime.state:unit("warden").ap == 1 and runtime.status == "warden hit " .. enemy.id .. " for 2", "left click attack should spend AP and apply flanking damage")
     tileX, tileY = 1, 3
     expect(runtime:handleMouseTile(tileX, tileY, 1), "left click should handle reachable board tile")
     expect(runtime.state:unit("warden").x == 1 and runtime.state:unit("warden").y == 3 and runtime.state:unit("warden").ap == 0, "left click should move selected unit to reachable tile")
@@ -386,14 +415,15 @@ tests[#tests + 1] = function()
         expect(runtime.state.threatZones[1].label == "line_guard" and runtime.state.threatZones[1].triggerPhase == "enemy" and runtime.state:unit("warden").ap == 2, "Warden line_guard should spend AP and create deterministic line guard")
         expect(runtime:handleKey("2"), "Warden brace should activate from input bar")
         expect(runtime.state:hasStatus("warden", "braced") and runtime.state:unit("warden").ap == 1, "Warden brace should spend AP and apply braced")
-        runtime.state.units.claimant.x = 2
-        runtime.state.units.claimant.y = 4
+        local enemy = firstEnemy(runtime)
+        enemy.x = 2
+        enemy.y = 4
         runtime.cursor.x = 2
         runtime.cursor.y = 4
         local shoveAction = runtime:actionBar()[7]
         expect(shoveAction.classVerb == "shove" and shoveAction.preview.pushedPath[1].x == 3, "Warden shove should preview pushed path")
         expect(runtime:handleKey("3"), "Warden shove should activate from input bar")
-        expect(runtime.state:unit("claimant").x == 3 and runtime.state:unit("claimant").y == 4 and runtime.state:unit("warden").ap == 0, "Warden shove should spend AP and push cursor target")
+        expect(runtime.state:unit(enemy.id).x == 3 and runtime.state:unit(enemy.id).y == 4 and runtime.state:unit("warden").ap == 0, "Warden shove should spend AP and push cursor target")
         return runtime.state
     end
     local first = runWarden()
@@ -2234,12 +2264,16 @@ tests[#tests + 1] = function()
     local enemies = EnemyCatalog.common("archive")
     expect(#enemies == 10, "Archive should define 10 common enemies")
     local ids = {}
+    local intentTypes = {}
     for _, enemy in ipairs(enemies) do
         expect(enemy.id and enemy.name and enemy.boardVerb, "archive common enemy should include id name board verb")
-        expect(enemy.exactIntent and enemy.exactIntent.mode == "exact", "archive common enemy should include exact intent")
+        expect(enemy.exactIntent and enemy.exactIntent.mode == "exact" and enemy.exactIntent.intentType, "archive common enemy should include exact intent type")
         expect(not ids[enemy.id], "archive common enemy ids should be unique")
+        expect(not intentTypes[enemy.exactIntent.intentType], "archive common enemy intent types should be unique")
         ids[enemy.id] = true
+        intentTypes[enemy.exactIntent.intentType] = true
     end
+    expect(EnemyCatalog.auditArchiveCommonIntentTypes().ok, "Archive common enemy intent-type audit should pass")
 end
 
 tests[#tests + 1] = function()
@@ -3017,6 +3051,41 @@ tests[#tests + 1] = function()
         expect(TacticsProcgen.auditReinforcementRules(spec).ok, zoneId .. " reinforcement audit should pass")
         expect(#director.retreatRoutes[1].tiles > 0 and director.retreatRoutes[1].to.x == spec.objectives[1].evacuateAt.x, zoneId .. " director should define retreat route")
         expect(Serialize.encode(spec) == Serialize.encode(TacticsProcgen.generateDirectedZoneBoard(zoneId, 2303, { includeElite = true })), zoneId .. " director should be deterministic per seed")
+    end
+end
+
+tests[#tests + 1] = function()
+    local expected = {}
+    for _, enemy in ipairs(EnemyCatalog.common("archive")) do
+        expected[enemy.id] = false
+    end
+    for _, variant in ipairs(TacticsProcgen.archiveRouteVariants()) do
+        local spec = TacticsProcgen.generateArchiveRouteBoard(variant.id)
+        local enemyUnits = {}
+        for _, unit in ipairs(spec.units) do
+            if unit.side == "enemy" then
+                enemyUnits[#enemyUnits + 1] = unit
+                if expected[unit.id] ~= nil then
+                    expected[unit.id] = true
+                    expect(unit.intent and unit.intent.intentType == unit.intentType and unit.boardVerb, "archive procgen enemy unit should carry catalog intent metadata: " .. unit.id)
+                end
+            end
+        end
+        expect(#enemyUnits == (variant.directorOptions and variant.directorOptions.includeElite and 3 or 2), "archive route board should deploy directed enemy mix: " .. variant.id)
+        for _, entry in ipairs(spec.encounterDirector.enemyMix) do
+            if expected[entry.id] ~= nil then
+                expected[entry.id] = true
+                expect(entry.intent and entry.intent.intentType == entry.intentType, "archive enemy mix should carry distinct intent type: " .. entry.id)
+            end
+        end
+        for _, reinforcement in ipairs(spec.encounterDirector.reinforcementTiming or {}) do
+            if expected[reinforcement.enemy] ~= nil then
+                expected[reinforcement.enemy] = true
+            end
+        end
+    end
+    for enemyId, seen in pairs(expected) do
+        expect(seen, "archive route spawn pool should cover common enemy " .. enemyId)
     end
 end
 

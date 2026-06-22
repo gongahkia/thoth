@@ -260,15 +260,97 @@ local function pathTiles(from, to)
     return result
 end
 
+local function spawnPocketById(spec, id)
+    local pockets = spec and spec.grammar and spec.grammar.components and spec.grammar.components.spawnPockets or {}
+    for _, pocket in ipairs(pockets) do
+        if pocket.id == id then
+            return pocket
+        end
+    end
+    return nil
+end
+
+local function markUsed(used, x, y)
+    used[tileKey(x, y)] = true
+end
+
+local function tileOpen(spec, used, x, y)
+    if not (spec and spec.board and x and y and x >= 1 and y >= 1 and x <= spec.board.width and y <= spec.board.height) then
+        return false
+    end
+    local tile = (spec.board.tiles or {})[tileKey(x, y)] or {}
+    return not used[tileKey(x, y)] and tile.blocker ~= true
+end
+
+local function enemySpawnTile(spec, spawnPocketId, index, used)
+    local pocket = spawnPocketById(spec, spawnPocketId)
+    local tiles = pocket and pocket.tiles or {}
+    if #tiles > 0 then
+        for offset = 0, #tiles - 1 do
+            local tile = tiles[((index + offset - 1) % #tiles) + 1]
+            if tile and tileOpen(spec, used, tile.x, tile.y) then
+                markUsed(used, tile.x, tile.y)
+                return tile
+            end
+        end
+    end
+    for x = spec.board.width, 1, -1 do
+        for y = 1, spec.board.height do
+            if tileOpen(spec, used, x, y) then
+                markUsed(used, x, y)
+                return { x = x, y = y }
+            end
+        end
+    end
+    error("no open enemy spawn tile", 2)
+end
+
+local function applyEncounterUnits(spec, director)
+    local units = {}
+    local used = {}
+    for _, unit in ipairs(spec.units or {}) do
+        if unit.side ~= "enemy" then
+            units[#units + 1] = unit
+            markUsed(used, unit.x, unit.y)
+        end
+    end
+    for index, enemy in ipairs(director.enemyMix or {}) do
+        local tile = enemySpawnTile(spec, enemy.spawnPocket, index, used)
+        units[#units + 1] = {
+            id = enemy.id,
+            name = enemy.name,
+            kind = enemy.kind or enemy.id,
+            side = "enemy",
+            role = enemy.role,
+            archetype = enemy.archetype,
+            boardVerb = enemy.boardVerb,
+            spawnPocket = enemy.spawnPocket,
+            intentType = enemy.intentType,
+            intent = copyValue(enemy.intent),
+            x = tile.x,
+            y = tile.y,
+            hp = enemy.hp or 4,
+        }
+    end
+    spec.units = units
+end
+
 local function enemyEntry(enemy, role, spawnPocket)
     return {
         id = enemy.id,
         name = enemy.name,
+        kind = enemy.id,
+        archetype = enemy.archetype,
         role = role,
         spawnPocket = spawnPocket,
         intent = copyValue(enemy.exactIntent or enemy.partialIntent),
+        intentType = enemy.exactIntent and enemy.exactIntent.intentType,
         boardVerb = enemy.boardVerb or enemy.waterPressureVerb or enemy.heatAshGlassVerb or enemy.terrainInteraction,
     }
+end
+
+local function poolIndex(seed, offset, count)
+    return ((seed + offset - 1) % count) + 1
 end
 
 function Procgen.templates()
@@ -327,13 +409,13 @@ function Procgen.directEncounter(zoneId, seed, boardSpec, options)
     if not family then
         error("unknown encounter director zone " .. tostring(zoneId), 2)
     end
-    local rng = Rng.new((seed or 1) + 17017)
     local common = EnemyCatalog.common(familyId)
     local elites = EnemyCatalog.elites(familyId)
-    local first = pickIndexed(common, rng:range(1, #common))
-    local second = pickIndexed(common, rng:range(1, #common))
+    local first = pickIndexed(common, poolIndex(seed or 1, 0, #common))
+    local second = pickIndexed(common, poolIndex(seed or 1, 3, #common))
     local elite = nil
     if options.includeElite then
+        local rng = Rng.new((seed or 1) + 17017)
         elite = options.eliteId and EnemyCatalog.elite(familyId, options.eliteId) or pickIndexed(elites, rng:range(1, #elites))
         if not elite then
             error("unknown elite " .. tostring(options.eliteId), 2)
@@ -371,7 +453,7 @@ function Procgen.directEncounter(zoneId, seed, boardSpec, options)
             visible = true,
         },
         reinforcementTiming = {
-            { turn = options.reinforcementTurn or rng:range(3, 4), enemy = pickIndexed(common, rng:range(1, #common)).id, spawnPocket = enemySpawn.id, visibleWarningTurn = 1, cap = 1, blockable = true, warning = "marked spawn pocket", onBlocked = "delay_one_turn_until_cap" },
+            { turn = options.reinforcementTurn or 3 + ((seed or 1) % 2), enemy = pickIndexed(common, poolIndex(seed or 1, 6, #common)).id, spawnPocket = enemySpawn.id, visibleWarningTurn = 1, cap = 1, blockable = true, warning = "marked spawn pocket", onBlocked = "delay_one_turn_until_cap" },
         },
         spawnBlockRules = {
             { spawnPocket = enemySpawn.id, blocker = "unit_or_blocker_on_all_spawn_tiles", checked = "start_of_reinforcement_turn", onBlocked = "delay_one_turn_until_cap", cap = 1, visible = true, preview = "spawn pocket marks blocked tiles and delayed enemy" },
@@ -674,6 +756,7 @@ end
 function Procgen.generateDirectedZoneBoard(zoneId, seed, options)
     local spec = Procgen.generateZoneBoard(zoneId, seed, options)
     spec.encounterDirector = Procgen.directEncounter(zoneId, seed, spec, options)
+    applyEncounterUnits(spec, spec.encounterDirector)
     return spec
 end
 

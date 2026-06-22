@@ -271,8 +271,8 @@ tactical-smoke:
 	grep -q "tactical-smoke-legacy-expedition=false" $$tmp; \
 	grep -q "tactical-smoke-phase=player" $$tmp; \
 	grep -q "tactical-smoke-player-units=6" $$tmp; \
-	grep -q "tactical-smoke-enemy-units=1" $$tmp; \
-	grep -q "tactical-smoke-intents=1" $$tmp; \
+	grep -q "tactical-smoke-enemy-units=2" $$tmp; \
+	grep -q "tactical-smoke-intents=2" $$tmp; \
 	grep -q "tactical-smoke-forecast=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-zoom=1.75" $$tmp; \
 	grep -q "tactical-smoke-objective=3/3" $$tmp; \

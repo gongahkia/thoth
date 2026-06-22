@@ -22,22 +22,23 @@ Acceptance proof:
 
 ## E.1 Archive Common Enemies
 
-The Archive family defines 10 common enemies. Each has exact intent metadata and one board verb:
+The Archive family defines 10 common enemies. Each has exact intent metadata, one distinct intent type, and one board verb:
 
-- `hollow_guard`: exact attack, `brace_cover`.
-- `ink_wretch`: exact debuff, `ink_tile`.
-- `bone_scribe`: exact attack, `redact_mark`.
-- `gutter_thing`: exact move, `hook_cargo`.
-- `pale_censer`: exact debuff, `fog_claim`.
-- `page_scout`: exact move, `flip_shelf`.
-- `writ_bailiff`: exact destroy, `stamp_claim`.
-- `seal_clerk`: exact guard, `lock_door`.
-- `ledger_hound`: exact attack, `sniff_route`.
-- `drawer_mite`: exact summon, `spill_records`.
+- `hollow_guard`: `archive_overwatch_lane`, `brace_cover`.
+- `ink_wretch`: `ink_line_splash`, `ink_tile`.
+- `bone_scribe`: `redaction_shot`, `redact_mark`.
+- `gutter_thing`: `cargo_hook_pull`, `hook_cargo`.
+- `pale_censer`: `claim_fog_block`, `fog_claim`.
+- `page_scout`: `flank_reposition`, `flip_shelf`.
+- `writ_bailiff`: `objective_stamp`, `stamp_claim`.
+- `seal_clerk`: `door_seal_guard`, `lock_door`.
+- `ledger_hound`: `carrier_pursuit`, `sniff_route`.
+- `drawer_mite`: `record_spill_summon`, `spill_records`.
 
 Acceptance proof:
 
-- `tests/run.lua` verifies the Archive has exactly 10 common enemies and each one has unique id, name, exact intent, and board verb metadata.
+- `tests/run.lua` verifies the Archive has exactly 10 common enemies and each one has unique id, name, exact intent type, and board verb metadata.
+- `tests/run.lua` verifies default Archive route procgen deploys catalog enemy units from `encounterDirector.enemyMix`, carries intent metadata into runtime, and covers all 10 common enemies through opening mixes or reinforcements.
 
 ## E.2 Archive Elites
 

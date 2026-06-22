@@ -292,11 +292,14 @@ local function plannedEnemyTarget(runtime, enemy, options)
     local state = runtime.state
     local objective = objectiveState(state)
     local spec = enemyIntentSpecs[enemy.id] or {}
+    local intent = enemy.intent or {}
+    local intentType = intent.intentType or enemy.intentType
     if objective and (objective.integrity or 0) <= 1 then
         return {
             target = objective,
             category = "destroy",
-            damage = spec.damage or 1,
+            damage = intent.damage or spec.damage or 1,
+            intentType = intentType,
             label = "finish notice",
             counterplay = { "block objective", "kill source", "repair objective" },
         }
@@ -306,12 +309,14 @@ local function plannedEnemyTarget(runtime, enemy, options)
             target = { id = enemy.id, x = enemy.x, y = enemy.y },
             category = "guard",
             damage = 0,
+            intentType = intentType,
             label = "regroup notice",
             counterplay = { "press wounded enemy", "ignore harmless guard", "contest tile" },
         }
     end
     local target
-    if spec.target == "objective" then
+    local targetRule = intent.target or spec.target
+    if targetRule == "objective" or targetRule == "claim_tile" or targetRule == "seal" or targetRule == "drawer" then
         target = objective
     elseif options and options.visibleTargetsOnly then
         target = nearestVisiblePlayer(state, enemy)
@@ -323,10 +328,11 @@ local function plannedEnemyTarget(runtime, enemy, options)
     end
     return {
         target = target,
-        category = "attack",
-        damage = spec.damage or 1,
-        label = spec.label or "posted notice",
-        counterplay = { "move target", "kill source", "block tile" },
+        category = intent.category or "attack",
+        damage = intent.damage or spec.damage or 1,
+        intentType = intentType,
+        label = intentType or spec.label or "posted notice",
+        counterplay = intent.counterplay or { "move target", "kill source", "block tile" },
     }
 end
 
@@ -375,6 +381,7 @@ local function declareEnemyIntent(runtime, enemy, options)
     local target = plan.target
     state:declareIntent(enemy.id, {
         mode = "exact",
+        intentType = plan.intentType,
         category = plan.category,
         source = enemy.id,
         sourceTile = { x = enemy.x, y = enemy.y },

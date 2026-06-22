@@ -37,16 +37,16 @@ EnemyCatalog.eliteMaskBlueprints = {
 EnemyCatalog.families = {
     archive = {
         common = {
-            { id = "hollow_guard", name = "Hollow Guard", archetype = "overwatch", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "nearest" }, boardVerb = "brace_cover" },
-            { id = "ink_wretch", name = "Ink Wretch", archetype = "artillery", exactIntent = { mode = "exact", category = "debuff", damage = 1, target = "line" }, boardVerb = "ink_tile" },
-            { id = "bone_scribe", name = "Bone Scribe", archetype = "shooter", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "marked" }, boardVerb = "redact_mark" },
-            { id = "gutter_thing", name = "Gutter Thing", archetype = "puller", exactIntent = { mode = "exact", category = "move", damage = 1, target = "pull" }, boardVerb = "hook_cargo" },
-            { id = "pale_censer", name = "Pale Censer", archetype = "blocker", exactIntent = { mode = "exact", category = "debuff", damage = 0, target = "claim_tile" }, boardVerb = "fog_claim" },
-            { id = "page_scout", name = "Page Scout", archetype = "mover", exactIntent = { mode = "exact", category = "move", damage = 1, target = "flank" }, boardVerb = "flip_shelf" },
-            { id = "writ_bailiff", name = "Writ Bailiff", archetype = "saboteur", exactIntent = { mode = "exact", category = "destroy", damage = 2, target = "objective" }, boardVerb = "stamp_claim" },
-            { id = "seal_clerk", name = "Seal Clerk", archetype = "blocker", exactIntent = { mode = "exact", category = "guard", damage = 0, target = "seal" }, boardVerb = "lock_door" },
-            { id = "ledger_hound", name = "Ledger Hound", archetype = "shooter", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "carrier" }, boardVerb = "sniff_route" },
-            { id = "drawer_mite", name = "Drawer Mite", archetype = "summoner", exactIntent = { mode = "exact", category = "summon", damage = 1, target = "drawer" }, boardVerb = "spill_records" },
+            { id = "hollow_guard", name = "Hollow Guard", archetype = "overwatch", exactIntent = { mode = "exact", intentType = "archive_overwatch_lane", category = "attack", damage = 2, target = "nearest" }, boardVerb = "brace_cover" },
+            { id = "ink_wretch", name = "Ink Wretch", archetype = "artillery", exactIntent = { mode = "exact", intentType = "ink_line_splash", category = "debuff", damage = 1, target = "line" }, boardVerb = "ink_tile" },
+            { id = "bone_scribe", name = "Bone Scribe", archetype = "shooter", exactIntent = { mode = "exact", intentType = "redaction_shot", category = "attack", damage = 2, target = "marked" }, boardVerb = "redact_mark" },
+            { id = "gutter_thing", name = "Gutter Thing", archetype = "puller", exactIntent = { mode = "exact", intentType = "cargo_hook_pull", category = "move", damage = 1, target = "pull" }, boardVerb = "hook_cargo" },
+            { id = "pale_censer", name = "Pale Censer", archetype = "blocker", exactIntent = { mode = "exact", intentType = "claim_fog_block", category = "debuff", damage = 0, target = "claim_tile" }, boardVerb = "fog_claim" },
+            { id = "page_scout", name = "Page Scout", archetype = "mover", exactIntent = { mode = "exact", intentType = "flank_reposition", category = "move", damage = 1, target = "flank" }, boardVerb = "flip_shelf" },
+            { id = "writ_bailiff", name = "Writ Bailiff", archetype = "saboteur", exactIntent = { mode = "exact", intentType = "objective_stamp", category = "destroy", damage = 2, target = "objective" }, boardVerb = "stamp_claim" },
+            { id = "seal_clerk", name = "Seal Clerk", archetype = "blocker", exactIntent = { mode = "exact", intentType = "door_seal_guard", category = "guard", damage = 0, target = "seal" }, boardVerb = "lock_door" },
+            { id = "ledger_hound", name = "Ledger Hound", archetype = "shooter", exactIntent = { mode = "exact", intentType = "carrier_pursuit", category = "attack", damage = 2, target = "carrier" }, boardVerb = "sniff_route" },
+            { id = "drawer_mite", name = "Drawer Mite", archetype = "summoner", exactIntent = { mode = "exact", intentType = "record_spill_summon", category = "summon", damage = 1, target = "drawer" }, boardVerb = "spill_records" },
         },
         elites = {
             { id = "codex_advocate", name = "Codex Advocate", partialIntent = { mode = "category", category = "debuff" }, weakPoints = { "open_register" }, terrainInteraction = "seal_claim_line" },
@@ -307,6 +307,23 @@ function EnemyCatalog.auditExactBasicIntents()
         end
     end
     report.ok = #report.missing == 0 and #report.invalid == 0
+    return report
+end
+
+function EnemyCatalog.auditArchiveCommonIntentTypes()
+    local report = { ok = true, missing = {}, duplicate = {}, count = 0, types = {} }
+    for _, enemy in ipairs(EnemyCatalog.common("archive")) do
+        local intentType = enemy.exactIntent and enemy.exactIntent.intentType
+        if not intentType then
+            report.missing[#report.missing + 1] = enemy.id
+        elseif report.types[intentType] then
+            report.duplicate[#report.duplicate + 1] = intentType
+        else
+            report.types[intentType] = enemy.id
+            report.count = report.count + 1
+        end
+    end
+    report.ok = #report.missing == 0 and #report.duplicate == 0 and report.count == 10
     return report
 end
 

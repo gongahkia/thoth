@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(B) 2026-06-22 Wire 10 common Archive enemies (hollow_guard, ink_wretch, bone_scribe, gutter_thing, pale_censer, page_scout, writ_bailiff, seal_clerk, ledger_hound, drawer_mite) into the procgen spawn pool; each must declare a distinct intent type +slice-content @data
 (B) 2026-06-22 Wire 3 elite Archive enemies (codex_advocate, shelf_knight, writ_cantor) into procgen with elite-tier intent footprints (partial reveal until rotation/class gate) +slice-content @data
 (B) 2026-06-22 Wire 1 Archive alpha (shelf_warden) as a mid-run elite spawn with deterministic terrain interaction +slice-content @data
 (B) 2026-06-22 Wire Vault Regent boss in src/game/tactics/boss_catalog.lua: phase chart, arena diagram, staged intent masks rotating per turn, weak-point exposure tied to rotation +slice-content @data

@@ -322,6 +322,7 @@ local function normalizeBranchIntent(intent)
     expect(intentCategories[category], "invalid intent category " .. tostring(category))
     return {
         mode = mode,
+        intentType = intent.intentType,
         category = category,
         target = intent.target,
         targetTiles = normalizeTileList(intent.tiles or intent.targetTiles),
@@ -448,6 +449,7 @@ local function normalizeIntent(intent)
     end
     return {
         mode = mode,
+        intentType = intent.intentType,
         category = category,
         source = intent.source,
         sourceTile = copyMap(intent.sourceTile),
@@ -799,6 +801,13 @@ local function normalizeUnit(unit, index, defaultAp)
     return {
         id = id,
         name = unit.name,
+        kind = unit.kind,
+        role = unit.role,
+        archetype = unit.archetype,
+        boardVerb = unit.boardVerb,
+        spawnPocket = unit.spawnPocket,
+        intentType = unit.intentType,
+        intent = copyValue(unit.intent),
         class = unit.class,
         className = unit.className,
         side = unit.side or "player",
@@ -1818,6 +1827,7 @@ function State:intentPreview(unitId, options)
     local reveal = shouldRevealIntentFootprint(intent, options)
     local preview = {
         mode = intent.mode,
+        intentType = intent.intentType,
         category = intent.category,
         source = intent.source,
         sourceTile = copyMap(intent.sourceTile),
