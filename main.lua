@@ -16,8 +16,6 @@ local TacticalRuntime = require("src.game.tactical_runtime")
 
 local sim
 local app
-local fixedDt = 1 / 60
-local accumulator = 0
 
 local function newTacticalSim(seed)
     local world = { tiles = {} }
@@ -156,25 +154,6 @@ local function setupRenderBenchmark(state)
     state.player.y = 3
 end
 
-local function cueColor(cue)
-    if cue == "danger" then
-        return { 0.85, 0.18, 0.16 }
-    end
-    if cue == "victory" then
-        return { 0.82, 0.66, 0.28 }
-    end
-    if cue == "combat" or tostring(cue):find("^hit_", 1, false) then
-        return { 0.7, 0.24, 0.24 }
-    end
-    if cue == "loot" then
-        return { 0.38, 0.72, 0.46 }
-    end
-    if tostring(cue):find("^footstep_", 1, false) then
-        return { 0.52, 0.55, 0.5 }
-    end
-    return { 0.42, 0.54, 0.76 }
-end
-
 local function startNextCutscene(state)
     if state.cutscene then
         return
@@ -182,33 +161,6 @@ local function startNextCutscene(state)
     local queue = state.cutsceneQueue
     if queue and #queue > 0 then
         state.cutscene = table.remove(queue, 1)
-    end
-end
-
-local function playSimAudio(state, source)
-    state.lastAudioEventId = state.lastAudioEventId or (source.eventSerial or 0)
-    local playedCue
-    for _, event in ipairs(source.events or {}) do
-        if event.id > state.lastAudioEventId then
-            local cue = Audio.cueForEvent(event) or Audio.cueForStatus(event.message)
-            if cue then
-                Audio.play(state.audio, cue)
-                playedCue = cue
-            end
-            Audio.duckForEvent(state.audio, event)
-            state.lastCueStatus = event.message
-            state.lastAudioEventId = event.id
-        end
-    end
-    if not playedCue and source.status ~= state.lastCueStatus then
-        state.lastCueStatus = source.status
-        playedCue = Audio.cueForStatus(source.status)
-        if playedCue then
-            Audio.play(state.audio, playedCue)
-        end
-    end
-    if playedCue then
-            state.eventFlash = { cue = playedCue, color = cueColor(playedCue), status = state.lastCueStatus, t = 0.45 }
     end
 end
 
@@ -230,47 +182,10 @@ local function playUi(state, cue)
     end
 end
 
-local function queueCombatJuice(state, simulation)
-    state.lastJuiceEventId = state.lastJuiceEventId or (simulation.eventSerial or 0)
-    state.damageNumbers = state.damageNumbers or {}
-    for _, event in ipairs(simulation.events or {}) do
-        if event.id > state.lastJuiceEventId then
-            local impacts = type(event.impacts) == "table" and event.impacts or {}
-            local strongest = 0
-            local hasImpact = false
-            local crit = event.crit == true
-            for _, impact in ipairs(impacts) do
-                local amount = tonumber(impact.amount) or 0
-                if amount > 0 then
-                    hasImpact = true
-                    crit = crit or impact.crit == true
-                    strongest = math.max(strongest, amount)
-                    state.damageNumbers[#state.damageNumbers + 1] = {
-                        side = impact.side,
-                        rank = impact.rank,
-                        amount = amount,
-                        kind = impact.kind or "hp",
-                        crit = impact.crit == true,
-                        t = crit and 0.82 or 0.65,
-                        duration = crit and 0.82 or 0.65,
-                    }
-                end
-            end
-            if hasImpact and not (state.settings and state.settings.reducedMotion) then
-                state.combatHitPause = math.max(state.combatHitPause or 0, crit and 0.12 or 0.075)
-                state.combatShake = math.max(state.combatShake or 0, crit and 0.24 or 0.16)
-                state.combatShakeMagnitude = math.max(state.combatShakeMagnitude or 0, crit and 8 or math.min(7, 3 + strongest * 0.35))
-            end
-            state.lastJuiceEventId = event.id
-        end
-    end
-end
-
 local function advanceCombatJuice(state, dt)
     if not state then
-        return false
+        return
     end
-    local hitPaused = (state.combatHitPause or 0) > 0
     state.combatHitPause = math.max(0, (state.combatHitPause or 0) - (dt or 0))
     state.combatShake = math.max(0, (state.combatShake or 0) - (dt or 0))
     if state.combatShake <= 0 then
@@ -283,32 +198,9 @@ local function advanceCombatJuice(state, dt)
             table.remove(state.damageNumbers, index)
         end
     end
-    return hitPaused
-end
-
-local function queueCutscenes(state, simulation)
-    state.lastVisualEventId = state.lastVisualEventId or (simulation.eventSerial or 0)
-    state.cutsceneQueue = state.cutsceneQueue or {}
-    if state.settings and state.settings.reducedMotion then
-        state.lastVisualEventId = simulation.eventSerial or state.lastVisualEventId
-        state.cutscene = nil
-        state.cutsceneQueue = {}
-        return
-    end
-    for _, event in ipairs(simulation.events or {}) do
-        if event.id > state.lastVisualEventId then
-            local cutscene = Render.cutsceneForEvent(event, simulation)
-            if cutscene then
-                state.cutsceneQueue[#state.cutsceneQueue + 1] = cutscene
-            end
-            state.lastVisualEventId = event.id
-        end
-    end
-    startNextCutscene(state)
 end
 
 local function resetVisualState(state, simulation)
-    accumulator = 0
     state.moveCooldown = 0
     state.lastCueStatus = simulation.status
     state.lastAudioEventId = simulation.eventSerial or 0
@@ -382,24 +274,6 @@ local function refreshReplayState(state)
     local data = Replay.read("replay.thoth")
     state.canReplay = data ~= nil
     state.replayStatus = data and Replay.summary(data) or "no replay"
-end
-
-local function enterGame(state, simulation, status)
-    sim = simulation
-    state.tacticalMode = false
-    state.tactics = nil
-    state.tacticalOverlays = nil
-    state.uiState = "game"
-    state.status = status or "ready"
-    resetVisualState(state, sim)
-    if status == "new game" then
-        startTutorial(state)
-    end
-    local campaign = sim and sim.estate and sim.estate.campaign
-    if campaign and (campaign.lost or campaign.victory) then
-        state.uiState = "gameover"
-        state.gameOverMenuIndex = 1
-    end
 end
 
 local function enterTacticalGame(state)
@@ -483,7 +357,8 @@ local function activateTitleAction(state, action)
     if action == "continue" then
         local loaded, err = Save.read("save.thoth")
         if loaded then
-            enterGame(state, loaded, "loaded")
+            enterTacticalGame(state)
+            state.status = "loaded"
         else
             state.canContinue = false
             state.saveStatus = "load failed: " .. tostring(err)
@@ -495,7 +370,8 @@ local function activateTitleAction(state, action)
     if action == "replay" then
         local viewer, err = ReplayViewer.load("replay.thoth")
         if viewer then
-            enterGame(state, viewer.sim, viewer.status)
+            enterTacticalGame(state)
+            state.status = viewer.status
             state.replayViewer = true
             state.replayData = viewer.data
             state.cutscene = nil
@@ -703,7 +579,7 @@ local function openPause(state)
 end
 
 local function midExpedition()
-    return not (app and app.tacticalMode) and sim and sim.mode ~= "tactical" and sim.expedition and sim.expedition.active == true
+    return false
 end
 
 local function openConfirm(state, title, body, confirmAction)
@@ -718,7 +594,6 @@ end
 
 local function quitToTitle(state)
     sim = newTacticalSim(20260618)
-    state.tacticalMode = false
     state.tactics = nil
     state.tacticalOverlays = nil
     state.paused = false
@@ -900,7 +775,6 @@ local function activateGameOverAction(state, action)
     end
     if action == "title" then
         sim = newTacticalSim(20260618)
-        state.tacticalMode = false
         state.tactics = nil
         state.tacticalOverlays = nil
         state.paused = false
@@ -1593,7 +1467,7 @@ function love.update(dt)
             app.uiPulse = nil
         end
     end
-    local hitPaused = advanceCombatJuice(app, dt)
+    advanceCombatJuice(app, dt)
     if app.uiState ~= "game" then
         if app.smoke then
             app.smokeFrames = app.smokeFrames + 1
@@ -1606,54 +1480,8 @@ function love.update(dt)
     if syncGameOverState(app) then
         return
     end
-    if app.tacticalMode then
-        if app.tactics then
-            TacticalRuntime.syncWorld(sim, app.tactics)
-        end
-        if app.smoke then
-            app.smokeFrames = app.smokeFrames + 1
-            if app.smokeFrames >= 3 then
-                love.event.quit(0)
-            end
-        end
-        return
-    end
-    if not app.paused and not hitPaused then
-        Input.update(sim, app, dt)
-    end
-    Achievements.update(sim, app)
-    if not hitPaused then
-        Render.advanceCutscene(app, dt)
-    end
-    startNextCutscene(app)
-    if app.eventFlash then
-        app.eventFlash.t = math.max(0, app.eventFlash.t - dt)
-        if app.eventFlash.t <= 0 then
-            app.eventFlash = nil
-        end
-    end
-    if app.curioResult then
-        app.curioResult.t = math.max(0, (app.curioResult.t or 0) - dt)
-        if app.curioResult.t <= 0 then
-            app.curioResult = nil
-        end
-    end
-    accumulator = math.min(accumulator + dt, 0.25)
-    local maxSteps = love.keyboard.isDown("lshift", "rshift") and 6 or 3
-    local steps = 0
-    while not app.paused and not hitPaused and accumulator >= fixedDt and steps < maxSteps do
-        sim:step()
-        playSimAudio(app, sim)
-        queueCombatJuice(app, sim)
-        queueCutscenes(app, sim)
-        if syncGameOverState(app) then
-            break
-        end
-        accumulator = accumulator - fixedDt
-        steps = steps + 1
-    end
-    if app.paused then
-        accumulator = 0
+    if app.tactics then
+        TacticalRuntime.syncWorld(sim, app.tactics)
     end
     if app.smoke then
         app.smokeFrames = app.smokeFrames + 1
@@ -1800,10 +1628,7 @@ local function handleKey(key)
     if key == "f9" then
         local loaded, err = Save.read("save.thoth")
         if loaded then
-            sim = loaded
-            app.tacticalMode = false
-            app.tactics = nil
-            app.tacticalOverlays = nil
+            enterTacticalGame(app)
             app.status = "loaded"
             app.lastCueStatus = sim.status
             app.lastVisualEventId = sim.eventSerial or 0
@@ -1817,27 +1642,23 @@ local function handleKey(key)
         end
         return
     end
-    if app.tacticalMode then
-        if key == "[" then
-            turnView(app, -1)
-            Audio.play(app.audio, "tick")
-        elseif key == "]" then
-            turnView(app, 1)
-            Audio.play(app.audio, "tick")
-        elseif app.tactics and app.tactics:handleKey(key) then
-            app.tacticalOverlays = app.tactics.overlays
-            TacticalRuntime.syncWorld(sim, app.tactics)
-            Audio.play(app.audio, "tick")
-        else
-            playUi(app, "invalid")
-        end
-        return
+    if key == "[" then
+        turnView(app, -1)
+        Audio.play(app.audio, "tick")
+    elseif key == "]" then
+        turnView(app, 1)
+        Audio.play(app.audio, "tick")
+    elseif app.tactics and app.tactics:handleKey(key) then
+        app.tacticalOverlays = app.tactics.overlays
+        TacticalRuntime.syncWorld(sim, app.tactics)
+        Audio.play(app.audio, "tick")
+    else
+        playUi(app, "invalid")
     end
-    Input.keypressed(sim, app, key)
 end
 
 local function updateTacticalMouseHover(x, y)
-    if not (app and app.tacticalMode and app.uiState == "game" and app.tactics and not app.paused and not app.confirmDialog) then
+    if not (app and app.uiState == "game" and app.tactics and not app.paused and not app.confirmDialog) then
         return false
     end
     local tileX, tileY = Render.tacticalTileAt(app, x, y)
@@ -1888,13 +1709,6 @@ function love.gamepadaxis(_, axis, value)
     end
 end
 
-function love.keyreleased(key)
-    if app.uiState ~= "game" then
-        return
-    end
-    Input.keyreleased(sim, app, key)
-end
-
 function love.mousepressed(x, y, button)
     if button == 1 then
         local hitbox = Render.hitboxAt(app, x, y)
@@ -1932,22 +1746,14 @@ function love.mousepressed(x, y, button)
         mousePause(app, x, y)
         return
     end
-    if app.tacticalMode and app.uiState == "game" then
+    if app.uiState == "game" then
         mouseTactical(x, y, button)
         return
     end
-    Input.mousepressed(sim, app, x, y, button)
-end
-
-function love.mousereleased(x, y, button)
-    if app.uiState ~= "game" then
-        return
-    end
-    Input.mousereleased(sim, app, x, y, button)
 end
 
 function love.wheelmoved(_, y)
-    if app.tacticalMode and app.uiState == "game" and not app.paused and not app.confirmDialog and y ~= 0 then
+    if app.uiState == "game" and not app.paused and not app.confirmDialog and y ~= 0 then
         local zoom = Render.adjustTacticalZoom(app, y)
         app.status = "zoom " .. tostring(math.floor(zoom * 100 + 0.5)) .. "%"
         Audio.play(app.audio, "tick")
