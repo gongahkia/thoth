@@ -1,4 +1,3 @@
-local Simulation = require("src.game.simulation")
 local TacticalRuntime = require("src.game.tactical_runtime")
 
 local runs = tonumber(os.getenv("THOTH_BENCH_RUNS")) or 4
@@ -7,8 +6,21 @@ local clock = os.clock
 local elapsed = 0
 local maxTick = 0
 
+local function makeSim(seed)
+    return {
+        seed = seed,
+        mode = "tactical",
+        status = "tactical",
+        tick = 0,
+        player = { x = 0, y = 0, z = 0 },
+        world = {
+            setTile = function() end,
+        },
+    }
+end
+
 for run = 1, runs do
-    local sim = Simulation.new(20260618 + run)
+    local sim = makeSim(20260618 + run)
     local runtime = TacticalRuntime.new(sim)
     for tick = 1, ticks do
         local started = clock()

@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(A) 2026-06-22 Delete src/game/simulation.lua and remove every require/usage from main.lua and tests +legacy-cleanup @engine
 (A) 2026-06-22 Delete src/game/world.lua and remove every require/usage from main.lua and tests +legacy-cleanup @engine
 (A) 2026-06-22 Strip the tacticalMode guard branches in main.lua now that only the tactical path remains; collapse update/draw to a single code path +legacy-cleanup @engine
 (A) 2026-06-22 Run make test and make package-build to confirm the legacy/i18n removal does not break the playable tactical path or dist/thoth.love +legacy-cleanup @tests

@@ -20,7 +20,6 @@ local required = {
     "main.lua",
     "conf.lua",
     "TODO.md",
-    "src/game/simulation.lua",
     "src/game/data/registry.lua",
     "src/app/credits.lua",
     "vendor/g3d/g3d/init.lua",

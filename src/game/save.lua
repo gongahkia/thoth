@@ -1,12 +1,12 @@
 local Serialize = require("src.core.serialize")
-local Simulation = require("src.game.simulation")
 
 local Save = {}
 local currentVersion = 4
 local minimumVersion = 2
 
 function Save.toText(simulation)
-    return "THOTH_LUA_SAVE " .. tostring(currentVersion) .. "\n" .. Serialize.encode(simulation:snapshot()) .. "\n"
+    local snapshot = simulation and simulation.snapshot and simulation:snapshot() or simulation
+    return "THOTH_LUA_SAVE " .. tostring(currentVersion) .. "\n" .. Serialize.encode(snapshot) .. "\n"
 end
 
 function Save.migrateSnapshot(snapshot, fromVersion)
@@ -37,7 +37,7 @@ function Save.fromText(text)
     if not snapshot then
         return nil, err
     end
-    return Simulation.fromSnapshot(snapshot)
+    return snapshot
 end
 
 function Save.write(simulation, path)

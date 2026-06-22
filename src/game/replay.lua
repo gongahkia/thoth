@@ -1,5 +1,4 @@
 local Serialize = require("src.core.serialize")
-local Simulation = require("src.game.simulation")
 
 local Replay = {}
 local currentVersion = 2
@@ -18,7 +17,21 @@ local function validateReplay(data)
 end
 
 function Replay.run(seed, frames, finalTick, setup)
-    local sim = Simulation.new(seed)
+    local sim = {
+        seed = seed,
+        tick = 0,
+        mode = "tactical",
+        status = "replay data only",
+        frames = {},
+        commandQueue = {},
+        queue = function(self, command)
+            self.commandQueue[#self.commandQueue + 1] = command
+        end,
+        step = function(self)
+            self.tick = self.tick + 1
+            self.commandQueue = {}
+        end,
+    }
     if setup then
         setup(sim)
     end

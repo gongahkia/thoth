@@ -1,6 +1,5 @@
 package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.path
 
-local Simulation = require("src.game.simulation")
 local Input = require("src.app.input")
 local Render = require("src.app.render")
 local Audio = require("src.app.audio")
@@ -19,6 +18,30 @@ local sim
 local app
 local fixedDt = 1 / 60
 local accumulator = 0
+
+local function newTacticalSim(seed)
+    local world = { tiles = {} }
+    function world:setTile(x, y, z, tile)
+        self.tiles[tostring(x) .. ":" .. tostring(y) .. ":" .. tostring(z or 0)] = tile
+    end
+    function world:peekTile(x, y, z)
+        return self.tiles[tostring(x) .. ":" .. tostring(y) .. ":" .. tostring(z or 0)] or { id = "archive_floor", data = 0 }
+    end
+    function world:getTile(x, y, z)
+        return self:peekTile(x, y, z)
+    end
+    return {
+        seed = seed,
+        mode = "tactical",
+        status = "tactical",
+        tick = 0,
+        player = { x = 0, y = 0, z = 0 },
+        world = world,
+        snapshot = function(self)
+            return { version = 4, seed = self.seed, mode = self.mode, status = self.status, tick = self.tick, player = self.player }
+        end,
+    }
+end
 
 local function hasArg(args, target)
     for _, value in ipairs(args or {}) do
@@ -162,10 +185,10 @@ local function startNextCutscene(state)
     end
 end
 
-local function playSimulationAudio(state, simulation)
-    state.lastAudioEventId = state.lastAudioEventId or (simulation.eventSerial or 0)
+local function playSimAudio(state, source)
+    state.lastAudioEventId = state.lastAudioEventId or (source.eventSerial or 0)
     local playedCue
-    for _, event in ipairs(simulation.events or {}) do
+    for _, event in ipairs(source.events or {}) do
         if event.id > state.lastAudioEventId then
             local cue = Audio.cueForEvent(event) or Audio.cueForStatus(event.message)
             if cue then
@@ -177,9 +200,9 @@ local function playSimulationAudio(state, simulation)
             state.lastAudioEventId = event.id
         end
     end
-    if not playedCue and simulation.status ~= state.lastCueStatus then
-        state.lastCueStatus = simulation.status
-        playedCue = Audio.cueForStatus(simulation.status)
+    if not playedCue and source.status ~= state.lastCueStatus then
+        state.lastCueStatus = source.status
+        playedCue = Audio.cueForStatus(source.status)
         if playedCue then
             Audio.play(state.audio, playedCue)
         end
@@ -380,7 +403,7 @@ local function enterGame(state, simulation, status)
 end
 
 local function enterTacticalGame(state)
-    sim = Simulation.new(20260618)
+    sim = newTacticalSim(20260618)
     state.tacticalMode = true
     state.uiState = "game"
     state.status = "tactical prototype"
@@ -694,7 +717,7 @@ local function closeConfirm(state)
 end
 
 local function quitToTitle(state)
-    sim = Simulation.new(20260618)
+    sim = newTacticalSim(20260618)
     state.tacticalMode = false
     state.tactics = nil
     state.tacticalOverlays = nil
@@ -876,7 +899,7 @@ local function activateGameOverAction(state, action)
         return
     end
     if action == "title" then
-        sim = Simulation.new(20260618)
+        sim = newTacticalSim(20260618)
         state.tacticalMode = false
         state.tactics = nil
         state.tacticalOverlays = nil
@@ -1283,7 +1306,7 @@ local function printControllerSmoke(state)
     end
     state.controllerSmokePrinted = true
     local axisState = {}
-    local tacticalSim = Simulation.new(9005)
+    local tacticalSim = newTacticalSim(9005)
     local runtime = TacticalRuntime.new(tacticalSim)
     runtime:handleKey(Input.gamepadButtonKey("dpright"))
     runtime:handleKey(Input.gamepadAxisKey("lefty", -0.8, axisState))
@@ -1356,7 +1379,7 @@ function love.load(args)
         runModelImport(args)
         return
     end
-    sim = Simulation.new(20260618)
+    sim = newTacticalSim(20260618)
     local renderBenchmark = hasArg(args, "--render-benchmark")
     local loadBenchmark = hasArg(args, "--load-benchmark")
     local titleSmoke = hasArg(args, "--title-smoke")
@@ -1620,7 +1643,7 @@ function love.update(dt)
     local steps = 0
     while not app.paused and not hitPaused and accumulator >= fixedDt and steps < maxSteps do
         sim:step()
-        playSimulationAudio(app, sim)
+        playSimAudio(app, sim)
         queueCombatJuice(app, sim)
         queueCutscenes(app, sim)
         if syncGameOverState(app) then

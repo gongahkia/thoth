@@ -1,6 +1,6 @@
 package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.path
 
-local Simulation = require("src.game.simulation")
+local TacticalRuntime = require("src.game.tactical_runtime")
 
 local ticks = tonumber(os.getenv("THOTH_BENCH_TICKS")) or 300
 local runs = tonumber(os.getenv("THOTH_BENCH_RUNS")) or 8
@@ -21,26 +21,32 @@ local function runRenderBenchmark()
     end
 end
 
-local commands = {
-    Simulation.commands.move("east"),
-    Simulation.commands.move("east"),
-    Simulation.commands.useItem("torch"),
-    Simulation.commands.selectHero(2),
-    Simulation.commands.move("east"),
-    Simulation.commands.move("east"),
-    Simulation.commands.move("east"),
-    Simulation.commands.retreat(),
-}
+local function makeSim(seed)
+    return {
+        seed = seed,
+        mode = "tactical",
+        status = "tactical",
+        tick = 0,
+        player = { x = 0, y = 0, z = 0 },
+        world = {
+            setTile = function() end,
+        },
+    }
+end
 
 local maxTickMs = 0
 local started = os.clock()
 for run = 1, runs do
-    local sim = Simulation.new(20260618 + run)
+    local runtime = TacticalRuntime.new(makeSim(20260618 + run))
     for tick = 1, ticks do
-        local command = commands[((tick - 1) % #commands) + 1]
-        sim:queue(command)
         local tickStart = os.clock()
-        sim:step()
+        if tick % 4 == 0 then
+            runtime:handleKey("tab")
+        elseif tick % 2 == 0 then
+            runtime:handleKey("right")
+        else
+            TacticalRuntime.refreshOverlays(runtime)
+        end
         local tickMs = (os.clock() - tickStart) * 1000
         if tickMs > maxTickMs then
             maxTickMs = tickMs
@@ -49,7 +55,7 @@ for run = 1, runs do
 end
 local elapsedMs = (os.clock() - started) * 1000
 
-print("benchmark=rpg_expedition")
+print("benchmark=tactical_route")
 print("runs=" .. runs)
 print("ticks=" .. ticks)
 print(string.format("elapsed_ms=%.3f", elapsedMs))
