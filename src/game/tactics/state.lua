@@ -722,6 +722,7 @@ local terrainConversions = {
     lower_cover = true,
     seal_tile = true,
     open_tile = true,
+    bend_los = true,
 }
 
 local rewardKinds = {
@@ -2787,6 +2788,10 @@ function State:convertTile(x, y, conversion)
         tile.blocker = false
         tile.losBlocker = false
         tile.state = "open"
+    elseif conversion == "bend_los" then
+        tile.losBlocker = false
+        tile.losBent = true
+        tile.state = "los_bent"
     end
     self.board.tiles[key] = tile
     return tile

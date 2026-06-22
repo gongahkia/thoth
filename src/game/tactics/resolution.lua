@@ -14,6 +14,15 @@ local function addTile(list, x, y)
     list[#list + 1] = { x = x, y = y }
 end
 
+local function listHas(values, needle)
+    for _, value in ipairs(values or {}) do
+        if value == needle then
+            return true
+        end
+    end
+    return false
+end
+
 local function addTileEffects(state, preview, x, y, damage)
     if not state:inBounds(x, y) then
         return
@@ -64,6 +73,8 @@ function Resolution.actionPreview(state, command)
             addTile(preview.affectedTiles, x, y)
             addTileEffects(state, preview, x, y, 0)
         end
+    elseif command.type == "spend" then
+        preview.apCost = command.amount or 0
     elseif command.type == "attack" then
         local target = state:unit(command.target)
         if target then
@@ -177,6 +188,30 @@ function Resolution.actionPreview(state, command)
     elseif command.type == "convertTile" then
         addTile(preview.affectedTiles, command.x, command.y)
         preview.hazardChain[#preview.hazardChain + 1] = { x = command.x, y = command.y, conversion = command.conversion }
+    elseif command.type == "interruptIntent" then
+        local unit = state:unit(command.unit)
+        if unit then
+            addTile(preview.affectedTiles, unit.x, unit.y)
+            preview.intentInterrupt = { target = command.unit, kind = command.interrupt and command.interrupt.kind }
+        end
+    elseif command.type == "classReveal" then
+        local unit = state:unit(command.unit)
+        local revealClass = (command.options and command.options.revealClass) or (unit and unit.class)
+        local revealAction = command.options and (command.options.revealAction or command.options.action)
+        preview.reveal = { class = revealClass, action = revealAction, tiles = {}, intents = {} }
+        for key, tile in pairs(state.board.tiles or {}) do
+            if listHas(tile.revealClasses, revealClass) or listHas(tile.revealActions, revealAction) then
+                local x, y = key:match("^(%-?%d+):(%-?%d+)$")
+                local revealed = { x = tonumber(x), y = tonumber(y), weakPoint = tile.weakPoint }
+                preview.reveal.tiles[#preview.reveal.tiles + 1] = revealed
+                addTile(preview.affectedTiles, revealed.x, revealed.y)
+            end
+        end
+        for id, intent in pairs(state.intents or {}) do
+            if listHas(intent.revealClasses, revealClass) or listHas(intent.revealActions, revealAction) then
+                preview.reveal.intents[#preview.reveal.intents + 1] = id
+            end
+        end
     elseif command.type == "obscurant" then
         addTile(preview.affectedTiles, command.x, command.y)
         preview.obscurant = { x = command.x, y = command.y, kind = command.kind, countdown = command.countdown }

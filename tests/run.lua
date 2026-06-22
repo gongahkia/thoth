@@ -311,7 +311,7 @@ tests[#tests + 1] = function()
         { id = "duelist", verbs = { "red_line", "dash_strike", "position_swap" } },
         { id = "apothecary", verbs = { "field_triage", "stabilize", "smoke_binder" } },
         { id = "thief", verbs = { "ghost_route", "courier_cut" } },
-        { id = "arcanist", verbs = { "reveal", "bend_los", "unredact_intent", "pass_seal" } },
+        { id = "arcanist", verbs = { "seal_reader", "line_bender", "intent_breaker" } },
         { id = "lamplighter", verbs = { "reveal_route", "project_cone", "anchor_beacon", "safe_hazard" } },
     }
     for _, entry in ipairs(expectedVerbs) do
@@ -319,7 +319,7 @@ tests[#tests + 1] = function()
         local bar = runtime:actionBar()
         for index, verb in ipairs(entry.verbs) do
             local action = bar[4 + index]
-            local contextSensitive = entry.id == "warden" or entry.id == "duelist" or entry.id == "apothecary" or entry.id == "thief"
+            local contextSensitive = entry.id == "warden" or entry.id == "duelist" or entry.id == "apothecary" or entry.id == "thief" or entry.id == "arcanist"
             local enabledOk = action and (action.enabled or contextSensitive)
             expect(action and action.id == "class:" .. verb and action.key == tostring(index) and enabledOk, entry.id .. " class verb should be callable from input bar")
             if not contextSensitive then
@@ -494,6 +494,58 @@ tests[#tests + 1] = function()
     local first = runThief()
     local second = runThief()
     expect(Serialize.encode(first:snapshot()) == Serialize.encode(second:snapshot()), "Thief ghost_route courier_cut sequence should replay deterministically")
+end
+
+tests[#tests + 1] = function()
+    local function runArcanist()
+        local state = TacticsState.new({
+            defaultAp = 3,
+            board = {
+                width = 5,
+                height = 3,
+                tiles = {
+                    ["3:2"] = { kind = "seal_wall", blocker = true, losBlocker = true, height = 1, revealed = false, revealClasses = { "arcanist" }, weakPoint = "seal_glyph" },
+                },
+            },
+            units = {
+                { id = "arcanist", side = "player", class = "arcanist", x = 1, y = 2, hp = 4, ap = 3, maxAp = 3, visionRadius = 8 },
+                { id = "redactor", side = "enemy", x = 5, y = 2, hp = 4, ap = 1, visionRadius = 8 },
+            },
+            objectives = {
+                { id = "dummy", x = 1, y = 1, integrity = 3, maxIntegrity = 3, evacuateAt = { x = 5, y = 3 } },
+            },
+        })
+        state:declareIntent("redactor", {
+            mode = "hiddenFootprint",
+            category = "redacted",
+            targetTiles = { { x = 1, y = 2 } },
+            damage = 2,
+            revealClasses = { "arcanist" },
+        })
+        local runtime = { state = state, selectedUnitId = "arcanist", cursor = { x = 1, y = 1 }, turn = 1, lastSeenEnemies = {} }
+        TacticalRuntime.refreshOverlays(runtime)
+        local seal = TacticalRuntime.actionBar(runtime)[5]
+        expect(seal.classVerb == "seal_reader" and seal.enabled and seal.preview.reveal.tiles[1].weakPoint == "seal_glyph", "Arcanist seal_reader should preview class-gated reveals")
+        expect(TacticalRuntime.handleKey(runtime, "1"), "Arcanist seal_reader should activate from input bar")
+        expect(state:tileAt(3, 2).weakPointRevealed and state:intentPreview("redactor").revealed and state:unit("arcanist").ap == 2, "Arcanist seal_reader should reveal seal and intent")
+        runtime.cursor.x = 3
+        runtime.cursor.y = 2
+        expect(not state:lineOfSight(1, 2, 5, 2).visible, "sealed wall should block LoS before line_bender")
+        local bend = TacticalRuntime.actionBar(runtime)[6]
+        expect(bend.classVerb == "line_bender" and bend.enabled and bend.preview.hazardChain[1].conversion == "bend_los", "Arcanist line_bender should preview LoS bend conversion")
+        expect(TacticalRuntime.handleKey(runtime, "2"), "Arcanist line_bender should activate from input bar")
+        expect(state:tileAt(3, 2).losBent and state:tileAt(3, 2).blocker and not state:tileAt(3, 2).losBlocker and state:lineOfSight(1, 2, 5, 2).visible and state:unit("arcanist").ap == 1, "Arcanist line_bender should bend LoS without opening movement")
+        runtime.cursor.x = 5
+        runtime.cursor.y = 2
+        local breaker = TacticalRuntime.actionBar(runtime)[7]
+        expect(breaker.classVerb == "intent_breaker" and breaker.enabled and breaker.preview.intentInterrupt.target == "redactor", "Arcanist intent_breaker should preview source interrupt")
+        expect(TacticalRuntime.handleKey(runtime, "3"), "Arcanist intent_breaker should activate from input bar")
+        expect(state:intentPreview("redactor") == nil and state:unit("arcanist").ap == 0, "Arcanist intent_breaker should spend AP and prevent intent")
+        return state
+    end
+    local first = runArcanist()
+    local second = runArcanist()
+    expect(Serialize.encode(first:snapshot()) == Serialize.encode(second:snapshot()), "Arcanist seal_reader line_bender intent_breaker sequence should replay deterministically")
 end
 
 tests[#tests + 1] = function()

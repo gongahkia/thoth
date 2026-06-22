@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(B) 2026-06-22 Implement Arcanist board verbs (seal_reader reveal, line_bender LoS bend, intent_breaker interrupt) end-to-end +slice-content @engine
 (B) 2026-06-22 Implement Lamplighter board verbs (beacon_runner, cone_keeper overwatch upgrade, ash_lamp intent reduction) end-to-end; integrate with the new overwatch system +slice-content @engine
 (B) 2026-06-22 Add class-loadout selection screen so the player picks 6 units from the 6 classes (allowing duplicates or not - decide and document) before mission 1 +slice-content @ui
 (B) 2026-06-22 Wire 10 common Archive enemies (hollow_guard, ink_wretch, bone_scribe, gutter_thing, pale_censer, page_scout, writ_bailiff, seal_clerk, ledger_hound, drawer_mite) into the procgen spawn pool; each must declare a distinct intent type +slice-content @data

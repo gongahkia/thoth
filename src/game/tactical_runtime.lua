@@ -22,6 +22,7 @@ local sliceBoardActions = {
     duelist = { "red_line", "dash_strike", "position_swap" },
     mender = { "field_triage", "stabilize", "smoke_binder" },
     harrier = { "ghost_route", "courier_cut" },
+    arcanist = { "seal_reader", "line_bender", "intent_breaker" },
 }
 local enemyIntentSpecs = {
     audit_hound = { label = "bite notice", target = "nearest_player" },
@@ -604,7 +605,7 @@ local function previewCommandSequence(state, commands)
         if commandPreview.error then
             return { error = commandPreview.error }
         end
-        preview.apCost = preview.apCost + (commandPreview.apCost or command.cost or 0)
+        preview.apCost = preview.apCost + (commandPreview.apCost or command.cost or command.amount or 0)
         appendTiles(preview.affectedTiles, commandPreview.affectedTiles)
         appendTiles(preview.pushedPath, commandPreview.pushedPath)
         appendPreviewList(preview.objectiveDamage, commandPreview.objectiveDamage)
@@ -617,6 +618,8 @@ local function previewCommandSequence(state, commands)
         preview.objectiveExtract = commandPreview.objectiveExtract or preview.objectiveExtract
         preview.cargo = commandPreview.cargo or preview.cargo
         preview.status = commandPreview.status or preview.status
+        preview.reveal = commandPreview.reveal or preview.reveal
+        preview.intentInterrupt = commandPreview.intentInterrupt or preview.intentInterrupt
         if commandPreview.obscurant then
             preview.obscurants[#preview.obscurants + 1] = commandPreview.obscurant
         end
@@ -830,6 +833,49 @@ local function harrierPreview(runtime, selected, verb)
     return previewCommandSequence(runtime.state, commands)
 end
 
+local function arcanistCommands(runtime, selected, verb)
+    local state = runtime.state
+    if verb == "seal_reader" then
+        return { TacticsState.commands.classReveal(selected.id, { revealClass = "arcanist", revealAction = "seal_reader" }, 1) }
+    end
+    if verb == "line_bender" then
+        local distance = Grid.manhattan(selected.x, selected.y, runtime.cursor.x, runtime.cursor.y)
+        if distance > 4 then
+            return nil, "line_bender range 4"
+        end
+        local tile = state:tileAt(runtime.cursor.x, runtime.cursor.y)
+        if not tile.losBlocker then
+            return nil, "line_bender needs LoS blocker"
+        end
+        return { TacticsState.commands.convertTile(selected.id, runtime.cursor.x, runtime.cursor.y, "bend_los", 1) }
+    end
+    if verb == "intent_breaker" then
+        local target = cursorUnit(runtime)
+        if not (target and target.side == "enemy") then
+            return nil, "intent_breaker needs enemy"
+        end
+        if not state:intentPreview(target.id, { reveal = true }) then
+            return nil, "intent_breaker needs intent"
+        end
+        if not Runtime.enemyVisible(runtime, target) then
+            return nil, "intent_breaker target hidden"
+        end
+        return {
+            TacticsState.commands.spend(selected.id, 1, "intent_breaker"),
+            TacticsState.commands.interruptIntent(target.id, "losBreak"),
+        }
+    end
+    return nil, "unknown Arcanist verb"
+end
+
+local function arcanistPreview(runtime, selected, verb)
+    local commands, err = arcanistCommands(runtime, selected, verb)
+    if not commands then
+        return { error = err }
+    end
+    return previewCommandSequence(runtime.state, commands)
+end
+
 local function classVerbPreview(runtime, selected, verb)
     if selected and selected.class == "warden" then
         return wardenPreview(runtime, selected, verb)
@@ -842,6 +888,9 @@ local function classVerbPreview(runtime, selected, verb)
     end
     if selected and selected.class == "harrier" then
         return harrierPreview(runtime, selected, verb)
+    end
+    if selected and selected.class == "arcanist" then
+        return arcanistPreview(runtime, selected, verb)
     end
     return nil
 end
@@ -1118,6 +1167,19 @@ function Runtime.activateClassVerb(runtime, index)
     end
     if selected.class == "harrier" then
         local commands, err = harrierCommands(runtime, selected, verb)
+        if not commands then
+            setStatus(runtime, err)
+            return false
+        end
+        if tryApplyCommands(runtime, commands) then
+            Runtime.refreshOverlays(runtime)
+            setStatus(runtime, selected.id .. " " .. verb)
+            return true
+        end
+        return false
+    end
+    if selected.class == "arcanist" then
+        local commands, err = arcanistCommands(runtime, selected, verb)
         if not commands then
             setStatus(runtime, err)
             return false
