@@ -36,17 +36,20 @@ Salt Cistern, Ember Warrens, wider class unlocks, and long-form campaign systems
 
 ## Media
 
-Current screenshot:
+Current screenshots:
 
 - `assets/previews/readme-tactical.png`
+- `assets/previews/itch-tactical-fog.png`
+- `assets/previews/itch-tactical-overwatch.png`
+- `assets/previews/itch-tactical-intent-legend.png`
 
 Current GIF:
 
 - `assets/previews/readme-tactical-loop.gif`
 
-Storefront refresh TODO:
+Storefront rule:
 
-- Replace legacy alpha/final preview references with the upcoming fog-of-war, overwatch cone, and intent legend captures.
+- Use the current tactical captures above. Do not use legacy alpha/final RPG captures.
 
 ## Tags
 

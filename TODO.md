@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(E) 2026-06-22 Capture new preview PNGs at 1280x720 showing fog-of-war, overwatch cone, and intent legend for itch.io storefront update +release @build
 (E) 2026-06-22 Cut a new dist/thoth.love build, smoke-test on macOS, and tag a vertical-slice-rc1 git tag once all (A) and (B) tasks are complete +release @build
 (E) 2026-06-22 Draft itch.io devlog post for the vertical slice release; include the rewritten pitch line and a 30-second gameplay GIF +release @docs
 

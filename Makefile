@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke legacy-combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke tactical-smoke sprite-import-smoke model-import-smoke validate test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke legacy-combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke tactical-smoke storefront-previews sprite-import-smoke model-import-smoke validate test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -292,6 +292,24 @@ tactical-smoke:
 	grep -q "tactical-smoke-compass=0" $$tmp; \
 	grep -q "tactical-smoke-ghost-arrows=[1-9]" $$tmp; \
 	rm -f $$tmp
+
+storefront-previews:
+	@set -e; \
+	mkdir -p assets/previews; \
+	for spec in fog:itch-tactical-fog.png overwatch:itch-tactical-overwatch.png intent:itch-tactical-intent-legend.png; do \
+		state=$${spec%%:*}; \
+		path=assets/previews/$${spec#*:}; \
+		tmp=$$(mktemp); \
+		if command -v xvfb-run >/dev/null 2>&1; then \
+			SDL_AUDIODRIVER=dummy xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --tactical-smoke --tactical-preview-state $$state --preview-capture $$path | tee $$tmp; \
+		else \
+			SDL_AUDIODRIVER=dummy $(LOVE) . --tactical-smoke --tactical-preview-state $$state --preview-capture $$path | tee $$tmp; \
+		fi; \
+		grep -q "tactical-smoke-preview-state=$$state" $$tmp; \
+		grep -q "preview-capture=$$path" $$tmp; \
+		test -s $$path; \
+		rm -f $$tmp; \
+	done
 
 sprite-import-smoke:
 	@set -e; \

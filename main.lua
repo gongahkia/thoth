@@ -295,6 +295,119 @@ local function enterTacticalGame(state, squadLoadout)
     TacticalRuntime.syncWorld(sim, state.tactics)
 end
 
+local function clampValue(value, minValue, maxValue)
+    return math.max(minValue, math.min(maxValue, value))
+end
+
+local function parseTileKey(key)
+    local x, y = tostring(key):match("^(%-?%d+):(%-?%d+)$")
+    return tonumber(x), tonumber(y)
+end
+
+local function setTacticalCaptureCursor(state, x, y, hover)
+    local runtime = state and state.tactics
+    local board = runtime and runtime.state and runtime.state.board
+    if not (runtime and board and x and y) then
+        return false
+    end
+    x = clampValue(math.floor(x), 1, board.width)
+    y = clampValue(math.floor(y), 1, board.height)
+    runtime:setCursor(x, y)
+    state.tacticalHover = hover == false and nil or { x = x, y = y }
+    state.tacticalOverlays = runtime.overlays
+    TacticalRuntime.syncWorld(sim, runtime)
+    return true
+end
+
+local function selectTacticalCaptureUnit(state, unitId)
+    local runtime = state and state.tactics
+    local unit = runtime and runtime.state and runtime.state:unit(unitId)
+    if not unit then
+        return nil
+    end
+    runtime.selectedUnitId = unit.id
+    setTacticalCaptureCursor(state, unit.x, unit.y, false)
+    return unit
+end
+
+local function configureFogPreviewCapture(state)
+    local runtime = state and state.tactics
+    if not runtime then
+        return
+    end
+    local visibility = runtime and runtime:visibilityGrid()
+    local keys = {}
+    for key, fogged in pairs((visibility and visibility.fog) or {}) do
+        if fogged then
+            keys[#keys + 1] = key
+        end
+    end
+    table.sort(keys)
+    local x, y = parseTileKey(keys[#keys] or "")
+    if x and y then
+        setTacticalCaptureCursor(state, x, y)
+    end
+    runtime.message = "fog-of-war: dim archive tiles hide unit and intent footprints"
+end
+
+local function configureOverwatchPreviewCapture(state)
+    local runtime = state and state.tactics
+    local unit = selectTacticalCaptureUnit(state, "lamplighter") or selectTacticalCaptureUnit(state, "warden")
+    if not (runtime and unit) then
+        return
+    end
+    local board = runtime.state.board
+    local direction = unit.x + 4 <= board.width and "east" or "west"
+    local targetX = direction == "east" and unit.x + 4 or unit.x - 4
+    setTacticalCaptureCursor(state, targetX, unit.y)
+    runtime:setOverwatchPreview(direction, 4, 2)
+    state.tacticalOverlays = runtime.overlays
+    runtime.message = "overwatch cone: explicit AP spend, watched tiles, trigger limit"
+end
+
+local function configureIntentLegendPreviewCapture(state)
+    local runtime = state and state.tactics
+    local entries = Render.tacticalIntentLegendEntries(state)
+    local entry = entries[1]
+    for _, candidate in ipairs(entries) do
+        if #(candidate.targetTiles or {}) > 0 then
+            entry = candidate
+            break
+        end
+    end
+    if not (runtime and entry) then
+        return
+    end
+    state.tacticalIntentHover = {
+        unit = entry.unit,
+        sourceTile = entry.sourceTile,
+        targetTiles = entry.targetTiles,
+    }
+    local focus = (entry.targetTiles and entry.targetTiles[1]) or entry.sourceTile
+    if focus then
+        setTacticalCaptureCursor(state, focus.x, focus.y)
+    end
+    runtime.message = "intent legend: source and target tiles are highlighted before commit"
+end
+
+local function configureTacticalPreviewCapture(state, previewState)
+    if not (state and state.tactics and previewState) then
+        return
+    end
+    state.tacticalPreviewState = previewState
+    state.tacticalIntentHover = nil
+    state.tacticalHover = nil
+    if previewState == "fog" then
+        configureFogPreviewCapture(state)
+    elseif previewState == "overwatch" then
+        configureOverwatchPreviewCapture(state)
+    elseif previewState == "intent" or previewState == "intent-legend" then
+        configureIntentLegendPreviewCapture(state)
+    else
+        state.tacticalPreviewState = "default"
+    end
+end
+
 local function enterSquadLoadout(state)
     sim = newTacticalSim(20260618)
     state.tacticalMode = false
@@ -1087,6 +1200,7 @@ local function printTacticalSmoke(state)
     print("tactical-smoke-movement=" .. tostring(overlays.movement or 0))
     print("tactical-smoke-forecast=" .. tostring(state.worldView and state.worldView.tacticalForecast or 0))
     print("tactical-smoke-zoom=" .. string.format("%.2f", Render.tacticalZoom(state)))
+    print("tactical-smoke-preview-state=" .. tostring(state.tacticalPreviewState or "default"))
     print("tactical-smoke-objective=" .. tostring(summary.objective and summary.objective.integrity) .. "/" .. tostring(summary.objective and summary.objective.maxIntegrity))
     local hudAudit = Render.tacticalHudLayoutAudit(1920, 1080, 6)
     print("tactical-smoke-hud-layout=" .. tostring(hudAudit.ok))
@@ -1396,6 +1510,7 @@ function love.load(args)
     local toastSmoke = hasArg(args, "--toast-smoke")
     local polishSmoke = hasArg(args, "--polish-smoke")
     local tacticalSmoke = hasArg(args, "--tactical-smoke")
+    local tacticalPreviewState = argValue(args, "--tactical-preview-state", nil)
     local accessibilityExport = argValue(args, "--accessibility-export", nil)
     local smoke = hasArg(args, "--smoke") or accessibilityExport ~= nil or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke or tutorialSmoke or toastSmoke or polishSmoke or tacticalSmoke
     local renderSmoke = hasArg(args, "--render-smoke")
@@ -1537,6 +1652,7 @@ function love.load(args)
     end
     if tacticalSmoke then
         enterTacticalGame(app)
+        configureTacticalPreviewCapture(app, tacticalPreviewState)
         app.tacticalSmoke = true
         app.smoke = true
     end

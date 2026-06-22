@@ -91,8 +91,11 @@ Current local tactical media:
 
 - `assets/previews/readme-tactical.png` - 1280x720 tactical screenshot with six-unit AP HUD, intent legend, tile inspector, objective pressure, and route board.
 - `assets/previews/readme-tactical-loop.gif` - 640x360 tactical GIF preview.
+- `assets/previews/itch-tactical-fog.png` - 1280x720 storefront screenshot focused on fog-of-war, visible/dim board state, and tile inspector.
+- `assets/previews/itch-tactical-overwatch.png` - 1280x720 storefront screenshot focused on overwatch cone preview and six-unit HUD.
+- `assets/previews/itch-tactical-intent-legend.png` - 1280x720 storefront screenshot focused on intent legend source/target highlighting.
 
-Storefront/press screenshot set still required before public release:
+Higher-resolution press screenshot set still required before public release:
 
 - 1080p and 4K fog-of-war reveal.
 - 1080p and 4K overwatch cone declaration.

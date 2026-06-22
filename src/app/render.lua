@@ -3952,6 +3952,15 @@ end
 local function drawTacticalActionSlot(action, x, y, w, h)
     local enabled = action.enabled == true
     local primary = action.primary == true
+    local function compactSlotText(value, limit)
+        local text = tostring(value or "")
+        if #text > limit then
+            text = text:gsub("%s+", "")
+        end
+        return shortText(text, limit)
+    end
+    local label = shortText(tostring(action.label or "-"):match("^[^%s]+") or action.label, 9)
+    local detail = compactSlotText(action.detail, 9)
     local alpha = enabled and 0.92 or 0.58
     love.graphics.setColor(primary and 0.13 or 0.075, primary and 0.12 or 0.085, primary and 0.09 or 0.095, alpha)
     love.graphics.rectangle("fill", x, y, w, h)
@@ -3960,9 +3969,9 @@ local function drawTacticalActionSlot(action, x, y, w, h)
     love.graphics.setColor(enabled and 0.96 or 0.42, enabled and 0.94 or 0.44, enabled and 0.78 or 0.42, 1)
     love.graphics.printf(tostring(action.key or "-"), x + 7, y + 6, w - 14, "left")
     love.graphics.setColor(enabled and 0.9 or 0.48, enabled and 0.92 or 0.5, enabled and 0.86 or 0.48, 1)
-    love.graphics.printf(tostring(action.label or "-"), x + 7, y + 25, w - 14, "center")
+    love.graphics.printf(label, x + 7, y + 25, w - 14, "center")
     love.graphics.setColor(enabled and 0.62 or 0.36, enabled and 0.68 or 0.38, enabled and 0.64 or 0.36, 1)
-    love.graphics.printf(tostring(action.detail or ""), x + 7, y + 43, w - 14, "center")
+    love.graphics.printf(detail, x + 7, y + 43, w - 14, "center")
 end
 
 function Render.drawTacticalActionBar(app, layout)
