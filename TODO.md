@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(B) 2026-06-22 Wire Vault Regent boss in src/game/tactics/boss_catalog.lua: phase chart, arena diagram, staged intent masks rotating per turn, weak-point exposure tied to rotation +slice-content @data
 (B) 2026-06-22 Define 6 mission variants in run_catalog.lua/procgen.lua for the Buried Archive route: entry_audit, shelf_protection, proof_extract, ledger_repair, sealed_shortcut, vault_regent_final; each must have a distinct objective family +slice-content @data
 (B) 2026-06-22 Tune AP economy in src/game/tactics/ap.lua for a 6-unit squad so a turn averages 18-24 AP total; verify against playtest replay +slice-content @engine
 (B) 2026-06-22 Scale UI in src/app/render.lua to show 6 unit portraits, AP pools, and selection state without overlapping the board view at 1080p +slice-content @ui

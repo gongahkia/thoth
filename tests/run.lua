@@ -2438,6 +2438,7 @@ tests[#tests + 1] = function()
     expect(#boss.board.nameCollateral == 2, "Vault Regent should define name collateral")
     expect(#boss.board.legalCover == 2, "Vault Regent should define legal cover")
     expect(#boss.board.writPillars == 3 and boss.board.writPillars[1].hp > 0, "Vault Regent should define destructible writ pillars")
+    expect(#boss.phaseChart == 3 and boss.arenaDiagram.width == 9 and #boss.stagedIntentMasks == 3, "Vault Regent should define phase chart arena and staged masks")
 end
 
 tests[#tests + 1] = function()
@@ -2480,6 +2481,35 @@ tests[#tests + 1] = function()
             expect(phase.clock and phase.clock.visible == true and phase.counterplay and phase.preview, "boss phase should define visible clock, counterplay, and preview: " .. boss.name)
         end
     end
+end
+
+tests[#tests + 1] = function()
+    local audit = BossCatalog.auditVaultRegentShipData()
+    local boss = BossCatalog.boss("vault_regent")
+    local intent = BossCatalog.bossStageIntent("vault_regent")
+    expect(audit.ok, "Vault Regent boss ship data audit should pass")
+    expect(intent and intent.mode == "bossStage" and #intent.masks == 6, "Vault Regent should export staged boss intent masks")
+    local state = TacticsState.new({
+        board = { width = boss.arenaDiagram.width, height = boss.arenaDiagram.height },
+        units = {
+            { id = "vault_regent", side = "enemy", x = boss.arenaDiagram.boss.x, y = boss.arenaDiagram.boss.y },
+        },
+    })
+    state:apply(TacticsState.commands.intent("vault_regent", intent))
+    for _, stage in ipairs(boss.stagedIntentMasks) do
+        state:apply(TacticsState.commands.advanceBossIntentMask("vault_regent", { phase = stage.phase, turn = stage.turn }))
+        local hidden = state:intentPreview("vault_regent")
+        expect(hidden.stage == stage.stage and hidden.mask == stage.mask and hidden.footprintHidden and not hidden.targetTiles, "Vault Regent stage should hide masked footprint: " .. stage.phase)
+        local ok = pcall(function()
+            state:apply(TacticsState.commands.advanceBossIntentMask("vault_regent", { rotation = (stage.revealRotation + 1) % 4, weakPoint = stage.weakPoint }))
+        end)
+        expect(not ok, "Vault Regent weak point should not reveal from wrong rotation: " .. stage.phase)
+        state:apply(TacticsState.commands.advanceBossIntentMask("vault_regent", { rotation = stage.revealRotation, weakPoint = stage.weakPoint }))
+        local revealed = state:intentPreview("vault_regent")
+        expect(revealed.revealed and revealed.mask == nil and revealed.stage == stage.stage and revealed.targetTiles[1].x == stage.revealedTiles[1].x, "Vault Regent weak point should reveal from matching rotation: " .. stage.phase)
+    end
+    local loaded = TacticsState.fromSnapshot(state:snapshot())
+    expect(Serialize.encode(loaded:snapshot()) == Serialize.encode(state:snapshot()), "Vault Regent staged mask state should snapshot deterministically")
 end
 
 tests[#tests + 1] = function()

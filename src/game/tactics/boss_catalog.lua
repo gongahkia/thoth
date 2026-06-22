@@ -2,6 +2,17 @@ local BossCatalog = {}
 
 BossCatalog.order = { "codex_reeve", "vault_regent" }
 
+local function copyValue(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local result = {}
+    for key, nested in pairs(value) do
+        result[key] = copyValue(nested)
+    end
+    return result
+end
+
 BossCatalog.bosses = {
     codex_reeve = {
         name = "Codex Reeve",
@@ -70,6 +81,42 @@ BossCatalog.bosses = {
             terrainMutation = { id = "writ_wall_raise", effect = "legal cover becomes full cover until writ pillar breaks" },
             objectiveThreat = { id = "collateral_notice", effect = "named witness or cargo loses integrity if beam resolves" },
             nonDamageCounter = { id = "contest_claim", damage = 0, effect = "brace collateral tile to void the claim beam" },
+        },
+        phaseChart = {
+            { turn = 1, phase = "claim_opening", stage = 1, clock = 2, mask = "claim_beam_front", revealRotation = 1, weakPoint = "east_writ_pillar", objective = "named_witness", counterplay = "brace witness collateral or expose east pillar lane" },
+            { turn = 2, phase = "collateral_cross", stage = 2, clock = 2, mask = "collateral_cross_seal", revealRotation = 2, weakPoint = "south_writ_pillar", objective = "cargo", counterplay = "destroy south pillar or move cargo out of claim cross" },
+            { turn = 3, phase = "remand_order", stage = 3, clock = 1, mask = "remand_wall_seal", revealRotation = 0, weakPoint = "north_writ_pillar", objective = "route_machine", counterplay = "rotate north and contest claim before legal cover closes" },
+        },
+        arenaDiagram = {
+            width = 9,
+            height = 7,
+            entry = { x = 1, y = 4 },
+            boss = { x = 8, y = 4 },
+            objectives = {
+                { id = "named_witness", x = 6, y = 3 },
+                { id = "cargo", x = 6, y = 5 },
+                { id = "route_machine", x = 8, y = 2 },
+            },
+            writPillars = {
+                { id = "east_writ_pillar", x = 7, y = 4, hp = 3, revealRotation = 1 },
+                { id = "south_writ_pillar", x = 5, y = 6, hp = 4, revealRotation = 2 },
+                { id = "north_writ_pillar", x = 5, y = 2, hp = 4, revealRotation = 0 },
+            },
+            legalCoverTiles = {
+                { id = "sealed_brief_wall", x = 7, y = 3, cover = "full" },
+                { id = "custody_bench", x = 6, y = 4, cover = "half" },
+            },
+            claimBeamTiles = {
+                { x = 6, y = 3 },
+                { x = 7, y = 3 },
+                { x = 6, y = 4 },
+                { x = 6, y = 5 },
+            },
+        },
+        stagedIntentMasks = {
+            { phase = "claim_opening", turn = 1, stage = 1, stageCount = 3, mask = "claim_beam_front", category = "debuff", targetTiles = { { x = 6, y = 3 }, { x = 7, y = 3 } }, revealRotation = 1, weakPoint = "east_writ_pillar", revealedTiles = { { x = 7, y = 4 }, { x = 8, y = 4 } } },
+            { phase = "collateral_cross", turn = 2, stage = 2, stageCount = 3, mask = "collateral_cross_seal", category = "destroy", targetTiles = { { x = 6, y = 3 }, { x = 6, y = 4 }, { x = 6, y = 5 } }, revealRotation = 2, weakPoint = "south_writ_pillar", revealedTiles = { { x = 5, y = 6 }, { x = 6, y = 5 } } },
+            { phase = "remand_order", turn = 3, stage = 3, stageCount = 3, mask = "remand_wall_seal", category = "guard", targetTiles = { { x = 7, y = 3 }, { x = 7, y = 4 }, { x = 7, y = 5 } }, revealRotation = 0, weakPoint = "north_writ_pillar", revealedTiles = { { x = 5, y = 2 }, { x = 8, y = 2 } } },
         },
     },
 }
@@ -144,6 +191,88 @@ function BossCatalog.auditPhaseProcedures()
     return report
 end
 
+function BossCatalog.auditVaultRegentShipData()
+    local report = { ok = true, missing = {}, invalid = {} }
+    local boss = BossCatalog.boss("vault_regent")
+    if not boss then
+        report.missing[#report.missing + 1] = "vault_regent"
+        report.ok = false
+        return report
+    end
+    if not (boss.phaseChart and #boss.phaseChart == 3) then
+        report.missing[#report.missing + 1] = "phaseChart"
+    end
+    if not (boss.arenaDiagram and boss.arenaDiagram.width and boss.arenaDiagram.height and boss.arenaDiagram.boss and boss.arenaDiagram.entry and #(boss.arenaDiagram.writPillars or {}) == 3) then
+        report.missing[#report.missing + 1] = "arenaDiagram"
+    end
+    if not (boss.stagedIntentMasks and #boss.stagedIntentMasks == 3) then
+        report.missing[#report.missing + 1] = "stagedIntentMasks"
+    end
+    local phases = {}
+    for _, phase in ipairs(boss.phaseProcedure or {}) do
+        phases[phase.id] = phase
+    end
+    local chartByPhase = {}
+    for _, entry in ipairs(boss.phaseChart or {}) do
+        chartByPhase[entry.phase] = entry
+        if not phases[entry.phase] then
+            report.invalid[#report.invalid + 1] = tostring(entry.phase) .. ".phaseProcedure"
+        end
+        if not (entry.turn and entry.stage and entry.clock and entry.mask and entry.revealRotation ~= nil and entry.weakPoint and entry.objective and entry.counterplay) then
+            report.invalid[#report.invalid + 1] = tostring(entry.phase) .. ".phaseChart"
+        end
+    end
+    for _, mask in ipairs(boss.stagedIntentMasks or {}) do
+        local chart = chartByPhase[mask.phase]
+        if not chart then
+            report.invalid[#report.invalid + 1] = tostring(mask.phase) .. ".maskPhase"
+        elseif not (mask.turn == chart.turn and mask.stage == chart.stage and mask.mask == chart.mask and mask.revealRotation == chart.revealRotation and mask.weakPoint == chart.weakPoint) then
+            report.invalid[#report.invalid + 1] = tostring(mask.phase) .. ".maskChartMismatch"
+        end
+        if not (mask.stageCount == 3 and mask.category and #(mask.targetTiles or {}) > 0 and #(mask.revealedTiles or {}) > 0) then
+            report.invalid[#report.invalid + 1] = tostring(mask.phase) .. ".maskFootprint"
+        end
+    end
+    report.ok = #report.missing == 0 and #report.invalid == 0
+    return report
+end
+
+function BossCatalog.bossStageIntent(bossId)
+    local boss = BossCatalog.boss(bossId)
+    if not boss or not boss.stagedIntentMasks or not boss.stagedIntentMasks[1] then
+        return nil
+    end
+    local masks = {}
+    for _, stage in ipairs(boss.stagedIntentMasks) do
+        masks[#masks + 1] = {
+            phase = stage.phase,
+            turn = stage.turn,
+            mask = stage.mask,
+            stage = stage.stage,
+            stageCount = stage.stageCount,
+            targetTiles = copyValue(stage.targetTiles),
+        }
+        masks[#masks + 1] = {
+            revealRotation = stage.revealRotation,
+            weakPoint = stage.weakPoint,
+            revealed = true,
+            stage = stage.stage,
+            stageCount = stage.stageCount,
+            targetTiles = copyValue(stage.revealedTiles),
+        }
+    end
+    local first = boss.stagedIntentMasks[1]
+    return {
+        mode = "bossStage",
+        category = first.category or "debuff",
+        stage = first.stage,
+        stageCount = first.stageCount,
+        mask = first.mask,
+        targetTiles = copyValue(first.targetTiles),
+        masks = masks,
+    }
+end
+
 function BossCatalog.boss(id)
     return BossCatalog.bosses[id]
 end
@@ -171,6 +300,9 @@ function BossCatalog.auditSliceBoss()
         end
         if not (boss.phaseProcedure and #boss.phaseProcedure == 3) then
             report.invalid[#report.invalid + 1] = "sliceBoss.phaseProcedure"
+        end
+        if spec.bossId == "vault_regent" and not BossCatalog.auditVaultRegentShipData().ok then
+            report.invalid[#report.invalid + 1] = "sliceBoss.shipData"
         end
     end
     report.ok = #report.missing == 0 and #report.invalid == 0

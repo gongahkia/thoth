@@ -18,10 +18,10 @@ counterplay:
 Brace named collateral, destroy writ pillars, inspect claim beams, and use the listed non-damage counter before phase clocks resolve.
 
 preview/UI:
-`BossCatalog.sliceBossSpec()` exposes boss id, zone, route node, board fixture, and preview; `BossCatalog.sliceBoss()` resolves the full boss contract.
+`BossCatalog.sliceBossSpec()` exposes boss id, zone, route node, board fixture, and preview; `BossCatalog.sliceBoss()` resolves the full boss contract; `BossCatalog.bossStageIntent("vault_regent")` exports the staged boss intent masks.
 
 test/replay proof:
-`tests/run.lua` calls `BossCatalog.auditSliceBoss()` and verifies the selected boss has Archive zone, tactical contract, non-damage counter, and visible three-phase procedure.
+`tests/run.lua` calls `BossCatalog.auditSliceBoss()` and verifies the selected boss has Archive zone, tactical contract, non-damage counter, visible three-phase procedure, phase chart, arena diagram, and rotation-tied staged masks.
 
 ## B.1 Codex Reeve
 
@@ -52,7 +52,7 @@ source pattern:
 Boss puzzle boards use telegraphed beams, cover pressure, objective collateral, and destructible support objects.
 
 thoth transformation:
-Vault Regent turns archive law into claim beams, named collateral, legal cover, and writ pillars that must be broken to open attack lanes.
+Vault Regent turns archive law into claim beams, named collateral, legal cover, and writ pillars that must be broken to open attack lanes. Its slice data now includes a 3-turn phase chart, a 9x7 arena diagram, and staged intent masks that hide footprints until the matching rotation exposes the listed writ pillar.
 
 board verb:
 Claim, name collateral, shelter behind legal cover, destroy writ pillars.
@@ -64,10 +64,10 @@ counterplay:
 Brace named collateral, flank legal cover from rear seals, destroy writ pillars, or force the Regent's claim beam into enemy cover.
 
 preview/UI:
-Show claim beam footprint, collateral names, cover authority edge, writ pillar HP, and the cover removed by each pillar.
+Show claim beam footprint, collateral names, cover authority edge, writ pillar HP, the cover removed by each pillar, active phase-chart row, arena coordinates, and current staged mask.
 
 test/replay proof:
-`tests/run.lua` verifies the Vault Regent board defines claim beams, name collateral, legal cover, and destructible writ pillars.
+`tests/run.lua` verifies the Vault Regent board defines claim beams, name collateral, legal cover, destructible writ pillars, phase chart, arena diagram, and staged masks; it replays each mask through `TacticsState.commands.advanceBossIntentMask`.
 
 ## B.3 Pearl Choir
 
@@ -213,7 +213,7 @@ source pattern:
 Gears Tactics boss fights are combat puzzles with marked impact zones, weak windows, adds, cover pressure, and phase escalation.
 
 thoth transformation:
-Every boss defines a three-step phase procedure around tile pattern, rotating weak point, terrain conversion, objective pressure, visible clock, counterplay, and preview text.
+Every boss defines a three-step phase procedure around tile pattern, rotating weak point, terrain conversion, objective pressure, visible clock, counterplay, and preview text. Vault Regent additionally exports ship-ready phase-chart rows, arena diagram data, and a runnable boss-stage intent mask sequence.
 
 board verb:
 Pattern, rotate, expose, convert terrain, pressure objective, counter.
@@ -228,4 +228,4 @@ preview/UI:
 Boss phase card shows current phase id, tile pattern, weak-point rotation, terrain conversion, objective pressure, visible turn clock, counterplay, and preview text.
 
 test/replay proof:
-`BossCatalog.auditPhaseProcedures()` rejects missing phase charts, missing tile patterns, missing rotating weak points, missing terrain conversion, missing objective pressure, missing visible clocks, missing counterplay/preview metadata, and weak-point rotation coverage below two rotations.
+`BossCatalog.auditPhaseProcedures()` rejects missing phase charts, missing tile patterns, missing rotating weak points, missing terrain conversion, missing objective pressure, missing visible clocks, missing counterplay/preview metadata, and weak-point rotation coverage below two rotations. `BossCatalog.auditVaultRegentShipData()` rejects missing phase chart, arena diagram, staged masks, chart/mask mismatches, and missing revealed footprints.
