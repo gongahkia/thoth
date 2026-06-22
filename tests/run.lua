@@ -3359,6 +3359,33 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local route = TacticsProcgen.archiveRoute()
+    local variants = route.variantOrder
+    local firstBatch = {}
+    local secondBatch = {}
+    local seen = {}
+    for index, seed in ipairs(ProcgenValidator.fixedSeeds) do
+        local variantId = variants[((index - 1) % #variants) + 1]
+        seen[variantId] = true
+        local spec = TacticsProcgen.generateArchiveRouteBoard(variantId, seed)
+        local validation = ProcgenValidator.validateSpec(spec, { seed = seed, variantId = variantId })
+        local stateA = TacticsProcgen.archiveRouteState(variantId, seed)
+        local stateB = TacticsProcgen.archiveRouteState(variantId, seed)
+        local replayA = TacticsReplay.fromSnapshot(TacticsReplay.snapshot(stateA))
+        local replayB = TacticsReplay.fromSnapshot(TacticsReplay.snapshot(stateB))
+        expect(validation.accepted, "validator fixture seed should pass invariant checks: " .. variantId .. ":" .. tostring(seed))
+        expect(sameSnapshot(replayA, stateA), "validator fixture seed should roundtrip replay snapshot: " .. variantId .. ":" .. tostring(seed))
+        expect(sameSnapshot(replayA, replayB), "validator fixture seed should replay deterministically: " .. variantId .. ":" .. tostring(seed))
+        firstBatch[#firstBatch + 1] = { seed = seed, variantId = variantId, snapshot = TacticsReplay.snapshot(replayA) }
+        secondBatch[#secondBatch + 1] = { seed = seed, variantId = variantId, snapshot = TacticsReplay.snapshot(replayB) }
+    end
+    expect(Serialize.encode(firstBatch) == Serialize.encode(secondBatch), "validator fixed seed batch should replay deterministically")
+    for _, variantId in ipairs(variants) do
+        expect(seen[variantId], "validator fixed seed batch should cover route variant " .. variantId)
+    end
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
             width = 4,

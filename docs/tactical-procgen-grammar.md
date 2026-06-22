@@ -94,6 +94,29 @@ Debug budget report shows total, max, contributors, grammar status, and reject r
 test/replay proof:
 `tests/run.lua` verifies a directed board is accepted under the default budget, rejected when max budget is too low, and rejected when intent density exceeds its cap.
 
+## 2.7 Validator Invariants
+
+source pattern:
+Procedural tactics references treat generated content as shippable only after fixed-seed replay, reachability, spawn safety, and reject-reason evidence are available.
+
+thoth transformation:
+`tools/validator.lua` runs `procgen_validator_v1` across 25 fixed Buried Archive seeds, rotates through the six route variants, writes `dist/validator-report.json`, and fails when reject count exceeds the configured budget.
+
+board verb:
+Generate, flood, reject, report, replay.
+
+zone fit:
+The first validator route is `buried_archive_vertical_slice`; Salt Cistern and Ember Warrens can join the same invariant set when they leave future-zone status.
+
+counterplay:
+Accepted boards must keep every objective and evacuation tile reachable from squad start, keep player spawns inside open non-hazard tiles with no overlaps, and place enemies on open reachable tiles with valid visible spawn-blocking rules.
+
+preview/UI:
+The report records validator id, route id, seed count, reject count, invariant ids, per-seed board/unit summaries, and a reject log keyed by seed and variant.
+
+test/replay proof:
+`make validate` runs the full 25-seed batch with a zero default reject budget. `tests/run.lua` verifies the validator module, JSON reject log, all fixed fixture seeds, route-variant coverage, invariant acceptance, and deterministic replay snapshots.
+
 ## 6.1 Buried Archive Route Variants
 
 source pattern:
@@ -115,4 +138,4 @@ preview/UI:
 `Procgen.archiveRoute()` exposes route metadata and ordered variant ids; `Procgen.archiveRouteVariants()` exposes template/node/reward/complication previews; generated specs carry `archiveRoute` and generator variant fields.
 
 test/replay proof:
-`tests/run.lua` verifies the route exposes exactly 6 ordered variants, each uses a distinct objective family, all templates exist, each generated board validates grammar/reinforcements/budget, each instantiates as `TacticsState`, and fixed seeds serialize deterministically.
+`tests/run.lua` verifies the route exposes exactly 6 ordered variants, each uses a distinct objective family, all templates exist, each generated board validates grammar/reinforcements/budget, each instantiates as `TacticsState`, and the validator fixture seeds replay deterministically.
