@@ -634,6 +634,7 @@ tests[#tests + 1] = function()
         los = { ["3:1"] = true },
         flanks = { { x = 3, y = 2 } },
         intents = { { x = 4, y = 2, label = "audit_line" } },
+        overwatch = { { x = 4, y = 1, label = "shoot" } },
         hazards = { { x = 1, y = 4, label = "falling_shelf" } },
     }
     local entries, counts = Render.tacticalOverlayEntries(state, overlays)
@@ -642,10 +643,11 @@ tests[#tests + 1] = function()
     expect(counts.cover == 1, "tactical overlays should include cover tiles")
     expect(counts.flank == 1, "tactical overlays should include flank tiles")
     expect(counts.intent == 1, "tactical overlays should include intent tiles")
+    expect(counts.overwatch == 1, "tactical overlays should include overwatch tiles")
     expect(counts.hazard == 2, "tactical overlays should include board and explicit hazard tiles")
-    expect(#entries == 8, "tactical overlay entry count should match all required overlay classes")
+    expect(#entries == 9, "tactical overlay entry count should match all required overlay classes")
     local summary = Render.tacticalOverlaySummary(state, overlays)
-    expect(summary.total == 8 and summary.intent == 1, "tactical overlay summary should expose render-smoke counts")
+    expect(summary.total == 9 and summary.intent == 1 and summary.overwatch == 1, "tactical overlay summary should expose render-smoke counts")
     local audit = Render.tacticalOverlayAccessibilityAudit(state, overlays)
     expect(#audit == 4, "tactical overlay accessibility audit should cover four rotations")
     for _, rotation in ipairs(audit) do
@@ -794,6 +796,9 @@ tests[#tests + 1] = function()
     state:startTurn("enemy")
     state:apply(TacticsState.commands.move("bailiff", "north"))
     expect(state:unit("bailiff").hp == 1 and state.lastOverwatchTrigger.reaction == "shoot", "overwatch cone should shoot first enemy entering during enemy phase")
+    local pulse = Render.tacticalOverwatchAnimation(state.lastOverwatchTrigger, 0.25)
+    expect(pulse.x == state.lastOverwatchTrigger.x and pulse.y == state.lastOverwatchTrigger.y and pulse.reaction == "shoot", "overwatch trigger animation should retain trigger tile and reaction")
+    expect(pulse.alpha > 0 and pulse.alpha <= 1 and pulse.scale >= 1, "overwatch trigger animation should expose bounded pulse values")
     expect(#state.threatZones == 0, "overwatch cone should expire after first trigger")
 
     local stun = TacticsState.new({
@@ -819,6 +824,26 @@ tests[#tests + 1] = function()
     mark:startTurn("enemy")
     mark:apply(TacticsState.commands.move("hound", "south"))
     expect(mark:status("hound", "marked").amount == 2 and mark.lastOverwatchTrigger.reaction == "mark", "overwatch cone should support mark reaction")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        defaultAp = 2,
+        board = { width = 6, height = 5 },
+        units = {
+            { id = "warden", side = "player", x = 2, y = 3, ap = 2, visionRadius = 8 },
+            { id = "runner", side = "enemy", x = 5, y = 3, hp = 3 },
+        },
+    })
+    local runtime = { state = state, selectedUnitId = "warden", cursor = { x = 2, y = 3 }, turn = 1 }
+    state:apply(TacticsState.commands.overwatchCone("warden", "east", 3, 1, { kind = "shoot", damage = 2 }, 0))
+    TacticalRuntime.refreshOverlays(runtime)
+    expect(#runtime.overlays.overwatch == 7, "runtime overlays should expose committed overwatch cone tiles")
+    local preview = TacticalRuntime.setOverwatchPreview(runtime, "north", 2, 1)
+    expect(#preview.tiles == 4, "runtime should preview cone tiles before declaration")
+    expect(#runtime.overlays.overwatch == 11, "runtime overlays should merge committed and preview overwatch tiles")
+    TacticalRuntime.clearOverwatchPreview(runtime)
+    expect(runtime.overwatchSelection == nil and #runtime.overlays.overwatch == 7, "runtime should clear overwatch preview tiles")
 end
 
 tests[#tests + 1] = function()

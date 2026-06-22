@@ -23,7 +23,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 (A) 2026-06-22 Delete src/game/world.lua and remove every require/usage from main.lua and tests +legacy-cleanup @engine
 (A) 2026-06-22 Strip the tacticalMode guard branches in main.lua now that only the tactical path remains; collapse update/draw to a single code path +legacy-cleanup @engine
 (A) 2026-06-22 Run make test and make package-build to confirm the legacy/i18n removal does not break the playable tactical path or dist/thoth.love +legacy-cleanup @tests
-(A) 2026-06-22 Render overwatch cones in src/app/render.lua with a distinct overlay color, animate trigger resolution, and add a preview tile-by-tile when the player is selecting cone direction +xcom-primitives @ui
 (A) 2026-06-22 Formalize flanking in src/game/tactics/cover.lua: when an attacker's tile is behind a defender's cover edge, apply a configurable bonus (default +50% damage or remove cover entirely), expose via resolution.lua preview +xcom-primitives @engine
 (A) 2026-06-22 Add unit tests in tests/run.lua for: vision computation, fog persistence on enemy exit, overwatch trigger order vs enemy intent resolution, flanking bonus determinism, hidden-intent reveal on first LoS +xcom-primitives @tests
 (B) 2026-06-22 Wire 6 classes (Warden, Duelist, Apothecary, Thief, Arcanist, Lamplighter) from src/game/tactics/class_catalog.lua into the live unit factory in tactical_runtime.lua; each must instantiate with its board verbs callable from input bar +slice-content @data

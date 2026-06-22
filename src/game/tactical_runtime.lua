@@ -306,6 +306,9 @@ function Runtime.new(sim, options)
         actionBar = Runtime.actionBar,
         visibilityGrid = Runtime.visibilityGrid,
         enemyVisible = Runtime.enemyVisible,
+        overwatchPreview = Runtime.overwatchPreview,
+        setOverwatchPreview = Runtime.setOverwatchPreview,
+        clearOverwatchPreview = Runtime.clearOverwatchPreview,
     }
     Runtime.declareEnemyIntents(runtime)
     Runtime.refreshOverlays(runtime)
@@ -419,15 +422,54 @@ function Runtime.refreshOverlays(runtime)
             end
         end
     end
+    local overwatch = {}
+    for _, zone in ipairs(state.threatZones or {}) do
+        if zone.kind == "overwatch" then
+            for _, tile in ipairs(zone.tiles or {}) do
+                overwatch[#overwatch + 1] = { x = tile.x, y = tile.y, label = zone.reaction and zone.reaction.kind or zone.label or "overwatch" }
+            end
+        end
+    end
+    if runtime.overwatchSelection then
+        for _, tile in ipairs(runtime.overwatchSelection.tiles or {}) do
+            overwatch[#overwatch + 1] = { x = tile.x, y = tile.y, label = "preview" }
+        end
+    end
+    runtime.overwatchTrigger = state.lastOverwatchTrigger
     runtime.overlays = {
         movement = movement,
         intents = intents,
+        overwatch = overwatch,
         los = selected and { { x = selected.x, y = selected.y, label = "selected" } } or {},
         flanks = { { x = runtime.cursor.x, y = runtime.cursor.y, label = "cursor" } },
         cursor = { { x = runtime.cursor.x, y = runtime.cursor.y, label = "cursor" } },
         fog = visibility,
     }
     return runtime.overlays
+end
+
+function Runtime.overwatchPreview(runtime, direction, range, arc)
+    local selected = Runtime.selectedUnit(runtime)
+    if not (selected and selected.side == "player") then
+        return {}
+    end
+    return runtime.state:threatZoneTiles(selected.id, "cone", { direction = direction or selected.facing or "east", length = range or 3, width = arc or 1 })
+end
+
+function Runtime.setOverwatchPreview(runtime, direction, range, arc)
+    runtime.overwatchSelection = {
+        direction = direction or "east",
+        range = range or 3,
+        arc = arc or 1,
+        tiles = Runtime.overwatchPreview(runtime, direction, range, arc),
+    }
+    Runtime.refreshOverlays(runtime)
+    return runtime.overwatchSelection
+end
+
+function Runtime.clearOverwatchPreview(runtime)
+    runtime.overwatchSelection = nil
+    Runtime.refreshOverlays(runtime)
 end
 
 local function setStatus(runtime, message)

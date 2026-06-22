@@ -737,7 +737,7 @@ local function rotationAllowed(value, allowed)
     return false
 end
 
-local tacticalOverlayOrder = { "movement", "los", "cover", "flank", "intent", "hazard", "blocker", "objective", "cursor" }
+local tacticalOverlayOrder = { "movement", "los", "cover", "flank", "intent", "overwatch", "hazard", "blocker", "objective", "cursor" }
 local tacticalOverlayPalette = TacticsUICatalog.accessiblePalette().roles
 local tacticalOverlayColors = {
     movement = { 0.34, 0.72, 1.0, 0.86 },
@@ -745,6 +745,7 @@ local tacticalOverlayColors = {
     cover = tacticalOverlayPalette.cover.color,
     flank = { 0.94, 0.52, 0.18, 0.55 },
     intent = tacticalOverlayPalette.intent.color,
+    overwatch = { 0.18, 0.9, 0.88, 0.78 },
     hazard = tacticalOverlayPalette.hazard.color,
     blocker = { 0.06, 0.065, 0.075, 0.92 },
     objective = { 1.0, 0.78, 0.18, 0.94 },
@@ -759,6 +760,7 @@ local tacticalOverlayStyles = {
     cover = { icon = tacticalOverlayPalette.cover.icon, pattern = tacticalOverlayPalette.cover.pattern },
     flank = { icon = "angle", pattern = "chevron" },
     intent = { icon = tacticalOverlayPalette.intent.icon, pattern = tacticalOverlayPalette.intent.pattern },
+    overwatch = { icon = "cone", pattern = "ray" },
     hazard = { icon = tacticalOverlayPalette.hazard.icon, pattern = tacticalOverlayPalette.hazard.pattern },
     blocker = { icon = "x", pattern = "solid" },
     objective = { icon = "!", pattern = "solid" },
@@ -874,6 +876,7 @@ function Render.tacticalOverlayEntries(tactics, overlays)
     appendOverlayList(entries, counts, seen, "los", overlays.los or overlays.lineOfSight)
     appendOverlayList(entries, counts, seen, "flank", overlays.flanks or overlays.flank)
     appendOverlayList(entries, counts, seen, "intent", overlays.intent or overlays.intents)
+    appendOverlayList(entries, counts, seen, "overwatch", overlays.overwatch or overlays.overwatchPreview)
     appendOverlayList(entries, counts, seen, "hazard", overlays.hazards)
     appendOverlayList(entries, counts, seen, "cursor", overlays.cursor)
     table.sort(entries, function(a, b)
@@ -1409,6 +1412,7 @@ end
 local tacticalRingSpecs = {
     movement = { inset = 0.12, width = 0.025, z = 0.045 },
     intent = { inset = 0.1, width = 0.045, z = 0.08 },
+    overwatch = { inset = 0.14, width = 0.04, z = 0.085 },
     objective = { inset = 0.07, width = 0.045, z = 0.09 },
     blocker = { inset = 0.16, width = 0.035, z = 0.07 },
     selected = { inset = 0.19, width = 0.05, z = 0.11 },
@@ -1457,7 +1461,7 @@ local function drawTacticalOverlays(sim, app)
     counts.total = #entries
     local drawnEntries = {}
     for _, entry in ipairs(entries) do
-        if entry.kind == "movement" or entry.kind == "intent" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor" then
+        if entry.kind == "movement" or entry.kind == "intent" or entry.kind == "overwatch" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor" then
             drawnEntries[#drawnEntries + 1] = entry
         end
     end
@@ -1476,6 +1480,40 @@ local function drawTacticalOverlays(sim, app)
         end
     end
     return counts
+end
+
+function Render.tacticalOverwatchAnimation(trigger, time)
+    if not trigger then
+        return nil
+    end
+    local phase = ((time or 0) * 2.8) % 1
+    return {
+        x = trigger.x,
+        y = trigger.y,
+        source = trigger.source,
+        target = trigger.target,
+        reaction = trigger.reaction,
+        alpha = 0.32 + (1 - phase) * 0.5,
+        scale = 1 + phase * 0.42,
+    }
+end
+
+local function drawTacticalOverwatchTrigger(sim, app)
+    local source = tacticalOverlaySource(sim, app)
+    local trigger = app and app.tactics and app.tactics.overwatchTrigger or source and source.state and source.state.lastOverwatchTrigger
+    local pulse = Render.tacticalOverwatchAnimation(trigger, app and app.titleTime or 0)
+    if not (pulse and source and state.g3d and state.assets.white) then
+        return 0
+    end
+    local model = buildTacticalOverlayModel({
+        { kind = "overwatch", x = pulse.x, y = pulse.y, label = pulse.reaction, color = { 0.22, 1.0, 0.95, pulse.alpha } },
+    }, source, app and app.settings, ((sim and sim.player and sim.player.z) or 0) + 0.11)
+    if model then
+        love.graphics.setColor(1, 1, 1, 1)
+        model:draw()
+        return 1
+    end
+    return 0
 end
 
 function Render.drawTacticalForecast(sim, app)
@@ -2012,6 +2050,7 @@ function Render.drawWorld(sim, app)
     local tacticalFogCount = drawTacticalFog(sim, app)
     local tacticalOverlayCounts = drawTacticalOverlays(sim, app)
     drawTacticalIntentArrows(sim, app)
+    local tacticalOverwatchTriggers = drawTacticalOverwatchTrigger(sim, app)
     local architecture, architectureCount = nil, 0
     if not (app and app.tacticalMode) then
         architecture, architectureCount = buildArchitectureModel(sim, profile, app and app.settings)
@@ -2035,6 +2074,7 @@ function Render.drawWorld(sim, app)
     app.worldView.rotationPuzzles = rotationPuzzles or 0
     app.worldView.tacticalOverlays = tacticalOverlayCounts
     app.worldView.tacticalFog = tacticalFogCount
+    app.worldView.tacticalOverwatchTriggers = tacticalOverwatchTriggers
 end
 
 function Render.titleMenuItems(app)
