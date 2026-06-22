@@ -1768,13 +1768,7 @@ local function updateTacticalMouseHover(x, y)
     if not (app and app.uiState == "game" and app.tactics and not app.paused and not app.confirmDialog) then
         return false
     end
-    local tileX, tileY = Render.tacticalTileAt(app, x, y)
-    if not tileX then
-        app.tacticalHover = nil
-        return false
-    end
-    app.tacticalHover = { x = tileX, y = tileY }
-    return true
+    return Input.updateTacticalHover(app, x, y)
 end
 
 local function mouseTactical(x, y, button)

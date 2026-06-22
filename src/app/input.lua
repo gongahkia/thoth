@@ -242,6 +242,21 @@ function Input.gamepadAxisKey(axis, value, axisState)
     return key
 end
 
+function Input.updateTacticalHover(app, x, y)
+    if not (app and app.tactics) then
+        return false
+    end
+    local tileX, tileY = Render.tacticalTileAt(app, x, y)
+    if not tileX then
+        app.tacticalHover = nil
+        app.tacticalInspector = nil
+        return false
+    end
+    app.tacticalHover = { x = tileX, y = tileY, screenX = x, screenY = y }
+    app.tacticalInspector = Render.tacticalTileInspectorSummary(app)
+    return true
+end
+
 local function boundMovementDirection(app, key)
     for _, entry in ipairs(boundMovementOrder) do
         if Settings.isAction(app and app.settings, key, entry[1]) then

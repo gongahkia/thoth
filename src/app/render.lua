@@ -3541,6 +3541,68 @@ function Render.tacticalSquadHudRows(summary, requiredSlots)
     return rows
 end
 
+function Render.tacticalTileInspectorSummary(app)
+    local runtime = app and app.tactics
+    local tactics = runtime and runtime.state
+    if not tactics then
+        return nil
+    end
+    local tile = app.tacticalHover or runtime.cursor
+    if not (tile and tactics:inBounds(tile.x, tile.y)) then
+        return nil
+    end
+    local summary = TacticsUICatalog.tileInspectorSummary(tactics, tile.x, tile.y, {
+        rotation = app.viewRotation or 0,
+        unitId = runtime.selectedUnitId,
+        side = "player",
+        intentOptions = { side = "player" },
+    })
+    summary.source = app.tacticalHover and "hover" or "cursor"
+    return summary
+end
+
+local function joinWords(values)
+    local text = {}
+    for _, value in ipairs(values or {}) do
+        if value ~= nil and value ~= "" then
+            text[#text + 1] = tostring(value)
+        end
+    end
+    return table.concat(text, " ")
+end
+
+function Render.tacticalTileInspectorLines(summary)
+    if not summary then
+        return { "tile -" }
+    end
+    local lines = {}
+    local terrain = summary.terrain or {}
+    lines[#lines + 1] = joinWords({ "terrain", terrain.kind or "floor", terrain.material, terrain.state, "h" .. tostring(terrain.height or 0), terrain.occupant and ("unit " .. terrain.occupant) or nil })
+    lines[#lines + 1] = "tags " .. (#(terrain.tags or {}) > 0 and table.concat(terrain.tags, " ") or "-")
+    local cover = {}
+    for _, edge in ipairs(summary.cover or {}) do
+        cover[#cover + 1] = edge.direction .. " " .. edge.cover
+    end
+    lines[#lines + 1] = "cover " .. (#cover > 0 and table.concat(cover, ", ") or "-")
+    local hazard = summary.hazards or {}
+    lines[#lines + 1] = joinWords({ "hazard", hazard.kind or "-", hazard.active ~= nil and ("active " .. tostring(hazard.active)) or nil, hazard.damage and ("dmg " .. hazard.damage) or nil, hazard.countdown and ("timer " .. hazard.countdown) or nil })
+    local hp = summary.destructibleHp or {}
+    lines[#lines + 1] = joinWords({ "terrain HP", hp.hp or "-", hp.destructible and "destructible" or nil, hp.movement and "move-block" or nil, hp.los and "los-block" or nil })
+    local vision = {}
+    for _, source in ipairs(summary.visionSources or {}) do
+        vision[#vision + 1] = source.unit .. "@" .. tostring(source.x) .. "," .. tostring(source.y)
+    end
+    lines[#lines + 1] = "vision " .. (#vision > 0 and table.concat(vision, " ") or "-")
+    local los = summary.los or {}
+    lines[#lines + 1] = joinWords({ "LoS", los.from and los.from.unit or "-", los.visible and "visible" or "blocked", los.obscured and "obscured" or nil })
+    local traces = {}
+    for _, trace in ipairs(summary.intentTraces or {}) do
+        traces[#traces + 1] = joinWords({ trace.unit, trace.role, trace.category, trace.damage and ("dmg " .. trace.damage) or nil, trace.countdown and ("timer " .. trace.countdown) or nil })
+    end
+    lines[#lines + 1] = "intent " .. (#traces > 0 and table.concat(traces, "; ") or "-")
+    return lines
+end
+
 function Render.tacticalActionBar(app)
     if app and app.tactics and app.tactics.actionBar then
         return app.tactics:actionBar(app.tacticalHover)
@@ -3585,6 +3647,19 @@ local function drawApPool(x, y, w, ap, maxAp)
         love.graphics.rectangle("fill", px, y, pipW, 7)
         love.graphics.setColor(0.33, 0.31, 0.22, 1)
         love.graphics.rectangle("line", px, y, pipW, 7)
+    end
+end
+
+local function drawTileInspectorPanel(rect, inspector)
+    panel(rect.x, rect.y, rect.w, rect.h, 0.88)
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    local terrain = inspector and inspector.terrain or {}
+    love.graphics.print("Tile " .. tostring(terrain.x or "-") .. "," .. tostring(terrain.y or "-") .. "  " .. tostring(inspector and inspector.source or "-"), rect.x + 12, rect.y + 12)
+    local maxLines = math.max(1, math.floor((rect.h - 40) / 18))
+    local lines = Render.tacticalTileInspectorLines(inspector)
+    for index = 1, math.min(maxLines, #lines) do
+        love.graphics.setColor(index == #lines and 0.9 or 0.7, index == #lines and 0.72 or 0.76, index == #lines and 0.42 or 0.68, 1)
+        love.graphics.printf(shortText(lines[index], 42), rect.x + 12, rect.y + 32 + (index - 1) * 18, rect.w - 24, "left")
     end
 end
 
@@ -3693,32 +3768,7 @@ function Render.drawTacticalSidePanel(sim, app)
     if layout.intent.h <= 0 then
         return
     end
-    panel(layout.intent.x, layout.intent.y, layout.intent.w, layout.intent.h, 0.88)
-    local rowY = layout.intent.y + 12
-    love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Posted Enemy Intent", layout.intent.x + 12, rowY)
-    rowY = rowY + 28
-    for _, enemy in ipairs((summary and summary.enemies) or {}) do
-        if rowY + 42 > layout.intent.y + layout.intent.h - 12 then
-            break
-        end
-        local target = enemy.targetTiles and enemy.targetTiles[1]
-        love.graphics.setColor(0.9, 0.46, 0.38, 1)
-        love.graphics.print(shortText(enemy.id, 18) .. " HP" .. tostring(enemy.hp), layout.intent.x + 12, rowY)
-        love.graphics.setColor(0.7, 0.74, 0.68, 1)
-        love.graphics.print(shortText(enemy.intent, 20) .. " -> " .. (target and (target.x .. "," .. target.y) or "-"), layout.intent.x + 12, rowY + 18)
-        rowY = rowY + 46
-    end
-    for _, enemy in ipairs((summary and summary.lastSeenEnemies) or {}) do
-        if rowY + 42 > layout.intent.y + layout.intent.h - 12 then
-            break
-        end
-        love.graphics.setColor(0.46, 0.5, 0.5, 1)
-        love.graphics.print(shortText(enemy.id, 18) .. " last seen", layout.intent.x + 12, rowY)
-        love.graphics.setColor(0.52, 0.56, 0.54, 1)
-        love.graphics.print("ghost @" .. tostring(enemy.x) .. "," .. tostring(enemy.y), layout.intent.x + 12, rowY + 18)
-        rowY = rowY + 46
-    end
+    drawTileInspectorPanel(layout.intent, Render.tacticalTileInspectorSummary(app))
 end
 
 function Render.drawHud(sim, app)

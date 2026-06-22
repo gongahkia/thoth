@@ -51,6 +51,7 @@ UICatalog.tileInspectorTemplate = {
         { id = "hazards", source = "tile hazard", visible = true },
         { id = "destructible_hp", source = "blocker state", visible = true },
         { id = "hidden_info", source = "reveal state", visible = true },
+        { id = "vision_sources", source = "squad visibility", visible = true },
         { id = "intent_traces", source = "intent preview", visible = true },
     },
 }
@@ -358,6 +359,16 @@ local function losFact(state, x, y, source)
     }
 end
 
+local function visionSourceFacts(state, x, y, side)
+    local result = {}
+    for _, unit in ipairs(state:unitsForSide(side or "player")) do
+        if state:computeVisibleTiles(unit)[tostring(x) .. ":" .. tostring(y)] then
+            result[#result + 1] = { unit = unit.id, x = unit.x, y = unit.y, radius = unit.visionRadius }
+        end
+    end
+    return result
+end
+
 function UICatalog.tacticalHud()
     return UICatalog.tacticalHudContract
 end
@@ -406,6 +417,7 @@ function UICatalog.tileInspectorSummary(state, x, y, options)
             weakPointRevealed = tile.weakPointRevealed,
             weakPoint = tile.weakPointRevealed and tile.weakPoint or nil,
         },
+        visionSources = visionSourceFacts(state, x, y, options.side or "player"),
         intentTraces = intentTraceFacts(state, x, y, options),
     }
 end
