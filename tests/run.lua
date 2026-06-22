@@ -2340,6 +2340,8 @@ tests[#tests + 1] = function()
     expect(alpha and alpha.id == "shelf_warden", "Archive should define Shelf Warden alpha")
     expect(alpha.visiblePreBoard == true, "Archive alpha should be visible before board")
     expect(alpha.preBoardThreat and alpha.routeChoiceChange and alpha.boardGenerationChange, "Archive alpha should alter route and board generation")
+    expect(alpha.archetype == "terrain-breaker" and alpha.exactIntent and alpha.exactIntent.intentType == "shelf_warden_shelf_shift", "Archive alpha should define terrain-breaker intent")
+    expect(alpha.midRunSpawn and alpha.midRunSpawn.turn > 1 and alpha.terrainInteraction and alpha.terrainMutation and alpha.terrainMutation.deterministic, "Archive alpha should define deterministic mid-run terrain spawn")
 end
 
 tests[#tests + 1] = function()
@@ -3054,6 +3056,33 @@ tests[#tests + 1] = function()
         expect(#director.retreatRoutes[1].tiles > 0 and director.retreatRoutes[1].to.x == spec.objectives[1].evacuateAt.x, zoneId .. " director should define retreat route")
         expect(Serialize.encode(spec) == Serialize.encode(TacticsProcgen.generateDirectedZoneBoard(zoneId, 2303, { includeElite = true })), zoneId .. " director should be deterministic per seed")
     end
+end
+
+tests[#tests + 1] = function()
+    local alpha = EnemyCatalog.alpha("archive")
+    local spec = TacticsProcgen.generateArchiveRouteBoard("archive_ledger_repair", 4204)
+    local state = TacticsState.new(spec)
+    local director = spec.encounterDirector
+    local alphaReinforcement = nil
+    for _, reinforcement in ipairs(director.reinforcementTiming or {}) do
+        if reinforcement.enemy == "shelf_warden" then
+            alphaReinforcement = reinforcement
+        end
+    end
+    expect(not state:unit("shelf_warden"), "Shelf Warden alpha should not deploy as an opening unit")
+    expect(director.alphaSpawn and director.alphaSpawn.enemy == "shelf_warden" and director.alphaSpawn.tier == "alpha", "director should expose Shelf Warden alpha spawn")
+    expect(alphaReinforcement and alphaReinforcement.turn == 4 and alphaReinforcement.visibleWarningTurn < alphaReinforcement.turn and alphaReinforcement.role == "alpha_mid_run_elite", "Shelf Warden should be scheduled as a mid-run elite spawn")
+    expect(alphaReinforcement.terrainInteraction == alpha.terrainInteraction and alphaReinforcement.terrainMutation.deterministic, "Shelf Warden reinforcement should carry deterministic terrain interaction")
+    expect(spec.alphaTerrain and #spec.alphaTerrain.blockers == 2 and #spec.alphaTerrain.hazardLane.tiles > 0, "Shelf Warden should stamp deterministic alpha terrain")
+    for _, blocker in ipairs(spec.alphaTerrain.blockers) do
+        local tile = state:tileAt(blocker.x, blocker.y)
+        expect(tile.blocker and tile.blockerKind == "mobile" and tile.terrainInteraction == alpha.terrainInteraction and contains(tile.tags, "shelf_warden"), "Shelf Warden blocker should be inspectable terrain")
+    end
+    for _, tileRef in ipairs(spec.alphaTerrain.hazardLane.tiles) do
+        local tile = state:tileAt(tileRef.x, tileRef.y)
+        expect(tile.hazard.kind == "warden_audit_beam" and contains(tile.tags, "alpha_audit_beam"), "Shelf Warden audit beam should be deterministic terrain")
+    end
+    expect(Serialize.encode(spec) == Serialize.encode(TacticsProcgen.generateArchiveRouteBoard("archive_ledger_repair", 4204)), "Shelf Warden alpha board should serialize deterministically")
 end
 
 tests[#tests + 1] = function()

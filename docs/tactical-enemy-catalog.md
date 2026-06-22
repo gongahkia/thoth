@@ -58,17 +58,19 @@ Acceptance proof:
 
 Archive alpha:
 
-- `shelf_warden`: visible pre-board threat.
+- `shelf_warden`: visible pre-board threat, terrain-breaker intent `shelf_warden_shelf_shift`, mid-run elite spawn.
 
 Effects:
 
 - Pre-board threat: pursues the chosen archive route before board reveal.
 - Route choice change: marks one adjacent archive node as audited.
 - Board generation change: adds two shoveable shelf blockers and one audit beam lane.
+- Mid-run spawn: turn 4 warning/spawn entry on `archive_ledger_repair`.
+- Terrain interaction: `shift_warden_shelves`, deterministic mobile shelf blockers plus `warden_audit_beam`.
 
 Acceptance proof:
 
-- `tests/run.lua` verifies the Archive alpha is visible before board reveal and defines pre-board, route-choice, and board-generation effects.
+- `tests/run.lua` verifies the Archive alpha is visible before board reveal, defines terrain-breaker intent metadata, schedules a turn-4 mid-run spawn, stamps deterministic alpha terrain, and does not deploy as an opening unit.
 
 ## E.4 Cistern Common Enemies
 

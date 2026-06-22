@@ -56,10 +56,16 @@ EnemyCatalog.families = {
         alpha = {
             id = "shelf_warden",
             name = "Shelf Warden",
+            archetype = "terrain-breaker",
+            exactIntent = { mode = "exact", intentType = "shelf_warden_shelf_shift", category = "guard", damage = 0, target = "terrain" },
+            boardVerb = "raise_shelf_bulwark",
+            terrainInteraction = "shift_warden_shelves",
             visiblePreBoard = true,
             preBoardThreat = "pursues the chosen archive route before board reveal",
             routeChoiceChange = "marks one adjacent archive node as audited",
             boardGenerationChange = "adds two shoveable shelf blockers and one audit beam lane",
+            midRunSpawn = { turn = 4, role = "alpha_mid_run_elite", spawnPocket = "enemy_pressure", visibleWarningTurn = 2, blockable = true },
+            terrainMutation = { blockers = 2, hazardLane = "warden_audit_beam", deterministic = true },
         },
     },
 }
@@ -154,6 +160,7 @@ for familyId, family in pairs(EnemyCatalog.families) do
         assignEliteMaskedIntent(enemy, familyId)
         assignUtility(enemy, familyId)
     end
+    assignExactIntentBlueprint(family.alpha)
     assignUtility(family.alpha, familyId)
 end
 

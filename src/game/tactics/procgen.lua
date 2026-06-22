@@ -111,7 +111,7 @@ local archiveRouteVariants = {
         complication = "repair_ap_timing",
         preview = "ledger machinery sits past a central audit lane",
         generatorOptions = { width = 9, height = 7, objectiveId = "ledger_machine", objectiveKind = "repair_machinery" },
-        directorOptions = { failureClock = 3, threatenedTiles = 4, reinforcementTurn = 4 },
+        directorOptions = { includeAlpha = true, alphaTurn = 4, failureClock = 3, threatenedTiles = 4, reinforcementTurn = 4 },
     },
     archive_sealed_shortcut = {
         id = "archive_sealed_shortcut",
@@ -358,6 +358,47 @@ local function enemyEntry(enemy, role, spawnPocket)
     }
 end
 
+local function applyAlphaTerrain(spec, alpha)
+    if not (spec and spec.board and spec.board.tiles and alpha and alpha.terrainInteraction) then
+        return nil
+    end
+    local objective = spec.objectives and spec.objectives[1] or { x = spec.board.width - 1, y = math.floor((spec.board.height + 1) / 2) }
+    local components = spec.grammar and spec.grammar.components or {}
+    local blockers = {}
+    local blockerX = math.max(1, objective.x - 1)
+    for _, y in ipairs({ objective.y - 1, objective.y + 1 }) do
+        if y >= 1 and y <= spec.board.height then
+            local tile = spec.board.tiles[tileKey(blockerX, y)]
+            if tile and tile.kind ~= "wall" then
+                tile.kind = "warden_shelf_blocker"
+                tile.blockerKind = "mobile"
+                tile.blocker = true
+                tile.losBlocker = true
+                tile.destructibleHp = 3
+                tile.terrainInteraction = alpha.terrainInteraction
+                tile.alphaTerrain = alpha.id
+                addTag(tile, "alpha_terrain")
+                addTag(tile, "shelf_warden")
+                blockers[#blockers + 1] = { x = blockerX, y = y, interaction = alpha.terrainInteraction }
+            end
+        end
+    end
+    local lane = {}
+    for x = math.max(1, objective.x - 3), objective.x do
+        local tile = spec.board.tiles[tileKey(x, objective.y)]
+        if tile and tile.kind ~= "wall" then
+            tile.hazard = { kind = "warden_audit_beam", damage = 1, timing = "alpha_spawn_turn", alpha = alpha.id }
+            addTag(tile, "alpha_audit_beam")
+            lane[#lane + 1] = { x = x, y = objective.y }
+        end
+    end
+    components.alphaTerrain = {
+        { id = alpha.id .. "_terrain", enemy = alpha.id, interaction = alpha.terrainInteraction, blockers = blockers, hazardLane = { kind = "warden_audit_beam", tiles = lane }, deterministic = true },
+    }
+    spec.alphaTerrain = copyValue(components.alphaTerrain[1])
+    return spec.alphaTerrain
+end
+
 local function poolIndex(seed, offset, count)
     return ((seed + offset - 1) % count) + 1
 end
@@ -420,6 +461,7 @@ function Procgen.directEncounter(zoneId, seed, boardSpec, options)
     end
     local common = EnemyCatalog.common(familyId)
     local elites = EnemyCatalog.elites(familyId)
+    local alpha = options.includeAlpha and EnemyCatalog.alpha(familyId) or nil
     local first = pickIndexed(common, poolIndex(seed or 1, 0, #common))
     local second = pickIndexed(common, poolIndex(seed or 1, 3, #common))
     local elite = nil
@@ -454,14 +496,40 @@ function Procgen.directEncounter(zoneId, seed, boardSpec, options)
     if elite then
         enemyMix[#enemyMix + 1] = enemyEntry(elite, "partial_intent_pressure", enemySpawn.id)
     end
+    local reinforcementTiming = {
+        { turn = options.reinforcementTurn or 3 + ((seed or 1) % 2), enemy = pickIndexed(common, poolIndex(seed or 1, 6, #common)).id, spawnPocket = enemySpawn.id, visibleWarningTurn = 1, cap = 1, blockable = true, warning = "marked spawn pocket", onBlocked = "delay_one_turn_until_cap" },
+    }
+    local alphaSpawn = nil
+    if alpha then
+        local spawn = alpha.midRunSpawn or {}
+        alphaSpawn = {
+            turn = options.alphaTurn or spawn.turn or 4,
+            enemy = alpha.id,
+            role = spawn.role or "alpha_mid_run_elite",
+            tier = "alpha",
+            intentType = alpha.exactIntent and alpha.exactIntent.intentType,
+            boardVerb = alpha.boardVerb,
+            terrainInteraction = alpha.terrainInteraction,
+            terrainMutation = copyValue(alpha.terrainMutation),
+            spawnPocket = spawn.spawnPocket or enemySpawn.id,
+            visibleWarningTurn = spawn.visibleWarningTurn or 2,
+            cap = 1,
+            blockable = spawn.blockable ~= false,
+            warning = "Shelf Warden shifts archive shelves before entering",
+            onBlocked = "delay_one_turn_until_cap",
+        }
+        reinforcementTiming[#reinforcementTiming + 1] = alphaSpawn
+    end
     return {
         id = (zoneId or "unknown") .. "_director_v1",
         zone = zoneId,
         family = familyId,
         enemyMix = enemyMix,
+        alphaSpawn = alphaSpawn,
         intentDensity = {
             exact = 2,
             partial = elite and 1 or 0,
+            alpha = alpha and 1 or 0,
             threatenedTiles = options.threatenedTiles or (elite and 6 or 4),
             cap = options.intentCap or 8,
         },
@@ -472,9 +540,7 @@ function Procgen.directEncounter(zoneId, seed, boardSpec, options)
             failureClock = options.failureClock or 3,
             visible = true,
         },
-        reinforcementTiming = {
-            { turn = options.reinforcementTurn or 3 + ((seed or 1) % 2), enemy = pickIndexed(common, poolIndex(seed or 1, 6, #common)).id, spawnPocket = enemySpawn.id, visibleWarningTurn = 1, cap = 1, blockable = true, warning = "marked spawn pocket", onBlocked = "delay_one_turn_until_cap" },
-        },
+        reinforcementTiming = reinforcementTiming,
         spawnBlockRules = {
             { spawnPocket = enemySpawn.id, blocker = "unit_or_blocker_on_all_spawn_tiles", checked = "start_of_reinforcement_turn", onBlocked = "delay_one_turn_until_cap", cap = 1, visible = true, preview = "spawn pocket marks blocked tiles and delayed enemy" },
         },
@@ -774,7 +840,11 @@ function Procgen.zoneState(zoneId, seed, options)
 end
 
 function Procgen.generateDirectedZoneBoard(zoneId, seed, options)
+    options = options or {}
     local spec = Procgen.generateZoneBoard(zoneId, seed, options)
+    if options.includeAlpha then
+        applyAlphaTerrain(spec, EnemyCatalog.alpha(zoneEnemyFamilies[zoneId]))
+    end
     spec.encounterDirector = Procgen.directEncounter(zoneId, seed, spec, options)
     applyEncounterUnits(spec, spec.encounterDirector)
     return spec

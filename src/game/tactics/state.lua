@@ -164,6 +164,8 @@ local function normalizeTile(tile)
         revealActions = copyList(tile.revealActions),
         weakPoint = tile.weakPoint,
         weakPointRevealed = tile.weakPointRevealed == true,
+        terrainInteraction = tile.terrainInteraction,
+        alphaTerrain = tile.alphaTerrain,
         tags = copyList(tile.tags),
     }
 end
