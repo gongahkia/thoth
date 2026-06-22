@@ -308,7 +308,7 @@ tests[#tests + 1] = function()
     expect(#actionBar == 12 and actionBar[1].label == "Move" and actionBar[1].key == "LMB" and actionBar[2].key == "WASD", "tactical action bar should expose contextual mouse controls")
     local expectedVerbs = {
         { id = "warden", verbs = { "line_guard", "brace", "shove" } },
-        { id = "duelist", verbs = { "dash", "flank", "swap", "riposte" } },
+        { id = "duelist", verbs = { "red_line", "dash_strike", "position_swap" } },
         { id = "apothecary", verbs = { "stabilize", "smoke", "cleanse_hazard", "rescue" } },
         { id = "thief", verbs = { "sneak", "disarm", "extract", "mark_route" } },
         { id = "arcanist", verbs = { "reveal", "bend_los", "unredact_intent", "pass_seal" } },
@@ -319,9 +319,10 @@ tests[#tests + 1] = function()
         local bar = runtime:actionBar()
         for index, verb in ipairs(entry.verbs) do
             local action = bar[4 + index]
-            local enabledOk = action and (action.enabled or (entry.id == "warden" and verb == "shove"))
+            local contextSensitive = entry.id == "warden" or entry.id == "duelist"
+            local enabledOk = action and (action.enabled or contextSensitive)
             expect(action and action.id == "class:" .. verb and action.key == tostring(index) and enabledOk, entry.id .. " class verb should be callable from input bar")
-            if entry.id ~= "warden" then
+            if not contextSensitive then
                 runtime:handleKey(tostring(index))
                 expect(runtime.status == entry.id .. " ready " .. verb, entry.id .. " class verb key should activate")
             end
@@ -373,6 +374,42 @@ tests[#tests + 1] = function()
     local first = runWarden()
     local second = runWarden()
     expect(Serialize.encode(first:snapshot()) == Serialize.encode(second:snapshot()), "Warden line_guard brace shove sequence should replay deterministically")
+end
+
+tests[#tests + 1] = function()
+    local function runDuelist()
+        local state = TacticsState.new({
+            defaultAp = 4,
+            board = { width = 5, height = 3 },
+            units = {
+                { id = "duelist", side = "player", class = "duelist", x = 1, y = 2, hp = 6, ap = 4, maxAp = 4, visionRadius = 8 },
+                { id = "bailiff", side = "enemy", x = 5, y = 2, hp = 6, ap = 1 },
+            },
+            objectives = {
+                { id = "dummy", x = 1, y = 1, integrity = 3, maxIntegrity = 3, evacuateAt = { x = 5, y = 3 } },
+            },
+        })
+        local runtime = { state = state, selectedUnitId = "duelist", cursor = { x = 3, y = 2 }, turn = 1, lastSeenEnemies = {} }
+        TacticalRuntime.refreshOverlays(runtime)
+        local redLine = TacticalRuntime.actionBar(runtime)[5]
+        expect(redLine.classVerb == "red_line" and redLine.enabled and redLine.preview.apCost == 1 and #redLine.preview.dashPath == 2, "Duelist red_line should preview dash lane")
+        expect(TacticalRuntime.handleKey(runtime, "1"), "Duelist red_line should activate from input bar")
+        expect(state:unit("duelist").x == 3 and state:unit("duelist").ap == 3, "Duelist red_line should spend AP and dash to cursor")
+        runtime.cursor.x = 5
+        runtime.cursor.y = 2
+        local dashStrike = TacticalRuntime.actionBar(runtime)[6]
+        expect(dashStrike.classVerb == "dash_strike" and dashStrike.enabled and dashStrike.preview.apCost == 2 and dashStrike.preview.damage == 2 and #dashStrike.preview.dashPath == 1, "Duelist dash_strike should preview dash plus deterministic damage")
+        expect(TacticalRuntime.handleKey(runtime, "2"), "Duelist dash_strike should activate from input bar")
+        expect(state:unit("duelist").x == 4 and state:unit("bailiff").hp == 4 and state:unit("duelist").ap == 1, "Duelist dash_strike should dash, strike, and spend AP")
+        local swap = TacticalRuntime.actionBar(runtime)[7]
+        expect(swap.classVerb == "position_swap" and swap.enabled and swap.preview.apCost == 1 and swap.preview.swap.target == "bailiff", "Duelist position_swap should preview adjacent exchange")
+        expect(TacticalRuntime.handleKey(runtime, "3"), "Duelist position_swap should activate from input bar")
+        expect(state:unit("duelist").x == 5 and state:unit("bailiff").x == 4 and state:unit("duelist").ap == 0, "Duelist position_swap should exchange positions and spend AP")
+        return state
+    end
+    local first = runDuelist()
+    local second = runDuelist()
+    expect(Serialize.encode(first:snapshot()) == Serialize.encode(second:snapshot()), "Duelist red_line dash_strike position_swap sequence should replay deterministically")
 end
 
 tests[#tests + 1] = function()

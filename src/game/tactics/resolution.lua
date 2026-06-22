@@ -106,6 +106,27 @@ function Resolution.actionPreview(state, command)
                 addTileEffects(state, preview, x, y, command.collisionDamage or 1)
             end
         end
+    elseif command.type == "dash" then
+        local ok, steps = pcall(function()
+            return state:dashUnit(command.unit, command.direction, command.distance, true)
+        end)
+        if ok then
+            preview.dashPath = copyTiles(steps)
+            for _, step in ipairs(steps) do
+                addTile(preview.affectedTiles, step.x, step.y)
+                addTileEffects(state, preview, step.x, step.y, 0)
+            end
+        else
+            preview.error = tostring(steps):gsub("^.*:%d+: ", "")
+        end
+    elseif command.type == "swap" then
+        local unit = state:unit(command.unit)
+        local target = state:unit(command.target)
+        if unit and target then
+            preview.swap = { unit = command.unit, target = command.target, unitTile = { x = unit.x, y = unit.y }, targetTile = { x = target.x, y = target.y } }
+            addTile(preview.affectedTiles, unit.x, unit.y)
+            addTile(preview.affectedTiles, target.x, target.y)
+        end
     elseif command.type == "damageTile" then
         addTile(preview.affectedTiles, command.x, command.y)
         local tile = state:tileAt(command.x, command.y)

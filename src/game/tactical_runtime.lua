@@ -19,6 +19,7 @@ local liveClassRoster = {
 }
 local sliceBoardActions = {
     warden = { "line_guard", "brace", "shove" },
+    duelist = { "red_line", "dash_strike", "position_swap" },
 }
 local enemyIntentSpecs = {
     audit_hound = { label = "bite notice", target = "nearest_player" },
@@ -60,6 +61,16 @@ local function directionBetween(fromX, fromY, toX, toY)
         return dy > 0 and "south" or "north"
     end
     return "east"
+end
+
+local function straightLineDirection(fromX, fromY, toX, toY)
+    if fromY == toY and fromX ~= toX then
+        return toX > fromX and "east" or "west", math.abs(toX - fromX)
+    end
+    if fromX == toX and fromY ~= toY then
+        return toY > fromY and "south" or "north", math.abs(toY - fromY)
+    end
+    return nil, 0
 end
 
 local function classLoadoutPayload(classId)
@@ -565,6 +576,130 @@ local function wardenPreview(runtime, selected, verb)
     return TacticsResolution.actionPreview(runtime.state, command)
 end
 
+local function appendTiles(target, source)
+    for _, tile in ipairs(source or {}) do
+        target[#target + 1] = { x = tile.x, y = tile.y, label = tile.label }
+    end
+end
+
+local function appendPreviewList(target, source)
+    for _, entry in ipairs(source or {}) do
+        target[#target + 1] = entry
+    end
+end
+
+local function previewCommandSequence(state, commands)
+    local preview = { apCost = 0, affectedTiles = {}, pushedPath = {}, objectiveDamage = {}, coverBreak = {}, hazardChain = {} }
+    local sim = TacticsState.fromSnapshot(state:snapshot())
+    for _, command in ipairs(commands or {}) do
+        local ok, commandPreview = pcall(TacticsResolution.actionPreview, sim, command)
+        if not ok then
+            return { error = tostring(commandPreview):gsub("^.*:%d+: ", "") }
+        end
+        if commandPreview.error then
+            return { error = commandPreview.error }
+        end
+        preview.apCost = preview.apCost + (commandPreview.apCost or command.cost or 0)
+        appendTiles(preview.affectedTiles, commandPreview.affectedTiles)
+        appendTiles(preview.pushedPath, commandPreview.pushedPath)
+        appendPreviewList(preview.objectiveDamage, commandPreview.objectiveDamage)
+        appendPreviewList(preview.coverBreak, commandPreview.coverBreak)
+        appendPreviewList(preview.hazardChain, commandPreview.hazardChain)
+        preview.dashPath = commandPreview.dashPath or preview.dashPath
+        preview.swap = commandPreview.swap or preview.swap
+        if commandPreview.damage then
+            preview.damage = (preview.damage or 0) + commandPreview.damage
+            preview.flanked = commandPreview.flanked
+            preview.flankingBonus = commandPreview.flankingBonus
+        end
+        ok, commandPreview = pcall(function()
+            sim:apply(command)
+        end)
+        if not ok then
+            return { error = tostring(commandPreview):gsub("^.*:%d+: ", "") }
+        end
+    end
+    return preview
+end
+
+local function cursorUnit(runtime)
+    return runtime.state:unitAt(runtime.cursor.x, runtime.cursor.y)
+end
+
+local function visibleCursorTarget(runtime, selected)
+    local target = cursorUnit(runtime)
+    if not (target and target.id ~= selected.id) then
+        return nil, "needs cursor target"
+    end
+    if target.side == "enemy" and not Runtime.enemyVisible(runtime, target) then
+        return nil, "target hidden"
+    end
+    return target
+end
+
+local function duelistCommands(runtime, selected, verb)
+    if verb == "red_line" then
+        local direction, distance = straightLineDirection(selected.x, selected.y, runtime.cursor.x, runtime.cursor.y)
+        if not direction or distance < 1 or distance > 2 then
+            return nil, "red_line needs 1-2 tile line"
+        end
+        return { TacticsState.commands.dash(selected.id, direction, distance, 1) }
+    end
+    if verb == "dash_strike" then
+        local target, err = visibleCursorTarget(runtime, selected)
+        if not target then
+            return nil, err
+        end
+        if target.side ~= "enemy" then
+            return nil, "dash_strike needs enemy"
+        end
+        local direction, distance = straightLineDirection(selected.x, selected.y, target.x, target.y)
+        if not direction then
+            return nil, "dash_strike needs straight target"
+        end
+        local dashDistance = math.min(2, distance - 1)
+        if dashDistance < 1 then
+            return nil, "dash_strike needs dash lane"
+        end
+        if distance - dashDistance > 3 then
+            return nil, "dash_strike target outside range"
+        end
+        return {
+            TacticsState.commands.dash(selected.id, direction, dashDistance, 1),
+            TacticsState.commands.attack(selected.id, target.id, 2, 1),
+        }
+    end
+    if verb == "position_swap" then
+        local target, err = visibleCursorTarget(runtime, selected)
+        if not target then
+            return nil, err
+        end
+        if Grid.manhattan(selected.x, selected.y, target.x, target.y) ~= 1 then
+            return nil, "position_swap needs adjacent target"
+        end
+        return { TacticsState.commands.swap(selected.id, target.id, 1) }
+    end
+    return nil, "unknown Duelist verb"
+end
+
+local function duelistPreview(runtime, selected, verb)
+    local commands, err = duelistCommands(runtime, selected, verb)
+    if not commands then
+        return { error = err }
+    end
+    return previewCommandSequence(runtime.state, commands)
+end
+
+local function classVerbPreview(runtime, selected, verb)
+    if selected and selected.class == "warden" then
+        return wardenPreview(runtime, selected, verb)
+    end
+    if selected and selected.class == "duelist" then
+        return duelistPreview(runtime, selected, verb)
+    end
+    return nil
+end
+
 function Runtime.refreshOverlays(runtime)
     local state = runtime.state
     local selected = Runtime.selectedUnit(runtime)
@@ -649,6 +784,23 @@ local function tryApply(runtime, command)
     if not ok then
         setStatus(runtime, tostring(err):gsub("^.*:%d+: ", ""))
         return false
+    end
+    return true
+end
+
+local function tryApplyCommands(runtime, commands)
+    local sim = TacticsState.fromSnapshot(runtime.state:snapshot())
+    for _, command in ipairs(commands or {}) do
+        local ok, err = pcall(function()
+            sim:apply(command)
+        end)
+        if not ok then
+            setStatus(runtime, tostring(err):gsub("^.*:%d+: ", ""))
+            return false
+        end
+    end
+    for _, command in ipairs(commands or {}) do
+        runtime.state:apply(command)
     end
     return true
 end
@@ -759,9 +911,10 @@ function Runtime.actionBar(runtime, hover)
         { id = "attack", key = "A", label = "Attack", detail = canAttack and cursorAction.detail or "enemy", enabled = canAttack },
     }
     for index, verb in ipairs(boardActionsForUnit(selected)) do
-        local preview = selected and selected.class == "warden" and wardenPreview(runtime, selected, verb) or nil
+        local preview = classVerbPreview(runtime, selected, verb)
         local detail = (preview and preview.error) or selected.className or selected.class
-        actions[#actions + 1] = { id = "class:" .. verb, key = tostring(index), label = labelForVerb(verb), detail = detail, enabled = selected and selected.ap >= 1 and not (preview and preview.error), classVerb = verb, preview = preview }
+        local apCost = (preview and preview.apCost) or 1
+        actions[#actions + 1] = { id = "class:" .. verb, key = tostring(index), label = labelForVerb(verb), detail = detail, enabled = selected and selected.ap >= apCost and not (preview and preview.error), classVerb = verb, preview = preview }
     end
     actions[#actions + 1] = { id = "brace", key = "B", label = "Brace", detail = "1 AP guard", enabled = selected and selected.ap >= 1 }
     actions[#actions + 1] = { id = "unit", key = "Tab", label = "Unit", detail = tostring(playerCount) .. " squad", enabled = playerCount > 1 }
@@ -785,6 +938,19 @@ function Runtime.activateClassVerb(runtime, index)
             return false
         end
         if tryApply(runtime, command) then
+            Runtime.refreshOverlays(runtime)
+            setStatus(runtime, selected.id .. " " .. verb)
+            return true
+        end
+        return false
+    end
+    if selected.class == "duelist" then
+        local commands, err = duelistCommands(runtime, selected, verb)
+        if not commands then
+            setStatus(runtime, err)
+            return false
+        end
+        if tryApplyCommands(runtime, commands) then
             Runtime.refreshOverlays(runtime)
             setStatus(runtime, selected.id .. " " .. verb)
             return true

@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(B) 2026-06-22 Implement Duelist board verbs (red_line dash strike, position swap) end-to-end +slice-content @engine
 (B) 2026-06-22 Implement Apothecary board verbs (field_triage stabilize, smoke_binder area smoke that modifies LoS) end-to-end +slice-content @engine
 (B) 2026-06-22 Implement Thief board verbs (ghost_route stealth lane, courier_cut extract) end-to-end; integrate with fog-of-war so stealth is mechanically meaningful +slice-content @engine
 (B) 2026-06-22 Implement Arcanist board verbs (seal_reader reveal, line_bender LoS bend, intent_breaker interrupt) end-to-end +slice-content @engine
