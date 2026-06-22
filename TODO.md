@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(D) 2026-06-22 Refresh docs/itch-alpha-page.md, docs/press-kit.md, docs/itch-beta-page.md, docs/itch-final-page.md to reflect XCOM-lite framing, 6-class slice, and current screenshots +docs @docs
 (D) 2026-06-22 Update WORLD-LORE.md to mark Salt Cistern and Ember Warrens as future-zone content, with a clear "vertical slice = Buried Archive only" header +docs @docs
 (D) 2026-06-22 Update docs/tactical-research-index.md to record decisions taken this phase (XCOM-lite, fog/overwatch/flank/hidden-intent, 6-unit squad) with citations to source patterns +docs @docs
 (D) 2026-06-22 Update docs/dev-log.md with the 2026-06-22 pivot decisions and link to this TODO +docs @docs

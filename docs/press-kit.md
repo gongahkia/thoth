@@ -1,8 +1,8 @@
 # Thoth Press Kit
 
-Date: 2026-06-20
+Date: 2026-06-22
 
-Status: draft assets and factsheet. Do not remove TODO 8.11 until a public presskit() page or archive exists with screenshots at 1080p/4K, logo exports, and download links.
+Status: draft assets and factsheet. Do not publish until a public presskit() page or archive exists with current tactical screenshots, logo exports, contact details, and download links.
 
 ## Source Checks
 
@@ -10,11 +10,12 @@ Status: draft assets and factsheet. Do not remove TODO 8.11 until a public press
 - itch.io page design docs: https://itch.io/docs/creators/design
 - itch.io creator quality guidelines: https://itch.io/docs/creators/quality-guidelines
 
-Relevant requirements from source:
+Relevant requirements from source, checked 2026-06-22:
 
-- presskit() is a free, open press-page format intended to give press the information and media needed to write about a game.
+- presskit() is a free, open press-page format for giving press the facts and media needed to write about a game.
 - itch.io descriptions should include controls, supported devices, project status, links, story summary, and feature list.
 - itch.io quality guidance requires accurate metadata, relevant tags, screenshots, and non-misleading media.
+- Screenshots and video/GIF media must match actual uploaded content.
 
 ## Factsheet
 
@@ -27,25 +28,25 @@ Thoth contributors
 Release status:
 
 ```text
-In development; 1.0 target uses itch.io and GitHub releases.
+In development; current public candidate is the Buried Archive tactical vertical slice.
 ```
 
 Platforms:
 
 ```text
-LOVE2D package now; native Windows/macOS/Linux packages only after TODO 8.4 verification.
+LOVE package now; native Windows/macOS/Linux packages only after verification.
 ```
 
 Engine:
 
 ```text
-LOVE2D / Lua
+LOVE / Lua
 ```
 
 Genre:
 
 ```text
-Turn-based expedition RPG, tactical RPG, dungeon crawler, institutional horror.
+XCOM-lite tactics, turn-based tactics, tactical RPG, institutional horror, roguelite.
 ```
 
 Links:
@@ -53,29 +54,29 @@ Links:
 ```text
 itch.io: TBD
 GitHub release: TBD
-Trailer: TBD
+Trailer/GIF: TBD
 Contact: TBD
 ```
 
 ## Short Description
 
-Thoth is a turn-based expedition RPG about debt, light, extraction, and the institutions that keep records after bodies fail.
+Thoth is deterministic XCOM-lite tactics in a cursed archive: six auditors read intent, bend cover, and survive institutional horror without hit-roll RNG.
 
 ## Long Description
 
-Lead a roster of specialists through hostile institutional spaces, manage torchlight, provisions, stress, and debt, then decide when to extract before the route prices the party out of returning.
+Six auditors enter the Buried Archive, a hostile institution of sealed shelves, audit beams, debt records, and claim machinery. Players spend AP to move, inspect, flank, repair, extract, and declare overwatch while enemy intent and objective pressure are previewed before commitment.
 
-The dungeon is not a monster nest. It is an archive, a cistern, a furnace, and a ledger. Every expedition asks what you can afford to lose, and who records the loss.
+The pitch is tactical clarity under institutional dread. RNG can shape a board before deployment; after board load, damage, cover, movement, intent, and objective outcomes are deterministic.
 
 ## Features
 
-- Rank-based tactical combat with stress, death's door, afflictions, virtues, crit pressure, enemy parts, and retreat pressure.
-- Three zones: Buried Archive, Salt Cistern, and Ember Warrens.
-- Estate management with recruitment, recovery, provisions, trinkets, class unlocks, town events, faction pressure, and campaign dread.
-- Nine classes including Warden, Duelist, Apothecary, Thief, Arcanist, Chirurgeon, Exile, Lamplighter, and Merchant.
-- Campaign routes for sealing, repair, extraction, and failure states.
-- Save/load, deterministic replay support, keyboard and controller input.
-- Accessibility settings for high contrast, colorblind modes, font scale, subtitles, reduced motion, and screen shake.
+- Six-class tactical squad: Warden, Duelist, Apothecary, Thief, Arcanist, Lamplighter.
+- Buried Archive vertical-slice route with six ordered procedural mission variants.
+- AP movement, directional cover, flanking, LoS previews, fog-of-war, overwatch cones, tile inspector, and intent legend.
+- Objective pressure across entry audit, shelf protection, proof extraction, ledger repair, sealed shortcut, and Vault Regent final.
+- Shelf Knight elite pressure and Vault Regent boss procedure.
+- Fixed-seed procgen validator, reject logs, deterministic replay support, keyboard/controller input.
+- Accessibility settings for high contrast, colorblind modes, intent scaling/text, font scale, subtitles, reduced motion, and screen shake.
 
 ## Press Assets
 
@@ -86,34 +87,32 @@ Logo exports:
 - `assets/press/thoth-logo-1024.png`
 - `assets/press/thoth-logo-2048.png`
 
-Screenshot slots required before TODO 8.11 closes:
+Current local tactical media:
 
-- 1080p title, Estate, expedition, combat, ending.
-- 4K title, Estate, expedition, combat, ending.
+- `assets/previews/readme-tactical.png` - 1280x720 tactical screenshot with six-unit AP HUD, intent legend, tile inspector, objective pressure, and route board.
+- `assets/previews/readme-tactical-loop.gif` - 640x360 tactical GIF preview.
 
-Local 1280x720 gameplay captures generated on 2026-06-20:
+Storefront/press screenshot set still required before public release:
 
-- `assets/previews/final-title.png`
-- `assets/previews/final-estate.png`
-- `assets/previews/final-expedition.png`
-- `assets/previews/final-combat.png`
-- `assets/previews/final-gameover.png`
+- 1080p and 4K fog-of-war reveal.
+- 1080p and 4K overwatch cone declaration.
+- 1080p and 4K intent legend plus tile inspector.
+- 1080p and 4K title/menu state once final release copy lands.
 
-These are enough for draft review, not enough to close TODO 8.11.
+Do not use legacy `alpha-*` or `final-*` RPG captures in press materials.
 
-Trailer required before TODO 8.11 closes:
+Trailer/GIF required before publication:
 
-- Public 60-90s trailer URL.
+- Public 30-90s gameplay trailer or GIF.
 - Downloadable MP4 or press-safe mirror.
 
 ## Completion Evidence Required
 
-Before removing TODO 8.11:
+Before publishing:
 
 - Public presskit() page or downloadable press archive URL recorded here.
-- 1080p screenshots present and verified.
-- 4K screenshots present and verified.
+- Current tactical screenshots present and verified at required sizes.
 - Logo source and exported PNG sizes present.
-- Trailer URL and download mirror present.
+- Trailer/GIF URL and download mirror present.
 - Contact link or email present.
 - Asset license rows updated.

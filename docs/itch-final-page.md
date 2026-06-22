@@ -1,22 +1,22 @@
 # Thoth Itch.io Final Page
 
-Date: 2026-06-20
+Date: 2026-06-22
 
-Status: draft. Do not remove TODO 8.6 until the public itch page has the final copy, 5 screenshots, and a public trailer URL attached.
+Status: draft. Do not publish until the public itch page has current tactical screenshots, a public trailer or gameplay GIF, and a verified uploaded build.
 
 ## Source Checks
 
 - itch.io page design docs: https://itch.io/docs/creators/design
 - itch.io creator quality guidelines: https://itch.io/docs/creators/quality-guidelines
 
-Relevant requirements from source:
+Relevant requirements from source, checked 2026-06-22:
 
-- Downloadable project pages default to a two-column layout where screenshots and video appear beside the main description.
-- A video URL or trailer is recommended for games, and supported public links include YouTube and Vimeo.
-- The trailer must be publicly accessible; verify with an incognito browser.
-- The description should include controls, supported input devices, status/plans, links, story summary, and features.
-- Metadata and tags must accurately represent the project.
-- Screenshots should be provided for games and must not mislead users about included content.
+- Downloadable project pages use a screenshot/video sidebar by default.
+- Descriptions should include controls, supported input devices, status/plans, links, story summary, and feature list.
+- Games should provide screenshots; GIFs are acceptable when they better represent the project.
+- Metadata, platform flags, and tags must accurately represent the uploaded build.
+- Screenshots and trailers must not show content that is not in the uploaded build.
+- Public video/trailer links should be verified in an incognito browser.
 
 ## Page Metadata
 
@@ -29,7 +29,7 @@ Thoth
 Short description:
 
 ```text
-Turn-based expedition RPG about debt, light, extraction, and the institutions that keep records after bodies fail.
+Deterministic XCOM-lite tactics in a cursed archive: six auditors read intent, bend cover, and survive without hit-roll RNG.
 ```
 
 Download button label:
@@ -53,7 +53,7 @@ Game, downloadable, singleplayer, English text.
 Platforms:
 
 ```text
-Do not mark Windows/macOS/Linux until TODO 8.4 has verified clean installs for native packages. If only `dist/thoth.love` is uploaded, classify the file as a LOVE2D package/download, not an OS executable.
+Do not mark Windows/macOS/Linux until native packages are verified. If only `dist/thoth.love` is uploaded, classify the file as a LOVE package/download, not an OS executable.
 ```
 
 ## Tags
@@ -61,66 +61,61 @@ Do not mark Windows/macOS/Linux until TODO 8.4 has verified clean installs for n
 Use relevant tags only:
 
 ```text
-rpg, turn-based, dungeon-crawler, horror, dark-fantasy, tactical-rpg, singleplayer, love2d, lua, story-rich
+strategy, turn-based, turn-based-tactics, tactical-rpg, roguelite, horror, love2d, lua, singleplayer
 ```
 
 ## Media Plan
 
-Final screenshots required:
+Current local media:
 
-- `assets/previews/final-title.png` - title screen with final menu state.
-- `assets/previews/final-estate.png` - Estate management with roster, missions, provisions, and trinkets visible.
-- `assets/previews/final-expedition.png` - HD-2D expedition view with HUD, party, torch, supplies, and room state.
-- `assets/previews/final-combat.png` - combat stage with skills, target affordances, turn order, and readable enemies.
-- `assets/previews/final-gameover.png` - ending summary or campaign-sealed state.
+- `assets/previews/readme-tactical.png` - current 1280x720 tactical view with six-unit AP HUD, intent legend, tile inspector, objective pressure, and route board.
+- `assets/previews/readme-tactical-loop.gif` - current 640x360 tactical GIF preview derived from the current tactical smoke capture.
 
-Local capture status:
+Storefront screenshots still required before public release:
 
-- 2026-06-20: all five files above generated at 1280x720 with `love . --preview-capture`.
-- Visual spot check passed locally.
-- TODO 8.6 remains open because the public itch page and trailer are not published.
+- Fog-of-war reveal on a Buried Archive board.
+- Overwatch cone declaration with affected tiles visible.
+- Intent legend hover/selection with tile inspector populated.
 
-Trailer required:
+Trailer or gameplay GIF required:
 
-- 60-90 seconds.
-- Public YouTube or Vimeo URL.
-- Verify in incognito before publishing.
-- Must show title, Estate prep, expedition movement, combat, camping/pressure, route outcome, and release CTA.
+- 30-90 seconds.
+- Public YouTube/Vimeo URL or downloadable GIF/MP4.
+- Must show title, Buried Archive route, six-class squad, AP movement, cover/flank, fog reveal, overwatch cone, hidden/revealed intent, objective pressure, and release CTA.
+- Verify public access in incognito before publishing.
 
-Existing alpha media is not enough for TODO 8.6:
-
-- `assets/previews/alpha-title.png`
-- `assets/previews/alpha-estate.png`
-- `assets/previews/alpha-combat.png`
-- `assets/previews/alpha-loop.gif`
+Do not use legacy `alpha-*` or `final-*` RPG captures for the tactical storefront.
 
 ## Description
 
-Thoth is a turn-based expedition RPG built in LOVE2D. Lead a roster of specialists through hostile institutional spaces, manage torchlight, provisions, stress, and debt, then decide when to extract before the route prices the party out of returning.
+Thoth is a compact XCOM-lite tactics game built in LOVE/Lua. Six auditors enter the Buried Archive, a hostile institution of sealed shelves, audit beams, debt records, and claim machinery. Each mission asks you to read the board before spending AP: enemy intent is previewable, cover is directional, fog hides information until revealed, and overwatch/LoS/flanks decide whether the route machine survives.
 
-The dungeon is not a monster nest. It is an archive, a cistern, a furnace, and a ledger. Every expedition asks the same practical question: what can you afford to lose, and who records the loss?
+There are no hit-rolls after the board loads. RNG can choose the board and enemy pressure before deployment; once the mission starts, movement, damage, cover, intent, objective pressure, and failure are deterministic.
 
 ## Features
 
-- Tactical rank-based combat with hero skills, enemy parts, target rules, crit pressure, stress, death's door, afflictions, virtues, and retreat pressure.
-- Three zones: Buried Archive, Salt Cistern, and Ember Warrens.
-- Estate management with recruitment, recovery, provisions, trinkets, class unlocks, town events, faction pressure, and campaign dread.
-- Nine classes including Warden, Duelist, Apothecary, Thief, Arcanist, Chirurgeon, Exile, Lamplighter, and Merchant.
-- Campaign routes for sealing, repair, extraction, and failure states.
-- Save/load, deterministic replay support, keyboard and controller input.
-- Accessibility settings for high contrast, colorblind modes, font scale, subtitles, reduced motion, and screen shake.
+- Six-class tactical squad: Warden, Duelist, Apothecary, Thief, Arcanist, Lamplighter.
+- Buried Archive vertical-slice route with six ordered procedural mission variants.
+- AP movement, directional cover, flanking, LoS previews, fog-of-war, overwatch cones, and tile inspector.
+- Enemy intent legend with exact, hidden-footprint, and revealed intent states.
+- Objective families for protection, extraction, repair, disable, entry audit, and boss procedure pressure.
+- Shelf Knight elite pressure and Vault Regent final-board procedure.
+- Fixed-seed procgen validator, reject logs, deterministic replay support, keyboard/controller input.
+- Accessibility settings for high contrast, colorblind modes, intent scaling/text, font scale, subtitles, reduced motion, and screen shake.
 
 ## Controls
 
-- Move: `WASD`
-- Interact/confirm: `Space` / `Enter`
-- Pause/back: `Escape`
-- Settings: title and pause menu
-- Controller: supported through the input mapping smoke tests
+- Cursor / aim tile: `WASD`, D-pad, or left stick.
+- Select / commit: mouse left click, `Enter`, or controller `A`.
+- Inspect preview: `Space` or controller `X`.
+- Rotate view: `[` / `]` or controller shoulders.
+- End turn: `E`.
+- Pause/back: `Escape` or controller back.
+- Settings: title and pause menu.
 
 ## Content Notes
 
-Thoth contains institutional horror, fantasy violence, body horror references, injury, disease, character death, psychological stress, and sustained dread. It does not use explicit sexual content.
+Thoth contains institutional horror, fantasy violence, body horror references, injury, debt, character death, psychological pressure, and sustained dread. It does not use explicit sexual content.
 
 ## Build Upload
 
@@ -130,7 +125,7 @@ Primary upload command after final package exists and itch auth is configured:
 butler push dist/thoth.love <itch-user>/thoth:love --userversion 1.0.0
 ```
 
-If native packages are added after TODO 8.4, use separate channels:
+If native packages are added after verification, use separate channels:
 
 ```sh
 butler push dist/thoth-windows.zip <itch-user>/thoth:windows --userversion 1.0.0
@@ -140,12 +135,12 @@ butler push dist/thoth-linux.zip <itch-user>/thoth:linux --userversion 1.0.0
 
 ## Completion Evidence Required
 
-Before removing TODO 8.6:
+Before publishing:
 
 - Public itch URL recorded here.
 - Final page copy pasted into itch.
-- Five final screenshots uploaded and visible on the public page.
-- Public trailer URL attached and visible on the public page.
+- Current tactical screenshots uploaded and visible on the public page.
+- Public trailer/GIF URL attached and visible on the public page.
 - Page checked in incognito desktop and mobile widths.
 - Tags and metadata match the actual uploaded build.
 - Screenshot and trailer filenames/URLs recorded here.
