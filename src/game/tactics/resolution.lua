@@ -82,6 +82,13 @@ function Resolution.actionPreview(state, command)
             preview.flankingBonus = attack.flankingBonus
             preview.flankingRule = attack.flankingRule
         end
+    elseif command.type == "heal" then
+        local target = state:unit(command.target)
+        if target then
+            local amount = command.amount or 1
+            addTile(preview.affectedTiles, target.x, target.y)
+            preview.healing = { target = command.target, amount = amount, hpAfter = math.min(target.maxHp or target.hp or 0, (target.hp or 0) + amount) }
+        end
     elseif command.type == "aoe" then
         preview.affectedTiles = copyTiles(command.tiles)
         for _, tile in ipairs(preview.affectedTiles) do
@@ -139,9 +146,25 @@ function Resolution.actionPreview(state, command)
             addTile(preview.affectedTiles, objective.x, objective.y)
             preview.objectiveDamage[#preview.objectiveDamage + 1] = { id = objective.id, x = objective.x, y = objective.y, damage = command.damage or 1 }
         end
+    elseif command.type == "repairObjective" then
+        local objective = state:objective(command.objective)
+        if objective then
+            local amount = command.amount or 1
+            addTile(preview.affectedTiles, objective.x, objective.y)
+            preview.objectiveRepair = { id = objective.id, x = objective.x, y = objective.y, amount = amount, integrityAfter = math.min(objective.maxIntegrity or objective.integrity or 0, (objective.integrity or 0) + amount) }
+        end
     elseif command.type == "convertTile" then
         addTile(preview.affectedTiles, command.x, command.y)
         preview.hazardChain[#preview.hazardChain + 1] = { x = command.x, y = command.y, conversion = command.conversion }
+    elseif command.type == "obscurant" then
+        addTile(preview.affectedTiles, command.x, command.y)
+        preview.obscurant = { x = command.x, y = command.y, kind = command.kind, countdown = command.countdown }
+    elseif command.type == "status" then
+        local target = state:unit(command.target)
+        if target then
+            addTile(preview.affectedTiles, target.x, target.y)
+            preview.status = { target = command.target, kind = command.status, turns = command.turns, amount = command.amount }
+        end
     end
     return preview
 end

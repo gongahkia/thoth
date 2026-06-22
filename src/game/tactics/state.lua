@@ -747,6 +747,7 @@ local statusRules = {
     stunned = {},
     blinded = {},
     braced = { amount = 1 },
+    stabilized = {},
 }
 
 local function normalizeStatuses(statuses)
@@ -1484,6 +1485,17 @@ function State:damageUnit(unitOrId, amount, options)
         unit.alive = false
         unit.ap = 0
     end
+    return unit.hp
+end
+
+function State:healUnit(unitOrId, amount)
+    local unit = type(unitOrId) == "table" and unitOrId or expect(self.units[unitOrId], "unknown unit " .. tostring(unitOrId))
+    amount = expectInteger(amount or 0, "healing")
+    expect(amount >= 0, "healing must be non-negative")
+    if amount == 0 or not unit.alive or unit.evacuated then
+        return unit.hp
+    end
+    unit.hp = math.min(unit.maxHp or unit.hp or 0, (unit.hp or 0) + amount)
     return unit.hp
 end
 
@@ -2972,6 +2984,10 @@ function State:apply(command)
         local resolved = self:attackResolution(command.unit, command.target, command.damage or 1)
         self:spendAP(command.unit, command.cost or 1)
         self:damageUnit(command.target, resolved.damage)
+    elseif kind == "heal" then
+        expect(self.units[command.target], "unknown target " .. tostring(command.target))
+        self:spendAP(command.unit, command.cost or 1)
+        self:healUnit(command.target, command.amount or 1)
     elseif kind == "aoe" then
         self:spendAP(command.unit, command.cost or 1)
         local tiles = normalizeTileList(command.tiles)
@@ -3235,6 +3251,10 @@ end
 
 function commands.attack(unitId, targetId, damage, cost)
     return { type = "attack", unit = unitId, target = targetId, damage = damage, cost = cost }
+end
+
+function commands.heal(unitId, targetId, amount, cost)
+    return { type = "heal", unit = unitId, target = targetId, amount = amount, cost = cost }
 end
 
 function commands.aoe(unitId, tiles, damage, cost)

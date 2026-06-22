@@ -20,6 +20,7 @@ local liveClassRoster = {
 local sliceBoardActions = {
     warden = { "line_guard", "brace", "shove" },
     duelist = { "red_line", "dash_strike", "position_swap" },
+    mender = { "field_triage", "stabilize", "smoke_binder" },
 }
 local enemyIntentSpecs = {
     audit_hound = { label = "bite notice", target = "nearest_player" },
@@ -589,7 +590,7 @@ local function appendPreviewList(target, source)
 end
 
 local function previewCommandSequence(state, commands)
-    local preview = { apCost = 0, affectedTiles = {}, pushedPath = {}, objectiveDamage = {}, coverBreak = {}, hazardChain = {} }
+    local preview = { apCost = 0, affectedTiles = {}, pushedPath = {}, objectiveDamage = {}, coverBreak = {}, hazardChain = {}, obscurants = {} }
     local sim = TacticsState.fromSnapshot(state:snapshot())
     for _, command in ipairs(commands or {}) do
         local ok, commandPreview = pcall(TacticsResolution.actionPreview, sim, command)
@@ -607,6 +608,12 @@ local function previewCommandSequence(state, commands)
         appendPreviewList(preview.hazardChain, commandPreview.hazardChain)
         preview.dashPath = commandPreview.dashPath or preview.dashPath
         preview.swap = commandPreview.swap or preview.swap
+        preview.healing = commandPreview.healing or preview.healing
+        preview.objectiveRepair = commandPreview.objectiveRepair or preview.objectiveRepair
+        preview.status = commandPreview.status or preview.status
+        if commandPreview.obscurant then
+            preview.obscurants[#preview.obscurants + 1] = commandPreview.obscurant
+        end
         if commandPreview.damage then
             preview.damage = (preview.damage or 0) + commandPreview.damage
             preview.flanked = commandPreview.flanked
@@ -620,6 +627,19 @@ local function previewCommandSequence(state, commands)
         end
     end
     return preview
+end
+
+local function areaTiles(state, cx, cy)
+    local tiles = {}
+    local offsets = { { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
+    for _, offset in ipairs(offsets) do
+        local x = cx + offset[1]
+        local y = cy + offset[2]
+        if state:inBounds(x, y) then
+            tiles[#tiles + 1] = { x = x, y = y }
+        end
+    end
+    return tiles
 end
 
 local function cursorUnit(runtime)
@@ -690,12 +710,62 @@ local function duelistPreview(runtime, selected, verb)
     return previewCommandSequence(runtime.state, commands)
 end
 
+local function menderCommands(runtime, selected, verb)
+    local state = runtime.state
+    local target = cursorUnit(runtime)
+    local objective = state:objectiveAt(runtime.cursor.x, runtime.cursor.y)
+    local distance = Grid.manhattan(selected.x, selected.y, runtime.cursor.x, runtime.cursor.y)
+    if verb == "field_triage" then
+        if target and target.side == "player" and distance <= 1 then
+            return {
+                TacticsState.commands.heal(selected.id, target.id, 2, 1),
+                TacticsState.commands.status(selected.id, target.id, "stabilized", 2, 1, 0),
+            }
+        end
+        if objective and distance <= 1 then
+            return { TacticsState.commands.repairObjective(selected.id, objective.id, 2, 1) }
+        end
+        return nil, "field_triage needs adjacent ally or objective"
+    end
+    if verb == "stabilize" then
+        if target and target.side == "player" and distance <= 3 then
+            return { TacticsState.commands.status(selected.id, target.id, "stabilized", 2, 1, 1) }
+        end
+        if objective and distance <= 3 then
+            return { TacticsState.commands.repairObjective(selected.id, objective.id, 1, 1) }
+        end
+        return nil, "stabilize needs ally or objective"
+    end
+    if verb == "smoke_binder" then
+        if distance > 3 then
+            return nil, "smoke_binder range 3"
+        end
+        local commands = {}
+        for index, tile in ipairs(areaTiles(state, runtime.cursor.x, runtime.cursor.y)) do
+            commands[#commands + 1] = TacticsState.commands.obscurant(selected.id, tile.x, tile.y, "smoke", 2, index == 1 and 1 or 0)
+        end
+        return commands
+    end
+    return nil, "unknown Apothecary verb"
+end
+
+local function menderPreview(runtime, selected, verb)
+    local commands, err = menderCommands(runtime, selected, verb)
+    if not commands then
+        return { error = err }
+    end
+    return previewCommandSequence(runtime.state, commands)
+end
+
 local function classVerbPreview(runtime, selected, verb)
     if selected and selected.class == "warden" then
         return wardenPreview(runtime, selected, verb)
     end
     if selected and selected.class == "duelist" then
         return duelistPreview(runtime, selected, verb)
+    end
+    if selected and selected.class == "mender" then
+        return menderPreview(runtime, selected, verb)
     end
     return nil
 end
@@ -946,6 +1016,19 @@ function Runtime.activateClassVerb(runtime, index)
     end
     if selected.class == "duelist" then
         local commands, err = duelistCommands(runtime, selected, verb)
+        if not commands then
+            setStatus(runtime, err)
+            return false
+        end
+        if tryApplyCommands(runtime, commands) then
+            Runtime.refreshOverlays(runtime)
+            setStatus(runtime, selected.id .. " " .. verb)
+            return true
+        end
+        return false
+    end
+    if selected.class == "mender" then
+        local commands, err = menderCommands(runtime, selected, verb)
         if not commands then
             setStatus(runtime, err)
             return false

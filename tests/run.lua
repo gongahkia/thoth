@@ -309,7 +309,7 @@ tests[#tests + 1] = function()
     local expectedVerbs = {
         { id = "warden", verbs = { "line_guard", "brace", "shove" } },
         { id = "duelist", verbs = { "red_line", "dash_strike", "position_swap" } },
-        { id = "apothecary", verbs = { "stabilize", "smoke", "cleanse_hazard", "rescue" } },
+        { id = "apothecary", verbs = { "field_triage", "stabilize", "smoke_binder" } },
         { id = "thief", verbs = { "sneak", "disarm", "extract", "mark_route" } },
         { id = "arcanist", verbs = { "reveal", "bend_los", "unredact_intent", "pass_seal" } },
         { id = "lamplighter", verbs = { "reveal_route", "project_cone", "anchor_beacon", "safe_hazard" } },
@@ -319,7 +319,7 @@ tests[#tests + 1] = function()
         local bar = runtime:actionBar()
         for index, verb in ipairs(entry.verbs) do
             local action = bar[4 + index]
-            local contextSensitive = entry.id == "warden" or entry.id == "duelist"
+            local contextSensitive = entry.id == "warden" or entry.id == "duelist" or entry.id == "apothecary"
             local enabledOk = action and (action.enabled or contextSensitive)
             expect(action and action.id == "class:" .. verb and action.key == tostring(index) and enabledOk, entry.id .. " class verb should be callable from input bar")
             if not contextSensitive then
@@ -410,6 +410,46 @@ tests[#tests + 1] = function()
     local first = runDuelist()
     local second = runDuelist()
     expect(Serialize.encode(first:snapshot()) == Serialize.encode(second:snapshot()), "Duelist red_line dash_strike position_swap sequence should replay deterministically")
+end
+
+tests[#tests + 1] = function()
+    local function runApothecary()
+        local state = TacticsState.new({
+            defaultAp = 4,
+            board = { width = 5, height = 3 },
+            units = {
+                { id = "mender", side = "player", class = "mender", x = 1, y = 2, hp = 4, ap = 4, maxAp = 4, visionRadius = 8 },
+                { id = "ally", side = "player", x = 2, y = 2, hp = 2, maxHp = 5, ap = 0 },
+                { id = "bailiff", side = "enemy", x = 5, y = 2, hp = 6, ap = 1 },
+            },
+            objectives = {
+                { id = "patient", x = 1, y = 1, integrity = 1, maxIntegrity = 3, evacuateAt = { x = 5, y = 3 } },
+            },
+        })
+        local runtime = { state = state, selectedUnitId = "mender", cursor = { x = 2, y = 2 }, turn = 1, lastSeenEnemies = {} }
+        TacticalRuntime.refreshOverlays(runtime)
+        local triage = TacticalRuntime.actionBar(runtime)[5]
+        expect(triage.classVerb == "field_triage" and triage.enabled and triage.preview.apCost == 1 and triage.preview.healing.hpAfter == 4, "Apothecary field_triage should preview ally healing")
+        expect(TacticalRuntime.handleKey(runtime, "1"), "Apothecary field_triage should activate from input bar")
+        expect(state:unit("ally").hp == 4 and state:hasStatus("ally", "stabilized") and state:unit("mender").ap == 3, "Apothecary field_triage should heal, stabilize, and spend AP")
+        runtime.cursor.x = 1
+        runtime.cursor.y = 1
+        local stabilize = TacticalRuntime.actionBar(runtime)[6]
+        expect(stabilize.classVerb == "stabilize" and stabilize.enabled and stabilize.preview.objectiveRepair.integrityAfter == 2, "Apothecary stabilize should preview objective repair")
+        expect(TacticalRuntime.handleKey(runtime, "2"), "Apothecary stabilize should activate from input bar")
+        expect(state:objective("patient").integrity == 2 and state:unit("mender").ap == 2, "Apothecary stabilize should repair objective and spend AP")
+        runtime.cursor.x = 3
+        runtime.cursor.y = 2
+        local smoke = TacticalRuntime.actionBar(runtime)[7]
+        expect(smoke.classVerb == "smoke_binder" and smoke.enabled and smoke.preview.apCost == 1 and #smoke.preview.affectedTiles == 5 and #smoke.preview.obscurants == 5, "Apothecary smoke_binder should preview area smoke")
+        expect(TacticalRuntime.handleKey(runtime, "3"), "Apothecary smoke_binder should activate from input bar")
+        local los = state:lineOfSight(1, 2, 5, 2)
+        expect(los.visible and los.obscured and state:tileAt(3, 2).hazard.kind == "smoke" and state:unit("mender").ap == 1, "Apothecary smoke_binder should place LoS-modifying smoke and spend AP once")
+        return state
+    end
+    local first = runApothecary()
+    local second = runApothecary()
+    expect(Serialize.encode(first:snapshot()) == Serialize.encode(second:snapshot()), "Apothecary field_triage stabilize smoke_binder sequence should replay deterministically")
 end
 
 tests[#tests + 1] = function()
