@@ -188,6 +188,23 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local runtime = TacticalRuntime.new(Simulation.new(9006))
+    runtime.state.units.claimant.x = 2
+    runtime.state.units.claimant.y = 4
+    runtime.state.units.claimant.hp = 1
+    runtime:setCursor(2, 4)
+    runtime:handleKey("a")
+    expect(runtime.route.variantId == "archive_shelf_protection" and runtime.routeIndex == 2 and not runtime.complete, "cleared board should advance to next archive route variant")
+    TacticalRuntime.loadRouteVariant(runtime, runtime.routeOrder[#runtime.routeOrder])
+    runtime.state.units.claimant.x = 2
+    runtime.state.units.claimant.y = 4
+    runtime.state.units.claimant.hp = 1
+    runtime:setCursor(2, 4)
+    runtime:handleKey("a")
+    expect(runtime.complete and runtime.routeComplete and runtime.route.variantId == runtime.routeOrder[#runtime.routeOrder], "last cleared board should complete tactical route")
+end
+
+tests[#tests + 1] = function()
     local tacticalSim = Simulation.new(9003)
     local runtime = TacticalRuntime.new(tacticalSim)
     runtime.state.units.claimant.x = 4

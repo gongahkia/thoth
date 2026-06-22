@@ -211,9 +211,19 @@ local function makeRouteState(options)
     return TacticsState.new(spec), spec
 end
 
+local function routeVariantIndex(order, variantId)
+    for index, id in ipairs(order or {}) do
+        if id == variantId then
+            return index
+        end
+    end
+    return 1
+end
+
 function Runtime.new(sim, options)
     options = options or {}
     local state, boardSpec
+    local route = Procgen.archiveRoute()
     if options.prototype then
         state = makePrototypeState()
     else
@@ -230,9 +240,12 @@ function Runtime.new(sim, options)
         status = boardSpec and ("route " .. boardSpec.archiveRoute.variantId) or "tactical prototype",
         message = boardSpec and boardSpec.archiveRoute.preview or "read intents, spend AP, protect the route machine",
         turn = 1,
+        sim = sim,
         state = state,
         boardSpec = boardSpec,
         route = boardSpec and boardSpec.archiveRoute or nil,
+        routeOrder = boardSpec and copyList(route.variantOrder) or nil,
+        routeIndex = boardSpec and routeVariantIndex(route.variantOrder, boardSpec.archiveRoute.variantId) or nil,
         summary = Runtime.summary,
         handleKey = Runtime.handleKey,
         setCursor = Runtime.setCursor,
@@ -246,6 +259,29 @@ function Runtime.new(sim, options)
     Runtime.declareEnemyIntents(runtime)
     Runtime.refreshOverlays(runtime)
     Runtime.syncWorld(sim, runtime)
+    return runtime
+end
+
+function Runtime.loadRouteVariant(runtime, variantId)
+    local state, boardSpec = makeRouteState({ variantId = variantId })
+    local selectedUnitId = state.selectedUnitId or firstPlayerId(state)
+    local selected = selectedUnitId and state:unit(selectedUnitId) or nil
+    runtime.state = state
+    runtime.boardSpec = boardSpec
+    runtime.route = boardSpec.archiveRoute
+    runtime.routeIndex = routeVariantIndex(runtime.routeOrder, variantId)
+    runtime.selectedUnitId = selectedUnitId
+    runtime.cursor.x = selected and selected.x or 1
+    runtime.cursor.y = selected and selected.y or 1
+    runtime.turn = 1
+    runtime.complete = false
+    runtime.failed = false
+    runtime.routeComplete = false
+    runtime.status = "route " .. tostring(variantId)
+    runtime.message = boardSpec.archiveRoute.preview
+    Runtime.declareEnemyIntents(runtime)
+    Runtime.refreshOverlays(runtime)
+    Runtime.syncWorld(runtime.sim, runtime)
     return runtime
 end
 
@@ -523,13 +559,28 @@ function Runtime.brace(runtime)
     return false
 end
 
+function Runtime.advanceRoute(runtime)
+    local order = runtime.routeOrder or {}
+    local nextIndex = (runtime.routeIndex or 1) + 1
+    local nextVariant = order[nextIndex]
+    if nextVariant then
+        Runtime.loadRouteVariant(runtime, nextVariant)
+        setStatus(runtime, "route advanced: " .. tostring(nextVariant))
+        return true
+    end
+    runtime.complete = true
+    runtime.routeComplete = true
+    setStatus(runtime, "route cleared: all Archive nodes answered")
+    Runtime.syncWorld(runtime.sim, runtime)
+    return false
+end
+
 function Runtime.evaluate(runtime)
     local state = runtime.state
     local objective = objectiveState(state)
     local status = state:objectiveStatus(objective.id)
     if livingEnemies(state) == 0 then
-        runtime.complete = true
-        setStatus(runtime, "board cleared: all posted threats removed")
+        Runtime.advanceRoute(runtime)
     elseif status == "failed" or livingPlayers(state) == 0 then
         runtime.failed = true
         setStatus(runtime, "board failed: route machine or squad lost")
@@ -598,10 +649,13 @@ function Runtime.summary(runtime)
         selectedHp = selected and selected.hp or 0,
         objective = { id = objective.id, integrity = objective.integrity, maxIntegrity = objective.maxIntegrity, status = state:objectiveStatus(objective.id) },
         route = runtime.route,
+        routeIndex = runtime.routeIndex,
+        routeCount = runtime.routeOrder and #runtime.routeOrder or nil,
         players = players,
         enemies = enemies,
         message = runtime.message,
         complete = runtime.complete == true,
+        routeComplete = runtime.routeComplete == true,
         failed = runtime.failed == true,
     }
 end

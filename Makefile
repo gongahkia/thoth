@@ -267,6 +267,7 @@ tactical-smoke:
 	grep -q "tactical-smoke-mode=tactical" $$tmp; \
 	grep -q "tactical-smoke-route=buried_archive_vertical_slice" $$tmp; \
 	grep -q "tactical-smoke-variant=archive_entry_audit" $$tmp; \
+	grep -q "tactical-smoke-route-step=1/6" $$tmp; \
 	grep -q "tactical-smoke-legacy-expedition=false" $$tmp; \
 	grep -q "tactical-smoke-phase=player" $$tmp; \
 	grep -q "tactical-smoke-player-units=2" $$tmp; \

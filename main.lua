@@ -1088,6 +1088,7 @@ local function printTacticalSmoke(state)
     print("tactical-smoke-mode=" .. tostring(summary.mode))
     print("tactical-smoke-route=" .. tostring(summary.route and summary.route.id))
     print("tactical-smoke-variant=" .. tostring(summary.route and summary.route.variantId))
+    print("tactical-smoke-route-step=" .. tostring(summary.routeIndex) .. "/" .. tostring(summary.routeCount))
     print("tactical-smoke-legacy-expedition=" .. tostring(sim and sim.mode == "expedition"))
     print("tactical-smoke-phase=" .. tostring(summary.phase))
     print("tactical-smoke-selected=" .. tostring(summary.selected))
@@ -1832,6 +1833,7 @@ local function mouseTactical(x, y, button)
     end
     local tileX, tileY = Render.tacticalTileAt(app, x, y)
     if app.tactics:handleMouseTile(tileX, tileY, button) then
+        TacticalRuntime.evaluate(app.tactics)
         app.tacticalOverlays = app.tactics.overlays
         TacticalRuntime.syncWorld(sim, app.tactics)
         Audio.play(app.audio, "tick")

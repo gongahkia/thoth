@@ -770,9 +770,9 @@ zone fit: Archive route nodes use proof caches, custodian annex pressure, ledger
 
 counterplay: compare reward value against visible route costs before choosing a node; no tactical result is randomized after board start.
 
-preview/UI: `RunCatalog.generateArchiveSliceMap(seed)` exposes choices, rewards, complications, board variants, board seeds, elite pressure, event modifier, and boss gate data.
+preview/UI: `RunCatalog.generateArchiveSliceMap(seed)` exposes choices, rewards, complications, board variants, board seeds, elite pressure, event modifier, and boss gate data; `TacticalRuntime.advanceRoute()` loads the next ordered Archive board after a cleared tactical node.
 
-test/replay proof: tests validate the map, require reward/complication payloads, require all six Archive board variants, cover combat/enclave/event/repair/elite/boss/shortcut/extraction nodes, bind the selected boss, and verify deterministic serialization.
+test/replay proof: tests validate the map, require reward/complication payloads, require all six Archive board variants, cover combat/enclave/event/repair/elite/boss/shortcut/extraction nodes, bind the selected boss, verify deterministic serialization, and assert runtime board-clear advancement plus final route completion.
 
 ### H45 Phase 6 Public Alpha Package
 

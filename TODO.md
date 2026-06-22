@@ -6,7 +6,6 @@ Status correction 2026-06-21: docs/data/tests existed, but playable New Game sti
 
 Open task list:
 
-- [ ] Replace legacy expedition/rank-combat progression with tactical route flow after the tactical prototype.
 - [ ] Remove or quarantine legacy party-rank combat from default New Game and release smoke paths.
 - [ ] Expand tactical enemy AI beyond fixed posted intents while keeping deterministic resolution.
 
