@@ -1,5 +1,26 @@
 # Dev Log
 
+## 2026-06-22 XCOM-Lite Vertical Slice Pivot
+
+Source of truth:
+
+- [Phase 1B roadmap](../TODO.md)
+- `docs/tactical-research-index.md` phase decision table
+- `WORLD-LORE.md` vertical-slice boundary
+
+Decision:
+
+- Reposition Thoth as deterministic XCOM-lite tactics in the Great Stack, not tactical RPG/expedition legacy.
+- Current playable slice is Buried Archive only. Salt Cistern and Ember Warrens remain future-zone content until they pass the same validator, replay, screenshot, and release gates.
+- Core tactical contract: six distinct squad classes, six procedural Buried Archive missions, AP actions, cover, LoS, flanking, fog-of-war, overwatch cones, hidden intent, objective pressure, and no hit-roll RNG.
+- Hidden intent is authored before reveal; fog, rotation, light, and class tools expose information without rerolling enemy plans.
+- Storefront/docs language must describe the current six-unit tactical slice and use current tactical media.
+
+Risk:
+
+- Scope pressure now moves to release polish: screenshots, package, tag, and devlog must not imply multi-zone campaign content.
+- Source citations justify patterns only; implementation evidence remains tests, validator output, replay fixtures, and smoke captures.
+
 ## 2026-06-21 Tactical Scope Audit
 
 Decision:
