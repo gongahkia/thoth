@@ -476,6 +476,35 @@ end
 tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
+            width = 5,
+            height = 3,
+            tiles = {
+                ["3:2"] = { losBlocker = true, height = 1 },
+            },
+        },
+        units = {
+            { id = "scout", side = "player", x = 1, y = 2 },
+            { id = "spotter", side = "player", x = 5, y = 3, visionRadius = 1 },
+            { id = "warden", side = "enemy", x = 5, y = 1, visionRadius = 2 },
+        },
+    })
+    expect(state:unit("scout").visionRadius == 8 and state:unit("spotter").visionRadius == 1, "units should normalize vision radius")
+    local spotterVisible = state:computeVisibleTiles("spotter")
+    expect(spotterVisible["5:3"] and spotterVisible["5:2"] and spotterVisible["4:3"], "unit visibility should include tiles within radius")
+    expect(not spotterVisible["4:2"] and not spotterVisible["3:3"], "unit visibility should exclude tiles beyond radius")
+    local scoutVisible = TacticsLoS.computeVisibleTiles(state, state:unit("scout"))
+    expect(scoutVisible["3:2"] and not scoutVisible["4:2"], "unit visibility should respect LoS blockers")
+    local fog = state:fogGrid("player")
+    expect(fog.width == 5 and fog.height == 3 and fog.visible["1:2"] and fog.visible["5:3"], "fog grid should aggregate squad visibility")
+    expect(fog.fog["4:2"] and fog.tiles["4:2"].fog and not fog.fog["5:2"] and fog.tiles["5:2"].visible, "fog grid should mark unseen and visible tiles")
+    local enemyFog = TacticsLoS.fogGrid(state, "enemy")
+    expect(enemyFog.visible["5:1"] and not enemyFog.visible["1:2"], "fog grid should be side scoped")
+    expect(TacticsState.fromSnapshot(state:snapshot()):unit("spotter").visionRadius == 1, "vision radius should snapshot deterministically")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
             width = 4,
             height = 1,
             tiles = {

@@ -12,6 +12,18 @@ function LoS.movementPreview(state, unitId, options)
     return state:movementLosPreview(unitId, options)
 end
 
+function LoS.computeVisibleTiles(state, unit)
+    return state:computeVisibleTiles(unit)
+end
+
+function LoS.visibilityGrid(state, side)
+    return state:visibilityGrid(side)
+end
+
+function LoS.fogGrid(state, side)
+    return state:fogGrid(side)
+end
+
 function LoS.rotationInvariant(state, fromX, fromY, toX, toY)
     local base = state:lineOfSight(fromX, fromY, toX, toY)
     local rotations = {}

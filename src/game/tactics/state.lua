@@ -790,6 +790,8 @@ local function normalizeUnit(unit, index, defaultAp)
     local id = unit.id or ("unit_" .. tostring(index))
     expect(type(id) == "string" and id ~= "", "unit id must be a non-empty string")
     local maxAp = unit.maxAp or unit.apMax or defaultAp or 2
+    local visionRadius = expectInteger(unit.visionRadius or 8, "unit vision radius")
+    expect(visionRadius >= 0, "unit vision radius must be non-negative")
     return {
         id = id,
         class = unit.class,
@@ -800,6 +802,7 @@ local function normalizeUnit(unit, index, defaultAp)
         maxHp = unit.maxHp or unit.hp or 1,
         maxAp = maxAp,
         ap = unit.ap ~= nil and unit.ap or maxAp,
+        visionRadius = visionRadius,
         alive = unit.alive ~= false,
         evacuated = unit.evacuated == true,
         carryingObjective = unit.carryingObjective,
@@ -975,6 +978,66 @@ function State:unitsForSide(side)
         end
     end
     return result
+end
+
+local function resolveVisionUnit(state, unit)
+    if type(unit) == "table" then
+        return unit
+    end
+    return expect(state.units[unit], "unknown unit " .. tostring(unit))
+end
+
+function State:computeVisibleTiles(unit)
+    unit = resolveVisionUnit(self, unit)
+    expect(unit.alive and not unit.evacuated, "unit is not active")
+    expect(self:inBounds(unit.x, unit.y), "unit position out of bounds")
+    local radius = expectInteger(unit.visionRadius or 8, "unit vision radius")
+    expect(radius >= 0, "unit vision radius must be non-negative")
+    local visible = {}
+    for y = 1, self.board.height do
+        for x = 1, self.board.width do
+            if Grid.manhattan(unit.x, unit.y, x, y) <= radius then
+                if x == unit.x and y == unit.y then
+                    visible[tileKey(x, y)] = true
+                else
+                    local los = self:lineOfSight(unit.x, unit.y, x, y)
+                    if los.visible then
+                        visible[tileKey(x, y)] = true
+                    end
+                end
+            end
+        end
+    end
+    return visible
+end
+
+function State:visibilityGrid(side)
+    side = side or "player"
+    local visible = {}
+    for _, unit in ipairs(self:unitsForSide(side)) do
+        for key in pairs(self:computeVisibleTiles(unit)) do
+            visible[key] = true
+        end
+    end
+    local tiles = {}
+    local fog = {}
+    for y = 1, self.board.height do
+        for x = 1, self.board.width do
+            local key = tileKey(x, y)
+            local isVisible = visible[key] == true
+            tiles[key] = { x = x, y = y, visible = isVisible, fog = not isVisible }
+            fog[key] = not isVisible
+        end
+    end
+    return { side = side, width = self.board.width, height = self.board.height, visible = visible, fog = fog, tiles = tiles }
+end
+
+function State:computeSquadVisibility(side)
+    return self:visibilityGrid(side)
+end
+
+function State:fogGrid(side)
+    return self:visibilityGrid(side)
 end
 
 function State:unitAt(x, y)

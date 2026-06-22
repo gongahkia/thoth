@@ -23,7 +23,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 (A) 2026-06-22 Delete src/game/world.lua and remove every require/usage from main.lua and tests +legacy-cleanup @engine
 (A) 2026-06-22 Strip the tacticalMode guard branches in main.lua now that only the tactical path remains; collapse update/draw to a single code path +legacy-cleanup @engine
 (A) 2026-06-22 Run make test and make package-build to confirm the legacy/i18n removal does not break the playable tactical path or dist/thoth.love +legacy-cleanup @tests
-(A) 2026-06-22 Add per-unit vision radius to src/game/tactics/state.lua units table (default 8 tiles), extend src/game/tactics/los.lua with computeVisibleTiles(unit) returning a set, and aggregate squad visibility into a board-wide fog grid +xcom-primitives @engine
 (A) 2026-06-22 Render fog-of-war in src/app/render.lua: dim unseen tiles, hide enemy units and intent arrows outside squad vision, persist last-seen ghost markers for previously-visible enemies +xcom-primitives @ui
 (A) 2026-06-22 Gate enemy intent reveal in src/game/tactics/intent.lua: enemies outside any squad unit's vision expose category only; entering vision reveals full footprint deterministically that turn +xcom-primitives @engine
 (A) 2026-06-22 Add deterministic overwatch state to src/game/tactics/state.lua: unit declares a cone (origin, facing, arc, range), spends AP, triggers a declared reaction (shoot/stun/mark) on the first enemy entering the cone during enemy phase +xcom-primitives @engine
