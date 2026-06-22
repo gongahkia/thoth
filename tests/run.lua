@@ -305,9 +305,9 @@ tests[#tests + 1] = function()
     local moveAction = runtime:actionAtTile(2, 4)
     expect(moveAction.kind == "move" and moveAction.enabled and moveAction.detail == "1 AP", "tactical click action should preview reachable moves")
     local actionBar = runtime:actionBar({ x = 2, y = 4 })
-    expect(#actionBar == 13 and actionBar[1].label == "Move" and actionBar[1].key == "LMB" and actionBar[2].key == "WASD", "tactical action bar should expose contextual mouse controls")
+    expect(#actionBar == 12 and actionBar[1].label == "Move" and actionBar[1].key == "LMB" and actionBar[2].key == "WASD", "tactical action bar should expose contextual mouse controls")
     local expectedVerbs = {
-        { id = "warden", verbs = { "brace", "raise_cover", "shove", "redirect_objective_hit" } },
+        { id = "warden", verbs = { "line_guard", "brace", "shove" } },
         { id = "duelist", verbs = { "dash", "flank", "swap", "riposte" } },
         { id = "apothecary", verbs = { "stabilize", "smoke", "cleanse_hazard", "rescue" } },
         { id = "thief", verbs = { "sneak", "disarm", "extract", "mark_route" } },
@@ -319,9 +319,12 @@ tests[#tests + 1] = function()
         local bar = runtime:actionBar()
         for index, verb in ipairs(entry.verbs) do
             local action = bar[4 + index]
-            expect(action and action.id == "class:" .. verb and action.key == tostring(index) and action.enabled, entry.id .. " class verb should be callable from input bar")
-            runtime:handleKey(tostring(index))
-            expect(runtime.status == entry.id .. " ready " .. verb, entry.id .. " class verb key should activate")
+            local enabledOk = action and (action.enabled or (entry.id == "warden" and verb == "shove"))
+            expect(action and action.id == "class:" .. verb and action.key == tostring(index) and enabledOk, entry.id .. " class verb should be callable from input bar")
+            if entry.id ~= "warden" then
+                runtime:handleKey(tostring(index))
+                expect(runtime.status == entry.id .. " ready " .. verb, entry.id .. " class verb key should activate")
+            end
         end
     end
     runtime.selectedUnitId = "warden"
@@ -341,6 +344,35 @@ tests[#tests + 1] = function()
     expect(runtime.cursor.x == 3 and runtime.cursor.y == 4, "right click should move cursor without action")
     expect(Render.adjustTacticalZoom(app, 3) > 1, "wheel up should zoom in")
     expect(Render.adjustTacticalZoom(app, -20) == 0.65, "wheel down should clamp zoom out")
+end
+
+tests[#tests + 1] = function()
+    local function runWarden()
+        local runtime = TacticalRuntime.new(makeTacticalSim(9010))
+        runtime.selectedUnitId = "warden"
+        runtime.state.units.warden.ap = 3
+        runtime.state.units.warden.maxAp = 3
+        runtime.cursor.x = 4
+        runtime.cursor.y = 4
+        local lineAction = runtime:actionBar()[5]
+        expect(lineAction.classVerb == "line_guard" and #lineAction.preview.affectedTiles == 3, "Warden line_guard should preview guarded line")
+        expect(runtime:handleKey("1"), "Warden line_guard should activate from input bar")
+        expect(runtime.state.threatZones[1].label == "line_guard" and runtime.state.threatZones[1].triggerPhase == "enemy" and runtime.state:unit("warden").ap == 2, "Warden line_guard should spend AP and create deterministic line guard")
+        expect(runtime:handleKey("2"), "Warden brace should activate from input bar")
+        expect(runtime.state:hasStatus("warden", "braced") and runtime.state:unit("warden").ap == 1, "Warden brace should spend AP and apply braced")
+        runtime.state.units.claimant.x = 2
+        runtime.state.units.claimant.y = 4
+        runtime.cursor.x = 2
+        runtime.cursor.y = 4
+        local shoveAction = runtime:actionBar()[7]
+        expect(shoveAction.classVerb == "shove" and shoveAction.preview.pushedPath[1].x == 3, "Warden shove should preview pushed path")
+        expect(runtime:handleKey("3"), "Warden shove should activate from input bar")
+        expect(runtime.state:unit("claimant").x == 3 and runtime.state:unit("claimant").y == 4 and runtime.state:unit("warden").ap == 0, "Warden shove should spend AP and push cursor target")
+        return runtime.state
+    end
+    local first = runWarden()
+    local second = runWarden()
+    expect(Serialize.encode(first:snapshot()) == Serialize.encode(second:snapshot()), "Warden line_guard brace shove sequence should replay deterministically")
 end
 
 tests[#tests + 1] = function()

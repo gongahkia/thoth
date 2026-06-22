@@ -3027,7 +3027,7 @@ function State:apply(command)
         if command.cone then
             self:declareOverwatch(command.unit, { facing = command.facing or command.direction, range = command.range or command.length, arc = command.arc or command.width, reaction = command.reaction, reactionKind = command.reactionKind, damage = command.damage, turns = command.turns, amount = command.amount, limit = command.limit, label = command.label })
         elseif command.shape then
-            self:addThreatZoneShape(command.unit, command.shape, { direction = command.direction, length = command.length, width = command.width, damage = command.damage, limit = command.limit, label = command.label, reaction = command.reaction })
+            self:addThreatZoneShape(command.unit, command.shape, { direction = command.direction, length = command.length, width = command.width, damage = command.damage, limit = command.limit, label = command.label, reaction = command.reaction, triggerPhase = command.triggerPhase })
         else
             self:addThreatZone(command.unit, command.tiles, { damage = command.damage, limit = command.limit, label = command.label, reaction = command.reaction })
         end

@@ -1,6 +1,7 @@
 local Grid = require("src.core.grid")
 local TacticsState = require("src.game.tactics.state")
 local TacticsIntent = require("src.game.tactics.intent")
+local TacticsResolution = require("src.game.tactics.resolution")
 local ClassCatalog = require("src.game.tactics.class_catalog")
 local Procgen = require("src.game.tactics.procgen")
 
@@ -15,6 +16,9 @@ local liveClassRoster = {
     { id = "thief", classId = "harrier", hp = 4 },
     { id = "arcanist", classId = "arcanist", hp = 4 },
     { id = "lamplighter", classId = "lamplighter", hp = 4 },
+}
+local sliceBoardActions = {
+    warden = { "line_guard", "brace", "shove" },
 }
 local enemyIntentSpecs = {
     audit_hound = { label = "bite notice", target = "nearest_player" },
@@ -40,6 +44,22 @@ local function labelForVerb(verb)
         words[#words + 1] = part:sub(1, 1):upper() .. part:sub(2)
     end
     return table.concat(words, " ")
+end
+
+local function boardActionsForUnit(unit)
+    return (unit and sliceBoardActions[unit.class]) or (unit and unit.boardVerbs) or {}
+end
+
+local function directionBetween(fromX, fromY, toX, toY)
+    local dx = toX - fromX
+    local dy = toY - fromY
+    if math.abs(dx) >= math.abs(dy) and dx ~= 0 then
+        return dx > 0 and "east" or "west"
+    end
+    if dy ~= 0 then
+        return dy > 0 and "south" or "north"
+    end
+    return "east"
 end
 
 local function classLoadoutPayload(classId)
@@ -512,6 +532,39 @@ local function reachableByKey(preview)
     return result
 end
 
+local function wardenCommand(runtime, selected, verb)
+    local state = runtime.state
+    if verb == "line_guard" then
+        local direction = directionBetween(selected.x, selected.y, runtime.cursor.x, runtime.cursor.y)
+        return { type = "overwatch", unit = selected.id, shape = "line", direction = direction, length = 3, damage = 1, limit = 1, cost = 1, triggerPhase = "enemy", label = "line_guard", reaction = { kind = "shoot", damage = 1 } }
+    end
+    if verb == "brace" then
+        return TacticsState.commands.status(selected.id, selected.id, "braced", 1, 1, 1)
+    end
+    if verb == "shove" then
+        local target = state:unitAt(runtime.cursor.x, runtime.cursor.y)
+        if not (target and target.id ~= selected.id and Grid.manhattan(selected.x, selected.y, target.x, target.y) == 1) then
+            return nil, "shove needs adjacent target"
+        end
+        return TacticsState.commands.shove(selected.id, target.id, directionBetween(selected.x, selected.y, target.x, target.y), 1, 1, 1)
+    end
+    return nil, "unknown Warden verb"
+end
+
+local function wardenPreview(runtime, selected, verb)
+    local command, err = wardenCommand(runtime, selected, verb)
+    if not command then
+        return { error = err }
+    end
+    if verb == "line_guard" then
+        return { apCost = 1, affectedTiles = runtime.state:threatZoneTiles(selected.id, "line", { direction = command.direction, length = command.length }) }
+    end
+    if verb == "brace" then
+        return { apCost = 1, status = "braced", target = selected.id }
+    end
+    return TacticsResolution.actionPreview(runtime.state, command)
+end
+
 function Runtime.refreshOverlays(runtime)
     local state = runtime.state
     local selected = Runtime.selectedUnit(runtime)
@@ -705,8 +758,10 @@ function Runtime.actionBar(runtime, hover)
         { id = "move", key = "Enter", label = "Move", detail = canMove and cursorAction.detail or "blue tile", enabled = canMove },
         { id = "attack", key = "A", label = "Attack", detail = canAttack and cursorAction.detail or "enemy", enabled = canAttack },
     }
-    for index, verb in ipairs(selected and selected.boardVerbs or {}) do
-        actions[#actions + 1] = { id = "class:" .. verb, key = tostring(index), label = labelForVerb(verb), detail = selected.className or selected.class, enabled = selected and selected.ap >= 1, classVerb = verb }
+    for index, verb in ipairs(boardActionsForUnit(selected)) do
+        local preview = selected and selected.class == "warden" and wardenPreview(runtime, selected, verb) or nil
+        local detail = (preview and preview.error) or selected.className or selected.class
+        actions[#actions + 1] = { id = "class:" .. verb, key = tostring(index), label = labelForVerb(verb), detail = detail, enabled = selected and selected.ap >= 1 and not (preview and preview.error), classVerb = verb, preview = preview }
     end
     actions[#actions + 1] = { id = "brace", key = "B", label = "Brace", detail = "1 AP guard", enabled = selected and selected.ap >= 1 }
     actions[#actions + 1] = { id = "unit", key = "Tab", label = "Unit", detail = tostring(playerCount) .. " squad", enabled = playerCount > 1 }
@@ -718,9 +773,22 @@ end
 
 function Runtime.activateClassVerb(runtime, index)
     local selected = Runtime.selectedUnit(runtime)
-    local verb = selected and selected.boardVerbs and selected.boardVerbs[index]
+    local verb = boardActionsForUnit(selected)[index]
     if not verb then
         setStatus(runtime, "no class verb")
+        return false
+    end
+    if selected.class == "warden" then
+        local command, err = wardenCommand(runtime, selected, verb)
+        if not command then
+            setStatus(runtime, err)
+            return false
+        end
+        if tryApply(runtime, command) then
+            Runtime.refreshOverlays(runtime)
+            setStatus(runtime, selected.id .. " " .. verb)
+            return true
+        end
         return false
     end
     setStatus(runtime, selected.id .. " ready " .. verb)
