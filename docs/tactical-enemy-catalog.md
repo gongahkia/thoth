@@ -1,12 +1,12 @@
 # Tactical Enemy Catalog
 
-Checked: 2026-06-21
+Checked: 2026-06-22
 
 Source of truth: `src/game/tactics/enemy_catalog.lua`.
 
 ## E.0 Vertical Slice Elite
 
-The content slice selects one elite:
+The content slice selects one default route elite while procgen accepts all three Archive elites:
 
 - `shelf_knight`: Archive elite, partial guard intent, hidden-footprint mask, weak point `rear_binding`, terrain interaction `shove_shelf_wall`.
 
@@ -15,10 +15,11 @@ Rules:
 - `EnemyCatalog.sliceEliteSpec()` returns the selected family, elite id, route fixture, role, and preview.
 - `EnemyCatalog.sliceElite()` resolves to the catalog elite.
 - The Archive elite route fixture includes the selected elite in the encounter director.
+- `TacticsProcgen.generateDirectedZoneBoard("buried_archive", seed, { includeElite = true, eliteId = id })` can deploy `codex_advocate`, `shelf_knight`, or `writ_cantor`.
 
 Acceptance proof:
 
-- `tests/run.lua` calls `EnemyCatalog.auditSliceElite()`, verifies masked intent and weak point metadata, and checks that `archive_elite_claim` generates the selected elite.
+- `tests/run.lua` calls `EnemyCatalog.auditSliceElite()`, verifies masked intent and weak point metadata, checks that `archive_elite_claim` generates the selected elite, and verifies every Archive elite can enter procgen with a masked footprint.
 
 ## E.1 Archive Common Enemies
 
@@ -42,15 +43,16 @@ Acceptance proof:
 
 ## E.2 Archive Elites
 
-The Archive family defines 3 elites with partial intent, weak points, and terrain interaction:
+The Archive family defines 3 elites with partial intent, weak points, rotation reveal gates, class/action reveal gates, and terrain interaction:
 
-- `codex_advocate`: partial debuff intent, weak point `open_register`, interaction `seal_claim_line`.
-- `shelf_knight`: partial guard intent, weak point `rear_binding`, interaction `shove_shelf_wall`.
-- `writ_cantor`: partial summon intent, weak point `choir_chain`, interaction `ring_audit_beam`.
+- `codex_advocate`: partial debuff intent, sealed footprint `codex_advocate_sealed_footprint`, rotation 1, weak point `open_register`, interaction `seal_claim_line`.
+- `shelf_knight`: partial guard intent, sealed footprint `shelf_knight_sealed_footprint`, rotation 2, weak point `rear_binding`, interaction `shove_shelf_wall`.
+- `writ_cantor`: partial summon intent, sealed footprint `writ_cantor_sealed_footprint`, rotation 3, weak point `choir_chain`, interaction `ring_audit_beam`.
 
 Acceptance proof:
 
 - `tests/run.lua` verifies the Archive has exactly 3 elites and each one has unique id, name, partial intent, weak point, and terrain interaction metadata.
+- `tests/run.lua` verifies each Archive elite can be generated through procgen, remains category-only before reveal, and exposes target footprint through rotation, Arcanist class, or `unseal_intent` action gates.
 
 ## E.3 Archive Alpha
 
@@ -266,6 +268,10 @@ Fields:
 - `targetPattern`: hidden footprint rule before board coordinates are known.
 - `pathPattern`: hidden trace rule before board coordinates are known.
 - `revealGate`: weak point, reveal class, and reveal action.
+- `revealRotations`: board rotation gates that expose the private footprint.
+- `revealClasses`: class gates that expose the private footprint.
+- `revealActions`: action gates that expose the private footprint.
+- `intentType`: distinct elite footprint identifier.
 - `counterplay`: weak-point exposure plus zone counterplay.
 - `preview`: inspector-facing masked preview cue.
 - `deterministic`: always `true`.
@@ -275,10 +281,11 @@ Rules:
 
 - Masked intent category must match partial intent category.
 - Reveal gate weak point must be the elite's first listed weak point.
+- Reveal rotations, classes, and actions must be copied into generated units.
 - Runtime hidden-footprint declarations still supply board-specific private `targetTiles`.
 - Every elite must keep zone counterplay metadata.
 
 Acceptance proof:
 
-- `EnemyCatalog.auditEliteMaskedIntents()` rejects missing partial intents, non-category partials, missing masked intents, non-hidden-footprint masks, category mismatch, missing preview metadata, missing reveal gates, weak-point mismatch, missing counterplay, nondeterministic flags, unhidden footprint flags, missing zone counterplay, and incomplete family coverage.
-- `tests/run.lua` verifies masked-intent coverage and weak-point reveal metadata for every elite in Archive, Cistern, and Warrens.
+- `EnemyCatalog.auditEliteMaskedIntents()` rejects missing partial intents, non-category partials, missing masked intents, non-hidden-footprint masks, category mismatch, missing footprint intent types, missing preview metadata, missing reveal gates, weak-point mismatch, missing reveal surfaces, missing counterplay, nondeterministic flags, unhidden footprint flags, missing zone counterplay, and incomplete family coverage.
+- `tests/run.lua` verifies masked-intent coverage, weak-point reveal metadata, and procgen/runtime masked-footprint behavior for every live Archive elite.

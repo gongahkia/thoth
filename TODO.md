@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(B) 2026-06-22 Wire 3 elite Archive enemies (codex_advocate, shelf_knight, writ_cantor) into procgen with elite-tier intent footprints (partial reveal until rotation/class gate) +slice-content @data
 (B) 2026-06-22 Wire 1 Archive alpha (shelf_warden) as a mid-run elite spawn with deterministic terrain interaction +slice-content @data
 (B) 2026-06-22 Wire Vault Regent boss in src/game/tactics/boss_catalog.lua: phase chart, arena diagram, staged intent masks rotating per turn, weak-point exposure tied to rotation +slice-content @data
 (B) 2026-06-22 Define 6 mission variants in run_catalog.lua/procgen.lua for the Buried Archive route: entry_audit, shelf_protection, proof_extract, ledger_repair, sealed_shortcut, vault_regent_final; each must have a distinct objective family +slice-content @data

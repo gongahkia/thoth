@@ -137,7 +137,7 @@ local archiveRouteVariants = {
         complication = "partial_intent_elite",
         preview = "elite claim pressure with one redacted footprint",
         generatorOptions = { width = 9, height = 8, objectiveId = "claim_docket", objectiveKind = "hold_claim" },
-        directorOptions = { includeElite = true, eliteId = "shelf_knight", failureClock = 4, threatenedTiles = 7, reinforcementTurn = 4 },
+        directorOptions = { includeElite = true, eliteId = "shelf_knight", eliteIds = { "codex_advocate", "shelf_knight", "writ_cantor" }, failureClock = 4, threatenedTiles = 7, reinforcementTurn = 4 },
     },
 }
 
@@ -327,6 +327,10 @@ local function applyEncounterUnits(spec, director)
             spawnPocket = enemy.spawnPocket,
             intentType = enemy.intentType,
             intent = copyValue(enemy.intent),
+            partialIntent = copyValue(enemy.partialIntent),
+            maskedIntent = copyValue(enemy.maskedIntent),
+            weakPoints = copyValue(enemy.weakPoints),
+            terrainInteraction = enemy.terrainInteraction,
             x = tile.x,
             y = tile.y,
             hp = enemy.hp or 4,
@@ -336,6 +340,7 @@ local function applyEncounterUnits(spec, director)
 end
 
 local function enemyEntry(enemy, role, spawnPocket)
+    local intent = enemy.maskedIntent or enemy.exactIntent or enemy.partialIntent
     return {
         id = enemy.id,
         name = enemy.name,
@@ -343,8 +348,12 @@ local function enemyEntry(enemy, role, spawnPocket)
         archetype = enemy.archetype,
         role = role,
         spawnPocket = spawnPocket,
-        intent = copyValue(enemy.exactIntent or enemy.partialIntent),
-        intentType = enemy.exactIntent and enemy.exactIntent.intentType,
+        intent = copyValue(intent),
+        intentType = intent and intent.intentType,
+        partialIntent = copyValue(enemy.partialIntent),
+        maskedIntent = copyValue(enemy.maskedIntent),
+        weakPoints = copyValue(enemy.weakPoints),
+        terrainInteraction = enemy.terrainInteraction,
         boardVerb = enemy.boardVerb or enemy.waterPressureVerb or enemy.heatAshGlassVerb or enemy.terrainInteraction,
     }
 end
@@ -416,7 +425,18 @@ function Procgen.directEncounter(zoneId, seed, boardSpec, options)
     local elite = nil
     if options.includeElite then
         local rng = Rng.new((seed or 1) + 17017)
-        elite = options.eliteId and EnemyCatalog.elite(familyId, options.eliteId) or pickIndexed(elites, rng:range(1, #elites))
+        local elitePool = elites
+        if options.eliteIds then
+            elitePool = {}
+            for _, eliteId in ipairs(options.eliteIds) do
+                local poolElite = EnemyCatalog.elite(familyId, eliteId)
+                if not poolElite then
+                    error("unknown elite " .. tostring(eliteId), 2)
+                end
+                elitePool[#elitePool + 1] = poolElite
+            end
+        end
+        elite = options.eliteId and EnemyCatalog.elite(familyId, options.eliteId) or pickIndexed(elitePool, rng:range(1, #elitePool))
         if not elite then
             error("unknown elite " .. tostring(options.eliteId), 2)
         end

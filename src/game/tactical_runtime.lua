@@ -39,6 +39,18 @@ local function copyList(values)
     return result
 end
 
+local function applyIntentMetadata(plan, intent)
+    intent = intent or {}
+    plan.mode = intent.mode or "exact"
+    plan.mask = intent.mask
+    plan.footprintHidden = intent.footprintHidden == true
+    plan.revealRotations = copyList(intent.revealRotations)
+    plan.revealActions = copyList(intent.revealActions)
+    plan.revealClasses = copyList(intent.revealClasses)
+    plan.weakPoint = intent.weakPoint
+    return plan
+end
+
 local function tileKey(x, y)
     return tostring(x) .. ":" .. tostring(y)
 end
@@ -295,24 +307,24 @@ local function plannedEnemyTarget(runtime, enemy, options)
     local intent = enemy.intent or {}
     local intentType = intent.intentType or enemy.intentType
     if objective and (objective.integrity or 0) <= 1 then
-        return {
+        return applyIntentMetadata({
             target = objective,
             category = "destroy",
             damage = intent.damage or spec.damage or 1,
             intentType = intentType,
             label = "finish notice",
             counterplay = { "block objective", "kill source", "repair objective" },
-        }
+        }, intent)
     end
     if (enemy.hp or 0) <= 1 then
-        return {
+        return applyIntentMetadata({
             target = { id = enemy.id, x = enemy.x, y = enemy.y },
             category = "guard",
             damage = 0,
             intentType = intentType,
             label = "regroup notice",
             counterplay = { "press wounded enemy", "ignore harmless guard", "contest tile" },
-        }
+        }, intent)
     end
     local target
     local targetRule = intent.target or spec.target
@@ -326,14 +338,14 @@ local function plannedEnemyTarget(runtime, enemy, options)
     if not target then
         return nil
     end
-    return {
+    return applyIntentMetadata({
         target = target,
         category = intent.category or "attack",
         damage = intent.damage or spec.damage or 1,
         intentType = intentType,
         label = intentType or spec.label or "posted notice",
         counterplay = intent.counterplay or { "move target", "kill source", "block tile" },
-    }
+    }, intent)
 end
 
 function Runtime.syncWorld(sim, runtime)
@@ -380,7 +392,7 @@ local function declareEnemyIntent(runtime, enemy, options)
     end
     local target = plan.target
     state:declareIntent(enemy.id, {
-        mode = "exact",
+        mode = plan.mode,
         intentType = plan.intentType,
         category = plan.category,
         source = enemy.id,
@@ -390,6 +402,12 @@ local function declareEnemyIntent(runtime, enemy, options)
         objectiveImpact = objective and target.id == objective.id and objective.id or nil,
         label = plan.label,
         counterplay = plan.counterplay,
+        revealRotations = plan.revealRotations,
+        revealActions = plan.revealActions,
+        revealClasses = plan.revealClasses,
+        mask = plan.mask,
+        footprintHidden = plan.footprintHidden,
+        weakPoint = plan.weakPoint,
     })
     return true
 end

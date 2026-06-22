@@ -49,9 +49,9 @@ EnemyCatalog.families = {
             { id = "drawer_mite", name = "Drawer Mite", archetype = "summoner", exactIntent = { mode = "exact", intentType = "record_spill_summon", category = "summon", damage = 1, target = "drawer" }, boardVerb = "spill_records" },
         },
         elites = {
-            { id = "codex_advocate", name = "Codex Advocate", partialIntent = { mode = "category", category = "debuff" }, weakPoints = { "open_register" }, terrainInteraction = "seal_claim_line" },
-            { id = "shelf_knight", name = "Shelf Knight", partialIntent = { mode = "category", category = "guard" }, weakPoints = { "rear_binding" }, terrainInteraction = "shove_shelf_wall" },
-            { id = "writ_cantor", name = "Writ Cantor", partialIntent = { mode = "category", category = "summon" }, weakPoints = { "choir_chain" }, terrainInteraction = "ring_audit_beam" },
+            { id = "codex_advocate", name = "Codex Advocate", partialIntent = { mode = "category", category = "debuff" }, weakPoints = { "open_register" }, revealRotation = 1, terrainInteraction = "seal_claim_line" },
+            { id = "shelf_knight", name = "Shelf Knight", partialIntent = { mode = "category", category = "guard" }, weakPoints = { "rear_binding" }, revealRotation = 2, terrainInteraction = "shove_shelf_wall" },
+            { id = "writ_cantor", name = "Writ Cantor", partialIntent = { mode = "category", category = "summon" }, weakPoints = { "choir_chain" }, revealRotation = 3, terrainInteraction = "ring_audit_beam" },
         },
         alpha = {
             id = "shelf_warden",
@@ -126,12 +126,17 @@ local function assignEliteMaskedIntent(enemy, familyId)
     if not enemy.maskedIntent then
         enemy.maskedIntent = {
             mode = "hiddenFootprint",
+            intentType = enemy.id .. "_sealed_footprint",
             category = enemy.partialIntent.category,
             source = "self",
             mask = blueprint.mask,
             targetPattern = blueprint.targetPattern,
             pathPattern = blueprint.pathPattern,
             revealGate = { weakPoint = enemy.weakPoints[1], class = blueprint.revealClass, action = blueprint.revealAction },
+            revealRotations = { enemy.revealRotation or 1 },
+            revealClasses = { blueprint.revealClass },
+            revealActions = { blueprint.revealAction },
+            weakPoint = enemy.weakPoints[1],
             counterplay = { "expose_weak_point", blueprint.counterplay, zoneCounterplay(enemy) },
             preview = blueprint.preview,
             deterministic = true,
@@ -348,6 +353,9 @@ function EnemyCatalog.auditEliteMaskedIntents()
                 if partial and masked.category ~= partial.category then
                     table.insert(report.invalid, enemy.id .. ".maskedIntent.category")
                 end
+                if not masked.intentType then
+                    table.insert(report.invalid, enemy.id .. ".maskedIntent.intentType")
+                end
                 if not (masked.source and masked.mask and masked.targetPattern and masked.pathPattern and masked.preview) then
                     table.insert(report.invalid, enemy.id .. ".maskedIntent.preview")
                 end
@@ -355,6 +363,9 @@ function EnemyCatalog.auditEliteMaskedIntents()
                     table.insert(report.invalid, enemy.id .. ".maskedIntent.revealGate")
                 elseif masked.revealGate.weakPoint ~= enemy.weakPoints[1] then
                     table.insert(report.invalid, enemy.id .. ".maskedIntent.weakPoint")
+                end
+                if not (masked.revealRotations and #masked.revealRotations > 0 and masked.revealClasses and masked.revealClasses[1] == masked.revealGate.class and masked.revealActions and masked.revealActions[1] == masked.revealGate.action and masked.weakPoint == enemy.weakPoints[1]) then
+                    table.insert(report.invalid, enemy.id .. ".maskedIntent.revealSurface")
                 end
                 if not (masked.counterplay and #masked.counterplay >= 2) then
                     table.insert(report.invalid, enemy.id .. ".maskedIntent.counterplay")

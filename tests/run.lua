@@ -2314,6 +2314,8 @@ tests[#tests + 1] = function()
             local masked = enemy.maskedIntent
             expect(enemy.partialIntent and enemy.partialIntent.mode == "category", "elite should keep category partial intent: " .. enemy.id)
             expect(masked and masked.mode == "hiddenFootprint" and masked.category == enemy.partialIntent.category, "elite should define masked footprint intent: " .. enemy.id)
+            expect(masked.intentType and masked.revealRotations and #masked.revealRotations > 0, "elite masked intent should define distinct footprint type and rotation reveal: " .. enemy.id)
+            expect(masked.revealClasses[1] == masked.revealGate.class and masked.revealActions[1] == masked.revealGate.action, "elite masked intent should expose class/action gates: " .. enemy.id)
             expect(masked.revealGate and masked.revealGate.weakPoint == enemy.weakPoints[1], "elite masked intent should reveal through weak point: " .. enemy.id)
             expect(masked.counterplay and #masked.counterplay >= 2 and masked.footprintHidden == true, "elite masked intent should include counterplay and hidden footprint: " .. enemy.id)
         end
@@ -3052,6 +3054,50 @@ tests[#tests + 1] = function()
         expect(#director.retreatRoutes[1].tiles > 0 and director.retreatRoutes[1].to.x == spec.objectives[1].evacuateAt.x, zoneId .. " director should define retreat route")
         expect(Serialize.encode(spec) == Serialize.encode(TacticsProcgen.generateDirectedZoneBoard(zoneId, 2303, { includeElite = true })), zoneId .. " director should be deterministic per seed")
     end
+end
+
+tests[#tests + 1] = function()
+    for index, eliteId in ipairs({ "codex_advocate", "shelf_knight", "writ_cantor" }) do
+        local elite = EnemyCatalog.elite("archive", eliteId)
+        local spec = TacticsProcgen.generateDirectedZoneBoard("buried_archive", 4100 + index, { includeElite = true, eliteId = eliteId })
+        local state = TacticsState.new(spec)
+        local unit = state:unit(eliteId)
+        local objective = state:objective(spec.objectives[1].id)
+        local foundEntry = false
+        for _, entry in ipairs(spec.encounterDirector.enemyMix) do
+            if entry.id == eliteId then
+                foundEntry = true
+                expect(entry.intent and entry.intent.mode == "hiddenFootprint" and entry.intent.intentType == elite.maskedIntent.intentType, "elite procgen entry should carry masked footprint: " .. eliteId)
+                expect(entry.partialIntent and entry.partialIntent.category == elite.partialIntent.category, "elite procgen entry should keep category partial intent: " .. eliteId)
+            end
+        end
+        expect(foundEntry and unit and unit.intent and unit.intent.mode == "hiddenFootprint", "procgen should deploy elite with hidden footprint intent: " .. eliteId)
+        expect(unit.intent.weakPoint == elite.weakPoints[1] and unit.terrainInteraction == elite.terrainInteraction, "elite unit should keep weak point and terrain interaction: " .. eliteId)
+        state:declareIntent(unit.id, {
+            mode = unit.intent.mode,
+            intentType = unit.intent.intentType,
+            category = unit.intent.category,
+            source = unit.id,
+            sourceTile = { x = unit.x, y = unit.y },
+            targetTiles = { { x = objective.x, y = objective.y } },
+            revealRotations = unit.intent.revealRotations,
+            revealClasses = unit.intent.revealClasses,
+            revealActions = unit.intent.revealActions,
+            mask = unit.intent.mask,
+            weakPoint = unit.intent.weakPoint,
+            counterplay = unit.intent.counterplay,
+        })
+        local hidden = state:intentPreview(unit.id)
+        local rotated = state:intentPreview(unit.id, { rotation = unit.intent.revealRotations[1] })
+        local classed = state:intentPreview(unit.id, { revealClass = "arcanist" })
+        local actioned = state:intentPreview(unit.id, { revealAction = "unseal_intent" })
+        expect(hidden.mode == "hiddenFootprint" and hidden.category == elite.partialIntent.category and hidden.footprintHidden and not hidden.targetTiles, "elite hidden preview should show category only before reveal: " .. eliteId)
+        expect(rotated.targetTiles[1].x == objective.x and classed.targetTiles[1].y == objective.y and actioned.weakPoint == elite.weakPoints[1], "elite footprint should reveal by rotation, class, or action gate: " .. eliteId)
+    end
+    local runtime = TacticalRuntime.new(makeTacticalSim(4109), { variantId = "archive_elite_claim" })
+    local hidden = runtime.state:intentPreview("shelf_knight")
+    local revealed = runtime.state:intentPreview("shelf_knight", { revealClass = "arcanist" })
+    expect(hidden and hidden.mode == "hiddenFootprint" and hidden.footprintHidden and revealed.targetTiles[1], "runtime should keep route elite intent masked until class reveal")
 end
 
 tests[#tests + 1] = function()
