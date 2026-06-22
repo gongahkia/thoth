@@ -706,9 +706,9 @@ zone fit: Archive entry audit, shelf protection, proof extraction, ledger repair
 
 counterplay: read template, node kind, reward, complication, objective anchor, reinforcement warning, spawn block rule, and retreat path before deployment.
 
-preview/UI: `Procgen.archiveRoute()` gives ordered route metadata; `Procgen.archiveRouteVariants()` gives card fields; generated boards carry `archiveRoute` metadata for tactical preview and QA export.
+preview/UI: `Procgen.archiveRoute()` gives ordered route metadata; `Procgen.archiveRouteVariants()` gives card fields; generated boards carry `archiveRoute` metadata for tactical preview and QA export; `TacticalRuntime.new()` now defaults to the route start variant instead of the fixed prototype board.
 
-test/replay proof: tests verify 5-7 variants, template/node pressure coverage, grammar validation, reinforcement audit, accepted budget, `TacticsState` instantiation, and deterministic fixed-seed serialization.
+test/replay proof: tests verify 5-7 variants, template/node pressure coverage, grammar validation, reinforcement audit, accepted budget, `TacticsState` instantiation, deterministic fixed-seed serialization, runtime route metadata, and tactical smoke route/variant output.
 
 ### H41 Starter Classes And Loadouts
 

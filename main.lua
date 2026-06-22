@@ -1086,6 +1086,8 @@ local function printTacticalSmoke(state)
     local summary = state.tactics and state.tactics:summary() or {}
     local overlays = (state.worldView and state.worldView.tacticalOverlays) or {}
     print("tactical-smoke-mode=" .. tostring(summary.mode))
+    print("tactical-smoke-route=" .. tostring(summary.route and summary.route.id))
+    print("tactical-smoke-variant=" .. tostring(summary.route and summary.route.variantId))
     print("tactical-smoke-legacy-expedition=" .. tostring(sim and sim.mode == "expedition"))
     print("tactical-smoke-phase=" .. tostring(summary.phase))
     print("tactical-smoke-selected=" .. tostring(summary.selected))

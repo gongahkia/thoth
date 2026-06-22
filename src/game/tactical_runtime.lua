@@ -1,5 +1,6 @@
 local Grid = require("src.core.grid")
 local TacticsState = require("src.game.tactics.state")
+local Procgen = require("src.game.tactics.procgen")
 
 local Runtime = {}
 
@@ -8,6 +9,7 @@ local originY = -5
 local enemyIntentSpecs = {
     audit_hound = { label = "bite notice", target = "nearest_player" },
     claim_lens = { label = "claim beam", target = "objective" },
+    claimant = { label = "claim notice", target = "nearest_player" },
 }
 
 local function copyList(values)
@@ -79,7 +81,10 @@ local function livingPlayers(state)
 end
 
 local function objectiveState(state)
-    return state:objective("route_machine")
+    for _, id in ipairs(state.objectiveOrder or {}) do
+        return state:objective(id)
+    end
+    return nil
 end
 
 function Runtime.syncWorld(sim, runtime)
@@ -99,7 +104,9 @@ function Runtime.syncWorld(sim, runtime)
                     tileId = "archive_monolith"
                 elseif tile.hazard and tile.hazard.kind then
                     tileId = "false_index"
-                elseif objectiveState(tactics).x == x and objectiveState(tactics).y == y then
+                end
+                local objective = objectiveState(tactics)
+                if objective and objective.x == x and objective.y == y then
                     tileId = "sealed_name"
                 end
             end
@@ -137,7 +144,7 @@ local function declareEnemyIntent(runtime, enemy, options)
         sourceTile = { x = enemy.x, y = enemy.y },
         targetTiles = { { x = target.x, y = target.y } },
         damage = spec.damage or 1,
-        objectiveImpact = target.id == objective.id and objective.id or nil,
+        objectiveImpact = objective and target.id == objective.id and objective.id or nil,
         label = spec.label or "posted notice",
         counterplay = { "move target", "kill source", "block tile" },
     })
@@ -163,7 +170,7 @@ function Runtime.replanVisibleEnemyIntents(runtime, movedUnit)
     return count
 end
 
-local function makeState()
+local function makePrototypeState()
     return TacticsState.new({
         defaultAp = 3,
         board = {
@@ -189,17 +196,43 @@ local function makeState()
     })
 end
 
-function Runtime.new(sim)
+local function firstPlayerId(state)
+    for _, unit in ipairs(state:unitsForSide("player")) do
+        return unit.id
+    end
+    return nil
+end
+
+local function makeRouteState(options)
+    local route = Procgen.archiveRoute()
+    local variantId = (options and options.variantId) or route.start
+    local seed = options and options.seed
+    local spec = Procgen.generateArchiveRouteBoard(variantId, seed)
+    return TacticsState.new(spec), spec
+end
+
+function Runtime.new(sim, options)
+    options = options or {}
+    local state, boardSpec
+    if options.prototype then
+        state = makePrototypeState()
+    else
+        state, boardSpec = makeRouteState(options)
+    end
+    local selectedUnitId = state.selectedUnitId or firstPlayerId(state)
+    local selected = selectedUnitId and state:unit(selectedUnitId) or nil
     local runtime = {
         active = true,
         originX = originX,
         originY = originY,
-        cursor = { x = 2, y = 6 },
-        selectedUnitId = "warden",
-        status = "tactical prototype",
-        message = "read intents, spend AP, protect the route machine",
+        cursor = { x = selected and selected.x or 1, y = selected and selected.y or 1 },
+        selectedUnitId = selectedUnitId,
+        status = boardSpec and ("route " .. boardSpec.archiveRoute.variantId) or "tactical prototype",
+        message = boardSpec and boardSpec.archiveRoute.preview or "read intents, spend AP, protect the route machine",
         turn = 1,
-        state = makeState(),
+        state = state,
+        boardSpec = boardSpec,
+        route = boardSpec and boardSpec.archiveRoute or nil,
         summary = Runtime.summary,
         handleKey = Runtime.handleKey,
         setCursor = Runtime.setCursor,
@@ -564,6 +597,7 @@ function Runtime.summary(runtime)
         selectedAp = selected and selected.ap or 0,
         selectedHp = selected and selected.hp or 0,
         objective = { id = objective.id, integrity = objective.integrity, maxIntegrity = objective.maxIntegrity, status = state:objectiveStatus(objective.id) },
+        route = runtime.route,
         players = players,
         enemies = enemies,
         message = runtime.message,

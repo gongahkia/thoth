@@ -230,8 +230,8 @@ controller-smoke:
 	grep -q "controller-smoke-a=return" $$tmp; \
 	grep -q "controller-smoke-b=escape" $$tmp; \
 	grep -q "controller-smoke-axis=right" $$tmp; \
-	grep -q "controller-smoke-tactical-cursor=3,5" $$tmp; \
-	grep -q "controller-smoke-tactical-activate=3,5" $$tmp; \
+	grep -q "controller-smoke-tactical-cursor=2,3" $$tmp; \
+	grep -q "controller-smoke-tactical-activate=2,3" $$tmp; \
 	rm -f $$tmp
 
 render-smoke:
@@ -265,14 +265,16 @@ tactical-smoke:
 		SDL_AUDIODRIVER=dummy $(LOVE) . --tactical-smoke | tee $$tmp; \
 	fi; \
 	grep -q "tactical-smoke-mode=tactical" $$tmp; \
+	grep -q "tactical-smoke-route=buried_archive_vertical_slice" $$tmp; \
+	grep -q "tactical-smoke-variant=archive_entry_audit" $$tmp; \
 	grep -q "tactical-smoke-legacy-expedition=false" $$tmp; \
 	grep -q "tactical-smoke-phase=player" $$tmp; \
 	grep -q "tactical-smoke-player-units=2" $$tmp; \
-	grep -q "tactical-smoke-enemy-units=2" $$tmp; \
-	grep -q "tactical-smoke-intents=2" $$tmp; \
+	grep -q "tactical-smoke-enemy-units=1" $$tmp; \
+	grep -q "tactical-smoke-intents=1" $$tmp; \
 	grep -q "tactical-smoke-forecast=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-zoom=1.75" $$tmp; \
-	grep -q "tactical-smoke-objective=4/4" $$tmp; \
+	grep -q "tactical-smoke-objective=3/3" $$tmp; \
 	rm -f $$tmp
 
 sprite-import-smoke:

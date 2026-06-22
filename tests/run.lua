@@ -175,42 +175,43 @@ tests[#tests + 1] = function()
     local runtime = TacticalRuntime.new(tacticalSim)
     local summary = runtime:summary()
     expect(tacticalSim.mode == "tactical" and summary.mode == "tactical", "runtime should put the game in tactical mode")
-    expect(#summary.players == 2 and #summary.enemies == 2, "runtime should expose tactical squad and enemies")
-    expect(#runtime.overlays.intents == 2 and runtime.state:intentPreview("claim_lens").targetTiles[1].x == 5, "runtime should show exact enemy intents")
+    expect(summary.route and summary.route.variantId == "archive_entry_audit", "runtime should load tactical board from archive route procgen")
+    expect(#summary.players == 2 and #summary.enemies == 1, "runtime should expose procgen tactical squad and enemies")
+    expect(#runtime.overlays.intents == 1 and runtime.state:intentPreview("claimant").targetTiles[1].x == 1, "runtime should show exact procgen enemy intents")
     runtime:handleKey("right")
     runtime:handleKey("return")
-    expect(runtime.state:unit("warden").x == 3 and runtime.state:unit("warden").ap == 2, "runtime should spend AP to move selected unit")
+    expect(runtime.state:unit("warden").x == 2 and runtime.state:unit("warden").ap == 1, "runtime should spend AP to move selected unit")
     runtime:handleKey("e")
-    expect(runtime.state:objective("route_machine").integrity == 3, "enemy intent should damage declared objective deterministically")
-    expect(runtime.state:unit("warden").hp == 6, "moving off declared tile should avoid old enemy target")
-    expect(runtime.state.phase == "player" and runtime.state:unit("warden").ap == 3, "runtime should return to player phase with AP refreshed")
+    expect(runtime.state:objective("entry_shelf").integrity == 3, "enemy intent should leave untargeted objective intact")
+    expect(runtime.state:unit("warden").hp == 5, "visible enemy intent should update to the moved unit")
+    expect(runtime.state.phase == "player" and runtime.state:unit("warden").ap == 2, "runtime should return to player phase with AP refreshed")
 end
 
 tests[#tests + 1] = function()
     local tacticalSim = Simulation.new(9003)
     local runtime = TacticalRuntime.new(tacticalSim)
-    runtime.state.units.audit_hound.x = 4
-    runtime.state.units.audit_hound.y = 6
+    runtime.state.units.claimant.x = 4
+    runtime.state.units.claimant.y = 4
     TacticalRuntime.declareEnemyIntents(runtime)
-    expect(runtime.state:intentPreview("audit_hound").targetTiles[1].x == 2, "enemy intent should start on the posted pre-move target")
-    runtime:setCursor(3, 6)
+    expect(runtime.state:intentPreview("claimant").targetTiles[1].x == 1, "enemy intent should start on the posted pre-move target")
+    runtime:setCursor(2, 4)
     expect(runtime:moveSelectedToCursor(), "visible tactical move should apply")
-    local adjusted = runtime.state:intentPreview("audit_hound")
-    expect(adjusted.targetTiles[1].x == 3 and adjusted.targetTiles[1].y == 6, "visible movement should update enemy intent to the new tile")
+    local adjusted = runtime.state:intentPreview("claimant")
+    expect(adjusted.targetTiles[1].x == 2 and adjusted.targetTiles[1].y == 4, "visible movement should update enemy intent to the new tile")
     expect(runtime.message:find("enemies adjusted", 1, true), "visible movement should report enemy intent adjustment")
 end
 
 tests[#tests + 1] = function()
     local tacticalSim = Simulation.new(9004)
     local runtime = TacticalRuntime.new(tacticalSim)
-    runtime.state.units.audit_hound.x = 4
-    runtime.state.units.audit_hound.y = 6
+    runtime.state.units.claimant.x = 4
+    runtime.state.units.claimant.y = 4
     TacticalRuntime.declareEnemyIntents(runtime)
-    runtime.state:addObscurant(3, 6, "smoke", 2)
-    runtime:setCursor(3, 6)
+    runtime.state:addObscurant(2, 4, "smoke", 2)
+    runtime:setCursor(2, 4)
     expect(runtime:moveSelectedToCursor(), "smoke-covered tactical move should apply")
-    local held = runtime.state:intentPreview("audit_hound")
-    expect(held.targetTiles[1].x == 2 and held.targetTiles[1].y == 6, "obscured movement should keep the old enemy intent")
+    local held = runtime.state:intentPreview("claimant")
+    expect(held.targetTiles[1].x == 1 and held.targetTiles[1].y == 4, "obscured movement should keep the old enemy intent")
 end
 
 tests[#tests + 1] = function()
@@ -252,26 +253,26 @@ tests[#tests + 1] = function()
     tileX, tileY = Render.tacticalTileAt(app, 350, 300)
     expect(tileX == 2 and tileY == 5, "g3d tactical mouse projection should follow camera left axis")
     app.worldView.tacticalCamera = nil
-    local selectAction = runtime:actionAtTile(2, 7)
+    local selectAction = runtime:actionAtTile(1, 5)
     expect(selectAction.kind == "select" and selectAction.enabled, "tactical click action should select squad units")
-    local moveAction = runtime:actionAtTile(3, 6)
+    local moveAction = runtime:actionAtTile(2, 4)
     expect(moveAction.kind == "move" and moveAction.enabled and moveAction.detail == "1 AP", "tactical click action should preview reachable moves")
-    local actionBar = runtime:actionBar({ x = 3, y = 6 })
+    local actionBar = runtime:actionBar({ x = 2, y = 4 })
     expect(#actionBar == 9 and actionBar[1].label == "Move" and actionBar[1].key == "LMB" and actionBar[2].key == "WASD", "tactical action bar should expose contextual mouse controls")
-    runtime.state.units.audit_hound.x = 4
-    runtime.state.units.audit_hound.y = 6
+    runtime.state.units.claimant.x = 2
+    runtime.state.units.claimant.y = 4
     TacticalRuntime.refreshOverlays(runtime)
-    local attackAction = runtime:actionAtTile(4, 6)
+    local attackAction = runtime:actionAtTile(2, 4)
     expect(attackAction.kind == "attack" and attackAction.enabled, "tactical click action should preview in-range enemy attacks")
-    expect(runtime:handleMouseTile(4, 6, 1), "left click should attack in-range enemy")
-    expect(runtime.state:unit("audit_hound").hp == 2 and runtime.state:unit("warden").ap == 2, "left click attack should spend AP and damage enemy")
-    tileX, tileY = 3, 6
+    expect(runtime:handleMouseTile(2, 4, 1), "left click should attack in-range enemy")
+    expect(runtime.state:unit("claimant").hp == 3 and runtime.state:unit("warden").ap == 1, "left click attack should spend AP and damage enemy")
+    tileX, tileY = 1, 3
     expect(runtime:handleMouseTile(tileX, tileY, 1), "left click should handle reachable board tile")
-    expect(runtime.state:unit("warden").x == 3 and runtime.state:unit("warden").ap == 1, "left click should move selected unit to reachable tile")
-    expect(runtime:handleMouseTile(2, 7, 1), "left click should select player unit")
-    expect(runtime.selectedUnitId == "lamplighter", "left click should select clicked squad unit")
-    expect(runtime:handleMouseTile(5, 6, 2), "right click should place cursor")
-    expect(runtime.cursor.x == 5 and runtime.cursor.y == 6, "right click should move cursor without action")
+    expect(runtime.state:unit("warden").x == 1 and runtime.state:unit("warden").y == 3 and runtime.state:unit("warden").ap == 0, "left click should move selected unit to reachable tile")
+    expect(runtime:handleMouseTile(1, 5, 1), "left click should select player unit")
+    expect(runtime.selectedUnitId == "duelist", "left click should select clicked squad unit")
+    expect(runtime:handleMouseTile(3, 4, 2), "right click should place cursor")
+    expect(runtime.cursor.x == 3 and runtime.cursor.y == 4, "right click should move cursor without action")
     expect(Render.adjustTacticalZoom(app, 3) > 1, "wheel up should zoom in")
     expect(Render.adjustTacticalZoom(app, -20) == 0.65, "wheel down should clamp zoom out")
 end
@@ -2461,15 +2462,15 @@ tests[#tests + 1] = function()
     expect(stages.confirm_preview.input:find("back cancel", 1, true), "controller path should support cancel before commit")
     local runtime = TacticalRuntime.new(Simulation.new(2448))
     runtime:handleKey(Input.gamepadButtonKey("dpright"))
-    expect(runtime.cursor.x == 3 and runtime.cursor.y == 6, "controller D-pad should move tactical cursor")
+    expect(runtime.cursor.x == 2 and runtime.cursor.y == 4, "controller D-pad should move tactical cursor")
     local axisState = {}
     runtime:handleKey(Input.gamepadAxisKey("lefty", -0.8, axisState))
-    expect(runtime.cursor.x == 3 and runtime.cursor.y == 5, "controller left stick should move tactical cursor")
+    expect(runtime.cursor.x == 2 and runtime.cursor.y == 3, "controller left stick should move tactical cursor")
     expect(Input.gamepadAxisKey("lefty", -0.8, axisState) == nil, "controller held axis should debounce repeated tactical cursor input")
     runtime:handleKey(Input.gamepadButtonKey("x"))
-    expect(runtime.state:unit("warden").x == 2 and runtime.state:unit("warden").ap == 3 and runtime.message:find("Move", 1, true), "controller inspect should preview without committing")
+    expect(runtime.state:unit("warden").x == 1 and runtime.state:unit("warden").ap == 2 and runtime.message:find("Move", 1, true), "controller inspect should preview without committing")
     runtime:handleKey(Input.gamepadButtonKey("a"))
-    expect(runtime.state:unit("warden").x == 3 and runtime.state:unit("warden").y == 5 and runtime.state:unit("warden").ap == 1, "controller A should activate contextual tactical move")
+    expect(runtime.state:unit("warden").x == 2 and runtime.state:unit("warden").y == 3 and runtime.state:unit("warden").ap == 0, "controller A should activate contextual tactical move")
 end
 
 tests[#tests + 1] = function()
