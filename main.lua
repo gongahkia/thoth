@@ -1095,6 +1095,13 @@ local function printTacticalSmoke(state)
     local inspector = Render.tacticalTileInspectorSummary(state)
     print("tactical-smoke-inspector=" .. tostring(inspector ~= nil))
     print("tactical-smoke-inspector-lines=" .. tostring(#Render.tacticalTileInspectorLines(inspector)))
+    local legend = Render.tacticalIntentLegendEntries(state)
+    local legendTargets = 0
+    for _, entry in ipairs(legend) do
+        legendTargets = legendTargets + #(entry.targetTiles or {})
+    end
+    print("tactical-smoke-intent-legend=" .. tostring(#legend))
+    print("tactical-smoke-intent-targets=" .. tostring(legendTargets))
     io.stdout:flush()
     os.exit(0)
 end
@@ -1775,6 +1782,10 @@ local function updateTacticalMouseHover(x, y)
 end
 
 local function mouseTactical(x, y, button)
+    if Input.updateTacticalIntentHover(app, x, y) then
+        Audio.play(app.audio, "tick")
+        return true
+    end
     if not updateTacticalMouseHover(x, y) then
         playUi(app, "invalid")
         return true
@@ -1875,8 +1886,15 @@ end
 function love.mousemoved(x, y)
     local _, group, index = Render.hitboxAt(app, x, y)
     app.uiHot = group and { group = group, index = index } or nil
-    if not group then
+    if group == "tacticalIntentButtons" then
+        Input.updateTacticalIntentHover(app, x, y)
+    elseif not group then
+        if app then
+            app.tacticalIntentHover = nil
+        end
         updateTacticalMouseHover(x, y)
+    elseif app then
+        app.tacticalIntentHover = nil
     end
 end
 

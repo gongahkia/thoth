@@ -282,6 +282,8 @@ tactical-smoke:
 	grep -q "tactical-smoke-hud-overlaps=0" $$tmp; \
 	grep -q "tactical-smoke-inspector=true" $$tmp; \
 	grep -q "tactical-smoke-inspector-lines=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-intent-legend=2" $$tmp; \
+	grep -q "tactical-smoke-intent-targets=[1-9]" $$tmp; \
 	rm -f $$tmp
 
 sprite-import-smoke:

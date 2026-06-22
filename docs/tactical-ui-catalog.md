@@ -184,6 +184,20 @@ preview/UI:
 test/replay proof:
 `tests/run.lua` verifies the HUD contract fields, builds a deterministic summary from a tactical state with selected AP, move/action previews, enemy exact intent, objective integrity, and turn order, then checks the live six-unit route HUD rows and 1080p non-overlap layout. `make tactical-smoke` prints the same 1080p HUD layout audit.
 
+## U.8A Intent Legend Overlay
+
+source pattern:
+Readable deterministic tactics expose declared enemy plans as a scanline, then let players inspect the affected board cells directly.
+
+thoth transformation:
+Thoth renders a bottom intent legend from every declared enemy intent. Hovering a legend item highlights revealed target tiles and the source enemy while feeding the tile inspector.
+
+preview/UI:
+`Render.tacticalIntentLegendEntries()` derives legend rows from committed enemy intents. `Render.drawTacticalIntentLegend()` creates hover hitboxes; `Input.updateTacticalIntentHover()` activates target/source highlighting.
+
+test/replay proof:
+`tests/run.lua` verifies legend source and target extraction plus hover state. `make tactical-smoke` verifies the live route exposes two legend rows and at least one target tile.
+
 ## U.9 Tile Inspector Facts
 
 source pattern:

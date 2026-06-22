@@ -49,6 +49,7 @@ local uiHitboxGroups = {
     "journalButtons",
     "tutorialButtons",
     "squadLoadoutButtons",
+    "tacticalIntentButtons",
     "curioButtons",
     "campSkillButtons",
     "campHeroButtons",
@@ -443,6 +444,7 @@ function Render.prepareUi(app)
     app.ui.journalButtons = app.ui.journalButtons or {}
     app.ui.tutorialButtons = app.ui.tutorialButtons or {}
     app.ui.squadLoadoutButtons = app.ui.squadLoadoutButtons or {}
+    app.ui.tacticalIntentButtons = app.ui.tacticalIntentButtons or {}
     app.ui.titleButtons = app.ui.titleButtons or {}
     app.ui.settingsButtons = app.ui.settingsButtons or {}
     clearList(app.ui.skillButtons)
@@ -465,6 +467,7 @@ function Render.prepareUi(app)
     clearList(app.ui.journalButtons)
     clearList(app.ui.tutorialButtons)
     clearList(app.ui.squadLoadoutButtons)
+    clearList(app.ui.tacticalIntentButtons)
     clearList(app.ui.titleButtons)
     clearList(app.ui.settingsButtons)
 end
@@ -1476,6 +1479,15 @@ local function drawTacticalOverlays(sim, app)
     if app and app.tacticalHover then
         drawnEntries[#drawnEntries + 1] = { kind = "hover", x = app.tacticalHover.x, y = app.tacticalHover.y, label = "hover" }
     end
+    if app and app.tacticalIntentHover then
+        for _, tile in ipairs(app.tacticalIntentHover.targetTiles or {}) do
+            drawnEntries[#drawnEntries + 1] = { kind = "intent", x = tile.x, y = tile.y, label = "legend_target", color = { 1.0, 0.48, 0.22, 0.96 } }
+        end
+        local sourceTile = app.tacticalIntentHover.sourceTile
+        if sourceTile then
+            drawnEntries[#drawnEntries + 1] = { kind = "selected", x = sourceTile.x, y = sourceTile.y, label = "legend_source", color = { 1.0, 0.68, 0.24, 0.98 } }
+        end
+    end
     if #drawnEntries > 0 and state.g3d and state.assets.white then
         local model = buildTacticalOverlayModel(drawnEntries, source, app and app.settings, ((sim and sim.player and sim.player.z) or 0) + 0.035)
         if model then
@@ -1987,10 +1999,13 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
             local x = originX + unit.x + 0.5
             local y = originY + unit.y + 0.5
             local selected = app.tactics and app.tactics.selectedUnitId == unit.id
+            local intentHot = app.tacticalIntentHover and app.tacticalIntentHover.unit == unit.id
             local width, height = unit.side == "enemy" and enemySize("threat") or 0.86, unit.side == "enemy" and 1.12 or 1.08
             local frame = unit.side == "enemy" and enemyFrame("threat", unit.kind) or heroFrame({ classId = unit.class })
             local model = newBillboard(width, height, frame, x, y, sim.player.z or 0, yaw, state.assets.spriteAtlas or state.assets.white)
-            if unit.side == "enemy" then
+            if intentHot then
+                drawTintedModel(model, { 1.0, 0.68, 0.24, 1 }, lightAt(sim, x, y, profile), 1)
+            elseif unit.side == "enemy" then
                 drawTintedModel(model, { 0.9, 0.36, 0.28, 1 }, lightAt(sim, x, y, profile), 1)
             elseif selected then
                 drawTintedModel(model, { 0.72, 0.9, 0.58, 1 }, lightAt(sim, x, y, profile), 1)
@@ -3485,6 +3500,7 @@ function Render.tacticalHudLayout(width, height, squadSlots)
         board = board,
         squad = squad,
         intent = intent,
+        intentLegend = { x = board.x, y = height - bottomH - 28, w = board.w, h = 34 },
         action = { x = board.x, y = height - bottomH + 12, w = board.w, h = bottomH - 24 },
         squadSlots = slots,
         rowH = rowH,
@@ -3500,6 +3516,7 @@ function Render.tacticalHudLayoutAudit(width, height, squadSlots)
         { id = "objective", rect = layout.objective },
         { id = "squad", rect = layout.squad },
         { id = "intent", rect = layout.intent },
+        { id = "intent_legend", rect = layout.intentLegend },
         { id = "action", rect = layout.action },
     }) do
         if entry.rect.h > 0 and rectsOverlap(layout.board, entry.rect) then
@@ -3603,6 +3620,34 @@ function Render.tacticalTileInspectorLines(summary)
     return lines
 end
 
+function Render.tacticalIntentLegendEntries(app)
+    local runtime = app and app.tactics
+    local tactics = runtime and runtime.state
+    local entries = {}
+    for _, unitId in ipairs(sortedMapKeys(tactics and tactics.intents or {})) do
+        local unit = tactics and tactics:unit(unitId)
+        if unit and unit.side == "enemy" and unit.alive and not unit.evacuated then
+            local preview = tactics:intentPreview(unitId, { side = "player" })
+            local category = preview and (preview.category or preview.intentType or preview.mode) or "intent"
+            local label = preview and (preview.label or preview.effect or category) or category
+            local sourceTile = preview and preview.sourceTile
+            if not (sourceTile and sourceTile.x and sourceTile.y) then
+                sourceTile = { x = unit.x, y = unit.y }
+            end
+            entries[#entries + 1] = {
+                unit = unitId,
+                icon = string.upper(string.sub(category or "INT", 1, 3)),
+                category = category,
+                label = label,
+                hidden = preview and (preview.hiddenByVision == true or preview.categoryOnly == true) or false,
+                targetTiles = copyValue((preview and preview.targetTiles) or {}),
+                sourceTile = copyValue(sourceTile),
+            }
+        end
+    end
+    return entries
+end
+
 function Render.tacticalActionBar(app)
     if app and app.tactics and app.tactics.actionBar then
         return app.tactics:actionBar(app.tacticalHover)
@@ -3661,6 +3706,50 @@ local function drawTileInspectorPanel(rect, inspector)
         love.graphics.setColor(index == #lines and 0.9 or 0.7, index == #lines and 0.72 or 0.76, index == #lines and 0.42 or 0.68, 1)
         love.graphics.printf(shortText(lines[index], 42), rect.x + 12, rect.y + 32 + (index - 1) * 18, rect.w - 24, "left")
     end
+end
+
+function Render.drawTacticalIntentLegend(app, layout)
+    local entries = Render.tacticalIntentLegendEntries(app)
+    if #entries == 0 then
+        return 0
+    end
+    app.ui = app.ui or {}
+    app.ui.tacticalIntentButtons = app.ui.tacticalIntentButtons or {}
+    local rect = layout.intentLegend
+    panel(rect.x, rect.y, rect.w, rect.h, 0.84)
+    local gap = 6
+    local labelW = 76
+    love.graphics.setColor(0.88, 0.82, 0.66, 1)
+    love.graphics.print("Intents", rect.x + 10, rect.y + 10)
+    local itemW = math.floor((rect.w - labelW - gap * (#entries - 1) - 18) / #entries)
+    itemW = math.max(86, itemW)
+    local x = rect.x + labelW
+    for index, entry in ipairs(entries) do
+        local hot = app.tacticalIntentHover and app.tacticalIntentHover.unit == entry.unit
+        local w = math.min(itemW, rect.x + rect.w - x - 10)
+        if w <= 0 then
+            break
+        end
+        love.graphics.setColor(hot and 0.24 or 0.11, hot and 0.12 or 0.08, hot and 0.08 or 0.08, 0.94)
+        love.graphics.rectangle("fill", x, rect.y + 6, w, rect.h - 12)
+        love.graphics.setColor(hot and 1.0 or 0.58, hot and 0.64 or 0.32, hot and 0.28 or 0.26, 1)
+        love.graphics.rectangle("line", x, rect.y + 6, w, rect.h - 12)
+        love.graphics.setColor(0.96, 0.78, 0.38, 1)
+        love.graphics.printf(entry.icon, x + 6, rect.y + 12, 34, "left")
+        love.graphics.setColor(entry.hidden and 0.58 or 0.86, entry.hidden and 0.56 or 0.78, entry.hidden and 0.52 or 0.66, 1)
+        love.graphics.printf(shortText(entry.unit .. " " .. entry.label, 26), x + 40, rect.y + 12, w - 46, "left")
+        app.ui.tacticalIntentButtons[#app.ui.tacticalIntentButtons + 1] = {
+            x = x,
+            y = rect.y + 6,
+            w = w,
+            h = rect.h - 12,
+            intentUnit = entry.unit,
+            sourceTile = entry.sourceTile,
+            targetTiles = entry.targetTiles,
+        }
+        x = x + w + gap
+    end
+    return #entries
 end
 
 local function drawTacticalActionSlot(action, x, y, w, h)
@@ -3727,6 +3816,7 @@ function Render.drawTacticalHud(sim, app)
     love.graphics.printf("route machine " .. tostring(objective.integrity or 0) .. "/" .. tostring(objective.maxIntegrity or 0), layout.objective.x + 12, layout.objective.y + 14, layout.objective.w - 24, "right")
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
     love.graphics.printf("red forecasts resolve after End Turn; no hit chance", layout.objective.x + 12, layout.objective.y + 38, layout.objective.w - 24, "right")
+    Render.drawTacticalIntentLegend(app, layout)
     Render.drawTacticalActionBar(app, layout)
 end
 

@@ -2797,6 +2797,13 @@ tests[#tests + 1] = function()
     expect(lines:find("tags cistern", 1, true) and lines:find("cover west half", 1, true), "render tile inspector lines should show tags and cover edges")
     expect(lines:find("hazard brine active true dmg 1 timer 2", 1, true) and lines:find("terrain HP 4", 1, true), "render tile inspector lines should show hazard timers and terrain HP")
     expect(lines:find("vision warden@1,2 spotter@2,1", 1, true) and lines:find("intent bailiff target attack dmg 1", 1, true), "render tile inspector lines should show vision sources and intent footprints")
+    local legendApp = { tactics = { state = state, selectedUnitId = "warden", cursor = { x = 1, y = 1 } }, ui = { tacticalIntentButtons = {} } }
+    local legend = Render.tacticalIntentLegendEntries(legendApp)
+    expect(#legend == 1 and legend[1].unit == "bailiff" and legend[1].targetTiles[1].x == 2 and legend[1].sourceTile.x == 4, "intent legend should expose declared enemy intent source and targets")
+    legendApp.ui.tacticalIntentButtons[1] = { x = 8, y = 8, w = 120, h = 24, intentUnit = legend[1].unit, sourceTile = legend[1].sourceTile, targetTiles = legend[1].targetTiles }
+    expect(Input.updateTacticalIntentHover(legendApp, 12, 12), "intent legend hover should activate hitbox")
+    expect(legendApp.tacticalIntentHover.unit == "bailiff" and legendApp.tacticalHover.x == 2 and legendApp.tacticalHover.y == 2, "intent legend hover should highlight target tiles")
+    expect(legendApp.tacticalInspector and legendApp.tacticalInspector.intentTraces[1].unit == "bailiff", "intent legend hover should refresh tile inspector")
 end
 
 tests[#tests + 1] = function()
@@ -4048,6 +4055,7 @@ tests[#tests + 1] = function()
             journalButtons = { { stale = true } },
             tutorialButtons = { { stale = true } },
             squadLoadoutButtons = { { stale = true } },
+            tacticalIntentButtons = { { stale = true } },
             titleButtons = { { stale = true } },
             settingsButtons = { { stale = true } },
         },
@@ -4066,7 +4074,7 @@ tests[#tests + 1] = function()
     expect(#app.ui.partyRankSlots == 0, "prepareUi should clear party rank slots")
     expect(#app.ui.curioButtons == 0, "prepareUi should clear curio buttons")
     expect(#app.ui.campSkillButtons == 0 and #app.ui.campHeroButtons == 0, "prepareUi should clear camp buttons")
-    expect(#app.ui.pauseButtons == 0 and #app.ui.confirmButtons == 0 and #app.ui.gameOverButtons == 0 and #app.ui.creditsButtons == 0 and #app.ui.journalButtons == 0 and #app.ui.tutorialButtons == 0 and #app.ui.squadLoadoutButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
+    expect(#app.ui.pauseButtons == 0 and #app.ui.confirmButtons == 0 and #app.ui.gameOverButtons == 0 and #app.ui.creditsButtons == 0 and #app.ui.journalButtons == 0 and #app.ui.tutorialButtons == 0 and #app.ui.squadLoadoutButtons == 0 and #app.ui.tacticalIntentButtons == 0 and #app.ui.titleButtons == 0 and #app.ui.settingsButtons == 0, "prepareUi should clear system hitboxes")
     app.ui.skillButtons[#app.ui.skillButtons + 1] = { stale = true }
     app.ui.enemyButtons[#app.ui.enemyButtons + 1] = { stale = true }
     Render.prepareUi(app)

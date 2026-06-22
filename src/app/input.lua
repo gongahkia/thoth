@@ -257,6 +257,28 @@ function Input.updateTacticalHover(app, x, y)
     return true
 end
 
+function Input.updateTacticalIntentHover(app, x, y)
+    for _, hitbox in ipairs((app and app.ui and app.ui.tacticalIntentButtons) or {}) do
+        if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
+            app.tacticalIntentHover = {
+                unit = hitbox.intentUnit,
+                sourceTile = hitbox.sourceTile,
+                targetTiles = hitbox.targetTiles or {},
+            }
+            local tile = hitbox.targetTiles and hitbox.targetTiles[1] or hitbox.sourceTile
+            if tile then
+                app.tacticalHover = { x = tile.x, y = tile.y, screenX = x, screenY = y }
+                app.tacticalInspector = Render.tacticalTileInspectorSummary(app)
+            end
+            return true
+        end
+    end
+    if app then
+        app.tacticalIntentHover = nil
+    end
+    return false
+end
+
 local function boundMovementDirection(app, key)
     for _, entry in ipairs(boundMovementOrder) do
         if Settings.isAction(app and app.settings, key, entry[1]) then
