@@ -31,6 +31,7 @@ local TacticsCover = require("src.game.tactics.cover")
 local TacticsIntent = require("src.game.tactics.intent")
 local TacticsResolution = require("src.game.tactics.resolution")
 local TacticsProcgen = require("src.game.tactics.procgen")
+local ProcgenValidator = require("tools.validator")
 local ArchivedTactics = require("src.game.tactics.archive.future_zones")
 local TacticsReplay = require("src.game.tactics.replay")
 local TacticalRuntime = require("src.game.tactical_runtime")
@@ -3337,6 +3338,24 @@ tests[#tests + 1] = function()
     spec.encounterDirector.spawnBlockRules = {}
     local unblocked = TacticsProcgen.difficultyBudget(spec)
     expect(not unblocked.accepted and contains(unblocked.rejectReasons, "spawn_block_rule_missing"), "difficulty budget should reject missing spawn block rules")
+end
+
+tests[#tests + 1] = function()
+    local path = "dist/validator-test-report.json"
+    os.remove(path)
+    expect(#ProcgenValidator.fixedSeeds == 25, "procgen validator should define 25 fixed seeds")
+    local report = ProcgenValidator.run({ outputPath = path, seeds = { 7101, 7102, 7103 } })
+    expect(report.validator == "procgen_validator_v1" and report.seedCount == 3 and report.rejectCount == 0 and report.accepted, "procgen validator should accept fixed archive seeds")
+    expect(report.results[1].summary.board and report.results[1].summary.players > 0 and report.results[1].summary.enemies > 0, "procgen validator should report board/unit summary")
+    local encoded = ProcgenValidator.encodeJson(report)
+    expect(encoded:find('"rejectCount":0', 1, true) and encoded:find('"validator":"procgen_validator_v1"', 1, true), "procgen validator should encode JSON report")
+    local file = io.open(path, "r")
+    local body = file and file:read("*a") or ""
+    if file then
+        file:close()
+    end
+    os.remove(path)
+    expect(body:find('"seedCount":3', 1, true) and body:find('"rejects":%[', 1, false), "procgen validator should write reject log JSON")
 end
 
 tests[#tests + 1] = function()
