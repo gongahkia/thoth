@@ -666,17 +666,17 @@ test/replay proof: `Render.reducedMotionEquivalents()`, `Render.motionPlan()`, U
 
 source pattern: Xbox accessibility guidance recommends alternate input mechanisms, analog and digital UI navigation, single-press operation, remappable actions, consistent focus order, and predictable controller prompts.
 
-thoth transformation: Tactical controller flow is staged as select unit, select tile, select action, select target, and confirm preview, with inspect/focus/back/rotate controls available before commit.
+thoth transformation: Tactical controller flow is staged as select unit, select tile, select action, select target, and confirm preview, with D-pad/left-stick cursor movement, A contextual activation, X inspect, back/cancel, and shoulder rotation available before commit.
 
 board verb: focus, select, inspect, target, confirm, cancel.
 
 zone fit: Archive, Cistern, and Warrens boards use the same controller path while local tile facts and intent traces populate previews.
 
-counterplay: controller-only players can reach the same selected AP, tile inspector, move preview, action preview, target preview, and before-commit preview as mouse/keyboard players.
+counterplay: controller-only players can reach the same selected AP, tile inspector, move preview, action preview, target preview, and before-commit preview as mouse/keyboard players; axis debounce prevents runaway cursor commits.
 
-preview/UI: `UICatalog.controllerPath()` defines principles, bindings, and five stages; `Input.tacticalGamepadMap()` exposes select, back, inspect, focus, shoulder rotation, and analog/digital cursor inputs.
+preview/UI: `UICatalog.controllerPath()` defines principles, bindings, and five stages; `Input.tacticalGamepadMap()` exposes select, back, inspect, focus, shoulder rotation, and analog/digital cursor inputs; the runtime cursor can inspect without moving or activate the tile context.
 
-test/replay proof: Tests verify joystick module enablement, gamepad button/axis mapping, tactical map bindings, controller path stages, stage input/output/preview metadata, and cancel-before-commit support.
+test/replay proof: Tests verify joystick module enablement, gamepad button/axis mapping, tactical map bindings, controller path stages, stage input/output/preview metadata, cancel-before-commit support, runtime D-pad/axis cursor movement, X inspect, A contextual activation, and controller smoke replay.
 
 ### H39 Tutorial Board Fixtures
 

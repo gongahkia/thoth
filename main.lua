@@ -1280,9 +1280,16 @@ local function printControllerSmoke(state)
     end
     state.controllerSmokePrinted = true
     local axisState = {}
+    local tacticalSim = Simulation.new(9005)
+    local runtime = TacticalRuntime.new(tacticalSim)
+    runtime:handleKey(Input.gamepadButtonKey("dpright"))
+    runtime:handleKey(Input.gamepadAxisKey("lefty", -0.8, axisState))
+    runtime:handleKey(Input.gamepadButtonKey("a"))
     print("controller-smoke-a=" .. tostring(Input.gamepadButtonKey("a")))
     print("controller-smoke-b=" .. tostring(Input.gamepadButtonKey("b")))
     print("controller-smoke-axis=" .. tostring(Input.gamepadAxisKey("leftx", 0.8, axisState)))
+    print("controller-smoke-tactical-cursor=" .. tostring(runtime.cursor.x) .. "," .. tostring(runtime.cursor.y))
+    print("controller-smoke-tactical-activate=" .. tostring(runtime.state:unit("warden").x) .. "," .. tostring(runtime.state:unit("warden").y))
 end
 
 local function printJournalSmoke(state)

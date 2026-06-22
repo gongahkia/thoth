@@ -2459,6 +2459,17 @@ tests[#tests + 1] = function()
         expect(stages[id], "controller path missing stage " .. id)
     end
     expect(stages.confirm_preview.input:find("back cancel", 1, true), "controller path should support cancel before commit")
+    local runtime = TacticalRuntime.new(Simulation.new(2448))
+    runtime:handleKey(Input.gamepadButtonKey("dpright"))
+    expect(runtime.cursor.x == 3 and runtime.cursor.y == 6, "controller D-pad should move tactical cursor")
+    local axisState = {}
+    runtime:handleKey(Input.gamepadAxisKey("lefty", -0.8, axisState))
+    expect(runtime.cursor.x == 3 and runtime.cursor.y == 5, "controller left stick should move tactical cursor")
+    expect(Input.gamepadAxisKey("lefty", -0.8, axisState) == nil, "controller held axis should debounce repeated tactical cursor input")
+    runtime:handleKey(Input.gamepadButtonKey("x"))
+    expect(runtime.state:unit("warden").x == 2 and runtime.state:unit("warden").ap == 3 and runtime.message:find("Move", 1, true), "controller inspect should preview without committing")
+    runtime:handleKey(Input.gamepadButtonKey("a"))
+    expect(runtime.state:unit("warden").x == 3 and runtime.state:unit("warden").y == 5 and runtime.state:unit("warden").ap == 1, "controller A should activate contextual tactical move")
 end
 
 tests[#tests + 1] = function()

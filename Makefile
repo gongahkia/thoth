@@ -228,6 +228,8 @@ controller-smoke:
 	grep -q "controller-smoke-a=return" $$tmp; \
 	grep -q "controller-smoke-b=escape" $$tmp; \
 	grep -q "controller-smoke-axis=right" $$tmp; \
+	grep -q "controller-smoke-tactical-cursor=3,5" $$tmp; \
+	grep -q "controller-smoke-tactical-activate=3,5" $$tmp; \
 	rm -f $$tmp
 
 render-smoke:

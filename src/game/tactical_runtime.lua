@@ -205,6 +205,8 @@ function Runtime.new(sim)
         setCursor = Runtime.setCursor,
         moveSelectedToCursor = Runtime.moveSelectedToCursor,
         handleMouseTile = Runtime.handleMouseTile,
+        activateCursor = Runtime.activateCursor,
+        inspectCursor = Runtime.inspectCursor,
         actionAtTile = Runtime.actionAtTile,
         actionBar = Runtime.actionBar,
     }
@@ -309,6 +311,16 @@ function Runtime.moveSelectedToCursor(runtime)
     local replanned = moved and Runtime.replanVisibleEnemyIntents(runtime, selected) or 0
     setStatus(runtime, selected.id .. (replanned > 0 and " moved; enemies adjusted" or " moved"))
     Runtime.refreshOverlays(runtime)
+    return true
+end
+
+function Runtime.activateCursor(runtime)
+    return Runtime.handleMouseTile(runtime, runtime.cursor.x, runtime.cursor.y, 1)
+end
+
+function Runtime.inspectCursor(runtime)
+    local action = Runtime.actionAtTile(runtime, runtime.cursor.x, runtime.cursor.y)
+    setStatus(runtime, action.label .. (action.detail ~= "" and (" " .. action.detail) or ""))
     return true
 end
 
@@ -504,7 +516,11 @@ function Runtime.handleKey(runtime, key)
     elseif key == "tab" then
         Runtime.cycleUnit(runtime)
     elseif key == "return" or key == "kpenter" or key == "space" then
-        Runtime.moveSelectedToCursor(runtime)
+        if key == "space" then
+            Runtime.inspectCursor(runtime)
+        else
+            Runtime.activateCursor(runtime)
+        end
     elseif key == "a" then
         Runtime.attackCursor(runtime)
     elseif key == "b" then
