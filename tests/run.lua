@@ -219,6 +219,19 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local runtime = TacticalRuntime.new(Simulation.new(9007))
+    runtime.state:objective("entry_shelf").integrity = 1
+    TacticalRuntime.declareEnemyIntents(runtime)
+    local finisher = runtime.state:intentPreview("claimant")
+    expect(finisher.category == "destroy" and finisher.objectiveImpact == "entry_shelf" and finisher.targetTiles[1].x == 7, "critical objective should make enemy choose deterministic finisher intent")
+    runtime.state:objective("entry_shelf").integrity = 3
+    runtime.state.units.claimant.hp = 1
+    TacticalRuntime.declareEnemyIntents(runtime)
+    local guard = runtime.state:intentPreview("claimant")
+    expect(guard.category == "guard" and guard.damage == 0 and guard.targetTiles[1].x == runtime.state.units.claimant.x, "wounded enemy should choose deterministic guard intent")
+end
+
+tests[#tests + 1] = function()
     local tacticalSim = Simulation.new(9004)
     local runtime = TacticalRuntime.new(tacticalSim)
     runtime.state.units.claimant.x = 4

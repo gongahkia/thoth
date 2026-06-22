@@ -87,6 +87,48 @@ local function objectiveState(state)
     return nil
 end
 
+local function plannedEnemyTarget(runtime, enemy, options)
+    local state = runtime.state
+    local objective = objectiveState(state)
+    local spec = enemyIntentSpecs[enemy.id] or {}
+    if objective and (objective.integrity or 0) <= 1 then
+        return {
+            target = objective,
+            category = "destroy",
+            damage = spec.damage or 1,
+            label = "finish notice",
+            counterplay = { "block objective", "kill source", "repair objective" },
+        }
+    end
+    if (enemy.hp or 0) <= 1 then
+        return {
+            target = { id = enemy.id, x = enemy.x, y = enemy.y },
+            category = "guard",
+            damage = 0,
+            label = "regroup notice",
+            counterplay = { "press wounded enemy", "ignore harmless guard", "contest tile" },
+        }
+    end
+    local target
+    if spec.target == "objective" then
+        target = objective
+    elseif options and options.visibleTargetsOnly then
+        target = nearestVisiblePlayer(state, enemy)
+    else
+        target = nearestPlayer(state, enemy)
+    end
+    if not target then
+        return nil
+    end
+    return {
+        target = target,
+        category = "attack",
+        damage = spec.damage or 1,
+        label = spec.label or "posted notice",
+        counterplay = { "move target", "kill source", "block tile" },
+    }
+end
+
 function Runtime.syncWorld(sim, runtime)
     if not (sim and sim.world and runtime and runtime.state) then
         return
@@ -125,28 +167,21 @@ end
 local function declareEnemyIntent(runtime, enemy, options)
     local state = runtime.state
     local objective = objectiveState(state)
-    local spec = enemyIntentSpecs[enemy.id] or {}
-    local target
-    if spec.target == "objective" then
-        target = objective
-    elseif options and options.visibleTargetsOnly then
-        target = nearestVisiblePlayer(state, enemy)
-    else
-        target = nearestPlayer(state, enemy)
-    end
-    if not target then
+    local plan = plannedEnemyTarget(runtime, enemy, options)
+    if not plan then
         return false
     end
+    local target = plan.target
     state:declareIntent(enemy.id, {
         mode = "exact",
-        category = "attack",
+        category = plan.category,
         source = enemy.id,
         sourceTile = { x = enemy.x, y = enemy.y },
         targetTiles = { { x = target.x, y = target.y } },
-        damage = spec.damage or 1,
+        damage = plan.damage,
         objectiveImpact = objective and target.id == objective.id and objective.id or nil,
-        label = spec.label or "posted notice",
-        counterplay = { "move target", "kill source", "block tile" },
+        label = plan.label,
+        counterplay = plan.counterplay,
     })
     return true
 end

@@ -6,7 +6,7 @@ Status correction 2026-06-21: docs/data/tests existed, but playable New Game sti
 
 Open task list:
 
-- [ ] Expand tactical enemy AI beyond fixed posted intents while keeping deterministic resolution.
+No open tasks.
 
 ## Pivot Summary
 

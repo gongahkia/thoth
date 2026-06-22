@@ -490,17 +490,17 @@ test/replay proof: `EnemyCatalog.auditArchetypes()` rejects missing archetypes, 
 
 source pattern: Into the Breach telegraphs enemy attacks before resolution; Thoth's own exact-intent rules require source, target footprint, trace, damage/effect, collision, objective impact, and counterplay.
 
-thoth transformation: Common enemy catalog entries hydrate exact intent blueprints with source, category, target rule, target pattern, path pattern, deterministic damage/effect, objective impact, counterplay, preview, and forced-movement collision where needed.
+thoth transformation: Common enemy catalog entries hydrate exact intent blueprints with source, category, target rule, target pattern, path pattern, deterministic damage/effect, objective impact, counterplay, preview, and forced-movement collision where needed; runtime enemies now choose between visible target replan, critical-objective finisher, wounded guard, and baseline attack intent without RNG.
 
 board verb: declare, preview, trace, counter, resolve.
 
 zone fit: Archive exact intents target claim lines and records; Cistern exact intents target water pressure, valves, pools, and exits; Warrens exact intents target heat lanes, glass lines, fuel, and objectives.
 
-counterplay: LoS break, cover raise, footprint escape, brace, block landing, spawn block, interrupt source, isolate repair target, repair objective, smoke lane, or stabilize terrain.
+counterplay: LoS break, cover raise, footprint escape, brace, block landing, spawn block, interrupt source, isolate repair target, repair objective, smoke lane, stabilize terrain, press a wounded enemy, or block a critical objective.
 
 preview/UI: common enemy inspector shows exact category, target pattern, path pattern, damage, effect, objective impact, collision if any, and counterplay list before deployment.
 
-test/replay proof: `EnemyCatalog.auditExactBasicIntents()` rejects missing exact intent mode, missing exact preview fields, missing objective impact, missing counterplay, nondeterministic flags, forced movement without collision, and incomplete common-family coverage.
+test/replay proof: `EnemyCatalog.auditExactBasicIntents()` rejects missing exact intent mode, missing exact preview fields, missing objective impact, missing counterplay, nondeterministic flags, forced movement without collision, and incomplete common-family coverage; runtime tests verify visible-move replan, smoke-held target memory, critical-objective finisher, and wounded guard intent.
 
 ### H28 Elite Partial And Masked Intents
 
