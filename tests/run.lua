@@ -202,6 +202,22 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = { width = 4, height = 1 },
+        units = {
+            { id = "scout", side = "player", x = 1, y = 1, visionRadius = 1 },
+            { id = "lurker", side = "enemy", x = 4, y = 1, hp = 2 },
+        },
+    })
+    state:declareIntent("lurker", { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 1 } }, damage = 1, label = "knife" })
+    local hidden = TacticsIntent.preview(state, "lurker", { side = "player" })
+    expect(hidden.hiddenByVision and hidden.categoryOnly and hidden.targetTiles == nil and not state.intents.lurker.revealed, "hidden enemy intent should hide footprint before first LoS")
+    state.units.lurker.x = 2
+    local revealed = TacticsIntent.preview(state, "lurker", { side = "player" })
+    expect(revealed.targetTiles[1].x == 1 and state.intents.lurker.revealed, "hidden enemy intent should reveal on first LoS")
+end
+
+tests[#tests + 1] = function()
     local runtime = TacticalRuntime.new(makeTacticalSim(9007))
     runtime.state:objective("entry_shelf").integrity = 1
     TacticalRuntime.declareEnemyIntents(runtime)
@@ -512,6 +528,7 @@ tests[#tests + 1] = function()
     expect(not spotterVisible["4:2"] and not spotterVisible["3:3"], "unit visibility should exclude tiles beyond radius")
     local scoutVisible = TacticsLoS.computeVisibleTiles(state, state:unit("scout"))
     expect(scoutVisible["3:2"] and not scoutVisible["4:2"], "unit visibility should respect LoS blockers")
+    expect(not spotterVisible["5:1"] and not spotterVisible["3:3"], "vision computation should stay within deterministic radius")
     local fog = state:fogGrid("player")
     expect(fog.width == 5 and fog.height == 3 and fog.visible["1:2"] and fog.visible["5:3"], "fog grid should aggregate squad visibility")
     expect(fog.fog["4:2"] and fog.tiles["4:2"].fog and not fog.fog["5:2"] and fog.tiles["5:2"].visible, "fog grid should mark unseen and visible tiles")
@@ -784,6 +801,22 @@ tests[#tests + 1] = function()
     expect(pulse.x == state.lastOverwatchTrigger.x and pulse.y == state.lastOverwatchTrigger.y and pulse.reaction == "shoot", "overwatch trigger animation should retain trigger tile and reaction")
     expect(pulse.alpha > 0 and pulse.alpha <= 1 and pulse.scale >= 1, "overwatch trigger animation should expose bounded pulse values")
     expect(#state.threatZones == 0, "overwatch cone should expire after first trigger")
+
+    local ordered = TacticsState.new({
+        defaultAp = 1,
+        board = { width = 3, height = 1 },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, hp = 5, ap = 1 },
+            { id = "hound", side = "enemy", x = 3, y = 1, hp = 1, ap = 1 },
+        },
+    })
+    ordered:apply(TacticsState.commands.overwatch("warden", { { x = 2, y = 1 } }, 1, 1, 0))
+    ordered:declareIntent("hound", { mode = "exact", category = "attack", targetTiles = { { x = 1, y = 1 } }, damage = 2 })
+    ordered:startTurn("enemy")
+    ordered:apply(TacticsState.commands.move("hound", "west"))
+    local resolved = TacticsIntent.resolve(ordered, "hound")
+    expect(not ordered:unit("hound").alive and ordered.lastOverwatchTrigger.target == "hound", "overwatch should trigger before enemy intent resolution")
+    expect(resolved.triggered == false and resolved.blocked == "source_inactive" and ordered:unit("warden").hp == 5, "dead overwatched enemy should not resolve its intent")
 
     local stun = TacticsState.new({
         board = { width = 4, height = 3 },

@@ -1833,6 +1833,19 @@ end
 function State:resolveIntentTrigger(unitId, intent, trigger)
     intent = intent or {}
     trigger = trigger or intent.trigger or {}
+    local source = self.units[unitId]
+    if source and (not source.alive or source.evacuated) then
+        return {
+            triggered = false,
+            source = unitId,
+            blocked = "source_inactive",
+            targetTiles = copyValue((#(trigger.targetTiles or {}) > 0) and trigger.targetTiles or intent.targetTiles),
+            units = {},
+            objectives = {},
+            cargo = {},
+            conversions = {},
+        }
+    end
     local damage = trigger.damage or intent.damage or 0
     local tiles = (#(trigger.targetTiles or {}) > 0) and trigger.targetTiles or intent.targetTiles
     local result = {
