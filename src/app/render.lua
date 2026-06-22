@@ -2836,6 +2836,7 @@ function Render.drawJournal(sim, app)
 end
 
 local tutorialSteps = {
+    { key = "tactical_onboarding", title = i18n.t("Onboarding Board"), body = i18n.t("Select. Move. Rotate. Watch. End. React."), board = TacticsUICatalog.tutorialBoard("tactical_onboarding"), controls = "A / arrows / [ ] / 1 / E" },
     { key = "ap_cursor", title = i18n.t("AP / Cursor"), body = i18n.t("Select a unit, move the tile cursor, inspect the preview, then commit. Blue rings show reachable AP tiles."), board = TacticsUICatalog.tutorialBoard("movement"), controls = "mouse/D-pad/left stick cursor, Enter/A commit, Space/X inspect" },
     { key = "intent", title = i18n.t("Enemy Intent"), body = i18n.t("Red traces are posted enemy actions. They resolve after End Turn, so move, block, or disrupt them first."), board = TacticsUICatalog.tutorialBoard("intent"), controls = "hover or inspect red tiles before committing AP" },
     { key = "cover", title = i18n.t("Cover / Flank"), body = i18n.t("Cover protects edges, not whole units. Rotate and attack from an exposed edge to make the board answerable."), board = TacticsUICatalog.tutorialBoard("cover_flank"), controls = "[ and ] rotate, inspect cover edges" },

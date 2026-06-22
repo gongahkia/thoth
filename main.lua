@@ -1327,6 +1327,10 @@ local function printTutorialSmoke(state)
     print("tutorial-smoke-active=" .. tostring(state.tutorial and state.tutorial.active == true))
     print("tutorial-smoke-steps=" .. tostring(#steps))
     print("tutorial-smoke-first=" .. tostring(first.key))
+    local board = first.board or {}
+    print("tutorial-smoke-board=" .. tostring(board.id))
+    print("tutorial-smoke-board-size=" .. tostring(board.board and board.board.width) .. "x" .. tostring(board.board and board.board.height))
+    print("tutorial-smoke-script=" .. tostring(#(board.actions or {})))
     print("tutorial-smoke-buttons=" .. tostring(#((state.ui and state.ui.tutorialButtons) or {})))
 end
 

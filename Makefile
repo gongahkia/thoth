@@ -176,8 +176,11 @@ tutorial-smoke:
 	fi; \
 	grep -q "tutorial-smoke-mode=tactical" $$tmp; \
 	grep -q "tutorial-smoke-active=true" $$tmp; \
-	grep -q "tutorial-smoke-steps=6" $$tmp; \
-	grep -q "tutorial-smoke-first=ap_cursor" $$tmp; \
+	grep -q "tutorial-smoke-steps=7" $$tmp; \
+	grep -q "tutorial-smoke-first=tactical_onboarding" $$tmp; \
+	grep -q "tutorial-smoke-board=tactical_onboarding" $$tmp; \
+	grep -q "tutorial-smoke-board-size=6x6" $$tmp; \
+	grep -q "tutorial-smoke-script=6" $$tmp; \
 	grep -q "tutorial-smoke-buttons=3" $$tmp; \
 	rm -f $$tmp
 

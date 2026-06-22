@@ -682,17 +682,17 @@ test/replay proof: Tests verify joystick module enablement, gamepad button/axis 
 
 source pattern: Into the Breach interface references include combat, tutorial, mission, environment, and objective surfaces; XCOM 2 onboarding points new players toward tutorialized tactical play.
 
-thoth transformation: Tutorial boards and the live tutorial smoke isolate AP/cursor movement, posted intent, cover/flanking, push/pull, objective pressure, and rotation before combining mechanics.
+thoth transformation: Tutorial boards and the live tutorial smoke now start with a single-screen 6x6 onboarding board that combines select, move, rotate, overwatch, end turn, and revealed-intent reaction before the isolated AP/cursor movement, posted intent, cover/flanking, push/pull, objective pressure, and rotation pages.
 
-board verb: move, flank, inspect, push, pull, break, protect.
+board verb: select, move, rotate, overwatch, end turn, react, flank, inspect, push, pull, break, protect.
 
 zone fit: Generic tutorial fixtures map to Archive paperwork cover, Cistern hazards, and Warrens destruction/objective pressure without requiring zone-specific UI schemas.
 
-counterplay: each board teaches one deterministic answer: inspect before commit, safe AP route, protected edge versus flank, leave exact footprint, preview push/pull collision, block objective damage, or rotate to read tile truth.
+counterplay: each board teaches deterministic answers: inspect before commit, safe AP route, protected edge versus flank, leave exact footprint, preview push/pull collision, block objective damage, declare overwatch before ending turn, react to a revealed hidden footprint, or rotate to read tile truth.
 
-preview/UI: `Render.tutorialSteps()` now exposes tactical onboarding pages backed by `UICatalog.tutorialBoards()` fixtures and rotation readability checks; `--tutorial-smoke` boots tactical mode before drawing tutorial controls.
+preview/UI: `Render.tutorialSteps()` exposes tactical onboarding pages backed by `UICatalog.tutorialBoards()` fixtures and rotation readability checks; `--tutorial-smoke` boots tactical mode before drawing tutorial controls and reports the 6x6 onboarding script.
 
-test/replay proof: Tests instantiate every tutorial board as `TacticsState` and verify fixture metadata plus movement, cover, exact intent, push/pull, destructible cover, objective pressure, live tactical tutorial steps, and tactical-mode tutorial smoke.
+test/replay proof: Tests instantiate every tutorial board as `TacticsState` and verify fixture metadata plus the 6x6 cue-driven onboarding script, hidden intent reveal, movement, cover, exact intent, push/pull, destructible cover, objective pressure, live tactical tutorial steps, and tactical-mode tutorial smoke.
 
 ### H40 Buried Archive Vertical Slice Route
 

@@ -121,7 +121,7 @@ source pattern:
 Tactics tutorials work best when each board isolates one board verb before combining systems.
 
 thoth transformation:
-Thoth tutorial sequence teaches movement, cover/flank, intent, forced movement, destructible terrain, objective pressure, redacted intent, and boss weak point.
+Thoth tutorial sequence starts with a single-screen 6x6 onboarding board, then teaches movement, cover/flank, intent, forced movement, destructible terrain, objective pressure, redacted intent, and boss weak point.
 
 board verb:
 Teach, preview, commit, verify.
@@ -136,7 +136,7 @@ preview/UI:
 Tutorial catalog defines id, taught concept, board sketch, and exit check.
 
 test/replay proof:
-`tests/run.lua` verifies all eight tutorial steps exist and each defines taught concept, board sketch, and exit check.
+`tests/run.lua` verifies all nine tutorial steps exist and each defines taught concept, board sketch, and exit check.
 
 ## U.7 Screenshot-Smoke Target
 
@@ -319,19 +319,19 @@ source pattern:
 Readable tactics tutorials isolate one board verb at a time and use tutorial/combat UI surfaces to keep the player inside the tactical context.
 
 thoth transformation:
-Thoth defines concrete tutorial board fixtures for movement, cover/flanking, intent, push/pull, destruction, and objectives.
+Thoth defines concrete tutorial board fixtures for single-screen onboarding, movement, cover/flanking, intent, push/pull, destruction, and objectives.
 
 board verb:
-Move, flank, inspect, push, pull, break, protect.
+Select, move, rotate, watch, end, react, flank, inspect, push, pull, break, protect.
 
 zone fit:
 The fixtures use generic tactical data, then map cleanly onto Archive, Cistern, and Warrens mechanics through hazards, cover, intent, destructible terrain, and objectives.
 
 counterplay:
-Each board teaches one counter before combining systems: safe routing, flank recognition, escaping intent, previewing forced movement, breaking cover, and protecting objective integrity.
+Each board teaches one counter before combining systems. The onboarding fixture combines six cue-sized actions on one 6x6 board: select, move, rotate, declare overwatch, end turn, and react to a revealed hidden intent.
 
 preview/UI:
 `UICatalog.tutorialBoards()` returns instantiable board specs with board data, units, objectives/intents when needed, actions, overlays, and exit checks.
 
 test/replay proof:
-`tests/run.lua` verifies all six tutorial boards exist, instantiate as `TacticsState`, expose actions/overlays/exit checks, and cover movement, cover/flank, exact intent, push plus pull, destructible cover, and objective pressure.
+`tests/run.lua` verifies all seven tutorial boards exist, instantiate as `TacticsState`, expose actions/overlays/exit checks, and cover single-screen onboarding, movement, cover/flank, exact intent, push plus pull, destructible cover, and objective pressure. It also verifies the onboarding board is 6x6, scripted, cue-driven, and reveals its hidden footprint through existing intent preview rules.

@@ -117,6 +117,7 @@ UICatalog.rotationReadability = {
 }
 
 UICatalog.tutorialSequence = {
+    { id = "tactical_onboarding", teaches = "select/move/rotate/overwatch/end turn/react", board = "single-screen 6x6 scripted intent board", exitCheck = "player reacts to revealed intent" },
     { id = "movement", teaches = "movement", board = "two AP path with safe and unsafe route", exitCheck = "player previews AP path then commits move" },
     { id = "cover_flank", teaches = "cover/flank", board = "half cover lane with one flank tile", exitCheck = "player identifies protected and flanked edge" },
     { id = "intent", teaches = "intent", board = "one enemy exact attack footprint", exitCheck = "player prevents declared hit" },
@@ -127,9 +128,59 @@ UICatalog.tutorialSequence = {
     { id = "boss_weak_point", teaches = "boss weak point", board = "rotation reveals back-face weak point", exitCheck = "player rotates and counters boss procedure" },
 }
 
-UICatalog.tutorialBoardOrder = { "movement", "cover_flank", "intent", "push_pull", "destruction", "objectives" }
+UICatalog.tutorialBoardOrder = { "tactical_onboarding", "movement", "cover_flank", "intent", "push_pull", "destruction", "objectives" }
 
 UICatalog.tutorialBoardSpecs = {
+    tactical_onboarding = {
+        id = "tactical_onboarding",
+        teaches = "select/move/rotate/overwatch/end turn/react",
+        singleScreen = true,
+        scripted = true,
+        noTextWalls = true,
+        maxCueWords = 2,
+        board = {
+            width = 6,
+            height = 6,
+            tiles = {
+                ["2:3"] = { kind = "archive_cover", coverEdges = { west = "half" }, tags = { "move_goal" } },
+                ["3:3"] = { kind = "filing_lane", coverEdges = { east = "half" }, rotationMarks = { east = "sealed_intent" }, tags = { "rotate_read" } },
+                ["4:3"] = { kind = "audit_line", tags = { "intent_lane" } },
+                ["2:4"] = { kind = "lamp_tile", tags = { "overwatch_anchor" } },
+            },
+        },
+        units = {
+            { id = "warden", side = "player", class = "warden", x = 1, y = 3, hp = 6, ap = 3, maxAp = 3, visionRadius = 4 },
+            { id = "lamplighter", side = "player", class = "lamplighter", x = 1, y = 4, hp = 4, ap = 3, maxAp = 3, visionRadius = 4 },
+            { id = "bailiff", side = "enemy", x = 5, y = 3, hp = 4, ap = 0, visionRadius = 4 },
+        },
+        intents = {
+            bailiff = {
+                mode = "hiddenFootprint",
+                category = "attack",
+                source = "bailiff",
+                sourceTile = { x = 5, y = 3 },
+                targetTiles = { { x = 2, y = 3 }, { x = 2, y = 4 } },
+                path = { { x = 5, y = 3 }, { x = 4, y = 3 }, { x = 3, y = 3 }, { x = 2, y = 3 } },
+                damage = 2,
+                effect = "filed_strike",
+                label = "filed strike",
+                revealRotations = { 1 },
+                revealActions = { "inspect_intent" },
+                revealClasses = { "lamplighter" },
+                counterplay = { "overwatch", "move_out" },
+            },
+        },
+        actions = {
+            { id = "select_unit", kind = "select_unit", unit = "warden", tile = { x = 1, y = 3 }, cue = "select", icon = "cursor", preview = "selectedUnitAp" },
+            { id = "move", kind = "move", unit = "warden", to = { x = 2, y = 3 }, cue = "move", icon = "move", preview = "movementPreview" },
+            { id = "rotate_camera", kind = "rotate_camera", rotation = 1, cue = "rotate", icon = "compass", preview = "rotationCompass" },
+            { id = "declare_overwatch", kind = "overwatch", unit = "lamplighter", facing = "east", range = 3, cue = "watch", icon = "cone", preview = "overwatchCone" },
+            { id = "end_turn", kind = "end_turn", cue = "end", icon = "hourglass", preview = "intentResolution" },
+            { id = "react_revealed_intent", kind = "react_revealed_intent", unit = "warden", target = "bailiff", revealAction = "inspect_intent", cue = "react", icon = "intent", preview = "revealedIntent" },
+        },
+        overlays = { "movement", "enemy_intent", "los", "cover", "hidden_revealed" },
+        exitCheck = "react to revealed hidden footprint after overwatch setup",
+    },
     movement = {
         id = "movement",
         teaches = "movement",

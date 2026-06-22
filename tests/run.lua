@@ -2944,7 +2944,7 @@ tests[#tests + 1] = function()
         tutorials[step.id] = step
         expect(step.teaches and step.board and step.exitCheck, "tutorial step should define teaches board exit check: " .. step.id)
     end
-    for _, id in ipairs({ "movement", "cover_flank", "intent", "forced_movement", "destructible_terrain", "objective_pressure", "redacted_intent", "boss_weak_point" }) do
+    for _, id in ipairs({ "tactical_onboarding", "movement", "cover_flank", "intent", "forced_movement", "destructible_terrain", "objective_pressure", "redacted_intent", "boss_weak_point" }) do
         expect(tutorials[id], "missing tutorial step " .. id)
     end
 end
@@ -2962,9 +2962,30 @@ tests[#tests + 1] = function()
         })
         expect(state.board.width == spec.board.width and state.board.height == spec.board.height, "tutorial board should instantiate: " .. spec.id)
     end
-    for _, id in ipairs({ "movement", "cover_flank", "intent", "push_pull", "destruction", "objectives" }) do
+    for _, id in ipairs({ "tactical_onboarding", "movement", "cover_flank", "intent", "push_pull", "destruction", "objectives" }) do
         expect(specs[id] and UICatalog.tutorialBoard(id) == specs[id], "missing tutorial board " .. id)
     end
+    local onboarding = specs.tactical_onboarding
+    expect(onboarding.singleScreen and onboarding.scripted and onboarding.noTextWalls, "onboarding board should be single-screen scripted and cue-driven")
+    expect(onboarding.board.width == 6 and onboarding.board.height == 6 and #onboarding.actions == 6, "onboarding board should be 6x6 with six tutorial actions")
+    local expectedActions = { "select_unit", "move", "rotate_camera", "declare_overwatch", "end_turn", "react_revealed_intent" }
+    for index, actionId in ipairs(expectedActions) do
+        local action = onboarding.actions[index]
+        local words = 0
+        for _ in tostring(action.cue or ""):gmatch("%S+") do
+            words = words + 1
+        end
+        expect(action.id == actionId and action.kind and action.preview, "onboarding action should preserve scripted order: " .. actionId)
+        expect(action.cue and not action.body and words <= onboarding.maxCueWords, "onboarding action should use short cue text: " .. actionId)
+    end
+    local onboardingState = TacticsState.new({
+        board = onboarding.board,
+        units = onboarding.units,
+        intents = onboarding.intents,
+    })
+    local hidden = onboardingState:intentPreview("bailiff", { rotation = 0 })
+    local revealed = onboardingState:intentPreview("bailiff", { rotation = 1 })
+    expect(hidden.footprintHidden and hidden.targetTiles == nil and revealed.targetTiles[1].x == 2 and revealed.damage == 2, "onboarding board should script hidden intent reveal by rotation")
     expect(specs.movement.actions[1].preview == "movementPreview" and specs.movement.board.tiles["3:2"].hazard, "movement tutorial should include safe/unsafe preview")
     expect(specs.cover_flank.board.tiles["2:2"].coverEdges.west == "half" and specs.cover_flank.actions[2].kind == "flank", "cover tutorial should include flank preview")
     expect(specs.intent.intents.bailiff.mode == "exact" and specs.intent.actions[1].preview == "intentPreview", "intent tutorial should include exact intent preview")
@@ -4044,8 +4065,8 @@ tests[#tests + 1] = function()
     expect(#app.ui.journalButtons >= 4, "journal draw should populate journal hitboxes")
     app.tutorial = { active = true, index = 1 }
     local tutorial = Render.drawTutorial(app)
-    expect(#tutorial == 6 and tutorial[1].key == "ap_cursor" and tutorial[2].key == "intent" and tutorial[6].key == "rotation", "tutorial should expose tactical onboarding steps")
-    expect(tutorial[1].board and tutorial[3].board and tutorial[5].board.objectives, "tutorial should link tactical board fixtures")
+    expect(#tutorial == 7 and tutorial[1].key == "tactical_onboarding" and tutorial[2].key == "ap_cursor" and tutorial[7].key == "rotation", "tutorial should expose tactical onboarding steps")
+    expect(tutorial[1].board.board.width == 6 and tutorial[2].board and tutorial[4].board and tutorial[6].board.objectives, "tutorial should link tactical board fixtures")
     expect(#app.ui.tutorialButtons == 3, "tutorial draw should populate tutorial controls")
     app.settings = Settings.defaults()
     Render.drawSettings(app)
