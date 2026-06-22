@@ -1107,7 +1107,9 @@ local function printTacticalSmoke(state)
     print("tactical-smoke-compass=" .. tostring(compass.degrees))
     print("tactical-smoke-ghost-arrows=" .. tostring(#Render.tacticalGhostArrowEntries(state)))
     io.stdout:flush()
-    os.exit(0)
+    if not state.previewCapture then
+        os.exit(0)
+    end
 end
 
 local function printTitleSmoke(state)
