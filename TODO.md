@@ -19,7 +19,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 
 ## Task list (todo.txt)
 
-(B) 2026-06-22 Tune AP economy in src/game/tactics/ap.lua for a 6-unit squad so a turn averages 18-24 AP total; verify against playtest replay +slice-content @engine
 (B) 2026-06-22 Scale UI in src/app/render.lua to show 6 unit portraits, AP pools, and selection state without overlapping the board view at 1080p +slice-content @ui
 (C) 2026-06-22 Build tile inspector in src/app/render.lua + src/app/input.lua: cursor hover shows tile tags, cover edges, hazard timers, intent footprints reaching that tile, vision sources, terrain HP +readability @ui
 (C) 2026-06-22 Build intent legend overlay: bottom-bar list of every declared enemy intent this turn with icon, target tiles highlighted on hover, source enemy highlighted +readability @ui

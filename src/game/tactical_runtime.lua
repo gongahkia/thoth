@@ -4,6 +4,7 @@ local TacticsIntent = require("src.game.tactics.intent")
 local TacticsResolution = require("src.game.tactics.resolution")
 local ClassCatalog = require("src.game.tactics.class_catalog")
 local Procgen = require("src.game.tactics.procgen")
+local TacticsAP = require("src.game.tactics.ap")
 
 local Runtime = {}
 
@@ -195,9 +196,11 @@ end
 local function applyLiveClassSquad(spec, squadLoadout)
     local roster = normalizeSquadLoadout(squadLoadout)
     local deployments = deploymentTiles(spec, #roster)
+    local unitAp = TacticsAP.defaultUnitApForSquad(#roster)
     local units = {}
     for index, entry in ipairs(roster) do
         local class, loadouts, boardVerbs, tools = classLoadoutPayload(entry.classId, entry.loadoutIds)
+        local maxAp = entry.maxAp or entry.apMax or entry.ap or unitAp
         units[#units + 1] = {
             id = entry.id,
             name = class and class.name or entry.id,
@@ -207,6 +210,8 @@ local function applyLiveClassSquad(spec, squadLoadout)
             x = deployments[index].x,
             y = deployments[index].y,
             hp = entry.hp,
+            ap = entry.ap or maxAp,
+            maxAp = maxAp,
             loadouts = loadouts,
             boardVerbs = boardVerbs,
             tools = tools,

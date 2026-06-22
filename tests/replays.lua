@@ -3,11 +3,27 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 local Serialize = require("src.core.serialize")
 local TacticsState = require("src.game.tactics.state")
 local ClassCatalog = require("src.game.tactics.class_catalog")
+local TacticsAP = require("src.game.tactics.ap")
+local Procgen = require("src.game.tactics.procgen")
+local TacticalRuntime = require("src.game.tactical_runtime")
 
 local function expect(value, message)
     if not value then
         error(message or "replay expectation failed", 2)
     end
+end
+
+local function makeSim(seed)
+    return {
+        seed = seed,
+        mode = "tactical",
+        status = "tactical",
+        tick = 0,
+        player = { x = 0, y = 0, z = 0 },
+        world = {
+            setTile = function() end,
+        },
+    }
 end
 
 local function tacticalReplayState()
@@ -52,6 +68,28 @@ local tacticalB = runTacticalReplay()
 expect(Serialize.encode(tacticalA:snapshot()) == Serialize.encode(tacticalB:snapshot()), "tactical replay command stream should be deterministic")
 expect(tacticalA:objectiveStatus("route_machine") == "complete", "tactical replay should complete protect/evacuate objective")
 io.stdout:write("tactics replay ok prototype_board\n")
+
+local function runRouteApReplay()
+    local route = Procgen.archiveRoute()
+    local totals = {}
+    for index, variantId in ipairs(route.variantOrder) do
+        local runtime = TacticalRuntime.new(makeSim(8100 + index), { variantId = variantId })
+        local initial = TacticsAP.auditTurnBudget(runtime.state, "player")
+        expect(initial.ok, "route AP budget outside 18-24 on " .. variantId)
+        runtime.state:spendAP("warden", 1)
+        runtime.state:startTurn("enemy")
+        runtime.state:startTurn("player")
+        local refreshed = TacticsAP.auditTurnBudget(runtime.state, "player")
+        expect(refreshed.ok and refreshed.total == initial.total, "route AP refresh should preserve tuned budget on " .. variantId)
+        totals[#totals + 1] = { variant = variantId, total = refreshed.total }
+    end
+    return totals
+end
+
+local routeApA = runRouteApReplay()
+local routeApB = runRouteApReplay()
+expect(Serialize.encode(routeApA) == Serialize.encode(routeApB), "route AP playtest replay should be deterministic")
+io.stdout:write("tactics replay ok route_ap_economy\n")
 
 local function tacticalIntentReplayState()
     return TacticsState.new({
@@ -451,4 +489,4 @@ expect(Serialize.encode(merchantA:snapshot()) == Serialize.encode(merchantB:snap
 expect(merchantA.units.bailiff.statuses.marked and merchantA:objective("ledger").integrity == 3, "Merchant replay should appraise and insure")
 io.stdout:write("tactics replay ok ", merchantFixture, "\n")
 
-io.stdout:write("replay fixtures passed: 11\n")
+io.stdout:write("replay fixtures passed: 12\n")

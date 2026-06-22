@@ -150,7 +150,7 @@ tests[#tests + 1] = function()
     expect(#runtime.overlays.intents == 2 and claimantIntent.intentType and claimantTargetUnit and claimantTargetUnit.side == "player", "runtime should show exact catalog enemy intents")
     runtime:handleKey("right")
     runtime:handleKey("return")
-    expect(runtime.state:unit("warden").x == 2 and runtime.state:unit("warden").ap == 1, "runtime should spend AP to move selected unit")
+    expect(runtime.state:unit("warden").x == 2 and runtime.state:unit("warden").ap == 2, "runtime should spend AP to move selected unit")
     local hpBefore = 0
     for _, unit in ipairs(runtime.state:unitsForSide("player")) do
         hpBefore = hpBefore + unit.hp
@@ -162,7 +162,7 @@ tests[#tests + 1] = function()
     end
     expect(runtime.state:objective("entry_shelf").integrity == 3, "enemy intent should leave untargeted objective intact")
     expect(hpAfter < hpBefore, "catalog enemy intents should damage posted player targets deterministically")
-    expect(runtime.state.phase == "player" and runtime.state:unit("warden").ap == 2, "runtime should return to player phase with AP refreshed")
+    expect(runtime.state.phase == "player" and runtime.state:unit("warden").ap == 3, "runtime should return to player phase with AP refreshed")
 end
 
 tests[#tests + 1] = function()
@@ -389,10 +389,10 @@ tests[#tests + 1] = function()
     local attackAction = runtime:actionAtTile(2, 4)
     expect(attackAction.kind == "attack" and attackAction.enabled and attackAction.detail:find("dmg2 flank", 1, true), "tactical click action should preview in-range flanking attacks")
     expect(runtime:handleMouseTile(2, 4, 1), "left click should attack in-range enemy")
-    expect(runtime.state:unit(enemy.id).hp == 2 and runtime.state:unit("warden").ap == 1 and runtime.status == "warden hit " .. enemy.id .. " for 2", "left click attack should spend AP and apply flanking damage")
+    expect(runtime.state:unit(enemy.id).hp == 2 and runtime.state:unit("warden").ap == 2 and runtime.status == "warden hit " .. enemy.id .. " for 2", "left click attack should spend AP and apply flanking damage")
     tileX, tileY = 1, 3
     expect(runtime:handleMouseTile(tileX, tileY, 1), "left click should handle reachable board tile")
-    expect(runtime.state:unit("warden").x == 1 and runtime.state:unit("warden").y == 3 and runtime.state:unit("warden").ap == 0, "left click should move selected unit to reachable tile")
+    expect(runtime.state:unit("warden").x == 1 and runtime.state:unit("warden").y == 3 and runtime.state:unit("warden").ap == 1, "left click should move selected unit to reachable tile")
     expect(runtime:handleMouseTile(1, 5, 1), "left click should select player unit")
     expect(runtime.selectedUnitId == "duelist", "left click should select clicked squad unit")
     expect(runtime:handleMouseTile(3, 4, 2), "right click should place cursor")
@@ -2860,9 +2860,9 @@ tests[#tests + 1] = function()
     expect(runtime.cursor.x == 2 and runtime.cursor.y == 3, "controller left stick should move tactical cursor")
     expect(Input.gamepadAxisKey("lefty", -0.8, axisState) == nil, "controller held axis should debounce repeated tactical cursor input")
     runtime:handleKey(Input.gamepadButtonKey("x"))
-    expect(runtime.state:unit("warden").x == 1 and runtime.state:unit("warden").ap == 2 and runtime.message:find("Move", 1, true), "controller inspect should preview without committing")
+    expect(runtime.state:unit("warden").x == 1 and runtime.state:unit("warden").ap == 3 and runtime.message:find("Move", 1, true), "controller inspect should preview without committing")
     runtime:handleKey(Input.gamepadButtonKey("a"))
-    expect(runtime.state:unit("warden").x == 2 and runtime.state:unit("warden").y == 3 and runtime.state:unit("warden").ap == 0, "controller A should activate contextual tactical move")
+    expect(runtime.state:unit("warden").x == 2 and runtime.state:unit("warden").y == 3 and runtime.state:unit("warden").ap == 1, "controller A should activate contextual tactical move")
 end
 
 tests[#tests + 1] = function()
@@ -3329,6 +3329,19 @@ tests[#tests + 1] = function()
     end
     expect(TacticsAP.spend(state, "unit", TacticsAP.cost("brace")) == 8, "AP module should spend action costs")
     expect(total == 9, "default AP cost table should cover nine one-AP actions")
+    local six = TacticsState.new({
+        board = { width = 6, height = 1 },
+        units = {
+            { id = "u1", side = "player", x = 1, y = 1, maxAp = TacticsAP.defaultUnitApForSquad(6) },
+            { id = "u2", side = "player", x = 2, y = 1, maxAp = TacticsAP.defaultUnitApForSquad(6) },
+            { id = "u3", side = "player", x = 3, y = 1, maxAp = TacticsAP.defaultUnitApForSquad(6) },
+            { id = "u4", side = "player", x = 4, y = 1, maxAp = TacticsAP.defaultUnitApForSquad(6) },
+            { id = "u5", side = "player", x = 5, y = 1, maxAp = TacticsAP.defaultUnitApForSquad(6) },
+            { id = "u6", side = "player", x = 6, y = 1, maxAp = TacticsAP.defaultUnitApForSquad(6) },
+        },
+    })
+    local audit = TacticsAP.auditTurnBudget(six, "player")
+    expect(audit.ok and audit.total == 18 and audit.min == 18 and audit.max == 24, "6-unit AP economy should fit 18-24 AP total")
 end
 
 tests[#tests + 1] = function()

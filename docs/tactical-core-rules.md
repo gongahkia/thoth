@@ -1,6 +1,6 @@
 # Tactical Core Rules
 
-Checked: 2026-06-21
+Checked: 2026-06-22
 
 Source of truth: `src/game/tactics/state.lua`. This doc names the current tactical contracts so content work does not infer rules from legacy expedition combat.
 
@@ -33,11 +33,12 @@ Acceptance proof:
 
 ## M.2 AP Baseline
 
-Default AP is `2` per active unit unless a fixture/tool explicitly overrides `defaultAp`, `maxAp`, or command cost.
+Core fixtures still default to `2` AP when no rule is provided. The live 6-unit route squad uses `src/game/tactics/ap.lua` economy tuning: `3` AP per unit, `18` AP total, valid range `18-24`.
 
 Baseline rules:
 
 - Team-turn model is the default prototype shape.
+- Six-unit route turns must audit inside `18-24` total AP.
 - Movement spends AP through `moveApCost`; default move cost is `1`.
 - Actions spend AP through command cost; current tactical verbs default to `1` unless passed a different explicit cost.
 - `wait` costs `0` by default.
@@ -48,7 +49,8 @@ Baseline rules:
 
 Acceptance proof:
 
-- `tests/run.lua` verifies 3-unit and 5-unit squads, AP spend isolation, insufficient-AP failure, phase reset behavior, movement AP cost, and inactive-side AP preservation.
+- `tests/run.lua` verifies 3-unit and 5-unit squads, AP spend isolation, insufficient-AP failure, phase reset behavior, movement AP cost, inactive-side AP preservation, and the 6-unit AP budget audit.
+- `tests/replays.lua` runs the live route AP playtest replay across all six ordered mission variants and verifies each refreshed player turn stays inside `18-24` total AP.
 
 ## M.3 Movement Preview
 
