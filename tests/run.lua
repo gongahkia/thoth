@@ -34,6 +34,7 @@ local TacticsCover = require("src.game.tactics.cover")
 local TacticsIntent = require("src.game.tactics.intent")
 local TacticsResolution = require("src.game.tactics.resolution")
 local TacticsProcgen = require("src.game.tactics.procgen")
+local ArchivedTactics = require("src.game.tactics.archive.future_zones")
 local TacticsReplay = require("src.game.tactics.replay")
 local TacticalRuntime = require("src.game.tactical_runtime")
 
@@ -1453,104 +1454,12 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
-    local mechanics = ZoneCatalog.tileMechanics("salt_cistern")
-    expect(#mechanics == 12, "Salt Cistern should define 12 tile mechanics")
-    local seen = {}
-    for _, mechanic in ipairs(mechanics) do
-        seen[mechanic.id] = mechanic
-        expect(mechanic.subject and mechanic.verb and mechanic.effect, "cistern tile mechanic should include subject verb effect")
-    end
-    for _, id in ipairs({
-        "cistern_valve_turn",
-        "cistern_sluice_current",
-        "cistern_flood_lane",
-        "cistern_brine_pool",
-        "cistern_salt_mist",
-        "cistern_pressure_bell",
-        "cistern_pearl_cyst",
-        "cistern_pump_bridge",
-        "cistern_undertow_tile",
-        "cistern_drain_grate",
-        "cistern_floating_cover",
-        "cistern_waterline_height",
-    }) do
-        expect(seen[id], "missing cistern tile mechanic " .. id)
-    end
-end
-
-tests[#tests + 1] = function()
-    local objects = ZoneCatalog.objects("salt_cistern")
-    expect(#objects == 8, "Salt Cistern should define 8 objects")
-    local seen = {}
-    for _, object in ipairs(objects) do
-        seen[object.id] = object
-        expect(object.apCost and object.apCost > 0, "cistern object should include AP cost")
-        expect(object.hp and object.hp > 0, "cistern object should include HP")
-        expect(object.losEffect and object.coverState and object.rotation, "cistern object should include LoS cover rotation")
-        expect(object.floodEffect and object.objectiveEffect, "cistern object should include flood and objective effects")
-    end
-    for _, id in ipairs({
-        "tide_valve",
-        "sluice_gate",
-        "pressure_bell_frame",
-        "pearl_cyst_cluster",
-        "pump_bridge_wheel",
-        "drain_grate_cap",
-        "floating_barricade",
-        "waterline_gauge",
-    }) do
-        expect(seen[id], "missing cistern object " .. id)
-    end
-end
-
-tests[#tests + 1] = function()
-    local mechanics = ZoneCatalog.tileMechanics("ember_warrens")
-    expect(#mechanics == 12, "Ember Warrens should define 12 tile mechanics")
-    local seen = {}
-    for _, mechanic in ipairs(mechanics) do
-        seen[mechanic.id] = mechanic
-        expect(mechanic.subject and mechanic.verb and mechanic.effect, "warrens tile mechanic should include subject verb effect")
-    end
-    for _, id in ipairs({
-        "warrens_kiln_heat",
-        "warrens_ash_choke",
-        "warrens_bellows_cone",
-        "warrens_glass_floor",
-        "warrens_vitrified_cover",
-        "warrens_heat_lane",
-        "warrens_fuel_store",
-        "warrens_ember_oil",
-        "warrens_furnace_door",
-        "warrens_cinder_vent",
-        "warrens_white_coal_pressure",
-        "warrens_meltable_bridge",
-    }) do
-        expect(seen[id], "missing warrens tile mechanic " .. id)
-    end
-end
-
-tests[#tests + 1] = function()
-    local objects = ZoneCatalog.objects("ember_warrens")
-    expect(#objects == 8, "Ember Warrens should define 8 objects")
-    local seen = {}
-    for _, object in ipairs(objects) do
-        seen[object.id] = object
-        expect(object.apCost and object.apCost > 0, "warrens object should include AP cost")
-        expect(object.hp and object.hp > 0, "warrens object should include HP")
-        expect(object.losEffect and object.coverState and object.rotation, "warrens object should include LoS cover rotation")
-        expect(object.burnEffect and object.douseEffect and object.glassifyEffect, "warrens object should include burn douse glassify")
-    end
-    for _, id in ipairs({
-        "kiln_mouth",
-        "ash_heap",
-        "bellows_spine",
-        "glass_screen",
-        "fuel_cart",
-        "ember_oil_cask",
-        "furnace_door_chain",
-        "white_coal_cradle",
-    }) do
-        expect(seen[id], "missing warrens object " .. id)
+    expect(#ArchivedTactics.zoneOrder == 2, "future zones should be archived outside live catalogs")
+    expect(ZoneCatalog.zone("salt_cistern") == nil and ZoneCatalog.zone("ember_warrens") == nil, "future zones should not be live")
+    for _, zoneId in ipairs(ArchivedTactics.zoneOrder) do
+        local archived = ArchivedTactics.zoneCatalog[zoneId]
+        expect(archived and #archived.mechanics == 12 and #archived.objects == 8, "archived future zone should preserve mechanic/object ids: " .. zoneId)
+        expect(ArchivedTactics.runMapZones[zoneId] and ArchivedTactics.procgen[zoneId], "archived future zone should preserve run/procgen entries: " .. zoneId)
     end
 end
 
@@ -1567,7 +1476,7 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
-    for _, zoneId in ipairs({ "buried_archive", "salt_cistern", "ember_warrens" }) do
+    for _, zoneId in ipairs({ "buried_archive" }) do
         local facts = ZoneCatalog.rotationFacts(zoneId)
         expect(#facts >= 4, zoneId .. " should define at least 4 rotation facts")
         for _, fact in ipairs(facts) do
@@ -1578,7 +1487,7 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
-    for _, zoneId in ipairs({ "buried_archive", "salt_cistern", "ember_warrens" }) do
+    for _, zoneId in ipairs({ "buried_archive" }) do
         local count = 0
         for _, mechanic in ipairs(ZoneCatalog.tileMechanics(zoneId)) do
             if mechanic.helpsEitherSide then
@@ -1871,7 +1780,7 @@ tests[#tests + 1] = function()
         expect(archetype and archetype.intent and archetype.boardVerb and archetype.counterplay and archetype.preview, "enemy archetype should include tactical metadata: " .. archetypeId)
         expect(audit.coverage[archetypeId] and audit.coverage[archetypeId] > 0, "enemy archetype should be represented by a common enemy: " .. archetypeId)
     end
-    for _, familyId in ipairs({ "archive", "cistern", "warrens" }) do
+    for _, familyId in ipairs({ "archive" }) do
         for _, enemy in ipairs(EnemyCatalog.common(familyId)) do
             expect(enemy.archetype and EnemyCatalog.archetype(enemy.archetype), "common enemy should reference known archetype: " .. enemy.id)
         end
@@ -1881,7 +1790,7 @@ end
 tests[#tests + 1] = function()
     local audit = EnemyCatalog.auditExactBasicIntents()
     expect(audit.ok, "basic enemy exact-intent audit should pass")
-    for _, familyId in ipairs({ "archive", "cistern", "warrens" }) do
+    for _, familyId in ipairs({ "archive" }) do
         expect(audit.coverage[familyId] == #EnemyCatalog.common(familyId), "exact-intent audit should cover all common enemies in " .. familyId)
         for _, enemy in ipairs(EnemyCatalog.common(familyId)) do
             local intent = enemy.exactIntent
@@ -1895,7 +1804,7 @@ end
 tests[#tests + 1] = function()
     local audit = EnemyCatalog.auditEliteMaskedIntents()
     expect(audit.ok, "elite masked-intent audit should pass")
-    for _, familyId in ipairs({ "archive", "cistern", "warrens" }) do
+    for _, familyId in ipairs({ "archive" }) do
         expect(audit.coverage[familyId] == #EnemyCatalog.elites(familyId), "masked-intent audit should cover all elites in " .. familyId)
         for _, enemy in ipairs(EnemyCatalog.elites(familyId)) do
             local masked = enemy.maskedIntent
@@ -1950,74 +1859,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
-    local enemies = EnemyCatalog.common("cistern")
-    expect(#enemies == 10, "Cistern should define 10 common enemies")
-    local ids = {}
-    for _, enemy in ipairs(enemies) do
-        expect(enemy.id and enemy.name and enemy.waterPressureVerb, "cistern common enemy should include id name water/pressure verb")
-        expect(enemy.exactIntent and enemy.exactIntent.mode == "exact", "cistern common enemy should include exact intent")
-        expect(not ids[enemy.id], "cistern common enemy ids should be unique")
-        ids[enemy.id] = true
+    for _, familyId in ipairs({ "cistern", "warrens" }) do
+        local family = ArchivedTactics.enemies[familyId]
+        expect(family and #family.common == 10 and #family.elites == 3 and family.alpha, "future enemy family should be archived: " .. familyId)
+        expect(EnemyCatalog.common(familyId)[1] == nil and EnemyCatalog.elites(familyId)[1] == nil and EnemyCatalog.alpha(familyId) == nil, "future enemy family should not be live: " .. familyId)
     end
-end
-
-tests[#tests + 1] = function()
-    local elites = EnemyCatalog.elites("cistern")
-    expect(#elites == 3, "Cistern should define 3 elites")
-    local ids = {}
-    for _, enemy in ipairs(elites) do
-        expect(enemy.id and enemy.name and enemy.floodDrainCounterplay, "cistern elite should include id name flood/drain counterplay")
-        expect(enemy.partialIntent and enemy.partialIntent.mode == "category", "cistern elite should include partial intent")
-        expect(enemy.weakPoints and #enemy.weakPoints > 0, "cistern elite should include weak points")
-        expect(not ids[enemy.id], "cistern elite ids should be unique")
-        ids[enemy.id] = true
-    end
-end
-
-tests[#tests + 1] = function()
-    local alpha = EnemyCatalog.alpha("cistern")
-    expect(alpha and alpha.id == "depth_bailiff", "Cistern should define Depth Bailiff alpha")
-    expect(alpha.visiblePreBoard == true, "Cistern alpha should be visible before board")
-    expect(alpha.preBoardThreat and alpha.routeChoiceChange and alpha.boardGenerationChange, "Cistern alpha should alter route and board generation")
-end
-
-tests[#tests + 1] = function()
-    local enemies = EnemyCatalog.common("warrens")
-    expect(#enemies == 10, "Warrens should define 10 common enemies")
-    local ids = {}
-    for _, enemy in ipairs(enemies) do
-        expect(enemy.id and enemy.name and enemy.heatAshGlassVerb, "warrens common enemy should include id name heat/ash/glass verb")
-        expect(enemy.exactIntent and enemy.exactIntent.mode == "exact", "warrens common enemy should include exact intent")
-        expect(not ids[enemy.id], "warrens common enemy ids should be unique")
-        ids[enemy.id] = true
-    end
-end
-
-tests[#tests + 1] = function()
-    local elites = EnemyCatalog.elites("warrens")
-    expect(#elites == 3, "Warrens should define 3 elites")
-    local ids = {}
-    for _, enemy in ipairs(elites) do
-        expect(enemy.id and enemy.name and enemy.burnDouseGlassCounterplay, "warrens elite should include id name burn/douse/glass counterplay")
-        expect(enemy.partialIntent and enemy.partialIntent.mode == "category", "warrens elite should include partial intent")
-        expect(enemy.weakPoints and #enemy.weakPoints > 0, "warrens elite should include weak points")
-        expect(not ids[enemy.id], "warrens elite ids should be unique")
-        ids[enemy.id] = true
-    end
-end
-
-tests[#tests + 1] = function()
-    local alpha = EnemyCatalog.alpha("warrens")
-    expect(alpha and alpha.id == "white_furnace", "Warrens should define White Furnace alpha")
-    expect(alpha.visiblePreBoard == true, "Warrens alpha should be visible before board")
-    expect(alpha.preBoardThreat and alpha.routeChoiceChange and alpha.boardGenerationChange, "Warrens alpha should alter route and board generation")
 end
 
 tests[#tests + 1] = function()
     local specs = {
         buried_archive = { family = "archive", prefix = "archive_", verbField = "boardVerb", eliteField = "terrainInteraction", required = { "archive_audit_beam", "archive_shelf_shift", "archive_back_face_seal" } },
-        salt_cistern = { family = "cistern", prefix = "cistern_", verbField = "waterPressureVerb", eliteField = "floodDrainCounterplay", required = { "cistern_flood_lane", "cistern_valve_turn", "cistern_waterline_height" } },
-        ember_warrens = { family = "warrens", prefix = "warrens_", verbField = "heatAshGlassVerb", eliteField = "burnDouseGlassCounterplay", required = { "warrens_heat_lane", "warrens_kiln_heat", "warrens_vitrified_cover" } },
     }
     for zoneId, spec in pairs(specs) do
         local mechanics = ZoneCatalog.tileMechanics(zoneId)
@@ -2082,38 +1933,11 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
-    local boss = BossCatalog.boss("pearl_choir")
-    expect(boss and boss.name == "Pearl Choir" and boss.zone == "salt_cistern", "Pearl Choir boss catalog entry should exist")
-    expect(#boss.board.refloodingLanes == 2, "Pearl Choir should define reflooding lanes")
-    expect(#boss.board.choirThroats == 2, "Pearl Choir should define choir throats")
-    expect(#boss.board.movingWaterline.states == 4 and boss.board.movingWaterline.rule, "Pearl Choir should define moving waterline")
-    expect(#boss.board.pressureBellAdds == 2, "Pearl Choir should define pressure bell adds")
-end
-
-tests[#tests + 1] = function()
-    local boss = BossCatalog.boss("bell_diver")
-    expect(boss and boss.name == "Bell Diver" and boss.zone == "salt_cistern", "Bell Diver boss catalog entry should exist")
-    expect(#boss.board.hookLanes == 2, "Bell Diver should define hook lanes")
-    expect(boss.board.weakPoints[1].id == "bell_lung", "Bell Diver should define Bell Lung weak point")
-    expect(boss.board.floodTollCountdown.start == 3 and boss.board.floodTollCountdown.failure, "Bell Diver should define flood-toll countdown")
-    expect(#boss.board.lowGroundPunishment == 2, "Bell Diver should define low-ground punishment")
-end
-
-tests[#tests + 1] = function()
-    local boss = BossCatalog.boss("kiln_vicar")
-    expect(boss and boss.name == "Kiln Vicar" and boss.zone == "ember_warrens", "Kiln Vicar boss catalog entry should exist")
-    expect(boss.board.vitrifyTarget.selector == "most exposed unit or objective", "Kiln Vicar should define vitrify target")
-    expect(#boss.board.haloVents == 3, "Kiln Vicar should define halo vents")
-    expect(#boss.board.douseRoutes == 2, "Kiln Vicar should define douse routes")
-    expect(#boss.board.ashChokeCover == 2, "Kiln Vicar should define ash-choke cover")
-end
-
-tests[#tests + 1] = function()
-    local boss = BossCatalog.boss("cinder_prioress")
-    expect(boss and boss.name == "Cinder Prioress" and boss.zone == "ember_warrens", "Cinder Prioress boss catalog entry should exist")
-    expect(#boss.board.furnacePhases == 3, "Cinder Prioress should define furnace phases")
-    expect(#boss.board.glassCrownReflectors == 3, "Cinder Prioress should define glass crown reflectors")
-    expect(#boss.board.fuelObjectiveTradeoffs == 2, "Cinder Prioress should define fuel-objective tradeoffs")
+    for _, bossId in ipairs({ "pearl_choir", "bell_diver", "kiln_vicar", "cinder_prioress" }) do
+        local boss = ArchivedTactics.bosses[bossId]
+        expect(boss and boss.zone and #boss.phases == 3, "future boss should be archived: " .. bossId)
+        expect(BossCatalog.boss(bossId) == nil, "future boss should not be live: " .. bossId)
+    end
 end
 
 tests[#tests + 1] = function()
@@ -2194,7 +2018,7 @@ end
 tests[#tests + 1] = function()
     local map = RunCatalog.generateMap(2404, { zone = "salt_cistern" })
     local report = RunCatalog.validateMap(map)
-    expect(map.zone == "salt_cistern" and report.valid, "run map should generate valid zone graph")
+    expect(map.zone == "buried_archive" and report.valid, "future zone request should fall back to live archive graph")
     expect(#map.choices == 2 and map.nodeById[map.choices[1]].preview.risk and map.nodeById[map.choices[1]].preview.reward, "run map should expose route choices with previews")
     expect(map.nodeById.enclave_request.request.enclave and map.nodeById.enclave_request.request.reward, "run map should include enclave request")
     expect(map.nodeById.event_node.kind == "event" and map.nodeById.event_node.eventId, "run map should include event node")
@@ -2693,10 +2517,8 @@ end
 tests[#tests + 1] = function()
     local expected = {
         buried_archive = { material = "archive", hazardKind = "audit_static", objectiveKind = "protect_archive_shelf" },
-        salt_cistern = { material = "salt", hazardKind = "flood", objectiveKind = "repair_floodgate" },
-        ember_warrens = { material = "ember", hazardKind = "burn", objectiveKind = "disable_kiln" },
     }
-    expect(#TacticsProcgen.zoneGenerators() == 3, "procgen should expose three zone generators")
+    expect(#TacticsProcgen.zoneGenerators() == 1, "procgen should expose one live zone generator")
     for zoneId, expectation in pairs(expected) do
         local generator = TacticsProcgen.zoneGenerator(zoneId)
         local spec = TacticsProcgen.generateZoneBoard(zoneId, 2202)
@@ -2708,10 +2530,13 @@ tests[#tests + 1] = function()
         expect(TacticsProcgen.zoneState(zoneId, 2202):tileAt(spec.objectives[1].x, spec.objectives[1].y).material == expectation.material, zoneId .. " generated state should keep material")
         expect(Serialize.encode(spec) == Serialize.encode(TacticsProcgen.generateZoneBoard(zoneId, 2202)), zoneId .. " generator should be deterministic per seed")
     end
+    for _, zoneId in ipairs(ArchivedTactics.zoneOrder) do
+        expect(TacticsProcgen.zoneGenerator(zoneId) == nil and ArchivedTactics.procgen[zoneId], "future generator should be archived: " .. zoneId)
+    end
 end
 
 tests[#tests + 1] = function()
-    for _, zoneId in ipairs({ "buried_archive", "salt_cistern", "ember_warrens" }) do
+    for _, zoneId in ipairs({ "buried_archive" }) do
         local spec = TacticsProcgen.generateDirectedZoneBoard(zoneId, 2303, { includeElite = true })
         local director = spec.encounterDirector
         expect(director.zone == zoneId and #director.enemyMix == 3, zoneId .. " director should create enemy mix")

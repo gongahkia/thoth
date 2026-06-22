@@ -120,11 +120,9 @@ RunCatalog.eventPrompts = {
 
 local runMapZones = {
     buried_archive = { boss = "vault_regent", enclave = "custodian annex", hazard = "audit static" },
-    salt_cistern = { boss = "pearl_choir", enclave = "drowned pump ward", hazard = "flood lane" },
-    ember_warrens = { boss = "cinder_prioress", enclave = "ash shelter", hazard = "burn lane" },
 }
 
-local runMapZoneOrder = { "buried_archive", "salt_cistern", "ember_warrens" }
+local runMapZoneOrder = { "buried_archive" }
 
 local function copyValue(value)
     if type(value) ~= "table" then
@@ -285,7 +283,11 @@ function RunCatalog.generateMap(seed, options)
     options = options or {}
     local rng = Rng.new(seed or 1)
     local zoneId = options.zone or runMapZoneOrder[rng:range(1, #runMapZoneOrder)]
-    local zone = runMapZones[zoneId] or runMapZones.buried_archive
+    local zone = runMapZones[zoneId]
+    if not zone then
+        zoneId = "buried_archive"
+        zone = runMapZones.buried_archive
+    end
     local event = eventFor((seed or 1) + 404)
     local nodes = {
         node("start", "start", 0, {

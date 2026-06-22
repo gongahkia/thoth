@@ -11,7 +11,7 @@ local function copyValue(value)
     return result
 end
 
-ZoneCatalog.requiredDestructibleKinds = { "shelf", "bridge", "valve", "kiln", "door", "floor", "machinery" }
+ZoneCatalog.requiredDestructibleKinds = { "shelf", "bridge", "door" }
 
 ZoneCatalog.zones = {
     buried_archive = {
@@ -46,80 +46,12 @@ ZoneCatalog.zones = {
             { id = "archive_name_order", fact = "seal reverse lists name order", planningImpact = "route split squad to correct lock first", changesState = false },
         },
     },
-    salt_cistern = {
-        tileMechanics = {
-            { id = "cistern_valve_turn", subject = "valves", verb = "turn", effect = "raises or drains declared water bands" },
-            { id = "cistern_sluice_current", subject = "sluice currents", verb = "push", effect = "moves units along previewed arrows after actions", helpsEitherSide = true },
-            { id = "cistern_flood_lane", subject = "flood lanes", verb = "surge", effect = "delayed line hazard fills marked tiles" },
-            { id = "cistern_brine_pool", subject = "brine pools", verb = "wade", effect = "slows movement and threatens blight damage", helpsEitherSide = true },
-            { id = "cistern_salt_mist", subject = "salt mist", verb = "obscure", effect = "visible obscurant changes LoS and reveal ranges" },
-            { id = "cistern_pressure_bell", subject = "pressure bells", verb = "ring", effect = "signals enemy intent escalation on flooded rows" },
-            { id = "cistern_pearl_cyst", subject = "pearl cysts", verb = "burst", effect = "creates blocker shards and brine splash" },
-            { id = "cistern_pump_bridge", subject = "pump bridges", verb = "pump", effect = "toggles crossing tiles by waterline state" },
-            { id = "cistern_undertow_tile", subject = "undertow tiles", verb = "drag", effect = "pulls exposed units toward drains" },
-            { id = "cistern_drain_grate", subject = "drain grates", verb = "open", effect = "removes nearby flood lane and creates pit risk" },
-            { id = "cistern_floating_cover", subject = "floating cover", verb = "drift", effect = "moves half cover with currents", helpsEitherSide = true },
-            { id = "cistern_waterline_height", subject = "waterline height", verb = "rise_fall", effect = "changes movement cost and LoS height bands" },
-        },
-        objects = {
-            { id = "tide_valve", apCost = 2, hp = 4, losEffect = "no block", coverState = "none", rotation = "reverse side marks drain order", floodEffect = "drains one flood band", objectiveEffect = "repairs floodgate integrity" },
-            { id = "sluice_gate", apCost = 2, hp = 5, losEffect = "opaque while shut", coverState = "full", rotation = "reverse side marks surge lane", floodEffect = "opens delayed flood lane", objectiveEffect = "damages route machinery if broken" },
-            { id = "pressure_bell_frame", apCost = 1, hp = 3, losEffect = "no block", coverState = "none", rotation = "reverse side marks bell radius", floodEffect = "calls surge on wet rows", objectiveEffect = "pressures protect nodes" },
-            { id = "pearl_cyst_cluster", apCost = 1, hp = 4, losEffect = "low opaque blocker", coverState = "half", rotation = "reverse side marks burst cone", floodEffect = "adds brine splash", objectiveEffect = "damages civilian cells if burst nearby" },
-            { id = "pump_bridge_wheel", apCost = 2, hp = 4, losEffect = "no block", coverState = "none", rotation = "reverse side marks bridge lock", floodEffect = "raises bridge while lowering adjacent water", objectiveEffect = "opens extract route" },
-            { id = "drain_grate_cap", apCost = 1, hp = 3, losEffect = "pit sight only", coverState = "none", rotation = "reverse side marks undertow pull", floodEffect = "drains adjacent flood tiles", objectiveEffect = "risks repair target integrity" },
-            { id = "floating_barricade", apCost = 1, hp = 3, losEffect = "drifting half blocker", coverState = "half", rotation = "reverse side marks current route", floodEffect = "moves with current after drain tick", objectiveEffect = "shields machinery core" },
-            { id = "waterline_gauge", apCost = 1, hp = 2, losEffect = "no block", coverState = "none", rotation = "reverse side marks safe height", floodEffect = "previews next rise or drain", objectiveEffect = "prevents objective integrity surprise" },
-        },
-        rotationFacts = {
-            { id = "cistern_valve_sequence", fact = "valve back shows drain sequence", planningImpact = "pick flood band order before turning", changesState = false },
-            { id = "cistern_current_arrow", fact = "sluice marker shows current arrow", planningImpact = "avoid forced movement path", changesState = false },
-            { id = "cistern_bell_radius", fact = "bell frame shows pressure radius", planningImpact = "plan outside intent escalation rows", changesState = false },
-            { id = "cistern_safe_waterline", fact = "gauge back shows safe waterline", planningImpact = "time extract movement before rise", changesState = false },
-        },
-    },
-    ember_warrens = {
-        tileMechanics = {
-            { id = "warrens_kiln_heat", subject = "kilns", verb = "stoke", effect = "creates declared heat around kiln mouths" },
-            { id = "warrens_ash_choke", subject = "ash choke", verb = "clog", effect = "slows movement and obscures low LoS", helpsEitherSide = true },
-            { id = "warrens_bellows_cone", subject = "bellows cones", verb = "blast", effect = "pushes heat and units through previewed cone", helpsEitherSide = true },
-            { id = "warrens_glass_floor", subject = "glass floors", verb = "crack", effect = "reveals fragile path and shard hazard" },
-            { id = "warrens_vitrified_cover", subject = "vitrified cover", verb = "reflect", effect = "half cover reflects first line effect until shattered", helpsEitherSide = true },
-            { id = "warrens_heat_lane", subject = "heat lanes", verb = "burn", effect = "delayed line damage on marked rows" },
-            { id = "warrens_fuel_store", subject = "fuel stores", verb = "ignite", effect = "creates timed fire burst and smoke" },
-            { id = "warrens_ember_oil", subject = "ember oil", verb = "spread", effect = "extends burn tiles until doused" },
-            { id = "warrens_furnace_door", subject = "furnace doors", verb = "seal_vent", effect = "toggles blocker and heat vent state" },
-            { id = "warrens_cinder_vent", subject = "cinder vents", verb = "vent", effect = "spawns ash choke after heat tick" },
-            { id = "warrens_white_coal_pressure", subject = "white-coal pressure", verb = "pressurize", effect = "escalates heat intent unless released" },
-            { id = "warrens_meltable_bridge", subject = "meltable bridges", verb = "melt", effect = "turns crossing into hazard after countdown" },
-        },
-        objects = {
-            { id = "kiln_mouth", apCost = 2, hp = 5, losEffect = "opaque heat source", coverState = "full", rotation = "reverse side marks vent vector", burnEffect = "adds heat lane", douseEffect = "removes next heat tick", glassifyEffect = "creates vitrified cover lip" },
-            { id = "ash_heap", apCost = 1, hp = 3, losEffect = "low obscurant", coverState = "half", rotation = "reverse side marks buried clinker", burnEffect = "turns ash choke into smoke", douseEffect = "compacts into rough tile", glassifyEffect = "forms brittle half cover" },
-            { id = "bellows_spine", apCost = 2, hp = 4, losEffect = "no block", coverState = "none", rotation = "reverse side marks cone", burnEffect = "extends heat cone", douseEffect = "shuts cone for one tick", glassifyEffect = "locks cone bearing" },
-            { id = "glass_screen", apCost = 1, hp = 2, losEffect = "reflective line blocker", coverState = "half", rotation = "reverse side marks reflection path", burnEffect = "heats adjacent lane", douseEffect = "fog reveals hidden mark", glassifyEffect = "upgrades to full reflective cover" },
-            { id = "fuel_cart", apCost = 1, hp = 3, losEffect = "mobile half blocker", coverState = "half", rotation = "reverse side marks spill arc", burnEffect = "explodes after fuse", douseEffect = "becomes safe movable cover", glassifyEffect = "freezes as full blocker" },
-            { id = "ember_oil_cask", apCost = 1, hp = 2, losEffect = "no block", coverState = "none", rotation = "reverse side marks oil trail", burnEffect = "spreads burn tiles", douseEffect = "clears oil trail", glassifyEffect = "creates slick glass floor" },
-            { id = "furnace_door_chain", apCost = 2, hp = 4, losEffect = "toggles opaque door", coverState = "full", rotation = "reverse side marks chain weakness", burnEffect = "vents heat burst", douseEffect = "seals door safely", glassifyEffect = "jams door open" },
-            { id = "white_coal_cradle", apCost = 2, hp = 4, losEffect = "bright low blocker", coverState = "half", rotation = "reverse side marks pressure notch", burnEffect = "raises white-coal pressure", douseEffect = "releases pressure safely", glassifyEffect = "creates permanent glass hazard" },
-        },
-        rotationFacts = {
-            { id = "warrens_bellows_bearing", fact = "bellows spine shows cone bearing", planningImpact = "stand outside the next blast cone", changesState = false },
-            { id = "warrens_glass_reflection", fact = "glass back shows reflection path", planningImpact = "break or use reflected line effects", changesState = false },
-            { id = "warrens_fuel_spill", fact = "fuel cart underside shows spill arc", planningImpact = "avoid delayed burn spread", changesState = false },
-            { id = "warrens_white_coal_notch", fact = "coal cradle shows pressure notch", planningImpact = "release pressure before heat intent escalates", changesState = false },
-        },
-    },
 }
 
 ZoneCatalog.destructibleLocationRules = {
     shelf = { zone = "buried_archive", source = "object", objectId = "rolling_shelf", hp = 5, apCost = 2, breakEffect = "clears full-cover LoS blocker and opens crush lane", repairCounterplay = "brace or shove shelf before break", preview = "HP, cover edge, LoS block, crush lane", deterministic = true },
     bridge = { zone = "buried_archive", source = "object", objectId = "ledger_bridge_winch", hp = 4, apCost = 2, breakEffect = "toggles split-squad crossing dependency", repairCounterplay = "lower bridge or route around before collapse", preview = "HP, crossing state, bridge latch", deterministic = true },
-    valve = { zone = "salt_cistern", source = "object", objectId = "tide_valve", hp = 4, apCost = 2, breakEffect = "drains or locks declared flood band", repairCounterplay = "turn valve or repair floodgate integrity", preview = "HP, drain order, water band", deterministic = true },
-    kiln = { zone = "ember_warrens", source = "object", objectId = "kiln_mouth", hp = 5, apCost = 2, breakEffect = "removes opaque heat source and changes next heat lane", repairCounterplay = "douse kiln mouth before heat tick", preview = "HP, vent vector, heat lane", deterministic = true },
     door = { zone = "buried_archive", source = "object", objectId = "sealed_stacks_door", hp = 4, apCost = 2, breakEffect = "opens movement and LoS through sealed route", repairCounterplay = "use hinge or seal-open action before breach", preview = "HP, blocker state, hinge mark", deterministic = true },
-    floor = { zone = "ember_warrens", source = "mechanic", objectId = "warrens_glass_floor", hp = 2, apCost = 1, breakEffect = "creates fragile path and shard hazard", repairCounterplay = "route around or glassify safe floor", preview = "HP, crack state, shard hazard", deterministic = true },
-    machinery = { zone = "salt_cistern", source = "objective", objectId = "machinery_core", hp = 4, apCost = 2, breakEffect = "damages objective integrity and repair route", repairCounterplay = "repair machinery or shield core with cover", preview = "integrity, repair AP, objective delta", deterministic = true },
 }
 
 function ZoneCatalog.zone(id)

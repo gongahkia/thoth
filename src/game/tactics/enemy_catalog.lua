@@ -1,6 +1,6 @@
 local EnemyCatalog = {}
 
-EnemyCatalog.requiredArchetypes = { "mover", "shooter", "artillery", "pusher", "puller", "blocker", "summoner", "repairer", "saboteur", "overwatch", "terrain-breaker" }
+EnemyCatalog.requiredArchetypes = { "mover", "shooter", "artillery", "puller", "blocker", "summoner", "saboteur", "overwatch" }
 
 EnemyCatalog.archetypes = {
     mover = { intent = "reposition", boardVerb = "move", counterplay = "body block lane or pin source", preview = "destination and path" },
@@ -32,8 +32,6 @@ EnemyCatalog.exactIntentBlueprints = {
 
 EnemyCatalog.eliteMaskBlueprints = {
     archive = { mask = "seal", targetPattern = "sealed claim footprint", pathPattern = "audit beam or shelf trace", revealClass = "arcanist", revealAction = "unseal_intent", counterplay = "break seal line", preview = "category icon plus sealed footprint" },
-    cistern = { mask = "waterline", targetPattern = "submerged pressure footprint", pathPattern = "flood lane or undertow trace", revealClass = "lamplighter", revealAction = "sound_depth", counterplay = "drain pressure source", preview = "category icon plus waterline mask" },
-    warrens = { mask = "ash_glass", targetPattern = "ash or glass reflection footprint", pathPattern = "heat lane or reflector trace", revealClass = "chirurgeon", revealAction = "clear_ash_glass", counterplay = "douse or shatter reflector", preview = "category icon plus ash/glass mask" },
 }
 
 EnemyCatalog.families = {
@@ -64,60 +62,6 @@ EnemyCatalog.families = {
             boardGenerationChange = "adds two shoveable shelf blockers and one audit beam lane",
         },
     },
-    cistern = {
-        common = {
-            { id = "drowned_acolyte", name = "Drowned Acolyte", archetype = "artillery", exactIntent = { mode = "exact", category = "debuff", damage = 1, target = "line" }, waterPressureVerb = "raise_mist" },
-            { id = "brine_stalker", name = "Brine Stalker", archetype = "puller", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "flank" }, waterPressureVerb = "pull_current" },
-            { id = "valve_thrall", name = "Valve Thrall", archetype = "terrain-breaker", exactIntent = { mode = "exact", category = "destroy", damage = 2, target = "cover" }, waterPressureVerb = "turn_valve" },
-            { id = "brine_midwife", name = "Brine Midwife", archetype = "summoner", exactIntent = { mode = "exact", category = "summon", damage = 0, target = "pool" }, waterPressureVerb = "birth_brine" },
-            { id = "sluice_eel", name = "Sluice Eel", archetype = "mover", exactIntent = { mode = "exact", category = "move", damage = 2, target = "current" }, waterPressureVerb = "ride_sluice" },
-            { id = "salt_choir", name = "Salt Choir", archetype = "repairer", exactIntent = { mode = "exact", category = "repair", damage = 0, target = "wet_row" }, waterPressureVerb = "ring_pressure" },
-            { id = "pearl_cyst", name = "Pearl Cyst", archetype = "blocker", exactIntent = { mode = "exact", category = "guard", damage = 1, target = "claim_tile" }, waterPressureVerb = "burst_pool" },
-            { id = "halocline_tender", name = "Halocline Tender", archetype = "pusher", exactIntent = { mode = "exact", category = "debuff", damage = 0, target = "waterline" }, waterPressureVerb = "shift_halocline" },
-            { id = "drowned_pilgrim", name = "Drowned Pilgrim", archetype = "shooter", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "low_ground" }, waterPressureVerb = "kneel_flood" },
-            { id = "reed_mouth_diver", name = "Reed-Mouth Diver", archetype = "saboteur", exactIntent = { mode = "exact", category = "flee", damage = 0, target = "exit_water" }, waterPressureVerb = "signal_reed" },
-        },
-        elites = {
-            { id = "depth_bailiff", name = "Depth Bailiff", partialIntent = { mode = "category", category = "destroy" }, weakPoints = { "depth_warrant" }, floodDrainCounterplay = "drain adjacent pressure bell" },
-            { id = "pearl_choir", name = "Pearl Choir", partialIntent = { mode = "category", category = "summon" }, weakPoints = { "choir_throat" }, floodDrainCounterplay = "lower waterline before chorus" },
-            { id = "undertow_notary", name = "Undertow Notary", partialIntent = { mode = "category", category = "move" }, weakPoints = { "tide_stamp" }, floodDrainCounterplay = "open drain grate to break pull lane" },
-        },
-        alpha = {
-            id = "depth_bailiff",
-            name = "Depth Bailiff",
-            visiblePreBoard = true,
-            preBoardThreat = "posts a depth warrant on the route map",
-            routeChoiceChange = "floods one shallow route and discounts one pump route",
-            boardGenerationChange = "adds one pressure bell, two flood lanes, and raised low-ground punishment",
-        },
-    },
-    warrens = {
-        common = {
-            { id = "ash_husk", name = "Ash Husk", archetype = "pusher", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "front" }, heatAshGlassVerb = "kick_ash" },
-            { id = "kiln_imp", name = "Kiln Imp", archetype = "mover", exactIntent = { mode = "exact", category = "move", damage = 1, target = "heat_lane" }, heatAshGlassVerb = "spark_jump" },
-            { id = "kiln_nurse", name = "Kiln Nurse", archetype = "repairer", exactIntent = { mode = "exact", category = "repair", damage = 0, target = "burned_ally" }, heatAshGlassVerb = "cautery_stoke" },
-            { id = "glass_penitent", name = "Glass Penitent", archetype = "overwatch", exactIntent = { mode = "exact", category = "guard", damage = 1, target = "line" }, heatAshGlassVerb = "raise_glass" },
-            { id = "clinker_butcher", name = "Clinker Butcher", archetype = "puller", exactIntent = { mode = "exact", category = "attack", damage = 3, target = "cover" }, heatAshGlassVerb = "hook_clinker" },
-            { id = "white_furnace", name = "White Furnace", archetype = "terrain-breaker", exactIntent = { mode = "exact", category = "destroy", damage = 3, target = "objective" }, heatAshGlassVerb = "pressure_coal" },
-            { id = "glass_choirmaster", name = "Glass Choirmaster", archetype = "artillery", exactIntent = { mode = "exact", category = "debuff", damage = 0, target = "reflected_line" }, heatAshGlassVerb = "sing_reflection" },
-            { id = "cinder_penitent", name = "Cinder Penitent", archetype = "shooter", exactIntent = { mode = "exact", category = "attack", damage = 2, target = "adjacent" }, heatAshGlassVerb = "immolate_cinder" },
-            { id = "ember_mote", name = "Ember Mote", archetype = "summoner", exactIntent = { mode = "exact", category = "summon", damage = 1, target = "burn_tile" }, heatAshGlassVerb = "seed_ember" },
-            { id = "coal_monk", name = "Coal Monk", archetype = "saboteur", exactIntent = { mode = "exact", category = "debuff", damage = 1, target = "white_coal" }, heatAshGlassVerb = "chant_pressure" },
-        },
-        elites = {
-            { id = "halo_deacon", name = "Halo Deacon", partialIntent = { mode = "category", category = "destroy" }, weakPoints = { "halo_vent" }, burnDouseGlassCounterplay = "douse halo vent before vitrify" },
-            { id = "glass_cantor", name = "Glass Cantor", partialIntent = { mode = "category", category = "debuff" }, weakPoints = { "glass_throat" }, burnDouseGlassCounterplay = "shatter reflector then douse shards" },
-            { id = "coal_prioress", name = "Coal Prioress", partialIntent = { mode = "category", category = "buff" }, weakPoints = { "white_coal_notch" }, burnDouseGlassCounterplay = "glassify fuel line to starve pressure" },
-        },
-        alpha = {
-            id = "white_furnace",
-            name = "White Furnace",
-            visiblePreBoard = true,
-            preBoardThreat = "lights white coal on one route before entry",
-            routeChoiceChange = "burns one fuel branch and opens one ash shortcut",
-            boardGenerationChange = "adds heat lanes, a fuel-store fuse, and one meltable bridge",
-        },
-    },
 }
 
 EnemyCatalog.sliceEliteSpecData = {
@@ -141,8 +85,6 @@ EnemyCatalog.globalPressure = {
 
 local utilityEffects = {
     archive = "claim, reveal, seal, or reposition records without damage",
-    cistern = "shift water, bell pressure, or drain state without damage",
-    warrens = "alter heat, ash, glass, or fuel state without damage",
     global = "apply rare-event pressure without damage",
 }
 
@@ -359,7 +301,7 @@ function EnemyCatalog.auditExactBasicIntents()
             end
         end
     end
-    for _, familyId in ipairs({ "archive", "cistern", "warrens" }) do
+    for _, familyId in ipairs({ "archive" }) do
         if (report.coverage[familyId] or 0) < 8 then
             table.insert(report.missing, familyId .. ".exactIntentCoverage")
         end
@@ -409,7 +351,7 @@ function EnemyCatalog.auditEliteMaskedIntents()
             end
         end
     end
-    for _, familyId in ipairs({ "archive", "cistern", "warrens" }) do
+    for _, familyId in ipairs({ "archive" }) do
         if (report.coverage[familyId] or 0) ~= #EnemyCatalog.elites(familyId) then
             table.insert(report.missing, familyId .. ".maskedIntentCoverage")
         end
@@ -427,7 +369,7 @@ function EnemyCatalog.allEnemies()
             seen[enemy.id] = true
         end
     end
-    for _, familyId in ipairs({ "archive", "cistern", "warrens" }) do
+    for _, familyId in ipairs({ "archive" }) do
         local family = EnemyCatalog.family(familyId)
         for _, enemy in ipairs(family.common or {}) do
             add(enemy)

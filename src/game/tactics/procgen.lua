@@ -27,14 +27,12 @@ local boardGrammar = {
     },
 }
 
-local hazardKinds = { "audit_static", "salt_leak", "ember_heat" }
+local hazardKinds = { "audit_static" }
 
-local zoneGeneratorOrder = { "buried_archive", "salt_cistern", "ember_warrens" }
+local zoneGeneratorOrder = { "buried_archive" }
 
 local zoneEnemyFamilies = {
     buried_archive = "archive",
-    salt_cistern = "cistern",
-    ember_warrens = "warrens",
 }
 
 local zoneGenerators = {
@@ -48,28 +46,6 @@ local zoneGenerators = {
         sightBreakKind = "rolling_shelf",
         width = 8,
         height = 8,
-    },
-    salt_cistern = {
-        id = "cistern_generator_v1",
-        zone = "salt_cistern",
-        material = "salt",
-        hazardKind = "flood",
-        objectiveId = "floodgate",
-        objectiveKind = "repair_floodgate",
-        sightBreakKind = "sluice_gate",
-        width = 9,
-        height = 7,
-    },
-    ember_warrens = {
-        id = "warrens_generator_v1",
-        zone = "ember_warrens",
-        material = "ember",
-        hazardKind = "burn",
-        objectiveId = "kiln_chain",
-        objectiveKind = "disable_kiln",
-        sightBreakKind = "kiln_mouth",
-        width = 8,
-        height = 7,
     },
 }
 

@@ -22,7 +22,6 @@ Deterministic XCOM-lite tactics in the Great Stack. Squad of six audits a Buried
 (A) 2026-06-22 Delete src/game/simulation.lua and remove every require/usage from main.lua and tests +legacy-cleanup @engine
 (A) 2026-06-22 Delete src/game/world.lua and remove every require/usage from main.lua and tests +legacy-cleanup @engine
 (A) 2026-06-22 Strip the tacticalMode guard branches in main.lua now that only the tactical path remains; collapse update/draw to a single code path +legacy-cleanup @engine
-(A) 2026-06-22 Move zone 2-3 (Salt Cistern, Ember Warrens) entries in src/game/tactics/run_catalog.lua, enemy_catalog.lua, boss_catalog.lua, zone_catalog.lua, and procgen.lua to a new archive/ subtree; leave only Buried Archive live +legacy-cleanup @data
 (A) 2026-06-22 Delete src/app/i18n.lua, src/game/data/i18n/, docs/i18n/, docs/translation-onboarding.md; remove i18n requires from main.lua and any active modules +legacy-cleanup @engine
 (A) 2026-06-22 Run make test and make package-build to confirm the legacy/i18n removal does not break the playable tactical path or dist/thoth.love +legacy-cleanup @tests
 (A) 2026-06-22 Add per-unit vision radius to src/game/tactics/state.lua units table (default 8 tiles), extend src/game/tactics/los.lua with computeVisibleTiles(unit) returning a set, and aggregate squad visibility into a board-wide fog grid +xcom-primitives @engine
