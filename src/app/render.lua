@@ -2032,9 +2032,10 @@ function Render.drawWorld(sim, app)
     app.worldView.mode = "render3d-placeholder"
     local screenWidth = love and love.graphics and love.graphics.getWidth() or 0
     local screenHeight = love and love.graphics and love.graphics.getHeight() or 0
-    local infoWidth = app and app.tacticalMode and math.min(244, math.max(208, screenWidth * 0.17)) or 0
-    app.worldView.centerX = app and app.tacticalMode and ((screenWidth - infoWidth) * 0.46) or (screenWidth / 2)
-    app.worldView.centerY = app and app.tacticalMode and (screenHeight * 0.59) or (screenHeight / 2)
+    local tacticalLayout = app and app.tacticalMode and Render.tacticalHudLayout(screenWidth, screenHeight, 6) or nil
+    app.worldView.boardRect = tacticalLayout and tacticalLayout.board or nil
+    app.worldView.centerX = tacticalLayout and (tacticalLayout.board.x + tacticalLayout.board.w * 0.5) or (screenWidth / 2)
+    app.worldView.centerY = tacticalLayout and (tacticalLayout.board.y + tacticalLayout.board.h * 0.5) or (screenHeight / 2)
     local zoom = app and app.tacticalMode and Render.tacticalZoom(app) or 1
     app.worldView.halfW = 32 * zoom
     app.worldView.halfH = 16 * zoom
@@ -3455,11 +3456,136 @@ local function tacticalSummary(app)
     return app and app.tacticalSummary or nil
 end
 
+local function rectsOverlap(a, b)
+    return a and b and a.x < b.x + b.w and b.x < a.x + a.w and a.y < b.y + b.h and b.y < a.y + a.h
+end
+
+function Render.tacticalHudLayout(width, height, squadSlots)
+    width = math.max(1, tonumber(width) or (love and love.graphics and love.graphics.getWidth()) or 1280)
+    height = math.max(1, tonumber(height) or (love and love.graphics and love.graphics.getHeight()) or 720)
+    local slots = math.max(1, squadSlots or 6)
+    local margin = 16
+    local topH = height < 760 and 82 or 88
+    local bottomH = height < 760 and 82 or 92
+    local sideW = clamp(math.floor(width * (width < 1120 and 0.23 or 0.18)), width < 1120 and 244 or 272, width < 1120 and 296 or 336)
+    local board = {
+        x = margin,
+        y = topH + margin,
+        w = math.max(360, width - sideW - margin * 3),
+        h = math.max(260, height - topH - bottomH - margin * 3),
+    }
+    local intentH = clamp(math.floor(board.h * 0.24), 112, 196)
+    local rowH = clamp(math.floor((board.h - intentH - 46) / slots), 46, 74)
+    local squadH = 34 + rowH * slots
+    local squad = { x = width - sideW - margin, y = board.y, w = sideW, h = squadH }
+    local intent = { x = squad.x, y = squad.y + squad.h + 12, w = sideW, h = math.max(0, board.y + board.h - (squad.y + squad.h + 12)) }
+    return {
+        topLeft = { x = margin, y = 14, w = math.min(520, board.w), h = topH - 14 },
+        objective = { x = squad.x, y = 14, w = sideW, h = topH - 14 },
+        board = board,
+        squad = squad,
+        intent = intent,
+        action = { x = board.x, y = height - bottomH + 12, w = board.w, h = bottomH - 24 },
+        squadSlots = slots,
+        rowH = rowH,
+        portraitSize = clamp(rowH - 14, 34, 52),
+    }
+end
+
+function Render.tacticalHudLayoutAudit(width, height, squadSlots)
+    local layout = Render.tacticalHudLayout(width, height, squadSlots)
+    local overlaps = {}
+    for _, entry in ipairs({
+        { id = "top", rect = layout.topLeft },
+        { id = "objective", rect = layout.objective },
+        { id = "squad", rect = layout.squad },
+        { id = "intent", rect = layout.intent },
+        { id = "action", rect = layout.action },
+    }) do
+        if entry.rect.h > 0 and rectsOverlap(layout.board, entry.rect) then
+            overlaps[#overlaps + 1] = entry.id
+        end
+    end
+    local visiblePortraits = math.min(layout.squadSlots, math.floor(math.max(0, layout.squad.h - 34) / layout.rowH))
+    return {
+        ok = #overlaps == 0 and visiblePortraits >= (squadSlots or 6),
+        layout = layout,
+        overlaps = overlaps,
+        visiblePortraits = visiblePortraits,
+        apPools = visiblePortraits,
+        selectionRows = visiblePortraits,
+    }
+end
+
+function Render.tacticalSquadHudRows(summary, requiredSlots)
+    local players = (summary and summary.players) or {}
+    local slots = math.max(requiredSlots or #players, #players)
+    local rows = {}
+    for index = 1, slots do
+        local unit = players[index]
+        local ap = unit and (unit.ap or 0) or 0
+        rows[#rows + 1] = {
+            slot = index,
+            id = unit and unit.id or "-",
+            class = unit and unit.class or nil,
+            className = unit and unit.className or nil,
+            hp = unit and unit.hp or 0,
+            ap = ap,
+            maxAp = unit and (unit.maxAp or math.max(ap, 3)) or 0,
+            x = unit and unit.x or nil,
+            y = unit and unit.y or nil,
+            selected = unit and unit.selected == true or false,
+            empty = unit == nil,
+        }
+    end
+    return rows
+end
+
 function Render.tacticalActionBar(app)
     if app and app.tactics and app.tactics.actionBar then
         return app.tactics:actionBar(app.tacticalHover)
     end
     return {}
+end
+
+local function shortText(value, limit)
+    local text = tostring(value or "-")
+    if #text <= limit then
+        return text
+    end
+    return string.sub(text, 1, math.max(1, limit - 1)) .. "."
+end
+
+local function drawTacticalPortrait(row, x, y, size)
+    love.graphics.setColor(row.selected and 0.19 or 0.1, row.selected and 0.24 or 0.13, row.selected and 0.14 or 0.12, 1)
+    love.graphics.rectangle("fill", x, y, size, size)
+    love.graphics.setColor(row.selected and 0.9 or 0.38, row.selected and 0.82 or 0.44, row.selected and 0.36 or 0.38, 1)
+    love.graphics.rectangle("line", x, y, size, size)
+    local quad, frameW, frameH = nil, nil, nil
+    if not row.empty then
+        quad, frameW, frameH = atlasFrameQuad(heroFrame({ classId = row.class, class = row.className }))
+    end
+    if quad and state.assets.spriteAtlas then
+        local scale = math.min((size - 8) / frameW, (size - 8) / frameH)
+        love.graphics.setColor(1, 1, 1, row.selected and 1 or 0.88)
+        love.graphics.draw(state.assets.spriteAtlas, quad, x + size * 0.5, y + size * 0.5, 0, scale, scale, frameW * 0.5, frameH * 0.5)
+    else
+        love.graphics.setColor(row.empty and 0.34 or 0.82, row.empty and 0.36 or 0.84, row.empty and 0.34 or 0.74, 1)
+        love.graphics.printf(string.upper(string.sub(row.id or "-", 1, 2)), x, y + size * 0.36, size, "center")
+    end
+end
+
+local function drawApPool(x, y, w, ap, maxAp)
+    local pips = math.max(1, math.min(maxAp or 0, 6))
+    local gap = 3
+    local pipW = math.max(8, math.floor((w - gap * (pips - 1)) / pips))
+    for index = 1, pips do
+        local px = x + (index - 1) * (pipW + gap)
+        love.graphics.setColor(index <= (ap or 0) and 0.86 or 0.12, index <= (ap or 0) and 0.72 or 0.14, index <= (ap or 0) and 0.28 or 0.14, 1)
+        love.graphics.rectangle("fill", px, y, pipW, 7)
+        love.graphics.setColor(0.33, 0.31, 0.22, 1)
+        love.graphics.rectangle("line", px, y, pipW, 7)
+    end
 end
 
 local function drawTacticalActionSlot(action, x, y, w, h)
@@ -3478,18 +3604,19 @@ local function drawTacticalActionSlot(action, x, y, w, h)
     love.graphics.printf(tostring(action.detail or ""), x + 7, y + 43, w - 14, "center")
 end
 
-function Render.drawTacticalActionBar(app)
+function Render.drawTacticalActionBar(app, layout)
     local actions = Render.tacticalActionBar(app)
     if #actions == 0 then
         return 0
     end
     local width, height = love.graphics.getDimensions()
+    layout = layout or Render.tacticalHudLayout(width, height, 6)
     local gap = 6
-    local barW = math.min(width - 32, 928)
+    local barW = layout.action.w
     local slotW = math.floor((barW - gap * (#actions - 1)) / #actions)
-    local slotH = 62
-    local x = math.floor((width - (slotW * #actions + gap * (#actions - 1))) / 2)
-    local y = height - slotH - 18
+    local slotH = math.min(62, layout.action.h)
+    local x = layout.action.x
+    local y = layout.action.y
     for index, action in ipairs(actions) do
         drawTacticalActionSlot(action, x + (index - 1) * (slotW + gap), y, slotW, slotH)
     end
@@ -3498,7 +3625,8 @@ end
 
 function Render.drawTacticalHud(sim, app)
     local summary = tacticalSummary(app)
-    local width = love.graphics.getWidth()
+    local width, height = love.graphics.getDimensions()
+    local layout = Render.tacticalHudLayout(width, height, math.max(6, #((summary and summary.players) or {})))
     local hover = app and app.tacticalHover
     local selectedAt = "-"
     for _, unit in ipairs((summary and summary.players) or {}) do
@@ -3507,64 +3635,90 @@ function Render.drawTacticalHud(sim, app)
             break
         end
     end
-    panel(16, 14, 400, 82, 0.88)
+    panel(layout.topLeft.x, layout.topLeft.y, layout.topLeft.w, layout.topLeft.h, 0.88)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.printf("End Turn  E", 32, 28, 142, "center", 0, 1.2, 1.2)
+    love.graphics.printf("End Turn  E", layout.topLeft.x + 16, layout.topLeft.y + 14, 142, "center", 0, 1.2, 1.2)
     love.graphics.setColor(0.48, 0.54, 0.58, 1)
-    love.graphics.rectangle("line", 28, 24, 156, 48)
+    love.graphics.rectangle("line", layout.topLeft.x + 12, layout.topLeft.y + 10, 156, 48)
     love.graphics.setColor(0.82, 0.86, 0.78, 1)
-    love.graphics.print("turn " .. tostring(summary and summary.turn or 1) .. "  " .. tostring(summary and summary.phase or "-") .. "  view " .. tostring((app.viewRotation or 0) * 90), 204, 24)
-    love.graphics.print("selected " .. tostring(summary and summary.selected or "-") .. " @" .. selectedAt .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0), 204, 45)
+    local textX = layout.topLeft.x + 188
+    love.graphics.print("turn " .. tostring(summary and summary.turn or 1) .. "  " .. tostring(summary and summary.phase or "-") .. "  view " .. tostring((app.viewRotation or 0) * 90), textX, layout.topLeft.y + 10)
+    love.graphics.print("selected " .. tostring(summary and summary.selected or "-") .. " @" .. selectedAt .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0), textX, layout.topLeft.y + 31)
     love.graphics.setColor(0.76, 0.8, 0.72, 1)
-    love.graphics.print("target " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-") .. "  hover " .. (hover and (hover.x .. "," .. hover.y) or "-") .. "  zoom " .. tostring(math.floor(Render.tacticalZoom(app) * 100 + 0.5)) .. "%", 204, 66)
+    love.graphics.print("target " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-") .. "  hover " .. (hover and (hover.x .. "," .. hover.y) or "-") .. "  zoom " .. tostring(math.floor(Render.tacticalZoom(app) * 100 + 0.5)) .. "%", textX, layout.topLeft.y + 52)
     local objective = summary and summary.objective or {}
-    panel(width - 256, 14, 240, 72, 0.88)
+    panel(layout.objective.x, layout.objective.y, layout.objective.w, layout.objective.h, 0.88)
     love.graphics.setColor(0.9, 0.82, 0.48, 1)
-    love.graphics.printf("route machine " .. tostring(objective.integrity or 0) .. "/" .. tostring(objective.maxIntegrity or 0), width - 244, 28, 216, "right")
+    love.graphics.printf("route machine " .. tostring(objective.integrity or 0) .. "/" .. tostring(objective.maxIntegrity or 0), layout.objective.x + 12, layout.objective.y + 14, layout.objective.w - 24, "right")
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
-    love.graphics.printf("red forecasts resolve after End Turn; no hit chance", width - 244, 52, 216, "right")
-    Render.drawTacticalActionBar(app)
+    love.graphics.printf("red forecasts resolve after End Turn; no hit chance", layout.objective.x + 12, layout.objective.y + 38, layout.objective.w - 24, "right")
+    Render.drawTacticalActionBar(app, layout)
 end
 
 function Render.drawTacticalSidePanel(sim, app)
     local summary = tacticalSummary(app)
     local width, height = love.graphics.getDimensions()
-    local x = width - 236
-    local y = 110
-    local panelH = math.min(304, height - 126)
-    panel(x, y, 220, panelH, 0.88)
+    local layout = Render.tacticalHudLayout(width, height, math.max(6, #((summary and summary.players) or {})))
+    local x = layout.squad.x
+    local y = layout.squad.y
+    panel(x, y, layout.squad.w, layout.squad.h, 0.88)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
     love.graphics.print("Squad", x + 12, y + 12)
-    local rowY = y + 38
-    for _, unit in ipairs((summary and summary.players) or {}) do
-        love.graphics.setColor(unit.selected and 0.9 or 0.72, unit.selected and 0.9 or 0.78, unit.selected and 0.58 or 0.72, 1)
-        love.graphics.print((unit.selected and "> " or "  ") .. unit.id .. " HP" .. tostring(unit.hp) .. " AP" .. tostring(unit.ap) .. " @" .. tostring(unit.x) .. "," .. tostring(unit.y), x + 12, rowY)
-        rowY = rowY + 24
+    love.graphics.setColor(0.64, 0.68, 0.62, 1)
+    love.graphics.printf(tostring(#((summary and summary.players) or {})) .. "/6", x + layout.squad.w - 62, y + 12, 50, "right")
+    local rows = Render.tacticalSquadHudRows(summary, layout.squadSlots)
+    for _, row in ipairs(rows) do
+        local rowY = y + 32 + (row.slot - 1) * layout.rowH
+        local selected = row.selected
+        love.graphics.setColor(selected and 0.17 or 0.075, selected and 0.17 or 0.09, selected and 0.095 or 0.095, 0.94)
+        love.graphics.rectangle("fill", x + 10, rowY, layout.squad.w - 20, layout.rowH - 6)
+        love.graphics.setColor(selected and 0.9 or 0.24, selected and 0.78 or 0.26, selected and 0.34 or 0.25, 0.96)
+        love.graphics.rectangle("line", x + 10, rowY, layout.squad.w - 20, layout.rowH - 6)
+        drawTacticalPortrait(row, x + 16, rowY + 5, layout.portraitSize)
+        local textX = x + 24 + layout.portraitSize
+        local textW = layout.squad.w - layout.portraitSize - 52
+        love.graphics.setColor(row.empty and 0.36 or 0.9, row.empty and 0.38 or 0.92, row.empty and 0.36 or 0.82, 1)
+        love.graphics.printf(shortText(row.id, 16), textX, rowY + 6, textW - 54, "left")
+        if selected then
+            love.graphics.setColor(0.9, 0.76, 0.32, 1)
+            love.graphics.printf("SEL", textX + textW - 52, rowY + 6, 48, "right")
+        end
+        love.graphics.setColor(0.62, 0.66, 0.58, 1)
+        love.graphics.printf("HP " .. tostring(row.hp) .. "  @" .. tostring(row.x or "-") .. "," .. tostring(row.y or "-"), textX, rowY + 24, textW, "left")
+        drawApPool(textX, rowY + layout.rowH - 18, math.min(92, textW - 58), row.ap, row.maxAp)
+        love.graphics.setColor(0.74, 0.76, 0.66, 1)
+        love.graphics.printf("AP " .. tostring(row.ap) .. "/" .. tostring(row.maxAp), textX + math.min(100, textW - 52), rowY + layout.rowH - 23, 52, "right")
     end
-    rowY = rowY + 14
+
+    if layout.intent.h <= 0 then
+        return
+    end
+    panel(layout.intent.x, layout.intent.y, layout.intent.w, layout.intent.h, 0.88)
+    local rowY = layout.intent.y + 12
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Posted Enemy Intent", x + 12, rowY)
+    love.graphics.print("Posted Enemy Intent", layout.intent.x + 12, rowY)
     rowY = rowY + 28
     for _, enemy in ipairs((summary and summary.enemies) or {}) do
+        if rowY + 42 > layout.intent.y + layout.intent.h - 12 then
+            break
+        end
         local target = enemy.targetTiles and enemy.targetTiles[1]
         love.graphics.setColor(0.9, 0.46, 0.38, 1)
-        love.graphics.print(enemy.id .. " HP" .. tostring(enemy.hp), x + 12, rowY)
+        love.graphics.print(shortText(enemy.id, 18) .. " HP" .. tostring(enemy.hp), layout.intent.x + 12, rowY)
         love.graphics.setColor(0.7, 0.74, 0.68, 1)
-        love.graphics.print(tostring(enemy.intent) .. " -> " .. (target and (target.x .. "," .. target.y) or "-"), x + 12, rowY + 18)
-        rowY = rowY + 52
+        love.graphics.print(shortText(enemy.intent, 20) .. " -> " .. (target and (target.x .. "," .. target.y) or "-"), layout.intent.x + 12, rowY + 18)
+        rowY = rowY + 46
     end
     for _, enemy in ipairs((summary and summary.lastSeenEnemies) or {}) do
+        if rowY + 42 > layout.intent.y + layout.intent.h - 12 then
+            break
+        end
         love.graphics.setColor(0.46, 0.5, 0.5, 1)
-        love.graphics.print(enemy.id .. " last seen", x + 12, rowY)
+        love.graphics.print(shortText(enemy.id, 18) .. " last seen", layout.intent.x + 12, rowY)
         love.graphics.setColor(0.52, 0.56, 0.54, 1)
-        love.graphics.print("ghost @" .. tostring(enemy.x) .. "," .. tostring(enemy.y), x + 12, rowY + 18)
-        rowY = rowY + 52
+        love.graphics.print("ghost @" .. tostring(enemy.x) .. "," .. tostring(enemy.y), layout.intent.x + 12, rowY + 18)
+        rowY = rowY + 46
     end
-    rowY = rowY + 12
-    love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print("Board Rules", x + 12, rowY)
-    love.graphics.setColor(0.68, 0.72, 0.66, 1)
-    love.graphics.printf("Blue move ring\nGreen selected\nYellow target\nWhite hover\nRed threat", x + 12, rowY + 26, 196)
 end
 
 function Render.drawHud(sim, app)

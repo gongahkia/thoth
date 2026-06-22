@@ -1530,7 +1530,7 @@ function Runtime.summary(runtime)
     end
     local players = {}
     for _, unit in ipairs(state:unitsForSide("player")) do
-        players[#players + 1] = { id = unit.id, class = unit.class, className = unit.className, loadouts = unit.loadouts, hp = unit.hp, ap = unit.ap, x = unit.x, y = unit.y, selected = selected and selected.id == unit.id }
+        players[#players + 1] = { id = unit.id, class = unit.class, className = unit.className, loadouts = unit.loadouts, hp = unit.hp, ap = unit.ap, maxAp = unit.maxAp, x = unit.x, y = unit.y, selected = selected and selected.id == unit.id }
     end
     return {
         mode = "tactical",

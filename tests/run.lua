@@ -2834,6 +2834,21 @@ tests[#tests + 1] = function()
     expect(summary.enemyIntents[1].unit == "bailiff" and summary.enemyIntents[1].category == "attack", "tactical HUD should expose enemy intents")
     expect(summary.objectiveRisk[1].id == "machine" and summary.objectiveRisk[1].integrity == 2, "tactical HUD should expose objective risk")
     expect(#summary.turnOrder == 2 and summary.turnOrder[1].unit == "bailiff", "tactical HUD should expose deterministic turn order")
+    local runtime = TacticalRuntime.new(makeTacticalSim(2842))
+    local runtimeSummary = runtime:summary()
+    local rows = Render.tacticalSquadHudRows(runtimeSummary, 6)
+    local selectedRows = 0
+    for _, row in ipairs(rows) do
+        if row.selected then
+            selectedRows = selectedRows + 1
+        end
+    end
+    expect(#rows == 6 and rows[1].id == "warden" and rows[6].id == "lamplighter", "render HUD rows should expose all six squad portraits")
+    expect(rows[1].ap == 3 and rows[1].maxAp == 3 and rows[6].maxAp == 3, "render HUD rows should expose six AP pools")
+    expect(selectedRows == 1 and rows[1].selected, "render HUD rows should expose selection state")
+    local layoutAudit = Render.tacticalHudLayoutAudit(1920, 1080, 6)
+    expect(layoutAudit.ok and layoutAudit.visiblePortraits == 6 and layoutAudit.apPools == 6, "1080p tactical HUD layout should fit six portraits and AP pools")
+    expect(layoutAudit.layout.board.x + layoutAudit.layout.board.w < layoutAudit.layout.squad.x and layoutAudit.layout.board.y + layoutAudit.layout.board.h < layoutAudit.layout.action.y, "1080p tactical HUD should not overlap the board view")
 end
 
 tests[#tests + 1] = function()

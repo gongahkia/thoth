@@ -276,6 +276,10 @@ tactical-smoke:
 	grep -q "tactical-smoke-forecast=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-zoom=1.75" $$tmp; \
 	grep -q "tactical-smoke-objective=3/3" $$tmp; \
+	grep -q "tactical-smoke-hud-layout=true" $$tmp; \
+	grep -q "tactical-smoke-hud-portraits=6" $$tmp; \
+	grep -q "tactical-smoke-hud-ap-pools=6" $$tmp; \
+	grep -q "tactical-smoke-hud-overlaps=0" $$tmp; \
 	rm -f $$tmp
 
 sprite-import-smoke:

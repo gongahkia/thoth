@@ -167,7 +167,7 @@ source pattern:
 Readable tactics HUDs expose active unit resources, previews, intent, objectives, and turn order without requiring external notes.
 
 thoth transformation:
-Thoth defines a tactical HUD contract for selected unit AP, move preview, action preview, enemy intents, objective risk, and turn order.
+Thoth defines a tactical HUD contract for selected unit AP, move preview, action preview, enemy intents, objective risk, turn order, and a six-unit roster rail with portraits, AP pools, and selected-unit state.
 
 board verb:
 Select, preview, inspect, order, commit.
@@ -179,10 +179,10 @@ counterplay:
 The player can compare AP, movement, action result, intent pressure, objective integrity, and upcoming units before spending AP.
 
 preview/UI:
-`UICatalog.tacticalHudSummary()` returns `selectedUnitAp`, `movePreview`, `actionPreview`, `enemyIntents`, `objectiveRisk`, and `turnOrder`.
+`UICatalog.tacticalHudSummary()` returns `selectedUnitAp`, `movePreview`, `actionPreview`, `enemyIntents`, `objectiveRisk`, and `turnOrder`. `Render.tacticalSquadHudRows()` derives six portrait/AP rows from the live runtime summary. `Render.tacticalHudLayoutAudit(1920, 1080, 6)` verifies the roster rail, objective panel, top HUD, and action bar do not overlap the reserved board rectangle.
 
 test/replay proof:
-`tests/run.lua` verifies the HUD contract fields and builds a deterministic summary from a tactical state with selected AP, move/action previews, enemy exact intent, objective integrity, and turn order.
+`tests/run.lua` verifies the HUD contract fields, builds a deterministic summary from a tactical state with selected AP, move/action previews, enemy exact intent, objective integrity, and turn order, then checks the live six-unit route HUD rows and 1080p non-overlap layout. `make tactical-smoke` prints the same 1080p HUD layout audit.
 
 ## U.9 Tile Inspector Facts
 
