@@ -2074,6 +2074,9 @@ function Render.drawTacticalMovementHudOverlays(sim, app)
     local originY = source.originY or 0
     local z = ((sim and sim.player and sim.player.z) or 0) + 0.16
     local drawn = 0
+    love.graphics.push("all")
+    love.graphics.setShader()
+    love.graphics.setDepthMode()
     love.graphics.setLineWidth(3)
     for _, entry in ipairs(entries) do
         if entry.kind == "movement" then
@@ -2094,7 +2097,7 @@ function Render.drawTacticalMovementHudOverlays(sim, app)
             end
         end
     end
-    love.graphics.setLineWidth(1)
+    love.graphics.pop()
     app.worldView.tacticalMovementHud = drawn
     return drawn
 end
@@ -2650,6 +2653,9 @@ function Render.drawWorld(sim, app)
     local tacticalOverlayCounts = drawTacticalOverlays(sim, app)
     drawTacticalIntentArrows(sim, app)
     local tacticalOverwatchTriggers = drawTacticalOverwatchTrigger(sim, app)
+    if app and app.tacticalMode then
+        Render.drawTacticalMovementHudOverlays(sim, app)
+    end
     local architecture, architectureCount = nil, 0
     if not (app and app.tacticalMode) then
         architecture, architectureCount = Render.cachedArchitectureModel(sim, profile, app and app.settings)
@@ -5513,7 +5519,6 @@ function Render.draw(sim, app)
     local shakeX, shakeY = combatShakeOffset(app)
     love.graphics.translate(shakeX, shakeY)
     love.graphics.setDepthMode()
-    Render.drawTacticalMovementHudOverlays(sim, app)
     app.worldView.tacticalForecast = Render.drawTacticalForecast(sim, app)
     Render.drawHud(sim, app)
     Render.drawSidePanel(sim, app)
