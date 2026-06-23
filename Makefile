@@ -1,12 +1,37 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke legacy-combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke tactical-smoke storefront-previews sprite-import-smoke model-import-smoke validate test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean
+.PHONY: run smoke title-smoke settings-smoke estate-smoke legacy-combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke tactical-smoke storefront-previews sprite-import-smoke model-import-smoke validate test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean doctor check-submodules
 
 LOVE ?= love
 LUAJIT ?= luajit
 PACKAGE := dist/thoth.love
 PACKAGE_INPUTS := main.lua conf.lua src assets vendor/g3d/g3d vendor/g3d/LICENSE TODO.md docs
 VALIDATOR_REJECT_BUDGET ?= 0
+REQUIRED_SUBMODULE_FILES := vendor/g3d/g3d/init.lua vendor/g3d/assets/cube.obj vendor/g3d/LICENSE
 
-run:
+check-submodules:
+	@missing=0; \
+	for path in $(REQUIRED_SUBMODULE_FILES); do \
+		if [ ! -e "$$path" ]; then \
+			echo "missing required renderer/submodule file: $$path"; \
+			missing=1; \
+		fi; \
+	done; \
+	if [ "$$missing" -ne 0 ]; then \
+		echo; \
+		echo "Thoth's tactical board/grid uses the g3d git submodule."; \
+		echo "Without it, LOVE can still show menus/HUD, but the 3D grid will not render."; \
+		echo; \
+		echo "Fix:"; \
+		echo "  git submodule update --init --recursive"; \
+		echo; \
+		echo "Then retry:"; \
+		echo "  make run"; \
+		exit 1; \
+	fi
+
+doctor: check-submodules
+	@echo "submodules ok"
+
+run: check-submodules
 	$(LOVE) .
 
 smoke:
@@ -239,7 +264,7 @@ controller-smoke:
 	grep -q "controller-smoke-tactical-activate=2,3" $$tmp; \
 	rm -f $$tmp
 
-render-smoke:
+render-smoke: check-submodules
 	@set -e; \
 	tmp=$$(mktemp); \
 	if command -v xvfb-run >/dev/null 2>&1; then \
@@ -261,7 +286,7 @@ render-smoke:
 	grep -q "render-smoke-overlay-hazard=1" $$tmp; \
 	rm -f $$tmp
 
-tactical-smoke:
+tactical-smoke: check-submodules
 	@set -e; \
 	tmp=$$(mktemp); \
 	if command -v xvfb-run >/dev/null 2>&1; then \
@@ -305,7 +330,7 @@ tactical-smoke:
 	grep -q "tactical-smoke-ghost-arrows=0" $$tmp; \
 	rm -f $$tmp
 
-storefront-previews:
+storefront-previews: check-submodules
 	@set -e; \
 	mkdir -p assets/previews; \
 	for spec in fog:itch-tactical-fog.png overwatch:itch-tactical-overwatch.png intent:itch-tactical-intent-legend.png; do \
@@ -340,7 +365,7 @@ sprite-import-smoke:
 	test -s dist/sprite-import-smoke/oga_700_sprites.lua; \
 	rm -f $$tmp
 
-model-import-smoke:
+model-import-smoke: check-submodules
 	@set -e; \
 	rm -rf dist/model-import-smoke; \
 	mkdir -p dist/model-import-smoke; \
@@ -395,14 +420,14 @@ benchmark-smoke:
 benchmark-scaled:
 	THOTH_BENCH_TICKS=900 THOTH_BENCH_RUNS=24 $(LUAJIT) benchmarks/tactical_route.lua
 
-render-benchmark:
+render-benchmark: check-submodules
 	@if command -v xvfb-run >/dev/null 2>&1; then \
 		xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --render-benchmark; \
 	else \
 		$(LOVE) . --render-benchmark; \
 	fi
 
-package-build:
+package-build: check-submodules
 	mkdir -p dist
 	rm -f $(PACKAGE)
 	zip -9 -r $(PACKAGE) $(PACKAGE_INPUTS) -x "assets/previews/*" "assets/press/*" "assets/replays/*"
