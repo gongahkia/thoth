@@ -406,9 +406,15 @@ function Runtime.syncWorld(sim, runtime)
                     destructibleHp = tile.destructibleHp,
                     destroyed = tile.destroyed,
                     kind = tile.kind,
+                    material = tile.material,
+                    terrainType = tile.terrainType,
+                    blockerKind = tile.blockerKind,
+                    coverEdges = copyValue(tile.coverEdges),
+                    interact = copyValue(tile.interact),
+                    tags = copyList(tile.tags),
                 })
             else
-                sim.world:setTile(worldX, worldY, 0, { id = tileId, data = 0, height = 0, blocker = true, losBlocker = true })
+                sim.world:setTile(worldX, worldY, 0, { id = tileId, data = 0, height = 0, blocker = true, losBlocker = true, kind = "boundary_wall", tags = { "boundary" } })
             end
         end
     end

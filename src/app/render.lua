@@ -1325,7 +1325,67 @@ local function litTileColor(rgb, light, settings)
     return color[1], color[2], color[3], color[4]
 end
 
-local function tacticalTileColor(tileId)
+Render.tacticalHeightScale = 0.28
+
+function Render.tileHasTag(tile, tag)
+    for _, value in ipairs((tile and tile.tags) or {}) do
+        if value == tag then
+            return true
+        end
+    end
+    return false
+end
+
+function Render.tacticalTileColor(tileOrId)
+    local tile = type(tileOrId) == "table" and tileOrId or nil
+    local tileId = tile and tile.id or tileOrId
+    local kind = tile and tile.kind
+    if Render.tileHasTag(tile, "megastructure") then
+        if kind == "archive_shaft" then
+            return { 38, 44, 50 }
+        elseif kind == "hanging_slab" then
+            return { 62, 65, 68 }
+        elseif kind == "megastructure_shell" then
+            return { 48, 52, 58 }
+        end
+        return { 56, 61, 66 }
+    end
+    if tile and tile.terrainType == "archive_chasm" then
+        return { 18, 22, 27 }
+    end
+    if tile and (tile.terrainType == "sealed_archive_mass" or Render.tileHasTag(tile, "sealed_mass")) then
+        return { 54, 58, 62 }
+    end
+    if tile and tile.terrainType == "sunken_water" then
+        return { 52, 92, 96 }
+    end
+    if tile and tile.terrainType == "root_tangle" then
+        return { 72, 82, 58 }
+    end
+    if tile and tile.terrainType == "root_screen" then
+        return { 42, 70, 48 }
+    end
+    if tile and tile.terrainType == "bell_stone" then
+        return { 118, 104, 74 }
+    end
+    if tile and tile.terrainType == "ash_glass" then
+        return { 126, 122, 116 }
+    end
+    if tile and tile.terrainType == "heat_vent" then
+        return { 138, 68, 48 }
+    end
+    if tile and tile.terrainType == "temple_stone" then
+        return { 112, 106, 92 }
+    end
+    if tile and tile.terrainType == "ritual_pillar" then
+        return { 74, 68, 64 }
+    end
+    if tile and tile.height and tile.height >= 3 then
+        return { 118, 128, 112 }
+    end
+    if tile and tile.height and tile.height > 0 then
+        return { 104, 116, 100 }
+    end
     if tileId == "sealed_name" then
         return { 184, 132, 48 }
     end
@@ -1336,6 +1396,17 @@ local function tacticalTileColor(tileId)
         return { 86, 88, 92 }
     end
     return { 130, 142, 114 }
+end
+
+function Render.tacticalRenderHeight(tile)
+    local height = math.max(0, tonumber(tile and tile.height) or 0)
+    if Render.tileHasTag(tile, "megastructure") then
+        return math.max(1.35, height * 0.34)
+    end
+    if tile and tile.blocker and tile.destructibleHp then
+        return math.max(0.85, height * Render.tacticalHeightScale)
+    end
+    return height * Render.tacticalHeightScale
 end
 
 function Render.settingsRenderKey(settings)
@@ -1395,9 +1466,13 @@ function Render.worldTileCacheKey(sim, profile, settings, app, minX, maxX, minY,
         for x = minX, maxX do
             local tile = sim.world:peekTile(x, y, z) or {}
             parts[#parts + 1] = tostring(tile.id or "")
+            parts[#parts + 1] = tostring(tile.kind or "")
+            parts[#parts + 1] = tostring(tile.terrainType or "")
             parts[#parts + 1] = tostring(tile.height or 0)
             parts[#parts + 1] = tostring(tile.blocker == true)
             parts[#parts + 1] = tostring(tile.destroyed == true)
+            parts[#parts + 1] = tostring(tile.material or "")
+            parts[#parts + 1] = table.concat(tile.tags or {}, ",")
         end
     end
     return table.concat(parts, "|")
@@ -1423,11 +1498,11 @@ local function buildWorldTileModel(sim, profile, settings, app, minX, maxX, minY
         for x = minX, maxX do
             index = index + 1
             local tile = sim.world:peekTile(x, y, z)
-            local rgb = app and app.tacticalMode and tacticalTileColor(tile.id) or (Defs.tile(tile.id).color or { 255, 255, 255 })
+            local rgb = app and app.tacticalMode and Render.tacticalTileColor(tile) or (Defs.tile(tile.id).color or { 255, 255, 255 })
             local light = app and app.tacticalMode and 0.98 or lightAt(sim, x, y, profile)
             data:setPixel(index - 1, 0, litTileColor(rgb, light, settings))
             local u = (index - 0.5) / (width * height)
-            local tileHeight = app and app.tacticalMode and ((tile.height or 0) * 0.14) or 0
+            local tileHeight = app and app.tacticalMode and Render.tacticalRenderHeight(tile) or 0
             if tileHeight > 0 then
                 pushBox(vertices, x, y, z, tileHeight, u)
             else
@@ -1440,8 +1515,8 @@ local function buildWorldTileModel(sim, profile, settings, app, minX, maxX, minY
     return model
 end
 
-function Render.tacticalGridColor(tileId)
-    local rgb = tacticalTileColor(tileId)
+function Render.tacticalGridColor(tileOrId)
+    local rgb = Render.tacticalTileColor(tileOrId)
     local lum = ((rgb[1] or 0) * 0.2126 + (rgb[2] or 0) * 0.7152 + (rgb[3] or 0) * 0.0722) / 255
     if lum > 0.42 then
         return 0.035, 0.04, 0.038, 0.72
@@ -1467,9 +1542,9 @@ function Render.buildTacticalGridModel(sim, minX, maxX, minY, maxY)
         for x = minX, maxX do
             index = index + 1
             local tile = sim.world:peekTile(x, y, z) or {}
-            local r, g, b, a = Render.tacticalGridColor(tile.id)
+            local r, g, b, a = Render.tacticalGridColor(tile)
             data:setPixel(index - 1, 0, r, g, b, a)
-            local tileHeight = ((tile.height or 0) * 0.14)
+            local tileHeight = Render.tacticalRenderHeight(tile)
             Render.pushTacticalGridRing(vertices, x, y, z + tileHeight + 0.012, (index - 0.5) / total)
         end
     end
@@ -1928,7 +2003,8 @@ local function buildTacticalOverlayModel(entries, source, settings, z)
     for index, entry in ipairs(entries) do
         local color = Render.accessibleColor(settings, entry.color or tacticalOverlayColors[entry.kind] or { 1, 1, 1, 0.5 })
         data:setPixel(index - 1, 0, color[1], color[2], color[3], color[4] or 0.5)
-        pushTileRing(vertices, originX + entry.x, originY + entry.y, z or 0, entry.kind, (index - 0.5) / #entries, entry.iconScale or 1)
+        local tile = source.state and source.state:inBounds(entry.x, entry.y) and source.state:tileAt(entry.x, entry.y) or nil
+        pushTileRing(vertices, originX + entry.x, originY + entry.y, (z or 0) + Render.tacticalRenderHeight(tile), entry.kind, (index - 0.5) / #entries, entry.iconScale or 1)
     end
     local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()
@@ -2460,10 +2536,13 @@ local function drawTacticalIntentArrows(sim, app)
             local targetVisible = target and (not visibility or visibility.visible[tileKey(target.x, target.y)] == true)
             if target and sourceTile and sourceVisible and targetVisible then
                 local segments = Render.tacticalGridArrowSegments(sourceTile, target, originX, originY)
+                local sourceHeight = tactics:inBounds(sourceTile.x, sourceTile.y) and Render.tacticalRenderHeight(tactics:tileAt(sourceTile.x, sourceTile.y)) or 0
+                local targetHeight = tactics:inBounds(target.x, target.y) and Render.tacticalRenderHeight(tactics:tileAt(target.x, target.y)) or 0
+                local arrowZ = z + math.max(sourceHeight, targetHeight)
                 for index, segment in ipairs(segments) do
-                    pushGroundLine(vertices, segment.x1, segment.y1, segment.x2, segment.y2, z, 0.04, 0.5)
+                    pushGroundLine(vertices, segment.x1, segment.y1, segment.x2, segment.y2, arrowZ, 0.04, 0.5)
                     if index == #segments then
-                        pushGroundArrowHead(vertices, segment.x2, segment.y2, segment.ux, segment.uy, z, 0.5)
+                        pushGroundArrowHead(vertices, segment.x2, segment.y2, segment.ux, segment.uy, arrowZ, 0.5)
                     end
                 end
                 if #segments > 0 then
@@ -2508,7 +2587,7 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
             local x = originX + unit.x + 0.5
             local y = originY + unit.y + 0.5
             local tile = tactics:inBounds(unit.x, unit.y) and tactics:tileAt(unit.x, unit.y) or nil
-            local unitZ = (sim.player.z or 0) + ((tile and tile.height or 0) * 0.14)
+            local unitZ = (sim.player.z or 0) + Render.tacticalRenderHeight(tile)
             local selected = app.tactics and app.tactics.selectedUnitId == unit.id
             local intentHot = app.tacticalIntentHover and app.tacticalIntentHover.unit == unit.id
             local width, height = unit.side == "enemy" and enemySize("threat") or 0.86, unit.side == "enemy" and 1.12 or 1.08
@@ -2538,7 +2617,7 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
             local x = originX + sighting.x + 0.5
             local y = originY + sighting.y + 0.5
             local tile = tactics:inBounds(sighting.x, sighting.y) and tactics:tileAt(sighting.x, sighting.y) or nil
-            local model = newBillboard(0.66, 0.8, enemyFrame("threat", sighting.kind), x, y, (sim.player.z or 0) + 0.03 + ((tile and tile.height or 0) * 0.14), yaw, state.assets.spriteAtlas or state.assets.white)
+            local model = newBillboard(0.66, 0.8, enemyFrame("threat", sighting.kind), x, y, (sim.player.z or 0) + 0.03 + Render.tacticalRenderHeight(tile), yaw, state.assets.spriteAtlas or state.assets.white)
             drawTintedModel(model, { 0.36, 0.4, 0.42, 1 }, lightAt(sim, x, y, profile), 0.38)
             drawn = drawn + 1
         end

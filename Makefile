@@ -302,7 +302,7 @@ tactical-smoke: check-submodules
 	grep -q "tactical-smoke-phase=player" $$tmp; \
 	grep -q "tactical-smoke-player-units=6" $$tmp; \
 	grep -q "tactical-smoke-enemy-units=2" $$tmp; \
-	grep -q "tactical-smoke-board-size=32x24" $$tmp; \
+	grep -q "tactical-smoke-board-size=48x36" $$tmp; \
 	grep -q "tactical-smoke-height-tiles=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-destructibles=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-vertical-routes=[1-9]" $$tmp; \
@@ -311,6 +311,10 @@ tactical-smoke: check-submodules
 	grep -q "tactical-smoke-high-cover=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-terrain-types=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-generation-techniques=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-districts=[4-9]" $$tmp; \
+	grep -q "tactical-smoke-soft-gates=[2-9]" $$tmp; \
+	grep -Eq "tactical-smoke-landmarks=([8-9]|[1-9][0-9]+)" $$tmp; \
+	grep -Eq "tactical-smoke-optional-open-ratio=0\\.(4[5-9]|5[0-5])" $$tmp; \
 	grep -q "tactical-smoke-grid=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-enemy-cards=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-intent-badges=0" $$tmp; \

@@ -33,6 +33,7 @@ local hazardKinds = { "audit_static", "paper_cinder", "index_miasma" }
 
 local terrainTypes = {
     { id = "sealed_void", kind = "wall", material = "void", blocker = true, losBlocker = true, tags = { "sealed_void" }, role = "boundary" },
+    { id = "sealed_archive_mass", kind = "wall", material = "archive", blocker = true, losBlocker = true, tags = { "sealed_mass", "built_mass" }, role = "structural_backfill" },
     { id = "archive_floor", kind = "floor", material = "archive", tags = { "room" }, role = "baseline" },
     { id = "archive_terrace", kind = "archive_terrace", material = "archive", tags = { "height_band", "raised_archive_walk" }, role = "height" },
     { id = "archive_stair", kind = "archive_stair", material = "archive", tags = { "stair", "vertical_route" }, role = "vertical_route" },
@@ -45,6 +46,14 @@ local terrainTypes = {
     { id = "index_miasma", kind = "index_miasma", material = "ash", hazard = { kind = "index_miasma", active = true, losModifier = "obscure" }, tags = { "obscurant", "hazard_lane" }, role = "obscurant" },
     { id = "brine_pool", kind = "brine_pool", material = "salt", moveCost = 1, hazard = { kind = "brine", active = true, damage = 1, timing = "end_turn" }, tags = { "flood_hazard", "rough_terrain" }, role = "water_hazard" },
     { id = "mirror_glass", kind = "mirror_glass", material = "glass", tags = { "reflective_los" }, role = "sightline_modifier" },
+    { id = "temple_stone", kind = "temple_stone", material = "temple", tags = { "temple_floor" }, role = "district_floor" },
+    { id = "sunken_water", kind = "sunken_water", material = "water", moveCost = 1, hazard = { kind = "waterlogged", active = true, timing = "enter" }, tags = { "shallow_water", "rough_terrain" }, role = "slow_ground" },
+    { id = "root_tangle", kind = "root_tangle", material = "root", moveCost = 1, tags = { "root_choked", "rough_terrain" }, role = "slow_ground" },
+    { id = "root_screen", kind = "root_screen", material = "root", hazard = { kind = "root_screen", active = true, losModifier = "obscure" }, tags = { "obscurant", "root_choked" }, role = "obscurant" },
+    { id = "bell_stone", kind = "bell_stone", material = "bronze", tags = { "bell_chamber", "height_band" }, role = "height" },
+    { id = "ash_glass", kind = "ash_glass", material = "glass", destructibleHp = 1, tags = { "fragile_floor", "ash_sanctum" }, role = "fragile" },
+    { id = "heat_vent", kind = "heat_vent", material = "ash", hazard = { kind = "heat_vent", damage = 1, timing = "end_turn" }, tags = { "hazard_lane", "ash_sanctum" }, role = "hazard" },
+    { id = "ritual_pillar", kind = "ritual_pillar", material = "temple", blockerKind = "destructible", blocker = true, losBlocker = true, destructibleHp = 3, tags = { "sight_break", "temple_pillar" }, role = "destructible_los" },
 }
 
 local generationTechniques = {
@@ -64,6 +73,11 @@ local generationTechniques = {
     { id = "cellular_mines", output = "worm-carved rooms and mine tunnels", counterplay = "clear pockets and destructible choke points" },
     { id = "open_field_noise", output = "broad noise-shaped terrain fields", counterplay = "cross sparse cover islands decisively" },
     { id = "spire_stack_generation", output = "stacked platforms, narrow bridges, and stair chains", counterplay = "control vertical chokepoints" },
+    { id = "megastructure_sprawl", output = "overscaled ribs, shells, shafts, and dead slabs wrapped around playable routes", counterplay = "use huge blockers as readable cover and sight breaks" },
+    { id = "temple_district_sprawl", output = "sunken courts, root catacombs, bell chambers, and ash sanctums stitched into one hub", counterplay = "read district terrain before committing routes" },
+    { id = "catacomb_loop_network", output = "optional loops and side pockets around the critical route", counterplay = "spend AP for flank routes and landmarks" },
+    { id = "soft_gate_shortcuts", output = "sealed shortcuts that reopen after local objectives", counterplay = "unlock return paths without loading a new board" },
+    { id = "ambient_landmark_fill", output = "non-combat landmarks that make off-route space legible", counterplay = "navigate by visible shrines, bells, roots, and cistern marks" },
     { id = "tactical_repair_validation", output = "post-pass reachability, LoS, cover, and objective repairs", counterplay = "guaranteed readable tactical routes" },
 }
 
@@ -75,7 +89,7 @@ local hybridProfiles = {
         roomScale = 0.75,
         openNoise = 0.86,
         branchChance = 0.2,
-        techniques = { "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "spire_stack_generation", "void_bridge_network", "tactical_repair_validation" },
+        techniques = { "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "spire_stack_generation", "void_bridge_network", "megastructure_sprawl", "tactical_repair_validation" },
     },
     sprawl = {
         id = "sprawl",
@@ -84,7 +98,7 @@ local hybridProfiles = {
         roomScale = 1.05,
         openNoise = 0.78,
         branchChance = 0.9,
-        techniques = { "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "graph_sprawl", "tactical_repair_validation" },
+        techniques = { "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "graph_sprawl", "megastructure_sprawl", "tactical_repair_validation" },
     },
     open_wilds = {
         id = "open_wilds",
@@ -111,7 +125,7 @@ local hybridProfiles = {
         roomScale = 1.0,
         openNoise = 0.72,
         branchChance = 0.7,
-        techniques = { "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "graph_sprawl", "cellular_mines", "open_field_noise", "spire_stack_generation", "tactical_repair_validation" },
+        techniques = { "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "graph_sprawl", "cellular_mines", "open_field_noise", "spire_stack_generation", "megastructure_sprawl", "tactical_repair_validation" },
     },
 }
 
@@ -320,6 +334,23 @@ local function addTag(tile, tag)
     tile.tags[#tile.tags + 1] = tag
 end
 
+local function removeTag(tile, tag)
+    if not (tile and tile.tags) then
+        return
+    end
+    for index = #tile.tags, 1, -1 do
+        if tile.tags[index] == tag then
+            table.remove(tile.tags, index)
+        end
+    end
+end
+
+local function clearSealedTags(tile)
+    removeTag(tile, "sealed_void")
+    removeTag(tile, "sealed_mass")
+    removeTag(tile, "built_mass")
+end
+
 local function stampTerrain(tile, terrainTypeId)
     local terrainType = terrainTypeById[terrainTypeId]
     if not (tile and terrainType) then
@@ -359,6 +390,7 @@ local function carve(tiles, x, y, material, tag)
     tile.blockerKind = nil
     tile.blocker = false
     tile.losBlocker = false
+    clearSealedTags(tile)
     stampTerrain(tile, "archive_floor")
     addTag(tile, tag or "playable")
     tiles[tileKey(x, y)] = tile
@@ -1700,7 +1732,7 @@ local archiveExpansePlacements = {
 }
 
 local function openExpanseTile(tiles, x, y, material, kind, height, tag)
-    local tile = tiles[tileKey(x, y)] or { kind = "wall", material = material, blocker = true, losBlocker = true, tags = { "sealed_void" } }
+    local tile = tiles[tileKey(x, y)] or { kind = "wall", material = material, blocker = true, losBlocker = true, tags = { "sealed_mass" } }
     tile.kind = kind or "floor"
     tile.material = material
     tile.blockerKind = nil
@@ -1708,6 +1740,7 @@ local function openExpanseTile(tiles, x, y, material, kind, height, tag)
     tile.losBlocker = false
     tile.height = height or tile.height or 0
     tile.tags = tile.tags or {}
+    clearSealedTags(tile)
     if kind == "archive_chasm" then
         stampTerrain(tile, "archive_chasm")
     elseif kind == "brine_pool" then
@@ -1718,6 +1751,22 @@ local function openExpanseTile(tiles, x, y, material, kind, height, tag)
         stampTerrain(tile, "mirror_glass")
     elseif kind == "glass_floor" then
         stampTerrain(tile, "archive_glass_floor")
+    elseif kind == "temple_stone" then
+        stampTerrain(tile, "temple_stone")
+    elseif kind == "sunken_water" then
+        stampTerrain(tile, "sunken_water")
+    elseif kind == "root_tangle" then
+        stampTerrain(tile, "root_tangle")
+    elseif kind == "root_screen" then
+        stampTerrain(tile, "root_screen")
+    elseif kind == "bell_stone" then
+        stampTerrain(tile, "bell_stone")
+    elseif kind == "ash_glass" then
+        stampTerrain(tile, "ash_glass")
+    elseif kind == "heat_vent" then
+        stampTerrain(tile, "heat_vent")
+    elseif kind == "ritual_pillar" then
+        stampTerrain(tile, "ritual_pillar")
     elseif kind == "rubble" then
         stampTerrain(tile, "archive_rubble")
     else
@@ -1854,7 +1903,274 @@ local function recordExpanseSightBreak(target, id, x, y, destructibleHp)
     end
 end
 
-local function addExpanseSetPieces(target)
+local function recordMegastructureTile(target, groupId, tile, x, y)
+    target.megaStructures = target.megaStructures or {}
+    target.megaStructureById = target.megaStructureById or {}
+    local group = target.megaStructureById[groupId]
+    if not group then
+        group = { id = groupId, tiles = {} }
+        target.megaStructureById[groupId] = group
+        target.megaStructures[#target.megaStructures + 1] = group
+    end
+    group.tiles[#group.tiles + 1] = { x = x, y = y, height = tile.height or 0, kind = tile.kind }
+end
+
+local function markExpanseMegastructure(target, groupId, x, y, height, kind)
+    if not (target and target.tiles and x and y and x >= 1 and y >= 1 and x <= target.width and y <= target.height) then
+        return false
+    end
+    local tile = target.tiles[tileKey(x, y)]
+    if not (tile and tile.blocker == true) then
+        return false
+    end
+    tile.kind = kind or "megastructure_rib"
+    tile.material = "archive"
+    tile.height = math.max(tile.height or 0, height or 6)
+    tile.blockerKind = "hard"
+    tile.blocker = true
+    tile.losBlocker = true
+    addTag(tile, "megastructure")
+    addTag(tile, groupId)
+    addTag(tile, kind or "structural_rib")
+    recordMegastructureTile(target, groupId, tile, x, y)
+    return true
+end
+
+local function markRegionShell(target, region, seed)
+    if not region then
+        return
+    end
+    local groupId = "shell_" .. tostring(region.id or "region")
+    local baseHeight = 5 + ((seed or 1) + (region.x or 0) + (region.y or 0)) % 4
+    for x = region.x - 1, region.x + region.width do
+        markExpanseMegastructure(target, groupId, x, region.y - 1, baseHeight, "megastructure_shell")
+        markExpanseMegastructure(target, groupId, x, region.y + region.height, baseHeight + 1, "megastructure_shell")
+    end
+    for y = region.y - 1, region.y + region.height do
+        markExpanseMegastructure(target, groupId, region.x - 1, y, baseHeight + 1, "megastructure_shell")
+        markExpanseMegastructure(target, groupId, region.x + region.width, y, baseHeight, "megastructure_shell")
+    end
+end
+
+local function markOptionalTile(target, x, y)
+    target.optionalTileKeys = target.optionalTileKeys or {}
+    target.optionalTileKeys[tileKey(x, y)] = true
+end
+
+local function recordExpanseLandmark(target, id, districtId, x, y, kind)
+    target.landmarks = target.landmarks or {}
+    local tile = target.tiles[tileKey(x, y)]
+    if tile then
+        tile.interact = tile.interact or { id = id, kind = kind or "landmark" }
+        addTag(tile, "landmark")
+        addTag(tile, id)
+    end
+    target.landmarks[#target.landmarks + 1] = { id = id, district = districtId, x = x, y = y, kind = kind or "landmark" }
+end
+
+local function recordExpanseSoftGate(target, id, districtId, x, y, unlock)
+    target.softGates = target.softGates or {}
+    local tile = target.tiles[tileKey(x, y)]
+    if tile then
+        tile.interact = tile.interact or { id = id, kind = "soft_gate" }
+        addTag(tile, "soft_gate")
+        addTag(tile, id)
+    end
+    target.softGates[#target.softGates + 1] = { id = id, district = districtId, x = x, y = y, unlock = unlock or "local_landmark" }
+end
+
+local function districtTerrain(districtId, x, y, seed)
+    local value = noise2(seed or 1, x, y, 307)
+    if districtId == "sunken_court" then
+        if value > 0.58 then
+            return "sunken_water", 0
+        end
+        return "temple_stone", (x + y) % 5 == 0 and 1 or 0
+    elseif districtId == "root_catacombs" then
+        if value > 0.76 then
+            return "root_screen", 0
+        end
+        return "root_tangle", value > 0.42 and 1 or 0
+    elseif districtId == "bell_chambers" then
+        return "bell_stone", 1 + ((x * 3 + y + (seed or 1)) % 4)
+    elseif districtId == "ash_sanctum" then
+        if value > 0.76 then
+            return "heat_vent", 0
+        elseif value < 0.24 then
+            return "ash_glass", 1
+        end
+        return "temple_stone", (x + y) % 4 == 0 and 2 or 0
+    end
+    return "temple_stone", 0
+end
+
+local function openDistrictTile(target, districtId, x, y, seed, tag)
+    local kind, height = districtTerrain(districtId, x, y, seed)
+    local tile = openExpanseTile(target.tiles, x, y, "temple", kind, height, tag or districtId)
+    addTag(tile, "district")
+    addTag(tile, districtId)
+    addTag(tile, "optional_path")
+    if kind == "bell_stone" and ((x + y) % 3 == 0) then
+        addTag(tile, "stair")
+    end
+    markOptionalTile(target, x, y)
+    return tile
+end
+
+local function carveOptionalCorridor(target, districtId, x1, y1, x2, y2, seed)
+    local xStep = x1 <= x2 and 1 or -1
+    for x = x1, x2, xStep do
+        openDistrictTile(target, districtId, x, y1, seed, "catacomb_loop")
+    end
+    local yStep = y1 <= y2 and 1 or -1
+    for y = y1, y2, yStep do
+        openDistrictTile(target, districtId, x2, y, seed, "catacomb_loop")
+    end
+end
+
+local function placeDistrictPillar(target, districtId, x, y)
+    local tile = openExpanseTile(target.tiles, x, y, "temple", "ritual_pillar", 3, districtId)
+    addTag(tile, "district")
+    addTag(tile, districtId)
+    recordExpanseSightBreak(target, districtId .. "_pillar_" .. tostring(x) .. "_" .. tostring(y), x, y, tile.destructibleHp or 3)
+end
+
+local function addTempleDistrict(target, district)
+    target.districts = target.districts or {}
+    target.districts[#target.districts + 1] = {
+        id = district.id,
+        name = district.name,
+        role = district.role,
+        x = district.x,
+        y = district.y,
+        width = district.width,
+        height = district.height,
+        optional = true,
+    }
+    local bandTiles = {}
+    for x = district.x, district.x + district.width - 1 do
+        for y = district.y, district.y + district.height - 1 do
+            if not (x == district.x and y == district.y) and noise2(target.seed or 1, x, y, district.salt or 0) > 0.14 then
+                local tile = openDistrictTile(target, district.id, x, y, target.seed or 1, district.role)
+                if (tile.height or 0) > 0 then
+                    bandTiles[#bandTiles + 1] = { x = x, y = y }
+                end
+            end
+        end
+    end
+    if #bandTiles > 0 then
+        recordExpanseHeightBand(target, district.id .. "_height_band", "mixed", bandTiles)
+    end
+    for _, pillar in ipairs(district.pillars or {}) do
+        placeDistrictPillar(target, district.id, pillar.x, pillar.y)
+    end
+    for _, cover in ipairs(district.cover or {}) do
+        recordExpanseCoverField(target, district.id .. "_cover_" .. tostring(cover.x) .. "_" .. tostring(cover.y), cover.x, cover.y, cover.edges)
+    end
+    for _, landmark in ipairs(district.landmarks or {}) do
+        recordExpanseLandmark(target, landmark.id, district.id, landmark.x, landmark.y, landmark.kind)
+    end
+    for _, gate in ipairs(district.softGates or {}) do
+        recordExpanseSoftGate(target, gate.id, district.id, gate.x, gate.y, gate.unlock)
+    end
+end
+
+local function addTempleCatacombHub(target, seed)
+    target.seed = seed or target.seed or 1
+    target.districts = {
+        { id = "archive_spine", name = "Archive Spine", role = "critical_route", x = 1, y = 1, width = 32, height = 24, optional = false },
+    }
+    carveOptionalCorridor(target, "sunken_court", 29, 5, 35, 7, seed)
+    carveOptionalCorridor(target, "root_catacombs", 8, 20, 8, 27, seed)
+    carveOptionalCorridor(target, "bell_chambers", 24, 20, 22, 27, seed)
+    carveOptionalCorridor(target, "ash_sanctum", 29, 20, 35, 27, seed)
+    local districts = {
+        {
+            id = "sunken_court", name = "Sunken Court", role = "flooded_ritual_court", x = 35, y = 4, width = 9, height = 7, salt = 401,
+            pillars = { { x = 37, y = 6 }, { x = 42, y = 9 } },
+            cover = { { x = 36, y = 8, edges = { north = "half", west = "half" } }, { x = 41, y = 5, edges = { east = "half", south = "half" } } },
+            landmarks = { { id = "moon_basin", x = 39, y = 7, kind = "basin" }, { id = "flooded_lintel", x = 43, y = 10, kind = "lintel" } },
+            softGates = { { id = "court_sluice_gate", x = 35, y = 7, unlock = "moon_basin" } },
+        },
+        {
+            id = "root_catacombs", name = "Root Catacombs", role = "overgrown_crypt_loop", x = 3, y = 27, width = 10, height = 6, salt = 503,
+            pillars = { { x = 5, y = 30 }, { x = 10, y = 28 } },
+            cover = { { x = 7, y = 31, edges = { west = "half", south = "half" } }, { x = 11, y = 30, edges = { east = "half" } } },
+            landmarks = { { id = "root_idol", x = 4, y = 29, kind = "idol" }, { id = "buried_tablet", x = 12, y = 32, kind = "tablet" } },
+            softGates = { { id = "root_lattice_shortcut", x = 8, y = 27, unlock = "root_idol" } },
+        },
+        {
+            id = "bell_chambers", name = "Bell Chambers", role = "vertical_bell_cavity", x = 19, y = 27, width = 8, height = 7, salt = 607,
+            pillars = { { x = 21, y = 28 }, { x = 25, y = 32 } },
+            cover = { { x = 23, y = 29, edges = { north = "full", west = "half" } }, { x = 26, y = 31, edges = { east = "half", south = "half" } } },
+            landmarks = { { id = "silent_bell", x = 22, y = 33, kind = "bell" }, { id = "hanging_stair", x = 26, y = 27, kind = "stair" } },
+        },
+        {
+            id = "ash_sanctum", name = "Ash Sanctum", role = "burned_inner_shrine", x = 35, y = 24, width = 9, height = 7, salt = 709,
+            pillars = { { x = 37, y = 26 }, { x = 42, y = 29 } },
+            cover = { { x = 39, y = 25, edges = { north = "half", east = "half" } }, { x = 41, y = 30, edges = { west = "full" } } },
+            landmarks = { { id = "charred_mandala", x = 40, y = 27, kind = "mandala" }, { id = "ember_niche", x = 43, y = 25, kind = "niche" } },
+            softGates = { { id = "ash_veil_gate", x = 35, y = 27, unlock = "charred_mandala" } },
+        },
+    }
+    for _, district in ipairs(districts) do
+        addTempleDistrict(target, district)
+    end
+    recordExpanseSightline(target, "bell_chamber_high_sight", { x = 23, y = 29, height = 4 }, { x = 35, y = 27, height = 0 }, { { x = 23, y = 29 }, { x = 28, y = 28 }, { x = 35, y = 27 } })
+    recordExpanseVerticalRoute(target, "bell_chamber_stair_chain", "ascend", 1, 4, { { x = 22, y = 27 }, { x = 23, y = 28 }, { x = 24, y = 29 }, { x = 25, y = 30 } })
+end
+
+local function addExpanseMegastructureSprawl(target, seed)
+    target.megaStructures = {}
+    target.megaStructureById = {}
+    for _, region in ipairs(target.regions or {}) do
+        markRegionShell(target, region, seed)
+    end
+    local slabs = {
+        { id = "dead_upper_slab_west", x = 2, y = 9, width = 5, height = 3, z = 8 },
+        { id = "dead_upper_slab_mid", x = 11, y = 7, width = 6, height = 2, z = 7 },
+        { id = "dead_upper_slab_east", x = 24, y = 8, width = 6, height = 3, z = 9 },
+        { id = "collapsed_city_plate", x = 5, y = 17, width = 7, height = 3, z = 6 },
+        { id = "terminal_far_wall", x = 28, y = 11, width = 3, height = 9, z = 10 },
+    }
+    for _, slab in ipairs(slabs) do
+        for x = slab.x, slab.x + slab.width - 1 do
+            for y = slab.y, slab.y + slab.height - 1 do
+                markExpanseMegastructure(target, slab.id, x, y, slab.z, "hanging_slab")
+            end
+        end
+    end
+    local ribs = 0
+    for key, tile in pairs(target.tiles or {}) do
+        if tile and tile.blocker ~= true then
+            local x, y = key:match("^(%-?%d+):(%-?%d+)$")
+            x, y = tonumber(x), tonumber(y)
+            for _, offset in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+                local nx, ny = x + offset[1], y + offset[2]
+                if ribs < 120 and noise2(seed or 1, nx, ny, 211) > 0.78 then
+                    local height = 4 + math.floor(noise2(seed or 1, nx, ny, 223) * 6)
+                    if markExpanseMegastructure(target, "route_canyon_ribs", nx, ny, height, "megastructure_rib") then
+                        ribs = ribs + 1
+                    end
+                end
+            end
+        end
+    end
+    local shafts = {
+        { x = 19, y = 8, height = 10 },
+        { x = 21, y = 15, height = 9 },
+        { x = 30, y = 6, height = 11 },
+        { x = 13, y = 20, height = 8 },
+    }
+    for index, shaft in ipairs(shafts) do
+        markExpanseMegastructure(target, "vertical_shaft_" .. tostring(index), shaft.x, shaft.y, shaft.height, "archive_shaft")
+        markExpanseMegastructure(target, "vertical_shaft_" .. tostring(index), shaft.x + 1, shaft.y, shaft.height - 1, "archive_shaft")
+        markExpanseMegastructure(target, "vertical_shaft_" .. tostring(index), shaft.x, shaft.y + 1, shaft.height - 2, "archive_shaft")
+    end
+    target.megaStructureById = nil
+end
+
+local function addExpanseSetPieces(target, seed)
     target.heightBands = target.heightBands or {}
     target.coverFields = target.coverFields or {}
     target.sightBreaks = target.sightBreaks or {}
@@ -1951,24 +2267,48 @@ local function addExpanseSetPieces(target)
         openExpanseTile(target.tiles, x, 19, "glass", "glass_floor", 3, "terrain_variety")
     end
     openExpanseTile(target.tiles, 26, 18, "glass", "mirror_glass", 4, "terrain_variety")
+    addTempleCatacombHub(target, seed)
+    addExpanseMegastructureSprawl(target, seed)
+end
+
+local function expanseMetrics(target)
+    local openTiles, optionalTiles = 0, 0
+    local optional = target.optionalTileKeys or {}
+    for key, tile in pairs(target.tiles or {}) do
+        if tile and tile.blocker ~= true then
+            openTiles = openTiles + 1
+            if optional[key] then
+                optionalTiles = optionalTiles + 1
+            end
+        end
+    end
+    return {
+        openTiles = openTiles,
+        optionalTiles = optionalTiles,
+        optionalOpenRatio = openTiles > 0 and optionalTiles / openTiles or 0,
+        districts = #(target.districts or {}),
+        softGates = #(target.softGates or {}),
+        landmarks = #(target.landmarks or {}),
+    }
 end
 
 function Procgen.generateArchiveExpanse(seed, options)
     options = options or {}
-    local width = options.width or 32
-    local height = options.height or 24
-    local target = { width = width, height = height, tiles = {}, units = {}, objectives = {}, regions = {} }
-    local expanseTechniqueIds = { "stitched_expanse_regions", "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "graph_sprawl", "cellular_mines", "open_field_noise", "spire_stack_generation", "monument_switchback", "void_bridge_network", "terrace_height_bands", "destructible_sight_breaks", "hazard_lane_dressing", "special_terrain_scatter", "tactical_repair_validation" }
+    local width = options.width or 48
+    local height = options.height or 36
+    local target = { seed = seed or archiveRouteVariants.archive_entry_audit.seed, width = width, height = height, tiles = {}, units = {}, objectives = {}, regions = {} }
+    local expanseTechniqueIds = { "stitched_expanse_regions", "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "graph_sprawl", "cellular_mines", "open_field_noise", "spire_stack_generation", "monument_switchback", "void_bridge_network", "megastructure_sprawl", "temple_district_sprawl", "catacomb_loop_network", "soft_gate_shortcuts", "ambient_landmark_fill", "terrace_height_bands", "destructible_sight_breaks", "hazard_lane_dressing", "special_terrain_scatter", "tactical_repair_validation" }
     for x = 1, width do
         for y = 1, height do
-            target.tiles[tileKey(x, y)] = { kind = "wall", material = "archive", blockerKind = "hard", blocker = true, losBlocker = true, terrainType = "sealed_void", tags = { "sealed_void" } }
+            target.tiles[tileKey(x, y)] = { kind = "wall", material = "archive", blockerKind = "hard", blocker = true, losBlocker = true, terrainType = "sealed_archive_mass", tags = { "sealed_mass", "built_mass" } }
         end
     end
     for index, variantId in ipairs(archiveRouteVariantOrder) do
         local source = Procgen.generateArchiveRouteBoard(variantId, seed and (seed + index - 1) or nil)
         copyRegionSpecIntoExpanse(target, source, archiveExpansePlacements[variantId], variantId, index == 1)
     end
-    addExpanseSetPieces(target)
+    addExpanseSetPieces(target, seed or archiveRouteVariants.archive_entry_audit.seed)
+    target.metrics = expanseMetrics(target)
     local spec = {
         seed = seed or archiveRouteVariants.archive_entry_audit.seed,
         zone = "buried_archive",
@@ -1983,6 +2323,11 @@ function Procgen.generateArchiveExpanse(seed, options)
                 sightBreaks = target.sightBreaks,
                 verticalRoutes = target.verticalRoutes,
                 sightlines = target.sightlines,
+                megaStructures = target.megaStructures,
+                districts = target.districts,
+                softGates = target.softGates,
+                landmarks = target.landmarks,
+                metrics = target.metrics,
                 objectiveAnchors = target.objectives,
                 hazardLanes = { { id = "raised_audit_lane", kind = "audit_static", tiles = { { x = 14, y = 5 }, { x = 15, y = 5 }, { x = 16, y = 5 }, { x = 17, y = 5 } } } },
                 spawnPockets = { { id = "player_entry", side = "player", tiles = { { x = 1, y = 4 }, { x = 1, y = 5 }, { x = 1, y = 2 }, { x = 2, y = 5 }, { x = 3, y = 2 }, { x = 3, y = 3 } } } },
@@ -1990,7 +2335,7 @@ function Procgen.generateArchiveExpanse(seed, options)
                 generationTechniques = componentListByIds(generationTechniqueById, expanseTechniqueIds),
             },
         },
-        board = { width = width, height = height, tiles = target.tiles, expanse = true, regions = target.regions, heightBands = target.heightBands, coverFields = target.coverFields, sightBreaks = target.sightBreaks, verticalRoutes = target.verticalRoutes, sightlines = target.sightlines, terrainTypes = terrainTypesUsedByTiles(target.tiles), generationTechniques = componentListByIds(generationTechniqueById, expanseTechniqueIds) },
+        board = { width = width, height = height, tiles = target.tiles, expanse = true, regions = target.regions, districts = target.districts, softGates = target.softGates, landmarks = target.landmarks, metrics = target.metrics, heightBands = target.heightBands, coverFields = target.coverFields, sightBreaks = target.sightBreaks, verticalRoutes = target.verticalRoutes, sightlines = target.sightlines, megaStructures = target.megaStructures, terrainTypes = terrainTypesUsedByTiles(target.tiles), generationTechniques = componentListByIds(generationTechniqueById, expanseTechniqueIds) },
         units = target.units,
         objectives = target.objectives,
         archiveRoute = {

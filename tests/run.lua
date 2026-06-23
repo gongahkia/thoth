@@ -222,7 +222,10 @@ end
 
 tests[#tests + 1] = function()
     local runtime = TacticalRuntime.new(makeTacticalSim(9019))
-    expect(runtime.state.board.width == 32 and runtime.state.board.height == 24 and runtime.state.board.expanse == true, "runtime should use one large archive expanse board")
+    expect(runtime.state.board.width == 48 and runtime.state.board.height == 36 and runtime.state.board.expanse == true, "runtime should use one large semi-open catacomb hub")
+    local metrics = runtime.state.board.metrics or {}
+    expect(#(runtime.state.board.districts or {}) >= 5 and #(runtime.state.board.softGates or {}) >= 2 and #(runtime.state.board.landmarks or {}) >= 8, "expanse should expose districts, soft gates, and landmarks")
+    expect((metrics.optionalOpenRatio or 0) >= 0.45 and (metrics.optionalOpenRatio or 0) <= 0.55, "semi-open hub should keep about half of open space optional")
     local dormant = nil
     for _, id in ipairs(runtime.state.unitOrder or {}) do
         local unit = runtime.state:unit(id)

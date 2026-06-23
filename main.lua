@@ -418,6 +418,16 @@ local function configureIntentLegendPreviewCapture(state)
     runtime.message = "intent legend: source and target tiles are highlighted before commit"
 end
 
+local function configureHubPreviewCapture(state)
+    local runtime = state and state.tactics
+    if not runtime then
+        return
+    end
+    setTacticalCaptureCursor(state, 40, 27)
+    Render.setTacticalCameraCenter(state, runtime.originX + 38, runtime.originY + 25)
+    runtime.message = "semi-open hub: optional temple districts branch around the archive spine"
+end
+
 local function configureTacticalPreviewCapture(state, previewState)
     if not (state and state.tactics and previewState) then
         return
@@ -431,6 +441,8 @@ local function configureTacticalPreviewCapture(state, previewState)
         configureOverwatchPreviewCapture(state)
     elseif previewState == "intent" or previewState == "intent-legend" then
         configureIntentLegendPreviewCapture(state)
+    elseif previewState == "hub" then
+        configureHubPreviewCapture(state)
     else
         state.tacticalPreviewState = "default"
     end
@@ -1257,6 +1269,10 @@ local function printTacticalSmoke(state)
     print("tactical-smoke-high-cover=" .. tostring(highCoverTiles))
     print("tactical-smoke-terrain-types=" .. tostring(#((board and board.terrainTypes) or {})))
     print("tactical-smoke-generation-techniques=" .. tostring(#((board and board.generationTechniques) or {})))
+    print("tactical-smoke-districts=" .. tostring(#((board and board.districts) or {})))
+    print("tactical-smoke-soft-gates=" .. tostring(#((board and board.softGates) or {})))
+    print("tactical-smoke-landmarks=" .. tostring(#((board and board.landmarks) or {})))
+    print("tactical-smoke-optional-open-ratio=" .. string.format("%.2f", (board and board.metrics and board.metrics.optionalOpenRatio) or 0))
     print("tactical-smoke-grid=" .. tostring(state.worldView and state.worldView.tacticalGrid or 0))
     print("tactical-smoke-enemy-cards=" .. tostring(#Render.tacticalEnemyHudRows(state)))
     print("tactical-smoke-intent-badges=" .. tostring(state.worldView and state.worldView.tacticalIntentBadges or 0))
