@@ -695,34 +695,6 @@ function Render.tacticalScreenToWorldPoint(view, screenX, screenY)
     return rayX + dirX * t, rayY + dirY * t
 end
 
-function Render.tacticalWorldToScreenPoint(view, worldX, worldY, worldZ)
-    local camera = view and view.tacticalCamera
-    if not camera then
-        return nil
-    end
-    local width = camera.screenWidth or (love and love.graphics and love.graphics.getWidth()) or 0
-    local height = camera.screenHeight or (love and love.graphics and love.graphics.getHeight()) or 0
-    if width <= 0 or height <= 0 then
-        return nil
-    end
-    local eyeX, eyeY, eyeZ = camera.eyeX, camera.eyeY, camera.eyeZ
-    local targetX, targetY, targetZ = camera.targetX, camera.targetY, camera.targetZ
-    local backX, backY, backZ = normalize3(eyeX - targetX, eyeY - targetY, eyeZ - targetZ)
-    local rightX, rightY, rightZ = normalize3(cross3(0, 0, 1, backX, backY, backZ))
-    local upX, upY, upZ = cross3(backX, backY, backZ, rightX, rightY, rightZ)
-    local dx = worldX - targetX
-    local dy = worldY - targetY
-    local dz = (worldZ or targetZ) - targetZ
-    local cameraX = dx * rightX + dy * rightY + dz * rightZ
-    local cameraY = dx * upX + dy * upY + dz * upZ
-    local top = camera.orthoSize or 1
-    local right = top * (width / height)
-    if top <= 0 or right <= 0 then
-        return nil
-    end
-    return ((cameraX / right) + 1) * 0.5 * width, (1 - (cameraY / top)) * 0.5 * height
-end
-
 local function clamp(value, minValue, maxValue)
     return math.max(minValue, math.min(maxValue, value))
 end
@@ -1210,6 +1182,7 @@ function Render.load()
     state.fonts = {}
     state.quads = {}
     state.modelCache = {}
+    state.billboardCache = {}
     state.g3d = nil
     state.loadError = nil
     if state.headless then
@@ -2008,8 +1981,10 @@ local function drawTacticalOverlays(sim, app)
             return buildTacticalOverlayModel(drawnEntries, source, app and app.settings, z), #drawnEntries
         end)
         if model then
+            love.graphics.setDepthMode("always", false)
             love.graphics.setColor(1, 1, 1, 1)
             model:draw()
+            love.graphics.setDepthMode("lequal", true)
         end
     end
     return counts
@@ -2059,47 +2034,6 @@ function Render.drawTacticalForecast(sim, app)
     end
     local entries = Render.cachedTacticalOverlayEntries(source, app)
     return #entries + (app.tacticalHover and 1 or 0)
-end
-
-function Render.drawTacticalMovementHudOverlays(sim, app)
-    if not (love and love.graphics and app and app.tacticalMode and app.worldView and app.worldView.tacticalCamera) then
-        return 0
-    end
-    local source = tacticalOverlaySource(sim, app)
-    if not (source and source.state) then
-        return 0
-    end
-    local entries = Render.cachedTacticalOverlayEntries(source, app)
-    local originX = source.originX or 0
-    local originY = source.originY or 0
-    local z = ((sim and sim.player and sim.player.z) or 0) + 0.16
-    local drawn = 0
-    love.graphics.push("all")
-    love.graphics.setShader()
-    love.graphics.setDepthMode()
-    love.graphics.setLineWidth(3)
-    for _, entry in ipairs(entries) do
-        if entry.kind == "movement" then
-            local x0 = originX + entry.x + 0.08
-            local y0 = originY + entry.y + 0.08
-            local x1 = originX + entry.x + 0.92
-            local y1 = originY + entry.y + 0.92
-            local ax, ay = Render.tacticalWorldToScreenPoint(app.worldView, x0, y0, z)
-            local bx, by = Render.tacticalWorldToScreenPoint(app.worldView, x1, y0, z)
-            local cx, cy = Render.tacticalWorldToScreenPoint(app.worldView, x1, y1, z)
-            local dx, dy = Render.tacticalWorldToScreenPoint(app.worldView, x0, y1, z)
-            if ax and bx and cx and dx then
-                love.graphics.setColor(0.08, 0.46, 1.0, 0.32)
-                love.graphics.polygon("fill", ax, ay, bx, by, cx, cy, dx, dy)
-                love.graphics.setColor(0.42, 0.82, 1.0, 0.98)
-                love.graphics.polygon("line", ax, ay, bx, by, cx, cy, dx, dy)
-                drawn = drawn + 1
-            end
-        end
-    end
-    love.graphics.pop()
-    app.worldView.tacticalMovementHud = drawn
-    return drawn
 end
 
 local function applyCamera(sim, app, targetX, targetY, targetZ)
@@ -2221,24 +2155,30 @@ end
 
 local function newBillboard(width, height, frame, x, y, z, yaw, texture)
     texture = texture or state.assets.spriteAtlas or state.assets.white
-    local model = state.g3d.newModel(billboardVerts(width, height, frame), texture, {x, y, z or 0})
-    model:makeNormals()
-    model:setRotation(0, 0, math.pi / 2 - yaw)
+    state.billboardCache = state.billboardCache or {}
+    local key = table.concat({ tostring(width), tostring(height), tostring(frame or 0), tostring(texture) }, "|")
+    local model = state.billboardCache[key]
+    if not model then
+        model = state.g3d.newModel(billboardVerts(width, height, frame), texture, { 0, 0, 0 })
+        state.billboardCache[key] = model
+    end
+    local rotation = math.pi / 2 - yaw
+    if model._billboardRotation ~= rotation then
+        model:setRotation(0, 0, rotation)
+        model._billboardRotation = rotation
+    end
+    model:setTranslation(x, y, z or 0)
     return model
 end
 
 local function drawLitModel(model, light)
-    love.graphics.push("all")
     love.graphics.setColor(light, light, light, 1)
     model:draw()
-    love.graphics.pop()
 end
 
 local function drawTintedModel(model, color, light, alpha)
-    love.graphics.push("all")
     love.graphics.setColor((color[1] or 1) * light, (color[2] or 1) * light, (color[3] or 1) * light, alpha or color[4] or 1)
     model:draw()
-    love.graphics.pop()
 end
 
 local function drawHeroBillboards(sim, yaw, profile)
@@ -2653,9 +2593,6 @@ function Render.drawWorld(sim, app)
     local tacticalOverlayCounts = drawTacticalOverlays(sim, app)
     drawTacticalIntentArrows(sim, app)
     local tacticalOverwatchTriggers = drawTacticalOverwatchTrigger(sim, app)
-    if app and app.tacticalMode then
-        Render.drawTacticalMovementHudOverlays(sim, app)
-    end
     local architecture, architectureCount = nil, 0
     if not (app and app.tacticalMode) then
         architecture, architectureCount = Render.cachedArchitectureModel(sim, profile, app and app.settings)
