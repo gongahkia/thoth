@@ -470,7 +470,8 @@ tests[#tests + 1] = function()
     Render.setTacticalCameraCenter(app, -999, -999)
     expect(app.tacticalCameraCenterX == runtime.originX + 1.5 and app.tacticalCameraCenterY == runtime.originY + 1.5, "tactical camera pan should clamp to board bounds")
     app.worldView.tacticalCamera = nil
-    local selectAction = runtime:actionAtTile(1, 5)
+    local duelist = runtime.state:unit("duelist")
+    local selectAction = runtime:actionAtTile(duelist.x, duelist.y)
     expect(selectAction.kind == "select" and selectAction.enabled, "tactical click action should select squad units")
     local moveAction = runtime:actionAtTile(2, 4)
     expect(moveAction.kind == "move" and moveAction.enabled and moveAction.detail == "1 AP", "tactical click action should preview reachable moves")
@@ -502,6 +503,7 @@ tests[#tests + 1] = function()
     local enemy = firstEnemy(runtime)
     enemy.x = 2
     enemy.y = 4
+    runtime.state:tileAt(2, 4).coverEdges = { east = "half" }
     TacticalRuntime.refreshOverlays(runtime)
     local attackAction = runtime:actionAtTile(2, 4)
     expect(attackAction.kind == "attack" and attackAction.enabled and attackAction.detail:find("dmg2 flank", 1, true), "tactical click action should preview in-range flanking attacks")
@@ -510,7 +512,7 @@ tests[#tests + 1] = function()
     tileX, tileY = 1, 3
     expect(runtime:handleMouseTile(tileX, tileY, 1), "left click should handle reachable board tile")
     expect(runtime.state:unit("warden").x == 1 and runtime.state:unit("warden").y == 3 and runtime.state:unit("warden").ap == 1, "left click should move selected unit to reachable tile")
-    expect(runtime:handleMouseTile(1, 5, 1), "left click should select player unit")
+    expect(runtime:handleMouseTile(duelist.x, duelist.y, 1), "left click should select player unit")
     expect(runtime.selectedUnitId == "duelist", "left click should select clicked squad unit")
     expect(runtime:handleMouseTile(3, 4, 2), "right click should place cursor")
     expect(runtime.cursor.x == 3 and runtime.cursor.y == 4, "right click should move cursor without action")
@@ -3265,6 +3267,51 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local function reachable(spec, from, to)
+        local queue = { from }
+        local seen = { [tostring(from.x) .. ":" .. tostring(from.y)] = true }
+        local index = 1
+        while queue[index] do
+            local node = queue[index]
+            index = index + 1
+            if node.x == to.x and node.y == to.y then
+                return true
+            end
+            for _, offset in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+                local nx, ny = node.x + offset[1], node.y + offset[2]
+                local key = tostring(nx) .. ":" .. tostring(ny)
+                local tile = spec.board.tiles[key]
+                if tile and not seen[key] and tile.blocker ~= true then
+                    seen[key] = true
+                    queue[#queue + 1] = { x = nx, y = ny }
+                end
+            end
+        end
+        return false
+    end
+    local profiles = { "spires", "sprawl", "open_wilds", "rooms_mines", "mixed_archive" }
+    expect(#TacticsProcgen.hybridProfiles() == #profiles, "hybrid procgen should expose five terrain profiles")
+    for index, profile in ipairs(profiles) do
+        local spec = TacticsProcgen.generateHybridBoard(9100 + index, { profile = profile, width = 24, height = 18 })
+        local components = spec.grammar.components
+        local spawn = components.spawnPockets[1].tiles[1]
+        local objective = spec.objectives[1]
+        expect(spec.validation.valid and TacticsProcgen.validateGrammarBoard(spec).valid, "hybrid profile should validate: " .. profile)
+        expect(spec.generator.profile == profile and spec.generator.pipeline[1] == "macro_graph", "hybrid profile should record generator pipeline: " .. profile)
+        expect(#components.noiseFields > 0, "hybrid profile should record noise fields: " .. profile)
+        expect(#components.wfcTiles > 0 and #components.coverFields > 0 and #components.sightBreaks > 0 and #components.hazardLanes > 0, "hybrid profile should record tactical motifs: " .. profile)
+        expect(#spec.board.terrainTypes >= 7 and #spec.board.generationTechniques >= 5, "hybrid profile should record varied terrain and techniques: " .. profile)
+        expect(reachable(spec, spawn, objective), "hybrid profile should keep spawn objective reachable: " .. profile)
+        expect(Serialize.encode(spec) == Serialize.encode(TacticsProcgen.generateHybridBoard(9100 + index, { profile = profile, width = 24, height = 18 })), "hybrid profile should be deterministic: " .. profile)
+    end
+    local a = Serialize.encode(TacticsProcgen.generateHybridBoard(9191, { profile = "mixed_archive", width = 24, height = 18 }))
+    local b = Serialize.encode(TacticsProcgen.generateHybridBoard(9192, { profile = "mixed_archive", width = 24, height = 18 }))
+    expect(a ~= b, "hybrid profile should vary by seed")
+    local zone = TacticsProcgen.generateZoneBoard("buried_archive", 9193, { profile = "spires", width = 16, height = 16 })
+    expect(zone.generator.id == "archive_generator_v1_hybrid_v1" and zone.generator.profile == "spires", "zone generator should opt into hybrid profile")
+end
+
+tests[#tests + 1] = function()
     local expected = {
         buried_archive = { material = "archive", hazardKind = "audit_static", objectiveKind = "protect_archive_shelf" },
     }
@@ -3413,6 +3460,7 @@ tests[#tests + 1] = function()
     local templates = {}
     local nodeKinds = {}
     local objectiveFamilies = {}
+    local terrainProfiles = {}
     local expectedOrder = { "archive_entry_audit", "archive_shelf_protection", "archive_proof_extract", "archive_ledger_repair", "archive_sealed_shortcut", "archive_vault_regent_final" }
     expect(route.id == "buried_archive_vertical_slice" and route.zone == "buried_archive", "archive route should define Buried Archive route metadata")
     expect(#variants == 6 and route.boardCount == #variants, "archive route should expose exactly 6 mission variants")
@@ -3427,10 +3475,12 @@ tests[#tests + 1] = function()
         local spec = TacticsProcgen.generateArchiveRouteBoard(variant.id, seed)
         local state = TacticsProcgen.archiveRouteState(variant.id, seed)
         local family = state:objective(spec.objectives[1].id).family
+        terrainProfiles[variant.generatorOptions.profile] = true
         expect(not objectiveFamilies[family], "archive route objective family should be distinct: " .. family)
         objectiveFamilies[family] = variant.id
         expect(spec.zone == "buried_archive" and spec.archiveRoute.variantId == variant.id, "archive route board should bind variant metadata: " .. variant.id)
         expect(spec.generator.variantId == variant.id and spec.generator.template == variant.template and spec.generator.routeId == route.id, "archive route board should bind generator metadata: " .. variant.id)
+        expect(spec.generator.profile == variant.generatorOptions.profile, "archive route board should bind terrain profile: " .. variant.id)
         expect(spec.validation.valid and TacticsProcgen.validateGrammarBoard(spec).valid, "archive route board should validate grammar: " .. variant.id)
         expect(TacticsProcgen.auditReinforcementRules(spec).ok, "archive route board should pass reinforcement audit: " .. variant.id)
         expect(TacticsProcgen.difficultyBudget(spec).accepted and spec.budget.accepted, "archive route board should pass difficulty budget: " .. variant.id)
@@ -3442,6 +3492,9 @@ tests[#tests + 1] = function()
     end
     for _, family in ipairs({ "stealth", "protect", "extract", "repair", "disable", "boss" }) do
         expect(objectiveFamilies[family], "archive route missing objective family " .. family)
+    end
+    for _, profile in ipairs({ "spires", "sprawl", "open_wilds", "rooms_mines", "mixed_archive" }) do
+        expect(terrainProfiles[profile], "archive route missing terrain profile " .. profile)
     end
     expect(templates.kill_light and templates.protect_heavy and templates.extraction and templates.repair and templates.stealth and templates.boss_route, "archive route should cover six tactical templates")
     expect(nodeKinds.combat and nodeKinds.repair and nodeKinds.boss and nodeKinds.high_reward_extraction and nodeKinds.cursed_shortcut, "archive route should cover route node pressure")

@@ -57,6 +57,62 @@ local generationTechniques = {
     { id = "stitched_expanse_regions", output = "route boards welded into one expanse", counterplay = "wake regions without state reset" },
     { id = "monument_switchback", output = "large ascent and descent structures", counterplay = "control high ground and stair mouths" },
     { id = "void_bridge_network", output = "bridges over blocking void", counterplay = "break bridges or defend crossings" },
+    { id = "macro_graph_layout", output = "profile-driven critical path and side branches", counterplay = "read route shape before committing AP" },
+    { id = "noise_heightfield", output = "seeded height, void, hazard, and material fields", counterplay = "use high ground and avoid noisy danger bands" },
+    { id = "wfc_tile_dressing", output = "adjacency-safe shelves, stairs, bridges, and tile motifs", counterplay = "inspect local motif affordances" },
+    { id = "graph_sprawl", output = "looped hub and shortcut layouts", counterplay = "reconnect paths and flank through branches" },
+    { id = "cellular_mines", output = "worm-carved rooms and mine tunnels", counterplay = "clear pockets and destructible choke points" },
+    { id = "open_field_noise", output = "broad noise-shaped terrain fields", counterplay = "cross sparse cover islands decisively" },
+    { id = "spire_stack_generation", output = "stacked platforms, narrow bridges, and stair chains", counterplay = "control vertical chokepoints" },
+    { id = "tactical_repair_validation", output = "post-pass reachability, LoS, cover, and objective repairs", counterplay = "guaranteed readable tactical routes" },
+}
+
+local hybridProfiles = {
+    spires = {
+        id = "spires",
+        maxHeight = 4,
+        corridorWidth = 1,
+        roomScale = 0.75,
+        openNoise = 0.86,
+        branchChance = 0.2,
+        techniques = { "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "spire_stack_generation", "void_bridge_network", "tactical_repair_validation" },
+    },
+    sprawl = {
+        id = "sprawl",
+        maxHeight = 2,
+        corridorWidth = 2,
+        roomScale = 1.05,
+        openNoise = 0.78,
+        branchChance = 0.9,
+        techniques = { "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "graph_sprawl", "tactical_repair_validation" },
+    },
+    open_wilds = {
+        id = "open_wilds",
+        maxHeight = 2,
+        corridorWidth = 3,
+        roomScale = 1.35,
+        openNoise = 0.58,
+        branchChance = 0.55,
+        techniques = { "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "open_field_noise", "hazard_lane_dressing", "tactical_repair_validation" },
+    },
+    rooms_mines = {
+        id = "rooms_mines",
+        maxHeight = 2,
+        corridorWidth = 1,
+        roomScale = 0.72,
+        openNoise = 0.9,
+        branchChance = 0.45,
+        techniques = { "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "cellular_mines", "destructible_sight_breaks", "tactical_repair_validation" },
+    },
+    mixed_archive = {
+        id = "mixed_archive",
+        maxHeight = 3,
+        corridorWidth = 2,
+        roomScale = 1.0,
+        openNoise = 0.72,
+        branchChance = 0.7,
+        techniques = { "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "graph_sprawl", "cellular_mines", "open_field_noise", "spire_stack_generation", "tactical_repair_validation" },
+    },
 }
 
 local terrainTypeById = {}
@@ -111,7 +167,7 @@ local archiveRouteVariants = {
         reward = { salvage = 2, proof = 1 },
         complication = "audit_static_claim_line",
         preview = "compact entry stacks with known audit-static lane and a stealth-read docket",
-        generatorOptions = { width = 8, height = 8, objectiveId = "entry_shelf", objectiveKind = "stealth_read" },
+        generatorOptions = { width = 8, height = 8, objectiveId = "entry_shelf", objectiveKind = "stealth_read", profile = "rooms_mines" },
         directorOptions = { failureClock = 3, threatenedTiles = 4, reinforcementTurn = 3 },
     },
     archive_shelf_protection = {
@@ -124,7 +180,7 @@ local archiveRouteVariants = {
         reward = { salvage = 1, standing = "custodian" },
         complication = "two_turn_shelf_pressure",
         preview = "wider stacks around a higher-integrity shelf anchor",
-        generatorOptions = { width = 9, height = 8, objectiveId = "deep_shelf", objectiveKind = "protect_archive_shelf", objectiveIntegrity = 4 },
+        generatorOptions = { width = 9, height = 8, objectiveId = "deep_shelf", objectiveKind = "protect_archive_shelf", objectiveIntegrity = 4, profile = "sprawl" },
         directorOptions = { failureClock = 4, threatenedTiles = 5, reinforcementTurn = 4 },
     },
     archive_proof_extract = {
@@ -137,7 +193,7 @@ local archiveRouteVariants = {
         reward = { proof = 3, salvage = 1 },
         complication = "exit_access_pressure",
         preview = "proof cache must remain reachable to the entry evacuation tile",
-        generatorOptions = { width = 8, height = 7, objectiveId = "proof_cache", objectiveKind = "extract_record" },
+        generatorOptions = { width = 8, height = 7, objectiveId = "proof_cache", objectiveKind = "extract_record", profile = "open_wilds" },
         directorOptions = { failureClock = 3, threatenedTiles = 5, reinforcementTurn = 3 },
     },
     archive_ledger_repair = {
@@ -150,7 +206,7 @@ local archiveRouteVariants = {
         reward = { routeIntegrity = 1, salvage = 1 },
         complication = "repair_ap_timing",
         preview = "ledger machinery sits past a central audit lane",
-        generatorOptions = { width = 9, height = 7, objectiveId = "ledger_machine", objectiveKind = "repair_machinery" },
+        generatorOptions = { width = 9, height = 7, objectiveId = "ledger_machine", objectiveKind = "repair_machinery", profile = "spires" },
         directorOptions = { includeAlpha = true, alphaTurn = 4, failureClock = 3, threatenedTiles = 4, reinforcementTurn = 4 },
     },
     archive_sealed_shortcut = {
@@ -163,7 +219,7 @@ local archiveRouteVariants = {
         reward = { skipPressure = 1, proof = 1 },
         complication = "audit_lens_lock",
         preview = "short board with tighter sight breaks and a disable objective",
-        generatorOptions = { width = 7, height = 7, objectiveId = "audit_lens", objectiveKind = "disable_audit_lens" },
+        generatorOptions = { width = 7, height = 7, objectiveId = "audit_lens", objectiveKind = "disable_audit_lens", profile = "rooms_mines" },
         directorOptions = { failureClock = 3, threatenedTiles = 6, reinforcementTurn = 3 },
     },
     archive_elite_claim = {
@@ -176,7 +232,7 @@ local archiveRouteVariants = {
         reward = { rareUnlock = "archive_claim_counter", salvage = 2 },
         complication = "partial_intent_elite",
         preview = "elite claim pressure with one redacted footprint",
-        generatorOptions = { width = 9, height = 8, objectiveId = "claim_docket", objectiveKind = "hold_claim" },
+        generatorOptions = { width = 9, height = 8, objectiveId = "claim_docket", objectiveKind = "hold_claim", profile = "sprawl" },
         directorOptions = { includeElite = true, eliteId = "shelf_knight", eliteIds = { "codex_advocate", "shelf_knight", "writ_cantor", "null_censor" }, failureClock = 4, threatenedTiles = 7, reinforcementTurn = 4 },
     },
     archive_vault_regent_final = {
@@ -190,7 +246,7 @@ local archiveRouteVariants = {
         complication = "regent_claim_beams",
         preview = "Vault Regent final procedure with staged claim beams and legal cover",
         bossId = "vault_regent",
-        generatorOptions = { width = 9, height = 7, objectiveId = "vault_regent", objectiveKind = "boss_procedure", objectiveIntegrity = 5 },
+        generatorOptions = { width = 9, height = 7, objectiveId = "vault_regent", objectiveKind = "boss_procedure", objectiveIntegrity = 5, profile = "mixed_archive" },
         directorOptions = { bossId = "vault_regent", failureClock = 5, threatenedTiles = 8, intentCap = 10, reinforcementTurn = 4 },
     },
 }
@@ -485,10 +541,63 @@ local function applyAlphaTerrain(spec, alpha)
     local components = spec.grammar and spec.grammar.components or {}
     local blockers = {}
     local blockerX = math.max(1, objective.x - 1)
-    for _, y in ipairs({ objective.y - 1, objective.y + 1 }) do
-        if y >= 1 and y <= spec.board.height then
-            local tile = spec.board.tiles[tileKey(blockerX, y)]
-            if tile and tile.kind ~= "wall" then
+    local occupied = {}
+    for _, unit in ipairs(spec.units or {}) do
+        occupied[tileKey(unit.x, unit.y)] = true
+    end
+    local function reachableWithBlock(blockX, blockY)
+        local from = objective.evacuateAt
+        if not (from and from.x and from.y) then
+            return true
+        end
+        local queue = { { x = from.x, y = from.y } }
+        local seen = { [tileKey(from.x, from.y)] = true }
+        local index = 1
+        while queue[index] do
+            local node = queue[index]
+            index = index + 1
+            if node.x == objective.x and node.y == objective.y then
+                return true
+            end
+            for _, delta in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+                local x, y = node.x + delta[1], node.y + delta[2]
+                local key = tileKey(x, y)
+                local tile = spec.board.tiles[key]
+                if tile and not seen[key] and not (x == blockX and y == blockY) and tile.blocker ~= true then
+                    seen[key] = true
+                    queue[#queue + 1] = { x = x, y = y }
+                end
+            end
+        end
+        return false
+    end
+    local candidateRows = { objective.y - 1, objective.y + 1, objective.y - 2, objective.y + 2, objective.y }
+    local blockerCandidates = {}
+    local seenCandidates = {}
+    local function addBlockerCandidate(x, y)
+        local key = tileKey(x, y)
+        if x >= 1 and y >= 1 and x <= spec.board.width and y <= spec.board.height and not seenCandidates[key] and not (x == objective.x and y == objective.y) then
+            seenCandidates[key] = true
+            blockerCandidates[#blockerCandidates + 1] = { x = x, y = y }
+        end
+    end
+    for _, y in ipairs(candidateRows) do
+        addBlockerCandidate(blockerX, y)
+    end
+    addBlockerCandidate(math.max(1, blockerX - 1), objective.y)
+    addBlockerCandidate(math.min(spec.board.width, blockerX + 1), objective.y)
+    for pass = 1, 2 do
+        for _, ref in ipairs(blockerCandidates) do
+            if #blockers >= 2 then
+                break
+            end
+            local tile = spec.board.tiles[tileKey(ref.x, ref.y)]
+            local key = tileKey(ref.x, ref.y)
+            local openEnough = tile and tile.kind ~= "wall" and tile.blocker ~= true and not tile.objective and not occupied[key] and reachableWithBlock(ref.x, ref.y)
+            if pass == 2 and tile and not tile.objective and (tile.kind == "wall" or tile.blocker == true) then
+                openEnough = not occupied[key]
+            end
+            if openEnough then
                 tile.kind = "warden_shelf_blocker"
                 tile.blockerKind = "mobile"
                 tile.blocker = true
@@ -498,7 +607,7 @@ local function applyAlphaTerrain(spec, alpha)
                 tile.alphaTerrain = alpha.id
                 addTag(tile, "alpha_terrain")
                 addTag(tile, "shelf_warden")
-                blockers[#blockers + 1] = { x = blockerX, y = y, interaction = alpha.terrainInteraction }
+                blockers[#blockers + 1] = { x = ref.x, y = ref.y, interaction = alpha.terrainInteraction }
             end
         end
     end
@@ -548,6 +657,14 @@ end
 
 function Procgen.generationTechniques()
     return copyValue(generationTechniques)
+end
+
+function Procgen.hybridProfiles()
+    local result = {}
+    for _, id in ipairs({ "spires", "sprawl", "open_wilds", "rooms_mines", "mixed_archive" }) do
+        result[#result + 1] = copyValue(hybridProfiles[id])
+    end
+    return result
 end
 
 function Procgen.hazardKinds()
@@ -806,6 +923,536 @@ function Procgen.validateGrammarBoard(spec)
     return report
 end
 
+local function clamp(value, minValue, maxValue)
+    return math.max(minValue, math.min(maxValue, value))
+end
+
+local function frac(value)
+    return value - math.floor(value)
+end
+
+local function noise2(seed, x, y, salt)
+    return frac(math.sin((x or 0) * 127.1 + (y or 0) * 311.7 + (seed or 1) * 74.7 + (salt or 0) * 19.19) * 43758.5453)
+end
+
+local function smoothNoise(seed, x, y, salt)
+    local ix = math.floor(x)
+    local iy = math.floor(y)
+    local fx = x - ix
+    local fy = y - iy
+    local a = noise2(seed, ix, iy, salt)
+    local b = noise2(seed, ix + 1, iy, salt)
+    local c = noise2(seed, ix, iy + 1, salt)
+    local d = noise2(seed, ix + 1, iy + 1, salt)
+    fx = fx * fx * (3 - 2 * fx)
+    fy = fy * fy * (3 - 2 * fy)
+    local x1 = a + (b - a) * fx
+    local x2 = c + (d - c) * fx
+    return x1 + (x2 - x1) * fy
+end
+
+local function fbmNoise(seed, x, y, salt)
+    local total = 0
+    local amplitude = 0.5
+    local frequency = 0.18
+    local norm = 0
+    for octave = 1, 4 do
+        total = total + smoothNoise(seed + octave * 97, x * frequency, y * frequency, salt + octave * 13) * amplitude
+        norm = norm + amplitude
+        amplitude = amplitude * 0.5
+        frequency = frequency * 2
+    end
+    return norm > 0 and total / norm or 0
+end
+
+local function hybridProfile(options)
+    local id = (options and options.profile) or "mixed_archive"
+    local profile = hybridProfiles[id] or hybridProfiles.mixed_archive
+    return profile, profile.id
+end
+
+local function roomFromCenter(id, role, width, height, cx, cy, roomW, roomH, shape)
+    roomW = clamp(math.floor(roomW + 0.5), 2, math.max(2, width - 1))
+    roomH = clamp(math.floor(roomH + 0.5), 2, math.max(2, height - 1))
+    local x = clamp(math.floor(cx - roomW * 0.5 + 0.5), 1, math.max(1, width - roomW + 1))
+    local y = clamp(math.floor(cy - roomH * 0.5 + 0.5), 1, math.max(1, height - roomH + 1))
+    return { id = id, role = role, x = x, y = y, width = roomW, height = roomH, shape = shape or "rect", center = { x = clamp(math.floor(cx + 0.5), 1, width), y = clamp(math.floor(cy + 0.5), 1, height) } }
+end
+
+local function hybridRoomPlan(profile, width, height, rng)
+    local rooms = {}
+    local scale = profile.roomScale or 1
+    local baseW = clamp(math.floor(width * 0.18 * scale + 0.5), 2, 5)
+    local baseH = clamp(math.floor(height * 0.24 * scale + 0.5), 2, 5)
+    local function add(id, role, fx, fy, w, h, shape)
+        rooms[#rooms + 1] = roomFromCenter(id, role, width, height, width * fx, height * fy, w or baseW, h or baseH, shape)
+    end
+    if profile.id == "spires" then
+        add("entry_platform", "squad_spawn", 0.16, 0.58, baseW, baseH, "platform")
+        add("lower_spire", "ascent", 0.34, 0.34, baseW, baseH, "platform")
+        add("mid_bridge_spire", "bridge_hub", 0.55, 0.66, baseW, baseH, "platform")
+        add("objective_spire", "objective_pressure", 0.84, 0.42, baseW, baseH, "platform")
+    elseif profile.id == "sprawl" then
+        add("entry_hub", "squad_spawn", 0.14, 0.55, baseW, baseH, "rect")
+        add("north_loop", "branch", 0.36, 0.28, baseW, baseH, "rect")
+        add("south_loop", "branch", 0.38, 0.76, baseW, baseH, "rect")
+        add("central_hub", "hub", 0.58, 0.52, baseW + 1, baseH, "rect")
+        add("upper_shortcut", "shortcut", 0.74, 0.24, baseW, baseH, "rect")
+        add("objective_hub", "objective_pressure", 0.86, 0.62, baseW, baseH, "rect")
+    elseif profile.id == "open_wilds" then
+        add("entry_edge", "squad_spawn", 0.12, 0.52, baseW, baseH, "open")
+        add("open_field", "field", 0.46, 0.5, math.max(baseW + 2, math.floor(width * 0.34)), math.max(baseH + 2, math.floor(height * 0.42)), "open")
+        add("objective_outcrop", "objective_pressure", 0.86, 0.5, baseW + 1, baseH, "open")
+    elseif profile.id == "rooms_mines" then
+        add("entry_room", "squad_spawn", 0.14, 0.52, baseW, baseH, "rect")
+        add("upper_pocket", "mine_room", 0.32, 0.28, baseW, baseH, "rect")
+        add("lower_pocket", "mine_room", 0.48, 0.68, baseW, baseH, "rect")
+        add("claim_pocket", "mine_room", 0.68, 0.38, baseW, baseH, "rect")
+        add("objective_room", "objective_pressure", 0.86, 0.56, baseW, baseH, "rect")
+    else
+        add("entry_room", "squad_spawn", 0.12, 0.52, baseW, baseH, "rect")
+        add("mine_branch", "mine_room", 0.3, 0.28, baseW, baseH, "rect")
+        add("open_archive", "field", 0.48, 0.58, baseW + 2, baseH + 1, "open")
+        add("spire_stack", "ascent", 0.63, 0.28, baseW, baseH, "platform")
+        add("side_archive", "branch", 0.75, 0.72, baseW, baseH, "rect")
+        add("objective_room", "objective_pressure", 0.88, 0.5, baseW, baseH, "rect")
+    end
+    return rooms
+end
+
+local function newHybridContext(seed, options, profile, profileId)
+    local width = options.width or (profileId == "open_wilds" and 24 or profileId == "sprawl" and 22 or 16)
+    local height = options.height or (profileId == "open_wilds" and 18 or 16)
+    requireSize(width, height)
+    local ctx = {
+        seed = seed or 1,
+        rng = Rng.new(seed or 1),
+        profile = profile,
+        profileId = profileId,
+        width = width,
+        height = height,
+        material = options.material or "archive",
+        zone = options.zone,
+        generatorId = options.generatorId or "hybrid_generator_v1",
+        objectiveId = options.objectiveId or "route_machine",
+        objectiveKind = options.objectiveKind or "protect_route_machinery",
+        objectiveIntegrity = options.objectiveIntegrity or 3,
+        hazardKind = options.hazardKind or hazardKinds[((seed or 1) % #hazardKinds) + 1],
+        tiles = {},
+        playable = {},
+        critical = {},
+        reserved = {},
+        criticalPath = {},
+        corridors = {},
+        rooms = {},
+        noiseFields = {},
+        wfcTiles = {},
+        cellularMines = {},
+        repairs = {},
+    }
+    for x = 1, width do
+        for y = 1, height do
+            ctx.tiles[tileKey(x, y)] = { kind = "wall", material = ctx.material, blockerKind = "hard", blocker = true, losBlocker = true, terrainType = "sealed_void", tags = { "sealed_void" } }
+        end
+    end
+    return ctx
+end
+
+local function carveHybridTile(ctx, x, y, tag, critical)
+    if not (x >= 1 and y >= 1 and x <= ctx.width and y <= ctx.height) then
+        return nil
+    end
+    local tile = carve(ctx.tiles, x, y, ctx.material, tag or "hybrid_playable")
+    ctx.playable[tileKey(x, y)] = true
+    if critical then
+        ctx.critical[tileKey(x, y)] = true
+        ctx.criticalPath[#ctx.criticalPath + 1] = { x = x, y = y }
+    end
+    return tile
+end
+
+local function carveHybridBrush(ctx, x, y, radius, tag, critical)
+    local refs = {}
+    radius = radius or 0
+    for dx = -radius, radius do
+        for dy = -radius, radius do
+            if math.abs(dx) + math.abs(dy) <= radius then
+                local tile = carveHybridTile(ctx, x + dx, y + dy, tag, critical)
+                if tile then
+                    refs[#refs + 1] = { x = x + dx, y = y + dy }
+                end
+            end
+        end
+    end
+    return refs
+end
+
+local function carveHybridRooms(ctx, rooms)
+    for _, room in ipairs(rooms) do
+        room.tiles = {}
+        for x = room.x, room.x + room.width - 1 do
+            for y = room.y, room.y + room.height - 1 do
+                local dx = math.abs((x + 0.5) - room.center.x) / math.max(1, room.width * 0.5)
+                local dy = math.abs((y + 0.5) - room.center.y) / math.max(1, room.height * 0.5)
+                local keep = room.shape == "rect" or (dx + dy <= 1.35) or noise2(ctx.seed, x, y, 31) > 0.36
+                if keep then
+                    carveHybridTile(ctx, x, y, room.role)
+                    room.tiles[#room.tiles + 1] = { x = x, y = y }
+                end
+            end
+        end
+        ctx.rooms[#ctx.rooms + 1] = room
+    end
+end
+
+local function carveHybridPath(ctx, fromRoom, toRoom, id, width)
+    local from = fromRoom.center
+    local to = toRoom.center
+    local refs = {}
+    local path = pathTiles(from, to)
+    local radius = math.max(0, math.floor((width or 1) / 2))
+    for _, ref in ipairs(path) do
+        local brushed = carveHybridBrush(ctx, ref.x, ref.y, radius, "corridor", true)
+        for _, tile in ipairs(brushed) do
+            refs[#refs + 1] = tile
+        end
+    end
+    ctx.corridors[#ctx.corridors + 1] = { id = id, from = fromRoom.id, to = toRoom.id, width = width or 1, tiles = refs }
+end
+
+local function carveHybridGraph(ctx)
+    for index = 1, #ctx.rooms - 1 do
+        carveHybridPath(ctx, ctx.rooms[index], ctx.rooms[index + 1], "critical_" .. tostring(index), ctx.profile.corridorWidth)
+    end
+    if #ctx.rooms >= 4 and (ctx.profile.branchChance or 0) > 0.5 then
+        carveHybridPath(ctx, ctx.rooms[2], ctx.rooms[#ctx.rooms - 1], "loop_shortcut", math.max(1, ctx.profile.corridorWidth - 1))
+    end
+    if ctx.profileId == "sprawl" and #ctx.rooms >= 6 then
+        carveHybridPath(ctx, ctx.rooms[3], ctx.rooms[6], "sprawl_reconnect", 1)
+    end
+end
+
+local function carveHybridOpenNoise(ctx)
+    if ctx.profile.openNoise >= 0.86 then
+        return
+    end
+    for x = 2, ctx.width - 1 do
+        for y = 2, ctx.height - 1 do
+            local value = fbmNoise(ctx.seed, x, y, 41)
+            if value > ctx.profile.openNoise then
+                carveHybridTile(ctx, x, y, "open_field_noise")
+                ctx.noiseFields[#ctx.noiseFields + 1] = { id = "open_" .. tostring(#ctx.noiseFields + 1), kind = "open_field", x = x, y = y, value = value }
+            end
+        end
+    end
+end
+
+local function carveHybridMines(ctx)
+    if not (ctx.profileId == "rooms_mines" or ctx.profileId == "mixed_archive") then
+        return
+    end
+    for branch = 1, 3 do
+        local room = ctx.rooms[((branch * 2 - 1) % #ctx.rooms) + 1]
+        local x, y = room.center.x, room.center.y
+        local refs = {}
+        for step = 1, math.max(8, math.floor((ctx.width + ctx.height) * 0.45)) do
+            refs[#refs + 1] = { x = x, y = y }
+            carveHybridTile(ctx, x, y, "cellular_mine")
+            local direction = ctx.rng:range(1, 4)
+            x = clamp(x + (direction == 1 and 1 or direction == 2 and -1 or 0), 2, ctx.width - 1)
+            y = clamp(y + (direction == 3 and 1 or direction == 4 and -1 or 0), 2, ctx.height - 1)
+        end
+        ctx.cellularMines[#ctx.cellularMines + 1] = { id = "mine_worm_" .. tostring(branch), tiles = refs }
+    end
+end
+
+local function applyHybridNoise(ctx)
+    local minHeight, maxHeight, noiseSamples, voidTiles = nil, nil, 0, 0
+    for x = 1, ctx.width do
+        for y = 1, ctx.height do
+            local tile = ctx.tiles[tileKey(x, y)]
+            local heightValue = fbmNoise(ctx.seed, x, y, 53)
+            local voidValue = fbmNoise(ctx.seed, x, y, 67)
+            if ctx.playable[tileKey(x, y)] and tile.blocker ~= true then
+                local height = math.floor(heightValue * ((ctx.profile.maxHeight or 2) + 1))
+                tile.height = height
+                minHeight = minHeight and math.min(minHeight, height) or height
+                maxHeight = maxHeight and math.max(maxHeight, height) or height
+                noiseSamples = noiseSamples + 1
+                stampTerrain(tile, height > 0 and "archive_terrace" or "archive_floor")
+                addTag(tile, "noise_heightfield")
+            elseif voidValue > (ctx.profileId == "spires" and 0.56 or 0.78) then
+                stampTerrain(tile, "archive_chasm")
+                addTag(tile, "noise_void")
+                voidTiles = voidTiles + 1
+            end
+        end
+    end
+    ctx.noiseFields[#ctx.noiseFields + 1] = { id = "heightfield", kind = "noise_heightfield", samples = noiseSamples, minHeight = minHeight or 0, maxHeight = maxHeight or 0, voidTiles = voidTiles }
+end
+
+local function sortedPlayable(ctx)
+    local refs = {}
+    for key in pairs(ctx.playable) do
+        local x, y = key:match("^(%-?%d+):(%-?%d+)$")
+        refs[#refs + 1] = { x = tonumber(x), y = tonumber(y), key = key }
+    end
+    table.sort(refs, function(a, b)
+        if a.y == b.y then
+            return a.x < b.x
+        end
+        return a.y < b.y
+    end)
+    return refs
+end
+
+local function safeMotifTile(ctx, ref)
+    local tile = ctx.tiles[tileKey(ref.x, ref.y)]
+    local key = tileKey(ref.x, ref.y)
+    return tile and tile.blocker ~= true and not tile.objective and not ctx.critical[key] and not ctx.reserved[key]
+end
+
+local function placeCover(ctx, components, ref, id)
+    local tile = ctx.tiles[tileKey(ref.x, ref.y)]
+    if not tile then
+        return false
+    end
+    applyCover(tile, { west = "half", north = (ref.x + ref.y) % 2 == 0 and "half" or nil })
+    addTag(tile, "cover_field")
+    components.coverFields[#components.coverFields + 1] = { id = id, x = ref.x, y = ref.y, coverEdges = copyValue(tile.coverEdges), height = tile.height or 0 }
+    ctx.wfcTiles[#ctx.wfcTiles + 1] = { id = id, motif = "cover_edge", x = ref.x, y = ref.y }
+    return true
+end
+
+local function placeSightBreak(ctx, components, ref, id)
+    if not safeMotifTile(ctx, ref) then
+        return false
+    end
+    local tile = ctx.tiles[tileKey(ref.x, ref.y)]
+    stampTerrain(tile, "rolling_shelf")
+    tile.kind = "rolling_shelf"
+    tile.blockerKind = "destructible"
+    tile.blocker = true
+    tile.losBlocker = true
+    tile.destructibleHp = 2
+    addTag(tile, "sight_break")
+    components.sightBreaks[#components.sightBreaks + 1] = { id = id, x = ref.x, y = ref.y, destructibleHp = 2 }
+    ctx.wfcTiles[#ctx.wfcTiles + 1] = { id = id, motif = "destructible_shelf", x = ref.x, y = ref.y }
+    return true
+end
+
+local function placeSpecialTerrain(ctx, components, ref, id, terrainType)
+    if not safeMotifTile(ctx, ref) then
+        return false
+    end
+    local tile = ctx.tiles[tileKey(ref.x, ref.y)]
+    stampTerrain(tile, terrainType)
+    addTag(tile, "special_terrain")
+    components.specialTerrain[#components.specialTerrain + 1] = { id = id, terrainType = terrainType, x = ref.x, y = ref.y }
+    ctx.wfcTiles[#ctx.wfcTiles + 1] = { id = id, motif = terrainType, x = ref.x, y = ref.y }
+    return true
+end
+
+local function repairHybridPathHeights(ctx, components)
+    local previous = nil
+    local routeTiles = {}
+    for _, ref in ipairs(ctx.criticalPath) do
+        local tile = ctx.tiles[tileKey(ref.x, ref.y)]
+        if tile and tile.blocker ~= true then
+            if previous then
+                local prevTile = ctx.tiles[tileKey(previous.x, previous.y)]
+                local delta = (tile.height or 0) - (prevTile.height or 0)
+                if math.abs(delta) > 1 then
+                    tile.height = (prevTile.height or 0) + (delta > 0 and 1 or -1)
+                    ctx.repairs[#ctx.repairs + 1] = { id = "height_step_" .. tostring(#ctx.repairs + 1), x = ref.x, y = ref.y, reason = "clamp_path_height_delta" }
+                end
+                if (tile.height or 0) ~= (prevTile.height or 0) then
+                    stampTerrain(tile, "archive_stair")
+                    stampTerrain(prevTile, "archive_stair")
+                    addTag(tile, "vertical_route")
+                    addTag(prevTile, "vertical_route")
+                    components.verticalRoutes[#components.verticalRoutes + 1] = { id = "stair_" .. tostring(#components.verticalRoutes + 1), kind = (tile.height or 0) > (prevTile.height or 0) and "ascend" or "descend", fromHeight = prevTile.height or 0, toHeight = tile.height or 0, tiles = { { x = previous.x, y = previous.y }, { x = ref.x, y = ref.y } } }
+                end
+            end
+            routeTiles[#routeTiles + 1] = { x = ref.x, y = ref.y }
+            previous = ref
+        end
+    end
+    if #routeTiles > 0 then
+        components.heightBands[#components.heightBands + 1] = { id = "noise_route_band", height = "mixed", tiles = routeTiles }
+    end
+end
+
+local function ensureHybridPath(ctx, from, to)
+    local queue = { { x = from.x, y = from.y } }
+    local seen = { [tileKey(from.x, from.y)] = true }
+    local index = 1
+    while queue[index] do
+        local node = queue[index]
+        index = index + 1
+        if node.x == to.x and node.y == to.y then
+            return true
+        end
+        for _, offset in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+            local nx, ny = node.x + offset[1], node.y + offset[2]
+            local key = tileKey(nx, ny)
+            local tile = ctx.tiles[key]
+            if tile and not seen[key] and tile.blocker ~= true then
+                seen[key] = true
+                queue[#queue + 1] = { x = nx, y = ny }
+            end
+        end
+    end
+    for _, ref in ipairs(pathTiles(from, to)) do
+        carveHybridTile(ctx, ref.x, ref.y, "repair_path", true)
+    end
+    ctx.repairs[#ctx.repairs + 1] = { id = "reachability_repair", from = copyValue(from), to = copyValue(to) }
+    return false
+end
+
+local function applyHybridMotifs(ctx, components)
+    local refs = sortedPlayable(ctx)
+    local coverPlaced = 0
+    local sightPlaced = 0
+    local specialPlaced = 0
+    for index, ref in ipairs(refs) do
+        if safeMotifTile(ctx, ref) and coverPlaced < 4 and index % 5 == 0 then
+            coverPlaced = coverPlaced + (placeCover(ctx, components, ref, "hybrid_cover_" .. tostring(coverPlaced + 1)) and 1 or 0)
+        elseif safeMotifTile(ctx, ref) and sightPlaced < 2 and index % 7 == 0 then
+            sightPlaced = sightPlaced + (placeSightBreak(ctx, components, ref, "hybrid_shelf_" .. tostring(sightPlaced + 1)) and 1 or 0)
+        elseif safeMotifTile(ctx, ref) and specialPlaced < 4 and index % 6 == 0 then
+            local specialIds = ctx.profileId == "open_wilds" and { "brine_pool", "mirror_glass", "archive_rubble", "archive_glass_floor" } or { "archive_rubble", "archive_glass_floor", "mirror_glass", "archive_chasm" }
+            specialPlaced = specialPlaced + (placeSpecialTerrain(ctx, components, ref, "hybrid_special_" .. tostring(specialPlaced + 1), specialIds[(specialPlaced % #specialIds) + 1]) and 1 or 0)
+        end
+    end
+    if coverPlaced == 0 then
+        for _, ref in ipairs(refs) do
+            if safeMotifTile(ctx, ref) and placeCover(ctx, components, ref, "hybrid_cover_fallback") then
+                coverPlaced = 1
+                break
+            end
+        end
+    end
+    if sightPlaced == 0 then
+        for _, ref in ipairs(refs) do
+            if safeMotifTile(ctx, ref) and placeSightBreak(ctx, components, ref, "hybrid_shelf_fallback") then
+                sightPlaced = 1
+                break
+            end
+        end
+    end
+    local hazardTiles = {}
+    local maxHazards = clamp(math.floor(#ctx.criticalPath * 0.18), 2, 6)
+    for index, ref in ipairs(ctx.criticalPath) do
+        if #hazardTiles < maxHazards and index > 2 and index % 3 == 0 then
+            local tile = ctx.tiles[tileKey(ref.x, ref.y)]
+            if tile and tile.blocker ~= true and not tile.objective then
+                local terrainTypeId = ctx.hazardKind == "paper_cinder" and "paper_cinder_lane" or (ctx.hazardKind == "index_miasma" and "index_miasma" or "audit_static_lane")
+                stampTerrain(tile, terrainTypeId)
+                addTag(tile, "hazard_lane")
+                hazardTiles[#hazardTiles + 1] = { x = ref.x, y = ref.y }
+            end
+        end
+    end
+    components.hazardLanes[#components.hazardLanes + 1] = { id = "hybrid_hazard_lane", kind = ctx.hazardKind, tiles = hazardTiles }
+    components.wfcTiles = copyValue(ctx.wfcTiles)
+    components.noiseFields = copyValue(ctx.noiseFields)
+    components.cellularMines = copyValue(ctx.cellularMines)
+end
+
+local function spawnTilesFor(ctx, room, count)
+    local tiles = {}
+    for _, ref in ipairs(room.tiles or {}) do
+        local tile = ctx.tiles[tileKey(ref.x, ref.y)]
+        if tile and tile.blocker ~= true then
+            tiles[#tiles + 1] = { x = ref.x, y = ref.y }
+            if #tiles >= count then
+                return tiles
+            end
+        end
+    end
+    tiles[#tiles + 1] = copyValue(room.center)
+    return tiles
+end
+
+local function finalizeHybridSpec(ctx, options)
+    local entryRoom = ctx.rooms[1]
+    local objectiveRoom = ctx.rooms[#ctx.rooms]
+    local playerTiles = spawnTilesFor(ctx, entryRoom, 6)
+    local enemyTiles = spawnTilesFor(ctx, objectiveRoom, 4)
+    local objective = { id = ctx.objectiveId, kind = ctx.objectiveKind, x = objectiveRoom.center.x, y = objectiveRoom.center.y, integrity = ctx.objectiveIntegrity, maxIntegrity = ctx.objectiveIntegrity, evacuateAt = copyValue(playerTiles[1]) }
+    carveHybridTile(ctx, objective.x, objective.y, "objective_anchor", true)
+    for _, ref in ipairs(playerTiles) do
+        ctx.reserved[tileKey(ref.x, ref.y)] = true
+    end
+    for _, ref in ipairs(enemyTiles) do
+        ctx.reserved[tileKey(ref.x, ref.y)] = true
+    end
+    ctx.reserved[tileKey(objective.x, objective.y)] = true
+    local objectiveTile = ctx.tiles[tileKey(objective.x, objective.y)]
+    objectiveTile.objective = { id = objective.id, kind = objective.kind }
+    ensureHybridPath(ctx, playerTiles[1], objective)
+    local components = {
+        rooms = copyValue(ctx.rooms),
+        corridors = copyValue(ctx.corridors),
+        heightBands = {},
+        coverFields = {},
+        sightBreaks = {},
+        verticalRoutes = {},
+        objectiveAnchors = { objective },
+        hazardLanes = {},
+        spawnPockets = {
+            { id = "player_entry", side = "player", tiles = playerTiles },
+            { id = "enemy_pressure", side = "enemy", tiles = enemyTiles },
+        },
+        specialTerrain = {},
+        repairs = ctx.repairs,
+    }
+    repairHybridPathHeights(ctx, components)
+    applyHybridMotifs(ctx, components)
+    components.terrainTypes = terrainTypesUsedByTiles(ctx.tiles)
+    components.generationTechniques = componentListByIds(generationTechniqueById, ctx.profile.techniques)
+    local spec = {
+        seed = ctx.seed,
+        zone = ctx.zone,
+        generator = {
+            id = ctx.generatorId,
+            zone = ctx.zone,
+            material = ctx.material,
+            profile = ctx.profileId,
+            pipeline = { "macro_graph", "noise_fields", "wfc_tile_dressing", "repair_validation" },
+            objectiveKind = ctx.objectiveKind,
+            hazardKind = ctx.hazardKind,
+        },
+        grammar = {
+            id = "hybrid_board_grammar_v1",
+            components = components,
+        },
+        board = { width = ctx.width, height = ctx.height, tiles = ctx.tiles, profile = ctx.profileId, terrainTypes = components.terrainTypes, generationTechniques = components.generationTechniques, heightBands = components.heightBands, coverFields = components.coverFields, sightBreaks = components.sightBreaks, verticalRoutes = components.verticalRoutes },
+        units = {
+            { id = "warden", side = "player", x = playerTiles[1].x, y = playerTiles[1].y, hp = 6 },
+            { id = "duelist", side = "player", x = (playerTiles[2] or playerTiles[1]).x, y = (playerTiles[2] or playerTiles[1]).y, hp = 5 },
+            { id = "claimant", side = "enemy", x = enemyTiles[1].x, y = enemyTiles[1].y, hp = 4 },
+        },
+        objectives = { objective },
+    }
+    spec.validation = Procgen.validateGrammarBoard(spec)
+    return spec
+end
+
+function Procgen.generateHybridBoard(seed, options)
+    options = options or {}
+    local profile, profileId = hybridProfile(options)
+    local ctx = newHybridContext(seed, options, profile, profileId)
+    local rooms = hybridRoomPlan(profile, ctx.width, ctx.height, ctx.rng)
+    carveHybridRooms(ctx, rooms)
+    carveHybridGraph(ctx)
+    carveHybridOpenNoise(ctx)
+    carveHybridMines(ctx)
+    applyHybridNoise(ctx)
+    return finalizeHybridSpec(ctx, options)
+end
+
 function Procgen.generateBoard(seed, options)
     options = options or {}
     local width = options.width or 8
@@ -985,6 +1632,11 @@ function Procgen.generateZoneBoard(zoneId, seed, options)
     local merged = mergeOptions(generator, options)
     merged.zone = zoneId
     merged.generatorId = generator.id
+    if merged.profile or merged.hybrid then
+        merged.profile = merged.profile or "mixed_archive"
+        merged.generatorId = generator.id .. "_hybrid_v1"
+        return Procgen.generateHybridBoard(seed, merged)
+    end
     return Procgen.generateBoard(seed, merged)
 end
 
@@ -1306,6 +1958,7 @@ function Procgen.generateArchiveExpanse(seed, options)
     local width = options.width or 32
     local height = options.height or 24
     local target = { width = width, height = height, tiles = {}, units = {}, objectives = {}, regions = {} }
+    local expanseTechniqueIds = { "stitched_expanse_regions", "macro_graph_layout", "noise_heightfield", "wfc_tile_dressing", "graph_sprawl", "cellular_mines", "open_field_noise", "spire_stack_generation", "monument_switchback", "void_bridge_network", "terrace_height_bands", "destructible_sight_breaks", "hazard_lane_dressing", "special_terrain_scatter", "tactical_repair_validation" }
     for x = 1, width do
         for y = 1, height do
             target.tiles[tileKey(x, y)] = { kind = "wall", material = "archive", blockerKind = "hard", blocker = true, losBlocker = true, terrainType = "sealed_void", tags = { "sealed_void" } }
@@ -1334,10 +1987,10 @@ function Procgen.generateArchiveExpanse(seed, options)
                 hazardLanes = { { id = "raised_audit_lane", kind = "audit_static", tiles = { { x = 14, y = 5 }, { x = 15, y = 5 }, { x = 16, y = 5 }, { x = 17, y = 5 } } } },
                 spawnPockets = { { id = "player_entry", side = "player", tiles = { { x = 1, y = 4 }, { x = 1, y = 5 }, { x = 1, y = 2 }, { x = 2, y = 5 }, { x = 3, y = 2 }, { x = 3, y = 3 } } } },
                 terrainTypes = terrainTypesUsedByTiles(target.tiles),
-                generationTechniques = componentListByIds(generationTechniqueById, { "stitched_expanse_regions", "monument_switchback", "void_bridge_network", "terrace_height_bands", "destructible_sight_breaks", "hazard_lane_dressing", "special_terrain_scatter" }),
+                generationTechniques = componentListByIds(generationTechniqueById, expanseTechniqueIds),
             },
         },
-        board = { width = width, height = height, tiles = target.tiles, expanse = true, regions = target.regions, heightBands = target.heightBands, coverFields = target.coverFields, sightBreaks = target.sightBreaks, verticalRoutes = target.verticalRoutes, sightlines = target.sightlines, terrainTypes = terrainTypesUsedByTiles(target.tiles), generationTechniques = componentListByIds(generationTechniqueById, { "stitched_expanse_regions", "monument_switchback", "void_bridge_network", "terrace_height_bands", "destructible_sight_breaks", "hazard_lane_dressing", "special_terrain_scatter" }) },
+        board = { width = width, height = height, tiles = target.tiles, expanse = true, regions = target.regions, heightBands = target.heightBands, coverFields = target.coverFields, sightBreaks = target.sightBreaks, verticalRoutes = target.verticalRoutes, sightlines = target.sightlines, terrainTypes = terrainTypesUsedByTiles(target.tiles), generationTechniques = componentListByIds(generationTechniqueById, expanseTechniqueIds) },
         units = target.units,
         objectives = target.objectives,
         archiveRoute = {

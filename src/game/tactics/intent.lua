@@ -40,7 +40,7 @@ function Intent.revealVisible(state, side)
     local revealed = {}
     for _, enemy in ipairs(state:unitsForSide("enemy")) do
         local intent = state.intents[enemy.id]
-        if intent and sourceVisible(state, enemy.id, side, visibility) then
+        if intent and intent.mode ~= "hiddenFootprint" and sourceVisible(state, enemy.id, side, visibility) then
             intent.revealed = true
             revealed[#revealed + 1] = enemy.id
         end

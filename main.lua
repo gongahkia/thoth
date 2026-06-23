@@ -29,13 +29,37 @@ local function newTacticalSim(seed)
     function world:getTile(x, y, z)
         return self:peekTile(x, y, z)
     end
+    local party = {
+        { rank = 1, name = "warden", class = "warden", level = 1, hp = 6, maxHp = 6, stress = 0 },
+        { rank = 2, name = "duelist", class = "duelist", level = 1, hp = 5, maxHp = 5, stress = 0 },
+        { rank = 3, name = "apothecary", class = "apothecary", level = 1, hp = 4, maxHp = 4, stress = 0 },
+        { rank = 4, name = "thief", class = "thief", level = 1, hp = 4, maxHp = 4, stress = 0 },
+    }
     return {
         seed = seed,
         mode = "tactical",
         status = "tactical",
         tick = 0,
-        player = { x = 0, y = 0, z = 0 },
+        player = { x = 0, y = 0, z = 0, selectedHero = 1 },
         world = world,
+        estate = { gold = 0, heirlooms = 0 },
+        log = { "route online" },
+        narration = "render smoke",
+        currentRoomKey = function()
+            return "tactical"
+        end,
+        nextStepText = function()
+            return "read the route"
+        end,
+        objectiveChecklist = function()
+            return { { title = "route", items = { { label = "render overlays", done = true } } } }
+        end,
+        missionProgressText = function()
+            return "route online"
+        end,
+        partyState = function()
+            return party
+        end,
         snapshot = function(self)
             return { version = 4, seed = self.seed, mode = self.mode, status = self.status, tick = self.tick, player = self.player }
         end,
@@ -1233,6 +1257,7 @@ local function printTacticalSmoke(state)
     print("tactical-smoke-high-cover=" .. tostring(highCoverTiles))
     print("tactical-smoke-terrain-types=" .. tostring(#((board and board.terrainTypes) or {})))
     print("tactical-smoke-generation-techniques=" .. tostring(#((board and board.generationTechniques) or {})))
+    print("tactical-smoke-grid=" .. tostring(state.worldView and state.worldView.tacticalGrid or 0))
     print("tactical-smoke-enemy-cards=" .. tostring(#Render.tacticalEnemyHudRows(state)))
     print("tactical-smoke-intent-badges=" .. tostring(state.worldView and state.worldView.tacticalIntentBadges or 0))
     print("tactical-smoke-intents=" .. tostring(overlays.intent or 0))
@@ -1668,6 +1693,8 @@ function love.load(args)
         app.tactics = {
             originX = sim.player.x - 1,
             originY = sim.player.y - 1,
+            cursor = { x = 1, y = 1 },
+            selectedUnitId = "lamplighter",
             state = TacticsState.new({
                 board = {
                     width = 4,

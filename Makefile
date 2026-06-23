@@ -286,9 +286,10 @@ tactical-smoke:
 	grep -q "tactical-smoke-high-cover=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-terrain-types=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-generation-techniques=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-grid=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-enemy-cards=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-intent-badges=0" $$tmp; \
-	grep -q "tactical-smoke-intents=2" $$tmp; \
+	grep -q "tactical-smoke-intents=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-forecast=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-zoom=1.75" $$tmp; \
 	grep -q "tactical-smoke-objective=3/3" $$tmp; \

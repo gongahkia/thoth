@@ -1256,6 +1256,36 @@ local function pushBox(vertices, x, y, z, height, u)
     pushFace(vertices, { l, b, floor }, { l, b, top }, { l, t, top }, { l, t, floor }, u)
 end
 
+function Render.pushTacticalGridLine(vertices, x1, y1, x2, y2, z, halfWidth, u)
+    local dx = x2 - x1
+    local dy = y2 - y1
+    local length = math.sqrt(dx * dx + dy * dy)
+    if length <= 0 then
+        return
+    end
+    local px = -dy / length * halfWidth
+    local py = dx / length * halfWidth
+    pushFace(vertices,
+        { x1 + px, y1 + py, z },
+        { x2 + px, y2 + py, z },
+        { x2 - px, y2 - py, z },
+        { x1 - px, y1 - py, z },
+        u)
+end
+
+function Render.pushTacticalGridRing(vertices, x, y, z, u)
+    local inset = 0.035
+    local width = 0.012
+    local left = x + inset
+    local right = x + 1 - inset
+    local top = y + inset
+    local bottom = y + 1 - inset
+    Render.pushTacticalGridLine(vertices, left, top, right, top, z, width, u)
+    Render.pushTacticalGridLine(vertices, right, top, right, bottom, z, width, u)
+    Render.pushTacticalGridLine(vertices, right, bottom, left, bottom, z, width, u)
+    Render.pushTacticalGridLine(vertices, left, bottom, left, top, z, width, u)
+end
+
 local function torchLevel(sim)
     if sim and sim.expedition and sim.expedition.torch then
         return clamp(sim.expedition.torch, 0, 100)
@@ -1407,6 +1437,55 @@ local function buildWorldTileModel(sim, profile, settings, app, minX, maxX, minY
     local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()
     return model
+end
+
+function Render.tacticalGridColor(tileId)
+    local rgb = tacticalTileColor(tileId)
+    local lum = ((rgb[1] or 0) * 0.2126 + (rgb[2] or 0) * 0.7152 + (rgb[3] or 0) * 0.0722) / 255
+    if lum > 0.42 then
+        return 0.035, 0.04, 0.038, 0.72
+    end
+    return 0.34, 0.36, 0.37, 0.78
+end
+
+function Render.buildTacticalGridModel(sim, minX, maxX, minY, maxY)
+    if not (state.g3d and state.assets.white and sim and sim.world) then
+        return nil, 0
+    end
+    local z = sim.player.z or 0
+    local width = maxX - minX + 1
+    local height = maxY - minY + 1
+    local total = width * height
+    if total <= 0 then
+        return nil, 0
+    end
+    local vertices = {}
+    local data = love.image.newImageData(total, 1)
+    local index = 0
+    for y = minY, maxY do
+        for x = minX, maxX do
+            index = index + 1
+            local tile = sim.world:peekTile(x, y, z) or {}
+            local r, g, b, a = Render.tacticalGridColor(tile.id)
+            data:setPixel(index - 1, 0, r, g, b, a)
+            local tileHeight = ((tile.height or 0) * 0.14)
+            Render.pushTacticalGridRing(vertices, x, y, z + tileHeight + 0.012, (index - 0.5) / total)
+        end
+    end
+    local model = state.g3d.newModel(vertices, newImageFromData(data))
+    model:makeNormals()
+    return model, total
+end
+
+function Render.cachedTacticalGridModel(sim, profile, settings, app)
+    local minX, maxX, minY, maxY = tacticalBoardBounds(sim, app)
+    if not minX then
+        return nil, 0
+    end
+    local key = "tacticalGrid|" .. Render.worldTileCacheKey(sim, profile or lightProfile(sim), settings, app, minX, maxX, minY, maxY)
+    return Render.cachedModel("tacticalGrid", key, function()
+        return Render.buildTacticalGridModel(sim, minX, maxX, minY, maxY)
+    end)
 end
 
 function Render.cachedWorldTileModel(sim, profile, settings, app)
@@ -1806,7 +1885,8 @@ local function pushOverlayLine(vertices, x1, y1, x2, y2, z, halfWidth, u)
 end
 
 local tacticalRingSpecs = {
-    movement = { inset = 0.12, width = 0.025, z = 0.045 },
+    movementFill = { inset = 0.09, z = 0.04, fillOnly = true },
+    movement = { inset = 0.08, width = 0.04, z = 0.075 },
     intent = { inset = 0.1, width = 0.045, z = 0.08 },
     overwatch = { inset = 0.14, width = 0.04, z = 0.085 },
     objective = { inset = 0.07, width = 0.045, z = 0.09 },
@@ -1825,6 +1905,10 @@ local function pushTileRing(vertices, x, y, baseZ, kind, u, scale)
     local top = y + inset
     local bottom = y + 1 - inset
     local z = baseZ + spec.z
+    if spec.fillOnly then
+        pushFace(vertices, { left, top, z }, { right, top, z }, { right, bottom, z }, { left, bottom, z }, u)
+        return
+    end
     local width = spec.width * scale
     pushOverlayLine(vertices, left, top, right, top, z, width, u)
     pushOverlayLine(vertices, right, top, right, bottom, z, width, u)
@@ -1860,6 +1944,9 @@ local function drawTacticalOverlays(sim, app)
     local drawnEntries = {}
     for _, entry in ipairs(entries) do
         if entry.kind == "movement" or entry.kind == "intent" or entry.kind == "overwatch" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor" then
+            if entry.kind == "movement" then
+                drawnEntries[#drawnEntries + 1] = { kind = "movementFill", x = entry.x, y = entry.y, label = entry.label, color = { 0.1, 0.42, 0.9, 0.34 } }
+            end
             drawnEntries[#drawnEntries + 1] = entry
         end
     end
@@ -2484,6 +2571,15 @@ function Render.drawWorld(sim, app)
     local model = Render.cachedWorldTileModel(sim, profile, app and app.settings, app)
     love.graphics.setColor(1, 1, 1, 1)
     model:draw()
+    local tacticalGridCount = 0
+    if app and app.tacticalMode then
+        local gridModel, gridCount = Render.cachedTacticalGridModel(sim, profile, app and app.settings, app)
+        tacticalGridCount = gridCount or 0
+        if gridModel then
+            love.graphics.setColor(1, 1, 1, 1)
+            gridModel:draw()
+        end
+    end
     local tacticalFogCount = drawTacticalFog(sim, app)
     local tacticalOverlayCounts = drawTacticalOverlays(sim, app)
     drawTacticalIntentArrows(sim, app)
@@ -2511,6 +2607,7 @@ function Render.drawWorld(sim, app)
     app.worldView.rotationPuzzles = rotationPuzzles or 0
     app.worldView.tacticalOverlays = tacticalOverlayCounts
     app.worldView.tacticalFog = tacticalFogCount
+    app.worldView.tacticalGrid = tacticalGridCount
     app.worldView.tacticalOverwatchTriggers = tacticalOverwatchTriggers
 end
 
