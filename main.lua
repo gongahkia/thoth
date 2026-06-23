@@ -234,7 +234,7 @@ local function turnView(state, delta)
         state.viewRotationVisual = target
         state.viewTurn = nil
     else
-        state.viewTurn = { from = from, to = from + diff, t = 0, duration = 0.24 }
+        state.viewTurn = { from = from, to = from + diff, t = 0, duration = 0.18 }
     end
     state.status = "view " .. (state.viewRotation * 90)
 end
@@ -459,11 +459,11 @@ local function advanceViewTurn(state, dt)
         state.viewRotationVisual = state.viewRotationVisual or state.viewRotation or 0
         return
     end
-    turn.t = math.min(turn.duration or 0.24, (turn.t or 0) + (dt or 0))
-    local ratio = (turn.duration or 0.24) > 0 and (turn.t / turn.duration) or 1
+    turn.t = math.min(turn.duration or 0.18, (turn.t or 0) + (dt or 0))
+    local ratio = (turn.duration or 0.18) > 0 and (turn.t / turn.duration) or 1
     ratio = ratio * ratio * (3 - 2 * ratio)
     state.viewRotationVisual = (turn.from or 0) + ((turn.to or turn.from or 0) - (turn.from or 0)) * ratio
-    if turn.t >= (turn.duration or 0.24) then
+    if turn.t >= (turn.duration or 0.18) then
         state.viewRotationVisual = state.viewRotation or 0
         state.viewTurn = nil
     end
@@ -1660,6 +1660,9 @@ function love.load(args)
     Audio.updateMusic(app.audio, 0)
     if curioSmoke then
         app.curioModal = Render.curioModalForTarget(sim)
+    end
+    if renderBenchmark then
+        enterTacticalGame(app)
     end
     if renderSmoke then
         app.tactics = {

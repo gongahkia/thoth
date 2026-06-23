@@ -1181,6 +1181,7 @@ function Render.load()
     state.assets = {}
     state.fonts = {}
     state.quads = {}
+    state.modelCache = {}
     state.g3d = nil
     state.loadError = nil
     if state.headless then
@@ -1306,6 +1307,29 @@ local function tacticalTileColor(tileId)
     return { 130, 142, 114 }
 end
 
+function Render.settingsRenderKey(settings)
+    settings = accessibilitySettings(settings)
+    if not settings then
+        return "default"
+    end
+    return table.concat({
+        tostring(settings.colorblindMode or "off"),
+        tostring(settings.highContrast == true),
+        tostring(settings.highContrastTiles == true),
+    }, ":")
+end
+
+function Render.cachedModel(slot, key, build)
+    state.modelCache = state.modelCache or {}
+    local cached = state.modelCache[slot]
+    if cached and cached.key == key then
+        return cached.model, cached.count
+    end
+    local model, count = build()
+    state.modelCache[slot] = { key = key, model = model, count = count or 0 }
+    return model, count or 0
+end
+
 local function tacticalBoardBounds(sim, app)
     local source = (app and app.tactics) or (sim and sim.tactics)
     local tactics = source and (source.state or source)
@@ -1317,10 +1341,43 @@ local function tacticalBoardBounds(sim, app)
     return originX + 1, originX + tactics.board.width, originY + 1, originY + tactics.board.height
 end
 
-local function buildWorldTileModel(sim, profile, settings, app)
+function Render.worldTileCacheKey(sim, profile, settings, app, minX, maxX, minY, maxY)
+    local z = sim.player.z or 0
+    local tactical = app and app.tacticalMode
+    local parts = {
+        "tiles",
+        tactical and "tactical" or "world",
+        tostring(minX),
+        tostring(maxX),
+        tostring(minY),
+        tostring(maxY),
+        tostring(z),
+        Render.settingsRenderKey(settings),
+    }
+    if not tactical then
+        parts[#parts + 1] = tostring(sim.player.x)
+        parts[#parts + 1] = tostring(sim.player.y)
+        parts[#parts + 1] = string.format("%.3f", profile.ambient or 0)
+        parts[#parts + 1] = string.format("%.3f", profile.radius or 0)
+    end
+    for y = minY, maxY do
+        for x = minX, maxX do
+            local tile = sim.world:peekTile(x, y, z) or {}
+            parts[#parts + 1] = tostring(tile.id or "")
+            parts[#parts + 1] = tostring(tile.height or 0)
+            parts[#parts + 1] = tostring(tile.blocker == true)
+            parts[#parts + 1] = tostring(tile.destroyed == true)
+        end
+    end
+    return table.concat(parts, "|")
+end
+
+local function buildWorldTileModel(sim, profile, settings, app, minX, maxX, minY, maxY)
     local vertices = {}
     local z = sim.player.z or 0
-    local minX, maxX, minY, maxY = tacticalBoardBounds(sim, app)
+    if not minX then
+        minX, maxX, minY, maxY = tacticalBoardBounds(sim, app)
+    end
     if not minX then
         minX = sim.player.x - visibleRadius
         maxX = sim.player.x + visibleRadius
@@ -1350,6 +1407,20 @@ local function buildWorldTileModel(sim, profile, settings, app)
     local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()
     return model
+end
+
+function Render.cachedWorldTileModel(sim, profile, settings, app)
+    local minX, maxX, minY, maxY = tacticalBoardBounds(sim, app)
+    if not minX then
+        minX = sim.player.x - visibleRadius
+        maxX = sim.player.x + visibleRadius
+        minY = sim.player.y - visibleRadius
+        maxY = sim.player.y + visibleRadius
+    end
+    local key = Render.worldTileCacheKey(sim, profile, settings, app, minX, maxX, minY, maxY)
+    return Render.cachedModel("worldTiles", key, function()
+        return buildWorldTileModel(sim, profile, settings, app, minX, maxX, minY, maxY), 0
+    end)
 end
 
 local function exposedArchitecture(sim, x, y, z, tileDef)
@@ -1394,6 +1465,33 @@ local function buildArchitectureModel(sim, profile, settings)
     return model, #entries
 end
 
+function Render.architectureCacheKey(sim, profile, settings)
+    local z = sim.player.z or 0
+    local parts = {
+        "architecture",
+        tostring(sim.player.x),
+        tostring(sim.player.y),
+        tostring(z),
+        Render.settingsRenderKey(settings),
+        string.format("%.3f", profile.ambient or 0),
+        string.format("%.3f", profile.radius or 0),
+    }
+    for y = sim.player.y - visibleRadius, sim.player.y + visibleRadius do
+        for x = sim.player.x - visibleRadius, sim.player.x + visibleRadius do
+            local tile = sim.world:peekTile(x, y, z) or {}
+            parts[#parts + 1] = tostring(tile.id or "")
+        end
+    end
+    return table.concat(parts, "|")
+end
+
+function Render.cachedArchitectureModel(sim, profile, settings)
+    local key = Render.architectureCacheKey(sim, profile, settings)
+    return Render.cachedModel("architecture", key, function()
+        return buildArchitectureModel(sim, profile, settings)
+    end)
+end
+
 local function tacticalOverlaySource(sim, app)
     local source = (app and app.tactics) or (sim and sim.tactics)
     if not source then
@@ -1403,6 +1501,80 @@ local function tacticalOverlaySource(sim, app)
         return { state = source, overlays = app and app.tacticalOverlays or {} }
     end
     return source
+end
+
+function Render.tacticalVisibilityCacheKey(tactics)
+    if not (tactics and tactics.board) then
+        return nil
+    end
+    local parts = {
+        "visibility",
+        tostring(tactics.tick or 0),
+        tostring(tactics.board.width or 0),
+        tostring(tactics.board.height or 0),
+    }
+    for _, id in ipairs(tactics.unitOrder or {}) do
+        local unit = tactics.units and tactics.units[id]
+        if unit then
+            parts[#parts + 1] = tostring(id)
+            parts[#parts + 1] = tostring(unit.side or "")
+            parts[#parts + 1] = tostring(unit.x or 0)
+            parts[#parts + 1] = tostring(unit.y or 0)
+            parts[#parts + 1] = tostring(unit.visionRadius or 8)
+            parts[#parts + 1] = tostring(unit.alive == true)
+            parts[#parts + 1] = tostring(unit.evacuated == true)
+            parts[#parts + 1] = tostring(unit.hidden == true)
+        end
+    end
+    for _, key in ipairs(sortedMapKeys(tactics.board.tiles or {})) do
+        local tile = tactics.board.tiles[key]
+        parts[#parts + 1] = tostring(key)
+        parts[#parts + 1] = tostring(tile and tile.blocker == true)
+        parts[#parts + 1] = tostring(tile and tile.losBlocker == true)
+        parts[#parts + 1] = tostring(tile and tile.destroyed == true)
+        parts[#parts + 1] = tostring(tile and tile.height or 0)
+    end
+    return table.concat(parts, "|")
+end
+
+function Render.cacheValueKey(value, depth)
+    depth = depth or 0
+    if depth > 5 or type(value) ~= "table" then
+        return tostring(value)
+    end
+    local parts = {}
+    for _, key in ipairs(sortedMapKeys(value)) do
+        parts[#parts + 1] = tostring(key)
+        parts[#parts + 1] = Render.cacheValueKey(value[key], depth + 1)
+    end
+    return table.concat(parts, ",")
+end
+
+function Render.tacticalOverlayEntriesKey(source, app)
+    if not (source and source.state) then
+        return nil
+    end
+    return table.concat({
+        "overlayEntries",
+        tostring(source.originX or 0),
+        tostring(source.originY or 0),
+        Render.settingsRenderKey(app and app.settings),
+        Render.tacticalVisibilityCacheKey(source.state) or "",
+        Render.cacheValueKey(source.overlays or {}),
+    }, "|")
+end
+
+function Render.cachedTacticalOverlayEntries(source, app)
+    local key = Render.tacticalOverlayEntriesKey(source, app)
+    local cache = app and app.tacticalOverlayEntriesCache
+    if cache and cache.key == key then
+        return cache.entries, cache.counts
+    end
+    local entries, counts = Render.tacticalOverlayEntries(source.state, source.overlays or {}, app and app.settings)
+    if app then
+        app.tacticalOverlayEntriesCache = { key = key, entries = entries, counts = counts }
+    end
+    return entries, counts
 end
 
 local function tacticalCameraBounds(app)
@@ -1489,8 +1661,18 @@ function Render.tacticalDragWorldDelta(app, fromX, fromY, toX, toY)
 end
 
 local function tacticalVisibilityGrid(source, app)
-    if app and app.tactics and app.tactics.visibilityGrid then
-        return app.tactics:visibilityGrid()
+    local runtime = source and source.visibilityGrid and source or app and app.tactics
+    if runtime and runtime.visibilityGrid then
+        local key = Render.tacticalVisibilityCacheKey(runtime.state)
+        local cache = app and app.tacticalVisibilityCache
+        if cache and cache.runtime == runtime and cache.key == key then
+            return cache.visibility
+        end
+        local visibility = runtime:visibilityGrid()
+        if app then
+            app.tacticalVisibilityCache = { runtime = runtime, key = key, visibility = visibility }
+        end
+        return visibility
     end
     if source and source.overlays and source.overlays.fog and source.overlays.fog.visible then
         return source.overlays.fog
@@ -1570,7 +1752,17 @@ local function drawTacticalFog(sim, app)
         return 0
     end
     local visibility = tacticalVisibilityGrid(source, app)
-    local model, count = buildTacticalFogModel(source, visibility, ((sim and sim.player and sim.player.z) or 0) + 0.026)
+    local z = ((sim and sim.player and sim.player.z) or 0) + 0.026
+    local key = table.concat({
+        "fog",
+        tostring(source.originX or 0),
+        tostring(source.originY or 0),
+        tostring(z),
+        Render.tacticalVisibilityCacheKey(source.state) or Render.cacheValueKey(visibility and visibility.fog or {}),
+    }, "|")
+    local model, count = Render.cachedModel("tacticalFog", key, function()
+        return buildTacticalFogModel(source, visibility, z)
+    end)
     if model then
         love.graphics.setColor(1, 1, 1, 1)
         model:draw()
@@ -1663,7 +1855,7 @@ local function drawTacticalOverlays(sim, app)
     if not (source and source.state) then
         return nil
     end
-    local entries, counts = Render.tacticalOverlayEntries(source.state, source.overlays or {}, app and app.settings)
+    local entries, counts = Render.cachedTacticalOverlayEntries(source, app)
     counts.total = #entries
     local drawnEntries = {}
     for _, entry in ipairs(entries) do
@@ -1688,7 +1880,18 @@ local function drawTacticalOverlays(sim, app)
         end
     end
     if #drawnEntries > 0 and state.g3d and state.assets.white then
-        local model = buildTacticalOverlayModel(drawnEntries, source, app and app.settings, ((sim and sim.player and sim.player.z) or 0) + 0.035)
+        local z = ((sim and sim.player and sim.player.z) or 0) + 0.035
+        local key = table.concat({
+            "overlayModel",
+            tostring(source.originX or 0),
+            tostring(source.originY or 0),
+            tostring(z),
+            Render.settingsRenderKey(app and app.settings),
+            Render.cacheValueKey(drawnEntries),
+        }, "|")
+        local model = Render.cachedModel("tacticalOverlay", key, function()
+            return buildTacticalOverlayModel(drawnEntries, source, app and app.settings, z), #drawnEntries
+        end)
         if model then
             love.graphics.setColor(1, 1, 1, 1)
             model:draw()
@@ -1739,11 +1942,8 @@ function Render.drawTacticalForecast(sim, app)
     if not (source and source.state) then
         return nil
     end
-    local entries = Render.tacticalOverlayEntries(source.state, source.overlays or {}, app and app.settings)
-    if app.tacticalHover then
-        entries[#entries + 1] = { kind = "hover", x = app.tacticalHover.x, y = app.tacticalHover.y, label = "hover" }
-    end
-    return #entries
+    local entries = Render.cachedTacticalOverlayEntries(source, app)
+    return #entries + (app.tacticalHover and 1 or 0)
 end
 
 local function applyCamera(sim, app, targetX, targetY, targetZ)
@@ -2141,40 +2341,54 @@ local function drawTacticalIntentArrows(sim, app)
     if not (app and app.tacticalMode and tactics and state.g3d and state.assets.white) then
         return 0
     end
-    local vertices = {}
-    local originX = source.originX or 0
-    local originY = source.originY or 0
-    local z = ((sim and sim.player and sim.player.z) or 0) + 0.08
     local visibility = tacticalVisibilityGrid(source, app)
-    local count = 0
-    for _, unit in ipairs(tactics:unitsForSide("enemy")) do
-        local intent = tactics:intentPreview(unit.id)
-        local target = intent and intent.targetTiles and intent.targetTiles[1]
-        local sourceTile = intent and intent.sourceTile
-        local sourceVisible = not visibility or visibility.visible[tileKey(unit.x, unit.y)] == true
-        local targetVisible = target and (not visibility or visibility.visible[tileKey(target.x, target.y)] == true)
-        if target and sourceTile and sourceVisible and targetVisible then
-            local segments = Render.tacticalGridArrowSegments(sourceTile, target, originX, originY)
-            for index, segment in ipairs(segments) do
-                pushGroundLine(vertices, segment.x1, segment.y1, segment.x2, segment.y2, z, 0.04, 0.5)
-                if index == #segments then
-                    pushGroundArrowHead(vertices, segment.x2, segment.y2, segment.ux, segment.uy, z, 0.5)
+    local z = ((sim and sim.player and sim.player.z) or 0) + 0.08
+    local key = table.concat({
+        "intentArrows",
+        tostring(source.originX or 0),
+        tostring(source.originY or 0),
+        tostring(z),
+        Render.tacticalVisibilityCacheKey(tactics) or "",
+        Render.cacheValueKey(visibility and visibility.visible or {}),
+    }, "|")
+    local model, count = Render.cachedModel("tacticalIntentArrows", key, function()
+        local vertices = {}
+        local originX = source.originX or 0
+        local originY = source.originY or 0
+        local count = 0
+        for _, unit in ipairs(tactics:unitsForSide("enemy")) do
+            local intent = tactics:intentPreview(unit.id)
+            local target = intent and intent.targetTiles and intent.targetTiles[1]
+            local sourceTile = intent and intent.sourceTile
+            local sourceVisible = not visibility or visibility.visible[tileKey(unit.x, unit.y)] == true
+            local targetVisible = target and (not visibility or visibility.visible[tileKey(target.x, target.y)] == true)
+            if target and sourceTile and sourceVisible and targetVisible then
+                local segments = Render.tacticalGridArrowSegments(sourceTile, target, originX, originY)
+                for index, segment in ipairs(segments) do
+                    pushGroundLine(vertices, segment.x1, segment.y1, segment.x2, segment.y2, z, 0.04, 0.5)
+                    if index == #segments then
+                        pushGroundArrowHead(vertices, segment.x2, segment.y2, segment.ux, segment.uy, z, 0.5)
+                    end
+                end
+                if #segments > 0 then
+                    count = count + 1
                 end
             end
-            if #segments > 0 then
-                count = count + 1
-            end
         end
+        if #vertices == 0 then
+            return nil, count
+        end
+        local model = state.g3d.newModel(vertices, state.assets.white)
+        model:makeNormals()
+        return model, count
+    end)
+    if not model then
+        return count or 0
     end
-    if #vertices == 0 then
-        return 0
-    end
-    local model = state.g3d.newModel(vertices, state.assets.white)
-    model:makeNormals()
     love.graphics.setColor(1.0, 0.22, 0.32, 0.92)
     model:draw()
     love.graphics.setColor(1, 1, 1, 1)
-    return count
+    return count or 0
 end
 
 local function drawTacticalBillboards(sim, app, yaw, profile)
@@ -2267,7 +2481,7 @@ function Render.drawWorld(sim, app)
     local profile = lightProfile(sim)
     app.worldView.light = { torch = profile.torch, ambient = profile.ambient, radius = profile.radius }
     local yaw = applyCamera(sim, app, targetX, targetY, targetZ)
-    local model = buildWorldTileModel(sim, profile, app and app.settings, app)
+    local model = Render.cachedWorldTileModel(sim, profile, app and app.settings, app)
     love.graphics.setColor(1, 1, 1, 1)
     model:draw()
     local tacticalFogCount = drawTacticalFog(sim, app)
@@ -2276,7 +2490,7 @@ function Render.drawWorld(sim, app)
     local tacticalOverwatchTriggers = drawTacticalOverwatchTrigger(sim, app)
     local architecture, architectureCount = nil, 0
     if not (app and app.tacticalMode) then
-        architecture, architectureCount = buildArchitectureModel(sim, profile, app and app.settings)
+        architecture, architectureCount = Render.cachedArchitectureModel(sim, profile, app and app.settings)
     end
     if architecture then
         love.graphics.setColor(1, 1, 1, 1)
@@ -3673,8 +3887,29 @@ function Render.drawAudioSubtitle(app)
 end
 
 local function tacticalSummary(app)
-    if app and app.tactics and app.tactics.summary then
-        return app.tactics:summary()
+    local runtime = app and app.tactics
+    if runtime and runtime.summary then
+        local cursor = runtime.cursor or {}
+        local key = table.concat({
+            "summary",
+            Render.tacticalVisibilityCacheKey(runtime.state) or "",
+            tostring(runtime.selectedUnitId or ""),
+            tostring(cursor.x or ""),
+            tostring(cursor.y or ""),
+            tostring(runtime.turn or ""),
+            tostring(runtime.routeIndex or ""),
+            tostring(runtime.message or ""),
+            tostring(runtime.complete == true),
+            tostring(runtime.routeComplete == true),
+            tostring(runtime.failed == true),
+        }, "|")
+        local cache = app.tacticalSummaryCache
+        if cache and cache.runtime == runtime and cache.key == key then
+            return cache.summary
+        end
+        local summary = runtime:summary()
+        app.tacticalSummaryCache = { runtime = runtime, key = key, summary = summary }
+        return summary
     end
     return app and app.tacticalSummary or nil
 end
@@ -3900,6 +4135,19 @@ function Render.tacticalIntentLegendEntries(app)
     local runtime = app and app.tactics
     local tactics = runtime and runtime.state
     local access = Render.tacticalAccessibility(app)
+    if not tactics then
+        return {}
+    end
+    local key = table.concat({
+        "intentLegend",
+        Render.tacticalVisibilityCacheKey(tactics) or "",
+        tostring(access.intentIconScale or ""),
+        tostring(access.intentText == true),
+    }, "|")
+    local cache = app.tacticalIntentLegendCache
+    if cache and cache.runtime == runtime and cache.key == key then
+        return cache.entries
+    end
     local entries = {}
     for _, unitId in ipairs(sortedMapKeys(tactics and tactics.intents or {})) do
         local unit = tactics and tactics:unit(unitId)
@@ -3924,6 +4172,7 @@ function Render.tacticalIntentLegendEntries(app)
             }
         end
     end
+    app.tacticalIntentLegendCache = { runtime = runtime, key = key, entries = entries }
     return entries
 end
 
@@ -4056,49 +4305,10 @@ local function drawTacticalGhostArrows(app)
 end
 
 function Render.drawTacticalEnemyIntentBadges(app)
-    local runtime = app and app.tactics
-    local tactics = runtime and runtime.state
-    local view = app and app.worldView
-    if not (runtime and tactics and view and app.ui and app.ui.tacticalIntentButtons) then
-        return 0
+    if app and app.worldView then
+        app.worldView.tacticalIntentBadges = 0
     end
-    local rows = Render.tacticalEnemyHudRows(app)
-    local count = 0
-    for _, row in ipairs(rows) do
-        if not row.empty and row.x and row.y then
-            local worldX = (runtime.originX or 0) + row.x + 0.5
-            local worldY = (runtime.originY or 0) + row.y + 0.5
-            local sx, sy = Render.projectIso(view, worldX, worldY)
-            local tile = tactics:tileAt(row.x, row.y)
-            sy = sy - 58 - ((tile and tile.height or 0) * 10)
-            local label = row.intentIcon
-            if (row.intentDamage or 0) > 0 and not row.hidden then
-                label = label .. " " .. tostring(row.intentDamage)
-            end
-            local w = math.max(46, math.min(86, 18 + #label * 9))
-            local h = 28
-            local x = sx - w * 0.5
-            local y = sy - h
-            love.graphics.setColor(0.055, 0.045, 0.04, 0.92)
-            love.graphics.rectangle("fill", x, y, w, h)
-            love.graphics.setColor(row.hidden and 0.58 or 0.96, row.hidden and 0.54 or 0.66, row.hidden and 0.48 or 0.32, 1)
-            love.graphics.rectangle("line", x, y, w, h)
-            love.graphics.setColor(row.hidden and 0.72 or 0.98, row.hidden and 0.72 or 0.86, row.hidden and 0.68 or 0.58, 1)
-            love.graphics.printf(label, x + 4, y + 7, w - 8, "center")
-            app.ui.tacticalIntentButtons[#app.ui.tacticalIntentButtons + 1] = {
-                x = x,
-                y = y,
-                w = w,
-                h = h,
-                intentUnit = row.id,
-                sourceTile = { x = row.x, y = row.y },
-                targetTiles = row.targetTiles,
-            }
-            count = count + 1
-        end
-    end
-    app.worldView.tacticalIntentBadges = count
-    return count
+    return 0
 end
 
 function Render.drawTacticalIntentLegend(app, layout)
