@@ -1196,6 +1196,39 @@ local function printTacticalSmoke(state)
     print("tactical-smoke-selected=" .. tostring(summary.selected))
     print("tactical-smoke-player-units=" .. tostring(#(summary.players or {})))
     print("tactical-smoke-enemy-units=" .. tostring(#(summary.enemies or {})))
+    local board = state.tactics and state.tactics.state and state.tactics.state.board
+    print("tactical-smoke-board-size=" .. tostring(board and board.width or "-") .. "x" .. tostring(board and board.height or "-"))
+    local heightTiles, destructibleTiles, highCoverTiles = 0, 0, 0
+    for _, tile in pairs((board and board.tiles) or {}) do
+        if (tile.height or 0) > 0 then
+            heightTiles = heightTiles + 1
+        end
+        if tile.destructibleHp ~= nil then
+            destructibleTiles = destructibleTiles + 1
+        end
+        if (tile.height or 0) >= 2 then
+            for _, cover in pairs(tile.coverEdges or {}) do
+                if cover ~= "none" then
+                    highCoverTiles = highCoverTiles + 1
+                    break
+                end
+            end
+        end
+    end
+    local descentRoutes = 0
+    for _, route in ipairs((board and board.verticalRoutes) or {}) do
+        if route.kind == "descend" then
+            descentRoutes = descentRoutes + 1
+        end
+    end
+    print("tactical-smoke-height-tiles=" .. tostring(heightTiles))
+    print("tactical-smoke-destructibles=" .. tostring(destructibleTiles))
+    print("tactical-smoke-vertical-routes=" .. tostring(#((board and board.verticalRoutes) or {})))
+    print("tactical-smoke-descents=" .. tostring(descentRoutes))
+    print("tactical-smoke-sightlines=" .. tostring(#((board and board.sightlines) or {})))
+    print("tactical-smoke-high-cover=" .. tostring(highCoverTiles))
+    print("tactical-smoke-enemy-cards=" .. tostring(#Render.tacticalEnemyHudRows(state)))
+    print("tactical-smoke-intent-badges=" .. tostring(state.worldView and state.worldView.tacticalIntentBadges or 0))
     print("tactical-smoke-intents=" .. tostring(overlays.intent or 0))
     print("tactical-smoke-movement=" .. tostring(overlays.movement or 0))
     print("tactical-smoke-forecast=" .. tostring(state.worldView and state.worldView.tacticalForecast or 0))

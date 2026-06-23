@@ -398,13 +398,19 @@ local function losFact(state, x, y, source)
     if source.x == x and source.y == y then
         los = { visible = true, heightDelta = 0, modifiers = {}, obscured = false }
     else
-        los = state:lineOfSight(source.x, source.y, x, y)
+        los = state:sightlineProfile(source.x, source.y, x, y)
     end
     return {
         from = { unit = source.unit, x = source.x, y = source.y },
         visible = los.visible,
         blockedBy = copyValue(los.blockedBy),
         heightDelta = los.heightDelta,
+        vantage = los.vantage,
+        cover = los.cover,
+        effectiveCover = los.effectiveCover,
+        damageReduction = los.damageReduction,
+        flanked = los.flanked,
+        coverIgnoredByHeight = los.coverIgnoredByHeight,
         obscured = los.obscured == true,
         modifiers = copyList(los.modifiers),
     }

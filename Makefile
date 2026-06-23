@@ -277,6 +277,15 @@ tactical-smoke:
 	grep -q "tactical-smoke-phase=player" $$tmp; \
 	grep -q "tactical-smoke-player-units=6" $$tmp; \
 	grep -q "tactical-smoke-enemy-units=2" $$tmp; \
+	grep -q "tactical-smoke-board-size=32x24" $$tmp; \
+	grep -q "tactical-smoke-height-tiles=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-destructibles=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-vertical-routes=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-descents=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-sightlines=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-high-cover=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-enemy-cards=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-intent-badges=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-intents=2" $$tmp; \
 	grep -q "tactical-smoke-forecast=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-zoom=1.75" $$tmp; \
@@ -290,7 +299,7 @@ tactical-smoke:
 	grep -q "tactical-smoke-intent-legend=2" $$tmp; \
 	grep -q "tactical-smoke-intent-targets=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-compass=0" $$tmp; \
-	grep -q "tactical-smoke-ghost-arrows=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-ghost-arrows=0" $$tmp; \
 	rm -f $$tmp
 
 storefront-previews:

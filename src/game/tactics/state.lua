@@ -166,6 +166,8 @@ local function normalizeTile(tile)
         weakPointRevealed = tile.weakPointRevealed == true,
         terrainInteraction = tile.terrainInteraction,
         alphaTerrain = tile.alphaTerrain,
+        collapseHeight = tile.collapseHeight,
+        collapseKind = tile.collapseKind,
         tags = copyList(tile.tags),
     }
 end
@@ -191,6 +193,26 @@ end
 local function listHas(values, needle)
     for _, value in ipairs(values or {}) do
         if value == needle then
+            return true
+        end
+    end
+    return false
+end
+
+local heightRuleTags = {
+    "height_band",
+    "raised_archive_walk",
+    "monument_stack",
+    "expanse_path",
+    "vertical_route",
+    "ascent_route",
+    "descent_route",
+    "monument_stair",
+}
+
+local function hasHeightRuleTag(tile)
+    for _, tag in ipairs(heightRuleTags) do
+        if listHas(tile.tags, tag) then
             return true
         end
     end
@@ -866,6 +888,13 @@ function State.new(options)
         board = {
             width = width,
             height = height,
+            expanse = board.expanse == true,
+            regions = copyValue(board.regions),
+            heightBands = copyValue(board.heightBands),
+            coverFields = copyValue(board.coverFields),
+            sightBreaks = copyValue(board.sightBreaks),
+            verticalRoutes = copyValue(board.verticalRoutes),
+            sightlines = copyValue(board.sightlines),
             tiles = {},
         },
         units = {},
@@ -1089,12 +1118,27 @@ function State:unitAt(x, y)
     return nil
 end
 
-function State:canEnter(x, y, movingUnitId)
+function State:canEnter(x, y, movingUnitId, fromX, fromY)
     if not self:inBounds(x, y) then
         return false, "out_of_bounds"
     end
-    if self:tileAt(x, y).blocker then
+    local tile = self:tileAt(x, y)
+    if tile.blocker then
         return false, "blocked_tile"
+    end
+    if fromX and fromY and self:inBounds(fromX, fromY) then
+        local fromTile = self:tileAt(fromX, fromY)
+        local heightDelta = (tile.height or 0) - (fromTile.height or 0)
+        local stair = listHas(tile.tags, "stair") or listHas(fromTile.tags, "stair")
+        local heightRule = hasHeightRuleTag(tile) or hasHeightRuleTag(fromTile)
+        if heightRule then
+            if heightDelta > 1 and not stair then
+                return false, "climb_blocked"
+            end
+            if heightDelta < -2 and not stair then
+                return false, "drop_blocked"
+            end
+        end
     end
     local occupant = self:unitAt(x, y)
     if occupant and occupant.id ~= movingUnitId then
@@ -1235,7 +1279,7 @@ function State:lineOfSight(fromX, fromY, toX, toY)
                 modifiers[#modifiers + 1] = { x = point.x, y = point.y, kind = tile.hazard.kind, countdown = tile.hazard.countdown }
             end
             if tile.losBlocker and (tile.height or 0) >= sightHeight then
-                return { visible = false, blockedBy = { x = point.x, y = point.y, height = tile.height or 0 }, heightDelta = fromHeight - targetHeight, modifiers = modifiers, obscured = #modifiers > 0 }
+                return { visible = false, blockedBy = { x = point.x, y = point.y, height = tile.height or 0 }, heightDelta = fromHeight - targetHeight, highGround = fromHeight > targetHeight, lowGround = fromHeight < targetHeight, modifiers = modifiers, obscured = #modifiers > 0 }
             end
         end
     end
@@ -1277,6 +1321,58 @@ function State:attackProfile(fromX, fromY, targetX, targetY)
         flanked = flank.flanked,
         invalidatedCover = copyValue(flank.invalidated),
         flankingRule = copyValue(flankingRule),
+    }
+end
+
+function State:sightlineProfile(fromX, fromY, targetX, targetY)
+    expect(self:inBounds(fromX, fromY), "sightline source out of bounds")
+    expect(self:inBounds(targetX, targetY), "sightline target out of bounds")
+    local fromTile = self:tileAt(fromX, fromY)
+    local targetTile = self:tileAt(targetX, targetY)
+    if fromX == targetX and fromY == targetY then
+        return {
+            from = { x = fromX, y = fromY, height = fromTile.height or 0 },
+            target = { x = targetX, y = targetY, height = targetTile.height or 0 },
+            visible = true,
+            blockedBy = nil,
+            obscured = false,
+            modifiers = {},
+            heightDelta = 0,
+            vantage = "same_tile",
+            cover = "none",
+            effectiveCover = "none",
+            damageReduction = 0,
+            blocked = false,
+            flanked = false,
+            coverIgnoredByHeight = false,
+        }
+    end
+    local profile = self:attackProfile(fromX, fromY, targetX, targetY)
+    local vantage = "level"
+    if profile.heightDelta >= 2 then
+        vantage = "high_ground"
+    elseif profile.heightDelta <= -2 then
+        vantage = "low_ground"
+    elseif profile.heightDelta > 0 then
+        vantage = "above"
+    elseif profile.heightDelta < 0 then
+        vantage = "below"
+    end
+    return {
+        from = { x = fromX, y = fromY, height = fromTile.height or 0 },
+        target = { x = targetX, y = targetY, height = targetTile.height or 0 },
+        visible = profile.visible,
+        blockedBy = copyMap(profile.blockedBy),
+        obscured = profile.obscured,
+        modifiers = copyValue(profile.modifiers),
+        heightDelta = profile.heightDelta,
+        vantage = vantage,
+        cover = profile.cover,
+        effectiveCover = profile.effectiveCover,
+        damageReduction = profile.damageReduction,
+        blocked = profile.blocked,
+        flanked = profile.flanked,
+        coverIgnoredByHeight = profile.coverIgnoredByHeight,
     }
 end
 
@@ -1326,10 +1422,14 @@ function State:movementPreview(unitId, options)
         local tile = self:tileAt(node.x, node.y)
         local gained, lost = coverDelta(startTile, tile)
         local hazardCost = tileHazardCost(tile)
+        local heightDelta = (tile.height or 0) - (startTile.height or 0)
         reachable[#reachable + 1] = {
             x = node.x,
             y = node.y,
             apCost = node.apCost,
+            height = tile.height or 0,
+            heightDelta = heightDelta,
+            vertical = heightDelta > 0 and "ascend" or (heightDelta < 0 and "descend" or "level"),
             hazardCost = hazardCost,
             coverGained = gained,
             coverLost = lost,
@@ -1344,12 +1444,13 @@ function State:movementPreview(unitId, options)
             local delta = Grid.delta(direction)
             local nx = node.x + delta.x
             local ny = node.y + delta.y
-            local ok, reason = self:canEnter(nx, ny, unit.id)
+            local ok, reason = self:canEnter(nx, ny, unit.id, node.x, node.y)
             if not ok then
                 local key = tostring(node.x) .. ":" .. tostring(node.y) .. ":" .. direction
                 if not collisionSeen[key] then
                     collisionSeen[key] = true
-                    collisions[#collisions + 1] = { fromX = node.x, fromY = node.y, x = nx, y = ny, direction = direction, result = reason }
+                    local toHeight = self:inBounds(nx, ny) and (self:tileAt(nx, ny).height or 0) or nil
+                    collisions[#collisions + 1] = { fromX = node.x, fromY = node.y, x = nx, y = ny, direction = direction, result = reason, fromHeight = tile.height or 0, toHeight = toHeight, heightDelta = toHeight and (toHeight - (tile.height or 0)) or nil }
                 end
             else
                 local nextCost = node.apCost + stepCost
@@ -1573,6 +1674,12 @@ function State:damageTile(x, y, amount)
         tile.losBlocker = false
         tile.blockerKind = "none"
         tile.coverEdges = emptyCoverEdges()
+        if tile.collapseHeight ~= nil then
+            tile.height = tile.collapseHeight
+        end
+        if tile.collapseKind then
+            tile.kind = tile.collapseKind
+        end
         tile.destroyed = true
     end
     return tile.destructibleHp
@@ -2879,7 +2986,7 @@ function State:displaceUnit(unitOrId, dx, dy, distance, collisionDamage)
     for _ = 1, distance do
         local nx = unit.x + dx
         local ny = unit.y + dy
-        local ok, reason = self:canEnter(nx, ny, unit.id)
+        local ok, reason = self:canEnter(nx, ny, unit.id, unit.x, unit.y)
         if not ok then
             self:damageUnit(unit, math.max(0, collisionDamage - bracedReduction(unit)), { ignoreStatusBonus = true })
             local occupant = self:inBounds(nx, ny) and self:unitAt(nx, ny) or nil
@@ -2910,7 +3017,7 @@ function State:dashUnit(unitId, direction, distance, previewOnly)
     for _ = 1, distance do
         x = x + delta.x
         y = y + delta.y
-        local ok, reason = self:canEnter(x, y, unit.id)
+        local ok, reason = self:canEnter(x, y, unit.id, unit.x, unit.y)
         if not ok then
             error("dash rejected: " .. reason, 2)
         end
@@ -2939,7 +3046,7 @@ function State:vaultUnit(unitId, direction, previewOnly)
     local toTile = self:tileAt(nx, ny)
     local cover = (fromTile.coverEdges and fromTile.coverEdges[direction]) or (toTile.coverEdges and toTile.coverEdges[oppositeDirection[direction]]) or "none"
     expect(cover == "half", "vault requires half cover edge")
-    local ok, reason = self:canEnter(nx, ny, unit.id)
+    local ok, reason = self:canEnter(nx, ny, unit.id, unit.x, unit.y)
     if not ok then
         error("vault rejected: " .. reason, 2)
     end
@@ -2960,7 +3067,7 @@ function State:climbUnit(unitId, direction, maxClimb, previewOnly)
     local ny = unit.y + delta.y
     local toHeight = self:tileAt(nx, ny).height or 0
     expect(toHeight > fromHeight and toHeight - fromHeight <= (maxClimb or 1), "climb height rejected")
-    local ok, reason = self:canEnter(nx, ny, unit.id)
+    local ok, reason = self:canEnter(nx, ny, unit.id, unit.x, unit.y)
     if not ok then
         error("climb rejected: " .. reason, 2)
     end
@@ -2981,7 +3088,7 @@ function State:dropUnit(unitId, direction, maxDrop, previewOnly)
     local ny = unit.y + delta.y
     local toHeight = self:tileAt(nx, ny).height or 0
     expect(toHeight < fromHeight and fromHeight - toHeight <= (maxDrop or 2), "drop height rejected")
-    local ok, reason = self:canEnter(nx, ny, unit.id)
+    local ok, reason = self:canEnter(nx, ny, unit.id, unit.x, unit.y)
     if not ok then
         error("drop rejected: " .. reason, 2)
     end
@@ -3034,7 +3141,7 @@ function State:apply(command)
         expect(delta, "unknown direction " .. tostring(command.direction))
         local nx = unit.x + delta.x
         local ny = unit.y + delta.y
-        local ok, reason = self:canEnter(nx, ny, unit.id)
+        local ok, reason = self:canEnter(nx, ny, unit.id, unit.x, unit.y)
         if not ok then
             error("move rejected: " .. reason, 2)
         end
@@ -3300,6 +3407,13 @@ function State:snapshot()
         board = {
             width = self.board.width,
             height = self.board.height,
+            expanse = self.board.expanse,
+            regions = copyValue(self.board.regions),
+            heightBands = copyValue(self.board.heightBands),
+            coverFields = copyValue(self.board.coverFields),
+            sightBreaks = copyValue(self.board.sightBreaks),
+            verticalRoutes = copyValue(self.board.verticalRoutes),
+            sightlines = copyValue(self.board.sightlines),
             tiles = tiles,
         },
         units = units,

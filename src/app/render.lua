@@ -1078,39 +1078,7 @@ function Render.tacticalBearingTiles(app)
 end
 
 function Render.tacticalGhostArrowEntries(app)
-    local view = app and app.worldView
-    if not (view and app.viewTurn) then
-        return {}
-    end
-    local current = (app.viewRotation or view.rotation or 0) % 4
-    local previous = app.previousViewRotation
-    if previous == nil then
-        return {}
-    end
-    previous = previous % 4
-    if previous == current then
-        return {}
-    end
-    local fromView = rotationAuditView(view, previous)
-    local toView = rotationAuditView(view, current)
-    local arrows = {}
-    for _, tile in ipairs(Render.tacticalBearingTiles(app)) do
-        local fromX, fromY = Render.projectIso(fromView, tile.x, tile.y)
-        local toX, toY = Render.projectIso(toView, tile.x, tile.y)
-        arrows[#arrows + 1] = {
-            tileId = tile.tileId,
-            kind = tile.kind,
-            x = tile.x,
-            y = tile.y,
-            fromX = fromX,
-            fromY = fromY,
-            toX = toX,
-            toY = toY,
-            fromRotation = previous,
-            toRotation = current,
-        }
-    end
-    return arrows
+    return {}
 end
 
 local function objectRevealRotations(object, tileDef)
@@ -1371,7 +1339,12 @@ local function buildWorldTileModel(sim, profile, settings, app)
             local light = app and app.tacticalMode and 0.98 or lightAt(sim, x, y, profile)
             data:setPixel(index - 1, 0, litTileColor(rgb, light, settings))
             local u = (index - 0.5) / (width * height)
-            pushTileQuad(vertices, x, y, z, u)
+            local tileHeight = app and app.tacticalMode and ((tile.height or 0) * 0.14) or 0
+            if tileHeight > 0 then
+                pushBox(vertices, x, y, z, tileHeight, u)
+            else
+                pushTileQuad(vertices, x, y, z, u)
+            end
         end
     end
     local model = state.g3d.newModel(vertices, newImageFromData(data))
@@ -2141,11 +2114,13 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
             end
             local x = originX + unit.x + 0.5
             local y = originY + unit.y + 0.5
+            local tile = tactics:inBounds(unit.x, unit.y) and tactics:tileAt(unit.x, unit.y) or nil
+            local unitZ = (sim.player.z or 0) + ((tile and tile.height or 0) * 0.14)
             local selected = app.tactics and app.tactics.selectedUnitId == unit.id
             local intentHot = app.tacticalIntentHover and app.tacticalIntentHover.unit == unit.id
             local width, height = unit.side == "enemy" and enemySize("threat") or 0.86, unit.side == "enemy" and 1.12 or 1.08
             local frame = unit.side == "enemy" and enemyFrame("threat", unit.kind) or heroFrame({ classId = unit.class })
-            local model = newBillboard(width, height, frame, x, y, sim.player.z or 0, yaw, state.assets.spriteAtlas or state.assets.white)
+            local model = newBillboard(width, height, frame, x, y, unitZ, yaw, state.assets.spriteAtlas or state.assets.white)
             if intentHot then
                 drawTintedModel(model, { 1.0, 0.68, 0.24, 1 }, lightAt(sim, x, y, profile), 1)
             elseif unit.side == "enemy" then
@@ -2169,7 +2144,8 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
         if sighting and unit and unit.alive and not visibleEnemies[id] then
             local x = originX + sighting.x + 0.5
             local y = originY + sighting.y + 0.5
-            local model = newBillboard(0.66, 0.8, enemyFrame("threat", sighting.kind), x, y, (sim.player.z or 0) + 0.03, yaw, state.assets.spriteAtlas or state.assets.white)
+            local tile = tactics:inBounds(sighting.x, sighting.y) and tactics:tileAt(sighting.x, sighting.y) or nil
+            local model = newBillboard(0.66, 0.8, enemyFrame("threat", sighting.kind), x, y, (sim.player.z or 0) + 0.03 + ((tile and tile.height or 0) * 0.14), yaw, state.assets.spriteAtlas or state.assets.white)
             drawTintedModel(model, { 0.36, 0.4, 0.42, 1 }, lightAt(sim, x, y, profile), 0.38)
             drawn = drawn + 1
         end
@@ -3637,22 +3613,30 @@ function Render.tacticalHudLayout(width, height, squadSlots)
         w = math.max(360, width - sideW - margin * 3),
         h = math.max(260, height - topH - bottomH - margin * 3),
     }
-    local intentH = clamp(math.floor(board.h * 0.24), 112, 196)
-    local rowH = clamp(math.floor((board.h - intentH - 46) / slots), 46, 74)
+    local enemySlots = height < 760 and 2 or 4
+    local enemyRowH = height < 760 and 38 or 52
+    local threatH = 34 + enemyRowH * enemySlots
+    local intentH = height < 760 and 86 or clamp(math.floor(board.h * 0.22), 92, 180)
+    local rowH = clamp(math.floor((board.h - threatH - intentH - 24 - 34) / slots), 38, 74)
     local squadH = 34 + rowH * slots
-    local squad = { x = width - sideW - margin, y = board.y, w = sideW, h = squadH }
+    local threats = { x = width - sideW - margin, y = board.y, w = sideW, h = threatH }
+    local squad = { x = threats.x, y = threats.y + threats.h + 12, w = sideW, h = squadH }
     local intent = { x = squad.x, y = squad.y + squad.h + 12, w = sideW, h = math.max(0, board.y + board.h - (squad.y + squad.h + 12)) }
     return {
         topLeft = { x = margin, y = 14, w = math.min(520, board.w), h = topH - 14 },
         objective = { x = squad.x, y = 14, w = sideW, h = topH - 14 },
         board = board,
+        threats = threats,
         squad = squad,
         intent = intent,
         intentLegend = { x = board.x, y = height - bottomH - 28, w = board.w, h = 34 },
         action = { x = board.x, y = height - bottomH + 12, w = board.w, h = bottomH - 24 },
         squadSlots = slots,
         rowH = rowH,
-        portraitSize = clamp(rowH - 14, 34, 52),
+        enemySlots = enemySlots,
+        enemyRowH = enemyRowH,
+        portraitSize = clamp(rowH - 12, 30, 52),
+        enemyPortraitSize = clamp(enemyRowH - 12, 30, 42),
     }
 end
 
@@ -3662,6 +3646,7 @@ function Render.tacticalHudLayoutAudit(width, height, squadSlots)
     for _, entry in ipairs({
         { id = "top", rect = layout.topLeft },
         { id = "objective", rect = layout.objective },
+        { id = "threats", rect = layout.threats },
         { id = "squad", rect = layout.squad },
         { id = "intent", rect = layout.intent },
         { id = "intent_legend", rect = layout.intentLegend },
@@ -3706,6 +3691,58 @@ function Render.tacticalSquadHudRows(summary, requiredSlots)
     return rows
 end
 
+local intentIcons = {
+    attack = "ATT",
+    move = "MOV",
+    guard = "GRD",
+    summon = "SUM",
+    repair = "REP",
+    destroy = "BRK",
+    buff = "BUF",
+    debuff = "DEB",
+    flee = "RUN",
+    redacted = "?",
+}
+
+local function tacticalIntentIcon(category, hidden)
+    if hidden then
+        return "?"
+    end
+    return intentIcons[category or ""] or string.upper(string.sub(tostring(category or "INT"), 1, 3))
+end
+
+function Render.tacticalEnemyHudRows(appOrSummary, requiredSlots)
+    local summary = appOrSummary and appOrSummary.tactics and tacticalSummary(appOrSummary) or appOrSummary
+    local enemies = (summary and summary.enemies) or {}
+    local slots = math.max(requiredSlots or #enemies, #enemies)
+    local rows = {}
+    for index = 1, slots do
+        local enemy = enemies[index]
+        local category = enemy and enemy.intentCategory or nil
+        local hidden = enemy and enemy.intentHidden == true
+        local target = enemy and enemy.targetTiles and enemy.targetTiles[1]
+        rows[#rows + 1] = {
+            slot = index,
+            id = enemy and enemy.id or "-",
+            kind = enemy and enemy.kind or nil,
+            hp = enemy and enemy.hp or 0,
+            maxHp = enemy and enemy.maxHp or enemy and enemy.hp or 0,
+            x = enemy and enemy.x or nil,
+            y = enemy and enemy.y or nil,
+            intentCategory = category,
+            intentLabel = enemy and enemy.intentLabel or "-",
+            intentDamage = enemy and enemy.intentDamage or 0,
+            intentIcon = tacticalIntentIcon(category, hidden),
+            hidden = hidden,
+            targetTiles = enemy and copyValue(enemy.targetTiles or {}) or {},
+            targetX = target and target.x or nil,
+            targetY = target and target.y or nil,
+            empty = enemy == nil,
+        }
+    end
+    return rows
+end
+
 function Render.tacticalTileInspectorSummary(app)
     local runtime = app and app.tactics
     local tactics = runtime and runtime.state
@@ -3736,6 +3773,13 @@ local function joinWords(values)
     return table.concat(text, " ")
 end
 
+local function signedNumber(value)
+    if value == nil then
+        return nil
+    end
+    return value > 0 and ("+" .. tostring(value)) or tostring(value)
+end
+
 function Render.tacticalTileInspectorLines(summary)
     if not summary then
         return { "tile -" }
@@ -3759,7 +3803,7 @@ function Render.tacticalTileInspectorLines(summary)
     end
     lines[#lines + 1] = "vision " .. (#vision > 0 and table.concat(vision, " ") or "-")
     local los = summary.los or {}
-    lines[#lines + 1] = joinWords({ "LoS", los.from and los.from.unit or "-", los.visible and "visible" or "blocked", los.obscured and "obscured" or nil })
+    lines[#lines + 1] = joinWords({ "LoS", los.from and los.from.unit or "-", los.visible and "visible" or "blocked", los.heightDelta and ("h" .. signedNumber(los.heightDelta)) or nil, los.vantage, los.effectiveCover and ("cover " .. los.effectiveCover) or nil, los.damageReduction and los.damageReduction > 0 and ("dr " .. tostring(los.damageReduction)) or nil, los.flanked and "flanked" or nil, los.coverIgnoredByHeight and "height-breaks-cover" or nil, los.obscured and "obscured" or nil })
     local traces = {}
     for _, trace in ipairs(summary.intentTraces or {}) do
         traces[#traces + 1] = joinWords({ trace.unit, trace.role, trace.category, trace.damage and ("dmg " .. trace.damage) or nil, trace.countdown and ("timer " .. trace.countdown) or nil })
@@ -3829,6 +3873,25 @@ local function drawTacticalPortrait(row, x, y, size)
         love.graphics.draw(state.assets.spriteAtlas, quad, x + size * 0.5, y + size * 0.5, 0, scale, scale, frameW * 0.5, frameH * 0.5)
     else
         love.graphics.setColor(row.empty and 0.34 or 0.82, row.empty and 0.36 or 0.84, row.empty and 0.34 or 0.74, 1)
+        love.graphics.printf(string.upper(string.sub(row.id or "-", 1, 2)), x, y + size * 0.36, size, "center")
+    end
+end
+
+local function drawTacticalEnemyPortrait(row, x, y, size)
+    love.graphics.setColor(row.empty and 0.08 or 0.14, row.empty and 0.08 or 0.09, row.empty and 0.08 or 0.08, 1)
+    love.graphics.rectangle("fill", x, y, size, size)
+    love.graphics.setColor(row.hidden and 0.46 or 0.68, row.hidden and 0.42 or 0.28, row.hidden and 0.36 or 0.24, 1)
+    love.graphics.rectangle("line", x, y, size, size)
+    local quad, frameW, frameH = nil, nil, nil
+    if not row.empty then
+        quad, frameW, frameH = atlasFrameQuad(enemyFrame("threat", row.kind))
+    end
+    if quad and state.assets.spriteAtlas then
+        local scale = math.min((size - 8) / frameW, (size - 8) / frameH)
+        love.graphics.setColor(1, 1, 1, row.hidden and 0.62 or 0.92)
+        love.graphics.draw(state.assets.spriteAtlas, quad, x + size * 0.5, y + size * 0.5, 0, scale, scale, frameW * 0.5, frameH * 0.5)
+    else
+        love.graphics.setColor(row.empty and 0.34 or 0.94, row.empty and 0.3 or 0.42, row.empty and 0.3 or 0.32, 1)
         love.graphics.printf(string.upper(string.sub(row.id or "-", 1, 2)), x, y + size * 0.36, size, "center")
     end
 end
@@ -3906,6 +3969,52 @@ local function drawTacticalGhostArrows(app)
         end
     end
     return #arrows
+end
+
+function Render.drawTacticalEnemyIntentBadges(app)
+    local runtime = app and app.tactics
+    local tactics = runtime and runtime.state
+    local view = app and app.worldView
+    if not (runtime and tactics and view and app.ui and app.ui.tacticalIntentButtons) then
+        return 0
+    end
+    local rows = Render.tacticalEnemyHudRows(app)
+    local count = 0
+    for _, row in ipairs(rows) do
+        if not row.empty and row.x and row.y then
+            local worldX = (runtime.originX or 0) + row.x + 0.5
+            local worldY = (runtime.originY or 0) + row.y + 0.5
+            local sx, sy = Render.projectIso(view, worldX, worldY)
+            local tile = tactics:tileAt(row.x, row.y)
+            sy = sy - 58 - ((tile and tile.height or 0) * 10)
+            local label = row.intentIcon
+            if (row.intentDamage or 0) > 0 and not row.hidden then
+                label = label .. " " .. tostring(row.intentDamage)
+            end
+            local w = math.max(46, math.min(86, 18 + #label * 9))
+            local h = 28
+            local x = sx - w * 0.5
+            local y = sy - h
+            love.graphics.setColor(0.055, 0.045, 0.04, 0.92)
+            love.graphics.rectangle("fill", x, y, w, h)
+            love.graphics.setColor(row.hidden and 0.58 or 0.96, row.hidden and 0.54 or 0.66, row.hidden and 0.48 or 0.32, 1)
+            love.graphics.rectangle("line", x, y, w, h)
+            love.graphics.setColor(row.hidden and 0.72 or 0.98, row.hidden and 0.72 or 0.86, row.hidden and 0.68 or 0.58, 1)
+            love.graphics.printf(label, x + 4, y + 7, w - 8, "center")
+            app.ui.tacticalIntentButtons[#app.ui.tacticalIntentButtons + 1] = {
+                x = x,
+                y = y,
+                w = w,
+                h = h,
+                intentUnit = row.id,
+                sourceTile = { x = row.x, y = row.y },
+                targetTiles = row.targetTiles,
+            }
+            count = count + 1
+        end
+    end
+    app.worldView.tacticalIntentBadges = count
+    return count
 end
 
 function Render.drawTacticalIntentLegend(app, layout)
@@ -3997,11 +4106,57 @@ function Render.drawTacticalActionBar(app, layout)
     return #actions
 end
 
+local function drawTacticalThreatPanel(app, layout, summary)
+    local rect = layout.threats
+    panel(rect.x, rect.y, rect.w, rect.h, 0.88)
+    local enemies = (summary and summary.enemies) or {}
+    love.graphics.setColor(0.9, 0.92, 0.86, 1)
+    love.graphics.print("Threats", rect.x + 12, rect.y + 12)
+    love.graphics.setColor(0.64, 0.68, 0.62, 1)
+    love.graphics.printf(tostring(#enemies) .. " visible", rect.x + rect.w - 94, rect.y + 12, 82, "right")
+    local rows = Render.tacticalEnemyHudRows(summary, layout.enemySlots)
+    for _, row in ipairs(rows) do
+        local rowY = rect.y + 32 + (row.slot - 1) * layout.enemyRowH
+        local rowH = layout.enemyRowH - 6
+        love.graphics.setColor(row.empty and 0.055 or 0.12, row.empty and 0.06 or 0.075, row.empty and 0.06 or 0.07, row.empty and 0.74 or 0.94)
+        love.graphics.rectangle("fill", rect.x + 10, rowY, rect.w - 20, rowH)
+        love.graphics.setColor(row.hidden and 0.48 or 0.7, row.hidden and 0.42 or 0.32, row.hidden and 0.34 or 0.26, row.empty and 0.34 or 0.96)
+        love.graphics.rectangle("line", rect.x + 10, rowY, rect.w - 20, rowH)
+        drawTacticalEnemyPortrait(row, rect.x + 16, rowY + 5, layout.enemyPortraitSize)
+        local textX = rect.x + 24 + layout.enemyPortraitSize
+        local textW = rect.w - layout.enemyPortraitSize - 50
+        love.graphics.setColor(row.empty and 0.36 or 0.92, row.empty and 0.36 or 0.86, row.empty and 0.36 or 0.78, 1)
+        love.graphics.printf(shortText(row.id, 16), textX, rowY + 5, textW - 54, "left")
+        love.graphics.setColor(row.empty and 0.28 or 0.96, row.empty and 0.26 or 0.64, row.empty and 0.24 or 0.32, 1)
+        love.graphics.printf(row.empty and "-" or row.intentIcon, textX + textW - 50, rowY + 5, 46, "right")
+        love.graphics.setColor(0.62, 0.66, 0.58, 1)
+        local target = row.targetX and (" >" .. tostring(row.targetX) .. "," .. tostring(row.targetY)) or ""
+        love.graphics.printf("HP " .. tostring(row.hp) .. " @" .. tostring(row.x or "-") .. "," .. tostring(row.y or "-") .. target, textX, rowY + 23, textW, "left")
+        if not row.empty then
+            app.ui.tacticalIntentButtons[#app.ui.tacticalIntentButtons + 1] = {
+                x = rect.x + 10,
+                y = rowY,
+                w = rect.w - 20,
+                h = rowH,
+                intentUnit = row.id,
+                sourceTile = { x = row.x, y = row.y },
+                targetTiles = row.targetTiles,
+            }
+        end
+    end
+    if #enemies > layout.enemySlots then
+        love.graphics.setColor(0.76, 0.8, 0.72, 1)
+        love.graphics.printf("+" .. tostring(#enemies - layout.enemySlots) .. " more", rect.x + 12, rect.y + rect.h - 18, rect.w - 24, "right")
+    end
+    return math.min(#enemies, layout.enemySlots)
+end
+
 function Render.drawTacticalHud(sim, app)
     local summary = tacticalSummary(app)
     local width, height = love.graphics.getDimensions()
     local layout = Render.tacticalHudLayout(width, height, math.max(6, #((summary and summary.players) or {})))
     drawTacticalGhostArrows(app)
+    Render.drawTacticalEnemyIntentBadges(app)
     local hover = app and app.tacticalHover
     local selectedAt = "-"
     for _, unit in ipairs((summary and summary.players) or {}) do
@@ -4036,6 +4191,7 @@ function Render.drawTacticalSidePanel(sim, app)
     local summary = tacticalSummary(app)
     local width, height = love.graphics.getDimensions()
     local layout = Render.tacticalHudLayout(width, height, math.max(6, #((summary and summary.players) or {})))
+    drawTacticalThreatPanel(app, layout, summary)
     local x = layout.squad.x
     local y = layout.squad.y
     panel(x, y, layout.squad.w, layout.squad.h, 0.88)
@@ -4060,11 +4216,12 @@ function Render.drawTacticalSidePanel(sim, app)
             love.graphics.setColor(0.9, 0.76, 0.32, 1)
             love.graphics.printf("SEL", textX + textW - 52, rowY + 6, 48, "right")
         end
+        local infoY = layout.rowH < 46 and rowY + 19 or rowY + 24
         love.graphics.setColor(0.62, 0.66, 0.58, 1)
-        love.graphics.printf("HP " .. tostring(row.hp) .. "  @" .. tostring(row.x or "-") .. "," .. tostring(row.y or "-"), textX, rowY + 24, textW, "left")
-        drawApPool(textX, rowY + layout.rowH - 18, math.min(92, textW - 58), row.ap, row.maxAp)
+        love.graphics.printf("HP " .. tostring(row.hp) .. "  @" .. tostring(row.x or "-") .. "," .. tostring(row.y or "-"), textX, infoY, textW, "left")
+        drawApPool(textX, rowY + layout.rowH - 12, math.min(92, textW - 58), row.ap, row.maxAp)
         love.graphics.setColor(0.74, 0.76, 0.66, 1)
-        love.graphics.printf("AP " .. tostring(row.ap) .. "/" .. tostring(row.maxAp), textX + math.min(100, textW - 52), rowY + layout.rowH - 23, 52, "right")
+        love.graphics.printf("AP " .. tostring(row.ap) .. "/" .. tostring(row.maxAp), textX + math.min(100, textW - 52), infoY, 52, "right")
     end
 
     if layout.intent.h <= 0 then

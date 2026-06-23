@@ -220,6 +220,74 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local runtime = TacticalRuntime.new(makeTacticalSim(9019))
+    expect(runtime.state.board.width == 32 and runtime.state.board.height == 24 and runtime.state.board.expanse == true, "runtime should use one large archive expanse board")
+    expect(runtime.state:unit("ink_wretch__archive_shelf_protection").alive == false, "future region enemies should start dormant")
+    local app = { tactics = runtime }
+    local enemyRows = Render.tacticalEnemyHudRows(app)
+    expect(#enemyRows >= 2 and enemyRows[1].intentIcon ~= "-" and enemyRows[1].targetTiles[1], "enemy HUD rows should expose visible intent cards")
+    local sameState = runtime.state
+    for _, enemy in ipairs(runtime.state:unitsForSide("enemy")) do
+        enemy.alive = false
+    end
+    TacticalRuntime.evaluate(runtime)
+    expect(runtime.state == sameState and runtime.route.variantId == "archive_shelf_protection" and runtime.state:unit("ink_wretch__archive_shelf_protection").alive, "route advance should wake next region without replacing state")
+    local bridge = runtime.state:tileAt(9, 4)
+    expect(bridge.destructibleHp == 3 and bridge.height == 1, "expanse should include destructible elevated bridge")
+    runtime.state:damageTile(9, 4, 3)
+    local collapsed = runtime.state:tileAt(9, 4)
+    expect(collapsed.destroyed and collapsed.height == 0 and collapsed.kind == "rubble", "destroyed bridge should collapse into lower rubble")
+    local verticalRoutes = runtime.state.board.verticalRoutes or {}
+    local sawAscent, sawDescent = false, false
+    for _, route in ipairs(verticalRoutes) do
+        sawAscent = sawAscent or route.kind == "ascend"
+        sawDescent = sawDescent or route.kind == "descend"
+    end
+    expect(#verticalRoutes >= 2 and sawAscent and sawDescent, "expanse should define explicit ascent and descent routes")
+    expect(#(runtime.state.board.sightlines or {}) >= 2 and #(runtime.state.board.coverFields or {}) >= 3, "expanse should define sightlines and XCOM-style cover fields")
+    local highSight = runtime.state:sightlineProfile(24, 12, 20, 12)
+    expect(highSight.visible and highSight.vantage == "high_ground", "expanse spire should create high-ground sightlines")
+    local blockedSight = runtime.state:sightlineProfile(20, 16, 28, 16)
+    expect(not blockedSight.visible and blockedSight.blockedBy.x == 22, "breakable tall columns should block low-ground sightlines")
+    runtime.state:damageTile(22, 16, 2)
+    local openedSight = runtime.state:sightlineProfile(20, 16, 28, 16)
+    expect(openedSight.visible and runtime.state:tileAt(22, 16).height == 0, "destroyed sight columns should open LoS and collapse")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        defaultAp = 3,
+        board = {
+            width = 3,
+            height = 1,
+            tiles = {
+                ["1:1"] = { height = 0, tags = { "height_band" } },
+                ["2:1"] = { height = 3, tags = { "height_band" } },
+                ["3:1"] = { height = 3, tags = { "height_band", "stair" } },
+            },
+        },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, hp = 6 },
+        },
+    })
+    local ok, reason = state:canEnter(2, 1, "warden", 1, 1)
+    expect(not ok and reason == "climb_blocked", "height-band movement should reject unclimbable ledges")
+    ok, reason = state:canEnter(1, 1, "warden", 2, 1)
+    expect(not ok and reason == "drop_blocked", "height-band movement should reject unsafe descents")
+    state.board.tiles["2:1"].tags[#state.board.tiles["2:1"].tags + 1] = "stair"
+    ok = state:canEnter(2, 1, "warden", 1, 1)
+    expect(ok == true, "stairs should permit steep height movement")
+    local preview = state:movementPreview("warden")
+    local climb
+    for _, tile in ipairs(preview.reachable) do
+        if tile.x == 2 and tile.y == 1 then
+            climb = tile
+        end
+    end
+    expect(climb and climb.height == 3 and climb.heightDelta == 3 and climb.vertical == "ascend", "movement preview should expose climb height deltas")
+end
+
+tests[#tests + 1] = function()
     local tacticalSim = makeTacticalSim(9003)
     local runtime = TacticalRuntime.new(tacticalSim)
     local enemy = firstEnemy(runtime)
@@ -932,6 +1000,8 @@ tests[#tests + 1] = function()
     expect(high:lineOfSight(1, 1, 4, 1).visible, "high ground should see over lower LoS blocker")
     local profile = high:attackProfile(1, 1, 4, 1)
     expect(profile.cover == "half" and profile.effectiveCover == "none" and profile.coverIgnoredByHeight, "high ground should ignore half cover without hit chance")
+    local sightline = high:sightlineProfile(1, 1, 4, 1)
+    expect(sightline.vantage == "high_ground" and sightline.effectiveCover == "none", "sightline profile should summarize high ground and effective cover")
     local blocked = TacticsState.new({
         board = {
             width = 4,
@@ -2798,7 +2868,7 @@ tests[#tests + 1] = function()
     local summary = UICatalog.tileInspectorSummary(state, 2, 2, { rotation = 1 })
     expect(summary.terrain.kind == "valve_block" and summary.terrain.material == "salt" and summary.terrain.height == 1, "tile inspector should expose terrain")
     expect(summary.cover[1].direction == "west" and summary.cover[1].cover == "half", "tile inspector should expose cover")
-    expect(summary.los.visible and summary.los.from.unit == "warden", "tile inspector should expose LoS from selected unit")
+    expect(summary.los.visible and summary.los.from.unit == "warden" and summary.los.effectiveCover == "half", "tile inspector should expose LoS and effective cover from selected unit")
     expect(summary.hazards.kind == "brine" and summary.hazards.active == true, "tile inspector should expose hazards")
     expect(summary.destructibleHp.hp == 4 and summary.destructibleHp.destructible, "tile inspector should expose destructible HP")
     expect(summary.hiddenInfo.hidden and summary.hiddenInfo.currentRotationMark.mark == "rear_valve_label", "tile inspector should expose hidden info without revealing all states")
@@ -2807,6 +2877,7 @@ tests[#tests + 1] = function()
     local lines = table.concat(Render.tacticalTileInspectorLines(summary), "\n")
     expect(lines:find("tags cistern", 1, true) and lines:find("cover west half", 1, true), "render tile inspector lines should show tags and cover edges")
     expect(lines:find("hazard brine active true dmg 1 timer 2", 1, true) and lines:find("terrain HP 4", 1, true), "render tile inspector lines should show hazard timers and terrain HP")
+    expect(lines:find("LoS warden visible h-1 below cover half", 1, true), "render tile inspector lines should show elevation-aware LoS cover")
     expect(lines:find("vision warden@1,2 spotter@2,1", 1, true) and lines:find("intent bailiff target attack dmg 1", 1, true), "render tile inspector lines should show vision sources and intent footprints")
     local legendApp = { tactics = { state = state, selectedUnitId = "warden", cursor = { x = 1, y = 1 } }, ui = { tacticalIntentButtons = {} } }
     local legend = Render.tacticalIntentLegendEntries(legendApp)
@@ -2941,13 +3012,7 @@ tests[#tests + 1] = function()
         viewTurn = { from = 0, to = 1, t = 0, duration = 0.24 },
         worldView = { centerX = 400, centerY = 300, halfW = 32, halfH = 16, originX = 0, originY = 0, rotation = 1 },
     }
-    local arrows = Render.tacticalGhostArrowEntries(app)
-    local byTile = {}
-    for _, arrow in ipairs(arrows) do
-        byTile[arrow.tileId] = arrow
-        expect(arrow.fromRotation == 0 and arrow.toRotation == 1 and arrow.x .. ":" .. arrow.y == arrow.tileId, "ghost arrow should preserve logical tile id")
-    end
-    expect(byTile["1:1"] and byTile["2:2"] and byTile["3:3"], "ghost arrows should cover selected, objective, and cursor tiles")
+    expect(#Render.tacticalGhostArrowEntries(app) == 0, "ghost arrows should stay hidden during active rotation")
     app.viewTurn = nil
     expect(#Render.tacticalGhostArrowEntries(app) == 0, "ghost arrows should hide outside active rotation")
     app.viewTurn = { from = 1, to = 2, t = 0, duration = 0.24 }

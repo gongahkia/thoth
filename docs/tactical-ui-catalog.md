@@ -227,7 +227,7 @@ source pattern:
 Isometric tactics UI uses camera rotation as a planning tool, so overlays must move on screen while preserving logical tile identity.
 
 thoth transformation:
-Thoth projects tactical overlay entries at all four camera snaps and records screen position, logical stability, upright label orientation, icon/pattern readability, and occlusion offsets. The tactical HUD also renders a rotation compass and stable tile-ID ghost arrows for cursor, selected unit, objectives, and intent targets.
+Thoth projects tactical overlay entries at all four camera snaps and records screen position, logical stability, upright label orientation, icon/pattern readability, and occlusion offsets. The tactical HUD renders a rotation compass without ghost-arrow transition lines.
 
 board verb:
 Rotate, inspect, compare, preserve.
@@ -239,12 +239,46 @@ counterplay:
 The player can rotate to inspect occluded plans without losing which tile an intent, hazard, cover edge, or LoS marker belongs to.
 
 preview/UI:
-`Render.tacticalOverlayRotationAudit()` returns four rotation buckets with projected entries, stable logical coordinates, readable symbols, and occlusion metadata. `Render.rotationCompass()` maps world directions to the current 90-degree view. `Render.tacticalGhostArrowEntries()` projects tile IDs from the previous rotation to the current rotation without changing logical coordinates.
+`Render.tacticalOverlayRotationAudit()` returns four rotation buckets with projected entries, stable logical coordinates, readable symbols, and occlusion metadata. `Render.rotationCompass()` maps world directions to the current 90-degree view. `Render.tacticalGhostArrowEntries()` returns no entries, keeping rotation transitions free of ghost-arrow lines.
 
 test/replay proof:
-`tests/run.lua` verifies the audit covers four snaps, preserves entry count and logical tile coordinates, keeps labels upright, keeps icon/pattern metadata, exposes occlusion offsets, changes screen positions across rotations, maps the 90-degree compass, and keeps ghost-arrow tile IDs stable. `make tactical-smoke` verifies compass output and non-empty ghost-arrow output.
+`tests/run.lua` verifies the audit covers four snaps, preserves entry count and logical tile coordinates, keeps labels upright, keeps icon/pattern metadata, exposes occlusion offsets, changes screen positions across rotations, maps the 90-degree compass, and keeps ghost arrows hidden. `make tactical-smoke` verifies compass output and zero ghost-arrow output.
 
-## U.11 Colorblind-Safe Tactical Palette
+## U.11 Enemy Intent Cards And Badges
+
+source pattern:
+Enemy intent has to be readable from the board first, with roster/detail panels reinforcing the same promise.
+
+thoth transformation:
+Thoth renders intent badges over visible enemies and matching Threat cards in the right HUD. Both surfaces use the same category, damage, source tile, target tiles, and hidden/category-only state as the bottom intent legend.
+
+board verb:
+Read, hover, target, counter.
+
+preview/UI:
+`Runtime.summary()` exposes visible enemy intent category, label, damage, target tiles, and hidden state. `Render.tacticalEnemyHudRows()` formats Threat cards; `Render.drawTacticalEnemyIntentBadges()` anchors board badges and registers the same `tacticalIntentButtons` hover hitboxes used by the bottom legend.
+
+test/replay proof:
+`tests/run.lua` verifies enemy card rows expose visible intent data. `make tactical-smoke` verifies nonzero enemy cards and intent badges.
+
+## U.12 Unified Expanse Terrain
+
+source pattern:
+Large isometric spaces need readable traversal structure: raised walks, stairs, bridges, destructible set pieces, sightlines, cover fields, and visible destination scale.
+
+thoth transformation:
+The Buried Archive tactical route starts as one 32x24 expanse. Later route regions are stitched into the same board as dormant regions; route advancement wakes the next region without replacing the tactical state. Height, ascent/descent routes, XCOM-style cover fields, sightlines, and destructible LoS blockers are board facts, synced into render-world tile metadata, and raised in the 3D tile model.
+
+board verb:
+Traverse, climb, descend, take cover, break, reveal.
+
+preview/UI:
+Height-tagged terrain rejects impossible climbs/drops unless a stair is present. Movement preview exposes climb/descend deltas. Destructible structures can collapse to lower height and rubble, including sightline columns that open LoS after breaking. The tile inspector exposes terrain height, destructible HP, sightline height delta, high/low ground, effective cover, flank, and damage reduction.
+
+test/replay proof:
+`tests/run.lua` verifies the 32x24 expanse, dormant region enemies, state-preserving route advancement, bridge collapse, ascent/descent grammar, high-ground sightlines, breakable LoS columns, height movement gates, movement climb preview, and elevation-aware inspector copy. `make tactical-smoke` verifies board size, height tiles, destructible terrain, vertical route, descent, sightline, and high-cover counts.
+
+## U.13 Colorblind-Safe Tactical Palette
 
 source pattern:
 Accessible visual systems avoid red/green dependence, vary lightness, and pair color with texture, symbols, or annotation.
@@ -267,7 +301,7 @@ preview/UI:
 test/replay proof:
 `tests/run.lua` verifies palette roles, modes, checks, simulated color separation for off/deuteranopia/protanopia/tritanopia, render overlay color/icon/pattern alignment, tactical settings persistence, tile contrast transforms, intent scale/text metadata, and settings-panel hitboxes. `make settings-smoke` verifies the tactical accessibility controls are present.
 
-## U.12 Reduced-Motion Tactical Equivalents
+## U.14 Reduced-Motion Tactical Equivalents
 
 source pattern:
 Reduced-motion interfaces suppress non-essential interaction motion while preserving the information the motion conveyed.
@@ -290,7 +324,7 @@ preview/UI:
 test/replay proof:
 `tests/run.lua` verifies all four equivalents, reduced and animated plans, preserved tile metadata, UI pulse suppression, and reduced-motion camera rotation snap.
 
-## U.13 Tactical Controller Path
+## U.15 Tactical Controller Path
 
 source pattern:
 Accessible game UI supports analog and digital navigation, single-press actions, consistent prompts, remapping, and predictable focus.
@@ -313,7 +347,7 @@ preview/UI:
 test/replay proof:
 `tests/run.lua` verifies joystick module enablement, button/axis mapping, tactical gamepad map fields, controller path bindings, five required stages, stage input/output/preview metadata, and cancel-before-commit support.
 
-## U.14 Tutorial Board Fixtures
+## U.16 Tutorial Board Fixtures
 
 source pattern:
 Readable tactics tutorials isolate one board verb at a time and use tutorial/combat UI surfaces to keep the player inside the tactical context.

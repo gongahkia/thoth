@@ -901,6 +901,289 @@ function Procgen.generateArchiveRouteBoard(variantId, seed, options)
     return spec
 end
 
+local archiveExpansePlacements = {
+    archive_entry_audit = { x = 0, y = 0 },
+    archive_shelf_protection = { x = 10, y = 0 },
+    archive_proof_extract = { x = 21, y = 1 },
+    archive_ledger_repair = { x = 5, y = 10 },
+    archive_sealed_shortcut = { x = 17, y = 10 },
+    archive_vault_regent_final = { x = 23, y = 15 },
+}
+
+local function openExpanseTile(tiles, x, y, material, kind, height, tag)
+    local tile = tiles[tileKey(x, y)] or { kind = "wall", material = material, blocker = true, losBlocker = true, tags = { "sealed_void" } }
+    tile.kind = kind or "floor"
+    tile.material = material
+    tile.blockerKind = nil
+    tile.blocker = false
+    tile.losBlocker = false
+    tile.height = height or tile.height or 0
+    tile.tags = tile.tags or {}
+    if tag then
+        addTag(tile, tag)
+    end
+    tiles[tileKey(x, y)] = tile
+    return tile
+end
+
+local function copyRegionSpecIntoExpanse(target, source, placement, variantId, firstRegion)
+    local regions = target.regions
+    local region = {
+        id = variantId,
+        x = placement.x + 1,
+        y = placement.y + 1,
+        width = source.board.width,
+        height = source.board.height,
+        objectives = {},
+        enemies = {},
+    }
+    for key, tile in pairs(source.board.tiles or {}) do
+        local x, y = key:match("^(%-?%d+):(%-?%d+)$")
+        x, y = tonumber(x), tonumber(y)
+        local tx, ty = placement.x + x, placement.y + y
+        if tx >= 1 and ty >= 1 and tx <= target.width and ty <= target.height then
+            local copied = copyValue(tile)
+            copied.tags = copied.tags or {}
+            addTag(copied, "route_region")
+            addTag(copied, variantId)
+            target.tiles[tileKey(tx, ty)] = copied
+        end
+    end
+    for _, objective in ipairs(source.objectives or {}) do
+        local copied = copyValue(objective)
+        copied.x = placement.x + copied.x
+        copied.y = placement.y + copied.y
+        copied.evacuateAt = copied.evacuateAt and { x = placement.x + copied.evacuateAt.x, y = placement.y + copied.evacuateAt.y } or copied.evacuateAt
+        copied.region = variantId
+        target.objectives[#target.objectives + 1] = copied
+        region.objectives[#region.objectives + 1] = copied.id
+    end
+    for _, unit in ipairs(source.units or {}) do
+        local copied = copyValue(unit)
+        copied.x = placement.x + copied.x
+        copied.y = placement.y + copied.y
+        copied.region = variantId
+        if unit.side == "enemy" then
+            copied.kind = copied.kind or unit.id
+            if not firstRegion then
+                copied.id = unit.id .. "__" .. variantId
+                copied.alive = false
+            end
+            region.enemies[#region.enemies + 1] = copied.id
+            target.units[#target.units + 1] = copied
+        elseif firstRegion then
+            target.units[#target.units + 1] = copied
+        end
+    end
+    regions[#regions + 1] = region
+end
+
+local function carveExpanseCorridor(target, x1, y1, x2, y2, height)
+    local xStep = x1 <= x2 and 1 or -1
+    for x = x1, x2, xStep do
+        openExpanseTile(target.tiles, x, y1, "archive", "floor", height or 0, "expanse_path")
+    end
+    local yStep = y1 <= y2 and 1 or -1
+    for y = y1, y2, yStep do
+        openExpanseTile(target.tiles, x2, y, "archive", "floor", height or 0, "expanse_path")
+    end
+end
+
+local function expanseTileRefs(values)
+    local result = {}
+    for _, value in ipairs(values or {}) do
+        result[#result + 1] = { x = value.x or value[1], y = value.y or value[2] }
+    end
+    return result
+end
+
+local function recordExpanseHeightBand(target, id, bandHeight, tiles)
+    target.heightBands = target.heightBands or {}
+    local refs = expanseTileRefs(tiles)
+    target.heightBands[#target.heightBands + 1] = { id = id, height = bandHeight, tiles = refs }
+    for _, ref in ipairs(refs) do
+        local tile = target.tiles[tileKey(ref.x, ref.y)]
+        if tile then
+            addTag(tile, "height_band")
+        end
+    end
+end
+
+local function recordExpanseVerticalRoute(target, id, kind, fromHeight, toHeight, tiles)
+    target.verticalRoutes = target.verticalRoutes or {}
+    local refs = expanseTileRefs(tiles)
+    target.verticalRoutes[#target.verticalRoutes + 1] = { id = id, kind = kind, fromHeight = fromHeight, toHeight = toHeight, tiles = refs }
+    for _, ref in ipairs(refs) do
+        local tile = target.tiles[tileKey(ref.x, ref.y)]
+        if tile then
+            addTag(tile, "vertical_route")
+            addTag(tile, kind == "descend" and "descent_route" or "ascent_route")
+            addTag(tile, "stair")
+        end
+    end
+end
+
+local function recordExpanseCoverField(target, id, x, y, coverEdges)
+    target.coverFields = target.coverFields or {}
+    local tile = target.tiles[tileKey(x, y)]
+    if tile then
+        tile.coverEdges = coverEdges
+        addTag(tile, "cover_field")
+        if (tile.height or 0) >= 2 then
+            addTag(tile, "high_cover")
+        end
+    end
+    target.coverFields[#target.coverFields + 1] = { id = id, x = x, y = y, coverEdges = copyValue(coverEdges), height = tile and tile.height or 0 }
+end
+
+local function recordExpanseSightline(target, id, fromTile, toTile, tiles)
+    target.sightlines = target.sightlines or {}
+    target.sightlines[#target.sightlines + 1] = { id = id, from = copyValue(fromTile), to = copyValue(toTile), tiles = expanseTileRefs(tiles) }
+end
+
+local function recordExpanseSightBreak(target, id, x, y, destructibleHp)
+    target.sightBreaks = target.sightBreaks or {}
+    target.sightBreaks[#target.sightBreaks + 1] = { id = id, x = x, y = y, destructibleHp = destructibleHp }
+    local tile = target.tiles[tileKey(x, y)]
+    if tile then
+        addTag(tile, "sight_break")
+    end
+end
+
+local function addExpanseSetPieces(target)
+    target.heightBands = target.heightBands or {}
+    target.coverFields = target.coverFields or {}
+    target.sightBreaks = target.sightBreaks or {}
+    target.verticalRoutes = target.verticalRoutes or {}
+    target.sightlines = target.sightlines or {}
+    carveExpanseCorridor(target, 8, 4, 12, 4, 1)
+    carveExpanseCorridor(target, 18, 4, 23, 5, 2)
+    carveExpanseCorridor(target, 8, 5, 8, 14, 1)
+    carveExpanseCorridor(target, 14, 14, 20, 14, 2)
+    carveExpanseCorridor(target, 24, 18, 28, 18, 3)
+    carveExpanseCorridor(target, 18, 16, 24, 16, 0)
+    for x = 12, 18 do
+        for y = 3, 6 do
+            local tile = openExpanseTile(target.tiles, x, y, "archive", "floor", 2, "raised_archive_walk")
+            if x == 12 or x == 18 then
+                addTag(tile, "stair")
+            end
+        end
+    end
+    for x = 24, 29 do
+        for y = 16, 20 do
+            local h = (x >= 27 and y <= 18) and 4 or 3
+            local tile = openExpanseTile(target.tiles, x, y, "archive", "floor", h, "monument_stack")
+            if x == 24 or y == 20 then
+                addTag(tile, "stair")
+            end
+        end
+    end
+    local ascent = {}
+    for i = 0, 4 do
+        local x = 20 + i
+        local tile = openExpanseTile(target.tiles, x, 12, "archive", "floor", i, "monument_stair")
+        addTag(tile, "stair")
+        ascent[#ascent + 1] = { x = x, y = 12 }
+    end
+    local descent = {}
+    for i = 0, 4 do
+        local y = 12 + i
+        local tile = openExpanseTile(target.tiles, 24, y, "archive", "floor", 4 - i, "monument_stair")
+        addTag(tile, "stair")
+        descent[#descent + 1] = { x = 24, y = y }
+    end
+    recordExpanseVerticalRoute(target, "ledger_spire_ascent", "ascend", 0, 4, ascent)
+    recordExpanseVerticalRoute(target, "claim_stack_descent", "descend", 4, 0, descent)
+    recordExpanseHeightBand(target, "ledger_spire_height", 4, { { x = 24, y = 12 }, { x = 27, y = 17 } })
+    recordExpanseSightline(target, "spire_high_to_low", { x = 24, y = 12, height = 4 }, { x = 20, y = 12, height = 0 }, ascent)
+    recordExpanseSightline(target, "low_arcade_to_tower", { x = 20, y = 16, height = 0 }, { x = 28, y = 16, height = 4 }, { { x = 20, y = 16 }, { x = 21, y = 16 }, { x = 22, y = 16 }, { x = 23, y = 16 }, { x = 24, y = 16 }, { x = 28, y = 16 } })
+    local column = openExpanseTile(target.tiles, 22, 16, "archive", "sight_column", 4, "destructible_cover")
+    column.losBlocker = true
+    column.destructibleHp = 2
+    column.collapseHeight = 0
+    column.collapseKind = "rubble"
+    column.coverEdges = { east = "full", west = "full", north = "half" }
+    recordExpanseSightBreak(target, "breakable_sight_column", 22, 16, 2)
+    recordExpanseCoverField(target, "spire_full_cover", 23, 12, { north = "full", west = "half" })
+    recordExpanseCoverField(target, "descent_half_cover", 24, 14, { east = "half", south = "half" })
+    local bridge = openExpanseTile(target.tiles, 9, 4, "archive", "ledger_bridge", 1, "destructible_bridge")
+    bridge.destructibleHp = 3
+    bridge.collapseHeight = 0
+    bridge.collapseKind = "rubble"
+    bridge.coverEdges = { north = "half", south = "half" }
+    recordExpanseCoverField(target, "bridge_cover", 9, 4, bridge.coverEdges)
+    recordExpanseSightBreak(target, "destructible_bridge", 9, 4, 3)
+    local tower = target.tiles[tileKey(27, 17)]
+    if tower then
+        tower.destructibleHp = 4
+        tower.collapseHeight = 1
+        tower.collapseKind = "rubble"
+        tower.coverEdges = { west = "full", south = "half" }
+        addTag(tower, "destructible_structure")
+        recordExpanseCoverField(target, "tower_full_cover", 27, 17, tower.coverEdges)
+    end
+    for x = 14, 17 do
+        local tile = openExpanseTile(target.tiles, x, 5, "archive", "floor", 2, "hazard_lane")
+        tile.hazard = { kind = "audit_static", damage = 1, timing = "end_turn" }
+    end
+end
+
+function Procgen.generateArchiveExpanse(seed, options)
+    options = options or {}
+    local width = options.width or 32
+    local height = options.height or 24
+    local target = { width = width, height = height, tiles = {}, units = {}, objectives = {}, regions = {} }
+    for x = 1, width do
+        for y = 1, height do
+            target.tiles[tileKey(x, y)] = { kind = "wall", material = "archive", blockerKind = "hard", blocker = true, losBlocker = true, tags = { "sealed_void" } }
+        end
+    end
+    for index, variantId in ipairs(archiveRouteVariantOrder) do
+        local source = Procgen.generateArchiveRouteBoard(variantId, seed and (seed + index - 1) or nil)
+        copyRegionSpecIntoExpanse(target, source, archiveExpansePlacements[variantId], variantId, index == 1)
+    end
+    addExpanseSetPieces(target)
+    local spec = {
+        seed = seed or archiveRouteVariants.archive_entry_audit.seed,
+        zone = "buried_archive",
+        generator = { id = "archive_expanse_generator_v1", zone = "buried_archive", material = "archive", routeId = archiveRouteId, expanse = true },
+        grammar = {
+            id = "archive_expanse_grammar_v1",
+            components = {
+                rooms = target.regions,
+                corridors = { { id = "expanse_spine", from = "archive_entry_audit", to = "archive_vault_regent_final" } },
+                heightBands = target.heightBands,
+                coverFields = target.coverFields,
+                sightBreaks = target.sightBreaks,
+                verticalRoutes = target.verticalRoutes,
+                sightlines = target.sightlines,
+                objectiveAnchors = target.objectives,
+                hazardLanes = { { id = "raised_audit_lane", kind = "audit_static", tiles = { { x = 14, y = 5 }, { x = 15, y = 5 }, { x = 16, y = 5 }, { x = 17, y = 5 } } } },
+                spawnPockets = { { id = "player_entry", side = "player", tiles = { { x = 1, y = 4 }, { x = 1, y = 5 }, { x = 1, y = 2 }, { x = 2, y = 5 }, { x = 3, y = 2 }, { x = 3, y = 3 } } } },
+            },
+        },
+        board = { width = width, height = height, tiles = target.tiles, expanse = true, regions = target.regions, heightBands = target.heightBands, coverFields = target.coverFields, sightBreaks = target.sightBreaks, verticalRoutes = target.verticalRoutes, sightlines = target.sightlines },
+        units = target.units,
+        objectives = target.objectives,
+        archiveRoute = {
+            id = archiveRouteId,
+            zone = "buried_archive",
+            variantId = archiveRouteVariantOrder[1],
+            nodeKind = "expanse",
+            template = "unified_expanse",
+            routeDepth = 1,
+            boardSeed = seed or archiveRouteVariants.archive_entry_audit.seed,
+            preview = "one continuous Archive expanse with raised walks, destructible bridges, and staged route threats",
+            regions = copyValue(target.regions),
+            expanse = true,
+        },
+    }
+    spec.validation = Procgen.validateGrammarBoard(spec)
+    spec.budget = Procgen.difficultyBudget(spec)
+    return spec
+end
+
 function Procgen.archiveRouteState(variantId, seed, options)
     return State.new(Procgen.generateArchiveRouteBoard(variantId, seed, options))
 end

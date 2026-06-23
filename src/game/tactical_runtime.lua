@@ -308,7 +308,7 @@ end
 local function plannedEnemyTarget(runtime, enemy, options)
     local state = runtime.state
     local objective = objectiveState(state)
-    local spec = enemyIntentSpecs[enemy.id] or {}
+    local spec = enemyIntentSpecs[enemy.id] or enemyIntentSpecs[enemy.kind] or {}
     local intent = enemy.intent or {}
     local intentType = intent.intentType or enemy.intentType
     if objective and (objective.integrity or 0) <= 1 then
@@ -366,7 +366,9 @@ function Runtime.syncWorld(sim, runtime)
             if x >= 1 and x <= tactics.board.width and y >= 1 and y <= tactics.board.height then
                 local tile = tactics:tileAt(x, y)
                 tileId = "archive_floor"
-                if tile.blocker then
+                if tile.destroyed then
+                    tileId = "archive_floor"
+                elseif tile.blocker then
                     tileId = "archive_monolith"
                 elseif tile.hazard and tile.hazard.kind then
                     tileId = "false_index"
@@ -375,8 +377,19 @@ function Runtime.syncWorld(sim, runtime)
                 if objective and objective.x == x and objective.y == y then
                     tileId = "sealed_name"
                 end
+                sim.world:setTile(worldX, worldY, 0, {
+                    id = tileId,
+                    data = 0,
+                    height = tile.height or 0,
+                    blocker = tile.blocker,
+                    losBlocker = tile.losBlocker,
+                    destructibleHp = tile.destructibleHp,
+                    destroyed = tile.destroyed,
+                    kind = tile.kind,
+                })
+            else
+                sim.world:setTile(worldX, worldY, 0, { id = tileId, data = 0, height = 0, blocker = true, losBlocker = true })
             end
-            sim.world:setTile(worldX, worldY, 0, { id = tileId, data = 0 })
         end
     end
     local focus = tactics:unit(runtime.selectedUnitId) or { x = runtime.cursor.x, y = runtime.cursor.y }
@@ -470,10 +483,13 @@ local function firstPlayerId(state)
 end
 
 local function makeRouteState(options)
-    local route = Procgen.archiveRoute()
-    local variantId = (options and options.variantId) or route.start
     local seed = options and options.seed
-    local spec = Procgen.generateArchiveRouteBoard(variantId, seed)
+    local spec
+    if options and options.variantId then
+        spec = Procgen.generateArchiveRouteBoard(options.variantId, seed)
+    else
+        spec = Procgen.generateArchiveExpanse(seed)
+    end
     applyLiveClassSquad(spec, options and options.squadLoadout)
     return TacticsState.new(spec), spec
 end
@@ -485,6 +501,64 @@ local function routeVariantIndex(order, variantId)
         end
     end
     return 1
+end
+
+local function activeRegionForVariant(runtime, variantId)
+    for _, region in ipairs((((runtime.boardSpec or {}).archiveRoute or {}).regions) or {}) do
+        if region.id == variantId then
+            return region
+        end
+    end
+    return nil
+end
+
+local function setActiveRouteRegion(runtime, variantId)
+    local region = activeRegionForVariant(runtime, variantId)
+    if not region then
+        return false
+    end
+    runtime.route.variantId = variantId
+    runtime.routeIndex = routeVariantIndex(runtime.routeOrder, variantId)
+    local objectiveSet = {}
+    for _, objectiveId in ipairs(region.objectives or {}) do
+        objectiveSet[objectiveId] = true
+    end
+    local reordered = {}
+    for _, objectiveId in ipairs(region.objectives or {}) do
+        if runtime.state.objectives[objectiveId] then
+            reordered[#reordered + 1] = objectiveId
+        end
+    end
+    for _, objectiveId in ipairs(runtime.state.objectiveOrder or {}) do
+        if not objectiveSet[objectiveId] then
+            reordered[#reordered + 1] = objectiveId
+        end
+    end
+    runtime.state.objectiveOrder = reordered
+    local regionEnemySet = {}
+    for _, enemyId in ipairs(region.enemies or {}) do
+        regionEnemySet[enemyId] = true
+    end
+    for _, enemy in ipairs(runtime.state:unitsForSide("enemy")) do
+        if not regionEnemySet[enemy.id] then
+            enemy.alive = false
+        end
+    end
+    for _, enemyId in ipairs(region.enemies or {}) do
+        local enemy = runtime.state:unit(enemyId)
+        if enemy then
+            enemy.alive = true
+            enemy.evacuated = false
+            enemy.hp = math.max(enemy.hp or 0, enemy.maxHp or enemy.hp or 1)
+        end
+    end
+    local variant = Procgen.archiveRouteVariant(variantId)
+    runtime.message = variant and variant.preview or runtime.message
+    runtime.status = "route " .. tostring(variantId)
+    Runtime.declareEnemyIntents(runtime)
+    Runtime.refreshOverlays(runtime)
+    Runtime.syncWorld(runtime.sim, runtime)
+    return true
 end
 
 function Runtime.new(sim, options)
@@ -536,6 +610,9 @@ function Runtime.new(sim, options)
 end
 
 function Runtime.loadRouteVariant(runtime, variantId)
+    if runtime.boardSpec and runtime.boardSpec.archiveRoute and runtime.boardSpec.archiveRoute.expanse then
+        return setActiveRouteRegion(runtime, variantId) and runtime or nil
+    end
     local state, boardSpec = makeRouteState({ variantId = variantId, squadLoadout = runtime.squadLoadout })
     local selectedUnitId = state.selectedUnitId or firstPlayerId(state)
     local selected = selectedUnitId and state:unit(selectedUnitId) or nil
@@ -1434,6 +1511,13 @@ function Runtime.advanceRoute(runtime)
     local nextIndex = (runtime.routeIndex or 1) + 1
     local nextVariant = order[nextIndex]
     if nextVariant then
+        if runtime.boardSpec and runtime.boardSpec.archiveRoute and runtime.boardSpec.archiveRoute.expanse then
+            setActiveRouteRegion(runtime, nextVariant)
+            setStatus(runtime, "route advanced: " .. tostring(nextVariant))
+            runtime.complete = false
+            runtime.routeComplete = false
+            return true
+        end
         Runtime.loadRouteVariant(runtime, nextVariant)
         setStatus(runtime, "route advanced: " .. tostring(nextVariant))
         return true
@@ -1501,11 +1585,17 @@ function Runtime.summary(runtime)
             local intent = TacticsIntent.preview(state, enemy.id, { side = "player" })
             enemies[#enemies + 1] = {
                 id = enemy.id,
+                kind = enemy.kind,
                 hp = enemy.hp,
+                maxHp = enemy.maxHp,
                 x = enemy.x,
                 y = enemy.y,
                 visible = true,
                 intent = intent and intent.label or "-",
+                intentCategory = intent and intent.category or nil,
+                intentLabel = intent and (intent.label or intent.effect or intent.category) or "-",
+                intentDamage = intent and intent.damage or 0,
+                intentHidden = intent and (intent.hiddenByVision == true or intent.categoryOnly == true) or false,
                 targetTiles = intent and intent.targetTiles or {},
             }
         end
