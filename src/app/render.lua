@@ -695,6 +695,34 @@ function Render.tacticalScreenToWorldPoint(view, screenX, screenY)
     return rayX + dirX * t, rayY + dirY * t
 end
 
+function Render.tacticalWorldToScreenPoint(view, worldX, worldY, worldZ)
+    local camera = view and view.tacticalCamera
+    if not camera then
+        return nil
+    end
+    local width = camera.screenWidth or (love and love.graphics and love.graphics.getWidth()) or 0
+    local height = camera.screenHeight or (love and love.graphics and love.graphics.getHeight()) or 0
+    if width <= 0 or height <= 0 then
+        return nil
+    end
+    local eyeX, eyeY, eyeZ = camera.eyeX, camera.eyeY, camera.eyeZ
+    local targetX, targetY, targetZ = camera.targetX, camera.targetY, camera.targetZ
+    local backX, backY, backZ = normalize3(eyeX - targetX, eyeY - targetY, eyeZ - targetZ)
+    local rightX, rightY, rightZ = normalize3(cross3(0, 0, 1, backX, backY, backZ))
+    local upX, upY, upZ = cross3(backX, backY, backZ, rightX, rightY, rightZ)
+    local dx = worldX - targetX
+    local dy = worldY - targetY
+    local dz = (worldZ or targetZ) - targetZ
+    local cameraX = dx * rightX + dy * rightY + dz * rightZ
+    local cameraY = dx * upX + dy * upY + dz * upZ
+    local top = camera.orthoSize or 1
+    local right = top * (width / height)
+    if top <= 0 or right <= 0 then
+        return nil
+    end
+    return ((cameraX / right) + 1) * 0.5 * width, (1 - (cameraY / top)) * 0.5 * height
+end
+
 local function clamp(value, minValue, maxValue)
     return math.max(minValue, math.min(maxValue, value))
 end
@@ -2031,6 +2059,44 @@ function Render.drawTacticalForecast(sim, app)
     end
     local entries = Render.cachedTacticalOverlayEntries(source, app)
     return #entries + (app.tacticalHover and 1 or 0)
+end
+
+function Render.drawTacticalMovementHudOverlays(sim, app)
+    if not (love and love.graphics and app and app.tacticalMode and app.worldView and app.worldView.tacticalCamera) then
+        return 0
+    end
+    local source = tacticalOverlaySource(sim, app)
+    if not (source and source.state) then
+        return 0
+    end
+    local entries = Render.cachedTacticalOverlayEntries(source, app)
+    local originX = source.originX or 0
+    local originY = source.originY or 0
+    local z = ((sim and sim.player and sim.player.z) or 0) + 0.16
+    local drawn = 0
+    love.graphics.setLineWidth(3)
+    for _, entry in ipairs(entries) do
+        if entry.kind == "movement" then
+            local x0 = originX + entry.x + 0.08
+            local y0 = originY + entry.y + 0.08
+            local x1 = originX + entry.x + 0.92
+            local y1 = originY + entry.y + 0.92
+            local ax, ay = Render.tacticalWorldToScreenPoint(app.worldView, x0, y0, z)
+            local bx, by = Render.tacticalWorldToScreenPoint(app.worldView, x1, y0, z)
+            local cx, cy = Render.tacticalWorldToScreenPoint(app.worldView, x1, y1, z)
+            local dx, dy = Render.tacticalWorldToScreenPoint(app.worldView, x0, y1, z)
+            if ax and bx and cx and dx then
+                love.graphics.setColor(0.08, 0.46, 1.0, 0.32)
+                love.graphics.polygon("fill", ax, ay, bx, by, cx, cy, dx, dy)
+                love.graphics.setColor(0.42, 0.82, 1.0, 0.98)
+                love.graphics.polygon("line", ax, ay, bx, by, cx, cy, dx, dy)
+                drawn = drawn + 1
+            end
+        end
+    end
+    love.graphics.setLineWidth(1)
+    app.worldView.tacticalMovementHud = drawn
+    return drawn
 end
 
 local function applyCamera(sim, app, targetX, targetY, targetZ)
@@ -5447,6 +5513,7 @@ function Render.draw(sim, app)
     local shakeX, shakeY = combatShakeOffset(app)
     love.graphics.translate(shakeX, shakeY)
     love.graphics.setDepthMode()
+    Render.drawTacticalMovementHudOverlays(sim, app)
     app.worldView.tacticalForecast = Render.drawTacticalForecast(sim, app)
     Render.drawHud(sim, app)
     Render.drawSidePanel(sim, app)
