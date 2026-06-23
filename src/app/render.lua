@@ -1405,6 +1405,89 @@ local function tacticalOverlaySource(sim, app)
     return source
 end
 
+local function tacticalCameraBounds(app)
+    local source = tacticalOverlaySource(nil, app)
+    local board = source and source.state and source.state.board
+    if not board then
+        return nil
+    end
+    local originX = source.originX or 0
+    local originY = source.originY or 0
+    return originX + 1.5, originY + 1.5, originX + board.width + 0.5, originY + board.height + 0.5
+end
+
+function Render.clampTacticalCameraCenter(app, x, y)
+    local minX, minY, maxX, maxY = tacticalCameraBounds(app)
+    if not minX then
+        return x, y
+    end
+    return clamp(x, minX, maxX), clamp(y, minY, maxY)
+end
+
+function Render.tacticalCameraCenter(sim, app)
+    local fallbackX = ((sim and sim.player and sim.player.x) or 0) + 0.5
+    local fallbackY = ((sim and sim.player and sim.player.y) or 0) + 0.5
+    local fallbackZ = (sim and sim.player and sim.player.z) or 0
+    local x = (app and app.tacticalCameraUserMoved and app.tacticalCameraCenterX) or fallbackX
+    local y = (app and app.tacticalCameraUserMoved and app.tacticalCameraCenterY) or fallbackY
+    x, y = Render.clampTacticalCameraCenter(app, x, y)
+    return x, y, fallbackZ
+end
+
+function Render.setTacticalCameraCenter(app, x, y)
+    if not app then
+        return nil
+    end
+    local currentX = app.tacticalCameraCenterX
+    local currentY = app.tacticalCameraCenterY
+    local camera = app.worldView and app.worldView.tacticalCamera
+    if currentX == nil and camera then
+        currentX = camera.targetX
+        currentY = camera.targetY
+    end
+    x, y = Render.clampTacticalCameraCenter(app, x, y)
+    app.tacticalCameraUserMoved = true
+    app.tacticalCameraCenterX = x
+    app.tacticalCameraCenterY = y
+    if app.worldView then
+        app.worldView.originX = x - 0.5
+        app.worldView.originY = y - 0.5
+    end
+    if camera then
+        local dx = x - (currentX or camera.targetX or x)
+        local dy = y - (currentY or camera.targetY or y)
+        camera.targetX = x
+        camera.targetY = y
+        camera.eyeX = (camera.eyeX or x) + dx
+        camera.eyeY = (camera.eyeY or y) + dy
+    end
+    return x, y
+end
+
+function Render.panTacticalCamera(app, dx, dy)
+    local camera = app and app.worldView and app.worldView.tacticalCamera
+    local x = (app and app.tacticalCameraCenterX) or (camera and camera.targetX)
+    local y = (app and app.tacticalCameraCenterY) or (camera and camera.targetY)
+    if not (x and y) then
+        return nil
+    end
+    return Render.setTacticalCameraCenter(app, x + (dx or 0), y + (dy or 0))
+end
+
+function Render.tacticalDragWorldDelta(app, fromX, fromY, toX, toY)
+    local view = app and app.worldView
+    if not view then
+        return nil
+    end
+    local ax, ay = Render.tacticalScreenToWorldPoint(view, fromX, fromY)
+    local bx, by = Render.tacticalScreenToWorldPoint(view, toX, toY)
+    if not ax or not bx then
+        ax, ay = Render.screenToWorldPoint(view, fromX, fromY)
+        bx, by = Render.screenToWorldPoint(view, toX, toY)
+    end
+    return ax - bx, ay - by
+end
+
 local function tacticalVisibilityGrid(source, app)
     if app and app.tactics and app.tactics.visibilityGrid then
         return app.tactics:visibilityGrid()
@@ -1663,14 +1746,14 @@ function Render.drawTacticalForecast(sim, app)
     return #entries
 end
 
-local function applyCamera(sim, app)
+local function applyCamera(sim, app, targetX, targetY, targetZ)
     local visualRotation = app.viewRotationVisual or app.viewRotation or 0
     local yaw = baseYaw + visualRotation * math.pi / 2
     local horizontal = math.cos(cameraPitch) * cameraDistance
     local zoom = app and app.tacticalMode and Render.tacticalZoom(app) or 1
-    local targetX = sim.player.x + 0.5
-    local targetY = sim.player.y + 0.5
-    local targetZ = sim.player.z or 0
+    targetX = targetX or (sim.player.x + 0.5)
+    targetY = targetY or (sim.player.y + 0.5)
+    targetZ = targetZ or (sim.player.z or 0)
     local x = targetX + math.cos(yaw) * horizontal
     local y = targetY - math.sin(yaw) * horizontal
     local z = targetZ + math.sin(cameraPitch) * cameraDistance
@@ -2173,8 +2256,9 @@ function Render.drawWorld(sim, app)
     local zoom = app and app.tacticalMode and Render.tacticalZoom(app) or 1
     app.worldView.halfW = 32 * zoom
     app.worldView.halfH = 16 * zoom
-    app.worldView.originX = sim and sim.player and sim.player.x or 0
-    app.worldView.originY = sim and sim.player and sim.player.y or 0
+    local targetX, targetY, targetZ = Render.tacticalCameraCenter(sim, app)
+    app.worldView.originX = (targetX or 0) - 0.5
+    app.worldView.originY = (targetY or 0) - 0.5
     app.worldView.rotation = app.viewRotation or 0
     if not (love and love.graphics and sim and sim.world and state.g3d) then
         return
@@ -2182,7 +2266,7 @@ function Render.drawWorld(sim, app)
     app.worldView.mode = "render3d"
     local profile = lightProfile(sim)
     app.worldView.light = { torch = profile.torch, ambient = profile.ambient, radius = profile.radius }
-    local yaw = applyCamera(sim, app)
+    local yaw = applyCamera(sim, app, targetX, targetY, targetZ)
     local model = buildWorldTileModel(sim, profile, app and app.settings, app)
     love.graphics.setColor(1, 1, 1, 1)
     model:draw()
@@ -3786,7 +3870,7 @@ function Render.tacticalTileInspectorLines(summary)
     end
     local lines = {}
     local terrain = summary.terrain or {}
-    lines[#lines + 1] = joinWords({ "terrain", terrain.kind or "floor", terrain.material, terrain.state, "h" .. tostring(terrain.height or 0), terrain.occupant and ("unit " .. terrain.occupant) or nil })
+    lines[#lines + 1] = joinWords({ "terrain", terrain.kind or "floor", terrain.material, terrain.state, terrain.terrainType and ("type " .. terrain.terrainType) or nil, "h" .. tostring(terrain.height or 0), terrain.moveCost and ("cost +" .. tostring(terrain.moveCost)) or nil, terrain.occupant and ("unit " .. terrain.occupant) or nil })
     lines[#lines + 1] = "tags " .. (#(terrain.tags or {}) > 0 and table.concat(terrain.tags, " ") or "-")
     local cover = {}
     for _, edge in ipairs(summary.cover or {}) do

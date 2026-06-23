@@ -40,6 +40,17 @@ local function copyList(values)
     return result
 end
 
+local function copyValue(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local result = {}
+    for key, nested in pairs(value) do
+        result[key] = copyValue(nested)
+    end
+    return result
+end
+
 local function applyIntentMetadata(plan, intent)
     intent = intent or {}
     plan.mode = intent.mode or "exact"
@@ -49,6 +60,8 @@ local function applyIntentMetadata(plan, intent)
     plan.revealActions = copyList(intent.revealActions)
     plan.revealClasses = copyList(intent.revealClasses)
     plan.weakPoint = intent.weakPoint
+    plan.statusEffect = copyValue(intent.statusEffect)
+    plan.effect = intent.effect
     return plan
 end
 
@@ -311,7 +324,9 @@ local function plannedEnemyTarget(runtime, enemy, options)
     local spec = enemyIntentSpecs[enemy.id] or enemyIntentSpecs[enemy.kind] or {}
     local intent = enemy.intent or {}
     local intentType = intent.intentType or enemy.intentType
-    if objective and (objective.integrity or 0) <= 1 then
+    local targetRule = intent.target or spec.target
+    local supportIntent = targetRule == "self" or intent.category == "buff" or intent.category == "repair"
+    if objective and (objective.integrity or 0) <= 1 and not supportIntent then
         return applyIntentMetadata({
             target = objective,
             category = "destroy",
@@ -322,7 +337,7 @@ local function plannedEnemyTarget(runtime, enemy, options)
         }, intent)
     end
     if (enemy.hp or 0) <= 1 then
-        return applyIntentMetadata({
+        local plan = applyIntentMetadata({
             target = { id = enemy.id, x = enemy.x, y = enemy.y },
             category = "guard",
             damage = 0,
@@ -330,10 +345,15 @@ local function plannedEnemyTarget(runtime, enemy, options)
             label = "regroup notice",
             counterplay = { "press wounded enemy", "ignore harmless guard", "contest tile" },
         }, intent)
+        if not supportIntent then
+            plan.statusEffect = nil
+        end
+        return plan
     end
     local target
-    local targetRule = intent.target or spec.target
-    if targetRule == "objective" or targetRule == "claim_tile" or targetRule == "seal" or targetRule == "drawer" then
+    if targetRule == "self" then
+        target = enemy
+    elseif targetRule == "objective" or targetRule == "claim_tile" or targetRule == "seal" or targetRule == "drawer" then
         target = objective
     elseif options and options.visibleTargetsOnly then
         target = nearestVisiblePlayer(state, enemy)
@@ -416,7 +436,10 @@ local function declareEnemyIntent(runtime, enemy, options)
         source = enemy.id,
         sourceTile = { x = enemy.x, y = enemy.y },
         targetTiles = { { x = target.x, y = target.y } },
+        target = target.id,
         damage = plan.damage,
+        effect = plan.effect,
+        statusEffect = plan.statusEffect,
         objectiveImpact = objective and target.id == objective.id and objective.id or nil,
         label = plan.label,
         counterplay = plan.counterplay,
@@ -1471,6 +1494,31 @@ local function resolveEnemyIntent(runtime, enemy)
     local state = runtime.state
     local intent = state.intents[enemy.id]
     if not intent then
+        return
+    end
+    if intent.damage and intent.damage > 0 then
+        state:resolveIntentTrigger(enemy.id, intent, {
+            kind = "damage",
+            damage = intent.damage,
+            targetTiles = copyList(intent.targetTiles),
+        })
+    end
+    if intent.statusEffect and intent.statusEffect.status then
+        local targetId = intent.statusEffect.target or intent.target
+        if not (targetId and state.units[targetId]) then
+            local tile = intent.targetTiles and intent.targetTiles[1]
+            local unit = tile and state:unitAt(tile.x, tile.y)
+            targetId = unit and unit.id or nil
+        end
+        if targetId and state.units[targetId] then
+            state:resolveIntentTrigger(enemy.id, intent, {
+                kind = "status",
+                target = targetId,
+                status = intent.statusEffect.status,
+                turns = intent.statusEffect.turns,
+                amount = intent.statusEffect.amount,
+            })
+        end
         return
     end
     state:resolveIntentTrigger(enemy.id, intent, {

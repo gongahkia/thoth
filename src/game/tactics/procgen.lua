@@ -14,6 +14,8 @@ local requiredGrammarParts = {
     "objectiveAnchors",
     "hazardLanes",
     "spawnPockets",
+    "terrainTypes",
+    "generationTechniques",
 }
 
 local boardGrammar = {
@@ -27,7 +29,45 @@ local boardGrammar = {
     },
 }
 
-local hazardKinds = { "audit_static" }
+local hazardKinds = { "audit_static", "paper_cinder", "index_miasma" }
+
+local terrainTypes = {
+    { id = "sealed_void", kind = "wall", material = "void", blocker = true, losBlocker = true, tags = { "sealed_void" }, role = "boundary" },
+    { id = "archive_floor", kind = "floor", material = "archive", tags = { "room" }, role = "baseline" },
+    { id = "archive_terrace", kind = "archive_terrace", material = "archive", tags = { "height_band", "raised_archive_walk" }, role = "height" },
+    { id = "archive_stair", kind = "archive_stair", material = "archive", tags = { "stair", "vertical_route" }, role = "vertical_route" },
+    { id = "archive_rubble", kind = "rubble", material = "archive", moveCost = 1, tags = { "rough_terrain" }, role = "slow_ground" },
+    { id = "archive_glass_floor", kind = "glass_floor", material = "glass", destructibleHp = 1, tags = { "fragile_floor" }, role = "fragile" },
+    { id = "archive_chasm", kind = "archive_chasm", material = "void", blocker = true, losBlocker = false, tags = { "chasm", "sealed_void" }, role = "gap" },
+    { id = "rolling_shelf", kind = "rolling_shelf", material = "archive", blockerKind = "destructible", blocker = true, losBlocker = true, destructibleHp = 2, tags = { "sight_break" }, role = "destructible_los" },
+    { id = "audit_static_lane", kind = "audit_static_lane", material = "archive", hazard = { kind = "audit_static", damage = 1, timing = "end_turn" }, tags = { "hazard_lane" }, role = "hazard" },
+    { id = "paper_cinder_lane", kind = "paper_cinder_lane", material = "ember", hazard = { kind = "paper_cinder", damage = 1, timing = "end_turn" }, tags = { "hazard_lane", "burn_hazard" }, role = "hazard" },
+    { id = "index_miasma", kind = "index_miasma", material = "ash", hazard = { kind = "index_miasma", active = true, losModifier = "obscure" }, tags = { "obscurant", "hazard_lane" }, role = "obscurant" },
+    { id = "brine_pool", kind = "brine_pool", material = "salt", moveCost = 1, hazard = { kind = "brine", active = true, damage = 1, timing = "end_turn" }, tags = { "flood_hazard", "rough_terrain" }, role = "water_hazard" },
+    { id = "mirror_glass", kind = "mirror_glass", material = "glass", tags = { "reflective_los" }, role = "sightline_modifier" },
+}
+
+local generationTechniques = {
+    { id = "rect_room_pair", output = "two readable combat rooms", counterplay = "clear flank lanes" },
+    { id = "straight_spine_corridor", output = "central route pressure lane", counterplay = "break sight or cross early" },
+    { id = "terrace_height_bands", output = "upper and lower tactical rows", counterplay = "use stairs or drop routes" },
+    { id = "destructible_sight_breaks", output = "breakable LoS blockers", counterplay = "spend AP to open fire lanes" },
+    { id = "hazard_lane_dressing", output = "seeded audit, cinder, or miasma lane", counterplay = "route around or cleanse" },
+    { id = "special_terrain_scatter", output = "rubble, glass, and chasm accents", counterplay = "inspect AP cost and fragile floor" },
+    { id = "stitched_expanse_regions", output = "route boards welded into one expanse", counterplay = "wake regions without state reset" },
+    { id = "monument_switchback", output = "large ascent and descent structures", counterplay = "control high ground and stair mouths" },
+    { id = "void_bridge_network", output = "bridges over blocking void", counterplay = "break bridges or defend crossings" },
+}
+
+local terrainTypeById = {}
+for _, terrainType in ipairs(terrainTypes) do
+    terrainTypeById[terrainType.id] = terrainType
+end
+
+local generationTechniqueById = {}
+for _, technique in ipairs(generationTechniques) do
+    generationTechniqueById[technique.id] = technique
+end
 
 local zoneGeneratorOrder = { "buried_archive" }
 
@@ -137,7 +177,7 @@ local archiveRouteVariants = {
         complication = "partial_intent_elite",
         preview = "elite claim pressure with one redacted footprint",
         generatorOptions = { width = 9, height = 8, objectiveId = "claim_docket", objectiveKind = "hold_claim" },
-        directorOptions = { includeElite = true, eliteId = "shelf_knight", eliteIds = { "codex_advocate", "shelf_knight", "writ_cantor" }, failureClock = 4, threatenedTiles = 7, reinforcementTurn = 4 },
+        directorOptions = { includeElite = true, eliteId = "shelf_knight", eliteIds = { "codex_advocate", "shelf_knight", "writ_cantor", "null_censor" }, failureClock = 4, threatenedTiles = 7, reinforcementTurn = 4 },
     },
     archive_vault_regent_final = {
         id = "archive_vault_regent_final",
@@ -180,6 +220,36 @@ local function copyValue(value)
     return result
 end
 
+local function componentListByIds(source, ids)
+    local result = {}
+    for _, id in ipairs(ids or {}) do
+        if source[id] then
+            result[#result + 1] = copyValue(source[id])
+        end
+    end
+    return result
+end
+
+local function terrainTypesUsedByTiles(tiles)
+    local used = {}
+    local ordered = {}
+    for _, terrainType in ipairs(terrainTypes) do
+        ordered[#ordered + 1] = terrainType.id
+    end
+    for _, tile in pairs(tiles or {}) do
+        if tile.terrainType then
+            used[tile.terrainType] = true
+        end
+    end
+    local result = {}
+    for _, id in ipairs(ordered) do
+        if used[id] then
+            result[#result + 1] = copyValue(terrainTypeById[id])
+        end
+    end
+    return result
+end
+
 local function tileKey(x, y)
     return tostring(x) .. ":" .. tostring(y)
 end
@@ -194,6 +264,38 @@ local function addTag(tile, tag)
     tile.tags[#tile.tags + 1] = tag
 end
 
+local function stampTerrain(tile, terrainTypeId)
+    local terrainType = terrainTypeById[terrainTypeId]
+    if not (tile and terrainType) then
+        return tile
+    end
+    tile.terrainType = terrainType.id
+    tile.kind = terrainType.kind or tile.kind
+    tile.material = terrainType.material or tile.material
+    if terrainType.blocker ~= nil then
+        tile.blocker = terrainType.blocker
+    end
+    if terrainType.losBlocker ~= nil then
+        tile.losBlocker = terrainType.losBlocker
+    end
+    if terrainType.blockerKind then
+        tile.blockerKind = terrainType.blockerKind
+    end
+    if terrainType.moveCost ~= nil then
+        tile.moveCost = terrainType.moveCost
+    end
+    if terrainType.destructibleHp ~= nil then
+        tile.destructibleHp = terrainType.destructibleHp
+    end
+    if terrainType.hazard then
+        tile.hazard = copyValue(terrainType.hazard)
+    end
+    for _, tag in ipairs(terrainType.tags or {}) do
+        addTag(tile, tag)
+    end
+    return tile
+end
+
 local function carve(tiles, x, y, material, tag)
     local tile = tiles[tileKey(x, y)] or { kind = "floor", material = material, tags = {} }
     tile.kind = tile.kind == "wall" and "floor" or tile.kind
@@ -201,6 +303,7 @@ local function carve(tiles, x, y, material, tag)
     tile.blockerKind = nil
     tile.blocker = false
     tile.losBlocker = false
+    stampTerrain(tile, "archive_floor")
     addTag(tile, tag or "playable")
     tiles[tileKey(x, y)] = tile
     return tile
@@ -341,6 +444,7 @@ local function applyEncounterUnits(spec, director)
             spawnPocket = enemy.spawnPocket,
             intentType = enemy.intentType,
             intent = copyValue(enemy.intent),
+            statusEffect = copyValue(enemy.statusEffect),
             partialIntent = copyValue(enemy.partialIntent),
             maskedIntent = copyValue(enemy.maskedIntent),
             weakPoints = copyValue(enemy.weakPoints),
@@ -364,6 +468,7 @@ local function enemyEntry(enemy, role, spawnPocket)
         spawnPocket = spawnPocket,
         intent = copyValue(intent),
         intentType = intent and intent.intentType,
+        statusEffect = copyValue(intent and intent.statusEffect),
         partialIntent = copyValue(enemy.partialIntent),
         maskedIntent = copyValue(enemy.maskedIntent),
         weakPoints = copyValue(enemy.weakPoints),
@@ -437,6 +542,18 @@ function Procgen.grammar()
     return copyValue(boardGrammar)
 end
 
+function Procgen.terrainTypes()
+    return copyValue(terrainTypes)
+end
+
+function Procgen.generationTechniques()
+    return copyValue(generationTechniques)
+end
+
+function Procgen.hazardKinds()
+    return copyValue(hazardKinds)
+end
+
 function Procgen.zoneGenerators()
     local result = {}
     for _, zoneId in ipairs(zoneGeneratorOrder) do
@@ -476,8 +593,8 @@ function Procgen.directEncounter(zoneId, seed, boardSpec, options)
     local common = EnemyCatalog.common(familyId)
     local elites = EnemyCatalog.elites(familyId)
     local alpha = options.includeAlpha and EnemyCatalog.alpha(familyId) or nil
-    local first = pickIndexed(common, poolIndex(seed or 1, 0, #common))
-    local second = pickIndexed(common, poolIndex(seed or 1, 3, #common))
+    local first = pickIndexed(common, poolIndex(seed or 1, 1, #common))
+    local second = pickIndexed(common, poolIndex(seed or 1, 6, #common))
     local elite = nil
     if options.includeElite then
         local rng = Rng.new((seed or 1) + 17017)
@@ -511,7 +628,7 @@ function Procgen.directEncounter(zoneId, seed, boardSpec, options)
         enemyMix[#enemyMix + 1] = enemyEntry(elite, "partial_intent_pressure", enemySpawn.id)
     end
     local reinforcementTiming = {
-        { turn = options.reinforcementTurn or 3 + ((seed or 1) % 2), enemy = pickIndexed(common, poolIndex(seed or 1, 6, #common)).id, spawnPocket = enemySpawn.id, visibleWarningTurn = 1, cap = 1, blockable = true, warning = "marked spawn pocket", onBlocked = "delay_one_turn_until_cap" },
+        { turn = options.reinforcementTurn or 3 + ((seed or 1) % 2), enemy = pickIndexed(common, poolIndex(seed or 1, 12, #common)).id, spawnPocket = enemySpawn.id, visibleWarningTurn = 1, cap = 1, blockable = true, warning = "marked spawn pocket", onBlocked = "delay_one_turn_until_cap" },
     }
     local alphaSpawn = nil
     if alpha then
@@ -714,7 +831,7 @@ function Procgen.generateBoard(seed, options)
     local tiles = {}
     for x = 1, width do
         for y = 1, height do
-            tiles[tileKey(x, y)] = { kind = "wall", material = material, blockerKind = "hard", blocker = true, losBlocker = true, tags = { "sealed_void" } }
+            tiles[tileKey(x, y)] = { kind = "wall", material = material, blockerKind = "hard", blocker = true, losBlocker = true, terrainType = "sealed_void", tags = { "sealed_void" } }
         end
     end
 
@@ -749,6 +866,7 @@ function Procgen.generateBoard(seed, options)
         for _, tileRef in ipairs(band.tiles) do
             local tile = tiles[tileKey(tileRef.x, tileRef.y)]
             tile.height = band.height
+            stampTerrain(tile, band.height > 0 and "archive_terrace" or "archive_floor")
             addTag(tile, "height_band")
         end
     end
@@ -769,6 +887,7 @@ function Procgen.generateBoard(seed, options)
     }
     for _, sightBreak in ipairs(sightBreaks) do
         local tile = tiles[tileKey(sightBreak.x, sightBreak.y)]
+        stampTerrain(tile, "rolling_shelf")
         tile.kind = sightBreakKind
         tile.blockerKind = "destructible"
         tile.blocker = true
@@ -783,9 +902,24 @@ function Procgen.generateBoard(seed, options)
     }
     for _, tileRef in ipairs(hazardTiles) do
         local tile = tiles[tileKey(tileRef.x, tileRef.y)]
-        tile.hazard = { kind = hazardKind, damage = 1, timing = "end_turn" }
+        local terrainTypeId = hazardKind == "paper_cinder" and "paper_cinder_lane" or (hazardKind == "index_miasma" and "index_miasma" or "audit_static_lane")
+        stampTerrain(tile, terrainTypeId)
+        tile.hazard = tile.hazard or { kind = hazardKind, damage = 1, timing = "end_turn" }
         addTag(tile, "hazard_lane")
     end
+
+    local specialTerrain = {}
+    local function scatterTerrain(id, x, y)
+        local key = tileKey(x, y)
+        local tile = tiles[key]
+        if tile and tile.kind ~= "wall" and not tile.objective and tile.blocker ~= true then
+            stampTerrain(tile, id)
+            specialTerrain[#specialTerrain + 1] = { id = id .. "_" .. tostring(#specialTerrain + 1), terrainType = id, x = x, y = y }
+        end
+    end
+    scatterTerrain("archive_glass_floor", math.min(width - 2, 3), math.min(bottomY, roomY + 1))
+    scatterTerrain("archive_rubble", math.min(width - 2, 3), bottomY)
+    scatterTerrain("archive_chasm", math.min(width - 2, 3), roomY)
 
     local objectiveAnchors = {
         { id = objectiveId, kind = objectiveKind, x = width - 1, y = midY, integrity = objectiveIntegrity, evacuateAt = { x = 1, y = midY } },
@@ -822,9 +956,12 @@ function Procgen.generateBoard(seed, options)
                 objectiveAnchors = objectiveAnchors,
                 hazardLanes = hazardLanes,
                 spawnPockets = spawnPockets,
+                terrainTypes = terrainTypesUsedByTiles(tiles),
+                generationTechniques = componentListByIds(generationTechniqueById, { "rect_room_pair", "straight_spine_corridor", "terrace_height_bands", "destructible_sight_breaks", "hazard_lane_dressing", "special_terrain_scatter" }),
+                specialTerrain = specialTerrain,
             },
         },
-        board = { width = width, height = height, tiles = tiles },
+        board = { width = width, height = height, tiles = tiles, terrainTypes = terrainTypesUsedByTiles(tiles), generationTechniques = componentListByIds(generationTechniqueById, { "rect_room_pair", "straight_spine_corridor", "terrace_height_bands", "destructible_sight_breaks", "hazard_lane_dressing", "special_terrain_scatter" }) },
         units = {
             { id = "warden", side = "player", x = spawnPockets[1].tiles[1].x, y = spawnPockets[1].tiles[1].y, hp = 6 },
             { id = "duelist", side = "player", x = spawnPockets[1].tiles[2].x, y = spawnPockets[1].tiles[2].y, hp = 5 },
@@ -919,6 +1056,21 @@ local function openExpanseTile(tiles, x, y, material, kind, height, tag)
     tile.losBlocker = false
     tile.height = height or tile.height or 0
     tile.tags = tile.tags or {}
+    if kind == "archive_chasm" then
+        stampTerrain(tile, "archive_chasm")
+    elseif kind == "brine_pool" then
+        stampTerrain(tile, "brine_pool")
+    elseif kind == "index_miasma" then
+        stampTerrain(tile, "index_miasma")
+    elseif kind == "mirror_glass" then
+        stampTerrain(tile, "mirror_glass")
+    elseif kind == "glass_floor" then
+        stampTerrain(tile, "archive_glass_floor")
+    elseif kind == "rubble" then
+        stampTerrain(tile, "archive_rubble")
+    else
+        stampTerrain(tile, (height or 0) > 0 and "archive_terrace" or "archive_floor")
+    end
     if tag then
         addTag(tile, tag)
     end
@@ -1127,6 +1279,26 @@ local function addExpanseSetPieces(target)
         local tile = openExpanseTile(target.tiles, x, 5, "archive", "floor", 2, "hazard_lane")
         tile.hazard = { kind = "audit_static", damage = 1, timing = "end_turn" }
     end
+    for y = 7, 11 do
+        openExpanseTile(target.tiles, 19, y, "void", "archive_chasm", 0, "void_bridge_network")
+    end
+    for x = 18, 20 do
+        local tile = openExpanseTile(target.tiles, x, 9, "archive", "ledger_bridge", 1, "destructible_bridge")
+        tile.destructibleHp = 2
+        tile.collapseHeight = 0
+        tile.collapseKind = "rubble"
+        tile.coverEdges = { north = "half", south = "half" }
+    end
+    for x = 12, 15 do
+        openExpanseTile(target.tiles, x, 9, "salt", "brine_pool", 0, "terrain_variety")
+    end
+    for x = 16, 18 do
+        openExpanseTile(target.tiles, x, 10, "ash", "index_miasma", 0, "terrain_variety")
+    end
+    for x = 25, 27 do
+        openExpanseTile(target.tiles, x, 19, "glass", "glass_floor", 3, "terrain_variety")
+    end
+    openExpanseTile(target.tiles, 26, 18, "glass", "mirror_glass", 4, "terrain_variety")
 end
 
 function Procgen.generateArchiveExpanse(seed, options)
@@ -1136,7 +1308,7 @@ function Procgen.generateArchiveExpanse(seed, options)
     local target = { width = width, height = height, tiles = {}, units = {}, objectives = {}, regions = {} }
     for x = 1, width do
         for y = 1, height do
-            target.tiles[tileKey(x, y)] = { kind = "wall", material = "archive", blockerKind = "hard", blocker = true, losBlocker = true, tags = { "sealed_void" } }
+            target.tiles[tileKey(x, y)] = { kind = "wall", material = "archive", blockerKind = "hard", blocker = true, losBlocker = true, terrainType = "sealed_void", tags = { "sealed_void" } }
         end
     end
     for index, variantId in ipairs(archiveRouteVariantOrder) do
@@ -1161,9 +1333,11 @@ function Procgen.generateArchiveExpanse(seed, options)
                 objectiveAnchors = target.objectives,
                 hazardLanes = { { id = "raised_audit_lane", kind = "audit_static", tiles = { { x = 14, y = 5 }, { x = 15, y = 5 }, { x = 16, y = 5 }, { x = 17, y = 5 } } } },
                 spawnPockets = { { id = "player_entry", side = "player", tiles = { { x = 1, y = 4 }, { x = 1, y = 5 }, { x = 1, y = 2 }, { x = 2, y = 5 }, { x = 3, y = 2 }, { x = 3, y = 3 } } } },
+                terrainTypes = terrainTypesUsedByTiles(target.tiles),
+                generationTechniques = componentListByIds(generationTechniqueById, { "stitched_expanse_regions", "monument_switchback", "void_bridge_network", "terrace_height_bands", "destructible_sight_breaks", "hazard_lane_dressing", "special_terrain_scatter" }),
             },
         },
-        board = { width = width, height = height, tiles = target.tiles, expanse = true, regions = target.regions, heightBands = target.heightBands, coverFields = target.coverFields, sightBreaks = target.sightBreaks, verticalRoutes = target.verticalRoutes, sightlines = target.sightlines },
+        board = { width = width, height = height, tiles = target.tiles, expanse = true, regions = target.regions, heightBands = target.heightBands, coverFields = target.coverFields, sightBreaks = target.sightBreaks, verticalRoutes = target.verticalRoutes, sightlines = target.sightlines, terrainTypes = terrainTypesUsedByTiles(target.tiles), generationTechniques = componentListByIds(generationTechniqueById, { "stitched_expanse_regions", "monument_switchback", "void_bridge_network", "terrace_height_bands", "destructible_sight_breaks", "hazard_lane_dressing", "special_terrain_scatter" }) },
         units = target.units,
         objectives = target.objectives,
         archiveRoute = {

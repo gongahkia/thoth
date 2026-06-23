@@ -1,12 +1,12 @@
 # Tactical Enemy Catalog
 
-Checked: 2026-06-22
+Checked: 2026-06-23
 
 Source of truth: `src/game/tactics/enemy_catalog.lua`.
 
 ## E.0 Vertical Slice Elite
 
-The content slice selects one default route elite while procgen accepts all three Archive elites:
+The content slice selects one default route elite while procgen accepts all four Archive elites:
 
 - `shelf_knight`: Archive elite, partial guard intent, hidden-footprint mask, weak point `rear_binding`, terrain interaction `shove_shelf_wall`.
 
@@ -15,7 +15,7 @@ Rules:
 - `EnemyCatalog.sliceEliteSpec()` returns the selected family, elite id, route fixture, role, and preview.
 - `EnemyCatalog.sliceElite()` resolves to the catalog elite.
 - The Archive elite route fixture includes the selected elite in the encounter director.
-- `TacticsProcgen.generateDirectedZoneBoard("buried_archive", seed, { includeElite = true, eliteId = id })` can deploy `codex_advocate`, `shelf_knight`, or `writ_cantor`.
+- `TacticsProcgen.generateDirectedZoneBoard("buried_archive", seed, { includeElite = true, eliteId = id })` can deploy `codex_advocate`, `shelf_knight`, `writ_cantor`, or `null_censor`.
 
 Acceptance proof:
 
@@ -23,7 +23,7 @@ Acceptance proof:
 
 ## E.1 Archive Common Enemies
 
-The Archive family defines 10 common enemies. Each has exact intent metadata, one distinct intent type, and one board verb:
+The Archive family defines 16 common enemies. Each has exact intent metadata, one distinct intent type, and one board verb:
 
 - `hollow_guard`: `archive_overwatch_lane`, `brace_cover`.
 - `ink_wretch`: `ink_line_splash`, `ink_tile`.
@@ -35,23 +35,30 @@ The Archive family defines 10 common enemies. Each has exact intent metadata, on
 - `seal_clerk`: `door_seal_guard`, `lock_door`.
 - `ledger_hound`: `carrier_pursuit`, `sniff_route`.
 - `drawer_mite`: `record_spill_summon`, `spill_records`.
+- `binding_indexer`: `pinning_index`, `pin_case`.
+- `margin_lumen`: `margin_guard`, `raise_margin_guard`.
+- `rafter_notary`: `high_roost_writ`, `take_roost`.
+- `footnote_trapper`: `footnote_snare`, `lay_footnote_snare`.
+- `undertext_miner`: `undertext_emerge`, `surface_beneath`.
+- `errata_physick`: `errata_suture`, `stitch_errata`.
 
 Acceptance proof:
 
-- `tests/run.lua` verifies the Archive has exactly 10 common enemies and each one has unique id, name, exact intent type, and board verb metadata.
-- `tests/run.lua` verifies default Archive route procgen deploys catalog enemy units from `encounterDirector.enemyMix`, carries intent metadata into runtime, and covers all 10 common enemies through opening mixes or reinforcements.
+- `tests/run.lua` verifies the Archive has exactly 16 common enemies and each one has unique id, name, exact intent type, and board verb metadata.
+- `tests/run.lua` verifies default Archive route procgen deploys catalog enemy units from `encounterDirector.enemyMix`, carries intent metadata into runtime, and covers all 16 common enemies through opening mixes or reinforcements.
 
 ## E.2 Archive Elites
 
-The Archive family defines 3 elites with partial intent, weak points, rotation reveal gates, class/action reveal gates, and terrain interaction:
+The Archive family defines 4 elites with partial intent, weak points, rotation reveal gates, class/action reveal gates, and terrain interaction:
 
 - `codex_advocate`: partial debuff intent, sealed footprint `codex_advocate_sealed_footprint`, rotation 1, weak point `open_register`, interaction `seal_claim_line`.
 - `shelf_knight`: partial guard intent, sealed footprint `shelf_knight_sealed_footprint`, rotation 2, weak point `rear_binding`, interaction `shove_shelf_wall`.
 - `writ_cantor`: partial summon intent, sealed footprint `writ_cantor_sealed_footprint`, rotation 3, weak point `choir_chain`, interaction `ring_audit_beam`.
+- `null_censor`: partial debuff intent, sealed footprint `null_censor_sealed_footprint`, rotation 0, weak point `censor_barb`, interaction `tear_censor_vellum`.
 
 Acceptance proof:
 
-- `tests/run.lua` verifies the Archive has exactly 3 elites and each one has unique id, name, partial intent, weak point, and terrain interaction metadata.
+- `tests/run.lua` verifies the Archive has exactly 4 elites and each one has unique id, name, partial intent, weak point, and terrain interaction metadata.
 - `tests/run.lua` verifies each Archive elite can be generated through procgen, remains category-only before reveal, and exposes target footprint through rotation, Arcanist class, or `unseal_intent` action gates.
 
 ## E.3 Archive Alpha
@@ -203,7 +210,7 @@ Acceptance proof:
 
 ## E.12 Common Enemy Archetypes
 
-Common enemies use 11 canonical archetypes:
+Common enemies use 17 canonical archetypes:
 
 - `mover`: changes position pressure; represented by `page_scout`, `sluice_eel`, and `kiln_imp`.
 - `shooter`: direct previewed harm; represented by `bone_scribe`, `ledger_hound`, `drowned_pilgrim`, and `cinder_penitent`.
@@ -215,13 +222,19 @@ Common enemies use 11 canonical archetypes:
 - `repairer`: sustains or restores enemy board state; represented by `salt_choir` and `kiln_nurse`.
 - `saboteur`: pressures objectives or route state; represented by `writ_bailiff`, `reed_mouth_diver`, and `coal_monk`.
 - `overwatch`: posts reaction lanes; represented by `hollow_guard` and `glass_penitent`.
+- `controller`: applies tactical status control; represented by `binding_indexer`.
+- `support`: protects or buffs enemy pressure; represented by `margin_lumen`.
+- `sniper`: punishes long exposed sightlines; represented by `rafter_notary`.
+- `trapper`: lays delayed control pressure; represented by `footnote_trapper`.
+- `burrower`: emerges behind lines; represented by `undertext_miner`.
+- `healer`: restores or stabilizes enemy pressure; represented by `errata_physick`.
 - `terrain-breaker`: converts or destroys terrain; represented by `valve_thrall` and `white_furnace`.
 
 Rules:
 
 - Every archetype declares intent, board verb, counterplay, and preview text.
 - Every common enemy must reference one known archetype.
-- Every zone family must keep 8-12 common enemies.
+- Every live zone family must keep 8-16 common enemies.
 - Required archetypes must be represented by at least one common enemy.
 
 Acceptance proof:
@@ -242,6 +255,7 @@ Fields:
 - `pathPattern`: trace rule before board coordinates are known.
 - `damage`: deterministic damage value.
 - `effect`: deterministic effect label.
+- `statusEffect`: optional deterministic status payload, used by control/support/debuff enemies.
 - `objectiveImpact`: objective pressure label, or `none`.
 - `counterplay`: one or more legal answers.
 - `preview`: inspector-facing preview cue.
@@ -250,6 +264,7 @@ Fields:
 Rules:
 
 - Runtime declarations still supply board-specific `targetTiles` and `path`; catalog blueprints never fake coordinates.
+- Exact enemy status payloads resolve through `State:applyStatus()` on enemy turn.
 - Push and pull archetypes must include collision metadata.
 - Every zone family must have exact-intent coverage for all common enemies.
 

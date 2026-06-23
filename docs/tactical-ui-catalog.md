@@ -239,10 +239,10 @@ counterplay:
 The player can rotate to inspect occluded plans without losing which tile an intent, hazard, cover edge, or LoS marker belongs to.
 
 preview/UI:
-`Render.tacticalOverlayRotationAudit()` returns four rotation buckets with projected entries, stable logical coordinates, readable symbols, and occlusion metadata. `Render.rotationCompass()` maps world directions to the current 90-degree view. `Render.tacticalGhostArrowEntries()` returns no entries, keeping rotation transitions free of ghost-arrow lines.
+`Render.tacticalOverlayRotationAudit()` returns four rotation buckets with projected entries, stable logical coordinates, readable symbols, and occlusion metadata. `Render.rotationCompass()` maps world directions to the current 90-degree view. `Render.tacticalGhostArrowEntries()` returns no entries, keeping rotation transitions free of ghost-arrow lines. Board drag pans the tactical camera center inside board bounds while click actions still resolve on release.
 
 test/replay proof:
-`tests/run.lua` verifies the audit covers four snaps, preserves entry count and logical tile coordinates, keeps labels upright, keeps icon/pattern metadata, exposes occlusion offsets, changes screen positions across rotations, maps the 90-degree compass, and keeps ghost arrows hidden. `make tactical-smoke` verifies compass output and zero ghost-arrow output.
+`tests/run.lua` verifies the audit covers four snaps, preserves entry count and logical tile coordinates, keeps labels upright, keeps icon/pattern metadata, exposes occlusion offsets, changes screen positions across rotations, maps the 90-degree compass, pans/clamps the drag camera, and keeps ghost arrows hidden. `make tactical-smoke` verifies compass output and zero ghost-arrow output.
 
 ## U.11 Enemy Intent Cards And Badges
 
@@ -267,16 +267,16 @@ source pattern:
 Large isometric spaces need readable traversal structure: raised walks, stairs, bridges, destructible set pieces, sightlines, cover fields, and visible destination scale.
 
 thoth transformation:
-The Buried Archive tactical route starts as one 32x24 expanse. Later route regions are stitched into the same board as dormant regions; route advancement wakes the next region without replacing the tactical state. Height, ascent/descent routes, XCOM-style cover fields, sightlines, and destructible LoS blockers are board facts, synced into render-world tile metadata, and raised in the 3D tile model.
+The Buried Archive tactical route starts as one 32x24 expanse. Later route regions are stitched into the same board as dormant regions; route advancement wakes the next region without replacing the tactical state. Height, ascent/descent routes, XCOM-style cover fields, sightlines, destructible LoS blockers, rough rubble, fragile glass, chasms, brine pools, miasma, and mirror glass are board facts, synced into render-world tile metadata, and raised in the 3D tile model.
 
 board verb:
 Traverse, climb, descend, take cover, break, reveal.
 
 preview/UI:
-Height-tagged terrain rejects impossible climbs/drops unless a stair is present. Movement preview exposes climb/descend deltas. Destructible structures can collapse to lower height and rubble, including sightline columns that open LoS after breaking. The tile inspector exposes terrain height, destructible HP, sightline height delta, high/low ground, effective cover, flank, and damage reduction.
+Height-tagged terrain rejects impossible climbs/drops unless a stair is present. Movement preview exposes climb/descend deltas and terrain AP surcharges. Destructible structures can collapse to lower height and rubble, including sightline columns that open LoS after breaking. The tile inspector exposes terrain type, terrain height, AP cost, destructible HP, sightline height delta, high/low ground, effective cover, flank, and damage reduction.
 
 test/replay proof:
-`tests/run.lua` verifies the 32x24 expanse, dormant region enemies, state-preserving route advancement, bridge collapse, ascent/descent grammar, high-ground sightlines, breakable LoS columns, height movement gates, movement climb preview, and elevation-aware inspector copy. `make tactical-smoke` verifies board size, height tiles, destructible terrain, vertical route, descent, sightline, and high-cover counts.
+`tests/run.lua` verifies the 32x24 expanse, dormant region enemies, state-preserving route advancement, bridge collapse, ascent/descent grammar, high-ground sightlines, breakable LoS columns, terrain type catalogs, generation technique catalogs, rough terrain AP cost, height movement gates, movement climb preview, and elevation-aware inspector copy. `make tactical-smoke` verifies board size, height tiles, destructible terrain, vertical route, descent, sightline, high-cover, terrain type, and generation technique counts.
 
 ## U.13 Colorblind-Safe Tactical Palette
 

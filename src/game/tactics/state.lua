@@ -108,6 +108,7 @@ local obscurantKinds = {
     smoke = true,
     salt_mist = true,
     ash_cloud = true,
+    index_miasma = true,
 }
 
 local function inferBlockerKind(tile, destructibleHp)
@@ -144,11 +145,19 @@ local function normalizeTile(tile)
     if losBlocker == nil then
         losBlocker = blockerRule.losBlocker
     end
+    local moveCost = tile.moveCost or tile.apCost
+    if moveCost ~= nil then
+        moveCost = expectInteger(moveCost, "tile move cost")
+        expect(moveCost >= 0, "tile move cost must be non-negative")
+    end
     return {
         kind = tile.kind or tile.id or "floor",
         material = tile.material or tile.zoneMaterial or "archive",
         state = tile.state,
+        terrainType = tile.terrainType,
+        generationTechnique = tile.generationTechnique,
         height = expectInteger(tile.height or 0, "tile height"),
+        moveCost = moveCost,
         coverEdges = normalizeCoverEdges(tile.coverEdges or tile.cover),
         blockerKind = blockerKind,
         blocker = blocker == true,
@@ -353,6 +362,7 @@ local function normalizeBranchIntent(intent)
         path = normalizeTileList(intent.path),
         damage = intent.damage or 0,
         effect = intent.effect,
+        statusEffect = copyMap(intent.statusEffect),
         objectiveImpact = intent.objectiveImpact,
         trigger = copyMap(intent.trigger),
     }
@@ -483,6 +493,7 @@ local function normalizeIntent(intent)
         damage = intent.damage or 0,
         effect = intent.effect,
         collision = copyMap(intent.collision),
+        statusEffect = copyMap(intent.statusEffect),
         objectiveImpact = intent.objectiveImpact,
         countdown = countdown,
         anchor = anchor,
@@ -768,6 +779,10 @@ local statusRules = {
     burning = { amount = 1, tickDamage = true },
     flooded = { amount = 1, tickDamage = true },
     corroded = { amount = 1, tickDamage = true },
+    guarded = { amount = 1 },
+    shredded = { amount = 1 },
+    anchored = {},
+    jammed = {},
     filed = {},
     redacted = {},
     sealed = {},
@@ -895,6 +910,8 @@ function State.new(options)
             sightBreaks = copyValue(board.sightBreaks),
             verticalRoutes = copyValue(board.verticalRoutes),
             sightlines = copyValue(board.sightlines),
+            terrainTypes = copyValue(board.terrainTypes),
+            generationTechniques = copyValue(board.generationTechniques),
             tiles = {},
         },
         units = {},
@@ -1402,6 +1419,10 @@ local function tileHazardCost(tile)
     return hazard.apCost or hazard.cost or hazard.damage or 0
 end
 
+local function tileTerrainCost(tile)
+    return tile and tile.moveCost or 0
+end
+
 function State:movementPreview(unitId, options)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     expect(unit.alive and not unit.evacuated, "unit is not active")
@@ -1431,6 +1452,9 @@ function State:movementPreview(unitId, options)
             heightDelta = heightDelta,
             vertical = heightDelta > 0 and "ascend" or (heightDelta < 0 and "descend" or "level"),
             hazardCost = hazardCost,
+            terrainCost = node.terrainCost or 0,
+            moveCost = node.moveCost or 0,
+            terrainType = tile.terrainType,
             coverGained = gained,
             coverLost = lost,
             objectiveCarryEffect = (unit.carryingObjective or unit.carryingCargo) and {
@@ -1453,13 +1477,16 @@ function State:movementPreview(unitId, options)
                     collisions[#collisions + 1] = { fromX = node.x, fromY = node.y, x = nx, y = ny, direction = direction, result = reason, fromHeight = tile.height or 0, toHeight = toHeight, heightDelta = toHeight and (toHeight - (tile.height or 0)) or nil }
                 end
             else
-                local nextCost = node.apCost + stepCost
+                local nextTile = self:tileAt(nx, ny)
+                local terrainCost = tileTerrainCost(nextTile)
+                local moveCost = stepCost + terrainCost
+                local nextCost = node.apCost + moveCost
                 local key = tileKey(nx, ny)
                 if nextCost <= maxCost and (seen[key] == nil or nextCost < seen[key]) then
                     seen[key] = nextCost
                     local path = copyValue(node.path)
                     path[#path + 1] = direction
-                    queue[#queue + 1] = { x = nx, y = ny, apCost = nextCost, path = path }
+                    queue[#queue + 1] = { x = nx, y = ny, apCost = nextCost, terrainCost = terrainCost, moveCost = moveCost, path = path }
                 end
             end
         end
@@ -1598,6 +1625,10 @@ local function bracedReduction(unit)
     return statusAmount(unit, "braced")
 end
 
+local function incomingDamageReduction(unit)
+    return math.max(0, statusAmount(unit, "guarded") - statusAmount(unit, "shredded"))
+end
+
 function State:spendAP(id, amount)
     local unit = expect(self.units[id], "unknown unit " .. tostring(id))
     expect(unit.alive and not unit.evacuated, "unit is not active")
@@ -1618,6 +1649,12 @@ function State:damageUnit(unitOrId, amount, options)
     end
     if not options.ignoreStatusBonus then
         amount = amount + incomingDamageBonus(unit)
+    end
+    if not options.ignoreStatusReduction then
+        amount = math.max(0, amount - incomingDamageReduction(unit))
+    end
+    if amount == 0 then
+        return unit.hp
     end
     unit.hp = math.max(0, (unit.hp or 0) - amount)
     if unit.hp <= 0 then
@@ -1758,6 +1795,7 @@ end
 function State:addThreatZone(unitId, tiles, options)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     expect(not self:hasStatus(unit, "blinded"), "unit is blinded")
+    expect(not self:hasStatus(unit, "jammed"), "unit is jammed")
     options = options or {}
     local zone = {
         unit = unitId,
@@ -1887,6 +1925,7 @@ function State:declareOverwatch(unitId, options)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     expect(unit.alive and not unit.evacuated, "unit is not active")
     expect(not self:hasStatus(unit, "blinded"), "unit is blinded")
+    expect(not self:hasStatus(unit, "jammed"), "unit is jammed")
     options = options or {}
     local facing = options.facing or options.direction or unit.facing or "east"
     local range = options.range or options.length or 3
@@ -1948,6 +1987,7 @@ function State:intentPreview(unitId, options)
         damage = intent.damage,
         effect = intent.effect,
         collision = copyMap(intent.collision),
+        statusEffect = copyMap(intent.statusEffect),
         objectiveImpact = intent.objectiveImpact,
         countdown = intent.countdown,
         anchor = copyMap(intent.anchor),
@@ -2981,6 +3021,9 @@ end
 
 function State:displaceUnit(unitOrId, dx, dy, distance, collisionDamage)
     local unit = type(unitOrId) == "table" and unitOrId or expect(self.units[unitOrId], "unknown unit " .. tostring(unitOrId))
+    if self:hasStatus(unit, "anchored") then
+        return false, "anchored"
+    end
     distance = distance or 1
     collisionDamage = collisionDamage or 1
     for _ = 1, distance do
@@ -3414,6 +3457,8 @@ function State:snapshot()
             sightBreaks = copyValue(self.board.sightBreaks),
             verticalRoutes = copyValue(self.board.verticalRoutes),
             sightlines = copyValue(self.board.sightlines),
+            terrainTypes = copyValue(self.board.terrainTypes),
+            generationTechniques = copyValue(self.board.generationTechniques),
             tiles = tiles,
         },
         units = units,

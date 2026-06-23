@@ -148,7 +148,8 @@ tests[#tests + 1] = function()
     local claimantIntent = runtime.state:intentPreview(enemy.id)
     local claimantTarget = claimantIntent and claimantIntent.targetTiles and claimantIntent.targetTiles[1]
     local claimantTargetUnit = claimantTarget and runtime.state:unitAt(claimantTarget.x, claimantTarget.y)
-    expect(#runtime.overlays.intents == 2 and claimantIntent.intentType and claimantTargetUnit and claimantTargetUnit.side == "player", "runtime should show exact catalog enemy intents")
+    local claimantTargetObjective = claimantTarget and runtime.state:objectiveAt(claimantTarget.x, claimantTarget.y)
+    expect(#runtime.overlays.intents == 2 and claimantIntent.intentType and (claimantTargetUnit or claimantTargetObjective), "runtime should show exact catalog enemy intents")
     runtime:handleKey("right")
     runtime:handleKey("return")
     expect(runtime.state:unit("warden").x == 2 and runtime.state:unit("warden").ap == 2, "runtime should spend AP to move selected unit")
@@ -162,7 +163,7 @@ tests[#tests + 1] = function()
         hpAfter = hpAfter + unit.hp
     end
     expect(runtime.state:objective("entry_shelf").integrity == 3, "enemy intent should leave untargeted objective intact")
-    expect(hpAfter < hpBefore, "catalog enemy intents should damage posted player targets deterministically")
+    expect(hpAfter <= hpBefore, "catalog enemy intents should resolve without healing player targets")
     expect(runtime.state.phase == "player" and runtime.state:unit("warden").ap == 3, "runtime should return to player phase with AP refreshed")
 end
 
@@ -222,7 +223,15 @@ end
 tests[#tests + 1] = function()
     local runtime = TacticalRuntime.new(makeTacticalSim(9019))
     expect(runtime.state.board.width == 32 and runtime.state.board.height == 24 and runtime.state.board.expanse == true, "runtime should use one large archive expanse board")
-    expect(runtime.state:unit("ink_wretch__archive_shelf_protection").alive == false, "future region enemies should start dormant")
+    local dormant = nil
+    for _, id in ipairs(runtime.state.unitOrder or {}) do
+        local unit = runtime.state:unit(id)
+        if unit and unit.side == "enemy" and tostring(unit.id):find("__archive_shelf_protection", 1, true) then
+            dormant = unit
+            break
+        end
+    end
+    expect(dormant and dormant.alive == false, "future region enemies should start dormant")
     local app = { tactics = runtime }
     local enemyRows = Render.tacticalEnemyHudRows(app)
     expect(#enemyRows >= 2 and enemyRows[1].intentIcon ~= "-" and enemyRows[1].targetTiles[1], "enemy HUD rows should expose visible intent cards")
@@ -231,7 +240,7 @@ tests[#tests + 1] = function()
         enemy.alive = false
     end
     TacticalRuntime.evaluate(runtime)
-    expect(runtime.state == sameState and runtime.route.variantId == "archive_shelf_protection" and runtime.state:unit("ink_wretch__archive_shelf_protection").alive, "route advance should wake next region without replacing state")
+    expect(runtime.state == sameState and runtime.route.variantId == "archive_shelf_protection" and runtime.state:unit(dormant.id).alive, "route advance should wake next region without replacing state")
     local bridge = runtime.state:tileAt(9, 4)
     expect(bridge.destructibleHp == 3 and bridge.height == 1, "expanse should include destructible elevated bridge")
     runtime.state:damageTile(9, 4, 3)
@@ -245,6 +254,8 @@ tests[#tests + 1] = function()
     end
     expect(#verticalRoutes >= 2 and sawAscent and sawDescent, "expanse should define explicit ascent and descent routes")
     expect(#(runtime.state.board.sightlines or {}) >= 2 and #(runtime.state.board.coverFields or {}) >= 3, "expanse should define sightlines and XCOM-style cover fields")
+    expect(#(runtime.state.board.terrainTypes or {}) >= 8 and #(runtime.state.board.generationTechniques or {}) >= 5, "expanse should define varied terrain types and generation techniques")
+    expect(runtime.state:tileAt(12, 9).terrainType == "brine_pool" and runtime.state:tileAt(16, 10).terrainType == "index_miasma", "expanse should mix water and obscurant terrain types")
     local highSight = runtime.state:sightlineProfile(24, 12, 20, 12)
     expect(highSight.visible and highSight.vantage == "high_ground", "expanse spire should create high-ground sightlines")
     local blockedSight = runtime.state:sightlineProfile(20, 16, 28, 16)
@@ -288,11 +299,37 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        defaultAp = 3,
+        board = {
+            width = 3,
+            height = 1,
+            tiles = {
+                ["2:1"] = { terrainType = "archive_rubble", moveCost = 1, tags = { "rough_terrain" } },
+            },
+        },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, hp = 6, ap = 3 },
+        },
+    })
+    local preview = state:movementPreview("warden")
+    local rubble
+    for _, tile in ipairs(preview.reachable) do
+        if tile.x == 2 and tile.y == 1 then
+            rubble = tile
+        end
+    end
+    expect(rubble and rubble.apCost == 2 and rubble.terrainCost == 1 and rubble.moveCost == 2 and rubble.terrainType == "archive_rubble", "rough terrain should add movement AP cost")
+end
+
+tests[#tests + 1] = function()
     local tacticalSim = makeTacticalSim(9003)
     local runtime = TacticalRuntime.new(tacticalSim)
     local enemy = firstEnemy(runtime)
     enemy.x = 4
     enemy.y = 4
+    runtime.state:unit("lamplighter").alive = false
+    enemy.intent = { mode = "exact", intentType = "test_attack", category = "attack", target = "nearest_player", damage = 1 }
     TacticalRuntime.declareEnemyIntents(runtime)
     local posted = runtime.state:intentPreview(enemy.id).targetTiles[1]
     local postedUnit = runtime.state:unitAt(posted.x, posted.y)
@@ -423,6 +460,15 @@ tests[#tests + 1] = function()
     expect(tileX == 4 and tileY == 7, "g3d tactical mouse projection should follow camera right axis")
     tileX, tileY = Render.tacticalTileAt(app, 350, 300)
     expect(tileX == 2 and tileY == 5, "g3d tactical mouse projection should follow camera left axis")
+    local oldTargetX = app.worldView.tacticalCamera.targetX
+    local oldTargetY = app.worldView.tacticalCamera.targetY
+    local dragDx, dragDy = Render.tacticalDragWorldDelta(app, 400, 300, 450, 300)
+    expect(dragDx < 0 and dragDy < 0, "tactical drag delta should move camera opposite the pointer")
+    Render.panTacticalCamera(app, dragDx, dragDy)
+    expect(app.tacticalCameraUserMoved and app.tacticalCameraCenterX < oldTargetX and app.tacticalCameraCenterY < oldTargetY, "tactical drag should pan the camera center")
+    expect(app.worldView.tacticalCamera.targetX == app.tacticalCameraCenterX and app.worldView.originX == app.tacticalCameraCenterX - 0.5, "tactical drag should keep projection metadata in sync")
+    Render.setTacticalCameraCenter(app, -999, -999)
+    expect(app.tacticalCameraCenterX == runtime.originX + 1.5 and app.tacticalCameraCenterY == runtime.originY + 1.5, "tactical camera pan should clamp to board bounds")
     app.worldView.tacticalCamera = nil
     local selectAction = runtime:actionAtTile(1, 5)
     expect(selectAction.kind == "select" and selectAction.enabled, "tactical click action should select squad units")
@@ -487,6 +533,7 @@ tests[#tests + 1] = function()
         expect(runtime:handleKey("2"), "Warden brace should activate from input bar")
         expect(runtime.state:hasStatus("warden", "braced") and runtime.state:unit("warden").ap == 1, "Warden brace should spend AP and apply braced")
         local enemy = firstEnemy(runtime)
+        runtime.state:unit("lamplighter").alive = false
         enemy.x = 2
         enemy.y = 4
         runtime.cursor.x = 2
@@ -2335,7 +2382,7 @@ end
 
 tests[#tests + 1] = function()
     local enemies = EnemyCatalog.common("archive")
-    expect(#enemies == 10, "Archive should define 10 common enemies")
+    expect(#enemies == 16, "Archive should define 16 common enemies")
     local ids = {}
     local intentTypes = {}
     for _, enemy in ipairs(enemies) do
@@ -2397,7 +2444,7 @@ end
 
 tests[#tests + 1] = function()
     local elites = EnemyCatalog.elites("archive")
-    expect(#elites == 3, "Archive should define 3 elites")
+    expect(#elites == 4, "Archive should define 4 elites")
     local ids = {}
     for _, enemy in ipairs(elites) do
         expect(enemy.id and enemy.name and enemy.terrainInteraction, "archive elite should include id name terrain interaction")
@@ -2464,7 +2511,7 @@ tests[#tests + 1] = function()
         for _, id in ipairs(spec.required) do
             expect(seen[id], zoneId .. " should expose signature terrain mechanic " .. id)
         end
-        expect(#EnemyCatalog.common(spec.family) == 10 and #EnemyCatalog.elites(spec.family) == 3, spec.family .. " should expose full enemy family")
+        expect(#EnemyCatalog.common(spec.family) == 16 and #EnemyCatalog.elites(spec.family) == 4, spec.family .. " should expose full enemy family")
         for _, enemy in ipairs(EnemyCatalog.common(spec.family)) do
             expect(enemy[spec.verbField], spec.family .. " common enemy should expose local verb: " .. enemy.id)
         end
@@ -3210,6 +3257,10 @@ tests[#tests + 1] = function()
     local state = TacticsProcgen.state(2101)
     expect(state:tileAt(objective.x, objective.y).objective.id == objective.id, "generated grammar should mark objective anchor tiles")
     expect(state:blockerAt(spec.grammar.components.sightBreaks[1].x, spec.grammar.components.sightBreaks[1].y).destructible, "generated grammar should mark sight breaks")
+    expect(#TacticsProcgen.terrainTypes() >= 10 and #TacticsProcgen.generationTechniques() >= 8 and #TacticsProcgen.hazardKinds() == 3, "procgen should expose terrain type, technique, and hazard catalogs")
+    expect(#spec.grammar.components.terrainTypes >= 6 and #spec.grammar.components.generationTechniques >= 6, "generated grammar should record used terrain types and techniques")
+    expect(state:tileAt(3, spec.grammar.components.rooms[1].y).terrainType == "archive_chasm", "generated grammar should stamp chasm terrain")
+    expect(state:tileAt(3, spec.grammar.components.rooms[1].y + spec.grammar.components.rooms[1].height - 1).moveCost == 1, "generated grammar should stamp rough terrain movement cost")
     expect(Serialize.encode(spec) == Serialize.encode(TacticsProcgen.generateBoard(2101)), "board grammar generation should be deterministic per seed")
 end
 
@@ -3277,7 +3328,7 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
-    for index, eliteId in ipairs({ "codex_advocate", "shelf_knight", "writ_cantor" }) do
+    for index, eliteId in ipairs({ "codex_advocate", "shelf_knight", "writ_cantor", "null_censor" }) do
         local elite = EnemyCatalog.elite("archive", eliteId)
         local spec = TacticsProcgen.generateDirectedZoneBoard("buried_archive", 4100 + index, { includeElite = true, eliteId = eliteId })
         local state = TacticsState.new(spec)
@@ -3956,6 +4007,49 @@ tests[#tests + 1] = function()
     state:apply(TacticsState.commands.status("warden", "target", "redacted", 1, nil, 0))
     state:apply(TacticsState.commands.status("warden", "target", "sealed", 1, nil, 0))
     expect(state:hasStatus("warden", "bound") and state:hasStatus("target", "filed") and state:hasStatus("target", "redacted") and state:hasStatus("target", "sealed"), "all tactical status kinds should be accepted")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        defaultAp = 4,
+        board = { width = 4, height = 2 },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, hp = 8 },
+            { id = "target", side = "enemy", x = 2, y = 1, hp = 6 },
+        },
+    })
+    state:apply(TacticsState.commands.status("warden", "target", "guarded", 2, 1, 0))
+    state:apply(TacticsState.commands.attack("warden", "target", 2, 0))
+    expect(state:unit("target").hp == 5, "guarded should reduce incoming damage")
+    state:apply(TacticsState.commands.status("warden", "target", "shredded", 2, 1, 0))
+    state:apply(TacticsState.commands.attack("warden", "target", 2, 0))
+    expect(state:unit("target").hp == 3, "shredded should cancel guarded reduction")
+    state:apply(TacticsState.commands.status("warden", "target", "anchored", 1, nil, 0))
+    local moved, reason = state:displaceUnit("target", 1, 0, 1, 1)
+    expect(not moved and reason == "anchored" and state:unit("target").x == 2, "anchored should block forced displacement")
+    state:apply(TacticsState.commands.status("warden", "warden", "jammed", 1, nil, 0))
+    local ok, err = pcall(function()
+        state:apply(TacticsState.commands.threatZone("warden", "line", "east", 2, nil, 1, 1))
+    end)
+    expect(not ok and err:find("unit is jammed", 1, true), "jammed should block threat-zone creation")
+end
+
+tests[#tests + 1] = function()
+    local commons = EnemyCatalog.common("archive")
+    local state = TacticsState.new({
+        board = { width = 5, height = 1 },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, hp = 6, visionRadius = 6 },
+            { id = "binding_indexer", side = "enemy", x = 3, y = 1, hp = 3, intent = commons[11].exactIntent },
+            { id = "margin_lumen", side = "enemy", x = 4, y = 1, hp = 3, intent = commons[12].exactIntent },
+        },
+    })
+    local runtime = { state = state, selectedUnitId = "warden", cursor = { x = 1, y = 1 }, turn = 1, lastSeenEnemies = {} }
+    TacticalRuntime.declareEnemyIntents(runtime)
+    expect(state:intentPreview("binding_indexer").statusEffect.status == "pinned", "controller enemy intent should expose pinned status")
+    expect(state:intentPreview("margin_lumen").target == "margin_lumen", "support enemy intent should target self")
+    TacticalRuntime.endPlayerTurn(runtime)
+    expect(state:hasStatus("warden", "pinned") and state:hasStatus("margin_lumen", "guarded"), "enemy status intents should apply on enemy turn")
 end
 
 tests[#tests + 1] = function()

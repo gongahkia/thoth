@@ -1,6 +1,6 @@
 local EnemyCatalog = {}
 
-EnemyCatalog.requiredArchetypes = { "mover", "shooter", "artillery", "puller", "blocker", "summoner", "saboteur", "overwatch" }
+EnemyCatalog.requiredArchetypes = { "mover", "shooter", "artillery", "puller", "blocker", "summoner", "saboteur", "overwatch", "controller", "support", "sniper", "trapper", "burrower", "healer" }
 
 EnemyCatalog.archetypes = {
     mover = { intent = "reposition", boardVerb = "move", counterplay = "body block lane or pin source", preview = "destination and path" },
@@ -13,6 +13,12 @@ EnemyCatalog.archetypes = {
     repairer = { intent = "enemy sustain", boardVerb = "repair", counterplay = "isolate target or interrupt source", preview = "repaired target and amount" },
     saboteur = { intent = "objective damage", boardVerb = "sabotage", counterplay = "body block, repair, or disable source", preview = "objective delta" },
     overwatch = { intent = "reaction lane", boardVerb = "watch", counterplay = "bait trigger, smoke, or take alternate route", preview = "watch cone and trigger" },
+    controller = { intent = "status control", boardVerb = "bind", counterplay = "cleanse, interrupt source, or move before resolve", preview = "status target and duration" },
+    support = { intent = "enemy buff", boardVerb = "guard", counterplay = "strip guard, shred armor, or focus another threat", preview = "buffed unit and duration" },
+    sniper = { intent = "long sightline punish", boardVerb = "snipe", counterplay = "break LoS, drop elevation, or blind source", preview = "source height, LoS trace, target, damage" },
+    trapper = { intent = "delayed control", boardVerb = "trap", counterplay = "disarm, route around, or force source to move", preview = "trap tile, status, and timer" },
+    burrower = { intent = "emerge behind lines", boardVerb = "burrow", counterplay = "hold high ground, body block exit, or overwatch", preview = "emerge tile and adjacent threat" },
+    healer = { intent = "enemy recovery", boardVerb = "mend", counterplay = "focus wounded units, jam source, or shred guard", preview = "recovery target and duration" },
     ["terrain-breaker"] = { intent = "terrain conversion", boardVerb = "break", counterplay = "evacuate, stabilize, or use new gap", preview = "terrain tile before and after" },
 }
 
@@ -27,6 +33,12 @@ EnemyCatalog.exactIntentBlueprints = {
     repairer = { targetPattern = "damaged ally or machine", pathPattern = "support trace", effect = "repairs enemy board state", objectiveImpact = "extends pressure clock", counterplay = { "isolate_target", "interrupt_source" } },
     saboteur = { targetPattern = "objective or route asset", pathPattern = "sabotage trace", effect = "objective pressure", objectiveImpact = "integrity loss or escape progress", counterplay = { "body_block", "repair_objective" } },
     overwatch = { targetPattern = "reaction cone", pathPattern = "watched lane", effect = "reaction attack", objectiveImpact = "none", counterplay = { "bait_trigger", "smoke_lane" } },
+    controller = { targetPattern = "visible or nearest unit", pathPattern = "binding trace", effect = "status pressure", objectiveImpact = "none", counterplay = { "cleanse_status", "interrupt_source" } },
+    support = { targetPattern = "self or nearby ally", pathPattern = "support trace", effect = "enemy buff", objectiveImpact = "none", counterplay = { "shred_guard", "focus_other_threat" } },
+    sniper = { targetPattern = "visible high-value unit", pathPattern = "long LoS trace", effect = "precision pressure", objectiveImpact = "none", counterplay = { "break_los", "blind_source", "drop_elevation" } },
+    trapper = { targetPattern = "nearest path or unit", pathPattern = "trap placement trace", effect = "delayed status pressure", objectiveImpact = "route tax", counterplay = { "disarm_trap", "route_around", "force_source_move" } },
+    burrower = { targetPattern = "flank tile near backline", pathPattern = "subfloor route", effect = "backline pressure", objectiveImpact = "possible extraction block", counterplay = { "overwatch_exit", "block_emerge_tile", "take_high_ground" } },
+    healer = { targetPattern = "self or wounded ally", pathPattern = "repair trace", effect = "enemy recovery", objectiveImpact = "extends pressure clock", counterplay = { "focus_wounded", "jam_source", "shred_guard" } },
     ["terrain-breaker"] = { targetPattern = "terrain tile", pathPattern = "conversion trace", effect = "terrain conversion", objectiveImpact = "opens or closes route", counterplay = { "stabilize_tile", "evacuate_tile" } },
 }
 
@@ -38,20 +50,27 @@ EnemyCatalog.families = {
     archive = {
         common = {
             { id = "hollow_guard", name = "Hollow Guard", archetype = "overwatch", exactIntent = { mode = "exact", intentType = "archive_overwatch_lane", category = "attack", damage = 2, target = "nearest" }, boardVerb = "brace_cover" },
-            { id = "ink_wretch", name = "Ink Wretch", archetype = "artillery", exactIntent = { mode = "exact", intentType = "ink_line_splash", category = "debuff", damage = 1, target = "line" }, boardVerb = "ink_tile" },
-            { id = "bone_scribe", name = "Bone Scribe", archetype = "shooter", exactIntent = { mode = "exact", intentType = "redaction_shot", category = "attack", damage = 2, target = "marked" }, boardVerb = "redact_mark" },
+            { id = "ink_wretch", name = "Ink Wretch", archetype = "artillery", exactIntent = { mode = "exact", intentType = "ink_line_splash", category = "debuff", damage = 1, target = "line", statusEffect = { status = "burning", turns = 2, amount = 1 } }, boardVerb = "ink_tile" },
+            { id = "bone_scribe", name = "Bone Scribe", archetype = "shooter", exactIntent = { mode = "exact", intentType = "redaction_shot", category = "attack", damage = 2, target = "marked", statusEffect = { status = "exposed", turns = 1, amount = 1 } }, boardVerb = "redact_mark" },
             { id = "gutter_thing", name = "Gutter Thing", archetype = "puller", exactIntent = { mode = "exact", intentType = "cargo_hook_pull", category = "move", damage = 1, target = "pull" }, boardVerb = "hook_cargo" },
-            { id = "pale_censer", name = "Pale Censer", archetype = "blocker", exactIntent = { mode = "exact", intentType = "claim_fog_block", category = "debuff", damage = 0, target = "claim_tile" }, boardVerb = "fog_claim" },
+            { id = "pale_censer", name = "Pale Censer", archetype = "blocker", exactIntent = { mode = "exact", intentType = "claim_fog_block", category = "debuff", damage = 0, target = "claim_tile", statusEffect = { status = "blinded", turns = 1 } }, boardVerb = "fog_claim" },
             { id = "page_scout", name = "Page Scout", archetype = "mover", exactIntent = { mode = "exact", intentType = "flank_reposition", category = "move", damage = 1, target = "flank" }, boardVerb = "flip_shelf" },
             { id = "writ_bailiff", name = "Writ Bailiff", archetype = "saboteur", exactIntent = { mode = "exact", intentType = "objective_stamp", category = "destroy", damage = 2, target = "objective" }, boardVerb = "stamp_claim" },
             { id = "seal_clerk", name = "Seal Clerk", archetype = "blocker", exactIntent = { mode = "exact", intentType = "door_seal_guard", category = "guard", damage = 0, target = "seal" }, boardVerb = "lock_door" },
             { id = "ledger_hound", name = "Ledger Hound", archetype = "shooter", exactIntent = { mode = "exact", intentType = "carrier_pursuit", category = "attack", damage = 2, target = "carrier" }, boardVerb = "sniff_route" },
             { id = "drawer_mite", name = "Drawer Mite", archetype = "summoner", exactIntent = { mode = "exact", intentType = "record_spill_summon", category = "summon", damage = 1, target = "drawer" }, boardVerb = "spill_records" },
+            { id = "binding_indexer", name = "Binding Indexer", archetype = "controller", exactIntent = { mode = "exact", intentType = "pinning_index", category = "debuff", damage = 0, target = "nearest_player", statusEffect = { status = "pinned", turns = 1 } }, boardVerb = "pin_case" },
+            { id = "margin_lumen", name = "Margin Lumen", archetype = "support", exactIntent = { mode = "exact", intentType = "margin_guard", category = "buff", damage = 0, target = "self", statusEffect = { status = "guarded", turns = 2, amount = 1 } }, boardVerb = "raise_margin_guard" },
+            { id = "rafter_notary", name = "Rafter Notary", archetype = "sniper", exactIntent = { mode = "exact", intentType = "high_roost_writ", category = "attack", damage = 3, target = "nearest_player", statusEffect = { status = "marked", turns = 1, amount = 1 } }, boardVerb = "take_roost" },
+            { id = "footnote_trapper", name = "Footnote Trapper", archetype = "trapper", exactIntent = { mode = "exact", intentType = "footnote_snare", category = "debuff", damage = 0, target = "nearest_player", statusEffect = { status = "jammed", turns = 1 } }, boardVerb = "lay_footnote_snare" },
+            { id = "undertext_miner", name = "Undertext Miner", archetype = "burrower", exactIntent = { mode = "exact", intentType = "undertext_emerge", category = "move", damage = 1, target = "flank", statusEffect = { status = "anchored", turns = 1 } }, boardVerb = "surface_beneath" },
+            { id = "errata_physick", name = "Errata Physick", archetype = "healer", exactIntent = { mode = "exact", intentType = "errata_suture", category = "repair", damage = 0, target = "self", statusEffect = { status = "stabilized", turns = 2 } }, boardVerb = "stitch_errata" },
         },
         elites = {
             { id = "codex_advocate", name = "Codex Advocate", partialIntent = { mode = "category", category = "debuff" }, weakPoints = { "open_register" }, revealRotation = 1, terrainInteraction = "seal_claim_line" },
             { id = "shelf_knight", name = "Shelf Knight", partialIntent = { mode = "category", category = "guard" }, weakPoints = { "rear_binding" }, revealRotation = 2, terrainInteraction = "shove_shelf_wall" },
             { id = "writ_cantor", name = "Writ Cantor", partialIntent = { mode = "category", category = "summon" }, weakPoints = { "choir_chain" }, revealRotation = 3, terrainInteraction = "ring_audit_beam" },
+            { id = "null_censor", name = "Null Censor", partialIntent = { mode = "category", category = "debuff" }, weakPoints = { "censor_barb" }, revealRotation = 0, terrainInteraction = "tear_censor_vellum" },
         },
         alpha = {
             id = "shelf_warden",
@@ -114,6 +133,9 @@ local function assignExactIntentBlueprint(enemy)
     intent.objectiveImpact = intent.objectiveImpact or blueprint.objectiveImpact
     intent.counterplay = intent.counterplay or blueprint.counterplay
     intent.preview = intent.preview or archetype.preview
+    if intent.statusEffect and not intent.effect then
+        intent.effect = "status_" .. tostring(intent.statusEffect.status)
+    end
     intent.deterministic = intent.deterministic ~= false
     if blueprint.collision and not intent.collision then
         intent.collision = blueprint.collision
@@ -252,7 +274,7 @@ function EnemyCatalog.auditArchetypes()
     end
     for familyId, family in pairs(EnemyCatalog.families) do
         local common = family.common or {}
-        if #common < 8 or #common > 12 then
+        if #common < 8 or #common > 16 then
             table.insert(report.invalid, familyId .. ".common.count")
         end
         for _, enemy in ipairs(common) do
@@ -335,7 +357,7 @@ function EnemyCatalog.auditArchiveCommonIntentTypes()
             report.count = report.count + 1
         end
     end
-    report.ok = #report.missing == 0 and #report.duplicate == 0 and report.count == 10
+    report.ok = #report.missing == 0 and #report.duplicate == 0 and report.count == #EnemyCatalog.common("archive")
     return report
 end
 

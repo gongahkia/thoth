@@ -284,6 +284,8 @@ tactical-smoke:
 	grep -q "tactical-smoke-descents=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-sightlines=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-high-cover=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-terrain-types=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-generation-techniques=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-enemy-cards=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-intent-badges=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-intents=2" $$tmp; \

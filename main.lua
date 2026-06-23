@@ -287,6 +287,10 @@ local function enterTacticalGame(state, squadLoadout)
     state.tutorialSeen = true
     state.tacticalZoom = 1.75
     state.tacticalHover = nil
+    state.tacticalCameraUserMoved = false
+    state.tacticalCameraCenterX = nil
+    state.tacticalCameraCenterY = nil
+    state.tacticalDrag = nil
     resetVisualState(state, sim)
     state.squadLoadout = squadLoadout or state.squadLoadout
     state.squadSelect = nil
@@ -1227,6 +1231,8 @@ local function printTacticalSmoke(state)
     print("tactical-smoke-descents=" .. tostring(descentRoutes))
     print("tactical-smoke-sightlines=" .. tostring(#((board and board.sightlines) or {})))
     print("tactical-smoke-high-cover=" .. tostring(highCoverTiles))
+    print("tactical-smoke-terrain-types=" .. tostring(#((board and board.terrainTypes) or {})))
+    print("tactical-smoke-generation-techniques=" .. tostring(#((board and board.generationTechniques) or {})))
     print("tactical-smoke-enemy-cards=" .. tostring(#Render.tacticalEnemyHudRows(state)))
     print("tactical-smoke-intent-badges=" .. tostring(state.worldView and state.worldView.tacticalIntentBadges or 0))
     print("tactical-smoke-intents=" .. tostring(overlays.intent or 0))
@@ -1945,6 +1951,55 @@ local function updateTacticalMouseHover(x, y)
     return Input.updateTacticalHover(app, x, y)
 end
 
+local function tacticalBoardContains(x, y)
+    local rect = app and app.worldView and app.worldView.boardRect
+    if not rect then
+        return true
+    end
+    return x >= rect.x and x <= rect.x + rect.w and y >= rect.y and y <= rect.y + rect.h
+end
+
+local function beginTacticalDrag(x, y, button)
+    if not (app and app.uiState == "game" and app.tactics and not app.paused and not app.confirmDialog) then
+        return false
+    end
+    local _, group = Render.hitboxAt(app, x, y)
+    if group or not tacticalBoardContains(x, y) then
+        return false
+    end
+    app.tacticalDrag = {
+        button = button,
+        startX = x,
+        startY = y,
+        lastX = x,
+        lastY = y,
+        active = button ~= 1,
+    }
+    return true
+end
+
+local function updateTacticalDrag(x, y)
+    local drag = app and app.tacticalDrag
+    if not drag then
+        return false
+    end
+    local movedX = x - drag.startX
+    local movedY = y - drag.startY
+    if not drag.active and (movedX * movedX + movedY * movedY) < 36 then
+        return true
+    end
+    drag.active = true
+    local dx, dy = Render.tacticalDragWorldDelta(app, drag.lastX, drag.lastY, x, y)
+    if dx and dy then
+        Render.panTacticalCamera(app, dx, dy)
+        app.status = "pan " .. string.format("%.1f", app.tacticalCameraCenterX or 0) .. "," .. string.format("%.1f", app.tacticalCameraCenterY or 0)
+    end
+    drag.lastX = x
+    drag.lastY = y
+    app.tacticalIntentHover = nil
+    return true
+end
+
 local function mouseTactical(x, y, button)
     if Input.updateTacticalIntentHover(app, x, y) then
         Audio.play(app.audio, "tick")
@@ -1989,8 +2044,8 @@ function love.gamepadaxis(_, axis, value)
 end
 
 function love.mousepressed(x, y, button)
+    local hitbox, group = Render.hitboxAt(app, x, y)
     if button == 1 then
-        local hitbox = Render.hitboxAt(app, x, y)
         Render.markUiPulse(app, hitbox, "press")
     end
     if button == 1 and app.uiState == "title" then
@@ -2029,6 +2084,9 @@ function love.mousepressed(x, y, button)
         mousePause(app, x, y)
         return
     end
+    if app.uiState == "game" and app.tactics and (button == 1 or button == 3) and not group and beginTacticalDrag(x, y, button) then
+        return
+    end
     if app.uiState == "game" then
         mouseTactical(x, y, button)
         return
@@ -2048,6 +2106,9 @@ function love.wheelmoved(_, y)
 end
 
 function love.mousemoved(x, y)
+    if updateTacticalDrag(x, y) then
+        return
+    end
     local _, group, index = Render.hitboxAt(app, x, y)
     app.uiHot = group and { group = group, index = index } or nil
     if group == "tacticalIntentButtons" then
@@ -2059,6 +2120,21 @@ function love.mousemoved(x, y)
         updateTacticalMouseHover(x, y)
     elseif app then
         app.tacticalIntentHover = nil
+    end
+end
+
+function love.mousereleased(x, y, button)
+    local drag = app and app.tacticalDrag
+    if drag and drag.button == button then
+        app.tacticalDrag = nil
+        if drag.active then
+            return
+        end
+        mouseTactical(x, y, button)
+        return
+    end
+    if app then
+        Input.mousereleased(sim, app, x, y, button)
     end
 end
 
