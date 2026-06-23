@@ -1456,6 +1456,14 @@ function Render.worldTileCacheKey(sim, profile, settings, app, minX, maxX, minY,
         tostring(z),
         Render.settingsRenderKey(settings),
     }
+    if tactical then
+        local runtime = app and app.tactics
+        local tactics = runtime and runtime.state
+        parts[#parts + 1] = tostring(runtime and runtime.worldRevision or 0)
+        parts[#parts + 1] = tostring(tactics and tactics.revision and tactics:revision("terrain") or 0)
+        parts[#parts + 1] = tostring(tactics and tactics.revision and tactics:revision("units") or 0)
+        return table.concat(parts, "|")
+    end
     if not tactical then
         parts[#parts + 1] = tostring(sim.player.x)
         parts[#parts + 1] = tostring(sim.player.y)
@@ -1524,29 +1532,42 @@ function Render.tacticalGridColor(tileOrId)
     return 0.34, 0.36, 0.37, 0.78
 end
 
+function Render.shouldDrawTacticalGridTile(tile)
+    if not tile then
+        return false
+    end
+    if tile.blocker and (tile.terrainType == "sealed_archive_mass" or Render.tileHasTag(tile, "sealed_mass")) then
+        return false
+    end
+    return true
+end
+
 function Render.buildTacticalGridModel(sim, minX, maxX, minY, maxY)
     if not (state.g3d and state.assets.white and sim and sim.world) then
         return nil, 0
     end
     local z = sim.player.z or 0
-    local width = maxX - minX + 1
-    local height = maxY - minY + 1
-    local total = width * height
+    local cells = {}
+    for y = minY, maxY do
+        for x = minX, maxX do
+            local tile = sim.world:peekTile(x, y, z) or {}
+            if Render.shouldDrawTacticalGridTile(tile) then
+                cells[#cells + 1] = { x = x, y = y, tile = tile }
+            end
+        end
+    end
+    local total = #cells
     if total <= 0 then
         return nil, 0
     end
     local vertices = {}
     local data = love.image.newImageData(total, 1)
-    local index = 0
-    for y = minY, maxY do
-        for x = minX, maxX do
-            index = index + 1
-            local tile = sim.world:peekTile(x, y, z) or {}
-            local r, g, b, a = Render.tacticalGridColor(tile)
-            data:setPixel(index - 1, 0, r, g, b, a)
-            local tileHeight = Render.tacticalRenderHeight(tile)
-            Render.pushTacticalGridRing(vertices, x, y, z + tileHeight + 0.012, (index - 0.5) / total)
-        end
+    for index, cell in ipairs(cells) do
+        local tile = cell.tile
+        local r, g, b, a = Render.tacticalGridColor(tile)
+        data:setPixel(index - 1, 0, r, g, b, a)
+        local tileHeight = Render.tacticalRenderHeight(tile)
+        Render.pushTacticalGridRing(vertices, cell.x, cell.y, z + tileHeight + 0.012, (index - 0.5) / total)
     end
     local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()
@@ -1661,6 +1682,16 @@ end
 function Render.tacticalVisibilityCacheKey(tactics)
     if not (tactics and tactics.board) then
         return nil
+    end
+    if tactics.revision then
+        return table.concat({
+            "visibility",
+            tostring(tactics:revision("vision")),
+            tostring(tactics:revision("terrain")),
+            tostring(tactics:revision("units")),
+            tostring(tactics.board.width or 0),
+            tostring(tactics.board.height or 0),
+        }, "|")
     end
     local parts = {
         "visibility",
@@ -1881,7 +1912,10 @@ local function buildTacticalFogModel(source, visibility, z)
     for y = 1, tactics.board.height do
         for x = 1, tactics.board.width do
             if visibility.fog[tileKey(x, y)] then
-                tiles[#tiles + 1] = { x = x, y = y }
+                local tile = tactics:tileAt(x, y)
+                if Render.shouldDrawTacticalGridTile(tile) then
+                    tiles[#tiles + 1] = { x = x, y = y }
+                end
             end
         end
     end

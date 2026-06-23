@@ -1596,6 +1596,7 @@ function love.load(args)
     local renderSmoke = hasArg(args, "--render-smoke")
     local previewCapture = argValue(args, "--preview-capture", nil)
     local renderBenchmarkFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_FRAMES")) or 180
+    local renderBenchmarkWarmupFrames = tonumber(os.getenv("THOTH_RENDER_BENCH_WARMUP")) or 30
     if renderBenchmark then
         setupRenderBenchmark(sim)
     end
@@ -1677,6 +1678,8 @@ function love.load(args)
         achievements = {},
         toasts = {},
         renderBenchmarkFrames = renderBenchmarkFrames,
+        renderBenchmarkWarmupFrames = renderBenchmarkWarmupFrames,
+        renderBenchmarkWarmupCount = 0,
         renderBenchmarkCount = 0,
         renderBenchmarkTotalMs = 0,
         renderBenchmarkMaxMs = 0,
@@ -1875,6 +1878,10 @@ function love.draw()
         local finishedAt = love.timer.getTime()
         local elapsedMs = (finishedAt - started) * 1000
         local frameMs = (finishedAt - (app.renderBenchmarkFrameStartedAt or started)) * 1000
+        if (app.renderBenchmarkWarmupCount or 0) < (app.renderBenchmarkWarmupFrames or 0) then
+            app.renderBenchmarkWarmupCount = (app.renderBenchmarkWarmupCount or 0) + 1
+            return
+        end
         app.renderBenchmarkCount = app.renderBenchmarkCount + 1
         app.renderBenchmarkTotalMs = app.renderBenchmarkTotalMs + elapsedMs
         app.renderBenchmarkMaxMs = math.max(app.renderBenchmarkMaxMs, elapsedMs)

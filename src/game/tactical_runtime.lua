@@ -1,10 +1,10 @@
 local Grid = require("src.core.grid")
 local TacticsState = require("src.game.tactics.state")
-local TacticsIntent = require("src.game.tactics.intent")
 local TacticsResolution = require("src.game.tactics.resolution")
 local ClassCatalog = require("src.game.tactics.class_catalog")
 local Procgen = require("src.game.tactics.procgen")
 local TacticsAP = require("src.game.tactics.ap")
+local EnemyAI = require("src.game.tactics.enemy_ai")
 
 local Runtime = {}
 
@@ -318,6 +318,69 @@ local function objectiveState(state)
     return nil
 end
 
+local classVerbPreview
+
+local function stateRevision(state, kind)
+    return state and state.revision and state:revision(kind) or (state and state.tick) or 0
+end
+
+local function cache(runtime)
+    runtime.cache = runtime.cache or {}
+    return runtime.cache
+end
+
+local function cachedMovementPreview(runtime, unitId, options)
+    if options then
+        return runtime.state:movementPreview(unitId, options)
+    end
+    local state = runtime.state
+    local unit = state:unit(unitId)
+    if not unit then
+        return state:movementPreview(unitId)
+    end
+    local c = cache(runtime)
+    c.movement = c.movement or {}
+    local key = table.concat({
+        tostring(stateRevision(state, "units")),
+        tostring(stateRevision(state, "terrain")),
+        unitId,
+        tostring(unit.x),
+        tostring(unit.y),
+        tostring(unit.ap or 0),
+    }, ":")
+    if c.movement[unitId] and c.movement[unitId].key == key then
+        return c.movement[unitId].preview
+    end
+    local preview = state:movementPreview(unitId)
+    c.movement[unitId] = { key = key, preview = preview }
+    return preview
+end
+
+local function cachedClassVerbPreview(runtime, selected, verb)
+    if not (selected and verb) then
+        return nil
+    end
+    local state = runtime.state
+    local c = cache(runtime)
+    c.classPreview = c.classPreview or {}
+    local key = table.concat({
+        tostring(stateRevision(state, "world")),
+        selected.id,
+        tostring(selected.x),
+        tostring(selected.y),
+        tostring(selected.ap or 0),
+        tostring(runtime.cursor.x),
+        tostring(runtime.cursor.y),
+        verb,
+    }, ":")
+    if c.classPreview[key] then
+        return c.classPreview[key]
+    end
+    local preview = classVerbPreview(runtime, selected, verb)
+    c.classPreview[key] = preview
+    return preview
+end
+
 local function plannedEnemyTarget(runtime, enemy, options)
     local state = runtime.state
     local objective = objectiveState(state)
@@ -350,6 +413,21 @@ local function plannedEnemyTarget(runtime, enemy, options)
         end
         return plan
     end
+    local aiPlan = (not supportIntent and not (options and options.visibleTargetsOnly)) and EnemyAI.planEnemy(state, enemy, { objective = objective, maxMoveAp = 2, attackRange = 3 }) or nil
+    if aiPlan and aiPlan.target then
+        return applyIntentMetadata({
+            target = aiPlan.target,
+            category = aiPlan.category,
+            damage = aiPlan.damage or intent.damage or spec.damage or 1,
+            intentType = intentType or aiPlan.tactic,
+            label = intentType or aiPlan.label,
+            counterplay = intent.counterplay or { "move target", "raise cover", "break line" },
+            targetTiles = { { x = aiPlan.target.x, y = aiPlan.target.y } },
+            destination = aiPlan.destination,
+            path = aiPlan.path,
+            tactic = aiPlan.tactic,
+        }, intent)
+    end
     local target
     if targetRule == "self" then
         target = enemy
@@ -378,6 +456,18 @@ function Runtime.syncWorld(sim, runtime)
         return
     end
     local tactics = runtime.state
+    local focus = tactics:unit(runtime.selectedUnitId) or { x = runtime.cursor.x, y = runtime.cursor.y }
+    sim.player.x = runtime.originX + focus.x
+    sim.player.y = runtime.originY + focus.y
+    sim.player.z = 0
+    sim.mode = "tactical"
+    sim.status = runtime.status or "tactical"
+    sim.tick = tactics.tick
+    local revision = stateRevision(tactics, "world")
+    if runtime.syncedWorldRevision == revision then
+        return
+    end
+    runtime.worldRevision = (runtime.worldRevision or 0) + 1
     for x = 0, tactics.board.width + 1 do
         for y = 0, tactics.board.height + 1 do
             local worldX = runtime.originX + x
@@ -418,13 +508,7 @@ function Runtime.syncWorld(sim, runtime)
             end
         end
     end
-    local focus = tactics:unit(runtime.selectedUnitId) or { x = runtime.cursor.x, y = runtime.cursor.y }
-    sim.player.x = runtime.originX + focus.x
-    sim.player.y = runtime.originY + focus.y
-    sim.player.z = 0
-    sim.mode = "tactical"
-    sim.status = runtime.status or "tactical"
-    sim.tick = tactics.tick
+    runtime.syncedWorldRevision = revision
 end
 
 local function declareEnemyIntent(runtime, enemy, options)
@@ -441,7 +525,10 @@ local function declareEnemyIntent(runtime, enemy, options)
         category = plan.category,
         source = enemy.id,
         sourceTile = { x = enemy.x, y = enemy.y },
-        targetTiles = { { x = target.x, y = target.y } },
+        targetTiles = copyValue(plan.targetTiles) or { { x = target.x, y = target.y } },
+        destination = copyValue(plan.destination),
+        path = copyValue(plan.path),
+        tactic = plan.tactic,
         target = target.id,
         damage = plan.damage,
         effect = plan.effect,
@@ -584,8 +671,12 @@ local function setActiveRouteRegion(runtime, variantId)
     local variant = Procgen.archiveRouteVariant(variantId)
     runtime.message = variant and variant.preview or runtime.message
     runtime.status = "route " .. tostring(variantId)
+    if runtime.state.bumpRevision then
+        runtime.state:bumpRevision("units")
+    end
     Runtime.declareEnemyIntents(runtime)
     Runtime.refreshOverlays(runtime)
+    runtime.syncedWorldRevision = nil
     Runtime.syncWorld(runtime.sim, runtime)
     return true
 end
@@ -631,6 +722,8 @@ function Runtime.new(sim, options)
         overwatchPreview = Runtime.overwatchPreview,
         setOverwatchPreview = Runtime.setOverwatchPreview,
         clearOverwatchPreview = Runtime.clearOverwatchPreview,
+        cache = {},
+        worldRevision = 0,
     }
     Runtime.declareEnemyIntents(runtime)
     Runtime.refreshOverlays(runtime)
@@ -660,6 +753,7 @@ function Runtime.loadRouteVariant(runtime, variantId)
     runtime.message = boardSpec.archiveRoute.preview
     Runtime.declareEnemyIntents(runtime)
     Runtime.refreshOverlays(runtime)
+    runtime.syncedWorldRevision = nil
     Runtime.syncWorld(runtime.sim, runtime)
     return runtime
 end
@@ -697,7 +791,13 @@ function Runtime.updateEnemySightings(runtime, visibility)
 end
 
 function Runtime.visibilityGrid(runtime)
+    local c = cache(runtime)
+    local key = tostring(stateRevision(runtime.state, "vision")) .. ":player"
+    if c.visibility and c.visibility.key == key then
+        return c.visibility.value
+    end
     local visibility = runtime.state:fogGrid("player")
+    c.visibility = { key = key, value = visibility }
     runtime.fog = visibility
     Runtime.updateEnemySightings(runtime, visibility)
     return visibility
@@ -715,6 +815,16 @@ function Runtime.enemyVisible(runtime, enemy, visibility)
     end
     visibility = visibility or Runtime.visibilityGrid(runtime)
     return visibility.visible[tileKey(enemy.x, enemy.y)] == true
+end
+
+local function revealVisibleEnemyIntents(runtime, visibility)
+    local state = runtime.state
+    for _, enemy in ipairs(state:unitsForSide("enemy")) do
+        local intent = state.intents[enemy.id]
+        if intent and intent.mode ~= "hiddenFootprint" and visibility.visible[tileKey(enemy.x, enemy.y)] == true then
+            intent.revealed = true
+        end
+    end
 end
 
 local function reachableByKey(preview)
@@ -1087,7 +1197,7 @@ local function lamplighterPreview(runtime, selected, verb)
     return previewCommandSequence(runtime.state, commands)
 end
 
-local function classVerbPreview(runtime, selected, verb)
+function classVerbPreview(runtime, selected, verb)
     if selected and selected.class == "warden" then
         return wardenPreview(runtime, selected, verb)
     end
@@ -1113,17 +1223,17 @@ function Runtime.refreshOverlays(runtime)
     local state = runtime.state
     local selected = Runtime.selectedUnit(runtime)
     local visibility = Runtime.visibilityGrid(runtime)
-    TacticsIntent.revealVisible(state, "player")
+    revealVisibleEnemyIntents(runtime, visibility)
     local movement = {}
     if selected and selected.side == "player" and selected.alive and selected.ap > 0 then
-        for _, tile in ipairs(state:movementPreview(selected.id).reachable) do
+        for _, tile in ipairs(cachedMovementPreview(runtime, selected.id).reachable) do
             movement[#movement + 1] = { x = tile.x, y = tile.y, label = tostring(tile.apCost) .. "AP" }
         end
     end
     local intents = {}
     for _, enemy in ipairs(state:unitsForSide("enemy")) do
         if Runtime.enemyVisible(runtime, enemy, visibility) then
-            local preview = TacticsIntent.preview(state, enemy.id, { side = "player" })
+            local preview = state:intentPreview(enemy.id, { side = "player" })
             for _, tile in ipairs((preview and preview.targetTiles) or {}) do
                 if visibility.visible[tileKey(tile.x, tile.y)] then
                     intents[#intents + 1] = { x = tile.x, y = tile.y, label = preview.label or preview.category }
@@ -1240,7 +1350,7 @@ function Runtime.moveSelectedToCursor(runtime)
     end
     local fromX = selected.x
     local fromY = selected.y
-    local preview = state:movementPreview(selected.id)
+    local preview = cachedMovementPreview(runtime, selected.id)
     local destination = reachableByKey(preview)[tostring(runtime.cursor.x) .. ":" .. tostring(runtime.cursor.y)]
     if not destination then
         setStatus(runtime, "cursor tile is not reachable")
@@ -1292,7 +1402,7 @@ function Runtime.actionAtTile(runtime, x, y)
         return { kind = "attack", label = "Attack", key = "LMB/A", enabled = enabled == true, detail = detail }
     end
     if selected and selected.side == "player" then
-        local tile = reachableByKey(state:movementPreview(selected.id))[tostring(x) .. ":" .. tostring(y)]
+        local tile = reachableByKey(cachedMovementPreview(runtime, selected.id))[tostring(x) .. ":" .. tostring(y)]
         if tile and (tile.apCost or 0) > 0 then
             return { kind = "move", label = "Move", key = "LMB/Enter", enabled = true, detail = tostring(tile.apCost or 0) .. " AP" }
         elseif tile then
@@ -1320,7 +1430,7 @@ function Runtime.actionBar(runtime, hover)
         { id = "attack", key = "A", label = "Attack", detail = canAttack and cursorAction.detail or "enemy", enabled = canAttack },
     }
     for index, verb in ipairs(boardActionsForUnit(selected)) do
-        local preview = classVerbPreview(runtime, selected, verb)
+        local preview = cachedClassVerbPreview(runtime, selected, verb)
         local detail = (preview and preview.error) or selected.className or selected.class
         local apCost = (preview and preview.apCost) or 1
         actions[#actions + 1] = { id = "class:" .. verb, key = tostring(index), label = labelForVerb(verb), detail = detail, enabled = selected and selected.ap >= apCost and not (preview and preview.error), classVerb = verb, preview = preview }
@@ -1445,7 +1555,7 @@ function Runtime.handleMouseTile(runtime, x, y, button)
         return Runtime.attackCursor(runtime)
     end
     local selected = Runtime.selectedUnit(runtime)
-    local preview = selected and state:movementPreview(selected.id)
+    local preview = selected and cachedMovementPreview(runtime, selected.id)
     if selected and reachableByKey(preview)[tostring(x) .. ":" .. tostring(y)] then
         return Runtime.moveSelectedToCursor(runtime)
     end
@@ -1534,11 +1644,65 @@ local function resolveEnemyIntent(runtime, enemy)
     })
 end
 
+local function enemyCanActOnTarget(state, enemy, target, range)
+    if not (enemy and target and state:inBounds(enemy.x, enemy.y) and state:inBounds(target.x, target.y)) then
+        return false
+    end
+    if Grid.manhattan(enemy.x, enemy.y, target.x, target.y) > (range or 3) then
+        return false
+    end
+    local los = state:lineOfSight(enemy.x, enemy.y, target.x, target.y)
+    return los.visible == true and los.obscured ~= true
+end
+
+local function executeEnemyPlan(runtime, plan)
+    local state = runtime.state
+    local enemy = state:unit(plan.unit)
+    if not (enemy and enemy.alive and not enemy.evacuated) then
+        return nil
+    end
+    for _, direction in ipairs(plan.directions or {}) do
+        if (enemy.ap or 0) <= 0 then
+            break
+        end
+        if not tryApply(runtime, TacticsState.commands.move(enemy.id, direction)) then
+            break
+        end
+    end
+    local target = plan.target and plan.target.id and (state:unit(plan.target.id) or state:objective(plan.target.id)) or nil
+    if not (target and (enemy.ap or 0) > 0 and enemyCanActOnTarget(state, enemy, target, 3)) then
+        return { unit = enemy.id, tactic = plan.tactic, moved = #(plan.directions or {}) }
+    end
+    if target.side == "player" then
+        local before = target.hp
+        if tryApply(runtime, TacticsState.commands.attack(enemy.id, target.id, plan.damage or 1, 1)) then
+            return { unit = enemy.id, tactic = plan.tactic, target = target.id, damage = math.max(0, (before or 0) - (target.hp or 0)), moved = #(plan.directions or {}) }
+        end
+    elseif target.integrity ~= nil then
+        local before = target.integrity
+        if tryApply(runtime, TacticsState.commands.damageObjective(enemy.id, target.id, plan.damage or 1, 1)) then
+            return { unit = enemy.id, tactic = plan.tactic, target = target.id, objectiveDamage = math.max(0, (before or 0) - (target.integrity or 0)), moved = #(plan.directions or {}) }
+        end
+    end
+    return { unit = enemy.id, tactic = plan.tactic, moved = #(plan.directions or {}) }
+end
+
 function Runtime.endPlayerTurn(runtime)
     local state = runtime.state
-    state.phase = "enemy"
+    state:startTurn("enemy")
+    local skipIds = {}
     for _, enemy in ipairs(state:unitsForSide("enemy")) do
-        resolveEnemyIntent(runtime, enemy)
+        local intent = state.intents[enemy.id]
+        if intent and (intent.statusEffect.status or intent.category == "buff" or intent.category == "debuff" or intent.category == "repair") then
+            resolveEnemyIntent(runtime, enemy)
+            skipIds[enemy.id] = true
+        end
+    end
+    local report = EnemyAI.planTurn(state, { objective = objectiveState(state), maxMoveAp = 2, attackRange = 3, skipIds = skipIds })
+    runtime.lastEnemyPlans = report.plans
+    runtime.lastEnemyResults = {}
+    for _, plan in ipairs(report.plans or {}) do
+        runtime.lastEnemyResults[#runtime.lastEnemyResults + 1] = executeEnemyPlan(runtime, plan)
     end
     runtime.turn = runtime.turn + 1
     state:startTurn("player")
@@ -1636,7 +1800,7 @@ function Runtime.summary(runtime)
     local enemies = {}
     for _, enemy in ipairs(state:unitsForSide("enemy")) do
         if Runtime.enemyVisible(runtime, enemy, visibility) then
-            local intent = TacticsIntent.preview(state, enemy.id, { side = "player" })
+            local intent = state:intentPreview(enemy.id, { side = "player" })
             enemies[#enemies + 1] = {
                 id = enemy.id,
                 kind = enemy.kind,

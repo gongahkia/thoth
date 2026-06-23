@@ -30,6 +30,7 @@ local TacticsLoS = require("src.game.tactics.los")
 local TacticsCover = require("src.game.tactics.cover")
 local TacticsIntent = require("src.game.tactics.intent")
 local TacticsResolution = require("src.game.tactics.resolution")
+local EnemyAI = require("src.game.tactics.enemy_ai")
 local TacticsProcgen = require("src.game.tactics.procgen")
 local ProcgenValidator = require("tools.validator")
 local ArchivedTactics = require("src.game.tactics.archive.future_zones")
@@ -376,6 +377,106 @@ tests[#tests + 1] = function()
     runtime.cursor.y = 1
     expect(not TacticalRuntime.attackCursor(runtime), "hidden enemy should not be attackable by cursor")
     expect(Render.tacticalFogSummary(runtime).ghostEnemies == 1, "render fog summary should count last-seen ghost markers")
+end
+
+tests[#tests + 1] = function()
+    local syncs = 0
+    local sim = makeTacticalSim(9401)
+    sim.world.setTile = function()
+        syncs = syncs + 1
+    end
+    local runtime = TacticalRuntime.new(sim)
+    local initialSyncs = syncs
+    runtime:handleKey("right")
+    TacticalRuntime.syncWorld(sim, runtime)
+    expect(syncs == initialSyncs, "cursor movement should not resync the full tactical world")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
+            width = 5,
+            height = 5,
+            tiles = {
+                ["4:3"] = { coverEdges = { west = "full" } },
+            },
+        },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 3, hp = 6 },
+            { id = "page_scout", side = "enemy", kind = "page_scout", x = 5, y = 3, hp = 4, ap = 2, maxAp = 2 },
+        },
+    })
+    local plan = EnemyAI.planEnemy(state, state:unit("page_scout"), { maxMoveAp = 2 })
+    expect(plan.destination.x == 4 and plan.destination.y == 3, "enemy AI should prefer reachable firing cover")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
+            width = 5,
+            height = 5,
+            tiles = {
+                ["3:3"] = { coverEdges = { west = "full" } },
+            },
+        },
+        units = {
+            { id = "warden", side = "player", x = 3, y = 3, hp = 6 },
+            { id = "page_scout", side = "enemy", kind = "page_scout", x = 5, y = 3, hp = 4, ap = 3, maxAp = 3 },
+        },
+    })
+    local plan = EnemyAI.planEnemy(state, state:unit("page_scout"), { maxMoveAp = 3 })
+    expect(plan.tactic == "flank" and plan.attack.flanked, "enemy AI should recognize reachable flank attacks")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = { width = 5, height = 5 },
+        units = {
+            { id = "warden", side = "player", x = 3, y = 3, hp = 6 },
+            { id = "left_scout", side = "enemy", kind = "page_scout", x = 1, y = 3, hp = 4, ap = 2, maxAp = 2 },
+            { id = "right_scout", side = "enemy", kind = "page_scout", x = 5, y = 3, hp = 4, ap = 2, maxAp = 2 },
+        },
+    })
+    local report = EnemyAI.planTurn(state, { maxMoveAp = 2 })
+    local pincers = 0
+    for _, plan in ipairs(report.plans) do
+        if plan.tactic == "pincer" then
+            pincers = pincers + 1
+        end
+    end
+    expect(pincers >= 1 and report.plans[1].destination.x ~= report.plans[2].destination.x, "enemy AI should reserve distinct pincer positions")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
+            width = 5,
+            height = 5,
+            tiles = {
+                ["3:3"] = { blocker = true, losBlocker = true, height = 2 },
+            },
+        },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, hp = 6 },
+            { id = "page_scout", side = "enemy", kind = "page_scout", x = 5, y = 5, hp = 4, ap = 2, maxAp = 2 },
+        },
+    })
+    local plan = EnemyAI.planEnemy(state, state:unit("page_scout"), { maxMoveAp = 2 })
+    expect(plan.tactic == "recon" and plan.destination.x <= 5 and plan.destination.y <= 5, "enemy AI should use recon movement when no target is visible")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = { width = 5, height = 1 },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, hp = 6 },
+            { id = "page_scout", side = "enemy", kind = "page_scout", x = 5, y = 1, hp = 4, ap = 3, maxAp = 3 },
+        },
+    })
+    local runtime = { state = state, selectedUnitId = "warden", cursor = { x = 1, y = 1 }, turn = 1, lastSeenEnemies = {}, sim = makeTacticalSim(9402) }
+    TacticalRuntime.declareEnemyIntents(runtime)
+    TacticalRuntime.endPlayerTurn(runtime)
+    expect(state:unit("page_scout").x < 5 and state:unit("warden").hp < 6, "enemy turn should move and attack with pathfinding")
 end
 
 tests[#tests + 1] = function()

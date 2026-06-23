@@ -517,6 +517,8 @@ local function normalizeIntent(intent)
         weakPoint = intent.weakPoint,
         masks = normalizeBossMasks(intent.masks),
         label = intent.label,
+        tactic = intent.tactic,
+        destination = copyMap(intent.destination),
     }
 end
 
@@ -929,7 +931,13 @@ function State.new(options)
         cargoOrder = {},
         pending = {},
         log = copyList(options.log),
+        revisions = copyMap(options.revisions),
     }, State)
+    state.revisions.world = state.revisions.world or options.tick or 0
+    state.revisions.units = state.revisions.units or options.tick or 0
+    state.revisions.terrain = state.revisions.terrain or 0
+    state.revisions.vision = state.revisions.vision or options.tick or 0
+    state.revisions.overlays = state.revisions.overlays or options.tick or 0
     for key, tile in pairs(board.tiles or {}) do
         state.board.tiles[key] = normalizeTile(tile)
     end
@@ -975,6 +983,7 @@ function State.fromSnapshot(snapshot)
         selectedUnitId = snapshot.selectedUnitId,
         unlocks = snapshot.unlocks or {},
         rules = snapshot.rules,
+        revisions = snapshot.revisions,
         board = snapshot.board or { width = snapshot.width, height = snapshot.height, tiles = snapshot.tiles },
         units = snapshot.units or {},
         threatZones = snapshot.threatZones or {},
@@ -1183,6 +1192,31 @@ function State:moveUnitTo(unit, x, y)
         end
     end
     self:resolveThreatAt(unit)
+end
+
+function State:revision(kind)
+    if not self.revisions then
+        return self.tick or 0
+    end
+    if kind then
+        return self.revisions[kind] or self.tick or 0
+    end
+    return self.revisions.world or self.tick or 0
+end
+
+function State:bumpRevision(kind)
+    self.revisions = self.revisions or {}
+    self.revisions.world = (self.revisions.world or self.tick or 0) + 1
+    self.revisions.overlays = (self.revisions.overlays or self.tick or 0) + 1
+    if kind == "terrain" then
+        self.revisions.terrain = (self.revisions.terrain or 0) + 1
+        self.revisions.vision = (self.revisions.vision or self.tick or 0) + 1
+    elseif kind == "units" or kind == "vision" then
+        self.revisions.units = (self.revisions.units or self.tick or 0) + 1
+        self.revisions.vision = (self.revisions.vision or self.tick or 0) + 1
+    elseif kind == "intent" then
+        self.revisions.overlays = (self.revisions.overlays or self.tick or 0) + 1
+    end
 end
 
 local function coverDirections(tile)
@@ -2014,6 +2048,8 @@ function State:intentPreview(unitId, options)
         weakPoint = intent.weakPoint,
         masks = copyValue(intent.masks),
         label = intent.label,
+        tactic = intent.tactic,
+        destination = copyMap(intent.destination),
     }
     if intent.mode == "decoy" then
         local branch = reveal and intent.actual or intent.decoy
@@ -3022,6 +3058,9 @@ function State:startTurn(side)
     for _, unit in ipairs(self:unitsForSide(self.phase)) do
         unit.ap = unit.maxAp or self.rules.defaultAp
     end
+    if self.bumpRevision then
+        self:bumpRevision("units")
+    end
 end
 
 function State:displaceUnit(unitOrId, dx, dy, distance, collisionDamage)
@@ -3420,6 +3459,13 @@ function State:apply(command)
         error("unknown command " .. tostring(kind), 2)
     end
     self.tick = self.tick + 1
+    if kind == "intent" or kind == "advanceIntentPressure" or kind == "reduceIntent" or kind == "advanceBossIntentMask" then
+        self:bumpRevision("intent")
+    elseif kind == "damageTile" or kind == "convertTile" or kind == "obscurant" or kind == "tickObscurants" or kind == "interactTile" then
+        self:bumpRevision("terrain")
+    else
+        self:bumpRevision("units")
+    end
     self.log[#self.log + 1] = copyMap(command)
 end
 
@@ -3448,6 +3494,7 @@ function State:snapshot()
         selectedUnitId = self.selectedUnitId,
         unlocks = copyMap(self.unlocks),
         rules = copyMap(self.rules),
+        revisions = copyMap(self.revisions),
         threatZones = copyMap(self.threatZones),
         intents = copyMap(self.intents),
         objectives = objectives,
