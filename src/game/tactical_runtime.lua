@@ -62,6 +62,7 @@ local function applyIntentMetadata(plan, intent)
     plan.weakPoint = intent.weakPoint
     plan.statusEffect = copyValue(intent.statusEffect)
     plan.effect = intent.effect
+    plan.aiCanReposition = intent.aiCanReposition == true
     return plan
 end
 
@@ -388,7 +389,8 @@ local function plannedEnemyTarget(runtime, enemy, options)
     local intent = enemy.intent or {}
     local intentType = intent.intentType or enemy.intentType
     local targetRule = intent.target or spec.target
-    local supportIntent = targetRule == "self" or intent.category == "buff" or intent.category == "repair"
+    local exactStatusIntent = (intent.category == "buff" or intent.category == "debuff" or intent.category == "repair") and intent.aiCanReposition ~= true
+    local supportIntent = targetRule == "self" or exactStatusIntent
     if objective and (objective.integrity or 0) <= 1 and not supportIntent then
         return applyIntentMetadata({
             target = objective,
@@ -413,7 +415,7 @@ local function plannedEnemyTarget(runtime, enemy, options)
         end
         return plan
     end
-    local aiPlan = (not supportIntent and not (options and options.visibleTargetsOnly)) and EnemyAI.planEnemy(state, enemy, { objective = objective, maxMoveAp = 2, attackRange = 3 }) or nil
+    local aiPlan = (not supportIntent and not (options and options.visibleTargetsOnly)) and EnemyAI.planEnemy(state, enemy, { doctrine = options and options.doctrine, memory = runtime.aiMemory, objective = objective, maxMoveAp = 2, attackRange = 3 }) or nil
     if aiPlan and aiPlan.target then
         return applyIntentMetadata({
             target = aiPlan.target,
@@ -426,6 +428,7 @@ local function plannedEnemyTarget(runtime, enemy, options)
             destination = aiPlan.destination,
             path = aiPlan.path,
             tactic = aiPlan.tactic,
+            aiDebug = runtime.aiDebug and aiPlan.debug or nil,
         }, intent)
     end
     local target
@@ -542,23 +545,33 @@ local function declareEnemyIntent(runtime, enemy, options)
         mask = plan.mask,
         footprintHidden = plan.footprintHidden,
         weakPoint = plan.weakPoint,
+        aiDebug = copyValue(plan.aiDebug),
+        aiCanReposition = plan.aiCanReposition == true,
     })
+    if runtime.aiDebug and plan.aiDebug then
+        runtime.aiDebugPlans = runtime.aiDebugPlans or {}
+        runtime.aiDebugPlans[enemy.id] = copyValue(plan.aiDebug)
+    end
     return true
 end
 
 function Runtime.declareEnemyIntents(runtime)
     local state = runtime.state
     state.intents = {}
+    runtime.aiDebugPlans = runtime.aiDebug and {} or nil
+    runtime.aiDoctrine = EnemyAI.analyzeDoctrine(state, { objective = objectiveState(state) })
     for _, enemy in ipairs(state:unitsForSide("enemy")) do
-        declareEnemyIntent(runtime, enemy)
+        declareEnemyIntent(runtime, enemy, { doctrine = runtime.aiDoctrine })
     end
 end
 
 function Runtime.replanVisibleEnemyIntents(runtime, movedUnit)
     local state = runtime.state
     local count = 0
+    local doctrine = EnemyAI.analyzeDoctrine(state, { objective = objectiveState(state) })
+    runtime.aiDoctrine = doctrine
     for _, enemy in ipairs(state:unitsForSide("enemy")) do
-        if enemyCanSeeUnit(state, enemy, movedUnit) and declareEnemyIntent(runtime, enemy, { visibleTargetsOnly = true }) then
+        if enemyCanSeeUnit(state, enemy, movedUnit) and declareEnemyIntent(runtime, enemy, { visibleTargetsOnly = true, doctrine = doctrine }) then
             count = count + 1
         end
     end
@@ -703,6 +716,9 @@ function Runtime.new(sim, options)
         turn = 1,
         sim = sim,
         squadLoadout = options.squadLoadout,
+        aiDebug = options.aiDebug == true,
+        aiDebugPlans = options.aiDebug == true and {} or nil,
+        aiMemory = { units = {}, targets = {} },
         state = state,
         boardSpec = boardSpec,
         route = boardSpec and boardSpec.archiveRoute or nil,
@@ -722,6 +738,8 @@ function Runtime.new(sim, options)
         overwatchPreview = Runtime.overwatchPreview,
         setOverwatchPreview = Runtime.setOverwatchPreview,
         clearOverwatchPreview = Runtime.clearOverwatchPreview,
+        setAiDebug = Runtime.setAiDebug,
+        toggleAiDebug = Runtime.toggleAiDebug,
         cache = {},
         worldRevision = 0,
     }
@@ -1254,11 +1272,33 @@ function Runtime.refreshOverlays(runtime)
             overwatch[#overwatch + 1] = { x = tile.x, y = tile.y, label = "preview" }
         end
     end
+    local aiDebug = {}
+    if runtime.aiDebug then
+        for _, enemy in ipairs(state:unitsForSide("enemy")) do
+            if Runtime.enemyVisible(runtime, enemy, visibility) then
+                local intent = state.intents[enemy.id]
+                local debug = runtime.aiDebugPlans and runtime.aiDebugPlans[enemy.id]
+                if intent and debug then
+                    for _, tile in ipairs(intent.path or {}) do
+                        aiDebug[#aiDebug + 1] = { x = tile.x, y = tile.y, label = enemy.id .. " path" }
+                    end
+                    if intent.destination then
+                        aiDebug[#aiDebug + 1] = { x = intent.destination.x, y = intent.destination.y, label = tostring(debug.chosen and debug.chosen.tactic or intent.tactic or "ai") }
+                    end
+                    local target = intent.targetTiles and intent.targetTiles[1]
+                    if target then
+                        aiDebug[#aiDebug + 1] = { x = target.x, y = target.y, label = enemy.id .. " target" }
+                    end
+                end
+            end
+        end
+    end
     runtime.overwatchTrigger = state.lastOverwatchTrigger
     runtime.overlays = {
         movement = movement,
         intents = intents,
         overwatch = overwatch,
+        aiDebug = aiDebug,
         los = selected and { { x = selected.x, y = selected.y, label = "selected" } } or {},
         flanks = { { x = runtime.cursor.x, y = runtime.cursor.y, label = "cursor" } },
         cursor = { { x = runtime.cursor.x, y = runtime.cursor.y, label = "cursor" } },
@@ -1294,6 +1334,18 @@ end
 local function setStatus(runtime, message)
     runtime.message = message
     runtime.status = message
+end
+
+function Runtime.setAiDebug(runtime, enabled)
+    runtime.aiDebug = enabled == true
+    Runtime.declareEnemyIntents(runtime)
+    Runtime.refreshOverlays(runtime)
+    setStatus(runtime, runtime.aiDebug and "AI debug on" or "AI debug off")
+    return runtime.aiDebug
+end
+
+function Runtime.toggleAiDebug(runtime)
+    return Runtime.setAiDebug(runtime, not runtime.aiDebug)
 end
 
 local function tryApply(runtime, command)
@@ -1655,6 +1707,53 @@ local function enemyCanActOnTarget(state, enemy, target, range)
     return los.visible == true and los.obscured ~= true
 end
 
+local function rememberEnemyPlan(runtime, enemy, plan, result)
+    runtime.aiMemory = runtime.aiMemory or { units = {}, targets = {} }
+    runtime.aiMemory.units = runtime.aiMemory.units or {}
+    runtime.aiMemory.targets = runtime.aiMemory.targets or {}
+    local targetId = plan.target and plan.target.id
+    local damage = (result and (result.damage or result.objectiveDamage)) or 0
+    local outcome = "failed"
+    if result and targetId and damage > 0 then
+        outcome = "damaged"
+    elseif result and targetId then
+        outcome = "acted"
+    elseif result and (result.moved or 0) > 0 then
+        outcome = "moved"
+    elseif result and result.noLos then
+        outcome = "no_los"
+    end
+    runtime.aiMemory.units[enemy.id] = {
+        turn = runtime.turn or 1,
+        lastTarget = targetId,
+        lastDestination = plan.destination and { x = plan.destination.x, y = plan.destination.y } or { x = enemy.x, y = enemy.y },
+        lastTactic = plan.tactic,
+        lastDamage = damage,
+        lastOutcome = outcome,
+    }
+    if targetId then
+        local pressure = runtime.aiMemory.targets[targetId] or { damage = 0, touches = 0 }
+        pressure.damage = math.min(9, (pressure.damage or 0) + damage)
+        pressure.touches = math.min(9, (pressure.touches or 0) + 1)
+        pressure.lastTurn = runtime.turn or 1
+        runtime.aiMemory.targets[targetId] = pressure
+    end
+end
+
+local function decayAiMemory(runtime)
+    runtime.aiMemory = runtime.aiMemory or { units = {}, targets = {} }
+    runtime.aiMemory.targets = runtime.aiMemory.targets or {}
+    for targetId, pressure in pairs(runtime.aiMemory.targets) do
+        if (runtime.turn or 1) - (pressure.lastTurn or 0) > 1 then
+            pressure.damage = math.max(0, (pressure.damage or 0) - 1)
+            pressure.touches = math.max(0, (pressure.touches or 0) - 1)
+            if pressure.damage <= 0 and pressure.touches <= 0 then
+                runtime.aiMemory.targets[targetId] = nil
+            end
+        end
+    end
+end
+
 local function executeEnemyPlan(runtime, plan)
     local state = runtime.state
     local enemy = state:unit(plan.unit)
@@ -1671,7 +1770,7 @@ local function executeEnemyPlan(runtime, plan)
     end
     local target = plan.target and plan.target.id and (state:unit(plan.target.id) or state:objective(plan.target.id)) or nil
     if not (target and (enemy.ap or 0) > 0 and enemyCanActOnTarget(state, enemy, target, 3)) then
-        return { unit = enemy.id, tactic = plan.tactic, moved = #(plan.directions or {}) }
+        return { unit = enemy.id, tactic = plan.tactic, moved = #(plan.directions or {}), target = target and target.id or nil, noLos = target ~= nil }
     end
     if target.side == "player" then
         local before = target.hp
@@ -1689,20 +1788,34 @@ end
 
 function Runtime.endPlayerTurn(runtime)
     local state = runtime.state
+    decayAiMemory(runtime)
     state:startTurn("enemy")
     local skipIds = {}
     for _, enemy in ipairs(state:unitsForSide("enemy")) do
         local intent = state.intents[enemy.id]
-        if intent and (intent.statusEffect.status or intent.category == "buff" or intent.category == "debuff" or intent.category == "repair") then
+        local statusEffect = intent and intent.statusEffect
+        if intent and ((statusEffect and statusEffect.status) or intent.category == "buff" or intent.category == "debuff" or intent.category == "repair") and intent.aiCanReposition ~= true then
             resolveEnemyIntent(runtime, enemy)
             skipIds[enemy.id] = true
         end
     end
-    local report = EnemyAI.planTurn(state, { objective = objectiveState(state), maxMoveAp = 2, attackRange = 3, skipIds = skipIds })
+    local report = EnemyAI.planTurn(state, { objective = objectiveState(state), memory = runtime.aiMemory, maxMoveAp = 2, attackRange = 3, skipIds = skipIds })
     runtime.lastEnemyPlans = report.plans
+    runtime.lastEnemyDoctrine = copyValue(report.doctrine)
+    runtime.aiDebugPlans = runtime.aiDebug and {} or nil
+    if runtime.aiDebug then
+        for _, plan in ipairs(report.plans or {}) do
+            runtime.aiDebugPlans[plan.unit] = copyValue(plan.debug)
+        end
+    end
     runtime.lastEnemyResults = {}
     for _, plan in ipairs(report.plans or {}) do
-        runtime.lastEnemyResults[#runtime.lastEnemyResults + 1] = executeEnemyPlan(runtime, plan)
+        local result = executeEnemyPlan(runtime, plan)
+        runtime.lastEnemyResults[#runtime.lastEnemyResults + 1] = result
+        local enemy = state:unit(plan.unit)
+        if enemy then
+            rememberEnemyPlan(runtime, enemy, plan, result)
+        end
     end
     runtime.turn = runtime.turn + 1
     state:startTurn("player")
@@ -1815,6 +1928,7 @@ function Runtime.summary(runtime)
                 intentDamage = intent and intent.damage or 0,
                 intentHidden = intent and (intent.hiddenByVision == true or intent.categoryOnly == true) or false,
                 targetTiles = intent and intent.targetTiles or {},
+                aiDebug = runtime.aiDebug and runtime.aiDebugPlans and copyValue(runtime.aiDebugPlans[enemy.id]) or nil,
             }
         end
     end
@@ -1861,6 +1975,10 @@ function Runtime.summary(runtime)
         complete = runtime.complete == true,
         routeComplete = runtime.routeComplete == true,
         failed = runtime.failed == true,
+        aiDebug = runtime.aiDebug == true,
+        aiDoctrine = copyValue(runtime.aiDoctrine),
+        lastEnemyDoctrine = copyValue(runtime.lastEnemyDoctrine),
+        aiMemory = runtime.aiDebug and copyValue(runtime.aiMemory) or nil,
     }
 end
 

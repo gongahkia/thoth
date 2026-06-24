@@ -755,7 +755,7 @@ local function rotationAllowed(value, allowed)
     return false
 end
 
-local tacticalOverlayOrder = { "movement", "los", "cover", "flank", "intent", "overwatch", "hazard", "blocker", "objective", "cursor" }
+local tacticalOverlayOrder = { "movement", "los", "cover", "flank", "intent", "overwatch", "aiDebug", "hazard", "blocker", "objective", "cursor" }
 local tacticalOverlayPalette = TacticsUICatalog.accessiblePalette().roles
 local tacticalOverlayColors = {
     movement = { 0.34, 0.72, 1.0, 0.86 },
@@ -764,6 +764,7 @@ local tacticalOverlayColors = {
     flank = { 0.94, 0.52, 0.18, 0.55 },
     intent = tacticalOverlayPalette.intent.color,
     overwatch = { 0.18, 0.9, 0.88, 0.78 },
+    aiDebug = { 0.58, 0.92, 0.42, 0.84 },
     hazard = tacticalOverlayPalette.hazard.color,
     blocker = { 0.06, 0.065, 0.075, 0.92 },
     objective = { 1.0, 0.78, 0.18, 0.94 },
@@ -779,6 +780,7 @@ local tacticalOverlayStyles = {
     flank = { icon = "angle", pattern = "chevron" },
     intent = { icon = tacticalOverlayPalette.intent.icon, pattern = tacticalOverlayPalette.intent.pattern },
     overwatch = { icon = "cone", pattern = "ray" },
+    aiDebug = { icon = "ai", pattern = "path" },
     hazard = { icon = tacticalOverlayPalette.hazard.icon, pattern = tacticalOverlayPalette.hazard.pattern },
     blocker = { icon = "x", pattern = "solid" },
     objective = { icon = "!", pattern = "solid" },
@@ -939,6 +941,7 @@ function Render.tacticalOverlayEntries(tactics, overlays, settings)
     appendOverlayList(entries, counts, seen, "flank", overlays.flanks or overlays.flank)
     appendOverlayList(entries, counts, seen, "intent", overlays.intent or overlays.intents)
     appendOverlayList(entries, counts, seen, "overwatch", overlays.overwatch or overlays.overwatchPreview)
+    appendOverlayList(entries, counts, seen, "aiDebug", overlays.aiDebug)
     appendOverlayList(entries, counts, seen, "hazard", overlays.hazards)
     appendOverlayList(entries, counts, seen, "cursor", overlays.cursor)
     applyTacticalAccessibility(entries, settings)
@@ -1999,6 +2002,7 @@ local tacticalRingSpecs = {
     movement = { inset = 0.08, width = 0.04, z = 0.075 },
     intent = { inset = 0.1, width = 0.045, z = 0.08 },
     overwatch = { inset = 0.14, width = 0.04, z = 0.085 },
+    aiDebug = { inset = 0.28, width = 0.03, z = 0.14 },
     objective = { inset = 0.07, width = 0.045, z = 0.09 },
     blocker = { inset = 0.16, width = 0.035, z = 0.07 },
     selected = { inset = 0.19, width = 0.05, z = 0.11 },
@@ -2054,7 +2058,7 @@ local function drawTacticalOverlays(sim, app)
     counts.total = #entries
     local drawnEntries = {}
     for _, entry in ipairs(entries) do
-        if entry.kind == "movement" or entry.kind == "intent" or entry.kind == "overwatch" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor" then
+        if entry.kind == "movement" or entry.kind == "intent" or entry.kind == "overwatch" or entry.kind == "aiDebug" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor" then
             if entry.kind == "movement" then
                 drawnEntries[#drawnEntries + 1] = { kind = "movementFill", x = entry.x, y = entry.y, label = entry.label, color = { 0.1, 0.42, 0.9, 0.34 } }
             end
@@ -4121,6 +4125,10 @@ local function tacticalSummary(app)
             tostring(runtime.complete == true),
             tostring(runtime.routeComplete == true),
             tostring(runtime.failed == true),
+            tostring(runtime.aiDebug == true),
+            tostring(runtime.aiDoctrine and runtime.aiDoctrine.id or ""),
+            tostring(runtime.lastEnemyDoctrine and runtime.lastEnemyDoctrine.id or ""),
+            tostring(runtime.state and runtime.state.revision and runtime.state:revision("intent") or ""),
         }, "|")
         local cache = app.tacticalSummaryCache
         if cache and cache.runtime == runtime and cache.key == key then
@@ -4275,6 +4283,7 @@ function Render.tacticalEnemyHudRows(appOrSummary, requiredSlots)
             targetTiles = enemy and copyValue(enemy.targetTiles or {}) or {},
             targetX = target and target.x or nil,
             targetY = target and target.y or nil,
+            aiDebug = enemy and enemy.aiDebug or nil,
             empty = enemy == nil,
         }
     end
@@ -4297,6 +4306,28 @@ function Render.tacticalTileInspectorSummary(app)
         side = "player",
         intentOptions = { side = "player" },
     })
+    if runtime.aiDebug and runtime.aiDebugPlans then
+        summary.aiDebug = {}
+        for unitId, debug in pairs(runtime.aiDebugPlans) do
+            local intent = tactics.intents and tactics.intents[unitId]
+            local match = false
+            if debug.chosen and debug.chosen.x == tile.x and debug.chosen.y == tile.y then
+                match = true
+            end
+            if debug.inputs and debug.inputs.targetX == tile.x and debug.inputs.targetY == tile.y then
+                match = true
+            end
+            for _, pathTile in ipairs((intent and intent.path) or {}) do
+                if pathTile.x == tile.x and pathTile.y == tile.y then
+                    match = true
+                    break
+                end
+            end
+            if match then
+                summary.aiDebug[#summary.aiDebug + 1] = debug
+            end
+        end
+    end
     summary.source = app.tacticalHover and "hover" or "cursor"
     return summary
 end
@@ -4316,6 +4347,26 @@ local function signedNumber(value)
         return nil
     end
     return value > 0 and ("+" .. tostring(value)) or tostring(value)
+end
+
+local function aiDebugLine(debug)
+    local chosen = debug and debug.chosen or {}
+    local terms = {}
+    for index, term in ipairs((debug and debug.scoreBreakdown) or {}) do
+        if index > 3 then
+            break
+        end
+        terms[#terms + 1] = tostring(term.name) .. signedNumber(math.floor((term.value or 0) + 0.5))
+    end
+    return joinWords({
+        "AI",
+        debug and debug.doctrine and debug.doctrine.id or nil,
+        debug and debug.role or nil,
+        chosen.tactic,
+        "score " .. tostring(math.floor((chosen.score or 0) + 0.5)),
+        chosen.x and ("@" .. tostring(chosen.x) .. "," .. tostring(chosen.y)) or nil,
+        #terms > 0 and table.concat(terms, " ") or nil,
+    })
 end
 
 function Render.tacticalTileInspectorLines(summary)
@@ -4347,6 +4398,9 @@ function Render.tacticalTileInspectorLines(summary)
         traces[#traces + 1] = joinWords({ trace.unit, trace.role, trace.category, trace.damage and ("dmg " .. trace.damage) or nil, trace.countdown and ("timer " .. trace.countdown) or nil })
     end
     lines[#lines + 1] = "intent " .. (#traces > 0 and table.concat(traces, "; ") or "-")
+    for _, debug in ipairs(summary.aiDebug or {}) do
+        lines[#lines + 1] = aiDebugLine(debug)
+    end
     return lines
 end
 
@@ -4621,6 +4675,7 @@ end
 
 local function drawTacticalThreatPanel(app, layout, summary)
     local rect = layout.threats
+    local showDebug = app and app.tactics and app.tactics.aiDebug == true
     panel(rect.x, rect.y, rect.w, rect.h, 0.88)
     local enemies = (summary and summary.enemies) or {}
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
@@ -4644,7 +4699,19 @@ local function drawTacticalThreatPanel(app, layout, summary)
         love.graphics.printf(row.empty and "-" or row.intentIcon, textX + textW - 50, rowY + 5, 46, "right")
         love.graphics.setColor(0.62, 0.66, 0.58, 1)
         local target = row.targetX and (" >" .. tostring(row.targetX) .. "," .. tostring(row.targetY)) or ""
-        love.graphics.printf("HP " .. tostring(row.hp) .. " @" .. tostring(row.x or "-") .. "," .. tostring(row.y or "-") .. target, textX, rowY + 23, textW, "left")
+        local hpLine = "HP " .. tostring(row.hp) .. " @" .. tostring(row.x or "-") .. "," .. tostring(row.y or "-") .. target
+        if showDebug and row.aiDebug then
+            if rowH >= 46 then
+                love.graphics.printf(hpLine, textX, rowY + 21, textW, "left")
+                love.graphics.setColor(0.58, 0.92, 0.42, 1)
+                love.graphics.printf(shortText(aiDebugLine(row.aiDebug), 34), textX, rowY + 36, textW, "left")
+            else
+                love.graphics.setColor(0.58, 0.92, 0.42, 1)
+                love.graphics.printf(shortText(aiDebugLine(row.aiDebug), 34), textX, rowY + 23, textW, "left")
+            end
+        else
+            love.graphics.printf(hpLine, textX, rowY + 23, textW, "left")
+        end
         if not row.empty then
             app.ui.tacticalIntentButtons[#app.ui.tacticalIntentButtons + 1] = {
                 x = rect.x + 10,
@@ -4695,7 +4762,8 @@ function Render.drawTacticalHud(sim, app)
     love.graphics.setColor(0.9, 0.82, 0.48, 1)
     love.graphics.printf("route machine " .. tostring(objective.integrity or 0) .. "/" .. tostring(objective.maxIntegrity or 0), layout.objective.x + 12, layout.objective.y + 14, layout.objective.w - 24, "right")
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
-    love.graphics.printf("red forecasts resolve after End Turn; no hit chance", layout.objective.x + 12, layout.objective.y + 38, layout.objective.w - 24, "right")
+    local debugDoctrine = app and app.tactics and app.tactics.aiDebug and summary and summary.aiDoctrine and summary.aiDoctrine.id
+    love.graphics.printf(debugDoctrine and ("AI doctrine " .. tostring(debugDoctrine) .. "; forecasts resolve after End Turn") or "red forecasts resolve after End Turn; no hit chance", layout.objective.x + 12, layout.objective.y + 38, layout.objective.w - 24, "right")
     Render.drawTacticalIntentLegend(app, layout)
     Render.drawTacticalActionBar(app, layout)
 end

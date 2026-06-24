@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke legacy-combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke tactical-smoke tactical-perf-smoke storefront-previews sprite-import-smoke model-import-smoke validate test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean doctor check-submodules
+.PHONY: run smoke title-smoke settings-smoke estate-smoke legacy-combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke tactical-smoke tactical-ai-debug-smoke tactical-perf-smoke storefront-previews sprite-import-smoke model-import-smoke validate test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean doctor check-submodules
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -332,6 +332,19 @@ tactical-smoke: check-submodules
 	grep -q "tactical-smoke-intent-targets=[1-9]" $$tmp; \
 	grep -q "tactical-smoke-compass=0" $$tmp; \
 	grep -q "tactical-smoke-ghost-arrows=0" $$tmp; \
+	rm -f $$tmp
+
+tactical-ai-debug-smoke: check-submodules
+	@set -e; \
+	tmp=$$(mktemp); \
+	if command -v xvfb-run >/dev/null 2>&1; then \
+		SDL_AUDIODRIVER=dummy xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --tactical-smoke --tactical-ai-debug | tee $$tmp; \
+	else \
+		SDL_AUDIODRIVER=dummy $(LOVE) . --tactical-smoke --tactical-ai-debug | tee $$tmp; \
+	fi; \
+	grep -q "tactical-smoke-ai-debug=true" $$tmp; \
+	grep -q "tactical-smoke-ai-debug-overlays=[1-9]" $$tmp; \
+	grep -q "tactical-smoke-ai-doctrine=[a-z]" $$tmp; \
 	rm -f $$tmp
 
 storefront-previews: check-submodules

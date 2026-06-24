@@ -318,7 +318,7 @@ local function enterTacticalGame(state, squadLoadout)
     resetVisualState(state, sim)
     state.squadLoadout = squadLoadout or state.squadLoadout
     state.squadSelect = nil
-    state.tactics = TacticalRuntime.new(sim, { squadLoadout = state.squadLoadout })
+    state.tactics = TacticalRuntime.new(sim, { squadLoadout = state.squadLoadout, aiDebug = state.tacticalAiDebug == true })
     state.tacticalOverlays = state.tactics.overlays
     TacticalRuntime.syncWorld(sim, state.tactics)
 end
@@ -1300,6 +1300,9 @@ local function printTacticalSmoke(state)
     local compass = Render.rotationCompass(state.viewRotation or 0)
     print("tactical-smoke-compass=" .. tostring(compass.degrees))
     print("tactical-smoke-ghost-arrows=" .. tostring(#Render.tacticalGhostArrowEntries(state)))
+    print("tactical-smoke-ai-debug=" .. tostring(state.tacticalAiDebug == true))
+    print("tactical-smoke-ai-debug-overlays=" .. tostring(overlays.aiDebug or 0))
+    print("tactical-smoke-ai-doctrine=" .. tostring(summary.aiDoctrine and summary.aiDoctrine.id or "-"))
     io.stdout:flush()
     if not state.previewCapture then
         os.exit(0)
@@ -1590,6 +1593,7 @@ function love.load(args)
     local toastSmoke = hasArg(args, "--toast-smoke")
     local polishSmoke = hasArg(args, "--polish-smoke")
     local tacticalSmoke = hasArg(args, "--tactical-smoke")
+    local tacticalAiDebug = hasArg(args, "--tactical-ai-debug")
     local tacticalPreviewState = argValue(args, "--tactical-preview-state", nil)
     local accessibilityExport = argValue(args, "--accessibility-export", nil)
     local smoke = hasArg(args, "--smoke") or accessibilityExport ~= nil or titleSmoke or settingsSmoke or estateSmoke or combatSmoke or curioSmoke or campSmoke or pauseSmoke or gameOverSmoke or creditsSmoke or confirmSmoke or keyboardSmoke or controllerSmoke or journalSmoke or tutorialSmoke or toastSmoke or polishSmoke or tacticalSmoke
@@ -1675,6 +1679,7 @@ function love.load(args)
         toastSmoke = toastSmoke,
         polishSmoke = polishSmoke,
         tacticalSmoke = tacticalSmoke,
+        tacticalAiDebug = tacticalAiDebug,
         achievements = {},
         toasts = {},
         renderBenchmarkFrames = renderBenchmarkFrames,
@@ -1980,6 +1985,13 @@ local function handleKey(key)
             app.status = "load failed: " .. tostring(err)
             playUi(app, "invalid")
         end
+        return
+    end
+    if key == "f3" and app.tactics then
+        app.tacticalAiDebug = TacticalRuntime.toggleAiDebug(app.tactics)
+        app.tacticalOverlays = app.tactics.overlays
+        app.tacticalSummaryCache = nil
+        Audio.play(app.audio, "tick")
         return
     end
     if key == "[" then

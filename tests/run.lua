@@ -193,6 +193,16 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local runtime = TacticalRuntime.new(makeTacticalSim(9020), { aiDebug = true })
+    expect(runtime.aiDebug and runtime.aiDebugPlans and next(runtime.aiDebugPlans) ~= nil and #runtime.overlays.aiDebug > 0, "AI debug runtime should expose visible plan overlays")
+    local summary = runtime:summary()
+    expect(summary.aiDebug and summary.enemies[1] and summary.enemies[1].aiDebug and summary.enemies[1].aiDebug.chosen, "AI debug summary should expose chosen enemy plan")
+    expect(summary.aiDoctrine and summary.enemies[1].aiDebug.doctrine and summary.enemies[1].aiDebug.inputs.doctrine == summary.aiDoctrine.id, "AI debug summary should expose squad doctrine")
+    runtime:setAiDebug(false)
+    expect(not runtime.aiDebug and #runtime.overlays.aiDebug == 0, "AI debug toggle should hide debug overlays")
+end
+
+tests[#tests + 1] = function()
     local runtime = TacticalRuntime.new(makeTacticalSim(9006))
     local enemy = firstEnemy(runtime)
     for _, other in ipairs(runtime.state:unitsForSide("enemy")) do
@@ -393,6 +403,45 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local profile = EnemyCatalog.aiProfile({ id = "page_scout", kind = "page_scout", archetype = "mover" })
+    expect(profile.role == "recon" and profile.weights.flank == 40 and profile.weights.distance == -5, "enemy AI profile should merge defaults, archetype, and enemy override")
+    local tuned = EnemyCatalog.aiProfile({ id = "page_scout", kind = "page_scout", archetype = "mover", ai = { weights = { cover = 0 } } })
+    expect(tuned.weights.cover == 0 and tuned.weights.flank == 40, "enemy AI profile should allow per-unit data overrides")
+end
+
+tests[#tests + 1] = function()
+    local reconState = TacticsState.new({
+        board = { width = 5, height = 5, tiles = { ["3:3"] = { blocker = true, losBlocker = true } } },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, hp = 6 },
+            { id = "page_scout", side = "enemy", kind = "page_scout", x = 5, y = 5, hp = 4 },
+        },
+    })
+    expect(EnemyAI.analyzeDoctrine(reconState).id == "recon", "enemy doctrine should switch to recon when no player is visible")
+    local pincerState = TacticsState.new({
+        board = { width = 5, height = 5 },
+        units = {
+            { id = "warden", side = "player", x = 3, y = 3, hp = 6 },
+            { id = "duelist", side = "player", x = 3, y = 4, hp = 5 },
+            { id = "left_scout", side = "enemy", kind = "page_scout", x = 1, y = 3, hp = 4 },
+            { id = "right_scout", side = "enemy", kind = "page_scout", x = 5, y = 3, hp = 4 },
+        },
+    })
+    expect(EnemyAI.analyzeDoctrine(pincerState).id == "pincer", "enemy doctrine should prefer pincer when multiple supported players are visible")
+    local sabotageState = TacticsState.new({
+        board = { width = 5, height = 5 },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, hp = 6 },
+            { id = "writ_bailiff", side = "enemy", kind = "writ_bailiff", x = 5, y = 5, hp = 4 },
+        },
+        objectives = {
+            { id = "route_machine", x = 5, y = 4, integrity = 1, maxIntegrity = 4, evacuateAt = { x = 1, y = 5 } },
+        },
+    })
+    expect(EnemyAI.analyzeDoctrine(sabotageState).id == "sabotage", "enemy doctrine should prioritize sabotage when objective integrity is critical")
+end
+
+tests[#tests + 1] = function()
     local state = TacticsState.new({
         board = {
             width = 5,
@@ -408,6 +457,52 @@ tests[#tests + 1] = function()
     })
     local plan = EnemyAI.planEnemy(state, state:unit("page_scout"), { maxMoveAp = 2 })
     expect(plan.destination.x == 4 and plan.destination.y == 3, "enemy AI should prefer reachable firing cover")
+    state:unit("page_scout").ai = { weights = { cover = 0 } }
+    local tuned = EnemyAI.planEnemy(state, state:unit("page_scout"), { maxMoveAp = 2 })
+    expect(tuned.destination.x == 3 and tuned.destination.y == 3, "enemy AI weight override should deterministically change destination")
+    expect(plan.debug and plan.debug.chosen and #plan.debug.scoreBreakdown > 0 and #plan.debug.topCandidates > 0, "enemy AI debug should expose chosen score and top candidates")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
+            width = 5,
+            height = 5,
+            tiles = {
+                ["4:3"] = { coverEdges = { west = "full" } },
+            },
+        },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 3, hp = 6 },
+            { id = "page_scout", side = "enemy", kind = "page_scout", x = 5, y = 3, hp = 4, ap = 2, maxAp = 2 },
+        },
+    })
+    local plan = EnemyAI.planEnemy(state, state:unit("page_scout"), {
+        maxMoveAp = 2,
+        ai = { memory = { repeatDestination = -80 } },
+        memory = { units = { page_scout = { lastDestination = { x = 4, y = 3 } } }, targets = {} },
+    })
+    expect(plan.destination.x ~= 4 or plan.destination.y ~= 3, "enemy AI memory should avoid repeating a heavily penalized destination")
+    local targetState = TacticsState.new({
+        board = { width = 5, height = 3 },
+        units = {
+            { id = "duelist", side = "player", x = 2, y = 1, hp = 5 },
+            { id = "warden", side = "player", x = 2, y = 3, hp = 6 },
+            { id = "page_scout", side = "enemy", kind = "page_scout", x = 5, y = 2, hp = 4, ap = 2, maxAp = 2 },
+        },
+    })
+    local focused = EnemyAI.planEnemy(targetState, targetState:unit("page_scout"), {
+        maxMoveAp = 2,
+        memory = { units = {}, targets = { warden = { damage = 2 } } },
+    })
+    expect(focused.target.id == "warden", "enemy AI memory should focus damaged pressure targets")
+    local hasMemoryTerm = false
+    for _, term in ipairs(focused.debug.scoreBreakdown or {}) do
+        if term.name == "memoryPressure" then
+            hasMemoryTerm = true
+        end
+    end
+    expect(hasMemoryTerm, "enemy AI debug should expose memory pressure terms")
 end
 
 tests[#tests + 1] = function()
@@ -426,6 +521,8 @@ tests[#tests + 1] = function()
     })
     local plan = EnemyAI.planEnemy(state, state:unit("page_scout"), { maxMoveAp = 3 })
     expect(plan.tactic == "flank" and plan.attack.flanked, "enemy AI should recognize reachable flank attacks")
+    local debugPlan = EnemyAI.planEnemy(state, state:unit("page_scout"), { maxMoveAp = 3, ai = { debugName = "audit" } })
+    expect(debugPlan.destination.x == plan.destination.x and debugPlan.tactic == plan.tactic and debugPlan.debug.debugName == "audit", "enemy AI debug metadata should not change decisions")
 end
 
 tests[#tests + 1] = function()
@@ -445,6 +542,26 @@ tests[#tests + 1] = function()
         end
     end
     expect(pincers >= 1 and report.plans[1].destination.x ~= report.plans[2].destination.x, "enemy AI should reserve distinct pincer positions")
+end
+
+tests[#tests + 1] = function()
+    local runtime = {
+        state = TacticsState.new({
+            board = { width = 4, height = 1 },
+            units = {
+                { id = "warden", side = "player", x = 1, y = 1, hp = 6 },
+                { id = "binding_indexer", side = "enemy", kind = "binding_indexer", archetype = "controller", x = 4, y = 1, hp = 4, intent = EnemyCatalog.enemy("binding_indexer").exactIntent },
+            },
+        }),
+        selectedUnitId = "warden",
+        cursor = { x = 1, y = 1 },
+        turn = 1,
+        lastSeenEnemies = {},
+        sim = makeTacticalSim(9403),
+    }
+    TacticalRuntime.declareEnemyIntents(runtime)
+    local intent = runtime.state:intentPreview("binding_indexer")
+    expect(intent.category == "debuff" and intent.statusEffect.status == "pinned" and not (intent.destination and intent.destination.x), "status exact intents should remain authoritative without AI reposition")
 end
 
 tests[#tests + 1] = function()
@@ -477,6 +594,7 @@ tests[#tests + 1] = function()
     TacticalRuntime.declareEnemyIntents(runtime)
     TacticalRuntime.endPlayerTurn(runtime)
     expect(state:unit("page_scout").x < 5 and state:unit("warden").hp < 6, "enemy turn should move and attack with pathfinding")
+    expect(runtime.aiMemory and runtime.aiMemory.units.page_scout and runtime.aiMemory.units.page_scout.lastTarget == "warden" and (runtime.aiMemory.targets.warden.damage or 0) > 0, "enemy turn should record adaptive AI memory")
 end
 
 tests[#tests + 1] = function()

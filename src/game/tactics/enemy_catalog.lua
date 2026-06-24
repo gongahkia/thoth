@@ -2,24 +2,78 @@ local EnemyCatalog = {}
 
 EnemyCatalog.requiredArchetypes = { "mover", "shooter", "artillery", "puller", "blocker", "summoner", "saboteur", "overwatch", "controller", "support", "sniper", "trapper", "burrower", "healer" }
 
+EnemyCatalog.aiDefaults = {
+    role = "assault",
+    maxMoveAp = 2,
+    attackRange = 3,
+    riskProfile = "balanced",
+    debugName = "default",
+    weights = {
+        distance = -5,
+        apCost = -3,
+        advance = 4,
+        cover = 1,
+        hazard = -12,
+        height = 2,
+        los = 36,
+        damage = 8,
+        targetVisibleMiss = -14,
+        reconAdvance = 5,
+        flank = 32,
+        highGround = 8,
+        pincer = 20,
+        reservationPenalty = -999,
+    },
+    targetWeights = {
+        base = 80,
+        distance = -3,
+        wounded = 5,
+        isolation = 3,
+        visible = 24,
+        skirmisherVisible = 10,
+        anchorVisible = -4,
+        reconUnseen = 18,
+    },
+    cover = {
+        full = 12,
+        half = 7,
+        closeExposed = -12,
+        exposed = -4,
+    },
+    memory = {
+        pressureTarget = 14,
+        failedTarget = -12,
+        repeatDestination = -18,
+        damagedTarget = 10,
+    },
+    tacticBias = {
+        objective_pressure = 32,
+        isolate = 10,
+    },
+    roleBias = {
+        anchorHold = 7,
+        skirmisherMove = 6,
+    },
+}
+
 EnemyCatalog.archetypes = {
-    mover = { intent = "reposition", boardVerb = "move", counterplay = "body block lane or pin source", preview = "destination and path" },
-    shooter = { intent = "direct harm", boardVerb = "shoot", counterplay = "break LoS or raise cover", preview = "source, path, target, damage" },
-    artillery = { intent = "area harm", boardVerb = "lob", counterplay = "leave footprint or interrupt fuse", preview = "impact footprint and countdown" },
-    pusher = { intent = "forced movement", boardVerb = "push", counterplay = "brace, block landing, or move target", preview = "push vector and collision" },
-    puller = { intent = "forced movement", boardVerb = "pull", counterplay = "break hook path or anchor target", preview = "pull path and landing" },
-    blocker = { intent = "space denial", boardVerb = "block", counterplay = "destroy, route around, or seal blocker", preview = "blocked edge or tile" },
-    summoner = { intent = "spawn pressure", boardVerb = "summon", counterplay = "block spawn pocket or kill source", preview = "spawn pocket and turn" },
+    mover = { intent = "reposition", boardVerb = "move", counterplay = "body block lane or pin source", preview = "destination and path", ai = { role = "recon", riskProfile = "mobile", tacticBias = { isolate = 6 } } },
+    shooter = { intent = "direct harm", boardVerb = "shoot", counterplay = "break LoS or raise cover", preview = "source, path, target, damage", ai = { role = "skirmisher", riskProfile = "ranged", roleBias = { skirmisherMove = 7 } } },
+    artillery = { intent = "area harm", boardVerb = "lob", counterplay = "leave footprint or interrupt fuse", preview = "impact footprint and countdown", ai = { role = "anchor", riskProfile = "backline", roleBias = { anchorHold = 9 } } },
+    pusher = { intent = "forced movement", boardVerb = "push", counterplay = "brace, block landing, or move target", preview = "push vector and collision", ai = { role = "skirmisher", riskProfile = "disruptor" } },
+    puller = { intent = "forced movement", boardVerb = "pull", counterplay = "break hook path or anchor target", preview = "pull path and landing", ai = { role = "skirmisher", riskProfile = "disruptor" } },
+    blocker = { intent = "space denial", boardVerb = "block", counterplay = "destroy, route around, or seal blocker", preview = "blocked edge or tile", ai = { role = "anchor", riskProfile = "defensive" } },
+    summoner = { intent = "spawn pressure", boardVerb = "summon", counterplay = "block spawn pocket or kill source", preview = "spawn pocket and turn", ai = { role = "recon", riskProfile = "pressure" } },
     repairer = { intent = "enemy sustain", boardVerb = "repair", counterplay = "isolate target or interrupt source", preview = "repaired target and amount" },
-    saboteur = { intent = "objective damage", boardVerb = "sabotage", counterplay = "body block, repair, or disable source", preview = "objective delta" },
-    overwatch = { intent = "reaction lane", boardVerb = "watch", counterplay = "bait trigger, smoke, or take alternate route", preview = "watch cone and trigger" },
-    controller = { intent = "status control", boardVerb = "bind", counterplay = "cleanse, interrupt source, or move before resolve", preview = "status target and duration" },
-    support = { intent = "enemy buff", boardVerb = "guard", counterplay = "strip guard, shred armor, or focus another threat", preview = "buffed unit and duration" },
-    sniper = { intent = "long sightline punish", boardVerb = "snipe", counterplay = "break LoS, drop elevation, or blind source", preview = "source height, LoS trace, target, damage" },
-    trapper = { intent = "delayed control", boardVerb = "trap", counterplay = "disarm, route around, or force source to move", preview = "trap tile, status, and timer" },
-    burrower = { intent = "emerge behind lines", boardVerb = "burrow", counterplay = "hold high ground, body block exit, or overwatch", preview = "emerge tile and adjacent threat" },
-    healer = { intent = "enemy recovery", boardVerb = "mend", counterplay = "focus wounded units, jam source, or shred guard", preview = "recovery target and duration" },
-    ["terrain-breaker"] = { intent = "terrain conversion", boardVerb = "break", counterplay = "evacuate, stabilize, or use new gap", preview = "terrain tile before and after" },
+    saboteur = { intent = "objective damage", boardVerb = "sabotage", counterplay = "body block, repair, or disable source", preview = "objective delta", ai = { role = "anchor", riskProfile = "objective", tacticBias = { objective_pressure = 42 } } },
+    overwatch = { intent = "reaction lane", boardVerb = "watch", counterplay = "bait trigger, smoke, or take alternate route", preview = "watch cone and trigger", ai = { role = "anchor", riskProfile = "defensive" } },
+    controller = { intent = "status control", boardVerb = "bind", counterplay = "cleanse, interrupt source, or move before resolve", preview = "status target and duration", ai = { role = "anchor", riskProfile = "control" } },
+    support = { intent = "enemy buff", boardVerb = "guard", counterplay = "strip guard, shred armor, or focus another threat", preview = "buffed unit and duration", ai = { role = "support", riskProfile = "support" } },
+    sniper = { intent = "long sightline punish", boardVerb = "snipe", counterplay = "break LoS, drop elevation, or blind source", preview = "source height, LoS trace, target, damage", ai = { role = "skirmisher", riskProfile = "roost", weights = { height = 5, los = 42 } } },
+    trapper = { intent = "delayed control", boardVerb = "trap", counterplay = "disarm, route around, or force source to move", preview = "trap tile, status, and timer", ai = { role = "anchor", riskProfile = "control" } },
+    burrower = { intent = "emerge behind lines", boardVerb = "burrow", counterplay = "hold high ground, body block exit, or overwatch", preview = "emerge tile and adjacent threat", ai = { role = "skirmisher", riskProfile = "flanker", weights = { flank = 42, pincer = 26 } } },
+    healer = { intent = "enemy recovery", boardVerb = "mend", counterplay = "focus wounded units, jam source, or shred guard", preview = "recovery target and duration", ai = { role = "support", riskProfile = "support" } },
+    ["terrain-breaker"] = { intent = "terrain conversion", boardVerb = "break", counterplay = "evacuate, stabilize, or use new gap", preview = "terrain tile before and after", ai = { role = "anchor", riskProfile = "terrain" } },
 }
 
 EnemyCatalog.exactIntentBlueprints = {
@@ -54,7 +108,7 @@ EnemyCatalog.families = {
             { id = "bone_scribe", name = "Bone Scribe", archetype = "shooter", exactIntent = { mode = "exact", intentType = "redaction_shot", category = "attack", damage = 2, target = "marked", statusEffect = { status = "exposed", turns = 1, amount = 1 } }, boardVerb = "redact_mark" },
             { id = "gutter_thing", name = "Gutter Thing", archetype = "puller", exactIntent = { mode = "exact", intentType = "cargo_hook_pull", category = "move", damage = 1, target = "pull" }, boardVerb = "hook_cargo" },
             { id = "pale_censer", name = "Pale Censer", archetype = "blocker", exactIntent = { mode = "exact", intentType = "claim_fog_block", category = "debuff", damage = 0, target = "claim_tile", statusEffect = { status = "blinded", turns = 1 } }, boardVerb = "fog_claim" },
-            { id = "page_scout", name = "Page Scout", archetype = "mover", exactIntent = { mode = "exact", intentType = "flank_reposition", category = "move", damage = 1, target = "flank" }, boardVerb = "flip_shelf" },
+            { id = "page_scout", name = "Page Scout", archetype = "mover", exactIntent = { mode = "exact", intentType = "flank_reposition", category = "move", damage = 1, target = "flank" }, boardVerb = "flip_shelf", ai = { debugName = "page scout", weights = { flank = 40, pincer = 24 }, tacticBias = { isolate = 12 } } },
             { id = "writ_bailiff", name = "Writ Bailiff", archetype = "saboteur", exactIntent = { mode = "exact", intentType = "objective_stamp", category = "destroy", damage = 2, target = "objective" }, boardVerb = "stamp_claim" },
             { id = "seal_clerk", name = "Seal Clerk", archetype = "blocker", exactIntent = { mode = "exact", intentType = "door_seal_guard", category = "guard", damage = 0, target = "seal" }, boardVerb = "lock_door" },
             { id = "ledger_hound", name = "Ledger Hound", archetype = "shooter", exactIntent = { mode = "exact", intentType = "carrier_pursuit", category = "attack", damage = 2, target = "carrier" }, boardVerb = "sniff_route" },
@@ -190,6 +244,51 @@ for _, enemy in ipairs(EnemyCatalog.globalPressure) do
     assignUtility(enemy, "global")
 end
 
+local enemyById = {}
+local function indexEnemy(enemy)
+    if enemy and enemy.id then
+        enemyById[enemy.id] = enemy
+    end
+end
+
+for _, family in pairs(EnemyCatalog.families) do
+    for _, enemy in ipairs(family.common or {}) do
+        indexEnemy(enemy)
+    end
+    for _, enemy in ipairs(family.elites or {}) do
+        indexEnemy(enemy)
+    end
+    indexEnemy(family.alpha)
+end
+for _, enemy in ipairs(EnemyCatalog.globalPressure) do
+    indexEnemy(enemy)
+end
+
+local function copyNested(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local result = {}
+    for key, nested in pairs(value) do
+        result[key] = copyNested(nested)
+    end
+    return result
+end
+
+local function mergeProfile(target, source)
+    if type(source) ~= "table" then
+        return target
+    end
+    for key, value in pairs(source) do
+        if type(value) == "table" and type(target[key]) == "table" then
+            mergeProfile(target[key], value)
+        else
+            target[key] = copyNested(value)
+        end
+    end
+    return target
+end
+
 function EnemyCatalog.family(id)
     return EnemyCatalog.families[id]
 end
@@ -254,6 +353,37 @@ end
 
 function EnemyCatalog.archetype(id)
     return EnemyCatalog.archetypes[id]
+end
+
+function EnemyCatalog.enemy(id)
+    return enemyById[id]
+end
+
+function EnemyCatalog.aiProfile(enemy)
+    local profile = copyNested(EnemyCatalog.aiDefaults)
+    local aiRoles = { assault = true, recon = true, skirmisher = true, anchor = true, support = true }
+    local catalogEnemy = enemy and (EnemyCatalog.enemy(enemy.kind) or EnemyCatalog.enemy(enemy.id)) or nil
+    local archetypeId = (enemy and enemy.archetype) or (catalogEnemy and catalogEnemy.archetype)
+    local archetype = EnemyCatalog.archetypes[archetypeId or ""]
+    if archetype and archetype.ai then
+        mergeProfile(profile, archetype.ai)
+    end
+    if catalogEnemy and catalogEnemy.ai then
+        mergeProfile(profile, catalogEnemy.ai)
+    end
+    if enemy and enemy.ai then
+        mergeProfile(profile, enemy.ai)
+    end
+    if enemy and enemy.role and aiRoles[enemy.role] and not (enemy.ai and enemy.ai.role) then
+        profile.role = enemy.role
+    end
+    profile.debugName = profile.debugName or (catalogEnemy and catalogEnemy.name) or (enemy and (enemy.kind or enemy.id)) or "enemy"
+    profile.weights = profile.weights or {}
+    profile.tacticBias = profile.tacticBias or {}
+    profile.roleBias = profile.roleBias or {}
+    profile.targetWeights = profile.targetWeights or {}
+    profile.cover = profile.cover or {}
+    return profile
 end
 
 local function zoneVerb(enemy)
