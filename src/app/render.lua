@@ -5045,8 +5045,12 @@ local function drawTacticalThreatPanel(app, layout, summary)
         love.graphics.setColor(row.empty and 0.28 or 0.96, row.empty and 0.26 or 0.64, row.empty and 0.24 or 0.32, 1)
         love.graphics.printf(row.empty and "-" or row.intentIcon, textX + textW - 50, rowY + 5, 46, "right")
         love.graphics.setColor(0.62, 0.66, 0.58, 1)
-        local target = row.targetX and (" >" .. tostring(row.targetX) .. "," .. tostring(row.targetY)) or ""
-        local hpLine = "HP " .. tostring(row.hp) .. " @" .. tostring(row.x or "-") .. "," .. tostring(row.y or "-") .. target
+        -- simpler enemy line: HP only by default; position+target shown when aiDebug is on
+        local hpLine = "HP " .. tostring(row.hp)
+        if showDebug then
+            local target = row.targetX and (" >" .. tostring(row.targetX) .. "," .. tostring(row.targetY)) or ""
+            hpLine = hpLine .. " @" .. tostring(row.x or "-") .. "," .. tostring(row.y or "-") .. target
+        end
         if showDebug and row.aiDebug then
             if rowH >= 46 then
                 love.graphics.printf(hpLine, textX, rowY + 21, textW, "left")
@@ -5059,18 +5063,15 @@ local function drawTacticalThreatPanel(app, layout, summary)
         else
             love.graphics.printf(hpLine, textX, rowY + 23, textW, "left")
         end
-        if not row.empty and row.breakMax and row.breakMax > 0 then -- expedition 33 break gauge under HP
+        -- break gauge: only show when actively building (>0) to avoid empty bars on every enemy
+        if not row.empty and row.breakMax and row.breakMax > 0 and (row.broken or (row.breakGauge or 0) > 0) then
             local gaugeX = textX
             local gaugeY = rowY + rowH - 8
             local gaugeW = textW - 4
             love.graphics.setColor(0.18, 0.16, 0.08, 0.92)
             love.graphics.rectangle("fill", gaugeX, gaugeY, gaugeW, 4)
             local fillRatio = math.min(1, (row.breakGauge or 0) / row.breakMax)
-            if row.broken then
-                love.graphics.setColor(0.98, 0.84, 0.22, 1) -- broken: full gold
-            else
-                love.graphics.setColor(0.86, 0.66, 0.18, 1)
-            end
+            love.graphics.setColor(0.86, 0.66, 0.18, 1)
             love.graphics.rectangle("fill", gaugeX, gaugeY, gaugeW * fillRatio, 4)
             if row.broken then
                 love.graphics.setColor(0.98, 0.84, 0.22, 1)
@@ -5133,25 +5134,27 @@ function Render.drawTacticalHud(sim, app)
     drawRotationCompass(layout.topLeft.x + 174, layout.topLeft.y + 10, 48, app.viewRotation or 0, rotationSteps)
     love.graphics.setColor(0.82, 0.86, 0.78, 1)
     local textX = layout.topLeft.x + 236
-    love.graphics.print("turn " .. tostring(summary and summary.turn or 1) .. "  " .. tostring(summary and summary.phase or "-") .. "  view " .. tostring(math.floor(Render.rotationDegrees(app.viewRotation or 0, rotationSteps) + 0.5)), textX, layout.topLeft.y + 10)
-    love.graphics.print("selected " .. tostring(summary and summary.selected or "-") .. " @" .. selectedAt .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0), textX, layout.topLeft.y + 31)
-    love.graphics.setColor(0.76, 0.8, 0.72, 1)
-    love.graphics.print("target " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-") .. "  hover " .. (hover and (hover.x .. "," .. hover.y) or "-") .. "  zoom " .. tostring(math.floor(Render.tacticalZoom(app) * 100 + 0.5)) .. "%", textX, layout.topLeft.y + 52)
+    -- line 1: turn / phase
+    love.graphics.print("turn " .. tostring(summary and summary.turn or 1) .. "  " .. tostring(summary and summary.phase or "-"), textX, layout.topLeft.y + 14)
+    -- line 2: selected unit + AP + HP (combined for density)
+    love.graphics.print(tostring(summary and summary.selected or "-") .. " @" .. selectedAt .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0), textX, layout.topLeft.y + 38)
+    -- debug-only line 3: cursor/hover/zoom (gated behind aiDebug to reduce noise)
+    if app and app.tactics and app.tactics.aiDebug then
+        love.graphics.setColor(0.62, 0.68, 0.62, 1)
+        love.graphics.print("cur " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-") .. "  hov " .. (hover and (hover.x .. "," .. hover.y) or "-") .. "  z" .. tostring(math.floor(Render.tacticalZoom(app) * 100 + 0.5)) .. "%", textX, layout.topLeft.y + 60)
+    end
     local objective = summary and summary.objective or {}
     panel(layout.objective.x, layout.objective.y, layout.objective.w, layout.objective.h, 0.88)
     love.graphics.setColor(0.9, 0.82, 0.48, 1)
     love.graphics.printf("route machine " .. tostring(objective.integrity or 0) .. "/" .. tostring(objective.maxIntegrity or 0), layout.objective.x + 12, layout.objective.y + 14, layout.objective.w - 24, "right")
-    love.graphics.setColor(0.74, 0.78, 0.72, 1)
     local debugDoctrine = app and app.tactics and app.tactics.aiDebug and summary and summary.aiDoctrine and summary.aiDoctrine.id
-    love.graphics.printf(debugDoctrine and ("AI doctrine " .. tostring(debugDoctrine) .. "; forecasts resolve after End Turn") or "red forecasts resolve after End Turn; no hit chance", layout.objective.x + 12, layout.objective.y + 38, layout.objective.w - 24, "right")
+    if debugDoctrine then -- only show secondary status line in aiDebug; the stale "no hit chance" message is removed (RNG combat is now live)
+        love.graphics.setColor(0.74, 0.78, 0.72, 1)
+        love.graphics.printf("AI doctrine " .. tostring(debugDoctrine), layout.objective.x + 12, layout.objective.y + 38, layout.objective.w - 24, "right")
+    end
     Render.drawTacticalBonusStrip(app, layout, summary)
     Render.drawTacticalIntentLegend(app, layout)
     Render.drawTacticalActionBar(app, layout)
-    if summary and summary.aestheticPassed ~= nil then
-        -- small composition badge in the objective panel corner
-        love.graphics.setColor(summary.aestheticPassed and 0.62 or 0.78, summary.aestheticPassed and 0.86 or 0.42, summary.aestheticPassed and 0.62 or 0.32, 0.86)
-        love.graphics.print(summary.aestheticPassed and "\xe2\x97\x86 composed" or "\xe2\x97\x86 rough", layout.objective.x + 12, layout.objective.y + layout.objective.h - 20)
-    end
 end
 
 function Render.drawTacticalSidePanel(sim, app)
@@ -5198,42 +5201,6 @@ function Render.drawTacticalSidePanel(sim, app)
         love.graphics.printf("AP " .. tostring(row.ap) .. "/" .. tostring(row.maxAp), textX + math.min(100, textW - 52), infoY, 52, "right")
     end
 
-    -- bond chips: paint cohesion bars under each squad slot when a bond exists
-    local bonds = (summary and summary.bonds) or {}
-    if #bonds > 0 then
-        local thresholds = { 10, 20, 30 }
-        for _, row in ipairs(rows) do
-            if row.id and row.id ~= "-" then
-                local bestCohesion, bestMate = 0, nil
-                for _, bond in ipairs(bonds) do
-                    if bond.a == row.id or bond.b == row.id then
-                        if (bond.cohesion or 0) > bestCohesion then
-                            bestCohesion = bond.cohesion
-                            bestMate = (bond.a == row.id) and bond.b or bond.a
-                        end
-                    end
-                end
-                if bestMate and bestCohesion > 0 then
-                    local rowY = y + 32 + (row.slot - 1) * layout.rowH
-                    local barX = x + 12
-                    local barY = rowY + layout.rowH - 18
-                    local barW = layout.squad.w - 24
-                    love.graphics.setColor(0.08, 0.1, 0.16, 0.86)
-                    love.graphics.rectangle("fill", barX, barY, barW, 3)
-                    local ratio = math.min(1, bestCohesion / thresholds[3])
-                    local level = 0
-                    for i, t in ipairs(thresholds) do if bestCohesion >= t then level = i end end
-                    if level >= 3 then love.graphics.setColor(0.74, 0.42, 0.92, 1)
-                    elseif level >= 2 then love.graphics.setColor(0.42, 0.74, 0.92, 1)
-                    else love.graphics.setColor(0.42, 0.92, 0.74, 1) end
-                    love.graphics.rectangle("fill", barX, barY, barW * ratio, 3)
-                    if level > 0 then
-                        love.graphics.print("\xe2\x99\xa1" .. tostring(level) .. " " .. shortText(bestMate, 6), barX, barY - 12)
-                    end
-                end
-            end
-        end
-    end
     if layout.intent.h <= 0 then
         return
     end
