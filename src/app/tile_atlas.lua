@@ -2,22 +2,22 @@ local TileAtlas = {}
 
 local tileWidth = 16
 local tileHeight = 16
-local columns = 4
-local rows = 3
+local columns = 12
+local rows = 11
 
 local entries = {
-    archive_floor = { terrain = "archive_floor", color = { 86, 78, 64 }, uv = { 0, 0 } },
-    archive_terrace = { terrain = "archive_terrace", color = { 108, 96, 74 }, uv = { 1, 0 } },
-    archive_rubble = { terrain = "archive_rubble", color = { 96, 86, 78 }, uv = { 2, 0 } },
-    archive_chasm = { terrain = "archive_chasm", color = { 22, 20, 28 }, uv = { 3, 0 } },
-    brine_pool = { terrain = "brine_pool", color = { 44, 94, 104 }, uv = { 0, 1 } },
-    index_miasma = { terrain = "index_miasma", color = { 92, 70, 110 }, uv = { 1, 1 } },
-    heat_vent = { terrain = "heat_vent", color = { 156, 70, 42 }, uv = { 2, 1 } },
-    root_tangle = { terrain = "root_tangle", color = { 66, 92, 58 }, uv = { 3, 1 } },
-    temple_stone = { terrain = "temple_stone", color = { 110, 112, 102 }, uv = { 0, 2 } },
-    blocker = { terrain = "blocker", color = { 42, 40, 45 }, uv = { 1, 2 } },
-    objective = { terrain = "objective", color = { 168, 126, 48 }, uv = { 2, 2 } },
-    hazard = { terrain = "hazard", color = { 164, 58, 46 }, uv = { 3, 2 } },
+    archive_floor = { terrain = "archive_floor", color = { 86, 78, 64 }, uv = { 0, 4 } },
+    archive_terrace = { terrain = "archive_terrace", color = { 108, 96, 74 }, uv = { 2, 4 } },
+    archive_rubble = { terrain = "archive_rubble", color = { 96, 86, 78 }, uv = { 1, 4 } },
+    archive_chasm = { terrain = "archive_chasm", color = { 22, 20, 28 }, uv = { 0, 0 } },
+    brine_pool = { terrain = "brine_pool", color = { 44, 94, 104 }, uv = { 0, 3 } },
+    index_miasma = { terrain = "index_miasma", color = { 92, 70, 110 }, uv = { 8, 1 } },
+    heat_vent = { terrain = "heat_vent", color = { 156, 70, 42 }, uv = { 5, 2 } },
+    root_tangle = { terrain = "root_tangle", color = { 66, 92, 58 }, uv = { 0, 1 } },
+    temple_stone = { terrain = "temple_stone", color = { 110, 112, 102 }, uv = { 2, 3 } },
+    blocker = { terrain = "blocker", color = { 42, 40, 45 }, uv = { 2, 0 } },
+    objective = { terrain = "objective", color = { 168, 126, 48 }, uv = { 9, 5 } },
+    hazard = { terrain = "hazard", color = { 164, 58, 46 }, uv = { 5, 2 } },
 }
 
 local aliases = {
@@ -60,8 +60,8 @@ end
 
 function TileAtlas.meta()
     return {
-        image = "assets/tiles/thoth_tile_atlas.png",
-        generated = true,
+        image = "assets/tiles/kenney_tiny_dungeon.png",
+        source = "https://kenney.nl/assets/tiny-dungeon",
         tileWidth = tileWidth,
         tileHeight = tileHeight,
         columns = columns,

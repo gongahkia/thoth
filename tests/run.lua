@@ -197,7 +197,8 @@ tests[#tests + 1] = function()
     }
     local data, columns, rows = TileAtlas.makeImageData(fakeImage)
     local entryCount = #TileAtlas.entries()
-    expect(data.width == 64 and data.height == 48 and columns == 4 and rows == 3 and data.pixels == entryCount * 16 * 16, "tile atlas should generate a 4x3 16px fallback atlas")
+    expect(TileAtlas.meta().image == "assets/tiles/kenney_tiny_dungeon.png", "tile atlas should use the Kenney Tiny Dungeon sheet")
+    expect(data.width == 192 and data.height == 176 and columns == 12 and rows == 11 and data.pixels == entryCount * 16 * 16, "tile atlas should generate a 12x11 16px fallback atlas")
 end
 
 tests[#tests + 1] = function()

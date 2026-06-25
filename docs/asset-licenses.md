@@ -8,6 +8,7 @@
 | `assets/sprites/oga_700_sprites.png` | `https://opengameart.org/content/700-sprites` | JPhilipp / Philipp Lenssen | CC-BY 3.0 | Generated atlas from selected `700 sprites` GIF frames; credit Philipp Lenssen and `outer-court.com`. |
 | `assets/sprites/oga_700_sprites.lua` | Project-authored atlas metadata for `https://opengameart.org/content/700-sprites` | Thoth contributors / JPhilipp | Original project metadata + CC-BY 3.0 source trace | Maps selected OGA sprite frames to runtime names; source art remains credited to Philipp Lenssen and `outer-court.com`. |
 | `assets/sprites/README.md` | Project-authored documentation | Thoth contributors | Original project documentation | Documents the OGA sprite import contract and regeneration source. |
+| `assets/tiles/kenney_tiny_dungeon.png` | `https://kenney.nl/assets/tiny-dungeon` | Kenney | CC0 1.0 Universal | Packed 12x11 Tiny Dungeon tilemap sheet used by tactical tile atlas rendering. |
 | `assets/audio/*.wav` | Project-authored procedural waveforms | Thoth contributors | Original project asset | Generated locally as 16-bit mono PCM; no third-party samples or AI-generated source material. |
 | `assets/audio/README.md` | Project-authored documentation | Thoth contributors | Original project documentation | Documents runtime cue names and WAV format contract. |
 | `assets/music/tracks.lua` | Project-authored metadata from Pixabay Music pages | Thoth contributors / listed Pixabay creators | Original project metadata; referenced tracks use Pixabay Content License | No raw music files are committed; certificate capture remains required before importing track binaries. |
@@ -26,6 +27,15 @@ Author: JPhilipp / Philipp Lenssen
 License: CC-BY 3.0
 Attribution plan: credit Philipp Lenssen, `outer-court.com`, the OGA source URL, and CC-BY 3.0.
 Status: selected as the primary character pack; selected frames are imported into `assets/sprites/oga_700_sprites.png`.
+
+## Tactical Tile Atlas
+
+Selected: `Tiny Dungeon`
+Source: `https://kenney.nl/assets/tiny-dungeon`
+Author: Kenney
+License: CC0 1.0 Universal
+Attribution plan: attribution not required by license; keep source URL and author in credits for traceability.
+Status: selected as the primary tactical tile atlas; packed sheet imported into `assets/tiles/kenney_tiny_dungeon.png`.
 
 ## Phase 3 Primary 3D Model Pack
 

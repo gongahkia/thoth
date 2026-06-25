@@ -24,6 +24,7 @@ local required = {
     "src/app/credits.lua",
     "vendor/g3d/g3d/init.lua",
     "assets/sprites/oga_700_sprites.png",
+    "assets/tiles/kenney_tiny_dungeon.png",
     "assets/audio/mine.wav",
     "assets/audio/hit_slash.wav",
     "assets/music/tracks.lua",

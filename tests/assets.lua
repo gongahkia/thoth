@@ -51,6 +51,7 @@ local function assertAssetLicenseCoverage()
         { "^assets/sprites/README%.md$", "`assets/sprites/README.md`" },
         { "^assets/sprites/oga_700_sprites%.lua$", "`assets/sprites/oga_700_sprites.lua`" },
         { "^assets/sprites/oga_700_sprites%.png$", "`assets/sprites/oga_700_sprites.png`" },
+        { "^assets/tiles/kenney_tiny_dungeon%.png$", "`assets/tiles/kenney_tiny_dungeon.png`" },
     }
     for _, path in ipairs(trackedAssetPaths()) do
         local covered = false
@@ -66,6 +67,8 @@ end
 
 local png = exists("assets/sprites/oga_700_sprites.png")
 assert(png and png:sub(1, 8) == "\137PNG\r\n\26\n", "missing sprite atlas png")
+local tilePng = exists("assets/tiles/kenney_tiny_dungeon.png")
+assert(tilePng and tilePng:sub(1, 8) == "\137PNG\r\n\26\n", "missing tile atlas png")
 assert(not exists("assets/sprites/thoth_atlas.png"), "prototype sprite atlas should not be present")
 
 local manifest = SpritePipeline.loadManifest(read("assets/sprites/oga_700_sprites.lua"))
