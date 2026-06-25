@@ -25,12 +25,12 @@ function Rng.hash(seed, a, b, c, d)
     return u32(h)
 end
 
-function Rng.unit(seed, a, b, c, d)
+function Rng.unitAt(seed, a, b, c, d)
     return Rng.hash(seed, a, b, c, d) / 4294967295
 end
 
 function Rng.signed(seed, a, b, c, d)
-    return Rng.unit(seed, a, b, c, d) * 2 - 1
+    return Rng.unitAt(seed, a, b, c, d) * 2 - 1
 end
 
 function Rng.new(seed)

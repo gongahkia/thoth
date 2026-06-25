@@ -17,10 +17,10 @@ end
 function Noise.value(seed, x, y, salt)
     local ix, iy = floor(x), floor(y)
     local fx, fy = smooth(x - ix), smooth(y - iy)
-    local a = Rng.unit(seed, ix, iy, salt or 0)
-    local b = Rng.unit(seed, ix + 1, iy, salt or 0)
-    local c = Rng.unit(seed, ix, iy + 1, salt or 0)
-    local d = Rng.unit(seed, ix + 1, iy + 1, salt or 0)
+    local a = Rng.unitAt(seed, ix, iy, salt or 0)
+    local b = Rng.unitAt(seed, ix + 1, iy, salt or 0)
+    local c = Rng.unitAt(seed, ix, iy + 1, salt or 0)
+    local d = Rng.unitAt(seed, ix + 1, iy + 1, salt or 0)
     return lerp(lerp(a, b, fx), lerp(c, d, fx), fy)
 end
 
