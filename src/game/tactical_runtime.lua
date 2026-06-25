@@ -1671,7 +1671,7 @@ local function cachedAttackRangeOverlay(runtime, selected)
         local maxY = math.min(board.height or selected.y, selected.y + range)
         for y = minY, maxY do
             for x = minX, maxX do
-                if not (x == selected.x and y == selected.y) and Grid.manhattan(selected.x, selected.y, x, y) <= range then
+                if state:inBounds(x, y) and not (x == selected.x and y == selected.y) and Grid.manhattan(selected.x, selected.y, x, y) <= range then
                     local tile = state:tileAt(x, y)
                     if tile and not tile.blocker then
                         attackRange[#attackRange + 1] = { x = x, y = y, label = "r3" }
