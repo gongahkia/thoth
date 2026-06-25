@@ -4235,7 +4235,12 @@ function Render.tacticalSquadHudRows(summary, requiredSlots)
             id = unit and unit.id or "-",
             class = unit and unit.class or nil,
             className = unit and unit.className or nil,
+            name = unit and unit.name or nil,
+            quirks = unit and unit.quirks or nil,
+            stress = unit and unit.stress or 0,
+            defense = unit and unit.defense or nil,
             hp = unit and unit.hp or 0,
+            maxHp = unit and unit.maxHp or 0,
             ap = ap,
             maxAp = unit and (unit.maxAp or math.max(ap, 3)) or 0,
             x = unit and unit.x or nil,
@@ -4294,6 +4299,9 @@ function Render.tacticalEnemyHudRows(appOrSummary, requiredSlots)
             targetX = target and target.x or nil,
             targetY = target and target.y or nil,
             aiDebug = enemy and enemy.aiDebug or nil,
+            breakGauge = enemy and enemy.breakGauge or 0,
+            breakMax = enemy and enemy.breakMax or nil,
+            broken = enemy and enemy.broken == true,
             empty = enemy == nil,
         }
     end
@@ -4594,6 +4602,35 @@ function Render.drawTacticalEnemyIntentBadges(app)
     return 0
 end
 
+function Render.drawTacticalBonusStrip(app, layout, summary)
+    local entries = (summary and summary.bonus) or {}
+    if #entries == 0 then return end
+    local rect = layout.intentLegend
+    -- draw a thin row above the intent legend
+    local stripH = 22
+    local stripY = rect.y - stripH - 4
+    love.graphics.setColor(0.05, 0.06, 0.08, 0.78)
+    love.graphics.rectangle("fill", rect.x, stripY, rect.w, stripH)
+    love.graphics.setColor(0.78, 0.74, 0.58, 1)
+    love.graphics.print("Bonus", rect.x + 10, stripY + 4)
+    local x = rect.x + 80
+    for _, entry in ipairs(entries) do
+        local chipW = math.min(170, math.floor((rect.w - 84) / math.max(1, #entries))) - 6
+        local color = entry.failed and { 0.86, 0.38, 0.32 } or { 0.42, 0.86, 0.52 }
+        love.graphics.setColor(color[1] * 0.16, color[2] * 0.16, color[3] * 0.16, 0.92)
+        love.graphics.rectangle("fill", x, stripY + 3, chipW, stripH - 6)
+        love.graphics.setColor(color[1], color[2], color[3], 1)
+        love.graphics.rectangle("line", x, stripY + 3, chipW, stripH - 6)
+        local label = entry.label or entry.id or "?"
+        if entry.limit and entry.limit > 0 then
+            label = label .. " " .. tostring(entry.value or 0) .. "/" .. tostring(entry.limit)
+        end
+        if entry.failed then label = "x " .. label else label = "\xe2\x9c\x93 " .. label end
+        love.graphics.printf(shortText(label, math.floor(chipW / 7)), x + 6, stripY + 4, chipW - 12, "left")
+        x = x + chipW + 6
+    end
+end
+
 function Render.drawTacticalIntentLegend(app, layout)
     local entries = Render.tacticalIntentLegendEntries(app)
     if #entries == 0 then
@@ -4722,6 +4759,24 @@ local function drawTacticalThreatPanel(app, layout, summary)
         else
             love.graphics.printf(hpLine, textX, rowY + 23, textW, "left")
         end
+        if not row.empty and row.breakMax and row.breakMax > 0 then -- expedition 33 break gauge under HP
+            local gaugeX = textX
+            local gaugeY = rowY + rowH - 8
+            local gaugeW = textW - 4
+            love.graphics.setColor(0.18, 0.16, 0.08, 0.92)
+            love.graphics.rectangle("fill", gaugeX, gaugeY, gaugeW, 4)
+            local fillRatio = math.min(1, (row.breakGauge or 0) / row.breakMax)
+            if row.broken then
+                love.graphics.setColor(0.98, 0.84, 0.22, 1) -- broken: full gold
+            else
+                love.graphics.setColor(0.86, 0.66, 0.18, 1)
+            end
+            love.graphics.rectangle("fill", gaugeX, gaugeY, gaugeW * fillRatio, 4)
+            if row.broken then
+                love.graphics.setColor(0.98, 0.84, 0.22, 1)
+                love.graphics.printf("BRK", textX + textW - 50, rowY + rowH - 22, 46, "right")
+            end
+        end
         if not row.empty then
             app.ui.tacticalIntentButtons[#app.ui.tacticalIntentButtons + 1] = {
                 x = rect.x + 10,
@@ -4788,8 +4843,14 @@ function Render.drawTacticalHud(sim, app)
     love.graphics.setColor(0.74, 0.78, 0.72, 1)
     local debugDoctrine = app and app.tactics and app.tactics.aiDebug and summary and summary.aiDoctrine and summary.aiDoctrine.id
     love.graphics.printf(debugDoctrine and ("AI doctrine " .. tostring(debugDoctrine) .. "; forecasts resolve after End Turn") or "red forecasts resolve after End Turn; no hit chance", layout.objective.x + 12, layout.objective.y + 38, layout.objective.w - 24, "right")
+    Render.drawTacticalBonusStrip(app, layout, summary)
     Render.drawTacticalIntentLegend(app, layout)
     Render.drawTacticalActionBar(app, layout)
+    if summary and summary.aestheticPassed ~= nil then
+        -- small composition badge in the objective panel corner
+        love.graphics.setColor(summary.aestheticPassed and 0.62 or 0.78, summary.aestheticPassed and 0.86 or 0.42, summary.aestheticPassed and 0.62 or 0.32, 0.86)
+        love.graphics.print(summary.aestheticPassed and "\xe2\x97\x86 composed" or "\xe2\x97\x86 rough", layout.objective.x + 12, layout.objective.y + layout.objective.h - 20)
+    end
 end
 
 function Render.drawTacticalSidePanel(sim, app)
@@ -4819,19 +4880,59 @@ function Render.drawTacticalSidePanel(sim, app)
         local textX = x + 24 + layout.portraitSize
         local textW = layout.squad.w - layout.portraitSize - 52
         love.graphics.setColor(row.empty and 0.36 or 0.9, row.empty and 0.38 or 0.92, row.empty and 0.36 or 0.82, 1)
-        love.graphics.printf(shortText(row.id, 16), textX, rowY + 6, textW - 54, "left")
+        local nameLabel = row.name or row.id -- prefer generated identity name; falls back to id
+        love.graphics.printf(shortText(nameLabel, 18), textX, rowY + 6, textW - 60, "left")
         if selected then
             love.graphics.setColor(0.9, 0.76, 0.32, 1)
             love.graphics.printf("SEL", textX + textW - 52, rowY + 6, 48, "right")
         end
         local infoY = layout.rowH < 46 and rowY + 19 or rowY + 24
         love.graphics.setColor(0.62, 0.66, 0.58, 1)
-        love.graphics.printf("HP " .. tostring(row.hp) .. "  @" .. tostring(row.x or "-") .. "," .. tostring(row.y or "-"), textX, infoY, textW, "left")
+        local hpLine = "HP " .. tostring(row.hp) .. (row.maxHp and ("/" .. tostring(row.maxHp)) or "")
+        if row.stress and row.stress > 0 then hpLine = hpLine .. "  S" .. tostring(row.stress) end
+        if row.defense then hpLine = hpLine .. "  " .. string.upper(row.defense) end -- PAR / DOD badge
+        love.graphics.printf(hpLine, textX, infoY, textW, "left")
         drawApPool(textX, rowY + layout.rowH - 12, math.min(92, textW - 58), row.ap, row.maxAp)
         love.graphics.setColor(0.74, 0.76, 0.66, 1)
         love.graphics.printf("AP " .. tostring(row.ap) .. "/" .. tostring(row.maxAp), textX + math.min(100, textW - 52), infoY, 52, "right")
     end
 
+    -- bond chips: paint cohesion bars under each squad slot when a bond exists
+    local bonds = (summary and summary.bonds) or {}
+    if #bonds > 0 then
+        local thresholds = { 10, 20, 30 }
+        for _, row in ipairs(rows) do
+            if row.id and row.id ~= "-" then
+                local bestCohesion, bestMate = 0, nil
+                for _, bond in ipairs(bonds) do
+                    if bond.a == row.id or bond.b == row.id then
+                        if (bond.cohesion or 0) > bestCohesion then
+                            bestCohesion = bond.cohesion
+                            bestMate = (bond.a == row.id) and bond.b or bond.a
+                        end
+                    end
+                end
+                if bestMate and bestCohesion > 0 then
+                    local rowY = y + 32 + (row.slot - 1) * layout.rowH
+                    local barX = x + 12
+                    local barY = rowY + layout.rowH - 18
+                    local barW = layout.squad.w - 24
+                    love.graphics.setColor(0.08, 0.1, 0.16, 0.86)
+                    love.graphics.rectangle("fill", barX, barY, barW, 3)
+                    local ratio = math.min(1, bestCohesion / thresholds[3])
+                    local level = 0
+                    for i, t in ipairs(thresholds) do if bestCohesion >= t then level = i end end
+                    if level >= 3 then love.graphics.setColor(0.74, 0.42, 0.92, 1)
+                    elseif level >= 2 then love.graphics.setColor(0.42, 0.74, 0.92, 1)
+                    else love.graphics.setColor(0.42, 0.92, 0.74, 1) end
+                    love.graphics.rectangle("fill", barX, barY, barW * ratio, 3)
+                    if level > 0 then
+                        love.graphics.print("\xe2\x99\xa1" .. tostring(level) .. " " .. shortText(bestMate, 6), barX, barY - 12)
+                    end
+                end
+            end
+        end
+    end
     if layout.intent.h <= 0 then
         return
     end

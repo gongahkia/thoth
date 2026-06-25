@@ -646,6 +646,7 @@ local function makeTutorialState(options)
         },
     }
     applyLiveClassSquad(spec, loadout)
+    spec.bonusChallenges = { "no_damage", "no_cover_destroyed" } -- tutorial bonus picks
     return TacticsState.new(spec), spec
 end
 
@@ -665,6 +666,13 @@ local function makeRouteState(options)
         spec = Procgen.generateArchiveExpanse(seed)
     end
     applyLiveClassSquad(spec, options and options.squadLoadout)
+    -- seed bonus challenges per route board; pick two distinct from pool deterministically
+    local pool = { "no_damage", "fast_extract", "no_cover_destroyed", "no_deaths", "no_objective_loss", "no_overwatch" }
+    local base = (tonumber(seed) or 1) % #pool
+    local firstIdx = base + 1
+    local secondIdx = ((base + 1 + math.floor((tonumber(seed) or 1) / #pool)) % #pool) + 1
+    if secondIdx == firstIdx then secondIdx = (firstIdx % #pool) + 1 end -- deterministic distinct fallback
+    spec.bonusChallenges = { pool[firstIdx], pool[secondIdx] }
     return TacticsState.new(spec), spec
 end
 
@@ -1584,6 +1592,16 @@ function Runtime.actionBar(runtime, hover)
         actions[#actions + 1] = { id = "class:" .. verb, key = tostring(index), label = labelForVerb(verb), detail = detail, enabled = selected and selected.ap >= apCost and not (preview and preview.error), classVerb = verb, preview = preview }
     end
     actions[#actions + 1] = { id = "brace", key = "B", label = "Brace", detail = "1 AP guard", enabled = selected and selected.ap >= 1 }
+    actions[#actions + 1] = { id = "parry", key = "P", label = "Parry", detail = "block + counter", enabled = selected and selected.ap >= 1 }
+    actions[#actions + 1] = { id = "dodge", key = "O", label = "Dodge", detail = "-50% next hit", enabled = selected and selected.ap >= 1 }
+    local hasBond = false
+    if selected and runtime.state.bonds and runtime.state.bonds.bondsByUnit then
+        local Bonds = require("src.game.tactics.bonds")
+        for _, cohesion in pairs(runtime.state.bonds.bondsByUnit[selected.id] or {}) do
+            if cohesion >= Bonds.levelThresholds[1] then hasBond = true; break end
+        end
+    end
+    actions[#actions + 1] = { id = "teamwork", key = "T", label = "Teamwork", detail = "+1 AP to bondmate", enabled = hasBond and selected and selected.ap >= 1 }
     actions[#actions + 1] = { id = "unit", key = "Tab", label = "Unit", detail = tostring(playerCount) .. " squad", enabled = playerCount > 1 }
     actions[#actions + 1] = { id = "rotate", key = "[ ]", label = "Rotate", detail = "view", enabled = true }
     actions[#actions + 1] = { id = "end", key = "E", label = "End Turn", detail = "resolve red", enabled = true }
@@ -1962,6 +1980,56 @@ function Runtime.brace(runtime)
     return false
 end
 
+function Runtime.parry(runtime)
+    local selected = Runtime.selectedUnit(runtime)
+    if not selected then return false end
+    if (selected.ap or 0) < 1 then setStatus(runtime, "parry needs 1 AP"); return false end
+    if tryApply(runtime, TacticsState.commands.parry(selected.id, 1)) then
+        setStatus(runtime, selected.id .. " parries: full block + AP refund on next hit")
+        Runtime.refreshOverlays(runtime)
+        return true
+    end
+    return false
+end
+
+function Runtime.dodge(runtime)
+    local selected = Runtime.selectedUnit(runtime)
+    if not selected then return false end
+    if (selected.ap or 0) < 1 then setStatus(runtime, "dodge needs 1 AP"); return false end
+    if tryApply(runtime, TacticsState.commands.dodge(selected.id, 1)) then
+        setStatus(runtime, selected.id .. " dodges: -50% damage on next hit")
+        Runtime.refreshOverlays(runtime)
+        return true
+    end
+    return false
+end
+
+function Runtime.teamwork(runtime)
+    local state = runtime.state
+    local selected = Runtime.selectedUnit(runtime)
+    if not selected or not state.bonds or not state.bonds.bondsByUnit then
+        setStatus(runtime, "no bond available"); return false
+    end
+    local mates = state.bonds.bondsByUnit[selected.id] or {}
+    local Bonds = require("src.game.tactics.bonds")
+    local mateId
+    for id, cohesion in pairs(mates) do
+        if cohesion >= Bonds.levelThresholds[1] then
+            local mate = state:unit(id)
+            if mate and mate.alive and not mate.evacuated then
+                mateId = id; break
+            end
+        end
+    end
+    if not mateId then setStatus(runtime, "no eligible bondmate"); return false end
+    if tryApply(runtime, TacticsState.commands.teamwork(selected.id, mateId, 1)) then
+        setStatus(runtime, selected.id .. " grants 1 AP to " .. mateId)
+        Runtime.refreshOverlays(runtime)
+        return true
+    end
+    return false
+end
+
 function Runtime.advanceRoute(runtime)
     local order = runtime.routeOrder or {}
     local nextIndex = (runtime.routeIndex or 1) + 1
@@ -2021,6 +2089,12 @@ function Runtime.handleKey(runtime, key)
         Runtime.attackCursor(runtime)
     elseif key == "b" then
         Runtime.brace(runtime)
+    elseif key == "p" then
+        Runtime.parry(runtime)
+    elseif key == "o" then
+        Runtime.dodge(runtime)
+    elseif key == "t" then
+        Runtime.teamwork(runtime)
     elseif key == "e" then
         Runtime.endPlayerTurn(runtime)
     else
@@ -2053,6 +2127,10 @@ function Runtime.summary(runtime)
                 intentDamage = intent and intent.damage or 0,
                 intentHidden = intent and (intent.hiddenByVision == true or intent.categoryOnly == true) or false,
                 targetTiles = intent and intent.targetTiles or {},
+                breakGauge = enemy.breakGauge or 0,
+                breakMax = enemy.breakMax,
+                broken = enemy.broken == true,
+                brokenTurns = enemy.brokenTurns or 0,
                 aiDebug = runtime.aiDebug and runtime.aiDebugPlans and copyValue(runtime.aiDebugPlans[enemy.id]) or nil,
             }
         end
@@ -2077,7 +2155,23 @@ function Runtime.summary(runtime)
     end
     local players = {}
     for _, unit in ipairs(state:unitsForSide("player")) do
-        players[#players + 1] = { id = unit.id, class = unit.class, className = unit.className, loadouts = unit.loadouts, hp = unit.hp, ap = unit.ap, maxAp = unit.maxAp, x = unit.x, y = unit.y, selected = selected and selected.id == unit.id }
+        players[#players + 1] = {
+            id = unit.id, class = unit.class, className = unit.className, loadouts = unit.loadouts,
+            hp = unit.hp, maxHp = unit.maxHp, ap = unit.ap, maxAp = unit.maxAp, x = unit.x, y = unit.y,
+            selected = selected and selected.id == unit.id,
+            name = unit.name,
+            portrait = unit.portrait,
+            quirks = unit.quirks and copyValue(unit.quirks) or nil,
+            stress = unit.stress or 0,
+            defense = unit.defense and unit.defense.kind or nil,
+        }
+    end
+    local bonusStatus = (state.bonusStatus and state:bonusStatus()) or {}
+    local bondList = {}
+    if state.bonds and state.bonds.pairs then
+        for _, entry in pairs(state.bonds.pairs) do
+            bondList[#bondList + 1] = { a = entry.a, b = entry.b, cohesion = entry.cohesion or 0, teamworkUsed = entry.teamworkUsed == true }
+        end
     end
     return {
         mode = "tactical",
@@ -2104,6 +2198,9 @@ function Runtime.summary(runtime)
         aiDoctrine = copyValue(runtime.aiDoctrine),
         lastEnemyDoctrine = copyValue(runtime.lastEnemyDoctrine),
         aiMemory = runtime.aiDebug and copyValue(runtime.aiMemory) or nil,
+        bonus = bonusStatus,
+        bonds = bondList,
+        aestheticPassed = runtime.boardSpec and runtime.boardSpec.budget and runtime.boardSpec.budget.aesthetic and runtime.boardSpec.budget.aesthetic.passed,
     }
 end
 

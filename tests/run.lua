@@ -761,7 +761,7 @@ tests[#tests + 1] = function()
     local moveAction = runtime:actionAtTile(2, 4)
     expect(moveAction.kind == "move" and moveAction.enabled and moveAction.detail == "1 AP", "tactical click action should preview reachable moves")
     local actionBar = runtime:actionBar({ x = 2, y = 4 })
-    expect(#actionBar == 12 and actionBar[1].label == "Move" and actionBar[1].key == "LMB" and actionBar[2].key == "WASD", "tactical action bar should expose contextual mouse controls")
+    expect(#actionBar == 15 and actionBar[1].label == "Move" and actionBar[1].key == "LMB" and actionBar[2].key == "WASD", "tactical action bar should expose contextual mouse controls")
     local expectedVerbs = {
         { id = "warden", verbs = { "line_guard", "brace", "shove" } },
         { id = "duelist", verbs = { "red_line", "dash_strike", "position_swap" } },

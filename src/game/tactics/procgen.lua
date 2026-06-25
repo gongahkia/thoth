@@ -1010,9 +1010,10 @@ function Procgen.aestheticCheck(spec)
         report.passed = false
         report.warnings[#report.warnings + 1] = "monotone_tiles" -- need >=3 distinct kinds
     end
-    if coverQuadrants < 2 and totalTiles >= 25 then
+    if coverQuadrants < 2 and totalTiles >= 25 and losBlockerCount < 12 then
+        -- only flag clumped cover when LoS blockers don't already provide silhouette interest
         report.passed = false
-        report.warnings[#report.warnings + 1] = "cover_clumped" -- cover should spread across quadrants
+        report.warnings[#report.warnings + 1] = "cover_clumped"
     end
     if distinctHeights < 2 and losBlockerCount == 0 then
         report.passed = false
