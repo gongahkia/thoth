@@ -112,6 +112,9 @@ tests[#tests + 1] = function()
     expect(runtime.topology ~= before and runtime.state.board.topology == runtime.topology, "topology cycle should regenerate board state")
     expect(runtime:handleKey("-"), "runtime should expose topology decrease")
     expect(runtime.topology == before and runtime.state.board.topology == runtime.topology, "topology decrease should return to previous edge count")
+    local tutorialRuntime = TacticalRuntime.new(makeTacticalSim(9101), { tutorial = true })
+    expect(tutorialRuntime:handleKey("="), "tutorial runtime should expose topology increase")
+    expect(tutorialRuntime.route.tutorial == true and tutorialRuntime.state.board.topology == tutorialRuntime.topology, "tutorial topology cycle should preserve tutorial route")
 end
 
 tests[#tests + 1] = function()

@@ -578,12 +578,13 @@ function Runtime.replanVisibleEnemyIntents(runtime, movedUnit)
     return count
 end
 
-local function makePrototypeState()
+local function makePrototypeState(options)
     return TacticsState.new({
         defaultAp = 3,
         board = {
             width = 8,
             height = 8,
+            topology = options and options.topology,
             tiles = {
                 ["3:4"] = { kind = "witness_desk", coverEdges = { north = "half", east = "full" } },
                 ["5:4"] = { kind = "shelf_rank", blocker = true, losBlocker = true, height = 2 },
@@ -610,6 +611,7 @@ local function makeTutorialState(options)
         board = {
             width = 6,
             height = 6,
+            topology = options and options.topology,
             tiles = {
                 ["2:3"] = { kind = "archive_cover", coverEdges = { west = "half" }, tags = { "move_goal" } },
                 ["3:3"] = { kind = "filing_lane", coverEdges = { east = "half" }, rotationMarks = { east = "sealed_intent" }, tags = { "rotate_read" } },
@@ -753,7 +755,7 @@ function Runtime.new(sim, options)
     local route = Procgen.archiveRoute()
     local tutorial = options.tutorial == true or ((options.squadLoadout or {}).missionId == "tutorial")
     if options.prototype then
-        state = makePrototypeState()
+        state = makePrototypeState(options)
     elseif tutorial then
         state, boardSpec = makeTutorialState(options)
     else
@@ -850,7 +852,14 @@ local setStatus
 function Runtime.setTopology(runtime, topology)
     topology = topology or "square"
     local currentVariant = runtime.route and runtime.route.variantId
-    local state, boardSpec = makeRouteState({ variantId = runtime.boardSpec and runtime.boardSpec.archiveRoute and not runtime.boardSpec.archiveRoute.expanse and currentVariant or nil, squadLoadout = runtime.squadLoadout, topology = topology })
+    local state, boardSpec
+    if runtime.boardSpec and runtime.boardSpec.archiveRoute and runtime.boardSpec.archiveRoute.tutorial then
+        state, boardSpec = makeTutorialState({ squadLoadout = runtime.squadLoadout, topology = topology })
+    elseif runtime.boardSpec and runtime.boardSpec.archiveRoute then
+        state, boardSpec = makeRouteState({ variantId = not runtime.boardSpec.archiveRoute.expanse and currentVariant or nil, squadLoadout = runtime.squadLoadout, topology = topology })
+    else
+        state = makePrototypeState({ topology = topology })
+    end
     runtime.state = state
     runtime.boardSpec = boardSpec
     runtime.topology = state.board.topology or topology
