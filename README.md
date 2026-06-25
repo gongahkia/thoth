@@ -1,24 +1,18 @@
 # Thoth
 
-Deterministic XCOM-lite tactics in a cursed archive: six auditors read intent, bend cover, and survive institutional horror without hit-roll RNG.
-
-<p align="center">
-  <img src="assets/previews/readme-tactical.png" alt="Thoth tactical screenshot showing six-unit AP HUD, intent legend, and tile inspector" width="640">
-  <br>
-  <img src="assets/previews/readme-tactical-loop.gif" alt="Thoth tactical GIF preview of the current Buried Archive route HUD" width="640">
-</p>
+2D top-down terrain exploration prototype in LÖVE. The focus is deterministic, nested-scale terrain generation: plates, uplift, rainfall, drainage, erosion, rivers, and biomes.
 
 ## Development
 
 ```sh
-make check
+make test
+make run
 ```
 
-Useful targets:
+Controls:
 
-- `make run`
-- `make test`
-- `make package-build`
-- `make benchmark-scaled`
-
-Roadmap source of truth: `TODO.md`.
+- `WASD` / arrows: walk
+- `Shift`: sprint
+- `1`, `2`, `3` or mouse wheel: local / region / continent scale
+- `Tab`: biome / plate / uplift / rainfall / flow / erosion overlay
+- `R`: new seed
