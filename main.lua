@@ -137,6 +137,6 @@ end
 
 function love.mousemoved(_, _, dx, dy)
     if not (app and app.mouseLook) then return end
-    app.camera.yaw = app.camera.yaw - dx * 0.0025
+    app.camera.yaw = app.camera.yaw + dx * 0.0025
     app.camera.pitch = math.max(-0.42, math.min(0.38, app.camera.pitch - dy * 0.0018))
 end
