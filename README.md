@@ -19,10 +19,11 @@ Runtime performance logging:
 ```sh
 love . --debug-perf
 love . --walk-smoke --walk-smoke-frames 240 --perf-interval 0.5
+love . --preload-radius 128 --refresh-preload-radius 96
 love . --hydrology-region-chunks 2 --hydrology-halo 8
 ```
 
-`--debug-perf` prints FPS, dt, update/draw/preload ms, position, chunks, cache counts, and terrain cache misses. Press `L` in-game to toggle it.
+`--debug-perf` prints FPS, raw/clamped dt, update/draw/preload ms, position, visible/preloaded chunks, cache counts, and terrain cache misses. Press `L` in-game to toggle it. Runtime movement clamps simulation dt to reduce jitter after slow terrain loads.
 
 Controls:
 
