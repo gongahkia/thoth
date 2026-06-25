@@ -15,7 +15,7 @@ Decision:
 
 Open drift:
 
-- `src/game/estate_state.lua` is dead code (no require sites). Left in place for future scope; flag in next cleanup pass.
+- Dead Lua modules removed: `src/game/estate_state.lua`, `src/game/inventory.lua` (both had zero require sites).
 - Cistern/Warrens content in `src/game/data/registry.lua` (~247 lines of references) retained but flagged. Not actively traversed by procgen but visible in some catalog tests.
 - Faction standing, stealth visibility, debt economy: declared in docs/run_catalog only. No implementation. Treat as future.
 
