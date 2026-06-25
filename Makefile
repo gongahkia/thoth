@@ -1,4 +1,4 @@
-.PHONY: run test smoke render-smoke clean
+.PHONY: run test smoke render-smoke walk-smoke clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -14,6 +14,9 @@ smoke:
 
 render-smoke:
 	SDL_AUDIODRIVER=dummy $(LOVE) . --render-smoke
+
+walk-smoke:
+	SDL_AUDIODRIVER=dummy $(LOVE) . --walk-smoke --walk-smoke-frames 240 --perf-interval 0.5
 
 clean:
 	rm -rf dist

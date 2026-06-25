@@ -7,6 +7,24 @@ local WorldGen = require("src.worldgen")
 local app
 local terrainPreloadPadding = 0
 local billboardPreloadPadding = 0
+local preloadStride = 8
+local maxSimDt = 1 / 30
+
+local function now()
+    return love.timer and love.timer.getTime and love.timer.getTime() or os.clock()
+end
+
+local function msSince(startTime)
+    return (now() - startTime) * 1000
+end
+
+local function flag(value)
+    return value and "1" or "0"
+end
+
+local function perfLine(app, message)
+    if app and app.debugPerf then print("[perf] " .. message) end
+end
 
 local function hasArg(args, value)
     for _, arg in ipairs(args or {}) do
@@ -20,6 +38,13 @@ local function argValue(args, flag, fallback)
         if arg == flag then return args[index + 1] or fallback end
     end
     return fallback
+end
+
+local function runtimeWorldOptions(args)
+    return {
+        hydrologyRegionChunks = tonumber(argValue(args, "--hydrology-region-chunks", 1)) or 1,
+        hydrologyHaloCells = tonumber(argValue(args, "--hydrology-halo", 0)) or 0,
+    }
 end
 
 local function smoke(args)
@@ -53,22 +78,105 @@ local function smoke(args)
     love.event.quit(0)
 end
 
-local function preloadApp(app)
+local function preloadApp(app, reason)
+    local started = now()
     local renderRadius = app.camera.renderRadius or 62
     local frustumRadius = math.ceil(math.sqrt(renderRadius * renderRadius + (renderRadius * 0.82) * (renderRadius * 0.82)))
-    app.world:preloadAround(app.player.x, app.player.y, frustumRadius + terrainPreloadPadding, "local")
-    app.world:preloadBillboardsAround(app.player.x, app.player.y, frustumRadius + billboardPreloadPadding)
+    local terrainChunks = app.world:preloadAround(app.player.x, app.player.y, frustumRadius + terrainPreloadPadding, "local")
+    local billboardChunks = app.world:preloadBillboardsAround(app.player.x, app.player.y, frustumRadius + billboardPreloadPadding)
     local size = app.world:metadata().chunkSize
     app.preloadedChunkX = math.floor(app.player.x / size)
     app.preloadedChunkY = math.floor(app.player.y / size)
+    app.preloadedBandX = math.floor(app.player.x / preloadStride)
+    app.preloadedBandY = math.floor(app.player.y / preloadStride)
+    local elapsed = msSince(started)
+    if app.perf then app.perf.preloadMsThisFrame = (app.perf.preloadMsThisFrame or 0) + elapsed end
+    perfLine(app, string.format(
+        "preload reason=%s ms=%.2f terrain_chunks=%d billboard_chunks=%d radius=%d chunk=%d,%d band=%d,%d",
+        reason or "manual",
+        elapsed,
+        terrainChunks,
+        billboardChunks,
+        frustumRadius,
+        app.preloadedChunkX,
+        app.preloadedChunkY,
+        app.preloadedBandX,
+        app.preloadedBandY
+    ))
 end
 
 local function refreshPreloadIfNeeded(app)
     local size = app.world:metadata().chunkSize
     local chunkX = math.floor(app.player.x / size)
     local chunkY = math.floor(app.player.y / size)
-    if chunkX == app.preloadedChunkX and chunkY == app.preloadedChunkY then return end
-    preloadApp(app)
+    local bandX = math.floor(app.player.x / preloadStride)
+    local bandY = math.floor(app.player.y / preloadStride)
+    if bandX == app.preloadedBandX and bandY == app.preloadedBandY then return end
+    perfLine(app, string.format("preload_due pos=%.2f,%.2f chunk=%d,%d old_chunk=%s,%s band=%d,%d old_band=%s,%s",
+        app.player.x,
+        app.player.y,
+        chunkX,
+        chunkY,
+        tostring(app.preloadedChunkX),
+        tostring(app.preloadedChunkY),
+        bandX,
+        bandY,
+        tostring(app.preloadedBandX),
+        tostring(app.preloadedBandY)
+    ))
+    preloadApp(app, "band")
+end
+
+local function perfSnapshot(app)
+    local cache = app.world:cacheStats()
+    local metrics = app.world:metricsSnapshot()
+    local size = app.world:metadata().chunkSize
+    local chunkX = math.floor(app.player.x / size)
+    local chunkY = math.floor(app.player.y / size)
+    local stats = app.perf.renderStats or {}
+    return string.format(
+        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s cache=%d chunks=%d hydro=%d billboard_cache=%d misses=c%d/h%d/b%d",
+        app.perf.frame or 0,
+        love.timer.getFPS(),
+        (app.perf.lastDt or 0) * 1000,
+        (app.perf.simDt or 0) * 1000,
+        app.perf.updateMs or 0,
+        app.perf.drawMs or 0,
+        app.perf.preloadMsThisFrame or 0,
+        app.player.x,
+        app.player.y,
+        chunkX,
+        chunkY,
+        math.floor(app.player.x / preloadStride),
+        math.floor(app.player.y / preloadStride),
+        app.camera.yaw or 0,
+        app.camera.pitch or 0,
+        flag(app.perf.moving),
+        flag(app.perf.sprint),
+        tostring(stats.visibleTiles),
+        tostring(stats.triangles),
+        tostring(stats.billboards),
+        cache.total,
+        cache.chunks,
+        cache.hydrology,
+        cache.billboards,
+        metrics.chunkMisses,
+        metrics.hydrologyMisses,
+        metrics.billboardMisses
+    )
+end
+
+local function maybeLogPerf(app)
+    if not app.debugPerf then return end
+    local time = now()
+    local interval = app.perf.interval or 1
+    local slowMs = app.perf.slowFrameMs or 24
+    local dtMs = (app.perf.lastDt or 0) * 1000
+    local slow = dtMs > slowMs or (app.perf.updateMs or 0) > slowMs or (app.perf.drawMs or 0) > slowMs or (app.perf.preloadMsThisFrame or 0) > slowMs
+    if slow or time - (app.perf.lastLogAt or 0) >= interval then
+        app.perf.lastLogAt = time
+        perfLine(app, (slow and "slow " or "tick ") .. perfSnapshot(app))
+    end
 end
 
 function love.load(args)
@@ -78,45 +186,87 @@ function love.load(args)
     end
     love.graphics.setDefaultFilter("nearest", "nearest")
     app = {
-        world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625))),
+        world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625)), runtimeWorldOptions(args)),
+        worldOptions = runtimeWorldOptions(args),
         player = Player.new(0, 0),
         camera = Render.defaultCamera(),
         paused = false,
         mouseLook = true,
         renderSmoke = hasArg(args, "--render-smoke"),
+        walkSmoke = hasArg(args, "--walk-smoke"),
+        walkSmokeFrames = tonumber(argValue(args, "--walk-smoke-frames", 240)) or 240,
+        walkSmokeTurn = tonumber(argValue(args, "--walk-smoke-turn", 0.18)) or 0.18,
+        debugPerf = hasArg(args, "--debug-perf") or hasArg(args, "--log-fps") or hasArg(args, "--walk-smoke"),
     }
-    preloadApp(app)
+    app.perf = {
+        frame = 0,
+        interval = tonumber(argValue(args, "--perf-interval", 1)) or 1,
+        slowFrameMs = tonumber(argValue(args, "--slow-frame-ms", 24)) or 24,
+        lastLogAt = now(),
+    }
+    perfLine(app, string.format("load seed=%s render_radius=%d preload_stride=%d hydrology_regions=%d hydrology_halo=%d slow_ms=%.1f interval=%.2f",
+        tostring(app.world:metadata().seed),
+        app.camera.renderRadius or 0,
+        preloadStride,
+        app.world:metadata().hydrologyRegionChunks or 0,
+        app.world:metadata().hydrologyHaloCells or 0,
+        app.perf.slowFrameMs,
+        app.perf.interval
+    ))
+    preloadApp(app, "load")
     if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(true) end
 end
 
 function love.update(dt)
     if not app then return end
+    local started = now()
+    app.perf.preloadMsThisFrame = 0
+    app.perf.lastDt = dt
+    local simDt = math.min(dt, maxSimDt)
+    app.perf.simDt = simDt
     local turn = (love.keyboard.isDown("e", "right") and 1 or 0) - (love.keyboard.isDown("q", "left") and 1 or 0)
     local pitch = (love.keyboard.isDown("down") and 1 or 0) - (love.keyboard.isDown("up") and 1 or 0)
-    app.camera.yaw = app.camera.yaw + turn * dt * 1.9
-    app.camera.pitch = math.max(-0.42, math.min(0.38, app.camera.pitch + pitch * dt * 0.85))
-    Player.update(app.player, dt, {
-        forward = love.keyboard.isDown("w"),
+    if app.walkSmoke then turn = app.walkSmokeTurn end
+    app.camera.yaw = app.camera.yaw + turn * simDt * 1.9
+    app.camera.pitch = math.max(-0.42, math.min(0.38, app.camera.pitch + pitch * simDt * 0.85))
+    local input = {
+        forward = app.walkSmoke or love.keyboard.isDown("w"),
         back = love.keyboard.isDown("s"),
         left = love.keyboard.isDown("a", "left"),
         right = love.keyboard.isDown("d", "right"),
-        sprint = love.keyboard.isDown("lshift", "rshift"),
+        sprint = app.walkSmoke and true or love.keyboard.isDown("lshift", "rshift"),
         yaw = app.camera.yaw,
-    }, app.world)
+    }
+    app.perf.moving = input.forward or input.back or input.left or input.right
+    app.perf.sprint = input.sprint
+    Player.update(app.player, simDt, input, app.world)
     refreshPreloadIfNeeded(app)
-    app.camera.x = app.camera.x + (app.player.x - app.camera.x) * math.min(1, dt * 10)
-    app.camera.y = app.camera.y + (app.player.y - app.camera.y) * math.min(1, dt * 10)
+    app.camera.x = app.camera.x + (app.player.x - app.camera.x) * math.min(1, simDt * 10)
+    app.camera.y = app.camera.y + (app.player.y - app.camera.y) * math.min(1, simDt * 10)
+    app.perf.updateMs = msSince(started)
 end
 
 function love.draw()
     if not app then return end
+    local started = now()
     local stats = Render.draw(app)
+    app.perf.drawMs = msSince(started)
+    app.perf.renderStats = stats
+    app.perf.frame = (app.perf.frame or 0) + 1
+    maybeLogPerf(app)
     if app.renderSmoke and not app.renderSmokePrinted then
         app.renderSmokePrinted = true
         print("render-smoke=terrain3d")
         print("render-smoke-tiles=" .. tostring(stats.visibleTiles))
         print("render-smoke-triangles=" .. tostring(stats.triangles))
         print("render-smoke-billboards=" .. tostring(stats.billboards))
+        love.event.quit(0)
+    end
+    if app.walkSmoke and app.perf.frame >= app.walkSmokeFrames then
+        print("walk-smoke=terrain3d")
+        print("walk-smoke-frames=" .. tostring(app.perf.frame))
+        print("walk-smoke-pos=" .. string.format("%.2f,%.2f", app.player.x, app.player.y))
+        print("walk-smoke-final=" .. perfSnapshot(app))
         love.event.quit(0)
     end
 end
@@ -128,10 +278,15 @@ function love.keypressed(key)
         app.mouseLook = not app.mouseLook
         if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(app.mouseLook) end
     end
+    if key == "l" then
+        app.debugPerf = not app.debugPerf
+        print("[perf] debug=" .. tostring(app.debugPerf))
+    end
     if key == "r" then
-        app.world = WorldGen.new(os.time() % 1000000)
+        app.world = WorldGen.new(os.time() % 1000000, app.worldOptions)
         app.player.x, app.player.y = 0, 0
-        preloadApp(app)
+        app.perf.preloadMsThisFrame = 0
+        preloadApp(app, "seed_reset")
     end
 end
 

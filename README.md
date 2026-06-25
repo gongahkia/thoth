@@ -8,10 +8,21 @@ Pseudo-3D terrain exploration prototype in LÖVE. The focus is deterministic ter
 make test
 make smoke
 make render-smoke
+make walk-smoke
 make run
 ```
 
-Hydrology currently uses cached 2x2 chunk regions with an 8-cell halo, Priority-Flood-style depression filling, D8 downstream routing, rainfall accumulation, basin/watershed ids, lake surfaces, and seam/uphill diagnostics.
+Hydrology uses cached chunk regions, Priority-Flood-style depression filling, D8 downstream routing, rainfall accumulation, basin/watershed ids, lake surfaces, and seam/uphill diagnostics. The generator default is 2x2 regions with an 8-cell halo; the interactive runtime defaults to `--hydrology-region-chunks 1 --hydrology-halo 0` to reduce walking stalls.
+
+Runtime performance logging:
+
+```sh
+love . --debug-perf
+love . --walk-smoke --walk-smoke-frames 240 --perf-interval 0.5
+love . --hydrology-region-chunks 2 --hydrology-halo 8
+```
+
+`--debug-perf` prints FPS, dt, update/draw/preload ms, position, chunks, cache counts, and terrain cache misses. Press `L` in-game to toggle it.
 
 Controls:
 

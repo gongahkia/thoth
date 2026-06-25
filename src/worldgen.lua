@@ -136,6 +136,11 @@ function WorldGen.new(seed, options)
         hydrologyRegionChunks = options.hydrologyRegionChunks or 2,
         hydrologyHaloCells = options.hydrologyHaloCells or 8,
         cache = {},
+        metrics = {
+            chunkMisses = 0,
+            hydrologyMisses = 0,
+            billboardMisses = 0,
+        },
     }, WorldGen)
 end
 
@@ -210,9 +215,7 @@ function WorldGen:baseSample(x, y, scale)
     local temperature = clamp(1 - math.abs(latitude * 2 - 1) * 1.1 - math.max(0, elevation) * 0.42 + (Noise.fbm(self.seed + 404, x, y, { frequency = 0.002, octaves = 3 }) - 0.5) * 0.18, 0, 1)
     local moistureNoise = Noise.fbm(self.seed + 505, x, y, { frequency = 0.0022, octaves = 4 })
     local rainfall = clamp(0.2 + moistureNoise * 0.62 + (1 - math.abs(latitude - 0.5) * 2) * 0.18 - math.max(0, elevation) * 0.18 - uplift * 0.16, 0, 1)
-    local dx = Noise.fbm(self.seed + 606, x + info.factor, y, { frequency = 0.01 / info.factor, octaves = 3 }) - Noise.fbm(self.seed + 606, x - info.factor, y, { frequency = 0.01 / info.factor, octaves = 3 })
-    local dy = Noise.fbm(self.seed + 606, x, y + info.factor, { frequency = 0.01 / info.factor, octaves = 3 }) - Noise.fbm(self.seed + 606, x, y - info.factor, { frequency = 0.01 / info.factor, octaves = 3 })
-    local slope = clamp(math.sqrt(dx * dx + dy * dy) + plate.boundary * 0.08, 0, 1)
+    local slope = clamp(ridge * 0.1 + math.abs(rough - 0.5) * 0.16 + plate.boundary * 0.08 + uplift * 0.06, 0, 1)
     local water = elevation <= self.seaLevel
     return {
         x = x,
@@ -243,6 +246,7 @@ function WorldGen:chunk(chunkX, chunkY, scale)
     local info = scaleInfo(scale)
     local cacheKey = key(chunkX, chunkY, info.id)
     if self.cache[cacheKey] then return self.cache[cacheKey] end
+    self.metrics.chunkMisses = self.metrics.chunkMisses + 1
     local size = self.chunkSize
     local region = Hydrology.region(self, chunkX, chunkY, info)
     local rows = {}
@@ -305,6 +309,29 @@ function WorldGen:preloadBillboardsAround(x, y, radius)
         end
     end
     return chunks
+end
+
+function WorldGen:cacheStats()
+    local stats = { total = 0, chunks = 0, hydrology = 0, billboards = 0 }
+    for cacheKey in pairs(self.cache) do
+        stats.total = stats.total + 1
+        if string.sub(cacheKey, 1, 9) == "hydrology" then
+            stats.hydrology = stats.hydrology + 1
+        elseif string.sub(cacheKey, 1, 10) == "billboards" then
+            stats.billboards = stats.billboards + 1
+        else
+            stats.chunks = stats.chunks + 1
+        end
+    end
+    return stats
+end
+
+function WorldGen:metricsSnapshot()
+    return {
+        chunkMisses = self.metrics.chunkMisses,
+        hydrologyMisses = self.metrics.hydrologyMisses,
+        billboardMisses = self.metrics.billboardMisses,
+    }
 end
 
 function WorldGen:sample(x, y, scale)
@@ -376,6 +403,7 @@ end
 function WorldGen:billboards(chunkX, chunkY)
     local cacheKey = key("billboards", chunkX, chunkY)
     if self.cache[cacheKey] then return self.cache[cacheKey] end
+    self.metrics.billboardMisses = self.metrics.billboardMisses + 1
     local chunk = self:chunk(chunkX, chunkY, "local")
     local result = {}
     for y = 3, chunk.size - 2, 4 do

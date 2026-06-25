@@ -152,6 +152,7 @@ local function solveRegion(world, chunkX, chunkY, info)
     local regionY = regionIndex(chunkY, regionChunks)
     local cacheKey = regionCacheKey(info, regionX, regionY)
     if world.cache[cacheKey] then return world.cache[cacheKey] end
+    if world.metrics then world.metrics.hydrologyMisses = world.metrics.hydrologyMisses + 1 end
 
     local chunkSize = world.chunkSize
     local startChunkX = regionStart(regionX, regionChunks)

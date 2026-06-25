@@ -61,7 +61,7 @@ function Render.defaultCamera()
         pitch = 0.02,
         eyeHeight = 3.2,
         fov = 620,
-        renderRadius = 48,
+        renderRadius = 42,
         step = 3,
     }
 end
