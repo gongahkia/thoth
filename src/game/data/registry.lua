@@ -1244,7 +1244,8 @@ Registry.locations = {
             ["24:0"] = "regent",
         },
     },
-    salt_cistern = {
+    salt_cistern = { -- FUTURE ZONE: not playable in current prototype; data retained for design reference only
+        __future = true,
         name = "Salt Cistern",
         objectiveRooms = 4,
         start = { x = 0, y = 0, z = 0 },
@@ -1350,7 +1351,8 @@ Registry.locations = {
             ["18:10"] = "matron",
         },
     },
-    ember_warrens = {
+    ember_warrens = { -- FUTURE ZONE: not playable in current prototype; data retained for design reference only
+        __future = true,
         name = "Ember Warrens",
         objectiveRooms = 4,
         start = { x = 0, y = 0, z = 0 },
@@ -2403,11 +2405,13 @@ Registry.dreadRules = {
 }
 Registry.dreadRuleOrder = { "dread_rules_v1" }
 
+-- prototype scope: only dread cap is wired as an end condition. weekCap and exposureCap definitions retained as reference for future zones; not enforced.
 Registry.campaignTimers = {
-    twin_timer_v1 = { weekCap = 14, dreadCap = 18, eitherCapEnds = true },
-    week_cap_default = { weekCap = 14, endConditions = { "estate_seal", "repair_compact", "extraction_collapse", "quiet_failure" } },
+    dread_only_v1 = { dreadCap = 18, eitherCapEnds = false }, -- active prototype timer: dread-only failure
+    twin_timer_v1 = { weekCap = 14, dreadCap = 18, eitherCapEnds = true, __future = true }, -- deferred: dual cap
+    week_cap_default = { weekCap = 14, endConditions = { "estate_seal", "repair_compact", "extraction_collapse", "quiet_failure" }, __future = true }, -- deferred: 4-ending fan-out
 }
-Registry.campaignTimerOrder = { "twin_timer_v1", "week_cap_default" }
+Registry.campaignTimerOrder = { "dread_only_v1", "twin_timer_v1", "week_cap_default" }
 
 Registry.endingRoutes = {
     estate_seal = {

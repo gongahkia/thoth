@@ -16,6 +16,7 @@ Validator.invariants = {
     "objective_reachable",
     "squad_spawn_safe",
     "enemy_placement_solvable",
+    "objective_interactable", -- every objective must have at least one open neighbor tile for interaction
 }
 
 local function tileKey(x, y)
@@ -137,6 +138,25 @@ local function checkObjectives(spec, reachable, rejects)
     end
 end
 
+-- objective interaction sanity: every objective must have at least one non-blocker neighbor so a unit can stand adjacent to interact.
+-- Procgen design intentionally hides objectives behind cover/LoS-blockers, so this is the right level of strictness.
+local function checkObjectiveInteractability(spec, rejects)
+    local board = spec.board
+    for _, objective in ipairs(spec.objectives or {}) do
+        local hasNeighbor = false
+        for _, delta in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+            local nx, ny = objective.x + delta[1], objective.y + delta[2]
+            if tileOpen(board, nx, ny) then
+                hasNeighbor = true
+                break
+            end
+        end
+        if not hasNeighbor then
+            addReject(rejects, "objective_isolated:" .. tostring(objective.id))
+        end
+    end
+end
+
 local function checkEnemies(spec, reachable, occupied, rejects)
     local enemies = startsForSide(spec, "enemy")
     if #enemies == 0 then
@@ -200,6 +220,7 @@ function Validator.validateSpec(spec, context)
     local reachable = flood(spec.board, players)
     checkObjectives(spec, reachable, rejects)
     checkEnemies(spec, reachable, occupied, rejects)
+    checkObjectiveInteractability(spec, rejects)
     return {
         seed = context.seed or spec.seed,
         variantId = context.variantId or (spec.generator and spec.generator.variantId),

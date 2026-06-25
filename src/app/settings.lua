@@ -53,6 +53,7 @@ local controls = {
     { kind = "toggle", setting = "subtitles", label = "Subtitles", group = "accessibility" },
     { kind = "slider", setting = "fontScale", label = "Font Scale", step = 0.05, min = 0.8, max = 1.4, group = "accessibility" },
     { kind = "toggle", setting = "calmHud", label = "Calm HUD (minimalist)", group = "accessibility" },
+    { kind = "toggle", setting = "estateMinimal", label = "Estate Minimal (no buildings/trinkets)", group = "input" }, -- prototype lean roguelite toggle
     { kind = "back", label = "Back" },
 }
 
@@ -105,6 +106,7 @@ function Settings.defaults()
         fontScale = 1,
         calmHud = false,
         partyMovement = false,
+        estateMinimal = true, -- prototype lean mode: hides building/trinket meta-progression UI
         keybinds = copyMap(defaultKeybinds),
     }
 end

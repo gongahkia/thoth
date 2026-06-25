@@ -661,6 +661,7 @@ function Input.mousepressed(sim, app, x, y, button)
             return
         end
     end
+    local estateMinimal = app and app.settings and app.settings.estateMinimal -- ignore building/trinket actions in lean prototype mode
     for _, hitbox in ipairs((app.ui and app.ui.estateActionButtons) or {}) do
         if x >= hitbox.x and x <= hitbox.x + hitbox.w and y >= hitbox.y and y <= hitbox.y + hitbox.h then
             if hitbox.tooltipKey then
@@ -670,15 +671,15 @@ function Input.mousepressed(sim, app, x, y, button)
                 sim:queue(legacyCommands.upgradeSkill(hitbox.heroId, hitbox.skillKey))
             elseif hitbox.action == "upgradeGear" then
                 sim:queue(legacyCommands.upgradeGear(hitbox.heroId, hitbox.kind))
-            elseif hitbox.action == "equipTrinket" then
+            elseif hitbox.action == "equipTrinket" and not estateMinimal then
                 sim:queue(legacyCommands.equipTrinket(hitbox.heroId, hitbox.trinketKey, hitbox.slot))
-            elseif hitbox.action == "unequipTrinket" then
+            elseif hitbox.action == "unequipTrinket" and not estateMinimal then
                 sim:queue(legacyCommands.unequipTrinket(hitbox.heroId, hitbox.slot))
-            elseif hitbox.action == "sellTrinket" then
+            elseif hitbox.action == "sellTrinket" and not estateMinimal then
                 sim:queue(legacyCommands.sellTrinket(hitbox.trinketKey))
-            elseif hitbox.action == "buyTrinket" then
+            elseif hitbox.action == "buyTrinket" and not estateMinimal then
                 sim:queue(legacyCommands.buyTrinket(hitbox.stockIndex))
-            elseif hitbox.action == "upgradeBuilding" then
+            elseif hitbox.action == "upgradeBuilding" and not estateMinimal then
                 sim:queue(legacyCommands.upgradeBuilding(hitbox.buildingKey))
             elseif hitbox.action == "recoverHero" then
                 sim:queue(legacyCommands.recoverHero(hitbox.heroId, hitbox.activityKey))

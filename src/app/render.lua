@@ -4289,36 +4289,39 @@ local function drawSelectedEstateHero(sim, app, hero, x, y, w)
         local activity = Defs.estateActivity(activityKey)
         addEstateAction(app, (activity.short or activity.name) .. " " .. activity.cost, x + ((index - 1) % 3) * 82, actionY + 96 + math.floor((index - 1) / 3) * 34, 76, { action = "recoverHero", heroId = hero.id, activityKey = activityKey, enabled = (hero.recovering or 0) <= 0 })
     end
+    local estateMinimal = app and app.settings and app.settings.estateMinimal -- prototype lean mode skips trinket UI per-hero
     local trinketY = actionY + 140
-    love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print(i18n.t("Trinkets"), x, trinketY)
-    for slot = 1, 2 do
-        local key = hero.trinkets and hero.trinkets[slot]
-        local trinket = key and Defs.trinket(key)
-        local label = key and ((trinket and (trinket.short or trinket.name)) or key) or (i18n.t("slot") .. " " .. slot)
-        addEstateAction(app, label, x + (slot - 1) * 82, trinketY + 22, 76, { action = "unequipTrinket", heroId = hero.id, slot = slot, tooltipKey = key, enabled = key ~= false and key ~= nil })
-    end
-    local openSlot = firstOpenTrinketSlot(hero)
-    local trinketIndex = 0
-    for _, key in ipairs(Defs.trinketOrder) do
-        local count = (sim.estate.trinkets or {})[key] or 0
-        if count > 0 then
-            trinketIndex = trinketIndex + 1
-            local trinket = Defs.trinket(key)
-            local bx = x + ((trinketIndex - 1) % 3) * 82
-            local by = trinketY + 56 + math.floor((trinketIndex - 1) / 3) * 34
-            addEstateAction(app, (trinket.short or key) .. ":" .. count, bx, by, 50, { action = "equipTrinket", heroId = hero.id, trinketKey = key, slot = openSlot, tooltipKey = key, enabled = openSlot ~= nil })
-            addEstateAction(app, "$" .. (trinket.value or 0), bx + 52, by, 24, { action = "sellTrinket", trinketKey = key, tooltipKey = key, enabled = true })
+    if not estateMinimal then
+        love.graphics.setColor(0.9, 0.92, 0.86, 1)
+        love.graphics.print(i18n.t("Trinkets"), x, trinketY)
+        for slot = 1, 2 do
+            local key = hero.trinkets and hero.trinkets[slot]
+            local trinket = key and Defs.trinket(key)
+            local label = key and ((trinket and (trinket.short or trinket.name)) or key) or (i18n.t("slot") .. " " .. slot)
+            addEstateAction(app, label, x + (slot - 1) * 82, trinketY + 22, 76, { action = "unequipTrinket", heroId = hero.id, slot = slot, tooltipKey = key, enabled = key ~= false and key ~= nil })
         end
-    end
-    local tooltipKey = activeTrinketTooltipKey(app, sim, hero)
-    if tooltipKey then
-        local tooltipLines = Render.trinketTooltip(sim, tooltipKey)
-        love.graphics.setColor(0.82, 0.78, 0.56, 1)
-        love.graphics.print(i18n.t("Set Bonus"), x, trinketY + 92)
-        love.graphics.setColor(0.68, 0.72, 0.66, 1)
-        for index = 1, math.min(3, #tooltipLines) do
-            love.graphics.printf(tooltipLines[index], x, trinketY + 108 + (index - 1) * 16, w)
+        local openSlot = firstOpenTrinketSlot(hero)
+        local trinketIndex = 0
+        for _, key in ipairs(Defs.trinketOrder) do
+            local count = (sim.estate.trinkets or {})[key] or 0
+            if count > 0 then
+                trinketIndex = trinketIndex + 1
+                local trinket = Defs.trinket(key)
+                local bx = x + ((trinketIndex - 1) % 3) * 82
+                local by = trinketY + 56 + math.floor((trinketIndex - 1) / 3) * 34
+                addEstateAction(app, (trinket.short or key) .. ":" .. count, bx, by, 50, { action = "equipTrinket", heroId = hero.id, trinketKey = key, slot = openSlot, tooltipKey = key, enabled = openSlot ~= nil })
+                addEstateAction(app, "$" .. (trinket.value or 0), bx + 52, by, 24, { action = "sellTrinket", trinketKey = key, tooltipKey = key, enabled = true })
+            end
+        end
+        local tooltipKey = activeTrinketTooltipKey(app, sim, hero)
+        if tooltipKey then
+            local tooltipLines = Render.trinketTooltip(sim, tooltipKey)
+            love.graphics.setColor(0.82, 0.78, 0.56, 1)
+            love.graphics.print(i18n.t("Set Bonus"), x, trinketY + 92)
+            love.graphics.setColor(0.68, 0.72, 0.66, 1)
+            for index = 1, math.min(3, #tooltipLines) do
+                love.graphics.printf(tooltipLines[index], x, trinketY + 108 + (index - 1) * 16, w)
+            end
         end
     end
     local treatY = trinketY + 126
@@ -5981,29 +5984,32 @@ function Render.drawEstatePanel(sim, app)
         love.graphics.setColor(0.62, 0.66, 0.58, 1)
         love.graphics.printf(event.effect or event.summary or "", x + 220, y + 72, 150)
     end
-    love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print(i18n.t("Buildings"), x + 10, y + 82)
-    for index, key in ipairs(Defs.estateBuildingOrder) do
-        local building = Defs.estateBuilding(key)
-        local level = sim:buildingLevel(key)
-        local cost = (building.heirloomCost or 0) * (level + 1)
-        local bx = x + 10 + ((index - 1) % 2) * 154
-        local by = y + 104 + math.floor((index - 1) / 2) * 34
-        local label = string.sub(building.name, 1, 10) .. " " .. level .. "/" .. building.maxLevel .. " " .. cost .. "h"
-        addEstateAction(app, label, bx, by, 148, { action = "upgradeBuilding", buildingKey = key, enabled = level < building.maxLevel and sim.estate.heirlooms >= cost })
-    end
-    local trinkets = {}
-    for _, key in ipairs(Defs.trinketOrder) do
-        local count = (sim.estate.trinkets or {})[key] or 0
-        if count > 0 then
-            trinkets[#trinkets + 1] = key .. ":" .. count
+    local estateMinimal = app and app.settings and app.settings.estateMinimal -- prototype "lean roguelite" mode hides building/trinket UI
+    if not estateMinimal then
+        love.graphics.setColor(0.9, 0.92, 0.86, 1)
+        love.graphics.print(i18n.t("Buildings"), x + 10, y + 82)
+        for index, key in ipairs(Defs.estateBuildingOrder) do
+            local building = Defs.estateBuilding(key)
+            local level = sim:buildingLevel(key)
+            local cost = (building.heirloomCost or 0) * (level + 1)
+            local bx = x + 10 + ((index - 1) % 2) * 154
+            local by = y + 104 + math.floor((index - 1) / 2) * 34
+            local label = string.sub(building.name, 1, 10) .. " " .. level .. "/" .. building.maxLevel .. " " .. cost .. "h"
+            addEstateAction(app, label, bx, by, 148, { action = "upgradeBuilding", buildingKey = key, enabled = level < building.maxLevel and sim.estate.heirlooms >= cost })
         end
-    end
-    love.graphics.printf(#trinkets > 0 and table.concat(trinkets, "  ") or i18n.t("no trinkets"), x + 10, y + 174, 312)
-    love.graphics.print(i18n.t("Market"), x + 10, y + 196)
-    for index, offer in ipairs(sim.estate.trinketStock or {}) do
-        local trinket = Defs.trinket(offer.trinket)
-        addEstateAction(app, (trinket.short or offer.trinket) .. " " .. offer.price, x + 70 + (index - 1) * 112, y + 190, 104, { action = "buyTrinket", stockIndex = index, enabled = sim.estate.gold >= (offer.price or 0) })
+        local trinkets = {}
+        for _, key in ipairs(Defs.trinketOrder) do
+            local count = (sim.estate.trinkets or {})[key] or 0
+            if count > 0 then
+                trinkets[#trinkets + 1] = key .. ":" .. count
+            end
+        end
+        love.graphics.printf(#trinkets > 0 and table.concat(trinkets, "  ") or i18n.t("no trinkets"), x + 10, y + 174, 312)
+        love.graphics.print(i18n.t("Market"), x + 10, y + 196)
+        for index, offer in ipairs(sim.estate.trinketStock or {}) do
+            local trinket = Defs.trinket(offer.trinket)
+            addEstateAction(app, (trinket.short or offer.trinket) .. " " .. offer.price, x + 70 + (index - 1) * 112, y + 190, 104, { action = "buyTrinket", stockIndex = index, enabled = sim.estate.gold >= (offer.price or 0) })
+        end
     end
     love.graphics.printf(i18n.t("cart") .. " " .. stacksText(sim.estate.provisionCart), x + 10, y + 220, 400)
     love.graphics.setColor(0.9, 0.92, 0.86, 1)

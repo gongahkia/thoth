@@ -2,6 +2,23 @@
 
 North star for content, naming, tone, and future implementation. Mechanics in code remain source of truth.
 
+> **Tone Direction (2026-06): Lighter Pivot in Progress**
+>
+> The active art pipeline (CC-BY isometric sprite packs) does not support the original grimdark/body-horror register. The prototype is shifting toward a lighter "bureaucratic adventure" register: still institutional, still about the cursed archive-city, but more legible and less visceral. Passages below tagged `[grimdark legacy]` are retained for reference but no longer apply to the active prototype. New writing should default to the lighter pillars in the **Tone Pillars (Prototype Pivot)** section.
+
+## Tone Pillars (Prototype Pivot)
+
+- Scale is mysterious, not hostile. Rooms feel like small fragments of an enormous archive that continues out of sight, but the framing is curiosity-forward rather than oppressive.
+- The horror is institutional before it is monstrous. The Stack harms by filing, sorting, correcting, preserving, and enforcing — the violence is administrative.
+- Bodies stay off-page. References to indexed flesh, suturing, vitrification, drains, and record-media are removed from prototype writing. Injuries are mechanical (HP, statuses, recovery), not described in detail.
+- No explicit sexual violence. No splatter-first description.
+- Player pressure comes from time, supplies, and bad route choices, not random cruelty.
+- Tactical cruelty must be declared before it resolves. The room may be unfair in motive, not unclear in rules.
+- The Estate is useful and morally compromised. It is home, employer, exploiter, archivist, creditor, and cage — but the prototype shows this through systems and quiet dialogue, not gore.
+- Survivors inside the Stack are people, not loot dressing.
+- Mystery comes from missing context and vast systems, not from incoherent proper nouns.
+- Board readability is tone. A clean threat preview should feel like a clear bureaucratic notice: cold, exact, and hard to ignore.
+
 ## Research Anchors
 
 - [British Museum: Library of Ashurbanipal](https://www.britishmuseum.org/blog/library-fit-king): archive as power, omen-reading, medicine, ritual, law, royal control, and preserved fragments after fire.
@@ -43,7 +60,9 @@ The party are not clean heroes. They are compromised salvagers working inside a 
 
 The pivot makes the Stack a tactical board before it is a dungeon. Every room is a procedure made visible: claims become cover lines, audits become threat cones, valves become flood lanes, shelves become destructible blockers, and sealed names become tile permissions. The party wins by reading what the room is about to do, then moving people, threats, and terrain until the least-bad outcome is acceptable.
 
-## Tone Pillars
+## Tone Pillars `[grimdark legacy]`
+
+> Retained for reference. **Do not use** for new prototype writing — see **Tone Pillars (Prototype Pivot)** above.
 
 - Scale is hostile. Rooms should feel like small usable fragments of an architecture that continues far beyond the screen.
 - The horror is institutional before it is monstrous. The Stack harms by filing, sorting, correcting, preserving, and enforcing.

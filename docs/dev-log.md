@@ -1,5 +1,26 @@
 # Dev Log
 
+## 2026-06-25 Prototype Pivot: Lean Roguelite
+
+Decision:
+
+- Re-scoped from "deterministic XCOM-lite" to "lean roguelite prototype" after honest complexity audit. Core tactical foundation retained; surrounding systems pruned.
+- Combat: hit/crit/damage variance RNG added behind `state.rules.rngEnabled`. Deterministic via seed+tick+unit+target hash; replays still reproducible. Live game enables via `TacticalRuntime.new({ rngEnabled = true })` from main.lua. Legacy tests retain deterministic mode.
+- Estate: trinket sets, building upgrades, market trinket stock, and per-hero trinket UI gated behind `settings.estateMinimal` (default true). Roster, memorial, permadeath, injury/stress carryover, gear levels, and quirks/diseases remain visible.
+- Zones: Salt Cistern and Ember Warrens registry entries flagged `__future = true`. Active procgen path is Archive-only.
+- Classes: `ClassCatalog.activeClassIds = { "warden", "duelist", "mender" }` defines the prototype active roster. Other six classes remain defined but parked.
+- Procgen validator: added `objective_interactable` invariant (every objective must have at least one open neighbor tile). 25/25 fixed seeds pass.
+- Campaign timers: `dread_only_v1` is the active timer. `twin_timer_v1` and `week_cap_default` retained but marked `__future = true`.
+- Tone: WORLD-LORE.md gains a **Tone Pillars (Prototype Pivot)** section. Original grimdark pillars marked `[grimdark legacy]` for reference only.
+
+Open drift:
+
+- `src/game/estate_state.lua` is dead code (no require sites). Left in place for future scope; flag in next cleanup pass.
+- Cistern/Warrens content in `src/game/data/registry.lua` (~247 lines of references) retained but flagged. Not actively traversed by procgen but visible in some catalog tests.
+- Faction standing, stealth visibility, debt economy: declared in docs/run_catalog only. No implementation. Treat as future.
+
+Test impact: 187 → 190 passing (added 3 tests covering RNG combat, snapshot round-trip, active class list). Validator: 25/25 seeds accepted including new invariant.
+
 ## 2026-06-22 XCOM-Lite Vertical Slice Pivot
 
 Source of truth:

@@ -4993,6 +4993,14 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    -- prototype lean roster: 3 active classes
+    local active = ClassCatalog.activeClasses()
+    expect(#active == 3, "active class list should be exactly 3 for lean prototype")
+    expect(ClassCatalog.isActive("warden") and ClassCatalog.isActive("duelist") and ClassCatalog.isActive("mender"), "active classes should be warden/duelist/mender")
+    expect(not ClassCatalog.isActive("arcanist") and not ClassCatalog.isActive("merchant"), "parked classes should not report active")
+end
+
+tests[#tests + 1] = function()
     -- snapshot round-trip preserves rngSeed and rngEnabled flag
     local s = TacticsState.new({
         rngSeed = 42,

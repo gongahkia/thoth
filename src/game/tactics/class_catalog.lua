@@ -655,4 +655,22 @@ function ClassCatalog.auditInjuryDebtConstraints()
     return report
 end
 
+-- prototype lean roster: 3 active classes (tank / dps / support). Others are parked but retained for future scope.
+ClassCatalog.activeClassIds = { "warden", "duelist", "mender" }
+
+function ClassCatalog.activeClasses()
+    local out = {}
+    for _, id in ipairs(ClassCatalog.activeClassIds) do
+        out[#out + 1] = id
+    end
+    return out
+end
+
+function ClassCatalog.isActive(classId)
+    for _, id in ipairs(ClassCatalog.activeClassIds) do
+        if id == classId then return true end
+    end
+    return false
+end
+
 return ClassCatalog
