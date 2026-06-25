@@ -380,7 +380,8 @@ local function enterTacticalGame(state, squadLoadout)
     resetVisualState(state, sim)
     state.squadLoadout = loadout
     state.squadSelect = nil
-    state.tactics = TacticalRuntime.new(sim, { squadLoadout = state.squadLoadout, tutorial = tutorialMission, aiDebug = state.tacticalAiDebug == true, partyMovement = state.settings and state.settings.partyMovement == true, exploration = state.settings and state.settings.partyMovement == true })
+    local partyMoveDelay = state.settings and state.settings.reducedMotion and 0 or 0.12
+    state.tactics = TacticalRuntime.new(sim, { squadLoadout = state.squadLoadout, tutorial = tutorialMission, aiDebug = state.tacticalAiDebug == true, partyMovement = state.settings and state.settings.partyMovement == true, exploration = state.settings and state.settings.partyMovement == true, partyMoveStepDelay = partyMoveDelay })
     state.tacticalOverlays = state.tactics.overlays
     TacticalRuntime.syncWorld(sim, state.tactics)
     if tutorialMission then
@@ -1883,8 +1884,17 @@ function love.update(dt)
         return
     end
     if app.tactics then
+        local partyAdvanced = TacticalRuntime.advancePartyMove(app.tactics, dt)
         TacticalRuntime.syncWorld(sim, app.tactics)
         consumeTacticalHitEvents(app)
+        if partyAdvanced then
+            app.tacticalOverlays = app.tactics.overlays
+            app.tacticalSummaryCache = nil
+            if love and love.mouse and love.mouse.getPosition then
+                local x, y = love.mouse.getPosition()
+                Input.updateTacticalHover(app, x, y)
+            end
+        end
     end
     if app.tutorialMission and app.tactics and app.tactics.routeComplete and not app.tutorialMissionComplete and #(app.damageNumbers or {}) == 0 then
         app.tutorialMissionComplete = true

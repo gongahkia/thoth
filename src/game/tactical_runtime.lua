@@ -876,6 +876,7 @@ function Runtime.new(sim, options)
         cycleTopology = Runtime.cycleTopology,
         partyPathTo = Runtime.partyPathTo,
         movePartyTo = Runtime.movePartyTo,
+        advancePartyMove = Runtime.advancePartyMove,
         drainHitEvents = Runtime.drainHitEvents,
         hitEvents = {},
         cache = {},
@@ -883,6 +884,7 @@ function Runtime.new(sim, options)
         topology = state.board.topology or "square",
         partyMovementEnabled = options.partyMovement == true,
         explorationMode = options.exploration == true,
+        partyMoveStepDelay = options.partyMoveStepDelay ~= nil and options.partyMoveStepDelay or 0.12,
     }
     Runtime.declareEnemyIntents(runtime)
     Runtime.refreshOverlays(runtime)
@@ -921,6 +923,7 @@ local setStatus
 
 function Runtime.setTopology(runtime, topology)
     topology = topology or "square"
+    runtime.partyMoveQueue = nil
     local currentVariant = runtime.route and runtime.route.variantId
     local state, boardSpec
     if runtime.boardSpec and runtime.boardSpec.archiveRoute and runtime.boardSpec.archiveRoute.tutorial then
@@ -1048,31 +1051,25 @@ function Runtime.explorationCombatContact(runtime)
     return false
 end
 
-function Runtime.movePartyTo(runtime, targetX, targetY)
-    if not runtime.partyMovementEnabled then
-        return false, "party movement disabled"
-    end
-    local path, kind = Runtime.partyPathTo(runtime, targetX, targetY)
-    if not path then
-        setStatus(runtime, kind or "no route")
-        return false
-    end
+local function applyPartyPathStep(runtime, destination)
     local units = partyUnits(runtime)
-    for step = 2, #path do
-        local previous = {}
-        for index, unit in ipairs(units) do
-            previous[index] = { x = unit.x, y = unit.y }
-        end
-        runtime.state:moveUnitTo(units[1], path[step].x, path[step].y)
-        for index = 2, #units do
-            runtime.state:moveUnitTo(units[index], previous[index - 1].x, previous[index - 1].y)
-        end
+    local previous = {}
+    for index, unit in ipairs(units) do
+        previous[index] = { x = unit.x, y = unit.y }
     end
-    runtime.cursor.x = path[#path].x
-    runtime.cursor.y = path[#path].y
+    runtime.state:moveUnitTo(units[1], destination.x, destination.y)
+    for index = 2, #units do
+        runtime.state:moveUnitTo(units[index], previous[index - 1].x, previous[index - 1].y)
+    end
+    runtime.cursor.x = destination.x
+    runtime.cursor.y = destination.y
     if runtime.state.bumpRevision then
         runtime.state:bumpRevision("units")
     end
+end
+
+local function finishPartyMove(runtime, kind)
+    runtime.partyMoveQueue = nil
     local contact, enemyId = Runtime.explorationCombatContact(runtime)
     if contact then
         runtime.explorationMode = false
@@ -1080,6 +1077,70 @@ function Runtime.movePartyTo(runtime, targetX, targetY)
         setStatus(runtime, "combat contact " .. tostring(enemyId))
     else
         setStatus(runtime, kind == "partial" and "party moved as far as possible" or "party moved")
+    end
+    Runtime.refreshOverlays(runtime)
+end
+
+function Runtime.advancePartyMove(runtime, dt)
+    local queue = runtime and runtime.partyMoveQueue
+    if not queue then
+        return false
+    end
+    local delay = queue.delay or 0.12
+    queue.timer = (queue.timer or 0) + (dt or delay)
+    local advanced = false
+    while queue and (delay <= 0 or queue.timer >= delay) do
+        if delay > 0 then
+            queue.timer = queue.timer - delay
+        end
+        queue.index = (queue.index or 1) + 1
+        local destination = queue.path and queue.path[queue.index]
+        if not destination then
+            finishPartyMove(runtime, queue.kind)
+            return advanced
+        end
+        applyPartyPathStep(runtime, destination)
+        advanced = true
+        local contact, enemyId = Runtime.explorationCombatContact(runtime)
+        if contact then
+            runtime.partyMoveQueue = nil
+            runtime.explorationMode = false
+            Runtime.declareEnemyIntents(runtime)
+            setStatus(runtime, "combat contact " .. tostring(enemyId))
+            Runtime.refreshOverlays(runtime)
+            return true
+        end
+        if queue.index >= #queue.path then
+            finishPartyMove(runtime, queue.kind)
+            return true
+        end
+        if delay <= 0 then
+            queue = runtime.partyMoveQueue
+        end
+    end
+    if advanced then
+        Runtime.refreshOverlays(runtime)
+    end
+    return advanced
+end
+
+function Runtime.movePartyTo(runtime, targetX, targetY)
+    if not runtime.partyMovementEnabled then
+        return false, "party movement disabled"
+    end
+    if runtime.partyMoveQueue then
+        return false, "party already moving"
+    end
+    local path, kind = Runtime.partyPathTo(runtime, targetX, targetY)
+    if not path then
+        setStatus(runtime, kind or "no route")
+        return false
+    end
+    if #path <= 1 then
+        finishPartyMove(runtime, kind)
+    else
+        runtime.partyMoveQueue = { path = path, kind = kind, index = 1, timer = 0, delay = runtime.partyMoveStepDelay ~= nil and runtime.partyMoveStepDelay or 0.12 }
+        setStatus(runtime, "party moving " .. tostring(#path - 1) .. " steps")
     end
     Runtime.refreshOverlays(runtime)
     return true
@@ -1583,6 +1644,46 @@ local function cachedMovementOverlay(runtime, selected)
     return movement
 end
 
+local function cachedAttackRangeOverlay(runtime, selected)
+    local parts = overlayCache(runtime)
+    local state = runtime.state
+    local key = table.concat({
+        "attackRange",
+        tostring(stateRevision(state, "units")),
+        tostring(stateRevision(state, "terrain")),
+        tostring(selected and selected.id or ""),
+        tostring(selected and selected.x or ""),
+        tostring(selected and selected.y or ""),
+        tostring(selected and selected.ap or ""),
+        tostring(runtime.explorationMode == true),
+        tostring(runtime.partyMovementEnabled == true),
+    }, ":")
+    if parts.attackRange and parts.attackRange.key == key then
+        return parts.attackRange.value
+    end
+    local attackRange = {}
+    if selected and selected.side == "player" and selected.alive and selected.ap > 0 and not (runtime.explorationMode and runtime.partyMovementEnabled) then
+        local board = state.board or {}
+        local range = 3
+        local minX = math.max(1, selected.x - range)
+        local maxX = math.min(board.width or selected.x, selected.x + range)
+        local minY = math.max(1, selected.y - range)
+        local maxY = math.min(board.height or selected.y, selected.y + range)
+        for y = minY, maxY do
+            for x = minX, maxX do
+                if not (x == selected.x and y == selected.y) and Grid.manhattan(selected.x, selected.y, x, y) <= range then
+                    local tile = state:tileAt(x, y)
+                    if tile and not tile.blocker then
+                        attackRange[#attackRange + 1] = { x = x, y = y, label = "r3" }
+                    end
+                end
+            end
+        end
+    end
+    parts.attackRange = { key = key, value = attackRange }
+    return attackRange
+end
+
 local function activeUnitPositionKey(state, side)
     local parts = { tostring(side or "all") }
     for _, id in ipairs(state.unitOrder or {}) do
@@ -1700,12 +1801,14 @@ function Runtime.refreshOverlays(runtime)
     local visibility = Runtime.visibilityGrid(runtime)
     revealVisibleEnemyIntents(runtime, visibility)
     local movement = cachedMovementOverlay(runtime, selected)
+    local attackRange = cachedAttackRangeOverlay(runtime, selected)
     local intents = cachedIntentOverlay(runtime, visibility)
     local overwatch = cachedOverwatchOverlay(runtime)
     local aiDebug = aiDebugOverlay(runtime, visibility)
     runtime.overwatchTrigger = state.lastOverwatchTrigger
     runtime.overlays = {
         movement = movement,
+        attackRange = attackRange,
         intents = intents,
         overwatch = overwatch,
         aiDebug = aiDebug,

@@ -745,10 +745,12 @@ local function rotationAllowed(value, allowed)
     return false
 end
 
-local tacticalOverlayOrder = { "movement", "los", "cover", "flank", "intent", "overwatch", "aiDebug", "hazard", "blocker", "objective", "cursor" }
+local tacticalOverlayOrder = { "movement", "attackRange", "los", "cover", "flank", "intent", "overwatch", "aiDebug", "hazard", "blocker", "objective", "cursor" }
 local tacticalOverlayPalette = TacticsUICatalog.accessiblePalette().roles
 local tacticalOverlayColors = {
     movement = { 0.34, 0.72, 1.0, 0.86 },
+    attackRange = { 1.0, 0.28, 0.42, 0.84 },
+    attackRangeFill = { 0.82, 0.08, 0.16, 0.22 },
     los = { 0.86, 0.78, 0.28, 0.46 },
     cover = tacticalOverlayPalette.cover.color,
     flank = { 0.94, 0.52, 0.18, 0.55 },
@@ -765,6 +767,7 @@ local tacticalOverlayColors = {
 
 local tacticalOverlayStyles = {
     movement = { icon = "move", pattern = "dot" },
+    attackRange = { icon = "attack", pattern = "cross" },
     los = { icon = "eye", pattern = "ray" },
     cover = { icon = tacticalOverlayPalette.cover.icon, pattern = tacticalOverlayPalette.cover.pattern },
     flank = { icon = "angle", pattern = "chevron" },
@@ -927,6 +930,7 @@ function Render.tacticalOverlayEntries(tactics, overlays, settings)
         end
     end
     appendOverlayList(entries, counts, seen, "movement", overlays.movement or overlays.movementRange)
+    appendOverlayList(entries, counts, seen, "attackRange", overlays.attackRange or overlays.attackRadius)
     appendOverlayList(entries, counts, seen, "los", overlays.los or overlays.lineOfSight)
     appendOverlayList(entries, counts, seen, "flank", overlays.flanks or overlays.flank)
     appendOverlayList(entries, counts, seen, "intent", overlays.intent or overlays.intents)
@@ -1311,9 +1315,10 @@ function Render.pushTilePolygon(vertices, topology, x, y, z, texture, inset, ori
     end
 end
 
-local function pushTilePrism(vertices, topology, x, y, z, height, texture, inset, originX, originY)
+local function pushTilePrism(vertices, topology, x, y, z, height, texture, sideTexture, inset, originX, originY)
     local floor = z or 0
     local top = floor + height
+    sideTexture = sideTexture or texture
     local points = Render.Topology.vertices(topology, x, y, inset or 0.01, originX, originY)
     if #points < 3 then
         return
@@ -1326,7 +1331,7 @@ local function pushTilePrism(vertices, topology, x, y, z, height, texture, inset
             { points[index][1], points[index][2], top },
             { nextPoint[1], nextPoint[2], top },
             { nextPoint[1], nextPoint[2], floor },
-            texture)
+            sideTexture)
     end
 end
 
@@ -1702,8 +1707,10 @@ local function buildWorldTileModel(sim, profile, settings, app, minX, maxX, minY
             local tile = sim.world:peekTile(x, y, z)
             local atlasEntry = app and app.tacticalMode and Render.TileAtlas.entryFor(tile) or nil
             local texture = nil
+            local sideTexture = nil
             if tileAtlas then
                 texture = Render.TileAtlas.uvRect(atlasEntry, tileAtlas:getWidth(), tileAtlas:getHeight())
+                sideTexture = Render.TileAtlas.uvRect(Render.TileAtlas.sideEntryFor(tile, atlasEntry), tileAtlas:getWidth(), tileAtlas:getHeight())
             else
                 local rgb = atlasEntry and atlasEntry.color or (app and app.tacticalMode and Render.tacticalTileColor(tile) or (Defs.tile(tile.id).color or { 255, 255, 255 }))
                 local light = app and app.tacticalMode and 0.98 or lightAt(sim, x, y, profile)
@@ -1713,7 +1720,7 @@ local function buildWorldTileModel(sim, profile, settings, app, minX, maxX, minY
             local tileHeight = app and app.tacticalMode and Render.tacticalRenderHeight(tile) or 0
             if (not tile or not tile.shapeVoid) and tileHeight > 0 then
                 if app and app.tacticalMode then
-                    pushTilePrism(vertices, topology, x - originX, y - originY, z, tileHeight, texture, 0.01, originX, originY)
+                    pushTilePrism(vertices, topology, x - originX, y - originY, z, tileHeight, texture, sideTexture, 0.01, originX, originY)
                 else
                     pushBox(vertices, x, y, z, tileHeight, texture)
                 end
@@ -2230,6 +2237,8 @@ end
 local tacticalRingSpecs = {
     movementFill = { inset = 0.09, z = 0.04, fillOnly = true },
     movement = { inset = 0.08, width = 0.04, z = 0.075 },
+    attackRangeFill = { inset = 0.12, z = 0.045, fillOnly = true },
+    attackRange = { inset = 0.12, width = 0.035, z = 0.082 },
     intent = { inset = 0.1, width = 0.045, z = 0.08 },
     overwatch = { inset = 0.14, width = 0.04, z = 0.085 },
     aiDebug = { inset = 0.28, width = 0.03, z = 0.14 },
@@ -2309,9 +2318,11 @@ local function drawTacticalOverlays(sim, app)
     for _, entry in ipairs(entries) do
         local inView = Render.tileInTacticalLogicalBounds(entry.x, entry.y, minX, maxX, minY, maxY)
         local movementHidden = lod.hideMovement and entry.kind == "movement"
-        if inView and not movementHidden and (entry.kind == "movement" or entry.kind == "intent" or entry.kind == "overwatch" or entry.kind == "aiDebug" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor") then
+        if inView and not movementHidden and (entry.kind == "movement" or entry.kind == "attackRange" or entry.kind == "intent" or entry.kind == "overwatch" or entry.kind == "aiDebug" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor") then
             if entry.kind == "movement" then
                 drawnEntries[#drawnEntries + 1] = { kind = "movementFill", x = entry.x, y = entry.y, label = entry.label, color = { 0.1, 0.42, 0.9, 0.34 } }
+            elseif entry.kind == "attackRange" then
+                drawnEntries[#drawnEntries + 1] = { kind = "attackRangeFill", x = entry.x, y = entry.y, label = entry.label, color = tacticalOverlayColors.attackRangeFill }
             end
             drawnEntries[#drawnEntries + 1] = entry
         end

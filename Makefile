@@ -3,7 +3,7 @@
 LOVE ?= love
 LUAJIT ?= luajit
 PACKAGE := dist/thoth.love
-PACKAGE_INPUTS := main.lua conf.lua src assets vendor/g3d/g3d vendor/g3d/LICENSE TODO.md docs
+PACKAGE_INPUTS := main.lua conf.lua src assets vendor/g3d/g3d vendor/g3d/LICENSE README.md docs
 VALIDATOR_REJECT_BUDGET ?= 0
 REQUIRED_SUBMODULE_FILES := vendor/g3d/g3d/init.lua vendor/g3d/assets/cube.obj vendor/g3d/LICENSE
 

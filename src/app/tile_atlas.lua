@@ -6,18 +6,18 @@ local columns = 12
 local rows = 11
 
 local entries = {
-    archive_floor = { terrain = "archive_floor", color = { 86, 78, 64 }, uv = { 0, 4 } },
-    archive_terrace = { terrain = "archive_terrace", color = { 108, 96, 74 }, uv = { 2, 4 } },
-    archive_rubble = { terrain = "archive_rubble", color = { 96, 86, 78 }, uv = { 1, 4 } },
-    archive_chasm = { terrain = "archive_chasm", color = { 22, 20, 28 }, uv = { 0, 0 } },
-    brine_pool = { terrain = "brine_pool", color = { 44, 94, 104 }, uv = { 0, 3 } },
+    archive_floor = { terrain = "archive_floor", color = { 86, 78, 64 }, uv = { 1, 3 }, side = "temple_stone" },
+    archive_terrace = { terrain = "archive_terrace", color = { 108, 96, 74 }, uv = { 2, 3 }, side = "temple_stone" },
+    archive_rubble = { terrain = "archive_rubble", color = { 96, 86, 78 }, uv = { 3, 3 }, side = "temple_stone" },
+    archive_chasm = { terrain = "archive_chasm", color = { 22, 20, 28 }, uv = { 0, 0 }, side = "archive_chasm" },
+    brine_pool = { terrain = "brine_pool", color = { 44, 94, 104 }, uv = { 0, 4 }, side = "archive_chasm" },
     index_miasma = { terrain = "index_miasma", color = { 92, 70, 110 }, uv = { 8, 1 } },
-    heat_vent = { terrain = "heat_vent", color = { 156, 70, 42 }, uv = { 5, 2 } },
+    heat_vent = { terrain = "heat_vent", color = { 156, 70, 42 }, uv = { 5, 2 }, side = "archive_chasm" },
     root_tangle = { terrain = "root_tangle", color = { 66, 92, 58 }, uv = { 0, 1 } },
-    temple_stone = { terrain = "temple_stone", color = { 110, 112, 102 }, uv = { 2, 3 } },
-    blocker = { terrain = "blocker", color = { 42, 40, 45 }, uv = { 2, 0 } },
-    objective = { terrain = "objective", color = { 168, 126, 48 }, uv = { 9, 5 } },
-    hazard = { terrain = "hazard", color = { 164, 58, 46 }, uv = { 5, 2 } },
+    temple_stone = { terrain = "temple_stone", color = { 110, 112, 102 }, uv = { 4, 3 }, side = "temple_stone" },
+    blocker = { terrain = "blocker", color = { 42, 40, 45 }, uv = { 2, 0 }, side = "temple_stone" },
+    objective = { terrain = "objective", color = { 168, 126, 48 }, uv = { 9, 5 }, side = "archive_terrace" },
+    hazard = { terrain = "hazard", color = { 164, 58, 46 }, uv = { 5, 2 }, side = "archive_chasm" },
 }
 
 local aliases = {
@@ -84,6 +84,11 @@ function TileAtlas.entryFor(tile)
         return entries.blocker
     end
     return byTerrain[tile and tile.terrainType] or byTerrain[tile and tile.kind] or entries.archive_floor
+end
+
+function TileAtlas.sideEntryFor(tile, entry)
+    entry = entry or TileAtlas.entryFor(tile)
+    return entries[entry and entry.side] or entry
 end
 
 function TileAtlas.uvRect(entry, atlasWidth, atlasHeight, pad)
