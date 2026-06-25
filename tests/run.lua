@@ -90,12 +90,35 @@ end
 local tests = {}
 
 tests[#tests + 1] = function()
+    local function sharedVertices(a, b)
+        local count = 0
+        for _, ap in ipairs(a) do
+            for _, bp in ipairs(b) do
+                if math.abs(ap[1] - bp[1]) < 0.000001 and math.abs(ap[2] - bp[2]) < 0.000001 then
+                    count = count + 1
+                end
+            end
+        end
+        return count
+    end
     expect(Topology.edgeCount("triangle") == 3, "triangle topology should expose three edges")
     expect(Topology.edgeCount("square") == 4, "square topology should expose four edges")
-    expect(Topology.edgeCount("pentagon") == 5, "pentagon edge count should be available for rotation math")
     expect(Topology.edgeCount("hex") == 6, "hex topology should expose six edges")
-    expect(Render.rotationSteps("triangle") == 3 and Render.rotationSteps("pentagon") == 5 and Render.rotationSteps("hex") == 6, "view rotation steps should follow edge count")
+    expect(Render.rotationSteps("triangle") == 3 and Render.rotationSteps("square") == 4 and Render.rotationSteps("hex") == 6, "view rotation steps should follow edge count")
     expect(Render.rotationCompass(1, 3).degrees == 120 and Render.rotationCompass(1, 6).degrees == 60, "view rotation degrees should follow topology edge count")
+    expect(sharedVertices(Topology.vertices("triangle", 2, 2), Topology.vertices("triangle", 3, 2)) == 2, "adjacent triangles should share a complete edge")
+    expect(sharedVertices(Topology.vertices("hex", 2, 2), Topology.vertices("hex", 3, 2)) == 2, "adjacent hexes should share a complete edge")
+    for _, kind in ipairs({ "triangle", "hex" }) do
+        for _, neighbor in ipairs(Topology.neighbors(kind, 3, 3)) do
+            expect(sharedVertices(Topology.vertices(kind, 3, 3), Topology.vertices(kind, neighbor.x, neighbor.y)) == 2, kind .. " neighbor should share exactly one edge")
+        end
+    end
+    local tcx, tcy = Topology.center("triangle", 2, 2)
+    local hitX, hitY = Topology.cellAtPoint("triangle", tcx, tcy)
+    expect(hitX == 2 and hitY == 2, "triangle hit testing should resolve tile centers")
+    local hcx, hcy = Topology.center("hex", 2, 2)
+    hitX, hitY = Topology.cellAtPoint("hex", hcx, hcy)
+    expect(hitX == 2 and hitY == 2, "hex hit testing should resolve tile centers")
     local triangle = TacticsState.new({
         board = { width = 4, height = 4, topology = "triangle" },
         units = { { id = "scout", side = "player", x = 2, y = 2, hp = 3, ap = 2, visionRadius = 4 } },
@@ -824,7 +847,7 @@ tests[#tests + 1] = function()
     expect(dragDx < 0 and dragDy < 0, "tactical drag delta should move camera opposite the pointer")
     Render.panTacticalCamera(app, dragDx, dragDy)
     expect(app.tacticalCameraUserMoved and app.tacticalCameraCenterX < oldTargetX and app.tacticalCameraCenterY < oldTargetY, "tactical drag should pan the camera center")
-    expect(app.worldView.tacticalCamera.targetX == app.tacticalCameraCenterX and app.worldView.originX == app.tacticalCameraCenterX - 0.5, "tactical drag should keep projection metadata in sync")
+    expect(app.worldView.tacticalCamera.targetX == app.tacticalCameraCenterX and app.worldView.originX == app.tacticalCameraCenterX, "tactical drag should keep projection metadata in sync")
     Render.setTacticalCameraCenter(app, -999, -999)
     expect(app.tacticalCameraCenterX == runtime.originX + 1.5 and app.tacticalCameraCenterY == runtime.originY + 1.5, "tactical camera pan should clamp to board bounds")
     app.worldView.tacticalCamera = nil

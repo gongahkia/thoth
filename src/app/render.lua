@@ -608,36 +608,24 @@ function Render.advanceCutscene(app, dt)
     end
 end
 
-function Render.rotateDelta(dx, dy, rotation)
-    rotation = (rotation or 0) % 4
-    if rotation == 1 then
-        return -dy, dx
-    end
-    if rotation == 2 then
-        return -dx, -dy
-    end
-    if rotation == 3 then
-        return dy, -dx
-    end
-    return dx, dy
+function Render.rotateDelta(dx, dy, rotation, steps)
+    steps = math.max(1, tonumber(steps) or 4)
+    local angle = ((rotation or 0) % steps) * ((math.pi * 2) / steps)
+    local c = math.cos(angle)
+    local s = math.sin(angle)
+    return dx * c - dy * s, dx * s + dy * c
 end
 
-function Render.unrotateDelta(rx, ry, rotation)
-    rotation = (rotation or 0) % 4
-    if rotation == 1 then
-        return ry, -rx
-    end
-    if rotation == 2 then
-        return -rx, -ry
-    end
-    if rotation == 3 then
-        return -ry, rx
-    end
-    return rx, ry
+function Render.unrotateDelta(rx, ry, rotation, steps)
+    steps = math.max(1, tonumber(steps) or 4)
+    local angle = -((rotation or 0) % steps) * ((math.pi * 2) / steps)
+    local c = math.cos(angle)
+    local s = math.sin(angle)
+    return rx * c - ry * s, rx * s + ry * c
 end
 
 function Render.projectIso(view, x, y)
-    local rx, ry = Render.rotateDelta(x - view.originX, y - view.originY, view.rotation)
+    local rx, ry = Render.rotateDelta(x - view.originX, y - view.originY, view.rotation, view.rotationSteps)
     return view.centerX + (rx - ry) * view.halfW, view.centerY + (rx + ry) * view.halfH
 end
 
@@ -646,7 +634,7 @@ function Render.screenToWorldPoint(view, x, y)
     local sy = y - view.centerY
     local rx = (sx / view.halfW + sy / view.halfH) / 2
     local ry = (sy / view.halfH - sx / view.halfW) / 2
-    local dx, dy = Render.unrotateDelta(rx, ry, view.rotation)
+    local dx, dy = Render.unrotateDelta(rx, ry, view.rotation, view.rotationSteps)
     return view.originX + dx, view.originY + dy
 end
 
@@ -1261,8 +1249,10 @@ local function pushTileQuad(vertices, x, y, z, u)
     vertices[#vertices + 1] = d
 end
 
-function Render.pushTilePolygon(vertices, topology, x, y, z, u, inset)
-    local points = Render.Topology.vertices(topology, x, y, inset or 0.03)
+local pushFace
+
+function Render.pushTilePolygon(vertices, topology, x, y, z, u, inset, originX, originY)
+    local points = Render.Topology.vertices(topology, x, y, inset or 0, originX, originY)
     if #points < 3 then
         return
     end
@@ -1274,7 +1264,26 @@ function Render.pushTilePolygon(vertices, topology, x, y, z, u, inset)
     end
 end
 
-local function pushFace(vertices, a, b, c, d, u)
+local function pushTilePrism(vertices, topology, x, y, z, height, u, inset, originX, originY)
+    local floor = z or 0
+    local top = floor + height
+    local points = Render.Topology.vertices(topology, x, y, inset or 0.01, originX, originY)
+    if #points < 3 then
+        return
+    end
+    Render.pushTilePolygon(vertices, topology, x, y, top, u, inset or 0.01, originX, originY)
+    for index = 1, #points do
+        local nextPoint = points[index % #points + 1]
+        pushFace(vertices,
+            { points[index][1], points[index][2], floor },
+            { points[index][1], points[index][2], top },
+            { nextPoint[1], nextPoint[2], top },
+            { nextPoint[1], nextPoint[2], floor },
+            u)
+    end
+end
+
+function pushFace(vertices, a, b, c, d, u)
     vertices[#vertices + 1] = tileVertex(a[1], a[2], a[3], u)
     vertices[#vertices + 1] = tileVertex(b[1], b[2], b[3], u)
     vertices[#vertices + 1] = tileVertex(c[1], c[2], c[3], u)
@@ -1315,22 +1324,24 @@ function Render.pushTacticalGridLine(vertices, x1, y1, x2, y2, z, halfWidth, u)
         u)
 end
 
-function Render.pushTacticalGridRing(vertices, x, y, z, u, topology)
+function Render.pushTacticalGridRing(vertices, x, y, z, u, topology, originX, originY)
     local inset = 0.035
     local width = 0.012
     topology = Render.Topology.normalize(topology)
     if topology ~= "square" then
-        local points = Render.Topology.vertices(topology, x, y, inset)
+        local points = Render.Topology.vertices(topology, x, y, inset, originX, originY)
         for index = 1, #points do
             local nextPoint = points[index % #points + 1]
             Render.pushTacticalGridLine(vertices, points[index][1], points[index][2], nextPoint[1], nextPoint[2], z, width, u)
         end
         return
     end
-    local left = x + inset
-    local right = x + 1 - inset
-    local top = y + inset
-    local bottom = y + 1 - inset
+    originX = originX or 0
+    originY = originY or 0
+    local left = originX + x + inset
+    local right = originX + x + 1 - inset
+    local top = originY + y + inset
+    local bottom = originY + y + 1 - inset
     Render.pushTacticalGridLine(vertices, left, top, right, top, z, width, u)
     Render.pushTacticalGridLine(vertices, right, top, right, bottom, z, width, u)
     Render.pushTacticalGridLine(vertices, right, bottom, left, bottom, z, width, u)
@@ -1547,6 +1558,9 @@ local function buildWorldTileModel(sim, profile, settings, app, minX, maxX, minY
     local vertices = {}
     local z = sim.player.z or 0
     local topology = Render.tacticalTopology(sim, app)
+    local source = app and app.tactics
+    local originX = source and source.originX or 0
+    local originY = source and source.originY or 0
     if not minX then
         minX, maxX, minY, maxY = tacticalBoardBounds(sim, app)
     end
@@ -1571,9 +1585,13 @@ local function buildWorldTileModel(sim, profile, settings, app, minX, maxX, minY
             local u = (index - 0.5) / (width * height)
             local tileHeight = app and app.tacticalMode and Render.tacticalRenderHeight(tile) or 0
             if tileHeight > 0 then
-                pushBox(vertices, x, y, z, tileHeight, u)
+                if app and app.tacticalMode then
+                    pushTilePrism(vertices, topology, x - originX, y - originY, z, tileHeight, u, 0.01, originX, originY)
+                else
+                    pushBox(vertices, x, y, z, tileHeight, u)
+                end
             elseif app and app.tacticalMode then
-                Render.pushTilePolygon(vertices, topology, x, y, z, u)
+                Render.pushTilePolygon(vertices, topology, x - originX, y - originY, z, u, 0, originX, originY)
             else
                 pushTileQuad(vertices, x, y, z, u)
             end
@@ -1609,6 +1627,9 @@ function Render.buildTacticalGridModel(sim, minX, maxX, minY, maxY, app)
     end
     local z = sim.player.z or 0
     local topology = Render.tacticalTopology(sim, app)
+    local source = app and app.tactics
+    local originX = source and source.originX or 0
+    local originY = source and source.originY or 0
     local cells = {}
     for y = minY, maxY do
         for x = minX, maxX do
@@ -1629,7 +1650,7 @@ function Render.buildTacticalGridModel(sim, minX, maxX, minY, maxY, app)
         local r, g, b, a = Render.tacticalGridColor(tile)
         data:setPixel(index - 1, 0, r, g, b, a)
         local tileHeight = Render.tacticalRenderHeight(tile)
-        Render.pushTacticalGridRing(vertices, cell.x, cell.y, z + tileHeight + 0.012, (index - 0.5) / total, topology)
+        Render.pushTacticalGridRing(vertices, cell.x - originX, cell.y - originY, z + tileHeight + 0.012, (index - 0.5) / total, topology, originX, originY)
     end
     local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()
@@ -1751,6 +1772,7 @@ function Render.tacticalVisibilityCacheKey(tactics)
             tostring(tactics:revision("vision")),
             tostring(tactics:revision("terrain")),
             tostring(tactics:revision("units")),
+            tostring(tactics.board.topology or "square"),
             tostring(tactics.board.width or 0),
             tostring(tactics.board.height or 0),
         }, "|")
@@ -1760,6 +1782,7 @@ function Render.tacticalVisibilityCacheKey(tactics)
         tostring(tactics.tick or 0),
         tostring(tactics.board.width or 0),
         tostring(tactics.board.height or 0),
+        tostring(tactics.board.topology or "square"),
     }
     for _, id in ipairs(tactics.unitOrder or {}) do
         local unit = tactics.units and tactics.units[id]
@@ -1833,7 +1856,8 @@ local function tacticalCameraBounds(app)
     end
     local originX = source.originX or 0
     local originY = source.originY or 0
-    return originX + 1.5, originY + 1.5, originX + board.width + 0.5, originY + board.height + 0.5
+    local minX, minY, maxX, maxY = Render.Topology.centerBounds(board.topology, board.width, board.height, originX, originY)
+    return minX, minY, maxX, maxY
 end
 
 function Render.clampTacticalCameraCenter(app, x, y)
@@ -1845,8 +1869,16 @@ function Render.clampTacticalCameraCenter(app, x, y)
 end
 
 function Render.tacticalCameraCenter(sim, app)
-    local fallbackX = ((sim and sim.player and sim.player.x) or 0) + 0.5
-    local fallbackY = ((sim and sim.player and sim.player.y) or 0) + 0.5
+    local source = tacticalOverlaySource(nil, app)
+    local focus = app and app.tactics and app.tactics.selectedUnitId and app.tactics.state and app.tactics.state:unit(app.tactics.selectedUnitId)
+    focus = focus or (app and app.tactics and app.tactics.cursor)
+    local fallbackX, fallbackY
+    if source and source.state and focus then
+        fallbackX, fallbackY = Render.Topology.center(source.state.board.topology, focus.x, focus.y, source.originX or 0, source.originY or 0)
+    else
+        fallbackX = ((sim and sim.player and sim.player.x) or 0) + 0.5
+        fallbackY = ((sim and sim.player and sim.player.y) or 0) + 0.5
+    end
     local fallbackZ = (sim and sim.player and sim.player.z) or 0
     local x = (app and app.tacticalCameraUserMoved and app.tacticalCameraCenterX) or fallbackX
     local y = (app and app.tacticalCameraUserMoved and app.tacticalCameraCenterY) or fallbackY
@@ -1870,8 +1902,8 @@ function Render.setTacticalCameraCenter(app, x, y)
     app.tacticalCameraCenterX = x
     app.tacticalCameraCenterY = y
     if app.worldView then
-        app.worldView.originX = x - 0.5
-        app.worldView.originY = y - 0.5
+        app.worldView.originX = x
+        app.worldView.originY = y
     end
     if camera then
         local dx = x - (currentX or camera.targetX or x)
@@ -1991,7 +2023,7 @@ local function buildTacticalFogModel(source, visibility, z)
     local topology = Render.Topology.normalize(tactics.board and tactics.board.topology)
     for index, tile in ipairs(tiles) do
         data:setPixel(index - 1, 0, 0.008, 0.01, 0.012, 0.68)
-        Render.pushTilePolygon(vertices, topology, originX + tile.x, originY + tile.y, z or 0, (index - 0.5) / #tiles)
+        Render.pushTilePolygon(vertices, topology, tile.x, tile.y, z or 0, (index - 0.5) / #tiles, 0, originX, originY)
     end
     local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()
@@ -2069,21 +2101,16 @@ local tacticalRingSpecs = {
     hover = { inset = 0.24, width = 0.035, z = 0.13 },
 }
 
-local function pushTileRing(vertices, x, y, baseZ, kind, u, scale, topology)
+local function pushTileRing(vertices, x, y, baseZ, kind, u, scale, topology, originX, originY)
     local spec = tacticalRingSpecs[kind] or tacticalRingSpecs.movement
     scale = clamp(scale or 1, 0.75, 1.75)
     local inset = clamp(spec.inset - ((scale - 1) * 0.055), 0.02, 0.42)
     local z = baseZ + spec.z
     topology = Render.Topology.normalize(topology)
     if topology ~= "square" then
-        local points = Render.Topology.vertices(topology, x, y, inset)
+        local points = Render.Topology.vertices(topology, x, y, inset, originX, originY)
         if spec.fillOnly then
-            if #points >= 3 then
-                local first = { points[1][1], points[1][2], z }
-                for index = 2, #points - 1 do
-                    pushFace(vertices, first, { points[index][1], points[index][2], z }, { points[index + 1][1], points[index + 1][2], z }, first, u)
-                end
-            end
+            Render.pushTilePolygon(vertices, topology, x, y, z, u, inset, originX, originY)
             return
         end
         local width = spec.width * scale
@@ -2093,10 +2120,12 @@ local function pushTileRing(vertices, x, y, baseZ, kind, u, scale, topology)
         end
         return
     end
-    local left = x + inset
-    local right = x + 1 - inset
-    local top = y + inset
-    local bottom = y + 1 - inset
+    originX = originX or 0
+    originY = originY or 0
+    local left = originX + x + inset
+    local right = originX + x + 1 - inset
+    local top = originY + y + inset
+    local bottom = originY + y + 1 - inset
     if spec.fillOnly then
         pushFace(vertices, { left, top, z }, { right, top, z }, { right, bottom, z }, { left, bottom, z }, u)
         return
@@ -2121,7 +2150,7 @@ local function buildTacticalOverlayModel(entries, source, settings, z)
         local color = Render.accessibleColor(settings, entry.color or tacticalOverlayColors[entry.kind] or { 1, 1, 1, 0.5 })
         data:setPixel(index - 1, 0, color[1], color[2], color[3], color[4] or 0.5)
         local tile = source.state and source.state:inBounds(entry.x, entry.y) and source.state:tileAt(entry.x, entry.y) or nil
-        pushTileRing(vertices, originX + entry.x, originY + entry.y, (z or 0) + Render.tacticalRenderHeight(tile), entry.kind, (index - 0.5) / #entries, entry.iconScale or 1, topology)
+        pushTileRing(vertices, entry.x, entry.y, (z or 0) + Render.tacticalRenderHeight(tile), entry.kind, (index - 0.5) / #entries, entry.iconScale or 1, topology, originX, originY)
     end
     local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()
@@ -2608,14 +2637,12 @@ local function appendGridArrowSegment(segments, x1, y1, x2, y2, startInset, endI
     segments[#segments + 1] = { x1 = sx, y1 = sy, x2 = tx, y2 = ty, ux = ux, uy = uy }
 end
 
-function Render.tacticalGridArrowSegments(sourceTile, targetTile, originX, originY)
+function Render.tacticalGridArrowSegments(sourceTile, targetTile, originX, originY, topology)
     if not (sourceTile and targetTile) then
         return {}
     end
-    local sx = (originX or 0) + sourceTile.x + 0.5
-    local sy = (originY or 0) + sourceTile.y + 0.5
-    local tx = (originX or 0) + targetTile.x + 0.5
-    local ty = (originY or 0) + targetTile.y + 0.5
+    local sx, sy = Render.Topology.center(topology, sourceTile.x, sourceTile.y, originX or 0, originY or 0)
+    local tx, ty = Render.Topology.center(topology, targetTile.x, targetTile.y, originX or 0, originY or 0)
     local dx = targetTile.x - sourceTile.x
     local dy = targetTile.y - sourceTile.y
     local points = { { x = sx, y = sy } }
@@ -2662,7 +2689,7 @@ local function drawTacticalIntentArrows(sim, app)
             local sourceVisible = not visibility or visibility.visible[tileKey(unit.x, unit.y)] == true
             local targetVisible = target and (not visibility or visibility.visible[tileKey(target.x, target.y)] == true)
             if target and sourceTile and sourceVisible and targetVisible then
-                local segments = Render.tacticalGridArrowSegments(sourceTile, target, originX, originY)
+                local segments = Render.tacticalGridArrowSegments(sourceTile, target, originX, originY, tactics.board.topology)
                 local sourceHeight = tactics:inBounds(sourceTile.x, sourceTile.y) and Render.tacticalRenderHeight(tactics:tileAt(sourceTile.x, sourceTile.y)) or 0
                 local targetHeight = tactics:inBounds(target.x, target.y) and Render.tacticalRenderHeight(tactics:tileAt(target.x, target.y)) or 0
                 local arrowZ = z + math.max(sourceHeight, targetHeight)
@@ -2711,8 +2738,7 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
             if enemyHidden then
                 goto continue
             end
-            local x = originX + unit.x + 0.5
-            local y = originY + unit.y + 0.5
+            local x, y = Render.Topology.center(tactics.board.topology, unit.x, unit.y, originX, originY)
             local tile = tactics:inBounds(unit.x, unit.y) and tactics:tileAt(unit.x, unit.y) or nil
             local unitZ = (sim.player.z or 0) + Render.tacticalRenderHeight(tile)
             local selected = app.tactics and app.tactics.selectedUnitId == unit.id
@@ -2741,8 +2767,7 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
         local sighting = sightings[id]
         local unit = tactics:unit(id)
         if sighting and unit and unit.alive and not visibleEnemies[id] then
-            local x = originX + sighting.x + 0.5
-            local y = originY + sighting.y + 0.5
+            local x, y = Render.Topology.center(tactics.board.topology, sighting.x, sighting.y, originX, originY)
             local tile = tactics:inBounds(sighting.x, sighting.y) and tactics:tileAt(sighting.x, sighting.y) or nil
             local model = newBillboard(0.66, 0.8, enemyFrame("threat", sighting.kind), x, y, (sim.player.z or 0) + 0.03 + Render.tacticalRenderHeight(tile), yaw, state.assets.spriteAtlas or state.assets.white)
             drawTintedModel(model, { 0.36, 0.4, 0.42, 1 }, lightAt(sim, x, y, profile), 0.38)
@@ -2751,8 +2776,7 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
     end
     local objective = tactics.objectives and tactics.objectives.route_machine
     if objective and state.assets.white then
-        local x = originX + objective.x + 0.5
-        local y = originY + objective.y + 0.5
+        local x, y = Render.Topology.center(tactics.board.topology, objective.x, objective.y, originX, originY)
         local model = newBillboard(0.5, 0.68, 0, x, y, (sim.player.z or 0) + 0.05, yaw, state.assets.white)
         drawTintedModel(model, { 0.84, 0.68, 0.32, 1 }, lightAt(sim, x, y, profile), 0.95)
         drawn = drawn + 1
@@ -2773,9 +2797,10 @@ function Render.drawWorld(sim, app)
     app.worldView.halfW = 32 * zoom
     app.worldView.halfH = 16 * zoom
     local targetX, targetY, targetZ = Render.tacticalCameraCenter(sim, app)
-    app.worldView.originX = (targetX or 0) - 0.5
-    app.worldView.originY = (targetY or 0) - 0.5
+    app.worldView.originX = targetX or 0
+    app.worldView.originY = targetY or 0
     app.worldView.rotation = app.viewRotation or 0
+    app.worldView.rotationSteps = Render.rotationSteps(app)
     if not (love and love.graphics and sim and sim.world and state.g3d) then
         return
     end

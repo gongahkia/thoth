@@ -43,9 +43,6 @@ function Topology.normalize(value)
 end
 
 function Topology.edgeCount(kind)
-    if kind == "pentagon" or kind == "pent" then
-        return 5
-    end
     kind = Topology.normalize(kind)
     if kind == "triangle" then
         return 3
@@ -143,42 +140,175 @@ function Topology.line(kind, fromX, fromY, toX, toY)
     return points
 end
 
-function Topology.vertices(kind, x, y, inset)
+local triangleHeight = math.sqrt(3) / 2
+local hexWidth = 1
+local hexRadius = hexWidth / math.sqrt(3)
+local hexRowStep = hexRadius * 1.5
+
+local function polygonCenter(points)
+    local cx = 0
+    local cy = 0
+    for _, point in ipairs(points) do
+        cx = cx + point[1]
+        cy = cy + point[2]
+    end
+    return cx / #points, cy / #points
+end
+
+local function insetPolygon(points, inset)
+    inset = tonumber(inset) or 0
+    if inset <= 0 then
+        return points
+    end
+    local cx, cy = polygonCenter(points)
+    local scale = math.max(0.05, 1 - inset * 2)
+    local result = {}
+    for index, point in ipairs(points) do
+        result[index] = { cx + (point[1] - cx) * scale, cy + (point[2] - cy) * scale }
+    end
+    return result
+end
+
+local function pointInPolygon(px, py, points)
+    local inside = false
+    local j = #points
+    for i = 1, #points do
+        local xi, yi = points[i][1], points[i][2]
+        local xj, yj = points[j][1], points[j][2]
+        if ((yi > py) ~= (yj > py)) and (px < (xj - xi) * (py - yi) / ((yj - yi) == 0 and 1e-9 or (yj - yi)) + xi) then
+            inside = not inside
+        end
+        j = i
+    end
+    return inside
+end
+
+function Topology.vertices(kind, x, y, inset, originX, originY)
     kind = Topology.normalize(kind)
     inset = inset or 0
-    local left = x + inset
-    local right = x + 1 - inset
-    local top = y + inset
-    local bottom = y + 1 - inset
+    originX = originX or 0
+    originY = originY or 0
     if kind == "triangle" then
+        local left = originX + 1 + (x - 1) * 0.5
+        local top = originY + 1 + (y - 1) * triangleHeight
+        local points
         if Topology.trianglePointsUp(x, y) then
-            return { { left, top }, { right, top }, { x + 0.5, bottom } }
+            points = { { left, top + triangleHeight }, { left + 1, top + triangleHeight }, { left + 0.5, top } }
+        else
+            points = { { left, top }, { left + 1, top }, { left + 0.5, top + triangleHeight } }
         end
-        return { { x + 0.5, top }, { right, bottom }, { left, bottom } }
+        return insetPolygon(points, inset)
     end
     if kind == "hex" then
-        local cx = x + 0.5
-        local cy = y + 0.5
-        local rx = 0.48 - inset
-        local ry = 0.42 - inset
-        return {
-            { cx + rx, cy },
-            { cx + rx * 0.5, cy + ry },
-            { cx - rx * 0.5, cy + ry },
-            { cx - rx, cy },
-            { cx - rx * 0.5, cy - ry },
-            { cx + rx * 0.5, cy - ry },
-        }
+        local cx, cy = Topology.center(kind, x, y, originX, originY)
+        local points = {}
+        for index = 0, 5 do
+            local angle = math.rad(-90 + index * 60)
+            points[#points + 1] = { cx + math.cos(angle) * hexRadius, cy + math.sin(angle) * hexRadius }
+        end
+        return insetPolygon(points, inset)
     end
+    local left = originX + x + inset
+    local right = originX + x + 1 - inset
+    local top = originY + y + inset
+    local bottom = originY + y + 1 - inset
     return { { left, top }, { right, top }, { right, bottom }, { left, bottom } }
 end
 
-function Topology.cellAtPoint(kind, worldX, worldY, originX, originY)
-    return math.floor(worldX - (originX or 0)), math.floor(worldY - (originY or 0))
+local function nearestCell(kind, px, py, approxX, approxY, originX, originY)
+    local bestX = approxX
+    local bestY = approxY
+    local bestDistance = math.huge
+    for y = approxY - 3, approxY + 3 do
+        for x = approxX - 3, approxX + 3 do
+            if pointInPolygon(px, py, Topology.vertices(kind, x, y, 0, originX, originY)) then
+                return x, y
+            end
+            local cx, cy = Topology.center(kind, x, y, originX, originY)
+            local dx = cx - px
+            local dy = cy - py
+            local distance = dx * dx + dy * dy
+            if distance < bestDistance then
+                bestX = x
+                bestY = y
+                bestDistance = distance
+            end
+        end
+    end
+    return bestX, bestY
 end
 
-function Topology.center(kind, x, y)
-    return x + 0.5, y + 0.5
+function Topology.cellAtPoint(kind, worldX, worldY, originX, originY)
+    kind = Topology.normalize(kind)
+    originX = originX or 0
+    originY = originY or 0
+    if kind == "triangle" then
+        local approxY = math.floor((worldY - originY - 1) / triangleHeight) + 1
+        local approxX = math.floor((worldX - originX - 1) * 2) + 1
+        return nearestCell(kind, worldX, worldY, approxX, approxY, originX, originY)
+    end
+    if kind == "hex" then
+        local approxY = math.floor((worldY - originY - 0.5) / hexRowStep) + 1
+        local rowOffset = (approxY % 2 == 1) and 0.5 or 0
+        local approxX = math.floor(worldX - originX - rowOffset)
+        return nearestCell(kind, worldX, worldY, approxX, approxY, originX, originY)
+    end
+    return math.floor(worldX - originX), math.floor(worldY - originY)
+end
+
+function Topology.center(kind, x, y, originX, originY)
+    kind = Topology.normalize(kind)
+    originX = originX or 0
+    originY = originY or 0
+    if kind == "triangle" then
+        return polygonCenter(Topology.vertices(kind, x, y, 0, originX, originY))
+    end
+    if kind == "hex" then
+        local rowOffset = (y % 2 == 1) and 0.5 or 0
+        return originX + x + 0.5 + rowOffset, originY + 0.5 + y * hexRowStep
+    end
+    return originX + x + 0.5, originY + y + 0.5
+end
+
+function Topology.boardBounds(kind, width, height, originX, originY)
+    local minX = math.huge
+    local minY = math.huge
+    local maxX = -math.huge
+    local maxY = -math.huge
+    for y = 1, height or 0 do
+        for x = 1, width or 0 do
+            for _, point in ipairs(Topology.vertices(kind, x, y, 0, originX, originY)) do
+                minX = math.min(minX, point[1])
+                minY = math.min(minY, point[2])
+                maxX = math.max(maxX, point[1])
+                maxY = math.max(maxY, point[2])
+            end
+        end
+    end
+    if minX == math.huge then
+        return originX or 0, originY or 0, originX or 0, originY or 0
+    end
+    return minX, minY, maxX, maxY
+end
+
+function Topology.centerBounds(kind, width, height, originX, originY)
+    local minX = math.huge
+    local minY = math.huge
+    local maxX = -math.huge
+    local maxY = -math.huge
+    for y = 1, height or 0 do
+        for x = 1, width or 0 do
+            local cx, cy = Topology.center(kind, x, y, originX, originY)
+            minX = math.min(minX, cx)
+            minY = math.min(minY, cy)
+            maxX = math.max(maxX, cx)
+            maxY = math.max(maxY, cy)
+        end
+    end
+    if minX == math.huge then
+        return originX or 0, originY or 0, originX or 0, originY or 0
+    end
+    return minX, minY, maxX, maxY
 end
 
 return Topology
