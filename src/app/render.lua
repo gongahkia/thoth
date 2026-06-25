@@ -745,12 +745,15 @@ local function rotationAllowed(value, allowed)
     return false
 end
 
-local tacticalOverlayOrder = { "movement", "attackRange", "los", "cover", "flank", "intent", "overwatch", "aiDebug", "hazard", "blocker", "objective", "cursor" }
+local tacticalOverlayOrder = { "movement", "partyPath", "attackRange", "breakableTerrain", "los", "cover", "flank", "intent", "overwatch", "aiDebug", "hazard", "blocker", "objective", "cursor" }
 local tacticalOverlayPalette = TacticsUICatalog.accessiblePalette().roles
 local tacticalOverlayColors = {
     movement = { 0.34, 0.72, 1.0, 0.86 },
+    partyPath = { 0.28, 1.0, 0.68, 0.82 },
     attackRange = { 1.0, 0.28, 0.42, 0.84 },
     attackRangeFill = { 0.82, 0.08, 0.16, 0.22 },
+    breakableTerrain = { 1.0, 0.72, 0.16, 0.9 },
+    breakableTerrainFill = { 0.9, 0.48, 0.08, 0.24 },
     los = { 0.86, 0.78, 0.28, 0.46 },
     cover = tacticalOverlayPalette.cover.color,
     flank = { 0.94, 0.52, 0.18, 0.55 },
@@ -767,7 +770,9 @@ local tacticalOverlayColors = {
 
 local tacticalOverlayStyles = {
     movement = { icon = "move", pattern = "dot" },
+    partyPath = { icon = "path", pattern = "path" },
     attackRange = { icon = "attack", pattern = "cross" },
+    breakableTerrain = { icon = "HP", pattern = "crack" },
     los = { icon = "eye", pattern = "ray" },
     cover = { icon = tacticalOverlayPalette.cover.icon, pattern = tacticalOverlayPalette.cover.pattern },
     flank = { icon = "angle", pattern = "chevron" },
@@ -930,7 +935,9 @@ function Render.tacticalOverlayEntries(tactics, overlays, settings)
         end
     end
     appendOverlayList(entries, counts, seen, "movement", overlays.movement or overlays.movementRange)
+    appendOverlayList(entries, counts, seen, "partyPath", overlays.partyPath)
     appendOverlayList(entries, counts, seen, "attackRange", overlays.attackRange or overlays.attackRadius)
+    appendOverlayList(entries, counts, seen, "breakableTerrain", overlays.breakableTerrain or overlays.breakable)
     appendOverlayList(entries, counts, seen, "los", overlays.los or overlays.lineOfSight)
     appendOverlayList(entries, counts, seen, "flank", overlays.flanks or overlays.flank)
     appendOverlayList(entries, counts, seen, "intent", overlays.intent or overlays.intents)
@@ -2237,8 +2244,11 @@ end
 local tacticalRingSpecs = {
     movementFill = { inset = 0.09, z = 0.04, fillOnly = true },
     movement = { inset = 0.08, width = 0.04, z = 0.075 },
+    partyPath = { inset = 0.2, width = 0.035, z = 0.078 },
     attackRangeFill = { inset = 0.12, z = 0.045, fillOnly = true },
     attackRange = { inset = 0.12, width = 0.035, z = 0.082 },
+    breakableTerrainFill = { inset = 0.14, z = 0.05, fillOnly = true },
+    breakableTerrain = { inset = 0.14, width = 0.045, z = 0.095 },
     intent = { inset = 0.1, width = 0.045, z = 0.08 },
     overwatch = { inset = 0.14, width = 0.04, z = 0.085 },
     aiDebug = { inset = 0.28, width = 0.03, z = 0.14 },
@@ -2318,11 +2328,13 @@ local function drawTacticalOverlays(sim, app)
     for _, entry in ipairs(entries) do
         local inView = Render.tileInTacticalLogicalBounds(entry.x, entry.y, minX, maxX, minY, maxY)
         local movementHidden = lod.hideMovement and entry.kind == "movement"
-        if inView and not movementHidden and (entry.kind == "movement" or entry.kind == "attackRange" or entry.kind == "intent" or entry.kind == "overwatch" or entry.kind == "aiDebug" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor") then
+        if inView and not movementHidden and (entry.kind == "movement" or entry.kind == "partyPath" or entry.kind == "attackRange" or entry.kind == "breakableTerrain" or entry.kind == "intent" or entry.kind == "overwatch" or entry.kind == "aiDebug" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor") then
             if entry.kind == "movement" then
                 drawnEntries[#drawnEntries + 1] = { kind = "movementFill", x = entry.x, y = entry.y, label = entry.label, color = { 0.1, 0.42, 0.9, 0.34 } }
             elseif entry.kind == "attackRange" then
                 drawnEntries[#drawnEntries + 1] = { kind = "attackRangeFill", x = entry.x, y = entry.y, label = entry.label, color = tacticalOverlayColors.attackRangeFill }
+            elseif entry.kind == "breakableTerrain" then
+                drawnEntries[#drawnEntries + 1] = { kind = "breakableTerrainFill", x = entry.x, y = entry.y, label = entry.label, color = tacticalOverlayColors.breakableTerrainFill }
             end
             drawnEntries[#drawnEntries + 1] = entry
         end

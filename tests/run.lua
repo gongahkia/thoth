@@ -181,6 +181,9 @@ tests[#tests + 1] = function()
     expect(Noise.sample("simplex", 17, 3, 5) == Noise.sample("simplex", 17, 3, 5), "simplex noise should be deterministic")
     expect(TileAtlas.entryFor({ terrainType = "brine_pool" }).id == "brine_pool", "tile atlas should map terrain type entries")
     expect(TileAtlas.entryFor({ terrainType = "sunken_water" }).id == "brine_pool", "tile atlas should map terrain aliases")
+    expect(TileAtlas.entryFor({ blocker = true, destructibleHp = 2 }).id == "destructible_intact", "tile atlas should expose intact destructible terrain")
+    expect(TileAtlas.entryFor({ blocker = true, destructibleHp = 1 }).id == "destructible_damaged", "tile atlas should expose damaged destructible terrain")
+    expect(TileAtlas.entryFor({ destroyed = true, destructibleHp = 0 }).id == "destructible_destroyed", "tile atlas should expose destroyed destructible terrain")
     expect(TileAtlas.sideEntryFor({ blocker = true }).id == "temple_stone", "tile atlas should use subdued side materials")
     local rect = TileAtlas.uvRect(TileAtlas.entryFor({ terrainType = "heat_vent" }), 64, 48)
     expect(rect.u0 < rect.u1 and rect.v0 < rect.v1 and rect.entry == "heat_vent", "tile atlas should expose uv rects")
@@ -200,6 +203,16 @@ tests[#tests + 1] = function()
     local entryCount = #TileAtlas.entries()
     expect(TileAtlas.meta().image == "assets/tiles/kenney_tiny_dungeon.png", "tile atlas should use the Kenney Tiny Dungeon sheet")
     expect(data.width == 192 and data.height == 176 and columns == 12 and rows == 11 and data.pixels == entryCount * 16 * 16, "tile atlas should generate a 12x11 16px fallback atlas")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = { width = 5, height = 5, topology = "triangle", shape = "square" },
+        units = {
+            { id = "warden", side = "player", x = 2, y = 2, hp = 5, ap = 3 },
+        },
+    })
+    expect(state:distance(2, 2, 2, 1) == 3, "triangle distance should follow triangle adjacency, not square Manhattan")
 end
 
 tests[#tests + 1] = function()
@@ -228,6 +241,7 @@ tests[#tests + 1] = function()
     TacticalRuntime.refreshOverlays(runtime)
     expect(TacticalRuntime.movePartyTo(runtime, 4, 2), "party auto-path should move toward reachable target")
     expect(runtime.partyMoveQueue ~= nil, "party auto-path should queue animated movement")
+    expect(#(runtime.overlays.partyPath or {}) >= 1, "party auto-path should expose queued path overlay")
     expect(state:unit("lead").x == 1 and state:unit("lead").y == 2, "party leader should wait for the first animation tick")
     expect(TacticalRuntime.advancePartyMove(runtime, 1), "party auto-path should advance queued movement")
     expect(state:unit("lead").x == 4 and state:unit("lead").y == 2, "party leader should reach clicked tile")
@@ -235,6 +249,26 @@ tests[#tests + 1] = function()
     expect(state:unit("third").x == 2 and state:unit("third").y == 2, "third party member should remain in row formation")
     expect(runtime.partyMoveQueue == nil, "party auto-path should clear the queue after arrival")
     expect(runtime.explorationMode == true, "party movement without contact should stay in exploration mode")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = { width = 6, height = 3 },
+        units = {
+            { id = "lead", side = "player", x = 1, y = 2, hp = 5, ap = 3, visionRadius = 4 },
+            { id = "second", side = "player", x = 1, y = 1, hp = 5, ap = 3, visionRadius = 4 },
+            { id = "third", side = "player", x = 1, y = 3, hp = 5, ap = 3, visionRadius = 4 },
+        },
+    })
+    local runtime = { state = state, selectedUnitId = "lead", cursor = { x = 1, y = 2 }, cache = {}, partyMovementEnabled = true, explorationMode = true, status = "" }
+    TacticalRuntime.refreshOverlays(runtime)
+    expect(TacticalRuntime.movePartyTo(runtime, 4, 2), "party auto-path should start queued movement")
+    expect(TacticalRuntime.cancelPartyMove(runtime), "party auto-path should cancel queued movement")
+    expect(runtime.partyMoveQueue == nil and state:unit("lead").x == 1, "party auto-path cancel should stop before moving")
+    expect(TacticalRuntime.movePartyTo(runtime, 4, 2), "party auto-path should restart after cancel")
+    expect(TacticalRuntime.movePartyTo(runtime, 3, 2), "party auto-path should retarget while moving")
+    expect(TacticalRuntime.advancePartyMove(runtime, 1), "retargeted party auto-path should advance")
+    expect(state:unit("lead").x == 3 and state:unit("second").x == 2 and state:unit("third").x == 1, "retargeted party auto-path should keep row formation")
 end
 
 tests[#tests + 1] = function()
@@ -1497,6 +1531,33 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = {
+            width = 5,
+            height = 3,
+            tiles = {
+                ["3:2"] = { blocker = true, losBlocker = true, blockerKind = "destructible", destructibleHp = 2, coverEdges = { west = "half" } },
+            },
+        },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 2, hp = 5, ap = 3 },
+            { id = "bailiff", side = "enemy", x = 5, y = 3, hp = 4, ap = 3 },
+        },
+        objectives = {
+            { id = "seal", x = 5, y = 1, integrity = 2, evacuateAt = { x = 5, y = 1 } },
+        },
+    })
+    local runtime = { state = state, selectedUnitId = "warden", cursor = { x = 3, y = 2 }, cache = {}, status = "", partyMovementEnabled = false, explorationMode = false }
+    TacticalRuntime.refreshOverlays(runtime)
+    expect((runtime.overlays.breakableTerrain or {})[1] and runtime.overlays.breakableTerrain[1].x == 3, "selected unit should expose breakable terrain overlay")
+    expect(TacticalRuntime.actionAtTile(runtime, 3, 2).kind == "breakTerrain", "destructible blocker should expose Break context action")
+    local bar = TacticalRuntime.actionBar(runtime)
+    expect(bar[4].label == "Break" and bar[4].enabled, "action bar should expose Break on destructible cursor tile")
+    expect(TacticalRuntime.handleKey(runtime, "a"), "Break action should activate from A")
+    expect(state:tileAt(3, 2).destroyed and state:unit("warden").ap == 2, "Break action should spend AP and destroy terrain")
+end
+
+tests[#tests + 1] = function()
     local high = TacticsState.new({
         board = {
             width = 4,
@@ -1567,8 +1628,10 @@ tests[#tests + 1] = function()
     })
     local overlays = {
         movement = { { x = 1, y = 2 }, { x = 2, y = 1 } },
+        partyPath = { { x = 2, y = 2, label = "path" } },
         los = { ["3:1"] = true },
         attackRange = { { x = 2, y = 2, label = "r3" } },
+        breakableTerrain = { { x = 2, y = 3, label = "HP2" } },
         flanks = { { x = 3, y = 2 } },
         intents = { { x = 4, y = 2, label = "audit_line" } },
         overwatch = { { x = 4, y = 1, label = "shoot" } },
@@ -1576,16 +1639,18 @@ tests[#tests + 1] = function()
     }
     local entries, counts = Render.tacticalOverlayEntries(state, overlays)
     expect(counts.movement == 2, "tactical overlays should include movement range tiles")
+    expect(counts.partyPath == 1, "tactical overlays should include party path tiles")
     expect(counts.attackRange == 1, "tactical overlays should include attack range tiles")
+    expect(counts.breakableTerrain == 1, "tactical overlays should include breakable terrain tiles")
     expect(counts.los == 1, "tactical overlays should include LoS tiles")
     expect(counts.cover == 1, "tactical overlays should include cover tiles")
     expect(counts.flank == 1, "tactical overlays should include flank tiles")
     expect(counts.intent == 1, "tactical overlays should include intent tiles")
     expect(counts.overwatch == 1, "tactical overlays should include overwatch tiles")
     expect(counts.hazard == 2, "tactical overlays should include board and explicit hazard tiles")
-    expect(#entries == 10, "tactical overlay entry count should match all required overlay classes")
+    expect(#entries == 12, "tactical overlay entry count should match all required overlay classes")
     local summary = Render.tacticalOverlaySummary(state, overlays)
-    expect(summary.total == 10 and summary.intent == 1 and summary.overwatch == 1, "tactical overlay summary should expose render-smoke counts")
+    expect(summary.total == 12 and summary.intent == 1 and summary.overwatch == 1, "tactical overlay summary should expose render-smoke counts")
     local audit = Render.tacticalOverlayAccessibilityAudit(state, overlays)
     expect(#audit == 4, "tactical overlay accessibility audit should cover four rotations")
     for _, rotation in ipairs(audit) do

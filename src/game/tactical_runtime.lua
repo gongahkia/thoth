@@ -10,6 +10,7 @@ local Runtime = {}
 
 local originX = -5
 local originY = -5
+local terrainBreakDamage = 2
 local liveClassRoster = {
     { id = "warden", classId = "warden", hp = 6 },
     { id = "duelist", classId = "duelist", hp = 5 },
@@ -322,7 +323,7 @@ local function nearestPlayer(state, enemy)
     local best
     local bestDistance
     for _, unit in ipairs(state:unitsForSide("player")) do
-        local distance = Grid.manhattan(enemy.x, enemy.y, unit.x, unit.y)
+        local distance = state:distance(enemy.x, enemy.y, unit.x, unit.y)
         if not bestDistance or distance < bestDistance then
             best = unit
             bestDistance = distance
@@ -355,7 +356,7 @@ local function nearestVisiblePlayer(state, enemy)
     local bestDistance
     for _, unit in ipairs(state:unitsForSide("player")) do
         if enemyCanSeeUnit(state, enemy, unit) then
-            local distance = Grid.manhattan(enemy.x, enemy.y, unit.x, unit.y)
+                local distance = state:distance(enemy.x, enemy.y, unit.x, unit.y)
             if not bestDistance or distance < bestDistance then
                 best = unit
                 bestDistance = distance
@@ -877,6 +878,7 @@ function Runtime.new(sim, options)
         partyPathTo = Runtime.partyPathTo,
         movePartyTo = Runtime.movePartyTo,
         advancePartyMove = Runtime.advancePartyMove,
+        cancelPartyMove = Runtime.cancelPartyMove,
         drainHitEvents = Runtime.drainHitEvents,
         hitEvents = {},
         cache = {},
@@ -1081,6 +1083,16 @@ local function finishPartyMove(runtime, kind)
     Runtime.refreshOverlays(runtime)
 end
 
+function Runtime.cancelPartyMove(runtime, reason)
+    if not (runtime and runtime.partyMoveQueue) then
+        return false
+    end
+    runtime.partyMoveQueue = nil
+    setStatus(runtime, reason or "party move cancelled")
+    Runtime.refreshOverlays(runtime)
+    return true
+end
+
 function Runtime.advancePartyMove(runtime, dt)
     local queue = runtime and runtime.partyMoveQueue
     if not queue then
@@ -1128,9 +1140,12 @@ function Runtime.movePartyTo(runtime, targetX, targetY)
     if not runtime.partyMovementEnabled then
         return false, "party movement disabled"
     end
-    if runtime.partyMoveQueue then
-        return false, "party already moving"
+    local retargeting = runtime.partyMoveQueue ~= nil
+    local lead = partyUnits(runtime)[1]
+    if retargeting and lead and lead.x == targetX and lead.y == targetY then
+        return Runtime.cancelPartyMove(runtime, "party move cancelled")
     end
+    runtime.partyMoveQueue = nil
     local path, kind = Runtime.partyPathTo(runtime, targetX, targetY)
     if not path then
         setStatus(runtime, kind or "no route")
@@ -1140,7 +1155,7 @@ function Runtime.movePartyTo(runtime, targetX, targetY)
         finishPartyMove(runtime, kind)
     else
         runtime.partyMoveQueue = { path = path, kind = kind, index = 1, timer = 0, delay = runtime.partyMoveStepDelay ~= nil and runtime.partyMoveStepDelay or 0.12 }
-        setStatus(runtime, "party moving " .. tostring(#path - 1) .. " steps")
+        setStatus(runtime, (retargeting and "party retargeting " or "party moving ") .. tostring(#path - 1) .. " steps")
     end
     Runtime.refreshOverlays(runtime)
     return true
@@ -1644,6 +1659,28 @@ local function cachedMovementOverlay(runtime, selected)
     return movement
 end
 
+local function breakActionAtTile(runtime, x, y)
+    local state = runtime and runtime.state
+    local selected = Runtime.selectedUnit(runtime)
+    if not (state and selected and selected.side == "player" and selected.alive and state:inBounds(x, y)) then
+        return nil
+    end
+    local tile = state:tileAt(x, y)
+    if not (tile and tile.destructibleHp ~= nil and tile.destructibleHp > 0 and tile.destroyed ~= true) then
+        return nil
+    end
+    local distance = state:distance(selected.x, selected.y, x, y)
+    local enabled = selected.ap >= 1 and distance <= 3
+    local hpAfter = math.max(0, (tile.destructibleHp or 0) - terrainBreakDamage)
+    local detail = "HP" .. tostring(tile.destructibleHp) .. ">" .. tostring(hpAfter) .. " r" .. tostring(distance) .. "/3"
+    if selected.ap < 1 then
+        detail = "need AP"
+    elseif distance > 3 then
+        detail = "out of range r" .. tostring(distance) .. "/3"
+    end
+    return { kind = "breakTerrain", label = "Break", key = "LMB/A", enabled = enabled, detail = detail, tile = tile, hpAfter = hpAfter }
+end
+
 local function cachedAttackRangeOverlay(runtime, selected)
     local parts = overlayCache(runtime)
     local state = runtime.state
@@ -1671,7 +1708,7 @@ local function cachedAttackRangeOverlay(runtime, selected)
         local maxY = math.min(board.height or selected.y, selected.y + range)
         for y = minY, maxY do
             for x = minX, maxX do
-                if state:inBounds(x, y) and not (x == selected.x and y == selected.y) and Grid.manhattan(selected.x, selected.y, x, y) <= range then
+                if state:inBounds(x, y) and not (x == selected.x and y == selected.y) and state:distance(selected.x, selected.y, x, y) <= range then
                     local tile = state:tileAt(x, y)
                     if tile and not tile.blocker then
                         attackRange[#attackRange + 1] = { x = x, y = y, label = "r3" }
@@ -1682,6 +1719,60 @@ local function cachedAttackRangeOverlay(runtime, selected)
     end
     parts.attackRange = { key = key, value = attackRange }
     return attackRange
+end
+
+local function cachedBreakableOverlay(runtime, selected)
+    local parts = overlayCache(runtime)
+    local state = runtime.state
+    local key = table.concat({
+        "breakableTerrain",
+        tostring(stateRevision(state, "units")),
+        tostring(stateRevision(state, "terrain")),
+        tostring(selected and selected.id or ""),
+        tostring(selected and selected.x or ""),
+        tostring(selected and selected.y or ""),
+        tostring(selected and selected.ap or ""),
+    }, ":")
+    if parts.breakableTerrain and parts.breakableTerrain.key == key then
+        return parts.breakableTerrain.value
+    end
+    local breakable = {}
+    if selected and selected.side == "player" and selected.alive and selected.ap > 0 then
+        local board = state.board or {}
+        local range = 3
+        for y = math.max(1, selected.y - range), math.min(board.height or selected.y, selected.y + range) do
+            for x = math.max(1, selected.x - range), math.min(board.width or selected.x, selected.x + range) do
+                local action = breakActionAtTile(runtime, x, y)
+                if action and action.enabled then
+                    breakable[#breakable + 1] = { x = x, y = y, label = action.detail }
+                end
+            end
+        end
+    end
+    parts.breakableTerrain = { key = key, value = breakable }
+    return breakable
+end
+
+local function partyPathOverlay(runtime)
+    local state = runtime and runtime.state
+    if not (state and runtime.partyMovementEnabled and runtime.explorationMode) then
+        return {}
+    end
+    local path = nil
+    local startIndex = 2
+    local label = "path"
+    if runtime.partyMoveQueue and runtime.partyMoveQueue.path then
+        path = runtime.partyMoveQueue.path
+        startIndex = math.min(#path, (runtime.partyMoveQueue.index or 1) + 1)
+        label = "queued"
+    else
+        path = Runtime.partyPathTo(runtime, runtime.cursor.x, runtime.cursor.y)
+    end
+    local overlay = {}
+    for index = startIndex, #(path or {}) do
+        overlay[#overlay + 1] = { x = path[index].x, y = path[index].y, label = label }
+    end
+    return overlay
 end
 
 local function activeUnitPositionKey(state, side)
@@ -1802,6 +1893,7 @@ function Runtime.refreshOverlays(runtime)
     revealVisibleEnemyIntents(runtime, visibility)
     local movement = cachedMovementOverlay(runtime, selected)
     local attackRange = cachedAttackRangeOverlay(runtime, selected)
+    local breakableTerrain = cachedBreakableOverlay(runtime, selected)
     local intents = cachedIntentOverlay(runtime, visibility)
     local overwatch = cachedOverwatchOverlay(runtime)
     local aiDebug = aiDebugOverlay(runtime, visibility)
@@ -1809,6 +1901,8 @@ function Runtime.refreshOverlays(runtime)
     runtime.overlays = {
         movement = movement,
         attackRange = attackRange,
+        breakableTerrain = breakableTerrain,
+        partyPath = partyPathOverlay(runtime),
         intents = intents,
         overwatch = overwatch,
         aiDebug = aiDebug,
@@ -1994,6 +2088,13 @@ function Runtime.actionAtTile(runtime, x, y)
     local selected = Runtime.selectedUnit(runtime)
     if runtime.explorationMode and runtime.partyMovementEnabled then
         local path, kind = Runtime.partyPathTo(runtime, x, y)
+        if runtime.partyMoveQueue then
+            local lead = partyUnits(runtime)[1]
+            if lead and lead.x == x and lead.y == y then
+                return { kind = "partyCancel", label = "Cancel Move", key = "RMB/Esc", enabled = true, detail = "stop party" }
+            end
+            return { kind = "partyRetarget", label = "Retarget", key = "LMB", enabled = path ~= nil, detail = path and ((kind == "partial" and "partial " or "") .. tostring(math.max(0, #path - 1)) .. " steps") or tostring(kind or "blocked") }
+        end
         return { kind = "partyMove", label = "Party Move", key = "LMB", enabled = path ~= nil, detail = path and ((kind == "partial" and "partial " or "") .. tostring(math.max(0, #path - 1)) .. " steps") or tostring(kind or "blocked") }
     end
     if unit and unit.side == "player" then
@@ -2003,7 +2104,7 @@ function Runtime.actionAtTile(runtime, x, y)
         if not Runtime.enemyVisible(runtime, unit) then
             return { kind = "cursor", label = "Inspect tile", key = "RMB", enabled = true, detail = tostring(x) .. "," .. tostring(y) }
         end
-        local distance = selected and Grid.manhattan(selected.x, selected.y, unit.x, unit.y) or nil
+        local distance = selected and state:distance(selected.x, selected.y, unit.x, unit.y) or nil
         local enabled = selected and selected.ap >= 1 and distance and distance <= 3
         local attack = selected and distance and distance <= 3 and state:attackResolution(selected.id, unit.id, 1) or nil
         local detail = distance and ("HP" .. tostring(unit.hp) .. " r" .. tostring(distance) .. "/3" .. (attack and (" dmg" .. tostring(attack.damage) .. (attack.flanked and " flank" or "")) or "")) or "no unit"
@@ -2012,6 +2113,10 @@ function Runtime.actionAtTile(runtime, x, y)
         end
         return { kind = "attack", label = "Attack", key = "LMB/A", enabled = enabled == true, detail = detail }
     end
+    local breakAction = breakActionAtTile(runtime, x, y)
+    if breakAction and breakAction.tile and breakAction.tile.blocker then
+        return breakAction
+    end
     if selected and selected.side == "player" then
         local tile = reachableByKey(cachedMovementPreview(runtime, selected.id))[tostring(x) .. ":" .. tostring(y)]
         if tile and (tile.apCost or 0) > 0 then
@@ -2019,6 +2124,9 @@ function Runtime.actionAtTile(runtime, x, y)
         elseif tile then
             return { kind = "hold", label = "Hold", key = "LMB", enabled = false, detail = "already here" }
         end
+    end
+    if breakAction then
+        return breakAction
     end
     return { kind = "cursor", label = "Inspect tile", key = "RMB", enabled = true, detail = tostring(x) .. "," .. tostring(y) }
 end
@@ -2033,12 +2141,14 @@ function Runtime.actionBar(runtime, hover)
     end
     local canAttack = cursorAction.kind == "attack" and cursorAction.enabled
     local canMove = cursorAction.kind == "move" and cursorAction.enabled
+    local breakAction = breakActionAtTile(runtime, runtime.cursor.x, runtime.cursor.y)
+    local canBreak = not canAttack and breakAction and breakAction.enabled
     local playerCount = livingPlayers(runtime.state)
     local actions = {
         { id = "context", key = context.key or "LMB", label = context.label, detail = context.detail, enabled = context.enabled, primary = true },
         { id = "cursor", key = "WASD", label = "Cursor", detail = "aim tile", enabled = true },
         { id = "move", key = "Enter", label = "Move", detail = canMove and cursorAction.detail or "blue tile", enabled = canMove },
-        { id = "attack", key = "A", label = "Attack", detail = canAttack and cursorAction.detail or "enemy", enabled = canAttack },
+        { id = canBreak and "break" or "attack", key = "A", label = canBreak and "Break" or "Attack", detail = canAttack and cursorAction.detail or (canBreak and breakAction.detail or "enemy"), enabled = canAttack or canBreak },
     }
     for index, verb in ipairs(boardActionsForUnit(selected)) do
         local preview = cachedClassVerbPreview(runtime, selected, verb)
@@ -2162,6 +2272,9 @@ function Runtime.handleMouseTile(runtime, x, y, button)
     end
     local state = runtime.state
     local unit = state:unitAt(x, y)
+    if button == 2 and runtime.partyMoveQueue then
+        return Runtime.cancelPartyMove(runtime, "party move cancelled")
+    end
     if button == 2 then
         setStatus(runtime, "cursor " .. tostring(x) .. "," .. tostring(y))
         return true
@@ -2178,6 +2291,10 @@ function Runtime.handleMouseTile(runtime, x, y, button)
     if unit and unit.side == "enemy" and Runtime.enemyVisible(runtime, unit) then
         return Runtime.attackCursor(runtime)
     end
+    local breakAction = breakActionAtTile(runtime, x, y)
+    if breakAction and breakAction.enabled and breakAction.tile and breakAction.tile.blocker then
+        return Runtime.breakTerrainAtCursor(runtime)
+    end
     local selected = Runtime.selectedUnit(runtime)
     local preview = selected and cachedMovementPreview(runtime, selected.id)
     if selected and reachableByKey(preview)[tostring(x) .. ":" .. tostring(y)] then
@@ -2187,15 +2304,32 @@ function Runtime.handleMouseTile(runtime, x, y, button)
     return true
 end
 
+function Runtime.breakTerrainAtCursor(runtime)
+    local selected = Runtime.selectedUnit(runtime)
+    local action = breakActionAtTile(runtime, runtime.cursor.x, runtime.cursor.y)
+    if not (selected and action and action.enabled) then
+        setStatus(runtime, action and action.detail or "no breakable terrain")
+        return false
+    end
+    local tile = action.tile
+    if tryApply(runtime, TacticsState.commands.damageTile(selected.id, runtime.cursor.x, runtime.cursor.y, terrainBreakDamage, 1)) then
+        local destroyed = tile.destroyed == true or (tile.destructibleHp or 0) <= 0
+        setStatus(runtime, selected.id .. (destroyed and " broke terrain " or " damaged terrain ") .. tostring(runtime.cursor.x) .. "," .. tostring(runtime.cursor.y))
+        Runtime.refreshOverlays(runtime)
+        return true
+    end
+    Runtime.refreshOverlays(runtime)
+    return false
+end
+
 function Runtime.attackCursor(runtime)
     local state = runtime.state
     local selected = Runtime.selectedUnit(runtime)
     local target = state:unitAt(runtime.cursor.x, runtime.cursor.y)
     if not (selected and target and target.side == "enemy" and Runtime.enemyVisible(runtime, target)) then
-        setStatus(runtime, "no enemy on cursor")
-        return false
+        return Runtime.breakTerrainAtCursor(runtime)
     end
-    local distance = Grid.manhattan(selected.x, selected.y, target.x, target.y)
+    local distance = state:distance(selected.x, selected.y, target.x, target.y)
     if distance > 3 then
         setStatus(runtime, "target outside deterministic range")
         return false
@@ -2287,7 +2421,7 @@ local function enemyCanActOnTarget(state, enemy, target, range)
     if not (enemy and target and state:inBounds(enemy.x, enemy.y) and state:inBounds(target.x, target.y)) then
         return false
     end
-    if Grid.manhattan(enemy.x, enemy.y, target.x, target.y) > (range or 3) then
+    if state:distance(enemy.x, enemy.y, target.x, target.y) > (range or 3) then
         return false
     end
     local los = state:lineOfSight(enemy.x, enemy.y, target.x, target.y)
@@ -2559,6 +2693,8 @@ function Runtime.handleKey(runtime, key)
         Runtime.cycleTopology(runtime, 1)
     elseif key == "-" or key == "kp-" then
         Runtime.cycleTopology(runtime, -1)
+    elseif key == "escape" then
+        return Runtime.cancelPartyMove(runtime, "party move cancelled")
     else
         return false
     end

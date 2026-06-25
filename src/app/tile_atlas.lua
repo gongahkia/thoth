@@ -16,6 +16,9 @@ local entries = {
     root_tangle = { terrain = "root_tangle", color = { 66, 92, 58 }, uv = { 0, 1 } },
     temple_stone = { terrain = "temple_stone", color = { 110, 112, 102 }, uv = { 4, 3 }, side = "temple_stone" },
     blocker = { terrain = "blocker", color = { 42, 40, 45 }, uv = { 2, 0 }, side = "temple_stone" },
+    destructible_intact = { terrain = "destructible_intact", color = { 104, 82, 68 }, uv = { 6, 3 }, side = "temple_stone" },
+    destructible_damaged = { terrain = "destructible_damaged", color = { 126, 82, 58 }, uv = { 7, 3 }, side = "temple_stone" },
+    destructible_destroyed = { terrain = "destructible_destroyed", color = { 82, 74, 68 }, uv = { 8, 3 }, side = "temple_stone" },
     objective = { terrain = "objective", color = { 168, 126, 48 }, uv = { 9, 5 }, side = "archive_terrace" },
     hazard = { terrain = "hazard", color = { 164, 58, 46 }, uv = { 5, 2 }, side = "archive_chasm" },
 }
@@ -74,11 +77,22 @@ function TileAtlas.entries()
 end
 
 function TileAtlas.entryFor(tile)
+    if tile and tile.destroyed then
+        return entries.destructible_destroyed
+    end
     if tile and tile.objective and next(tile.objective) then
         return entries.objective
     end
     if tile and tile.hazard and next(tile.hazard) then
         return entries.hazard
+    end
+    if tile and tile.destructibleHp ~= nil then
+        if tile.destructibleHp <= 1 then
+            return entries.destructible_damaged
+        end
+        if tile.blocker then
+            return entries.destructible_intact
+        end
     end
     if tile and tile.blocker then
         return entries.blocker
@@ -148,11 +162,13 @@ local function drawEntry(data, entry)
         for x = 0, tileWidth - 1 do
             local grain = ((x * 17 + y * 11 + (entry.uv[1] or 0) * 23 + (entry.uv[2] or 0) * 31) % 17) - 8
             local edge = (x == 0 or y == 0 or x == tileWidth - 1 or y == tileHeight - 1) and -20 or 0
-            local crack = ((entry.id == "archive_floor" or entry.id == "archive_rubble" or entry.id == "temple_stone") and ((x + y * 2) % 13 == 0)) and -30 or 0
+            local cracked = entry.id == "archive_floor" or entry.id == "archive_rubble" or entry.id == "temple_stone" or entry.id == "destructible_intact" or entry.id == "destructible_damaged" or entry.id == "destructible_destroyed"
+            local crack = (cracked and ((x + y * 2) % (entry.id == "destructible_damaged" and 7 or 13) == 0)) and -30 or 0
+            local breakLine = ((entry.id == "destructible_damaged" or entry.id == "destructible_destroyed") and (x == y or x == tileWidth - y - 1)) and -42 or 0
             local stripe = (entry.id == "hazard" and (x + y) % 6 < 3) and 34 or 0
             local ripple = (entry.id == "brine_pool" and (x * 2 + y) % 7 == 0) and 28 or 0
-            local void = (entry.id == "archive_chasm" and x > 3 and x < 12 and y > 3 and y < 12) and -18 or 0
-            setPixel(data, ox + x, oy + y, shade(base, grain + edge + crack + stripe + ripple + void))
+            local void = ((entry.id == "archive_chasm" or entry.id == "destructible_destroyed") and x > 3 and x < 12 and y > 3 and y < 12) and -18 or 0
+            setPixel(data, ox + x, oy + y, shade(base, grain + edge + crack + breakLine + stripe + ripple + void))
         end
     end
 end

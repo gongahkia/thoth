@@ -1090,7 +1090,33 @@ function State:neighbors(x, y)
 end
 
 function State:distance(ax, ay, bx, by)
-    return Topology.distance(self:topology(), ax, ay, bx, by)
+    local topology = self:topology()
+    if topology == "triangle" and self:inBounds(ax, ay) and self:inBounds(bx, by) then
+        if ax == bx and ay == by then
+            return 0
+        end
+        local startKey = tileKey(ax, ay)
+        local targetKey = tileKey(bx, by)
+        local queue = { { x = ax, y = ay, d = 0 } }
+        local seen = { [startKey] = true }
+        local head = 1
+        while queue[head] do
+            local node = queue[head]
+            head = head + 1
+            for _, neighbor in ipairs(self:neighbors(node.x, node.y)) do
+                local key = tileKey(neighbor.x, neighbor.y)
+                if not seen[key] then
+                    if key == targetKey then
+                        return node.d + 1
+                    end
+                    seen[key] = true
+                    queue[#queue + 1] = { x = neighbor.x, y = neighbor.y, d = node.d + 1 }
+                end
+            end
+        end
+        return math.huge
+    end
+    return Topology.distance(topology, ax, ay, bx, by)
 end
 
 function State:tileAt(x, y)

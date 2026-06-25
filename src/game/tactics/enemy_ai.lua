@@ -107,7 +107,7 @@ local function playerSupportDistance(state, player)
     local best
     for _, ally in ipairs(state:unitsForSide("player")) do
         if ally.id ~= player.id then
-            local distance = Grid.manhattan(player.x, player.y, ally.x, ally.y)
+            local distance = state:distance(player.x, player.y, ally.x, ally.y)
             if not best or distance < best then
                 best = distance
             end
@@ -227,7 +227,7 @@ local function targetScore(state, enemy, target, visible, profile, options)
     local memoryWeights = profile.memory or {}
     local enemyMemory = unitMemory(options, enemy)
     local pressure = targetMemory(options, target)
-    local distance = Grid.manhattan(enemy.x, enemy.y, target.x, target.y)
+    local distance = state:distance(enemy.x, enemy.y, target.x, target.y)
     local score = (w.base or 80) + distance * (w.distance or -3)
     if target.side == "player" then
         score = score + math.max(0, 6 - (target.hp or 1)) * (w.wounded or 5)
@@ -298,7 +298,7 @@ local function coverProtectionScore(state, x, y, profile)
                 score = score + (coverWeights.full or 12)
             elseif ok and cover.cover == "half" then
                 score = score + (coverWeights.half or 7)
-            elseif Grid.manhattan(player.x, player.y, x, y) <= 3 then
+            elseif state:distance(player.x, player.y, x, y) <= 3 then
                 score = score + (coverWeights.closeExposed or -12)
             else
                 score = score + (coverWeights.exposed or -4)
@@ -394,8 +394,8 @@ local function candidateScore(state, enemy, profile, target, targetVisible, base
     local memoryWeights = profile.memory or {}
     local enemyMemory = unitMemory(options, enemy)
     local pressure = targetMemory(options, target)
-    local distance = Grid.manhattan(candidate.x, candidate.y, target.x, target.y)
-    local startDistance = Grid.manhattan(enemy.x, enemy.y, target.x, target.y)
+    local distance = state:distance(candidate.x, candidate.y, target.x, target.y)
+    local startDistance = state:distance(enemy.x, enemy.y, target.x, target.y)
     local attack = attackInfo(state, candidate.x, candidate.y, target)
     local inRange = distance <= (profile.attackRange or options.attackRange or 3)
     local advanceDelta = startDistance - distance
@@ -537,7 +537,7 @@ function EnemyAI.planEnemy(state, enemy, options)
     local best = bestRecord and bestRecord.candidate or { x = enemy.x, y = enemy.y, apCost = 0, path = {} }
     local bestAttack = bestRecord and bestRecord.attack or attackInfo(state, best.x, best.y, target)
     local bestPincer = bestRecord and bestRecord.pincer or false
-    local distance = Grid.manhattan(best.x, best.y, target.x, target.y)
+    local distance = state:distance(best.x, best.y, target.x, target.y)
     local canAct = bestAttack.visible and distance <= (profile.attackRange or options.attackRange or 3)
     local tactic = baseTactic
     if bestPincer then
