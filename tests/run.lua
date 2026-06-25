@@ -169,6 +169,51 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local runtime = TacticalRuntime.new(makeTacticalSim(9021), { squadLoadout = SquadLoadout.runtimeLoadout(SquadLoadout.tutorialSelection()) })
+    local warden = runtime.state:unit("warden")
+    local enemy = firstEnemy(runtime)
+    enemy.x = warden.x
+    enemy.y = warden.y + 1
+    enemy.hp = 2
+    runtime:setCursor(enemy.x, enemy.y)
+    expect(runtime:handleKey("a"), "player attack should resolve")
+    local events = runtime:drainHitEvents()
+    expect(#events == 1 and events[1].source == "warden" and events[1].target == enemy.id and events[1].targetSide == "enemy" and events[1].amount > 0, "player attack should queue tactical hit feedback")
+    expect(#runtime:drainHitEvents() == 0, "tactical hit feedback should drain once")
+    expect(Render.damageNumberLabel({ kind = "blocked", amount = 0 }) == "BLOCK", "blocked tactical hits should render a readable label")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = { width = 5, height = 1 },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 1, hp = 6, visionRadius = 6 },
+            { id = "page_scout", side = "enemy", kind = "page_scout", x = 4, y = 1, hp = 4, ap = 3, maxAp = 3 },
+        },
+    })
+    local runtime = { state = state, selectedUnitId = "warden", cursor = { x = 1, y = 1 }, turn = 1, lastSeenEnemies = {}, sim = makeTacticalSim(9022), hitEvents = {}, drainHitEvents = TacticalRuntime.drainHitEvents }
+    TacticalRuntime.declareEnemyIntents(runtime)
+    TacticalRuntime.endPlayerTurn(runtime)
+    local events = runtime:drainHitEvents()
+    expect(#events >= 1 and events[1].source == "page_scout" and events[1].target == "warden" and events[1].targetSide == "player" and events[1].amount > 0, "enemy attack should queue tactical hit feedback")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        defaultAp = 4,
+        board = { width = 5, height = 1 },
+        units = {
+            { id = "duelist", side = "player", class = "duelist", x = 1, y = 1, hp = 5, visionRadius = 6 },
+            { id = "page_scout", side = "enemy", kind = "page_scout", x = 3, y = 1, hp = 4 },
+        },
+    })
+    local runtime = { state = state, selectedUnitId = "duelist", cursor = { x = 3, y = 1 }, turn = 1, lastSeenEnemies = {}, sim = makeTacticalSim(9023), hitEvents = {}, drainHitEvents = TacticalRuntime.drainHitEvents }
+    expect(TacticalRuntime.activateClassVerb(runtime, 2), "dash_strike should resolve")
+    local events = runtime:drainHitEvents()
+    expect(#events == 1 and events[1].source == "duelist" and events[1].target == "page_scout" and events[1].amount > 0, "sequenced class attack should queue tactical hit feedback")
+end
+
+tests[#tests + 1] = function()
     local selection = SquadLoadout.defaultSelection()
     local summary = SquadLoadout.summary(selection)
     local expected = { "warden", "duelist", "mender", "harrier", "arcanist", "lamplighter" }
@@ -190,6 +235,24 @@ tests[#tests + 1] = function()
     local runtime = TacticalRuntime.new(makeTacticalSim(9018), { squadLoadout = readyPayload })
     local players = runtime:summary().players
     expect(#players == 6 and players[6].class == "lamplighter" and #players[6].loadouts == 2, "runtime should instantiate selected squad loadout")
+    local tutorialSelection = SquadLoadout.tutorialSelection()
+    local tutorialSummary = SquadLoadout.summary(tutorialSelection)
+    expect(tutorialSummary.missionId == "tutorial" and tutorialSummary.selected == 1 and tutorialSummary.required == 1 and tutorialSummary.ready, "tutorial loadout should require one class")
+    local tutorialPayload = SquadLoadout.runtimeLoadout(tutorialSelection)
+    expect(tutorialPayload and tutorialPayload.missionId == "tutorial" and #tutorialPayload.units == 1 and tutorialPayload.units[1].classId == "warden", "tutorial loadout should export one Warden")
+    app = { squadSelect = tutorialSelection, ui = { squadLoadoutButtons = { { stale = true } } } }
+    renderSummary = Render.drawSquadLoadout(nil, app)
+    expect(renderSummary.missionLabel == "mission 0" and #app.ui.squadLoadoutButtons == 3 and app.ui.squadLoadoutButtons[#app.ui.squadLoadoutButtons].enabled, "tutorial loadout screen should expose one class plus enabled start")
+    local tutorialRuntime = TacticalRuntime.new(makeTacticalSim(9017), { squadLoadout = tutorialPayload })
+    local tutorialPlayers = tutorialRuntime:summary().players
+    expect(tutorialRuntime.route.variantId == "tutorial_onboarding" and tutorialRuntime:summary().routeCount == 1 and #tutorialPlayers == 1 and tutorialPlayers[1].class == "warden", "runtime should instantiate mission 0 with one Warden")
+    local bailiff = tutorialRuntime.state:unit("bailiff")
+    bailiff.x = 1
+    bailiff.y = 4
+    bailiff.hp = 1
+    tutorialRuntime:setCursor(1, 4)
+    tutorialRuntime:handleKey("a")
+    expect(tutorialRuntime.routeComplete, "tutorial runtime should complete after the tutorial enemy is cleared")
 end
 
 tests[#tests + 1] = function()
@@ -3321,6 +3384,7 @@ tests[#tests + 1] = function()
     local onboarding = specs.tactical_onboarding
     expect(onboarding.singleScreen and onboarding.scripted and onboarding.noTextWalls, "onboarding board should be single-screen scripted and cue-driven")
     expect(onboarding.board.width == 6 and onboarding.board.height == 6 and #onboarding.actions == 6, "onboarding board should be 6x6 with six tutorial actions")
+    expect(#onboarding.units == 2 and onboarding.units[1].side == "player" and onboarding.units[1].class == "warden", "onboarding board should teach with one Warden plus one enemy")
     local expectedActions = { "select_unit", "move", "rotate_camera", "declare_overwatch", "end_turn", "react_revealed_intent" }
     for index, actionId in ipairs(expectedActions) do
         local action = onboarding.actions[index]

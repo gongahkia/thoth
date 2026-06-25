@@ -216,6 +216,13 @@ local function advanceCombatJuice(state, dt)
     if state.combatShake <= 0 then
         state.combatShakeMagnitude = 0
     end
+    for index = #(state.tacticalHitFlashes or {}), 1, -1 do
+        local flash = state.tacticalHitFlashes[index]
+        flash.t = (flash.t or 0) - (dt or 0)
+        if flash.t <= 0 then
+            table.remove(state.tacticalHitFlashes, index)
+        end
+    end
     for index = #(state.damageNumbers or {}), 1, -1 do
         local number = state.damageNumbers[index]
         number.t = (number.t or 0) - (dt or 0)
@@ -223,6 +230,55 @@ local function advanceCombatJuice(state, dt)
             table.remove(state.damageNumbers, index)
         end
     end
+end
+
+local function addTacticalHitFeedback(state, event)
+    if not (state and event and event.x and event.y) then
+        return
+    end
+    local blocked = event.blocked == true or (event.amount or 0) <= 0
+    local duration = event.killed and 0.9 or 0.7
+    state.damageNumbers = state.damageNumbers or {}
+    state.damageNumbers[#state.damageNumbers + 1] = {
+        tactical = true,
+        kind = blocked and "blocked" or "hp",
+        amount = event.amount or 0,
+        targetSide = event.targetSide,
+        x = event.x,
+        y = event.y,
+        t = duration,
+        duration = duration,
+        killed = event.killed == true,
+        blocked = blocked,
+    }
+    state.tacticalHitFlashes = state.tacticalHitFlashes or {}
+    state.tacticalHitFlashes[#state.tacticalHitFlashes + 1] = {
+        x = event.x,
+        y = event.y,
+        t = 0.28,
+        duration = 0.28,
+        targetSide = event.targetSide,
+        blocked = blocked,
+    }
+    state.combatHitPause = math.max(state.combatHitPause or 0, blocked and 0.035 or 0.055)
+    state.combatShake = math.max(state.combatShake or 0, blocked and 0.16 or 0.24)
+    local magnitude = blocked and 2 or (event.targetSide == "player" and 7 or 5)
+    if event.killed then
+        magnitude = magnitude + 1
+    end
+    state.combatShakeMagnitude = math.max(state.combatShakeMagnitude or 0, magnitude)
+end
+
+local function consumeTacticalHitEvents(state)
+    local runtime = state and state.tactics
+    if not (runtime and type(runtime.drainHitEvents) == "function") then
+        return 0
+    end
+    local events = runtime:drainHitEvents()
+    for _, event in ipairs(events or {}) do
+        addTacticalHitFeedback(state, event)
+    end
+    return #(events or {})
 end
 
 local function resetVisualState(state, simulation)
@@ -235,6 +291,7 @@ local function resetVisualState(state, simulation)
     state.eventFlash = nil
     state.lastJuiceEventId = simulation.eventSerial or 0
     state.damageNumbers = {}
+    state.tacticalHitFlashes = {}
     state.combatHitPause = 0
     state.combatShake = 0
     state.combatShakeMagnitude = 0
@@ -303,12 +360,16 @@ local function refreshReplayState(state)
 end
 
 local function enterTacticalGame(state, squadLoadout)
+    local loadout = squadLoadout or state.squadLoadout
+    local tutorialMission = loadout and loadout.missionId == "tutorial"
     sim = newTacticalSim(20260618)
     state.tacticalMode = true
     state.uiState = "game"
-    state.status = "tactical prototype"
+    state.status = tutorialMission and "tutorial mission" or "tactical prototype"
     state.tutorial = nil
-    state.tutorialSeen = true
+    state.tutorialSeen = not tutorialMission
+    state.tutorialMission = tutorialMission
+    state.tutorialMissionComplete = false
     state.tacticalZoom = 1.75
     state.tacticalHover = nil
     state.tacticalCameraUserMoved = false
@@ -316,11 +377,14 @@ local function enterTacticalGame(state, squadLoadout)
     state.tacticalCameraCenterY = nil
     state.tacticalDrag = nil
     resetVisualState(state, sim)
-    state.squadLoadout = squadLoadout or state.squadLoadout
+    state.squadLoadout = loadout
     state.squadSelect = nil
-    state.tactics = TacticalRuntime.new(sim, { squadLoadout = state.squadLoadout, aiDebug = state.tacticalAiDebug == true })
+    state.tactics = TacticalRuntime.new(sim, { squadLoadout = state.squadLoadout, tutorial = tutorialMission, aiDebug = state.tacticalAiDebug == true })
     state.tacticalOverlays = state.tactics.overlays
     TacticalRuntime.syncWorld(sim, state.tactics)
+    if tutorialMission then
+        startTutorial(state)
+    end
 end
 
 local function clampValue(value, minValue, maxValue)
@@ -448,17 +512,20 @@ local function configureTacticalPreviewCapture(state, previewState)
     end
 end
 
-local function enterSquadLoadout(state)
+local function enterSquadLoadout(state, missionId)
+    missionId = missionId or "mission1"
     sim = newTacticalSim(20260618)
     state.tacticalMode = false
     state.uiState = "squad_loadout"
-    state.status = "squad loadout"
+    state.status = missionId == "tutorial" and "tutorial loadout" or "squad loadout"
     state.tutorial = nil
+    state.tutorialMission = false
+    state.tutorialMissionComplete = false
     state.tacticalHover = nil
     state.tactics = nil
     state.tacticalOverlays = nil
     state.squadLoadout = nil
-    state.squadSelect = SquadLoadout.defaultSelection()
+    state.squadSelect = SquadLoadout.defaultSelection({ missionId = missionId })
     resetVisualState(state, sim)
 end
 
@@ -533,7 +600,7 @@ end
 
 local function activateTitleAction(state, action)
     if action == "new" then
-        enterSquadLoadout(state)
+        enterSquadLoadout(state, "tutorial")
         return
     end
     if action == "continue" then
@@ -1011,7 +1078,7 @@ end
 
 local function activateGameOverAction(state, action)
     if action == "restart" then
-        enterSquadLoadout(state)
+        enterSquadLoadout(state, "tutorial")
         Audio.play(state.audio, "tick")
         return
     end
@@ -1697,6 +1764,7 @@ function love.load(args)
         lastVisualEventId = sim.eventSerial or 0,
         lastJuiceEventId = sim.eventSerial or 0,
         damageNumbers = {},
+        tacticalHitFlashes = {},
         combatHitPause = 0,
         combatShake = 0,
         combatShakeMagnitude = 0,
@@ -1760,9 +1828,7 @@ function love.load(args)
         openJournal(app, "game")
     end
     if tutorialSmoke then
-        enterTacticalGame(app)
-        app.tutorialSeen = false
-        startTutorial(app)
+        enterTacticalGame(app, SquadLoadout.runtimeLoadout(SquadLoadout.tutorialSelection()))
     end
     Achievements.update(sim, app)
     Render.load()
@@ -1814,6 +1880,12 @@ function love.update(dt)
     end
     if app.tactics then
         TacticalRuntime.syncWorld(sim, app.tactics)
+        consumeTacticalHitEvents(app)
+    end
+    if app.tutorialMission and app.tactics and app.tactics.routeComplete and not app.tutorialMissionComplete and #(app.damageNumbers or {}) == 0 then
+        app.tutorialMissionComplete = true
+        enterSquadLoadout(app, "mission1")
+        return
     end
     if app.smoke then
         app.smokeFrames = app.smokeFrames + 1
@@ -2003,6 +2075,7 @@ local function handleKey(key)
     elseif app.tactics and app.tactics:handleKey(key) then
         app.tacticalOverlays = app.tactics.overlays
         TacticalRuntime.syncWorld(sim, app.tactics)
+        consumeTacticalHitEvents(app)
         Audio.play(app.audio, "tick")
     else
         playUi(app, "invalid")
@@ -2079,6 +2152,7 @@ local function mouseTactical(x, y, button)
         TacticalRuntime.evaluate(app.tactics)
         app.tacticalOverlays = app.tactics.overlays
         TacticalRuntime.syncWorld(sim, app.tactics)
+        consumeTacticalHitEvents(app)
         Audio.play(app.audio, "tick")
     else
         playUi(app, "invalid")

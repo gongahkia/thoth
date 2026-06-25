@@ -936,6 +936,10 @@ function Procgen.difficultyBudget(spec, options)
     if total > report.max then
         reject("budget_exceeded")
     end
+    report.aesthetic = Procgen.aestheticCheck(spec) -- monument valley composition check; advisory unless options.requireAesthetic
+    if options.requireAesthetic and not report.aesthetic.passed then
+        for _, w in ipairs(report.aesthetic.warnings) do reject("aesthetic_" .. w) end
+    end
     return report
 end
 
@@ -953,6 +957,71 @@ function Procgen.validateGrammarBoard(spec)
     if not spec or not spec.board then
         report.valid = false
         report.missing[#report.missing + 1] = "board"
+    end
+    return report
+end
+
+-- Monument Valley aesthetic check: composition quality beyond tactical validity
+function Procgen.aestheticCheck(spec)
+    local report = { passed = true, warnings = {}, metrics = {} }
+    if not spec or not spec.board or not spec.board.tiles then
+        report.passed = false
+        report.warnings[#report.warnings + 1] = "no_board"
+        return report
+    end
+    local kindCounts, totalTiles = {}, 0
+    local quadrantCover = { [1] = 0, [2] = 0, [3] = 0, [4] = 0 }
+    local heights = {}
+    local losBlockerCount = 0
+    local w = spec.board.width or 1
+    local h = spec.board.height or 1
+    for key, tile in pairs(spec.board.tiles) do
+        local x, y = key:match("^(%-?%d+):(%-?%d+)$")
+        x, y = tonumber(x), tonumber(y)
+        if x and y then
+            totalTiles = totalTiles + 1
+            local kind = tile.kind or "floor"
+            kindCounts[kind] = (kindCounts[kind] or 0) + 1
+            heights[tile.height or 0] = true
+            if tile.losBlocker then losBlockerCount = losBlockerCount + 1 end
+            if tile.coverEdges then
+                for _, edge in pairs(tile.coverEdges) do
+                    if edge == "half" or edge == "full" then
+                        local quad = ((x > w / 2) and 2 or 1) + ((y > h / 2) and 2 or 0)
+                        quadrantCover[quad] = quadrantCover[quad] + 1
+                        break
+                    end
+                end
+            end
+        end
+    end
+    local distinctKinds = 0
+    for _ in pairs(kindCounts) do distinctKinds = distinctKinds + 1 end
+    local distinctHeights = 0
+    for _ in pairs(heights) do distinctHeights = distinctHeights + 1 end
+    local coverQuadrants = 0
+    for _, c in pairs(quadrantCover) do if c > 0 then coverQuadrants = coverQuadrants + 1 end end
+    report.metrics = {
+        totalTiles = totalTiles, distinctKinds = distinctKinds,
+        distinctHeights = distinctHeights, coverQuadrants = coverQuadrants,
+        losBlockerCount = losBlockerCount,
+    }
+    if distinctKinds < 3 then
+        report.passed = false
+        report.warnings[#report.warnings + 1] = "monotone_tiles" -- need >=3 distinct kinds
+    end
+    if coverQuadrants < 2 and totalTiles >= 25 then
+        report.passed = false
+        report.warnings[#report.warnings + 1] = "cover_clumped" -- cover should spread across quadrants
+    end
+    if distinctHeights < 2 and losBlockerCount == 0 then
+        report.passed = false
+        report.warnings[#report.warnings + 1] = "flat_silhouette" -- need vertical interest
+    end
+    -- focal point: at least one objective tile in board
+    if not spec.objectives or #spec.objectives == 0 then
+        report.passed = false
+        report.warnings[#report.warnings + 1] = "no_focal_point"
     end
     return report
 end

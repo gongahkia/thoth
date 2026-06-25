@@ -150,7 +150,6 @@ UICatalog.tutorialBoardSpecs = {
         },
         units = {
             { id = "warden", side = "player", class = "warden", x = 1, y = 3, hp = 6, ap = 3, maxAp = 3, visionRadius = 4 },
-            { id = "lamplighter", side = "player", class = "lamplighter", x = 1, y = 4, hp = 4, ap = 3, maxAp = 3, visionRadius = 4 },
             { id = "bailiff", side = "enemy", x = 5, y = 3, hp = 4, ap = 0, visionRadius = 4 },
         },
         intents = {
@@ -166,7 +165,7 @@ UICatalog.tutorialBoardSpecs = {
                 label = "filed strike",
                 revealRotations = { 1 },
                 revealActions = { "inspect_intent" },
-                revealClasses = { "lamplighter" },
+                revealClasses = { "warden" },
                 counterplay = { "overwatch", "move_out" },
             },
         },
@@ -174,7 +173,7 @@ UICatalog.tutorialBoardSpecs = {
             { id = "select_unit", kind = "select_unit", unit = "warden", tile = { x = 1, y = 3 }, cue = "select", icon = "cursor", preview = "selectedUnitAp" },
             { id = "move", kind = "move", unit = "warden", to = { x = 2, y = 3 }, cue = "move", icon = "move", preview = "movementPreview" },
             { id = "rotate_camera", kind = "rotate_camera", rotation = 1, cue = "rotate", icon = "compass", preview = "rotationCompass" },
-            { id = "declare_overwatch", kind = "overwatch", unit = "lamplighter", facing = "east", range = 3, cue = "watch", icon = "cone", preview = "overwatchCone" },
+            { id = "declare_overwatch", kind = "overwatch", unit = "warden", facing = "east", range = 3, cue = "watch", icon = "cone", preview = "overwatchCone" },
             { id = "end_turn", kind = "end_turn", cue = "end", icon = "hourglass", preview = "intentResolution" },
             { id = "react_revealed_intent", kind = "react_revealed_intent", unit = "warden", target = "bailiff", revealAction = "inspect_intent", cue = "react", icon = "intent", preview = "revealedIntent" },
         },

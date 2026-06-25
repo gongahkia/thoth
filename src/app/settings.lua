@@ -51,6 +51,7 @@ local controls = {
     { kind = "toggle", setting = "screenShake", label = "Screen Shake", group = "accessibility" },
     { kind = "toggle", setting = "subtitles", label = "Subtitles", group = "accessibility" },
     { kind = "slider", setting = "fontScale", label = "Font Scale", step = 0.05, min = 0.8, max = 1.4, group = "accessibility" },
+    { kind = "toggle", setting = "calmHud", label = "Calm HUD (minimalist)", group = "accessibility" },
     { kind = "back", label = "Back" },
 }
 
@@ -101,6 +102,7 @@ function Settings.defaults()
         screenShake = true,
         subtitles = true,
         fontScale = 1,
+        calmHud = false,
         keybinds = copyMap(defaultKeybinds),
     }
 end

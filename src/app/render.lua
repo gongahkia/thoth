@@ -2081,6 +2081,16 @@ local function drawTacticalOverlays(sim, app)
             drawnEntries[#drawnEntries + 1] = { kind = "selected", x = sourceTile.x, y = sourceTile.y, label = "legend_source", color = { 1.0, 0.68, 0.24, 0.98 } }
         end
     end
+    for _, flash in ipairs((app and app.tacticalHitFlashes) or {}) do
+        local duration = math.max(0.001, flash.duration or 0.28)
+        local progress = 1 - clamp01((flash.t or 0) / duration)
+        local alpha = clamp01((flash.t or 0) / duration)
+        local color = flash.blocked and { 0.72, 0.74, 0.68, 0.58 * alpha } or { 1.0, 0.72, 0.28, 0.78 * alpha }
+        if flash.targetSide == "player" and not flash.blocked then
+            color = { 1.0, 0.24, 0.18, 0.82 * alpha }
+        end
+        drawnEntries[#drawnEntries + 1] = { kind = "intent", x = flash.x, y = flash.y, label = "hit", color = color, iconScale = 1.2 + progress * 0.75 }
+    end
     if #drawnEntries > 0 and state.g3d and state.assets.white then
         local z = ((sim and sim.player and sim.player.z) or 0) + 0.035
         local key = table.concat({
@@ -3620,7 +3630,7 @@ function Render.drawSquadLoadout(sim, app)
     love.graphics.setColor(0.92, 0.9, 0.8, 1)
     love.graphics.print("Squad Loadout", 72, 72)
     love.graphics.setColor(0.62, 0.68, 0.62, 1)
-    love.graphics.printf("mission 1  " .. tostring(summary.selected) .. "/" .. tostring(summary.required) .. "  duplicates off", 72, 96, width - 144, "left")
+    love.graphics.printf(tostring(summary.missionLabel or "mission 1") .. "  " .. tostring(summary.selected) .. "/" .. tostring(summary.required) .. "  " .. tostring(summary.duplicateLabel or "duplicates off"), 72, 96, width - 144, "left")
     for index, entry in ipairs(app.squadSelect.classes or {}) do
         drawSquadLoadoutRow(app, entry, buttons[index])
     end
@@ -4737,6 +4747,20 @@ function Render.drawTacticalHud(sim, app)
     local layout = Render.tacticalHudLayout(width, height, math.max(6, #((summary and summary.players) or {})))
     drawTacticalGhostArrows(app)
     Render.drawTacticalEnemyIntentBadges(app)
+    if app and app.settings and app.settings.calmHud then -- Monument Valley style: surface essentials only
+        local hover = app and app.tacticalHover
+        local hasSelection = false
+        for _, unit in ipairs((summary and summary.players) or {}) do
+            if unit.selected then hasSelection = true; break end
+        end
+        if hover or hasSelection then
+            panel(layout.topLeft.x, layout.topLeft.y, layout.topLeft.w, 36, 0.7)
+            love.graphics.setColor(0.82, 0.86, 0.78, 0.94)
+            love.graphics.print("AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0), layout.topLeft.x + 12, layout.topLeft.y + 10)
+            drawRotationCompass(layout.topLeft.x + layout.topLeft.w - 48, layout.topLeft.y + 2, 32, app.viewRotation or 0)
+        end
+        return
+    end
     local hover = app and app.tacticalHover
     local selectedAt = "-"
     for _, unit in ipairs((summary and summary.players) or {}) do
@@ -4769,6 +4793,9 @@ function Render.drawTacticalHud(sim, app)
 end
 
 function Render.drawTacticalSidePanel(sim, app)
+    if app and app.settings and app.settings.calmHud then -- side panel hidden in calm mode
+        return
+    end
     local summary = tacticalSummary(app)
     local width, height = love.graphics.getDimensions()
     local layout = Render.tacticalHudLayout(width, height, math.max(6, #((summary and summary.players) or {})))
@@ -5292,6 +5319,9 @@ end
 
 function Render.damageNumberLabel(number)
     local kind = number and number.kind or "hp"
+    if kind == "blocked" or (number and number.blocked) then
+        return "BLOCK"
+    end
     local amount = tostring(number and number.amount or 0)
     local prefix = kind == "heal" and "+" or "-"
     local label = prefix .. amount
@@ -5304,7 +5334,14 @@ function Render.damageNumberLabel(number)
     return label
 end
 
-local function damageNumberAnchor(sim, number)
+local function damageNumberAnchor(sim, app, number)
+    if number and number.tactical and app and app.worldView then
+        local source = tacticalOverlaySource(sim, app)
+        local originX = source and source.originX or 0
+        local originY = source and source.originY or 0
+        local x, y = Render.projectIso(app.worldView, originX + (number.x or 0) + 0.5, originY + (number.y or 0) + 0.5)
+        return x, y - 54
+    end
     local width = love.graphics.getWidth()
     local x = 28
     local w = math.max(360, width - 370)
@@ -5332,10 +5369,14 @@ function Render.drawDamageNumbers(sim, app)
     for _, number in ipairs(numbers) do
         local life = math.max(0.001, number.duration or 0.65)
         local progress = 1 - clamp01((number.t or 0) / life)
-        local x, y = damageNumberAnchor(sim, number)
+        local x, y = damageNumberAnchor(sim, app, number)
         y = y - progress * 28
         local alpha = clamp01((number.t or 0) / math.min(0.25, life))
-        if number.kind == "stress" then
+        if number.kind == "blocked" or number.blocked then
+            love.graphics.setColor(0.72, 0.74, 0.68, alpha)
+        elseif number.targetSide == "player" then
+            love.graphics.setColor(1.0, 0.34, 0.24, alpha)
+        elseif number.kind == "stress" then
             love.graphics.setColor(0.72, 0.46, 0.86, alpha)
         elseif number.crit then
             love.graphics.setColor(1, 0.9, 0.36, alpha)

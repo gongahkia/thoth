@@ -1,5 +1,8 @@
 local Grid = require("src.core.grid")
 local Cover = require("src.game.tactics.cover")
+local Bonus = require("src.game.tactics.bonus")
+local Identity = require("src.game.tactics.identity")
+local Bonds = require("src.game.tactics.bonds")
 
 local State = {}
 State.__index = State
@@ -839,6 +842,14 @@ local function normalizeUnit(unit, index, defaultAp)
     local maxAp = unit.maxAp or unit.apMax or defaultAp or 2
     local visionRadius = expectInteger(unit.visionRadius or 8, "unit vision radius")
     expect(visionRadius >= 0, "unit vision radius must be non-negative")
+    -- apply static quirk modifiers; idempotent (computed off base each normalize)
+    local quirks = unit.quirks or {}
+    local hp = unit.hp or 1
+    local maxHp = unit.maxHp or hp
+    if Identity.quirkEffectApplied(quirks, "max_hp_plus_1") then maxHp = maxHp + 1; hp = math.min(maxHp, hp + 1) end
+    if Identity.quirkEffectApplied(quirks, "max_ap_minus_1") then maxAp = math.max(1, maxAp - 1) end
+    if Identity.quirkEffectApplied(quirks, "vision_radius_plus_1") then visionRadius = visionRadius + 1 end
+    if Identity.quirkEffectApplied(quirks, "vision_radius_minus_1") then visionRadius = math.max(0, visionRadius - 1) end
     return {
         id = id,
         name = unit.name,
@@ -858,8 +869,8 @@ local function normalizeUnit(unit, index, defaultAp)
         side = unit.side or "player",
         x = expectInteger(unit.x, "unit x"),
         y = expectInteger(unit.y, "unit y"),
-        hp = unit.hp or 1,
-        maxHp = unit.maxHp or unit.hp or 1,
+        hp = hp,
+        maxHp = maxHp,
         maxAp = maxAp,
         ap = unit.ap ~= nil and unit.ap or maxAp,
         visionRadius = visionRadius,
@@ -873,6 +884,14 @@ local function normalizeUnit(unit, index, defaultAp)
         catalogBoardVerbs = copyList(unit.catalogBoardVerbs),
         statuses = normalizeStatuses(unit.statuses),
         tags = copyList(unit.tags),
+        breakGauge = unit.breakGauge or 0,
+        breakMax = unit.breakMax or (unit.side == "enemy" and (unit.maxHp or unit.hp or 1) * 2 or nil),
+        broken = unit.broken == true,
+        brokenTurns = unit.brokenTurns or 0,
+        defense = unit.defense and { kind = unit.defense.kind } or nil,
+        portrait = unit.portrait,
+        quirks = copyList(unit.quirks),
+        stress = unit.stress or 0,
     }
 end
 
@@ -971,6 +990,12 @@ function State.new(options)
         state.cargo[normalized.id] = normalized
         state.cargoOrder[#state.cargoOrder + 1] = normalized.id
     end
+    if options.bonus then
+        state.bonus = Bonus.fromSnapshot(options.bonus) -- restore from snapshot
+    elseif options.bonusChallenges then
+        state.bonus = Bonus.new(options.bonusChallenges) -- new run with challenge ids
+    end
+    state.bonds = options.bonds and Bonds.fromSnapshot(options.bonds) or Bonds.new()
     return state
 end
 
@@ -991,7 +1016,13 @@ function State.fromSnapshot(snapshot)
         objectives = snapshot.objectives or {},
         cargo = snapshot.cargo or {},
         log = snapshot.log or {},
+        bonus = snapshot.bonus,
+        bonds = snapshot.bonds,
     })
+end
+
+function State:bonusStatus()
+    return Bonus.status(self.bonus)
 end
 
 function State:inBounds(x, y)
@@ -1443,9 +1474,23 @@ function State:attackResolution(unitId, targetId, baseDamage)
     if profile.flanked and damage > 0 then
         damage, flankingBonus = Cover.flankingDamage(damage, profile.flankingRule)
     end
+    local spotterBonus = 0
+    if damage > 0 and self.bonds and self.bonds.bondsByUnit and self.bonds.bondsByUnit[unitId] then
+        for mateId, cohesion in pairs(self.bonds.bondsByUnit[unitId]) do
+            if cohesion >= Bonds.levelThresholds[2] then -- lv2 spotter
+                local mate = self.units[mateId]
+                if mate and mate.alive and not mate.evacuated and self:lineOfSight(mate.x, mate.y, target.x, target.y) then
+                    spotterBonus = 1
+                    break
+                end
+            end
+        end
+    end
+    damage = damage + spotterBonus
     profile.baseDamage = baseDamage
     profile.damageReductionApplied = baseDamage - (profile.blocked and 0 or math.max(0, baseDamage - (profile.damageReduction or 0)))
     profile.flankingBonus = flankingBonus
+    profile.spotterBonus = spotterBonus
     profile.damage = damage
     return profile
 end
@@ -1657,7 +1702,9 @@ local function statusAmount(unit, kind)
 end
 
 local function incomingDamageBonus(unit)
-    return statusAmount(unit, "marked") + statusAmount(unit, "exposed")
+    local bonus = statusAmount(unit, "marked") + statusAmount(unit, "exposed")
+    if unit.broken then bonus = bonus + 1 end -- broken enemies take +1 incoming
+    return bonus
 end
 
 local function bracedReduction(unit)
@@ -1692,13 +1739,48 @@ function State:damageUnit(unitOrId, amount, options)
     if not options.ignoreStatusReduction then
         amount = math.max(0, amount - incomingDamageReduction(unit))
     end
+    if unit.defense and not options.ignoreDefense and amount > 0 then -- parry/dodge consumed
+        if unit.defense.kind == "parry" then
+            amount = 0
+            unit.ap = math.min(unit.maxAp or self.rules.defaultAp, (unit.ap or 0) + 1) -- AP refund
+            if options.source and self.units[options.source] and self.units[options.source].alive then
+                self:applyStatus(options.source, "exposed", 1, 1) -- counter sets attacker exposed
+            end
+        elseif unit.defense.kind == "dodge" then
+            amount = math.floor(amount * 0.5)
+        end
+        unit.defense = nil
+    end
     if amount == 0 then
         return unit.hp
     end
     unit.hp = math.max(0, (unit.hp or 0) - amount)
+    if (unit.side or "player") == "player" then
+        Bonus.bump(self.bonus, "squadDamageTaken", amount)
+    end
+    if unit.side == "enemy" and unit.breakMax and not unit.broken then
+        local mult = options.weakPoint and 2 or 1
+        unit.breakGauge = (unit.breakGauge or 0) + amount * mult
+        if unit.breakGauge >= unit.breakMax then
+            unit.broken = true
+            unit.brokenTurns = 1 -- broken for one full enemy turn cycle
+            unit.breakGauge = unit.breakMax
+            self:applyStatus(unit.id, "stunned", 1)
+        end
+    end
     if unit.hp <= 0 then
         unit.alive = false
         unit.ap = 0
+        if (unit.side or "player") == "player" then
+            Bonus.bump(self.bonus, "unitsLost", 1)
+            local consequences = Bonds.onUnitDeath(self.bonds, unit.id)
+            for _, c in ipairs(consequences) do
+                local mate = self.units[c.bondmate]
+                if mate and mate.alive then
+                    mate.stress = (mate.stress or 0) + (c.stressGain or 0) -- bond loss inflicts stress
+                end
+            end
+        end
     end
     return unit.hp
 end
@@ -1757,6 +1839,7 @@ function State:damageTile(x, y, amount)
             tile.kind = tile.collapseKind
         end
         tile.destroyed = true
+        Bonus.bump(self.bonus, "coversDestroyed", 1)
     end
     return tile.destructibleHp
 end
@@ -2111,7 +2194,7 @@ function State:resolveIntentTrigger(unitId, intent, trigger)
             if damagedUnits[unit.id] then
                 return
             end
-            self:damageUnit(unit, damage)
+            self:damageUnit(unit, damage, { source = unitId })
             damagedUnits[unit.id] = true
             result.units[#result.units + 1] = unit.id
         end
@@ -2551,7 +2634,9 @@ function State:damageObjective(id, amount)
     if objective.complete or objective.failed then
         return objective.integrity
     end
+    local previous = objective.integrity
     objective.integrity = math.max(0, objective.integrity - amount)
+    Bonus.bump(self.bonus, "objectiveDamage", previous - objective.integrity)
     self:evaluateObjective(objective)
     return objective.integrity
 end
@@ -3057,6 +3142,20 @@ function State:startTurn(side)
     self.phase = side or self.phase
     for _, unit in ipairs(self:unitsForSide(self.phase)) do
         unit.ap = unit.maxAp or self.rules.defaultAp
+        if unit.broken then -- decrement broken duration at start of own turn; reset when expired
+            unit.brokenTurns = (unit.brokenTurns or 0) - 1
+            if unit.brokenTurns <= 0 then
+                unit.broken = false
+                unit.brokenTurns = 0
+                unit.breakGauge = 0
+            end
+        end
+        if self.phase == "player" then
+            unit.defense = nil -- unconsumed parry/dodge expires at start of player turn
+        end
+    end
+    if self.phase == "player" then
+        Bonus.bump(self.bonus, "turnsElapsed", 1)
     end
     if self.bumpRevision then
         self:bumpRevision("units")
@@ -3247,7 +3346,39 @@ function State:apply(command)
         expect(self.units[command.target], "unknown target " .. tostring(command.target))
         local resolved = self:attackResolution(command.unit, command.target, command.damage or 1)
         self:spendAP(command.unit, command.cost or 1)
-        self:damageUnit(command.target, resolved.damage)
+        self:damageUnit(command.target, resolved.damage, { weakPoint = resolved.flanked, source = command.unit })
+        if not command.dualStrike and self.bonds and self.bonds.bondsByUnit and self.bonds.bondsByUnit[command.unit] then
+            for mateId, cohesion in pairs(self.bonds.bondsByUnit[command.unit]) do
+                if cohesion >= Bonds.levelThresholds[3] then -- lv3 dual strike: free shared attack
+                    local mate = self.units[mateId]
+                    local target = self.units[command.target]
+                    if mate and mate.alive and target and target.alive and self:lineOfSight(mate.x, mate.y, target.x, target.y) then
+                        local mateResolved = self:attackResolution(mateId, command.target, command.damage or 1)
+                        self:damageUnit(command.target, mateResolved.damage, { weakPoint = mateResolved.flanked, source = mateId })
+                        break
+                    end
+                end
+            end
+        end
+    elseif kind == "parry" then
+        local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
+        expect(unit.alive and not unit.evacuated, "unit is not active")
+        self:spendAP(command.unit, command.cost or 1)
+        unit.defense = { kind = "parry" } -- consumed on next incoming hit; full block + AP refund + counter status
+    elseif kind == "dodge" then
+        local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
+        expect(unit.alive and not unit.evacuated, "unit is not active")
+        self:spendAP(command.unit, command.cost or 1)
+        unit.defense = { kind = "dodge" } -- consumed on next incoming hit; halve damage
+    elseif kind == "teamwork" then
+        local giver = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
+        local mate = expect(self.units[command.target], "unknown target " .. tostring(command.target))
+        expect(giver.alive and not giver.evacuated, "giver is not active")
+        expect(mate.alive and not mate.evacuated, "mate is not active")
+        local ok, reason = Bonds.useTeamwork(self.bonds, command.unit, command.target)
+        expect(ok, reason or "teamwork denied")
+        self:spendAP(command.unit, command.cost or 1)
+        mate.ap = math.min(mate.maxAp or self.rules.defaultAp, (mate.ap or 0) + 1)
     elseif kind == "heal" then
         expect(self.units[command.target], "unknown target " .. tostring(command.target))
         self:spendAP(command.unit, command.cost or 1)
@@ -3520,6 +3651,8 @@ function State:snapshot()
         },
         units = units,
         log = copyList(self.log),
+        bonus = Bonus.snapshot(self.bonus),
+        bonds = Bonds.snapshot(self.bonds),
     }
 end
 
@@ -3545,6 +3678,18 @@ end
 
 function commands.attack(unitId, targetId, damage, cost)
     return { type = "attack", unit = unitId, target = targetId, damage = damage, cost = cost }
+end
+
+function commands.parry(unitId, cost)
+    return { type = "parry", unit = unitId, cost = cost }
+end
+
+function commands.dodge(unitId, cost)
+    return { type = "dodge", unit = unitId, cost = cost }
+end
+
+function commands.teamwork(unitId, bondmateId, cost)
+    return { type = "teamwork", unit = unitId, target = bondmateId, cost = cost }
 end
 
 function commands.heal(unitId, targetId, amount, cost)

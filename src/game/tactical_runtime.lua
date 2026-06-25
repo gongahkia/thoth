@@ -604,6 +604,51 @@ local function makePrototypeState()
     })
 end
 
+local function makeTutorialState(options)
+    local spec = {
+        defaultAp = 3,
+        board = {
+            width = 6,
+            height = 6,
+            tiles = {
+                ["2:3"] = { kind = "archive_cover", coverEdges = { west = "half" }, tags = { "move_goal" } },
+                ["3:3"] = { kind = "filing_lane", coverEdges = { east = "half" }, rotationMarks = { east = "sealed_intent" }, tags = { "rotate_read" } },
+                ["4:3"] = { kind = "audit_line", tags = { "intent_lane" } },
+                ["2:4"] = { kind = "lamp_tile", tags = { "overwatch_anchor" } },
+            },
+        },
+        grammar = {
+            components = {
+                spawnPockets = {
+                    { side = "player", tiles = { { x = 1, y = 3 } } },
+                },
+            },
+        },
+        units = {
+            { id = "bailiff", side = "enemy", kind = "claimant", x = 5, y = 3, hp = 2, maxHp = 2, ap = 0, maxAp = 0, visionRadius = 4 },
+        },
+        objectives = {
+            { id = "tutorial_exit", kind = "evacuate_board", x = 6, y = 3, integrity = 1, maxIntegrity = 1, minUnits = 1, evacuateAt = { x = 6, y = 3 } },
+        },
+        archiveRoute = {
+            id = "tutorial_mission",
+            variantId = "tutorial_onboarding",
+            preview = "mission 0: one Warden learns movement, intent, and attack timing",
+            tutorial = true,
+            variantOrder = { "tutorial_onboarding" },
+        },
+        generator = { routeId = "tutorial_mission", variantId = "tutorial_onboarding", template = "tutorial" },
+    }
+    local loadout = options and options.squadLoadout or {
+        missionId = "tutorial",
+        units = {
+            { id = "warden", classId = "warden", hp = 6, loadoutIds = { "line_guard", "claim_anchor" } },
+        },
+    }
+    applyLiveClassSquad(spec, loadout)
+    return TacticsState.new(spec), spec
+end
+
 local function firstPlayerId(state)
     for _, unit in ipairs(state:unitsForSide("player")) do
         return unit.id
@@ -698,10 +743,17 @@ function Runtime.new(sim, options)
     options = options or {}
     local state, boardSpec
     local route = Procgen.archiveRoute()
+    local tutorial = options.tutorial == true or ((options.squadLoadout or {}).missionId == "tutorial")
     if options.prototype then
         state = makePrototypeState()
+    elseif tutorial then
+        state, boardSpec = makeTutorialState(options)
     else
         state, boardSpec = makeRouteState(options)
+    end
+    local routeOrder = nil
+    if boardSpec and boardSpec.archiveRoute then
+        routeOrder = boardSpec.archiveRoute.variantOrder and copyList(boardSpec.archiveRoute.variantOrder) or copyList(route.variantOrder)
     end
     local selectedUnitId = state.selectedUnitId or firstPlayerId(state)
     local selected = selectedUnitId and state:unit(selectedUnitId) or nil
@@ -722,8 +774,8 @@ function Runtime.new(sim, options)
         state = state,
         boardSpec = boardSpec,
         route = boardSpec and boardSpec.archiveRoute or nil,
-        routeOrder = boardSpec and copyList(route.variantOrder) or nil,
-        routeIndex = boardSpec and routeVariantIndex(route.variantOrder, boardSpec.archiveRoute.variantId) or nil,
+        routeOrder = routeOrder,
+        routeIndex = boardSpec and boardSpec.archiveRoute and routeVariantIndex(routeOrder, boardSpec.archiveRoute.variantId) or nil,
         summary = Runtime.summary,
         handleKey = Runtime.handleKey,
         setCursor = Runtime.setCursor,
@@ -740,6 +792,8 @@ function Runtime.new(sim, options)
         clearOverwatchPreview = Runtime.clearOverwatchPreview,
         setAiDebug = Runtime.setAiDebug,
         toggleAiDebug = Runtime.toggleAiDebug,
+        drainHitEvents = Runtime.drainHitEvents,
+        hitEvents = {},
         cache = {},
         worldRevision = 0,
     }
@@ -1336,6 +1390,17 @@ local function setStatus(runtime, message)
     runtime.status = message
 end
 
+local function queueHitEvent(runtime, event)
+    runtime.hitEvents = runtime.hitEvents or {}
+    runtime.hitEvents[#runtime.hitEvents + 1] = event
+end
+
+function Runtime.drainHitEvents(runtime)
+    local events = runtime.hitEvents or {}
+    runtime.hitEvents = {}
+    return events
+end
+
 function Runtime.setAiDebug(runtime, enabled)
     runtime.aiDebug = enabled == true
     Runtime.declareEnemyIntents(runtime)
@@ -1371,7 +1436,38 @@ local function tryApplyCommands(runtime, commands)
         end
     end
     for _, command in ipairs(commands or {}) do
+        local hit = nil
+        if command.type == "attack" then
+            local source = runtime.state:unit(command.unit)
+            local target = runtime.state:unit(command.target)
+            local resolution = source and target and runtime.state:attackResolution(command.unit, command.target, command.damage or 1) or nil
+            hit = source and target and {
+                source = source.id,
+                sourceSide = source.side,
+                target = target.id,
+                targetSide = target.side,
+                before = target.hp,
+                x = target.x,
+                y = target.y,
+                blocked = resolution and resolution.blocked == true,
+            } or nil
+        end
         runtime.state:apply(command)
+        if hit then
+            local target = runtime.state:unit(hit.target)
+            local amount = math.max(0, (hit.before or 0) - ((target and target.hp) or 0))
+            queueHitEvent(runtime, {
+                source = hit.source,
+                sourceSide = hit.sourceSide,
+                target = hit.target,
+                targetSide = hit.targetSide,
+                amount = amount,
+                x = hit.x,
+                y = hit.y,
+                killed = target and not target.alive or false,
+                blocked = amount <= 0 or hit.blocked,
+            })
+        end
     end
     return true
 end
@@ -1628,12 +1724,27 @@ function Runtime.attackCursor(runtime)
         setStatus(runtime, "target outside deterministic range")
         return false
     end
+    local targetX = target.x
+    local targetY = target.y
+    local before = target.hp
     local attack = state:attackResolution(selected.id, target.id, 1)
     if tryApply(runtime, TacticsState.commands.attack(selected.id, target.id, 1, 1)) then
+        local amount = math.max(0, (before or 0) - (target.hp or 0))
+        queueHitEvent(runtime, {
+            source = selected.id,
+            sourceSide = selected.side,
+            target = target.id,
+            targetSide = target.side,
+            amount = amount,
+            x = targetX,
+            y = targetY,
+            killed = not target.alive,
+            blocked = amount <= 0 or attack.blocked == true,
+        })
         if not target.alive then
             state.intents[target.id] = nil
         end
-        setStatus(runtime, selected.id .. " hit " .. target.id .. " for " .. tostring(attack.damage))
+        setStatus(runtime, selected.id .. " hit " .. target.id .. " for " .. tostring(amount))
     end
     Runtime.refreshOverlays(runtime)
     return true
@@ -1773,9 +1884,23 @@ local function executeEnemyPlan(runtime, plan)
         return { unit = enemy.id, tactic = plan.tactic, moved = #(plan.directions or {}), target = target and target.id or nil, noLos = target ~= nil }
     end
     if target.side == "player" then
+        local targetX = target.x
+        local targetY = target.y
         local before = target.hp
         if tryApply(runtime, TacticsState.commands.attack(enemy.id, target.id, plan.damage or 1, 1)) then
-            return { unit = enemy.id, tactic = plan.tactic, target = target.id, damage = math.max(0, (before or 0) - (target.hp or 0)), moved = #(plan.directions or {}) }
+            local amount = math.max(0, (before or 0) - (target.hp or 0))
+            queueHitEvent(runtime, {
+                source = enemy.id,
+                sourceSide = enemy.side,
+                target = target.id,
+                targetSide = target.side,
+                amount = amount,
+                x = targetX,
+                y = targetY,
+                killed = not target.alive,
+                blocked = amount <= 0,
+            })
+            return { unit = enemy.id, tactic = plan.tactic, target = target.id, damage = amount, moved = #(plan.directions or {}) }
         end
     elseif target.integrity ~= nil then
         local before = target.integrity
