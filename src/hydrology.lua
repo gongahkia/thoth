@@ -100,21 +100,40 @@ end
 local function terminal(cell)
     if cell.terminalCell then return cell.terminalCell end
     local cursor = cell
+    local path = {}
     local guard = 0
     while cursor.downCell and guard < 200000 do
+        if cursor.terminalCell then
+            cursor = cursor.terminalCell
+            break
+        end
+        path[#path + 1] = cursor
         cursor = cursor.downCell
         guard = guard + 1
+    end
+    for _, item in ipairs(path) do
+        item.terminalCell = cursor
     end
     cell.terminalCell = cursor
     return cursor
 end
 
 local function lakeOutlet(cell)
+    if cell.lakeOutletCell ~= nil then return cell.lakeOutletCell end
     local cursor = cell.downCell
+    local path = { cell }
     local guard = 0
     while cursor and cursor.lake and guard < 200000 do
+        if cursor.lakeOutletCell ~= nil then
+            cursor = cursor.lakeOutletCell
+            break
+        end
+        path[#path + 1] = cursor
         cursor = cursor.downCell
         guard = guard + 1
+    end
+    for _, item in ipairs(path) do
+        item.lakeOutletCell = cursor
     end
     return cursor
 end
@@ -141,7 +160,7 @@ local function solveRegion(world, chunkX, chunkY, info)
     local interiorMinY = startChunkY * chunkSize
     local interiorMaxX = interiorMinX + regionChunks * chunkSize - 1
     local interiorMaxY = interiorMinY + regionChunks * chunkSize - 1
-    local halo = chunkSize
+    local halo = world.hydrologyHaloCells or math.floor(chunkSize / 2)
     local minX = interiorMinX - halo
     local minY = interiorMinY - halo
     local maxX = interiorMaxX + halo

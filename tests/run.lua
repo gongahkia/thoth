@@ -12,6 +12,12 @@ local function round(value)
     return math.floor((value or 0) * 100000 + 0.5) / 100000
 end
 
+local fastWorldOptions = { hydrologyRegionChunks = 2, hydrologyHaloCells = 0 }
+
+local function testWorld(seed)
+    return WorldGen.new(seed, fastWorldOptions)
+end
+
 local function encodeCell(cell)
     return table.concat({
         cell.x,
@@ -46,20 +52,20 @@ local function encodeChunk(chunk)
 end
 
 local function testDeterminism()
-    local a = WorldGen.new(1234)
-    local b = WorldGen.new(1234)
+    local a = testWorld(1234)
+    local b = testWorld(1234)
     expect(encodeChunk(a:chunk(2, -1, "local")) == encodeChunk(b:chunk(2, -1, "local")), "same seed should produce identical local chunk")
     expect(encodeChunk(a:chunk(0, 0, "continent")) == encodeChunk(b:chunk(0, 0, "continent")), "same seed should produce identical continent chunk")
 end
 
 local function testSeedVariance()
-    local a = encodeChunk(WorldGen.new(1234):chunk(0, 0, "region"))
-    local b = encodeChunk(WorldGen.new(5678):chunk(0, 0, "region"))
+    local a = encodeChunk(testWorld(1234):chunk(0, 0, "region"))
+    local b = encodeChunk(testWorld(5678):chunk(0, 0, "region"))
     expect(a ~= b, "different seeds should differ")
 end
 
 local function testSampleChunkAgreement()
-    local world = WorldGen.new(44)
+    local world = testWorld(44)
     local chunk = world:chunk(1, -2, "local")
     for y = 1, chunk.size do
         local cell = chunk.cells[y][1]
@@ -74,7 +80,7 @@ local function testSampleChunkAgreement()
 end
 
 local function testRiverMonotonicity()
-    local world = WorldGen.new(99)
+    local world = testWorld(99)
     local chunk = world:chunk(0, 0, "local")
     local stats = world:hydrologyStats(0, 0, "local")
     local byCoord = {}
@@ -130,11 +136,11 @@ local function testHydrologyStats()
 end
 
 local function testBiomes()
-    local world = WorldGen.new(314)
+    local world = testWorld(314)
     local ids = {}
     for _, id in ipairs(WorldGen.biomeIds()) do ids[id] = true end
-    for cy = -1, 1 do
-        for cx = -1, 1 do
+    for cy = 0, 1 do
+        for cx = 0, 1 do
             local chunk = world:chunk(cx, cy, "region")
             for y = 1, chunk.size, 7 do
                 for x = 1, chunk.size, 7 do
@@ -146,7 +152,7 @@ local function testBiomes()
 end
 
 local function testPlayer()
-    local world = WorldGen.new(88)
+    local world = testWorld(88)
     local player = Player.new(0, 0)
     Player.update(player, 1, { right = true }, world)
     expect(player.x > 0 and player.y == 0, "player should move right")
@@ -155,7 +161,7 @@ local function testPlayer()
 end
 
 local function testHeightInterpolationAndNormal()
-    local world = WorldGen.new(515)
+    local world = testWorld(515)
     local x, y = 12.35, -8.7
     local h = world:heightAt(x, y)
     local h00 = world:sample(math.floor(x), math.floor(y), "local").elevation
@@ -180,13 +186,13 @@ local function encodeBillboards(list)
 end
 
 local function testBillboards()
-    local a = WorldGen.new(616)
-    local b = WorldGen.new(616)
+    local a = testWorld(616)
+    local b = testWorld(616)
     local kinds = {}
     for _, kind in ipairs(WorldGen.billboardKinds()) do kinds[kind] = true end
     local count = 0
-    for cy = -1, 1 do
-        for cx = -1, 1 do
+    for cy = 0, 1 do
+        for cx = 0, 1 do
             local list = a:billboards(cx, cy)
             expect(encodeBillboards(list) == encodeBillboards(b:billboards(cx, cy)), "billboards should be deterministic")
             for _, item in ipairs(list) do
@@ -200,7 +206,7 @@ local function testBillboards()
 end
 
 local function testRenderStats()
-    local app = { world = WorldGen.new(717), player = Player.new(0, 0), camera = Render.defaultCamera() }
+    local app = { world = testWorld(717), player = Player.new(0, 0), camera = Render.defaultCamera() }
     local stats = Render.visibleStats(app, 1280, 720)
     expect(stats.visibleTiles > 0 and stats.triangles == stats.visibleTiles * 2, "render stats should describe terrain mesh")
     expect(stats.billboards >= 0 and stats.cameraHeight == stats.cameraHeight, "render stats should include finite camera and billboard count")

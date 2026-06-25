@@ -133,7 +133,8 @@ function WorldGen.new(seed, options)
         chunkSize = options.chunkSize or 64,
         seaLevel = options.seaLevel or 0,
         plateCellSize = options.plateCellSize or 640,
-        hydrologyRegionChunks = options.hydrologyRegionChunks or 4,
+        hydrologyRegionChunks = options.hydrologyRegionChunks or 2,
+        hydrologyHaloCells = options.hydrologyHaloCells or 8,
         cache = {},
     }, WorldGen)
 end
@@ -167,6 +168,7 @@ function WorldGen:metadata()
         chunkSize = self.chunkSize,
         seaLevel = self.seaLevel,
         hydrologyRegionChunks = self.hydrologyRegionChunks,
+        hydrologyHaloCells = self.hydrologyHaloCells,
         scales = scales,
     }
 end

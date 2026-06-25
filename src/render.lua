@@ -61,8 +61,8 @@ function Render.defaultCamera()
         pitch = 0.02,
         eyeHeight = 3.2,
         fov = 620,
-        renderRadius = 86,
-        step = 2,
+        renderRadius = 62,
+        step = 3,
     }
 end
 
@@ -181,13 +181,17 @@ end
 function Render.billboardDrawList(app, width, height)
     app.camera.eyeZ = app.camera.eyeZ or cameraHeight(app)
     local size = app.world:metadata().chunkSize
-    local cx, cy = chunkCoord(app.player.x, size), chunkCoord(app.player.y, size)
+    local radius = app.camera.renderRadius or 62
+    local minChunkX = chunkCoord(app.player.x - radius, size)
+    local maxChunkX = chunkCoord(app.player.x + radius, size)
+    local minChunkY = chunkCoord(app.player.y - radius, size)
+    local maxChunkY = chunkCoord(app.player.y + radius, size)
     local list = {}
-    for y = cy - 1, cy + 1 do
-        for x = cx - 1, cx + 1 do
+    for y = minChunkY, maxChunkY do
+        for x = minChunkX, maxChunkX do
             for _, spec in ipairs(app.world:billboards(x, y)) do
                 local lateral, depth = cameraLocal(app, spec.x, spec.y)
-                if depth > 2 and depth < (app.camera.renderRadius or 86) then
+                if depth > 2 and depth < radius then
                     local baseZ = spec.z * terrainScale
                     local bx, by = project(app, width, height, lateral, depth, baseZ)
                     local tx, ty = project(app, width, height, lateral, depth, baseZ + spec.height * terrainScale * 0.45)
