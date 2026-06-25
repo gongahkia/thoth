@@ -5,6 +5,8 @@ local Render = require("src.render")
 local WorldGen = require("src.worldgen")
 
 local app
+local terrainPreloadPadding = 0
+local billboardPreloadPadding = 0
 
 local function hasArg(args, value)
     for _, arg in ipairs(args or {}) do
@@ -51,6 +53,24 @@ local function smoke(args)
     love.event.quit(0)
 end
 
+local function preloadApp(app)
+    local renderRadius = app.camera.renderRadius or 62
+    local frustumRadius = math.ceil(math.sqrt(renderRadius * renderRadius + (renderRadius * 0.82) * (renderRadius * 0.82)))
+    app.world:preloadAround(app.player.x, app.player.y, frustumRadius + terrainPreloadPadding, "local")
+    app.world:preloadBillboardsAround(app.player.x, app.player.y, frustumRadius + billboardPreloadPadding)
+    local size = app.world:metadata().chunkSize
+    app.preloadedChunkX = math.floor(app.player.x / size)
+    app.preloadedChunkY = math.floor(app.player.y / size)
+end
+
+local function refreshPreloadIfNeeded(app)
+    local size = app.world:metadata().chunkSize
+    local chunkX = math.floor(app.player.x / size)
+    local chunkY = math.floor(app.player.y / size)
+    if chunkX == app.preloadedChunkX and chunkY == app.preloadedChunkY then return end
+    preloadApp(app)
+end
+
 function love.load(args)
     if hasArg(args, "--smoke") then
         smoke(args)
@@ -65,6 +85,7 @@ function love.load(args)
         mouseLook = true,
         renderSmoke = hasArg(args, "--render-smoke"),
     }
+    preloadApp(app)
     if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(true) end
 end
 
@@ -82,6 +103,7 @@ function love.update(dt)
         sprint = love.keyboard.isDown("lshift", "rshift"),
         yaw = app.camera.yaw,
     }, app.world)
+    refreshPreloadIfNeeded(app)
     app.camera.x = app.camera.x + (app.player.x - app.camera.x) * math.min(1, dt * 10)
     app.camera.y = app.camera.y + (app.player.y - app.camera.y) * math.min(1, dt * 10)
 end
@@ -109,11 +131,12 @@ function love.keypressed(key)
     if key == "r" then
         app.world = WorldGen.new(os.time() % 1000000)
         app.player.x, app.player.y = 0, 0
+        preloadApp(app)
     end
 end
 
 function love.mousemoved(_, _, dx, dy)
     if not (app and app.mouseLook) then return end
-    app.camera.yaw = app.camera.yaw + dx * 0.0025
-    app.camera.pitch = math.max(-0.42, math.min(0.38, app.camera.pitch + dy * 0.0018))
+    app.camera.yaw = app.camera.yaw - dx * 0.0025
+    app.camera.pitch = math.max(-0.42, math.min(0.38, app.camera.pitch - dy * 0.0018))
 end

@@ -61,7 +61,7 @@ function Render.defaultCamera()
         pitch = 0.02,
         eyeHeight = 3.2,
         fov = 620,
-        renderRadius = 62,
+        renderRadius = 48,
         step = 3,
     }
 end
@@ -108,14 +108,13 @@ local function terrainZ(cell)
     return cell.elevation * terrainScale
 end
 
-local function litColor(app, cell, depth, x, y)
+local function litColor(cell, depth, slopeLight, radius)
     local color = baseColor(cell)
-    local normal = app.world:normalAt(x, y)
-    local light = normal.x * -0.35 + normal.y * 0.55 + normal.z * 0.74
+    local light = 0.72 + clamp(slopeLight, -0.22, 0.28) - clamp(cell.slope or 0, 0, 1) * 0.08
     local brightness = 0.58 + clamp(light, 0, 1) * 0.34 + clamp(cell.elevation + 0.2, 0, 1) * 0.1
     if cell.water then brightness = 0.82 end
     local shaded = shade(color, brightness)
-    local fog = clamp((depth - 18) / math.max(1, (app.camera.renderRadius or 86) - 18), 0, 1)
+    local fog = clamp((depth - 18) / math.max(1, radius - 18), 0, 1)
     return mixColor(shaded, fogColor, fog * 0.86)
 end
 
@@ -134,6 +133,17 @@ local function pushQuad(vertices, p00, p10, p11, p01, color)
     pushTri(vertices, p00, p11, p01, color)
 end
 
+local function pushTriCoords(vertices, ax, ay, bx, by, cx, cy, color)
+    pushVertex(vertices, ax, ay, color)
+    pushVertex(vertices, bx, by, color)
+    pushVertex(vertices, cx, cy, color)
+end
+
+local function pushQuadCoords(vertices, x00, y00, x10, y10, x11, y11, x01, y01, color)
+    pushTriCoords(vertices, x00, y00, x10, y10, x11, y11, color)
+    pushTriCoords(vertices, x00, y00, x11, y11, x01, y01, color)
+end
+
 function Render.buildTerrainMeshData(app, width, height)
     app.camera.eyeZ = cameraHeight(app)
     local vertices = {}
@@ -141,27 +151,56 @@ function Render.buildTerrainMeshData(app, width, height)
     local step = camera.step or 2
     local radius = camera.renderRadius or 86
     local lateralRange = radius * 0.82
+    local basis = cameraBasis(camera.yaw or 0)
+    local laterals = {}
+    local depths = {}
+    local lateral = -lateralRange
+    while lateral <= lateralRange + 0.0001 do
+        laterals[#laterals + 1] = lateral
+        lateral = lateral + step
+    end
+    local depth = radius
+    while depth >= step + 2 do
+        depths[#depths + 1] = depth
+        depth = depth - step
+    end
+    depths[#depths + 1] = depth
+    local grid = {}
+    for row = 1, #depths do
+        grid[row] = {}
+        for col = 1, #laterals do
+            local lat = laterals[col]
+            local dep = depths[row]
+            local wx = app.player.x + basis.rightX * lat + basis.forwardX * dep
+            local wy = app.player.y + basis.rightY * lat + basis.forwardY * dep
+            local cell = app.world:sample(math.floor(wx), math.floor(wy), "local")
+            grid[row][col] = { z = terrainZ(cell) }
+        end
+    end
     local visibleTiles = 0
-    for depth = radius, step + 2, -step do
-        local nextDepth = depth - step
-        for lateral = -lateralRange, lateralRange - step, step do
-            local wx0, wy0 = worldPoint(app, lateral, depth)
-            local wx1, wy1 = worldPoint(app, lateral + step, depth)
-            local wx2, wy2 = worldPoint(app, lateral + step, nextDepth)
-            local wx3, wy3 = worldPoint(app, lateral, nextDepth)
-            local centerX, centerY = worldPoint(app, lateral + step * 0.5, depth - step * 0.5)
+    for row = 1, #depths - 1 do
+        local dep = depths[row]
+        local nextDepth = depths[row + 1]
+        for col = 1, #laterals - 1 do
+            local lat = laterals[col]
+            local nextLat = laterals[col + 1]
+            local centerLat = (lat + nextLat) * 0.5
+            local centerDepth = (dep + nextDepth) * 0.5
+            local centerX = app.player.x + basis.rightX * centerLat + basis.forwardX * centerDepth
+            local centerY = app.player.y + basis.rightY * centerLat + basis.forwardY * centerDepth
             local cell = app.world:sample(math.floor(centerX), math.floor(centerY), "local")
-            local z0 = terrainZ(app.world:sample(math.floor(wx0), math.floor(wy0), "local"))
-            local z1 = terrainZ(app.world:sample(math.floor(wx1), math.floor(wy1), "local"))
-            local z2 = terrainZ(app.world:sample(math.floor(wx2), math.floor(wy2), "local"))
-            local z3 = terrainZ(app.world:sample(math.floor(wx3), math.floor(wy3), "local"))
-            local p00x, p00y = project(app, width, height, lateral, depth, z0)
-            local p10x, p10y = project(app, width, height, lateral + step, depth, z1)
-            local p11x, p11y = project(app, width, height, lateral + step, nextDepth, z2)
-            local p01x, p01y = project(app, width, height, lateral, nextDepth, z3)
+            local z0 = grid[row][col].z
+            local z1 = grid[row][col + 1].z
+            local z2 = grid[row + 1][col + 1].z
+            local z3 = grid[row + 1][col].z
+            local p00x, p00y = project(app, width, height, lat, dep, z0)
+            local p10x, p10y = project(app, width, height, nextLat, dep, z1)
+            local p11x, p11y = project(app, width, height, nextLat, nextDepth, z2)
+            local p01x, p01y = project(app, width, height, lat, nextDepth, z3)
             if p00x and p10x and p11x and p01x then
-                local color = litColor(app, cell, depth, centerX, centerY)
-                pushQuad(vertices, { p00x, p00y }, { p10x, p10y }, { p11x, p11y }, { p01x, p01y }, color)
+                local slopeLight = ((z0 + z1) - (z2 + z3)) / (terrainScale * 2)
+                local color = litColor(cell, centerDepth, slopeLight, radius)
+                pushQuadCoords(vertices, p00x, p00y, p10x, p10y, p11x, p11y, p01x, p01y, color)
                 visibleTiles = visibleTiles + 1
             end
         end

@@ -272,6 +272,41 @@ function WorldGen:hydrologyStats(chunkX, chunkY, scale)
     return Hydrology.stats(self, chunkX, chunkY, scaleInfo(scale))
 end
 
+function WorldGen:preloadAround(x, y, radius, scale)
+    local info = scaleInfo(scale)
+    local minGX = floorDiv(math.floor(x - radius), info.factor)
+    local maxGX = floorDiv(math.floor(x + radius), info.factor)
+    local minGY = floorDiv(math.floor(y - radius), info.factor)
+    local maxGY = floorDiv(math.floor(y + radius), info.factor)
+    local minChunkX = floorDiv(minGX, self.chunkSize)
+    local maxChunkX = floorDiv(maxGX, self.chunkSize)
+    local minChunkY = floorDiv(minGY, self.chunkSize)
+    local maxChunkY = floorDiv(maxGY, self.chunkSize)
+    local chunks = 0
+    for cy = minChunkY, maxChunkY do
+        for cx = minChunkX, maxChunkX do
+            self:chunk(cx, cy, info.id)
+            chunks = chunks + 1
+        end
+    end
+    return chunks
+end
+
+function WorldGen:preloadBillboardsAround(x, y, radius)
+    local minChunkX = floorDiv(math.floor(x - radius), self.chunkSize)
+    local maxChunkX = floorDiv(math.floor(x + radius), self.chunkSize)
+    local minChunkY = floorDiv(math.floor(y - radius), self.chunkSize)
+    local maxChunkY = floorDiv(math.floor(y + radius), self.chunkSize)
+    local chunks = 0
+    for cy = minChunkY, maxChunkY do
+        for cx = minChunkX, maxChunkX do
+            self:billboards(cx, cy)
+            chunks = chunks + 1
+        end
+    end
+    return chunks
+end
+
 function WorldGen:sample(x, y, scale)
     local info = scaleInfo(scale)
     local gx = floorDiv(x, info.factor)
