@@ -381,7 +381,7 @@ local function enterTacticalGame(state, squadLoadout)
     state.squadLoadout = loadout
     state.squadSelect = nil
     local partyMoveDelay = state.settings and state.settings.reducedMotion and 0 or 0.12
-    state.tactics = TacticalRuntime.new(sim, { squadLoadout = state.squadLoadout, tutorial = tutorialMission, aiDebug = state.tacticalAiDebug == true, partyMovement = state.settings and state.settings.partyMovement == true, exploration = state.settings and state.settings.partyMovement == true, partyMoveStepDelay = partyMoveDelay })
+    state.tactics = TacticalRuntime.new(sim, { squadLoadout = state.squadLoadout, tutorial = tutorialMission, aiDebug = state.tacticalAiDebug == true, partyMovement = state.settings and state.settings.partyMovement == true, exploration = state.settings and state.settings.partyMovement == true, partyMoveStepDelay = partyMoveDelay, rngEnabled = true })
     state.tacticalOverlays = state.tactics.overlays
     TacticalRuntime.syncWorld(sim, state.tactics)
     if tutorialMission then

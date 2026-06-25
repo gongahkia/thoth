@@ -4952,6 +4952,64 @@ tests[#tests + 1] = function()
     expect(#app.ui.skillButtons == 0 and #app.ui.enemyButtons == 0, "render3d prepareUi should clear reused combat hitboxes")
 end
 
+tests[#tests + 1] = function()
+    -- roguelite RNG combat: hit/crit/variance rolls are deterministic from seed
+    local function buildState(seed)
+        return TacticsState.new({
+            rngSeed = seed,
+            rules = { rngEnabled = true },
+            board = { width = 4, height = 4 },
+            units = {
+                { id = "atk", side = "player", x = 1, y = 2, hp = 10 },
+                { id = "tgt", side = "enemy", x = 2, y = 2, hp = 10 },
+            },
+        })
+    end
+    local sA = buildState(7)
+    local rA = sA:attackResolution("atk", "tgt", 4)
+    expect(rA.hitChance ~= nil and rA.critChance ~= nil and rA.damageVariance ~= nil, "rngEnabled attack should expose hit/crit/variance fields")
+    expect(rA.hit == true or rA.hit == false, "hit should be a boolean")
+    -- determinism: same seed/tick/ids -> same outcome
+    local sB = buildState(7)
+    local rB = sB:attackResolution("atk", "tgt", 4)
+    expect(rA.hit == rB.hit and rA.damage == rB.damage, "same seed must produce identical attack outcome")
+    -- different seeds typically produce different rolls
+    local sC = buildState(7)
+    local sD = buildState(99)
+    local rC = sC:attackResolution("atk", "tgt", 4)
+    local rD = sD:attackResolution("atk", "tgt", 4)
+    expect(rC.hitRoll ~= rD.hitRoll or rC.damageVariance ~= rD.damageVariance, "different seeds should produce different rolls")
+    -- legacy/deterministic mode (rngEnabled false) does not add RNG fields
+    local legacy = TacticsState.new({
+        board = { width = 4, height = 4 },
+        units = {
+            { id = "atk", side = "player", x = 1, y = 2, hp = 10 },
+            { id = "tgt", side = "enemy", x = 2, y = 2, hp = 10 },
+        },
+    })
+    local rLegacy = legacy:attackResolution("atk", "tgt", 4)
+    expect(rLegacy.hit == nil and rLegacy.hitChance == nil, "rng disabled should not populate hit/crit fields")
+    expect(rLegacy.damage == 4, "rng disabled should produce deterministic damage")
+end
+
+tests[#tests + 1] = function()
+    -- snapshot round-trip preserves rngSeed and rngEnabled flag
+    local s = TacticsState.new({
+        rngSeed = 42,
+        rules = { rngEnabled = true },
+        board = { width = 3, height = 3 },
+        units = {
+            { id = "a", side = "player", x = 1, y = 1, hp = 4 },
+            { id = "b", side = "enemy", x = 2, y = 1, hp = 4 },
+        },
+    })
+    local snap = s:snapshot()
+    expect(snap.rngSeed == 42, "snapshot should preserve rngSeed")
+    expect(snap.rules.rngEnabled == true, "snapshot should preserve rngEnabled flag")
+    local restored = TacticsState.fromSnapshot(snap)
+    expect(restored.rngSeed == 42 and restored.rules.rngEnabled == true, "restored state should retain RNG config")
+end
+
 for index, test in ipairs(tests) do
     test()
     io.stdout:write("ok ", index, "\n")

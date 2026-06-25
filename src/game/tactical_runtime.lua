@@ -835,6 +835,9 @@ function Runtime.new(sim, options)
     else
         state, boardSpec = makeRouteState(options)
     end
+    if options.rngEnabled and state and state.rules then
+        state.rules.rngEnabled = true -- top-level callers (live game) opt into roguelite combat RNG
+    end
     local routeOrder = nil
     if boardSpec and boardSpec.archiveRoute then
         routeOrder = boardSpec.archiveRoute.variantOrder and copyList(boardSpec.archiveRoute.variantOrder) or copyList(route.variantOrder)
