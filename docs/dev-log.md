@@ -21,6 +21,13 @@ Open drift:
 
 Test impact: 187 → 190 passing (added 3 tests covering RNG combat, snapshot round-trip, active class list). Validator: 25/25 seeds accepted including new invariant.
 
+Follow-up same day:
+
+- Dead Lua modules deleted: `src/game/estate_state.lua`, `src/game/inventory.lua`.
+- HUD declutter: dropped squad bond cohesion chips, stale "no hit chance" forecast line, composition badge ("◆ composed/rough"), and per-row break-gauge when idle. topLeft panel trimmed from 3 lines to 2 (cursor/hover/zoom moved behind aiDebug). Enemy threat panel collapses position+target into HP line when not in aiDebug.
+- Bitmap/pixel font: added `settings.pixelFont` (default on). `Render.applyFont` switches to integer base size 10 with nearest-neighbor filter; checks `assets/fonts/pixel.ttf` or `pixel.fnt` for a true bundled font and falls back to LOVE default rasterized to bitmap glyphs. `love.graphics.setLineStyle("rough")` set at boot for crisp pixel edges.
+- Juice/oomph: RNG `crit` and `missed` flags now propagate through hit events. Crits get ~3x hitstop, +4 shake magnitude, 1.5x larger gold flash, 1.45x scaled CRIT label. Misses get muted gray flash and `MISS` label with light shake (mag 1). Kills get +3 shake magnitude. Honors existing `screenShake` / `reducedMotion` settings.
+
 ## 2026-06-22 XCOM-Lite Vertical Slice Pivot
 
 Source of truth:

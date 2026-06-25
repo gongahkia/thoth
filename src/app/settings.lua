@@ -54,6 +54,7 @@ local controls = {
     { kind = "slider", setting = "fontScale", label = "Font Scale", step = 0.05, min = 0.8, max = 1.4, group = "accessibility" },
     { kind = "toggle", setting = "calmHud", label = "Calm HUD (minimalist)", group = "accessibility" },
     { kind = "toggle", setting = "estateMinimal", label = "Estate Minimal (no buildings/trinkets)", group = "input" }, -- prototype lean roguelite toggle
+    { kind = "toggle", setting = "pixelFont", label = "Pixel Font", group = "accessibility" }, -- bitmap/pixel font rendering
     { kind = "back", label = "Back" },
 }
 
@@ -107,6 +108,7 @@ function Settings.defaults()
         calmHud = false,
         partyMovement = false,
         estateMinimal = true, -- prototype lean mode: hides building/trinket meta-progression UI
+        pixelFont = true, -- bitmap/pixel font rendering for HUD and game text
         keybinds = copyMap(defaultKeybinds),
     }
 end

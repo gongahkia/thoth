@@ -2009,6 +2009,8 @@ local function tryApplyCommands(runtime, commands)
                 x = target.x,
                 y = target.y,
                 blocked = resolution and resolution.blocked == true,
+                crit = resolution and resolution.crit == true, -- propagate RNG crit for juice amplification
+                missed = resolution and resolution.missed == true, -- propagate RNG miss for shake-light feedback
             } or nil
         end
         runtime.state:apply(command)
@@ -2025,6 +2027,8 @@ local function tryApplyCommands(runtime, commands)
                 y = hit.y,
                 killed = target and not target.alive or false,
                 blocked = amount <= 0 or hit.blocked,
+                crit = hit.crit,
+                missed = hit.missed,
             })
         end
     end

@@ -182,20 +182,46 @@ function Render.tileAccessibleColor(settings, color)
     return adjusted
 end
 
+-- bitmap/pixel font path: looks for assets/fonts/pixel.ttf (or .fnt) once. When missing, falls back to LOVE default rasterized at integer sizes with nearest-neighbor filter — chunky pixel feel without bundling an asset.
 local function fontForScale(scale)
     if not (love and love.graphics) then
         return nil
     end
-    local size = math.floor(12 * Render.fontScale({ fontScale = scale }) + 0.5)
-    state.fonts[size] = state.fonts[size] or love.graphics.newFont(size)
-    return state.fonts[size]
+    local pixelMode = state and state.usePixelFont
+    local size = math.floor((pixelMode and 10 or 12) * Render.fontScale({ fontScale = scale }) + 0.5)
+    local cacheKey = (pixelMode and "px:" or "vec:") .. tostring(size)
+    if state.fonts[cacheKey] then
+        return state.fonts[cacheKey]
+    end
+    if pixelMode and not state.pixelFontPath and love.filesystem then
+        if love.filesystem.getInfo("assets/fonts/pixel.ttf") then
+            state.pixelFontPath = "assets/fonts/pixel.ttf"
+        elseif love.filesystem.getInfo("assets/fonts/pixel.fnt") then
+            state.pixelFontPath = "assets/fonts/pixel.fnt"
+        else
+            state.pixelFontPath = false
+        end
+    end
+    local font
+    if pixelMode and state.pixelFontPath then
+        font = love.graphics.newFont(state.pixelFontPath, size)
+    else
+        font = love.graphics.newFont(size) -- LOVE default rasterized at integer size; nearest filter gives bitmap feel
+    end
+    if font and font.setFilter then
+        font:setFilter("nearest", "nearest")
+    end
+    state.fonts[cacheKey] = font
+    return font
 end
 
 function Render.applyFont(appOrSettings)
     if not (love and love.graphics) then
         return nil
     end
-    local font = fontForScale(Render.fontScale(accessibilitySettings(appOrSettings)))
+    local settings = accessibilitySettings(appOrSettings)
+    state.usePixelFont = settings and settings.pixelFont ~= false -- default-on for the prototype bitmap look
+    local font = fontForScale(Render.fontScale(settings))
     love.graphics.setFont(font)
     return font
 end
@@ -2361,12 +2387,22 @@ local function drawTacticalOverlays(sim, app)
         local duration = math.max(0.001, flash.duration or 0.28)
         local progress = 1 - clamp01((flash.t or 0) / duration)
         local alpha = clamp01((flash.t or 0) / duration)
-        local color = flash.blocked and { 0.72, 0.74, 0.68, 0.58 * alpha } or { 1.0, 0.72, 0.28, 0.78 * alpha }
-        if flash.targetSide == "player" and not flash.blocked then
+        local color
+        if flash.missed then
+            color = { 0.62, 0.66, 0.62, 0.36 * alpha } -- miss: subdued gray puff
+        elseif flash.crit then
+            color = { 1.0, 0.92, 0.34, 1.0 * alpha } -- crit: bright gold, full opacity
+        elseif flash.blocked then
+            color = { 0.72, 0.74, 0.68, 0.58 * alpha }
+        elseif flash.targetSide == "player" then
             color = { 1.0, 0.24, 0.18, 0.82 * alpha }
+        else
+            color = { 1.0, 0.72, 0.28, 0.78 * alpha }
         end
+        local scale = 1.2 + progress * 0.75
+        if flash.crit then scale = scale * 1.5 end -- crit flash is larger
         if Render.tileInTacticalLogicalBounds(flash.x, flash.y, minX, maxX, minY, maxY) then
-            drawnEntries[#drawnEntries + 1] = { kind = "intent", x = flash.x, y = flash.y, label = "hit", color = color, iconScale = 1.2 + progress * 0.75 }
+            drawnEntries[#drawnEntries + 1] = { kind = "intent", x = flash.x, y = flash.y, label = "hit", color = color, iconScale = scale }
         end
     end
     if #drawnEntries > 0 and state.g3d and state.assets.white then
@@ -5688,6 +5724,7 @@ end
 
 function Render.damageNumberLabel(number)
     local kind = number and number.kind or "hp"
+    if number and number.missed then return "MISS" end
     if kind == "blocked" or (number and number.blocked) then
         return "BLOCK"
     end
@@ -5698,7 +5735,7 @@ function Render.damageNumberLabel(number)
         label = label .. " " .. i18n.t("stress")
     end
     if number and number.crit then
-        label = label .. " " .. i18n.t("CRIT")
+        label = "!" .. label .. "! CRIT" -- chunkier crit label for visual oomph
     end
     return label
 end
@@ -5741,18 +5778,31 @@ function Render.drawDamageNumbers(sim, app)
         local x, y = damageNumberAnchor(sim, app, number)
         y = y - progress * 28
         local alpha = clamp01((number.t or 0) / math.min(0.25, life))
-        if number.kind == "blocked" or number.blocked then
+        if number.missed then
+            love.graphics.setColor(0.62, 0.66, 0.62, alpha * 0.85) -- muted gray for misses
+        elseif number.kind == "blocked" or number.blocked then
             love.graphics.setColor(0.72, 0.74, 0.68, alpha)
+        elseif number.crit then
+            love.graphics.setColor(1.0, 0.92, 0.38, alpha) -- crit: bright gold (checked before player-side so crits stay gold even on hits to players)
         elseif number.targetSide == "player" then
             love.graphics.setColor(1.0, 0.34, 0.24, alpha)
         elseif number.kind == "stress" then
             love.graphics.setColor(0.72, 0.46, 0.86, alpha)
-        elseif number.crit then
-            love.graphics.setColor(1, 0.9, 0.36, alpha)
         else
             love.graphics.setColor(0.95, 0.78, 0.58, alpha)
         end
-        love.graphics.printf(Render.damageNumberLabel(number), x - 58, y, 116, "center")
+        -- crit pops larger: scale text by 1.5x along the rise arc for emphasis
+        if number.crit and love.graphics.printf then
+            local prevFont = love.graphics.getFont and love.graphics.getFont()
+            love.graphics.push()
+            love.graphics.translate(x, y)
+            love.graphics.scale(1.45, 1.45)
+            love.graphics.printf(Render.damageNumberLabel(number), -58, 0, 116, "center")
+            love.graphics.pop()
+            if prevFont then love.graphics.setFont(prevFont) end
+        else
+            love.graphics.printf(Render.damageNumberLabel(number), x - 58, y, 116, "center")
+        end
     end
     return #numbers
 end

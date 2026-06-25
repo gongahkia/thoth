@@ -237,11 +237,14 @@ local function addTacticalHitFeedback(state, event)
         return
     end
     local blocked = event.blocked == true or (event.amount or 0) <= 0
-    local duration = event.killed and 0.9 or 0.7
+    local missed = event.missed == true -- RNG miss: distinct lighter feedback
+    local crit = event.crit == true -- RNG crit: amplified juice
+    local kind = missed and "miss" or (blocked and "blocked" or (crit and "crit" or "hp"))
+    local duration = event.killed and 1.05 or (crit and 0.95 or 0.7)
     state.damageNumbers = state.damageNumbers or {}
     state.damageNumbers[#state.damageNumbers + 1] = {
         tactical = true,
-        kind = blocked and "blocked" or "hp",
+        kind = kind,
         amount = event.amount or 0,
         targetSide = event.targetSide,
         x = event.x,
@@ -250,22 +253,38 @@ local function addTacticalHitFeedback(state, event)
         duration = duration,
         killed = event.killed == true,
         blocked = blocked,
+        missed = missed,
+        crit = crit,
     }
     state.tacticalHitFlashes = state.tacticalHitFlashes or {}
     state.tacticalHitFlashes[#state.tacticalHitFlashes + 1] = {
         x = event.x,
         y = event.y,
-        t = 0.28,
-        duration = 0.28,
+        t = crit and 0.42 or 0.28, -- crit flash lingers longer
+        duration = crit and 0.42 or 0.28,
         targetSide = event.targetSide,
         blocked = blocked,
+        missed = missed,
+        crit = crit,
     }
-    state.combatHitPause = math.max(state.combatHitPause or 0, blocked and 0.035 or 0.055)
-    state.combatShake = math.max(state.combatShake or 0, blocked and 0.16 or 0.24)
-    local magnitude = blocked and 2 or (event.targetSide == "player" and 7 or 5)
-    if event.killed then
-        magnitude = magnitude + 1
+    -- hitstop: misses ~0, crits ~3x normal; blocked light; killed heavy
+    local pause = missed and 0.012 or (blocked and 0.035 or (crit and 0.13 or 0.055))
+    if event.killed then pause = math.max(pause, 0.16) end
+    state.combatHitPause = math.max(state.combatHitPause or 0, pause)
+    local shake = missed and 0.08 or (blocked and 0.16 or (crit and 0.42 or 0.24))
+    if event.killed then shake = math.max(shake, 0.46) end
+    state.combatShake = math.max(state.combatShake or 0, shake)
+    -- shake magnitude scales: miss < blocked < hit < crit < killed
+    local magnitude
+    if missed then
+        magnitude = 1
+    elseif blocked then
+        magnitude = 2
+    else
+        magnitude = event.targetSide == "player" and 7 or 5
+        if crit then magnitude = magnitude + 4 end
     end
+    if event.killed then magnitude = magnitude + 3 end
     state.combatShakeMagnitude = math.max(state.combatShakeMagnitude or 0, magnitude)
 end
 
@@ -1635,6 +1654,7 @@ end
 function love.load(args)
     local loadStartedAt = love.timer.getTime()
     love.graphics.setDefaultFilter("nearest", "nearest")
+    if love.graphics.setLineStyle then love.graphics.setLineStyle("rough") end -- crisp pixel edges, no AA, matches bitmap-font aesthetic
     if hasArg(args, "--sprite-import") then
         app = { importMode = true }
         runSpriteImport(args)
