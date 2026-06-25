@@ -746,6 +746,9 @@ local function makeRouteState(options)
     local secondIdx = ((base + 1 + math.floor((tonumber(seed) or 1) / #pool)) % #pool) + 1
     if secondIdx == firstIdx then secondIdx = (firstIdx % #pool) + 1 end -- deterministic distinct fallback
     spec.bonusChallenges = { pool[firstIdx], pool[secondIdx] }
+    spec.rngSeed = tonumber(seed) or 1 -- propagate seed into combat RNG
+    spec.rules = spec.rules or {}
+    -- spec.rules.rngEnabled is left for the top-level game entry to flip on; tests run deterministic
     return TacticsState.new(spec), spec
 end
 

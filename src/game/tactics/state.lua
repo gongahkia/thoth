@@ -4,6 +4,7 @@ local Cover = require("src.game.tactics.cover")
 local Bonus = require("src.game.tactics.bonus")
 local Identity = require("src.game.tactics.identity")
 local Bonds = require("src.game.tactics.bonds")
+local Rng = require("src.core.rng") -- deterministic RNG for hit/crit/variance rolls
 
 local State = {}
 State.__index = State
@@ -950,10 +951,12 @@ function State.new(options)
         exposure = options.exposure or 0,
         selectedUnitId = options.selectedUnitId,
         unlocks = copyMap(options.unlocks),
+        rngSeed = options.rngSeed or options.seed or (options.rules and options.rules.rngSeed) or 1, -- deterministic combat RNG
         rules = {
             defaultAp = options.defaultAp or options.apPerTurn or (options.rules and options.rules.defaultAp) or 2,
             moveApCost = options.moveApCost or (options.rules and options.rules.moveApCost) or 1,
             flanking = Cover.flankingRule(options.flanking or (options.rules and options.rules.flanking)),
+            rngEnabled = (options.rules and options.rules.rngEnabled) or options.rngEnabled or false, -- roguelite hit/crit/variance (off by default for legacy callers/tests)
         },
         board = {
             width = width,
@@ -1049,6 +1052,7 @@ function State.fromSnapshot(snapshot)
         exposure = snapshot.exposure or 0,
         selectedUnitId = snapshot.selectedUnitId,
         unlocks = snapshot.unlocks or {},
+        rngSeed = snapshot.rngSeed, -- restore combat RNG seed
         rules = snapshot.rules,
         revisions = snapshot.revisions,
         board = snapshot.board or { width = snapshot.width, height = snapshot.height, tiles = snapshot.tiles },
@@ -1594,12 +1598,47 @@ function State:sightlineProfile(fromX, fromY, targetX, targetY)
     }
 end
 
+-- deterministic string-id hash for RNG seeding (FNV-1a 32-bit, LuaJIT bit lib)
+local _bit = bit or require("bit")
+local _bxor = _bit.bxor
+local function idHash(id)
+    local s = tostring(id)
+    local h = 2166136261
+    for i = 1, #s do
+        h = _bxor(h, string.byte(s, i)) % 4294967296
+        h = (h * 16777619) % 4294967296
+    end
+    return h
+end
+
+-- hit % bands by effective cover, flank, and height
+local function attackOdds(profile)
+    local hit = 80 -- base hit chance
+    if profile.effectiveCover == "half" then
+        hit = hit - 25
+    elseif profile.effectiveCover == "full" then
+        hit = hit - 50
+    end
+    if profile.flanked then
+        hit = hit + 15
+    end
+    if profile.blocked then
+        hit = 0
+    end
+    if hit < 5 then hit = 5 end
+    if hit > 100 then hit = 100 end
+    local crit = profile.flanked and 25 or 10 -- flanking boosts crit
+    return hit, crit
+end
+
 function State:attackResolution(unitId, targetId, baseDamage)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     local target = expect(self.units[targetId], "unknown target " .. tostring(targetId))
     baseDamage = expectInteger(baseDamage or 1, "damage")
     expect(baseDamage >= 0, "damage must be non-negative")
     local profile = self:attackProfile(unit.x, unit.y, target.x, target.y)
+    local rngEnabled = self.rules and self.rules.rngEnabled
+
     local damage = profile.blocked and 0 or math.max(0, baseDamage - (profile.damageReduction or 0))
     local flankingBonus = 0
     if profile.flanked and damage > 0 then
@@ -1618,6 +1657,40 @@ function State:attackResolution(unitId, targetId, baseDamage)
         end
     end
     damage = damage + spotterBonus
+
+    if rngEnabled then
+        -- roguelite hit/crit/variance rolls (deterministic via seed+tick+ids; replay-safe)
+        local seed = self.rngSeed or 1
+        local hitRollRaw = Rng.hash(seed, self.tick or 0, idHash(unitId), idHash(targetId))
+        local critRollRaw = Rng.hash(seed + 1013904223, self.tick or 0, idHash(unitId), idHash(targetId))
+        local varRollRaw = Rng.hash(seed + 1597334677, self.tick or 0, idHash(unitId), idHash(targetId))
+        local hitRoll = (hitRollRaw % 100) + 1
+        local critRoll = (critRollRaw % 100) + 1
+        local varRoll = (varRollRaw % 100) / 100
+        local hitChance, critChance = attackOdds(profile)
+        local hit = hitRoll <= hitChance
+        local crit = hit and critRoll <= critChance
+        if not hit then
+            damage = 0
+        elseif damage > 0 then
+            local lo = math.floor(damage * 0.75 + 0.5)
+            local hi = math.ceil(damage * 1.25)
+            if lo < 1 then lo = 1 end
+            if hi < lo then hi = lo end
+            damage = lo + math.floor(varRoll * (hi - lo + 1))
+            if damage < 1 then damage = 1 end
+            if crit then damage = damage * 2 end
+        end
+        profile.hitChance = hitChance
+        profile.hitRoll = hitRoll
+        profile.hit = hit
+        profile.missed = not hit
+        profile.critChance = critChance
+        profile.critRoll = critRoll
+        profile.crit = crit
+        profile.damageVariance = varRoll
+    end
+
     profile.baseDamage = baseDamage
     profile.damageReductionApplied = baseDamage - (profile.blocked and 0 or math.max(0, baseDamage - (profile.damageReduction or 0)))
     profile.flankingBonus = flankingBonus
@@ -3802,6 +3875,7 @@ function State:snapshot()
         exposure = self.exposure,
         selectedUnitId = self.selectedUnitId,
         unlocks = copyMap(self.unlocks),
+        rngSeed = self.rngSeed, -- preserve combat RNG seed across save/load
         rules = copyMap(self.rules),
         revisions = copyMap(self.revisions),
         threatZones = copyMap(self.threatZones),
