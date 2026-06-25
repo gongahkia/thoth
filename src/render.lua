@@ -75,12 +75,6 @@ local function cameraBasis(yaw)
     }
 end
 
-local function worldPoint(app, lateral, depth)
-    local basis = cameraBasis(app.camera.yaw or 0)
-    return app.player.x + basis.rightX * lateral + basis.forwardX * depth,
-        app.player.y + basis.rightY * lateral + basis.forwardY * depth
-end
-
 local function cameraLocal(app, x, y)
     local basis = cameraBasis(app.camera.yaw or 0)
     local dx, dy = x - app.player.x, y - app.player.y
@@ -120,17 +114,6 @@ end
 
 local function pushVertex(vertices, x, y, color)
     vertices[#vertices + 1] = { x, y, color[1], color[2], color[3], 1 }
-end
-
-local function pushTri(vertices, a, b, c, color)
-    pushVertex(vertices, a[1], a[2], color)
-    pushVertex(vertices, b[1], b[2], color)
-    pushVertex(vertices, c[1], c[2], color)
-end
-
-local function pushQuad(vertices, p00, p10, p11, p01, color)
-    pushTri(vertices, p00, p10, p11, color)
-    pushTri(vertices, p00, p11, p01, color)
 end
 
 local function pushTriCoords(vertices, ax, ay, bx, by, cx, cy, color)
@@ -174,7 +157,7 @@ function Render.buildTerrainMeshData(app, width, height)
             local wx = app.player.x + basis.rightX * lat + basis.forwardX * dep
             local wy = app.player.y + basis.rightY * lat + basis.forwardY * dep
             local cell = app.world:sample(math.floor(wx), math.floor(wy), "local")
-            grid[row][col] = { z = terrainZ(cell) }
+            grid[row][col] = terrainZ(cell)
         end
     end
     local visibleTiles = 0
@@ -189,10 +172,10 @@ function Render.buildTerrainMeshData(app, width, height)
             local centerX = app.player.x + basis.rightX * centerLat + basis.forwardX * centerDepth
             local centerY = app.player.y + basis.rightY * centerLat + basis.forwardY * centerDepth
             local cell = app.world:sample(math.floor(centerX), math.floor(centerY), "local")
-            local z0 = grid[row][col].z
-            local z1 = grid[row][col + 1].z
-            local z2 = grid[row + 1][col + 1].z
-            local z3 = grid[row + 1][col].z
+            local z0 = grid[row][col]
+            local z1 = grid[row][col + 1]
+            local z2 = grid[row + 1][col + 1]
+            local z3 = grid[row + 1][col]
             local p00x, p00y = project(app, width, height, lat, dep, z0)
             local p10x, p10y = project(app, width, height, nextLat, dep, z1)
             local p11x, p11y = project(app, width, height, nextLat, nextDepth, z2)
