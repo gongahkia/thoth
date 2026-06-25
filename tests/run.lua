@@ -92,7 +92,10 @@ local tests = {}
 tests[#tests + 1] = function()
     expect(Topology.edgeCount("triangle") == 3, "triangle topology should expose three edges")
     expect(Topology.edgeCount("square") == 4, "square topology should expose four edges")
+    expect(Topology.edgeCount("pentagon") == 5, "pentagon edge count should be available for rotation math")
     expect(Topology.edgeCount("hex") == 6, "hex topology should expose six edges")
+    expect(Render.rotationSteps("triangle") == 3 and Render.rotationSteps("pentagon") == 5 and Render.rotationSteps("hex") == 6, "view rotation steps should follow edge count")
+    expect(Render.rotationCompass(1, 3).degrees == 120 and Render.rotationCompass(1, 6).degrees == 60, "view rotation degrees should follow topology edge count")
     local triangle = TacticsState.new({
         board = { width = 4, height = 4, topology = "triangle" },
         units = { { id = "scout", side = "player", x = 2, y = 2, hp = 3, ap = 2, visionRadius = 4 } },

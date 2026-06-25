@@ -43,6 +43,9 @@ function Topology.normalize(value)
 end
 
 function Topology.edgeCount(kind)
+    if kind == "pentagon" or kind == "pent" then
+        return 5
+    end
     kind = Topology.normalize(kind)
     if kind == "triangle" then
         return 3

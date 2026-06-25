@@ -1033,18 +1033,41 @@ function Render.tacticalOverlayRotationAudit(tactics, overlays, view)
     return result
 end
 
-function Render.rotationCompass(rotation)
-    local r = (rotation or 0) % 4
+function Render.rotationCompass(rotation, steps)
+    steps = steps or Render.rotationSteps()
+    if type(rotation) == "table" then
+        steps = Render.rotationSteps(rotation)
+        rotation = rotation.viewRotation or 0
+    end
+    local r = (rotation or 0) % steps
     local labels = {
         [0] = { top = "N", right = "E", bottom = "S", left = "W" },
         [1] = { top = "W", right = "N", bottom = "E", left = "S" },
         [2] = { top = "S", right = "W", bottom = "N", left = "E" },
         [3] = { top = "E", right = "S", bottom = "W", left = "N" },
     }
-    local compass = copyValue(labels[r])
+    local compass = copyValue(steps == 4 and labels[r] or { top = tostring(math.floor(Render.rotationDegrees(r, steps) + 0.5)), right = "", bottom = tostring(steps) .. "x", left = "" })
     compass.rotation = r
-    compass.degrees = r * 90
+    compass.degrees = Render.rotationDegrees(r, steps)
+    compass.steps = steps
     return compass
+end
+
+function Render.rotationSteps(appOrTopology)
+    local topology = nil
+    if type(appOrTopology) == "string" then
+        topology = appOrTopology
+    else
+        local source = appOrTopology and (appOrTopology.tactics or appOrTopology)
+        local tactics = source and (source.state or source)
+        topology = tactics and tactics.board and tactics.board.topology
+    end
+    return math.max(1, Render.Topology.edgeCount(topology))
+end
+
+function Render.rotationDegrees(rotation, steps)
+    steps = math.max(1, tonumber(steps) or 4)
+    return ((rotation or 0) % steps) * (360 / steps)
 end
 
 local function addBearingTile(list, seen, kind, x, y)
@@ -2218,7 +2241,7 @@ end
 
 local function applyCamera(sim, app, targetX, targetY, targetZ)
     local visualRotation = app.viewRotationVisual or app.viewRotation or 0
-    local yaw = baseYaw + visualRotation * math.pi / 2
+    local yaw = baseYaw + visualRotation * ((math.pi * 2) / Render.rotationSteps(app))
     local horizontal = math.cos(cameraPitch) * cameraDistance
     local zoom = app and app.tacticalMode and Render.tacticalZoom(app) or 1
     targetX = targetX or (sim.player.x + 0.5)
@@ -4602,8 +4625,8 @@ local function drawTileInspectorPanel(rect, inspector)
     end
 end
 
-local function drawRotationCompass(x, y, size, rotation)
-    local compass = Render.rotationCompass(rotation)
+local function drawRotationCompass(x, y, size, rotation, steps)
+    local compass = Render.rotationCompass(rotation, steps)
     local cx = x + size * 0.5
     local cy = y + size * 0.5
     love.graphics.setColor(0.08, 0.09, 0.09, 0.86)
@@ -4868,7 +4891,7 @@ function Render.drawTacticalHud(sim, app)
             panel(layout.topLeft.x, layout.topLeft.y, layout.topLeft.w, 36, 0.7)
             love.graphics.setColor(0.82, 0.86, 0.78, 0.94)
             love.graphics.print("AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0), layout.topLeft.x + 12, layout.topLeft.y + 10)
-            drawRotationCompass(layout.topLeft.x + layout.topLeft.w - 48, layout.topLeft.y + 2, 32, app.viewRotation or 0)
+            drawRotationCompass(layout.topLeft.x + layout.topLeft.w - 48, layout.topLeft.y + 2, 32, app.viewRotation or 0, Render.rotationSteps(app))
         end
         return
     end
@@ -4885,10 +4908,11 @@ function Render.drawTacticalHud(sim, app)
     love.graphics.printf("End Turn  E", layout.topLeft.x + 16, layout.topLeft.y + 14, 142, "center", 0, 1.2, 1.2)
     love.graphics.setColor(0.48, 0.54, 0.58, 1)
     love.graphics.rectangle("line", layout.topLeft.x + 12, layout.topLeft.y + 10, 156, 48)
-    drawRotationCompass(layout.topLeft.x + 174, layout.topLeft.y + 10, 48, app.viewRotation or 0)
+    local rotationSteps = Render.rotationSteps(app)
+    drawRotationCompass(layout.topLeft.x + 174, layout.topLeft.y + 10, 48, app.viewRotation or 0, rotationSteps)
     love.graphics.setColor(0.82, 0.86, 0.78, 1)
     local textX = layout.topLeft.x + 236
-    love.graphics.print("turn " .. tostring(summary and summary.turn or 1) .. "  " .. tostring(summary and summary.phase or "-") .. "  view " .. tostring((app.viewRotation or 0) * 90), textX, layout.topLeft.y + 10)
+    love.graphics.print("turn " .. tostring(summary and summary.turn or 1) .. "  " .. tostring(summary and summary.phase or "-") .. "  view " .. tostring(math.floor(Render.rotationDegrees(app.viewRotation or 0, rotationSteps) + 0.5)), textX, layout.topLeft.y + 10)
     love.graphics.print("selected " .. tostring(summary and summary.selected or "-") .. " @" .. selectedAt .. "  AP " .. tostring(summary and summary.selectedAp or 0) .. "  HP " .. tostring(summary and summary.selectedHp or 0), textX, layout.topLeft.y + 31)
     love.graphics.setColor(0.76, 0.8, 0.72, 1)
     love.graphics.print("target " .. tostring(summary and summary.cursor and summary.cursor.x or "-") .. "," .. tostring(summary and summary.cursor and summary.cursor.y or "-") .. "  hover " .. (hover and (hover.x .. "," .. hover.y) or "-") .. "  zoom " .. tostring(math.floor(Render.tacticalZoom(app) * 100 + 0.5)) .. "%", textX, layout.topLeft.y + 52)
@@ -5007,7 +5031,7 @@ function Render.drawHud(sim, app)
         love.graphics.rectangle("fill", 0, 90, width, 2)
     end
     love.graphics.setColor(0.9, 0.92, 0.86, 1)
-    love.graphics.print(i18n.t("Thoth") .. "  " .. i18n.t("tick") .. " " .. sim.tick .. "  " .. i18n.t(sim.mode) .. "  " .. i18n.t("pos") .. " " .. sim.player.x .. "," .. sim.player.y .. "  " .. i18n.t("view") .. " " .. ((app.viewRotation or 0) * 90), 16, 10)
+    love.graphics.print(i18n.t("Thoth") .. "  " .. i18n.t("tick") .. " " .. sim.tick .. "  " .. i18n.t(sim.mode) .. "  " .. i18n.t("pos") .. " " .. sim.player.x .. "," .. sim.player.y .. "  " .. i18n.t("view") .. " " .. math.floor(Render.rotationDegrees(app.viewRotation or 0, Render.rotationSteps(app)) + 0.5), 16, 10)
     love.graphics.printf(i18n.t("status") .. " " .. i18n.t(tostring(app.status or sim.status)), width - 286, 10, 270, "right")
     love.graphics.printf(i18n.t("next") .. " " .. i18n.t(sim:nextStepText()), 16, 32, width - 320)
     local checklist = sim:objectiveChecklist()[1]

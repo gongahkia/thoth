@@ -300,16 +300,17 @@ local function resetVisualState(state, simulation)
 end
 
 local function turnView(state, delta)
+    local steps = Render.rotationSteps(state)
     local from = state.viewRotationVisual or state.viewRotation or 0
-    local target = ((state.viewRotation or 0) + delta) % 4
+    local target = ((state.viewRotation or 0) + delta) % steps
     local diff = target - from
-    while diff > 2 do
-        diff = diff - 4
+    while diff > steps / 2 do
+        diff = diff - steps
     end
-    while diff < -2 do
-        diff = diff + 4
+    while diff < -steps / 2 do
+        diff = diff + steps
     end
-    state.previousViewRotation = (state.viewRotation or 0) % 4
+    state.previousViewRotation = (state.viewRotation or 0) % steps
     state.viewRotation = target
     if Render.reducedMotion(state) then
         state.viewRotationVisual = target
@@ -317,7 +318,7 @@ local function turnView(state, delta)
     else
         state.viewTurn = { from = from, to = from + diff, t = 0, duration = 0.18 }
     end
-    state.status = "view " .. (state.viewRotation * 90)
+    state.status = "view " .. tostring(math.floor(Render.rotationDegrees(state.viewRotation, steps) + 0.5))
 end
 
 local function startTutorial(state)
@@ -1985,6 +1986,25 @@ end
 
 local gamepadAxisState = {}
 
+local function refreshTacticalPointerState(state)
+    if not (state and state.tactics) then
+        return
+    end
+    local steps = Render.rotationSteps(state)
+    state.viewRotation = (state.viewRotation or 0) % steps
+    if not state.viewTurn then
+        state.viewRotationVisual = state.viewRotation
+    end
+    if love and love.mouse and love.mouse.getPosition then
+        local x, y = love.mouse.getPosition()
+        Input.updateTacticalHover(state, x, y)
+    elseif state.tacticalHover then
+        state.tacticalInspector = Render.tacticalTileInspectorSummary(state)
+    end
+    state.tacticalOverlays = state.tactics.overlays
+    state.tacticalSummaryCache = nil
+end
+
 local function handleKey(key)
     if app.uiState == "title" then
         keyTitle(app, key)
@@ -2068,13 +2088,15 @@ local function handleKey(key)
     end
     if key == "[" then
         turnView(app, -1)
+        refreshTacticalPointerState(app)
         Audio.play(app.audio, "tick")
     elseif key == "]" then
         turnView(app, 1)
+        refreshTacticalPointerState(app)
         Audio.play(app.audio, "tick")
     elseif app.tactics and app.tactics:handleKey(key) then
-        app.tacticalOverlays = app.tactics.overlays
         TacticalRuntime.syncWorld(sim, app.tactics)
+        refreshTacticalPointerState(app)
         consumeTacticalHitEvents(app)
         Audio.play(app.audio, "tick")
     else
