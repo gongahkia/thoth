@@ -22,6 +22,8 @@ end
 
 local function smoke(args)
     local world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625)))
+    local player = Player.new(0, 0)
+    local renderStats = Render.visibleStats({ world = world, player = player, camera = Render.defaultCamera() }, 1280, 720)
     local totals = { land = 0, water = 0, river = 0, chunks = 0 }
     for _, scale in ipairs(world:metadata().scales) do
         for cy = -1, 1 do
@@ -42,6 +44,10 @@ local function smoke(args)
     print("land=" .. totals.land)
     print("water=" .. totals.water)
     print("rivers=" .. totals.river)
+    print("mesh_tiles=" .. renderStats.visibleTiles)
+    print("triangles=" .. renderStats.triangles)
+    print("billboards=" .. renderStats.billboards)
+    print("camera_height=" .. string.format("%.3f", renderStats.cameraHeight))
     love.event.quit(0)
 end
 
@@ -54,22 +60,27 @@ function love.load(args)
     app = {
         world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625))),
         player = Player.new(0, 0),
-        camera = { x = 0, y = 0 },
-        scaleIndex = 1,
-        overlayIndex = 1,
-        overlays = { "biome", "plates", "uplift", "rainfall", "flow", "erosion" },
+        camera = Render.defaultCamera(),
         paused = false,
+        mouseLook = true,
+        renderSmoke = hasArg(args, "--render-smoke"),
     }
+    if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(true) end
 end
 
 function love.update(dt)
     if not app then return end
+    local turn = (love.keyboard.isDown("e", "right") and 1 or 0) - (love.keyboard.isDown("q", "left") and 1 or 0)
+    local pitch = (love.keyboard.isDown("down") and 1 or 0) - (love.keyboard.isDown("up") and 1 or 0)
+    app.camera.yaw = app.camera.yaw + turn * dt * 1.9
+    app.camera.pitch = math.max(-0.42, math.min(0.38, app.camera.pitch + pitch * dt * 0.85))
     Player.update(app.player, dt, {
-        up = love.keyboard.isDown("w", "up"),
-        down = love.keyboard.isDown("s", "down"),
+        forward = love.keyboard.isDown("w"),
+        back = love.keyboard.isDown("s"),
         left = love.keyboard.isDown("a", "left"),
         right = love.keyboard.isDown("d", "right"),
         sprint = love.keyboard.isDown("lshift", "rshift"),
+        yaw = app.camera.yaw,
     }, app.world)
     app.camera.x = app.camera.x + (app.player.x - app.camera.x) * math.min(1, dt * 10)
     app.camera.y = app.camera.y + (app.player.y - app.camera.y) * math.min(1, dt * 10)
@@ -77,25 +88,32 @@ end
 
 function love.draw()
     if not app then return end
-    Render.draw(app)
+    local stats = Render.draw(app)
+    if app.renderSmoke and not app.renderSmokePrinted then
+        app.renderSmokePrinted = true
+        print("render-smoke=terrain3d")
+        print("render-smoke-tiles=" .. tostring(stats.visibleTiles))
+        print("render-smoke-triangles=" .. tostring(stats.triangles))
+        print("render-smoke-billboards=" .. tostring(stats.billboards))
+        love.event.quit(0)
+    end
 end
 
 function love.keypressed(key)
     if not app then return end
     if key == "escape" then love.event.quit(0) end
-    if key == "1" then app.scaleIndex = 1 end
-    if key == "2" then app.scaleIndex = 2 end
-    if key == "3" then app.scaleIndex = 3 end
-    if key == "[" then app.scaleIndex = math.max(1, app.scaleIndex - 1) end
-    if key == "]" then app.scaleIndex = math.min(#app.world:metadata().scales, app.scaleIndex + 1) end
-    if key == "tab" then app.overlayIndex = (app.overlayIndex % #app.overlays) + 1 end
+    if key == "f" then
+        app.mouseLook = not app.mouseLook
+        if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(app.mouseLook) end
+    end
     if key == "r" then
         app.world = WorldGen.new(os.time() % 1000000)
         app.player.x, app.player.y = 0, 0
     end
 end
 
-function love.wheelmoved(_, y)
-    if not app or y == 0 then return end
-    app.scaleIndex = math.max(1, math.min(#app.world:metadata().scales, app.scaleIndex + (y > 0 and -1 or 1)))
+function love.mousemoved(_, _, dx, dy)
+    if not (app and app.mouseLook) then return end
+    app.camera.yaw = app.camera.yaw + dx * 0.0025
+    app.camera.pitch = math.max(-0.42, math.min(0.38, app.camera.pitch + dy * 0.0018))
 end

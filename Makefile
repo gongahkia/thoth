@@ -1,4 +1,4 @@
-.PHONY: run test smoke clean
+.PHONY: run test smoke render-smoke clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -11,6 +11,9 @@ test:
 
 smoke:
 	$(LUAJIT) tests/run.lua --smoke
+
+render-smoke:
+	SDL_AUDIODRIVER=dummy $(LOVE) . --render-smoke
 
 clean:
 	rm -rf dist

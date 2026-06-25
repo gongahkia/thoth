@@ -5,8 +5,18 @@ function Player.new(x, y)
 end
 
 function Player.update(player, dt, input, world)
-    local dx = (input.right and 1 or 0) - (input.left and 1 or 0)
-    local dy = (input.down and 1 or 0) - (input.up and 1 or 0)
+    local dx, dy
+    if input.yaw then
+        local forward = (input.forward and 1 or 0) - (input.back and 1 or 0)
+        local strafe = (input.right and 1 or 0) - (input.left and 1 or 0)
+        local forwardX, forwardY = math.sin(input.yaw), -math.cos(input.yaw)
+        local rightX, rightY = math.cos(input.yaw), math.sin(input.yaw)
+        dx = forwardX * forward + rightX * strafe
+        dy = forwardY * forward + rightY * strafe
+    else
+        dx = (input.right and 1 or 0) - (input.left and 1 or 0)
+        dy = (input.down and 1 or 0) - (input.up and 1 or 0)
+    end
     if dx == 0 and dy == 0 then return player end
     local length = math.sqrt(dx * dx + dy * dy)
     dx, dy = dx / length, dy / length

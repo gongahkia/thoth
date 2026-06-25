@@ -1,5 +1,6 @@
 local Noise = require("src.noise")
 local Rng = require("src.rng")
+local Hydrology = require("src.hydrology")
 
 local WorldGen = {}
 WorldGen.__index = WorldGen
@@ -19,6 +20,7 @@ end
 local biomeIds = {
     ocean = true,
     coast = true,
+    lake = true,
     river = true,
     wetland = true,
     desert = true,
@@ -31,6 +33,14 @@ local biomeIds = {
     alpine = true,
     snow = true,
     rock = true,
+}
+
+local billboardKinds = {
+    tree = true,
+    reed = true,
+    rock = true,
+    shrub = true,
+    snow = true,
 }
 
 local function clamp(value, minValue, maxValue)
@@ -93,7 +103,8 @@ local function twoNearestPlates(seed, x, y, cellSize)
     return first, second
 end
 
-local function classifyBiome(elevation, water, river, temperature, moisture, slope)
+local function classifyBiome(elevation, water, river, temperature, moisture, slope, lake)
+    if lake then return "lake" end
     if water then
         return elevation > -0.06 and "coast" or "ocean"
     end
@@ -122,6 +133,7 @@ function WorldGen.new(seed, options)
         chunkSize = options.chunkSize or 64,
         seaLevel = options.seaLevel or 0,
         plateCellSize = options.plateCellSize or 640,
+        hydrologyRegionChunks = options.hydrologyRegionChunks or 4,
         cache = {},
     }, WorldGen)
 end
@@ -137,6 +149,13 @@ function WorldGen.biomeIds()
     return result
 end
 
+function WorldGen.billboardKinds()
+    local result = {}
+    for id in pairs(billboardKinds) do result[#result + 1] = id end
+    table.sort(result)
+    return result
+end
+
 function WorldGen:isValidBiome(id)
     return biomeIds[id] == true
 end
@@ -147,6 +166,7 @@ function WorldGen:metadata()
         seed = self.seed,
         chunkSize = self.chunkSize,
         seaLevel = self.seaLevel,
+        hydrologyRegionChunks = self.hydrologyRegionChunks,
         scales = scales,
     }
 end
@@ -211,7 +231,9 @@ function WorldGen:baseSample(x, y, scale)
         flow = rainfall,
         erosion = 0,
         river = false,
-        biome = classifyBiome(elevation, water, false, temperature, rainfall, slope),
+        lake = false,
+        lakeDepth = 0,
+        biome = classifyBiome(elevation, water, false, temperature, rainfall, slope, false),
     }
 end
 
@@ -220,68 +242,16 @@ function WorldGen:chunk(chunkX, chunkY, scale)
     local cacheKey = key(chunkX, chunkY, info.id)
     if self.cache[cacheKey] then return self.cache[cacheKey] end
     local size = self.chunkSize
-    local pad = 2
-    local all = {}
-    local ordered = {}
-    for ly = -pad, size + pad - 1 do
-        for lx = -pad, size + pad - 1 do
-            local sx = (chunkX * size + lx) * info.factor
-            local sy = (chunkY * size + ly) * info.factor
-            local cell = self:baseSample(sx, sy, info.id)
-            cell.lx, cell.ly = lx, ly
-            all[key(lx, ly)] = cell
-            ordered[#ordered + 1] = cell
-        end
-    end
-    table.sort(ordered, function(a, b) return a.elevationBase > b.elevationBase end)
-    for _, cell in ipairs(ordered) do
-        if not cell.water then
-            local best = nil
-            for oy = -1, 1 do
-                for ox = -1, 1 do
-                    if not (ox == 0 and oy == 0) then
-                        local candidate = all[key(cell.lx + ox, cell.ly + oy)]
-                        if candidate and candidate.elevationBase < cell.elevationBase and (not best or candidate.elevationBase < best.elevationBase) then
-                            best = candidate
-                        end
-                    end
-                end
-            end
-            if best then
-                cell.downX, cell.downY = best.x, best.y
-                local transfer = cell.flow * 0.92
-                best.flow = best.flow + transfer
-                local fall = math.max(0, cell.elevationBase - best.elevationBase)
-                cell.slope = clamp(math.max(cell.slope, fall / math.max(1, info.factor * 2)), 0, 1)
-            end
-        end
-    end
-    for _, cell in ipairs(ordered) do
-        local riverThreshold = info.id == "local" and 18 or (info.id == "region" and 10 or 6)
-        cell.erosion = clamp(math.log(cell.flow + 1) * cell.slope * 0.04, 0, 0.22)
-        local deposition = (cell.flow > riverThreshold and cell.slope < 0.035) and 0.025 or 0
-        cell.elevation = cell.elevationBase - cell.erosion + deposition
-        cell.water = cell.elevation <= self.seaLevel
-        cell.river = not cell.water and cell.flow > riverThreshold and cell.downX ~= nil
-        cell.moisture = clamp(cell.rainfall + math.log(cell.flow + 1) * 0.035, 0, 1)
-    end
-    table.sort(ordered, function(a, b) return a.elevationBase < b.elevationBase end)
-    for _, cell in ipairs(ordered) do
-        if cell.downX then
-            local dx = (cell.downX / info.factor) - chunkX * size
-            local dy = (cell.downY / info.factor) - chunkY * size
-            local downstream = all[key(dx, dy)]
-            if downstream and cell.elevation < downstream.elevation then
-                cell.elevation = downstream.elevation + 0.0005
-            end
-        end
-        cell.biome = classifyBiome(cell.elevation, cell.water, cell.river, cell.temperature, cell.moisture, cell.slope)
-    end
+    local region = Hydrology.region(self, chunkX, chunkY, info)
     local rows = {}
     for y = 1, size do
         rows[y] = {}
         for x = 1, size do
-            rows[y][x] = copyCell(all[key(x - 1, y - 1)])
+            local gx = chunkX * size + x - 1
+            local gy = chunkY * size + y - 1
+            local cell = copyCell(Hydrology.cell(region, gx, gy))
+            cell.biome = classifyBiome(cell.elevation, cell.water, cell.river, cell.temperature, cell.moisture, cell.slope, cell.lake)
+            rows[y][x] = cell
         end
     end
     local chunk = {
@@ -296,6 +266,10 @@ function WorldGen:chunk(chunkX, chunkY, scale)
     return chunk
 end
 
+function WorldGen:hydrologyStats(chunkX, chunkY, scale)
+    return Hydrology.stats(self, chunkX, chunkY, scaleInfo(scale))
+end
+
 function WorldGen:sample(x, y, scale)
     local info = scaleInfo(scale)
     local gx = floorDiv(x, info.factor)
@@ -305,6 +279,79 @@ function WorldGen:sample(x, y, scale)
     local lx = gx - chunkX * self.chunkSize
     local ly = gy - chunkY * self.chunkSize
     return self:chunk(chunkX, chunkY, info.id).cells[ly + 1][lx + 1]
+end
+
+function WorldGen:heightAt(x, y)
+    local ix = math.floor(x)
+    local iy = math.floor(y)
+    local fx = x - ix
+    local fy = y - iy
+    local h00 = self:sample(ix, iy, "local").elevation
+    local h10 = self:sample(ix + 1, iy, "local").elevation
+    local h01 = self:sample(ix, iy + 1, "local").elevation
+    local h11 = self:sample(ix + 1, iy + 1, "local").elevation
+    local hx0 = h00 + (h10 - h00) * fx
+    local hx1 = h01 + (h11 - h01) * fx
+    return hx0 + (hx1 - hx0) * fy
+end
+
+function WorldGen:normalAt(x, y)
+    local scale = 18
+    local dx = (self:heightAt(x + 1, y) - self:heightAt(x - 1, y)) * scale * 0.5
+    local dy = (self:heightAt(x, y + 1) - self:heightAt(x, y - 1)) * scale * 0.5
+    local nx, ny, nz = -dx, -dy, 1
+    local length = math.sqrt(nx * nx + ny * ny + nz * nz)
+    if length <= 0 then return { x = 0, y = 0, z = 1 } end
+    return { x = nx / length, y = ny / length, z = nz / length }
+end
+
+local function billboardSpecFor(seed, cell)
+    if cell.water or cell.river then return nil end
+    local chance = Rng.unitAt(seed, cell.x, cell.y, 701)
+    local kind, width, height, color
+    if (cell.biome == "temperate_forest" or cell.biome == "rainforest" or cell.biome == "boreal_forest") and cell.slope < 0.18 and chance < 0.18 then
+        kind, width, height, color = "tree", 1.3, 3.4, { 0.08, 0.26, 0.12 }
+    elseif cell.biome == "wetland" and chance < 0.16 then
+        kind, width, height, color = "reed", 0.7, 1.8, { 0.28, 0.34, 0.16 }
+    elseif (cell.biome == "rock" or cell.biome == "alpine") and chance < 0.12 then
+        kind, width, height, color = "rock", 1.4, 1.3, { 0.36, 0.34, 0.32 }
+    elseif cell.biome == "desert" and chance < 0.1 then
+        kind, width, height, color = "shrub", 0.9, 1.2, { 0.34, 0.28, 0.12 }
+    elseif cell.biome == "snow" and chance < 0.08 then
+        kind, width, height, color = "snow", 0.9, 1.1, { 0.86, 0.88, 0.82 }
+    else
+        return nil
+    end
+    local jx = Rng.signed(seed, cell.x, cell.y, 709) * 1.5
+    local jy = Rng.signed(seed, cell.x, cell.y, 719) * 1.5
+    return {
+        kind = kind,
+        x = cell.x + jx,
+        y = cell.y + jy,
+        z = cell.elevation,
+        width = width,
+        height = height,
+        color = color,
+        biome = cell.biome,
+    }
+end
+
+function WorldGen:billboards(chunkX, chunkY)
+    local cacheKey = key("billboards", chunkX, chunkY)
+    if self.cache[cacheKey] then return self.cache[cacheKey] end
+    local chunk = self:chunk(chunkX, chunkY, "local")
+    local result = {}
+    for y = 3, chunk.size - 2, 4 do
+        for x = 3, chunk.size - 2, 4 do
+            local spec = billboardSpecFor(self.seed, chunk.cells[y][x])
+            if spec then
+                spec.z = self:heightAt(spec.x, spec.y)
+                result[#result + 1] = spec
+            end
+        end
+    end
+    self.cache[cacheKey] = result
+    return result
 end
 
 return WorldGen
