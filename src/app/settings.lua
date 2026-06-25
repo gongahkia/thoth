@@ -41,6 +41,7 @@ local controls = {
     { kind = "bind", binding = "moveRight", label = "Move Right", group = "input" },
     { kind = "bind", binding = "interact", label = "Interact", group = "input" },
     { kind = "bind", binding = "pause", label = "Pause", group = "input" },
+    { kind = "toggle", setting = "partyMovement", label = "Party Auto-Path", group = "input" },
     { kind = "toggle", setting = "highContrast", label = "High Contrast", group = "accessibility" },
     { kind = "toggle", setting = "highContrastTiles", label = "High-Contrast Tiles", group = "accessibility" },
     { kind = "cycle", setting = "colorblindMode", label = "Colorblind Mode", group = "accessibility" },
@@ -103,6 +104,7 @@ function Settings.defaults()
         subtitles = true,
         fontScale = 1,
         calmHud = false,
+        partyMovement = false,
         keybinds = copyMap(defaultKeybinds),
     }
 end

@@ -5,6 +5,9 @@ local Save = require("src.game.save")
 local Replay = require("src.game.replay")
 local Input = require("src.app.input")
 local Render = require("src.app.render")
+local Topology = require("src.core.topology")
+local Noise = require("src.core.noise")
+local TileAtlas = require("src.app.tile_atlas")
 local ReplayViewer = require("src.app.replay_viewer")
 local Audio = require("src.app.audio")
 local Accessibility = require("src.app.accessibility")
@@ -85,6 +88,70 @@ local function readFile(path)
 end
 
 local tests = {}
+
+tests[#tests + 1] = function()
+    expect(Topology.edgeCount("triangle") == 3, "triangle topology should expose three edges")
+    expect(Topology.edgeCount("square") == 4, "square topology should expose four edges")
+    expect(Topology.edgeCount("hex") == 6, "hex topology should expose six edges")
+    local triangle = TacticsState.new({
+        board = { width = 4, height = 4, topology = "triangle" },
+        units = { { id = "scout", side = "player", x = 2, y = 2, hp = 3, ap = 2, visionRadius = 4 } },
+    })
+    expect(#triangle:neighbors(2, 2) == 3, "triangle state movement should use three neighbors")
+    expect(triangle:snapshot().board.topology == "triangle", "tactical snapshot should persist topology")
+    local hex = TacticsState.new({
+        board = { width = 5, height = 5, topology = "hex" },
+        units = { { id = "scout", side = "player", x = 3, y = 3, hp = 3, ap = 2, visionRadius = 4 } },
+    })
+    expect(#hex:neighbors(3, 3) == 6, "hex state movement should use six neighbors")
+    hex:apply(TacticsState.commands.move("scout", "east"))
+    expect(hex:unit("scout").x == 4 and hex:unit("scout").y == 3, "hex east move should update unit coordinates")
+    local runtime = TacticalRuntime.new(makeTacticalSim(9100))
+    local before = runtime.topology
+    expect(runtime:handleKey("="), "runtime should expose topology increase")
+    expect(runtime.topology ~= before and runtime.state.board.topology == runtime.topology, "topology cycle should regenerate board state")
+    expect(runtime:handleKey("-"), "runtime should expose topology decrease")
+    expect(runtime.topology == before and runtime.state.board.topology == runtime.topology, "topology decrease should return to previous edge count")
+end
+
+tests[#tests + 1] = function()
+    local a = Noise.sample("fractal", 17, 3, 5, { source = "perlin", frequency = 0.2, octaves = 3 })
+    local b = Noise.sample("fractal", 17, 3, 5, { source = "perlin", frequency = 0.2, octaves = 3 })
+    expect(a == b and a >= 0 and a <= 1, "fractal noise should be deterministic and normalized")
+    expect(Noise.sample("simplex", 17, 3, 5) == Noise.sample("simplex", 17, 3, 5), "simplex noise should be deterministic")
+    expect(TileAtlas.entryFor({ terrainType = "brine_pool" }).id == "brine_pool", "tile atlas should map terrain type entries")
+end
+
+tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = { width = 6, height = 3, topology = "square" },
+        units = {
+            { id = "lead", side = "player", x = 1, y = 2, hp = 5, ap = 3, visionRadius = 4 },
+            { id = "second", side = "player", x = 1, y = 1, hp = 5, ap = 3, visionRadius = 4 },
+            { id = "third", side = "player", x = 1, y = 3, hp = 5, ap = 3, visionRadius = 4 },
+        },
+        objectives = {
+            { id = "exit", x = 6, y = 3, integrity = 3, maxIntegrity = 3, evacuateAt = { x = 6, y = 1 } },
+        },
+    })
+    local runtime = {
+        state = state,
+        selectedUnitId = "lead",
+        cursor = { x = 1, y = 2 },
+        turn = 1,
+        lastSeenEnemies = {},
+        cache = {},
+        partyMovementEnabled = true,
+        explorationMode = true,
+        status = "",
+    }
+    TacticalRuntime.refreshOverlays(runtime)
+    expect(TacticalRuntime.movePartyTo(runtime, 4, 2), "party auto-path should move toward reachable target")
+    expect(state:unit("lead").x == 4 and state:unit("lead").y == 2, "party leader should reach clicked tile")
+    expect(state:unit("second").x == 3 and state:unit("second").y == 2, "second party member should follow the previous lead tile")
+    expect(state:unit("third").x == 2 and state:unit("third").y == 2, "third party member should remain in row formation")
+    expect(runtime.explorationMode == true, "party movement without contact should stay in exploration mode")
+end
 
 tests[#tests + 1] = function()
     local function makeState()

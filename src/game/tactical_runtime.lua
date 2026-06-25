@@ -801,6 +801,7 @@ function Runtime.new(sim, options)
         setAiDebug = Runtime.setAiDebug,
         toggleAiDebug = Runtime.toggleAiDebug,
         setTopology = Runtime.setTopology,
+        cycleTopology = Runtime.cycleTopology,
         partyPathTo = Runtime.partyPathTo,
         movePartyTo = Runtime.movePartyTo,
         drainHitEvents = Runtime.drainHitEvents,
@@ -844,6 +845,8 @@ function Runtime.loadRouteVariant(runtime, variantId)
     return runtime
 end
 
+local setStatus
+
 function Runtime.setTopology(runtime, topology)
     topology = topology or "square"
     local currentVariant = runtime.route and runtime.route.variantId
@@ -868,6 +871,19 @@ function Runtime.setTopology(runtime, topology)
     Runtime.syncWorld(runtime.sim, runtime)
     setStatus(runtime, "topology " .. tostring(runtime.topology))
     return runtime
+end
+
+function Runtime.cycleTopology(runtime, delta)
+    local order = { "triangle", "square", "hex" }
+    delta = delta or 1
+    local current = runtime and runtime.topology or "square"
+    for index, topology in ipairs(order) do
+        if topology == current then
+            local nextIndex = ((index - 1 + delta) % #order) + 1
+            return Runtime.setTopology(runtime, order[nextIndex])
+        end
+    end
+    return Runtime.setTopology(runtime, "triangle")
 end
 
 local function partyUnits(runtime)
@@ -1533,7 +1549,7 @@ function Runtime.clearOverwatchPreview(runtime)
     Runtime.refreshOverlays(runtime)
 end
 
-local function setStatus(runtime, message)
+function setStatus(runtime, message)
     runtime.message = message
     runtime.status = message
 end
@@ -2244,6 +2260,10 @@ function Runtime.handleKey(runtime, key)
         Runtime.teamwork(runtime)
     elseif key == "e" then
         Runtime.endPlayerTurn(runtime)
+    elseif key == "+" or key == "=" or key == "kp+" then
+        Runtime.cycleTopology(runtime, 1)
+    elseif key == "-" or key == "kp-" then
+        Runtime.cycleTopology(runtime, -1)
     else
         return false
     end

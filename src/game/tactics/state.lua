@@ -3011,7 +3011,7 @@ function State:interactTile(unitId, x, y)
         tile.losBlocker = true
     elseif kind == "shelf" then
         tile.state = "braced"
-        tile.coverEdges = { north = "full", east = "half", south = "full", west = "half" }
+        tile.coverEdges = normalizeCoverEdges({ north = "full", east = "half", south = "full", west = "half" })
         tile.losBlocker = true
     elseif kind == "furnace" then
         tile.state = tile.state == "lit" and "doused" or "lit"
@@ -3085,7 +3085,7 @@ function State:convertTile(x, y, conversion)
         tile.height = math.max(tile.height or 0, 1)
         tile.state = "collapsed"
     elseif conversion == "raise_cover" then
-        tile.coverEdges = { north = "half", east = "half", south = "half", west = "half" }
+        tile.coverEdges = normalizeCoverEdges({ north = "half", east = "half", south = "half", west = "half" })
         tile.state = "cover_raised"
     elseif conversion == "lower_cover" then
         tile.coverEdges = emptyCoverEdges()

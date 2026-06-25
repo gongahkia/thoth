@@ -15,6 +15,8 @@ end
 local i18n = { t = t }
 
 local Render = {}
+Render.Topology = require("src.core.topology")
+Render.TileAtlas = require("src.app.tile_atlas")
 local state = {
     loaded = false,
     headless = false,
@@ -1236,6 +1238,19 @@ local function pushTileQuad(vertices, x, y, z, u)
     vertices[#vertices + 1] = d
 end
 
+function Render.pushTilePolygon(vertices, topology, x, y, z, u, inset)
+    local points = Render.Topology.vertices(topology, x, y, inset or 0.03)
+    if #points < 3 then
+        return
+    end
+    local first = tileVertex(points[1][1], points[1][2], z, u)
+    for index = 2, #points - 1 do
+        vertices[#vertices + 1] = first
+        vertices[#vertices + 1] = tileVertex(points[index][1], points[index][2], z, u)
+        vertices[#vertices + 1] = tileVertex(points[index + 1][1], points[index + 1][2], z, u)
+    end
+end
+
 local function pushFace(vertices, a, b, c, d, u)
     vertices[#vertices + 1] = tileVertex(a[1], a[2], a[3], u)
     vertices[#vertices + 1] = tileVertex(b[1], b[2], b[3], u)
@@ -1277,9 +1292,18 @@ function Render.pushTacticalGridLine(vertices, x1, y1, x2, y2, z, halfWidth, u)
         u)
 end
 
-function Render.pushTacticalGridRing(vertices, x, y, z, u)
+function Render.pushTacticalGridRing(vertices, x, y, z, u, topology)
     local inset = 0.035
     local width = 0.012
+    topology = Render.Topology.normalize(topology)
+    if topology ~= "square" then
+        local points = Render.Topology.vertices(topology, x, y, inset)
+        for index = 1, #points do
+            local nextPoint = points[index % #points + 1]
+            Render.pushTacticalGridLine(vertices, points[index][1], points[index][2], nextPoint[1], nextPoint[2], z, width, u)
+        end
+        return
+    end
     local left = x + inset
     local right = x + 1 - inset
     local top = y + inset
@@ -1446,6 +1470,12 @@ local function tacticalBoardBounds(sim, app)
     return originX + 1, originX + tactics.board.width, originY + 1, originY + tactics.board.height
 end
 
+function Render.tacticalTopology(sim, app)
+    local source = (app and app.tactics) or (sim and sim.tactics)
+    local tactics = source and (source.state or source)
+    return Render.Topology.normalize(tactics and tactics.board and tactics.board.topology)
+end
+
 function Render.worldTileCacheKey(sim, profile, settings, app, minX, maxX, minY, maxY)
     local z = sim.player.z or 0
     local tactical = app and app.tacticalMode
@@ -1465,6 +1495,7 @@ function Render.worldTileCacheKey(sim, profile, settings, app, minX, maxX, minY,
         parts[#parts + 1] = tostring(runtime and runtime.worldRevision or 0)
         parts[#parts + 1] = tostring(tactics and tactics.revision and tactics:revision("terrain") or 0)
         parts[#parts + 1] = tostring(tactics and tactics.revision and tactics:revision("units") or 0)
+        parts[#parts + 1] = tostring(tactics and tactics.board and tactics.board.topology or "square")
         return table.concat(parts, "|")
     end
     if not tactical then
@@ -1492,6 +1523,7 @@ end
 local function buildWorldTileModel(sim, profile, settings, app, minX, maxX, minY, maxY)
     local vertices = {}
     local z = sim.player.z or 0
+    local topology = Render.tacticalTopology(sim, app)
     if not minX then
         minX, maxX, minY, maxY = tacticalBoardBounds(sim, app)
     end
@@ -1509,13 +1541,16 @@ local function buildWorldTileModel(sim, profile, settings, app, minX, maxX, minY
         for x = minX, maxX do
             index = index + 1
             local tile = sim.world:peekTile(x, y, z)
-            local rgb = app and app.tacticalMode and Render.tacticalTileColor(tile) or (Defs.tile(tile.id).color or { 255, 255, 255 })
+            local atlasEntry = app and app.tacticalMode and Render.TileAtlas.entryFor(tile) or nil
+            local rgb = atlasEntry and atlasEntry.color or (app and app.tacticalMode and Render.tacticalTileColor(tile) or (Defs.tile(tile.id).color or { 255, 255, 255 }))
             local light = app and app.tacticalMode and 0.98 or lightAt(sim, x, y, profile)
             data:setPixel(index - 1, 0, litTileColor(rgb, light, settings))
             local u = (index - 0.5) / (width * height)
             local tileHeight = app and app.tacticalMode and Render.tacticalRenderHeight(tile) or 0
             if tileHeight > 0 then
                 pushBox(vertices, x, y, z, tileHeight, u)
+            elseif app and app.tacticalMode then
+                Render.pushTilePolygon(vertices, topology, x, y, z, u)
             else
                 pushTileQuad(vertices, x, y, z, u)
             end
@@ -1545,11 +1580,12 @@ function Render.shouldDrawTacticalGridTile(tile)
     return true
 end
 
-function Render.buildTacticalGridModel(sim, minX, maxX, minY, maxY)
+function Render.buildTacticalGridModel(sim, minX, maxX, minY, maxY, app)
     if not (state.g3d and state.assets.white and sim and sim.world) then
         return nil, 0
     end
     local z = sim.player.z or 0
+    local topology = Render.tacticalTopology(sim, app)
     local cells = {}
     for y = minY, maxY do
         for x = minX, maxX do
@@ -1570,7 +1606,7 @@ function Render.buildTacticalGridModel(sim, minX, maxX, minY, maxY)
         local r, g, b, a = Render.tacticalGridColor(tile)
         data:setPixel(index - 1, 0, r, g, b, a)
         local tileHeight = Render.tacticalRenderHeight(tile)
-        Render.pushTacticalGridRing(vertices, cell.x, cell.y, z + tileHeight + 0.012, (index - 0.5) / total)
+        Render.pushTacticalGridRing(vertices, cell.x, cell.y, z + tileHeight + 0.012, (index - 0.5) / total, topology)
     end
     local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()
@@ -1584,7 +1620,7 @@ function Render.cachedTacticalGridModel(sim, profile, settings, app)
     end
     local key = "tacticalGrid|" .. Render.worldTileCacheKey(sim, profile or lightProfile(sim), settings, app, minX, maxX, minY, maxY)
     return Render.cachedModel("tacticalGrid", key, function()
-        return Render.buildTacticalGridModel(sim, minX, maxX, minY, maxY)
+        return Render.buildTacticalGridModel(sim, minX, maxX, minY, maxY, app)
     end)
 end
 
@@ -1929,9 +1965,10 @@ local function buildTacticalFogModel(source, visibility, z)
     local data = love.image.newImageData(#tiles, 1)
     local originX = source.originX or 0
     local originY = source.originY or 0
+    local topology = Render.Topology.normalize(tactics.board and tactics.board.topology)
     for index, tile in ipairs(tiles) do
         data:setPixel(index - 1, 0, 0.008, 0.01, 0.012, 0.68)
-        pushTileQuad(vertices, originX + tile.x, originY + tile.y, z or 0, (index - 0.5) / #tiles)
+        Render.pushTilePolygon(vertices, topology, originX + tile.x, originY + tile.y, z or 0, (index - 0.5) / #tiles)
     end
     local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()
@@ -1972,8 +2009,7 @@ function Render.tacticalTileAt(app, screenX, screenY)
     if not worldX then
         worldX, worldY = Render.screenToWorldPoint(view, screenX, screenY)
     end
-    local tileX = math.floor(worldX - (source.originX or 0))
-    local tileY = math.floor(worldY - (source.originY or 0))
+    local tileX, tileY = Render.Topology.cellAtPoint(source.state.board.topology, worldX, worldY, source.originX or 0, source.originY or 0)
     if not source.state:inBounds(tileX, tileY) then
         return nil
     end
@@ -2010,15 +2046,34 @@ local tacticalRingSpecs = {
     hover = { inset = 0.24, width = 0.035, z = 0.13 },
 }
 
-local function pushTileRing(vertices, x, y, baseZ, kind, u, scale)
+local function pushTileRing(vertices, x, y, baseZ, kind, u, scale, topology)
     local spec = tacticalRingSpecs[kind] or tacticalRingSpecs.movement
     scale = clamp(scale or 1, 0.75, 1.75)
     local inset = clamp(spec.inset - ((scale - 1) * 0.055), 0.02, 0.42)
+    local z = baseZ + spec.z
+    topology = Render.Topology.normalize(topology)
+    if topology ~= "square" then
+        local points = Render.Topology.vertices(topology, x, y, inset)
+        if spec.fillOnly then
+            if #points >= 3 then
+                local first = { points[1][1], points[1][2], z }
+                for index = 2, #points - 1 do
+                    pushFace(vertices, first, { points[index][1], points[index][2], z }, { points[index + 1][1], points[index + 1][2], z }, first, u)
+                end
+            end
+            return
+        end
+        local width = spec.width * scale
+        for index = 1, #points do
+            local nextPoint = points[index % #points + 1]
+            pushOverlayLine(vertices, points[index][1], points[index][2], nextPoint[1], nextPoint[2], z, width, u)
+        end
+        return
+    end
     local left = x + inset
     local right = x + 1 - inset
     local top = y + inset
     local bottom = y + 1 - inset
-    local z = baseZ + spec.z
     if spec.fillOnly then
         pushFace(vertices, { left, top, z }, { right, top, z }, { right, bottom, z }, { left, bottom, z }, u)
         return
@@ -2038,11 +2093,12 @@ local function buildTacticalOverlayModel(entries, source, settings, z)
     local data = love.image.newImageData(#entries, 1)
     local originX = source.originX or 0
     local originY = source.originY or 0
+    local topology = Render.Topology.normalize(source.state and source.state.board and source.state.board.topology)
     for index, entry in ipairs(entries) do
         local color = Render.accessibleColor(settings, entry.color or tacticalOverlayColors[entry.kind] or { 1, 1, 1, 0.5 })
         data:setPixel(index - 1, 0, color[1], color[2], color[3], color[4] or 0.5)
         local tile = source.state and source.state:inBounds(entry.x, entry.y) and source.state:tileAt(entry.x, entry.y) or nil
-        pushTileRing(vertices, originX + entry.x, originY + entry.y, (z or 0) + Render.tacticalRenderHeight(tile), entry.kind, (index - 0.5) / #entries, entry.iconScale or 1)
+        pushTileRing(vertices, originX + entry.x, originY + entry.y, (z or 0) + Render.tacticalRenderHeight(tile), entry.kind, (index - 0.5) / #entries, entry.iconScale or 1, topology)
     end
     local model = state.g3d.newModel(vertices, newImageFromData(data))
     model:makeNormals()

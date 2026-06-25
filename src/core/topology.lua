@@ -76,25 +76,27 @@ function Topology.delta(kind, direction, x, y)
     kind = Topology.normalize(kind)
     if kind == "hex" then
         local deltas = ((y or 0) % 2 == 0) and hexEvenDelta or hexOddDelta
-        return deltas[direction] or squareDelta.east
+        return deltas[direction]
     end
     if kind == "triangle" then
         if direction == "west" or direction == "east" then
             return squareDelta[direction]
         end
         if Topology.trianglePointsUp(x, y) then
-            return direction == "south" and squareDelta.south or squareDelta.east
+            return direction == "south" and squareDelta.south or nil
         end
-        return direction == "north" and squareDelta.north or squareDelta.east
+        return direction == "north" and squareDelta.north or nil
     end
-    return squareDelta[direction] or squareDelta.south
+    return squareDelta[direction]
 end
 
 function Topology.neighbors(kind, x, y)
     local result = {}
     for _, direction in ipairs(Topology.directions(kind, x, y)) do
         local delta = Topology.delta(kind, direction, x, y)
-        result[#result + 1] = { direction = direction, x = x + delta.x, y = y + delta.y }
+        if delta then
+            result[#result + 1] = { direction = direction, x = x + delta.x, y = y + delta.y }
+        end
     end
     return result
 end
