@@ -1191,6 +1191,18 @@ local function newImageFromData(data)
     return image
 end
 
+function Render.loadTileAtlas()
+    local meta = Render.TileAtlas.meta()
+    local image = loadImage(meta.image)
+    if image then
+        return image, meta
+    end
+    if love and love.image then
+        return newImageFromData(Render.TileAtlas.makeImageData(love.image)), meta
+    end
+    return nil, meta
+end
+
 function Render.load()
     state.loaded = true
     state.headless = not (love and love.graphics)
@@ -1217,30 +1229,64 @@ function Render.load()
     state.assets.alpha = newSolidImage(0.58, 0.12, 0.46, 1)
     state.assets.boss = newSolidImage(0.82, 0.22, 0.12, 1)
     state.assets.spriteAtlas, state.assets.spriteAtlasMeta = loadSpriteAtlas()
+    state.assets.tileAtlas, state.assets.tileAtlasMeta = Render.loadTileAtlas()
     state.g3d.camera.updateProjectionMatrix()
     state.g3d.camera.updateViewMatrix()
     Render.state = state
     return state
 end
 
-local function tileVertex(x, y, z, u)
-    return {x, y, z, u, 0.5, 0, 0, 1, 1, 1, 1, 1}
+local function tileVertex(x, y, z, u, v)
+    return {x, y, z, u or 0.5, v or 0.5, 0, 0, 1, 1, 1, 1, 1}
 end
 
 local function billboardVertex(x, y, z, u, v)
     return {x, y, z, u, v, 0, 0, 1, 1, 1, 1, 1}
 end
 
-local function pushTileQuad(vertices, x, y, z, u)
+function Render.tileUvAt(texture, sx, sy)
+    if type(texture) ~= "table" then
+        return texture, 0.5
+    end
+    return texture.u0 + (texture.u1 - texture.u0) * sx, texture.v0 + (texture.v1 - texture.v0) * sy
+end
+
+function Render.texturedTileVertex(x, y, z, texture, sx, sy)
+    local u, v = Render.tileUvAt(texture, sx, sy)
+    return tileVertex(x, y, z, u, v)
+end
+
+function Render.polygonBounds(points)
+    local minX = math.huge
+    local minY = math.huge
+    local maxX = -math.huge
+    local maxY = -math.huge
+    for _, point in ipairs(points) do
+        minX = math.min(minX, point[1])
+        minY = math.min(minY, point[2])
+        maxX = math.max(maxX, point[1])
+        maxY = math.max(maxY, point[2])
+    end
+    return minX, minY, math.max(0.0001, maxX - minX), math.max(0.0001, maxY - minY)
+end
+
+function Render.polygonTileVertex(point, z, texture, minX, minY, width, height)
+    if type(texture) ~= "table" then
+        return tileVertex(point[1], point[2], z, texture)
+    end
+    return Render.texturedTileVertex(point[1], point[2], z, texture, (point[1] - minX) / width, (point[2] - minY) / height)
+end
+
+local function pushTileQuad(vertices, x, y, z, texture)
     local gap = 0.03
     local left = x + gap
     local right = x + 1 - gap
     local top = y + gap
     local bottom = y + 1 - gap
-    local a = tileVertex(left, top, z, u)
-    local b = tileVertex(right, top, z, u)
-    local c = tileVertex(right, bottom, z, u)
-    local d = tileVertex(left, bottom, z, u)
+    local a = Render.texturedTileVertex(left, top, z, texture, 0, 0)
+    local b = Render.texturedTileVertex(right, top, z, texture, 1, 0)
+    local c = Render.texturedTileVertex(right, bottom, z, texture, 1, 1)
+    local d = Render.texturedTileVertex(left, bottom, z, texture, 0, 1)
     vertices[#vertices + 1] = a
     vertices[#vertices + 1] = b
     vertices[#vertices + 1] = c
@@ -1251,27 +1297,28 @@ end
 
 local pushFace
 
-function Render.pushTilePolygon(vertices, topology, x, y, z, u, inset, originX, originY)
+function Render.pushTilePolygon(vertices, topology, x, y, z, texture, inset, originX, originY)
     local points = Render.Topology.vertices(topology, x, y, inset or 0, originX, originY)
     if #points < 3 then
         return
     end
-    local first = tileVertex(points[1][1], points[1][2], z, u)
+    local minX, minY, width, height = Render.polygonBounds(points)
+    local first = Render.polygonTileVertex(points[1], z, texture, minX, minY, width, height)
     for index = 2, #points - 1 do
         vertices[#vertices + 1] = first
-        vertices[#vertices + 1] = tileVertex(points[index][1], points[index][2], z, u)
-        vertices[#vertices + 1] = tileVertex(points[index + 1][1], points[index + 1][2], z, u)
+        vertices[#vertices + 1] = Render.polygonTileVertex(points[index], z, texture, minX, minY, width, height)
+        vertices[#vertices + 1] = Render.polygonTileVertex(points[index + 1], z, texture, minX, minY, width, height)
     end
 end
 
-local function pushTilePrism(vertices, topology, x, y, z, height, u, inset, originX, originY)
+local function pushTilePrism(vertices, topology, x, y, z, height, texture, inset, originX, originY)
     local floor = z or 0
     local top = floor + height
     local points = Render.Topology.vertices(topology, x, y, inset or 0.01, originX, originY)
     if #points < 3 then
         return
     end
-    Render.pushTilePolygon(vertices, topology, x, y, top, u, inset or 0.01, originX, originY)
+    Render.pushTilePolygon(vertices, topology, x, y, top, texture, inset or 0.01, originX, originY)
     for index = 1, #points do
         local nextPoint = points[index % #points + 1]
         pushFace(vertices,
@@ -1279,20 +1326,20 @@ local function pushTilePrism(vertices, topology, x, y, z, height, u, inset, orig
             { points[index][1], points[index][2], top },
             { nextPoint[1], nextPoint[2], top },
             { nextPoint[1], nextPoint[2], floor },
-            u)
+            texture)
     end
 end
 
-function pushFace(vertices, a, b, c, d, u)
-    vertices[#vertices + 1] = tileVertex(a[1], a[2], a[3], u)
-    vertices[#vertices + 1] = tileVertex(b[1], b[2], b[3], u)
-    vertices[#vertices + 1] = tileVertex(c[1], c[2], c[3], u)
-    vertices[#vertices + 1] = tileVertex(a[1], a[2], a[3], u)
-    vertices[#vertices + 1] = tileVertex(c[1], c[2], c[3], u)
-    vertices[#vertices + 1] = tileVertex(d[1], d[2], d[3], u)
+function pushFace(vertices, a, b, c, d, texture)
+    vertices[#vertices + 1] = Render.texturedTileVertex(a[1], a[2], a[3], texture, 0, 1)
+    vertices[#vertices + 1] = Render.texturedTileVertex(b[1], b[2], b[3], texture, 0, 0)
+    vertices[#vertices + 1] = Render.texturedTileVertex(c[1], c[2], c[3], texture, 1, 0)
+    vertices[#vertices + 1] = Render.texturedTileVertex(a[1], a[2], a[3], texture, 0, 1)
+    vertices[#vertices + 1] = Render.texturedTileVertex(c[1], c[2], c[3], texture, 1, 0)
+    vertices[#vertices + 1] = Render.texturedTileVertex(d[1], d[2], d[3], texture, 1, 1)
 end
 
-local function pushBox(vertices, x, y, z, height, u)
+local function pushBox(vertices, x, y, z, height, texture)
     local gap = 0.035
     local l = x + gap
     local r = x + 1 - gap
@@ -1300,11 +1347,11 @@ local function pushBox(vertices, x, y, z, height, u)
     local b = y + 1 - gap
     local floor = z or 0
     local top = floor + height
-    pushFace(vertices, { l, t, top }, { r, t, top }, { r, b, top }, { l, b, top }, u)
-    pushFace(vertices, { l, t, floor }, { l, t, top }, { r, t, top }, { r, t, floor }, u)
-    pushFace(vertices, { r, t, floor }, { r, t, top }, { r, b, top }, { r, b, floor }, u)
-    pushFace(vertices, { r, b, floor }, { r, b, top }, { l, b, top }, { l, b, floor }, u)
-    pushFace(vertices, { l, b, floor }, { l, b, top }, { l, t, top }, { l, t, floor }, u)
+    pushFace(vertices, { l, t, top }, { r, t, top }, { r, b, top }, { l, b, top }, texture)
+    pushFace(vertices, { l, t, floor }, { l, t, top }, { r, t, top }, { r, t, floor }, texture)
+    pushFace(vertices, { r, t, floor }, { r, t, top }, { r, b, top }, { r, b, floor }, texture)
+    pushFace(vertices, { r, b, floor }, { r, b, top }, { l, b, top }, { l, b, floor }, texture)
+    pushFace(vertices, { l, b, floor }, { l, b, top }, { l, t, top }, { l, t, floor }, texture)
 end
 
 function Render.pushTacticalGridLine(vertices, x1, y1, x2, y2, z, halfWidth, u)
@@ -1646,32 +1693,38 @@ local function buildWorldTileModel(sim, profile, settings, app, minX, maxX, minY
     end
     local width = maxX - minX + 1
     local height = maxY - minY + 1
-    local data = love.image.newImageData(width * height, 1)
+    local tileAtlas = app and app.tacticalMode and state.assets and state.assets.tileAtlas or nil
+    local data = tileAtlas and nil or love.image.newImageData(width * height, 1)
     local index = 0
     for y = minY, maxY do
         for x = minX, maxX do
             index = index + 1
             local tile = sim.world:peekTile(x, y, z)
             local atlasEntry = app and app.tacticalMode and Render.TileAtlas.entryFor(tile) or nil
-            local rgb = atlasEntry and atlasEntry.color or (app and app.tacticalMode and Render.tacticalTileColor(tile) or (Defs.tile(tile.id).color or { 255, 255, 255 }))
-            local light = app and app.tacticalMode and 0.98 or lightAt(sim, x, y, profile)
-            data:setPixel(index - 1, 0, litTileColor(rgb, light, settings))
-            local u = (index - 0.5) / (width * height)
-            local tileHeight = app and app.tacticalMode and Render.tacticalRenderHeight(tile) or 0
-            if tileHeight > 0 then
-                if app and app.tacticalMode then
-                    pushTilePrism(vertices, topology, x - originX, y - originY, z, tileHeight, u, 0.01, originX, originY)
-                else
-                    pushBox(vertices, x, y, z, tileHeight, u)
-                end
-            elseif app and app.tacticalMode then
-                Render.pushTilePolygon(vertices, topology, x - originX, y - originY, z, u, 0, originX, originY)
+            local texture = nil
+            if tileAtlas then
+                texture = Render.TileAtlas.uvRect(atlasEntry, tileAtlas:getWidth(), tileAtlas:getHeight())
             else
-                pushTileQuad(vertices, x, y, z, u)
+                local rgb = atlasEntry and atlasEntry.color or (app and app.tacticalMode and Render.tacticalTileColor(tile) or (Defs.tile(tile.id).color or { 255, 255, 255 }))
+                local light = app and app.tacticalMode and 0.98 or lightAt(sim, x, y, profile)
+                data:setPixel(index - 1, 0, litTileColor(rgb, light, settings))
+                texture = (index - 0.5) / (width * height)
+            end
+            local tileHeight = app and app.tacticalMode and Render.tacticalRenderHeight(tile) or 0
+            if (not tile or not tile.shapeVoid) and tileHeight > 0 then
+                if app and app.tacticalMode then
+                    pushTilePrism(vertices, topology, x - originX, y - originY, z, tileHeight, texture, 0.01, originX, originY)
+                else
+                    pushBox(vertices, x, y, z, tileHeight, texture)
+                end
+            elseif (not tile or not tile.shapeVoid) and app and app.tacticalMode then
+                Render.pushTilePolygon(vertices, topology, x - originX, y - originY, z, texture, 0, originX, originY)
+            elseif not tile or not tile.shapeVoid then
+                pushTileQuad(vertices, x, y, z, texture)
             end
         end
     end
-    local model = state.g3d.newModel(vertices, newImageFromData(data))
+    local model = state.g3d.newModel(vertices, tileAtlas or newImageFromData(data))
     model:makeNormals()
     return model
 end
@@ -1687,6 +1740,9 @@ end
 
 function Render.shouldDrawTacticalGridTile(tile)
     if not tile then
+        return false
+    end
+    if tile.shapeVoid then
         return false
     end
     if tile.blocker and (tile.terrainType == "sealed_archive_mass" or Render.tileHasTag(tile, "sealed_mass")) then
@@ -1930,7 +1986,7 @@ local function tacticalCameraBounds(app)
     end
     local originX = source.originX or 0
     local originY = source.originY or 0
-    local minX, minY, maxX, maxY = Render.Topology.centerBounds(board.topology, board.width, board.height, originX, originY)
+    local minX, minY, maxX, maxY = Render.Topology.centerBounds(board.topology, board.width, board.height, originX, originY, board.shape)
     return minX, minY, maxX, maxY
 end
 
@@ -2083,7 +2139,7 @@ local function buildTacticalFogModel(source, visibility, z, minX, maxX, minY, ma
     maxY = maxY or tactics.board.height
     for y = minY, maxY do
         for x = minX, maxX do
-            if visibility.fog[tileKey(x, y)] then
+            if tactics:inBounds(x, y) and visibility.fog[tileKey(x, y)] then
                 local tile = tactics:tileAt(x, y)
                 if Render.shouldDrawTacticalGridTile(tile) then
                     tiles[#tiles + 1] = { x = x, y = y }

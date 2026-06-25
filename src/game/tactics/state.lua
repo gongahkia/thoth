@@ -905,6 +905,39 @@ local function sortedKeys(values)
     return keys
 end
 
+local function nearestOpenShapeCell(state, x, y, used)
+    local best = nil
+    local bestDistance = math.huge
+    for cy = 1, state.board.height do
+        for cx = 1, state.board.width do
+            local key = tileKey(cx, cy)
+            local tile = state.board.tiles[key] or normalizeTile()
+            if state:inBounds(cx, cy) and not (used and used[key]) and tile.blocker ~= true then
+                local dx = cx - x
+                local dy = cy - y
+                local distance = dx * dx + dy * dy
+                if distance < bestDistance then
+                    best = { x = cx, y = cy }
+                    bestDistance = distance
+                end
+            end
+        end
+    end
+    return best
+end
+
+local function fitShapePosition(state, item, label, used)
+    if state:inBounds(item.x, item.y) and not (used and used[tileKey(item.x, item.y)]) then
+        return item
+    end
+    expect(state:rectInBounds(item.x, item.y), label .. " starts out of bounds")
+    local fitted = nearestOpenShapeCell(state, item.x, item.y, used)
+    expect(fitted, label .. " has no valid topology-shaped tile")
+    item.x = fitted.x
+    item.y = fitted.y
+    return item
+end
+
 function State.new(options)
     options = options or {}
     local board = options.board or options
@@ -926,6 +959,7 @@ function State.new(options)
             width = width,
             height = height,
             topology = Topology.normalize(board.topology or options.topology),
+            shape = Topology.normalize(board.shape or options.shape or board.topology or options.topology),
             expanse = board.expanse == true,
             regions = copyValue(board.regions),
             districts = copyValue(board.districts),
@@ -963,12 +997,14 @@ function State.new(options)
     for key, tile in pairs(board.tiles or {}) do
         state.board.tiles[key] = normalizeTile(tile)
     end
+    local usedUnitTiles = {}
     for index, unit in ipairs(options.units or {}) do
         local normalized = normalizeUnit(unit, index, state.rules.defaultAp)
-        expect(state:inBounds(normalized.x, normalized.y), "unit " .. normalized.id .. " starts out of bounds")
+        fitShapePosition(state, normalized, "unit " .. normalized.id, usedUnitTiles)
         expect(not state:unitAt(normalized.x, normalized.y), "unit " .. normalized.id .. " starts on occupied tile")
         state.units[normalized.id] = normalized
         state.unitOrder[#state.unitOrder + 1] = normalized.id
+        usedUnitTiles[tileKey(normalized.x, normalized.y)] = true
     end
     state:rebuildUnitIndex()
     if state.selectedUnitId then
@@ -979,14 +1015,16 @@ function State.new(options)
     end
     for index, objective in ipairs(options.objectives or {}) do
         local normalized = normalizeObjective(objective, index)
-        expect(state:inBounds(normalized.x, normalized.y), "objective " .. normalized.id .. " starts out of bounds")
-        expect(state:inBounds(normalized.evacuateAt.x, normalized.evacuateAt.y), "objective " .. normalized.id .. " evacuation tile out of bounds")
+        fitShapePosition(state, normalized, "objective " .. normalized.id)
+        if not state:inBounds(normalized.evacuateAt.x, normalized.evacuateAt.y) then
+            fitShapePosition(state, normalized.evacuateAt, "objective " .. normalized.id .. " evacuation tile")
+        end
         state.objectives[normalized.id] = normalized
         state.objectiveOrder[#state.objectiveOrder + 1] = normalized.id
     end
     for index, cargo in ipairs(options.cargo or {}) do
         local normalized = normalizeCargo(cargo, index)
-        expect(state:inBounds(normalized.x, normalized.y), "cargo " .. normalized.id .. " starts out of bounds")
+        fitShapePosition(state, normalized, "cargo " .. normalized.id)
         if normalized.carriedBy then
             expect(state.units[normalized.carriedBy], "cargo carrier does not exist")
             state.units[normalized.carriedBy].carryingCargo = normalized.id
@@ -1029,8 +1067,12 @@ function State:bonusStatus()
     return Bonus.status(self.bonus)
 end
 
-function State:inBounds(x, y)
+function State:rectInBounds(x, y)
     return isInteger(x) and isInteger(y) and x >= 1 and y >= 1 and x <= self.board.width and y <= self.board.height
+end
+
+function State:inBounds(x, y)
+    return self:rectInBounds(x, y) and Topology.inShape(self.board.shape or self:topology(), self.board.width, self.board.height, x, y)
 end
 
 function State:topology()
@@ -1168,7 +1210,7 @@ function State:computeVisibleTiles(unit)
     local maxY = math.min(self.board.height, unit.y + radius)
     for y = minY, maxY do
         for x = minX, maxX do
-            if self:distance(unit.x, unit.y, x, y) <= radius then
+            if self:inBounds(x, y) and self:distance(unit.x, unit.y, x, y) <= radius then
                 if x == unit.x and y == unit.y then
                     visible[tileKey(x, y)] = true
                 else
@@ -1195,10 +1237,12 @@ function State:visibilityGrid(side)
     local fog = {}
     for y = 1, self.board.height do
         for x = 1, self.board.width do
-            local key = tileKey(x, y)
-            local isVisible = visible[key] == true
-            tiles[key] = { x = x, y = y, visible = isVisible, fog = not isVisible }
-            fog[key] = not isVisible
+            if self:inBounds(x, y) then
+                local key = tileKey(x, y)
+                local isVisible = visible[key] == true
+                tiles[key] = { x = x, y = y, visible = isVisible, fog = not isVisible }
+                fog[key] = not isVisible
+            end
         end
     end
     local units = {}
@@ -1419,6 +1463,9 @@ function State:lineOfSight(fromX, fromY, toX, toY)
     local modifiers = {}
     for index, point in ipairs(points) do
         if index < #points then
+            if not self:inBounds(point.x, point.y) then
+                return { visible = false, blockedBy = { x = point.x, y = point.y, height = 0 }, heightDelta = fromHeight - targetHeight, highGround = fromHeight > targetHeight, lowGround = fromHeight < targetHeight, modifiers = modifiers, obscured = #modifiers > 0 }
+            end
             local tile = self:tileAt(point.x, point.y)
             if tile.hazard and tile.hazard.active and obscurantKinds[tile.hazard.kind] then
                 modifiers[#modifiers + 1] = { x = point.x, y = point.y, kind = tile.hazard.kind, countdown = tile.hazard.countdown }
@@ -3739,6 +3786,7 @@ function State:snapshot()
             width = self.board.width,
             height = self.board.height,
             topology = self.board.topology,
+            shape = self.board.shape,
             expanse = self.board.expanse,
             regions = copyValue(self.board.regions),
             districts = copyValue(self.board.districts),

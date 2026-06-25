@@ -34,6 +34,8 @@ local aliases = {
     tri = "triangle",
     square = "square",
     quad = "square",
+    rectangle = "square",
+    rect = "square",
     hex = "hex",
     hexagon = "hex",
 }
@@ -99,6 +101,30 @@ function Topology.neighbors(kind, x, y)
         end
     end
     return result
+end
+
+function Topology.inShape(kind, width, height, x, y)
+    kind = Topology.normalize(kind)
+    width = width or 0
+    height = height or 0
+    if not (x and y and x >= 1 and y >= 1 and x <= width and y <= height) then
+        return false
+    end
+    if kind == "triangle" then
+        local rowLength = math.max(1, math.ceil(width * y / math.max(1, height)))
+        local startX = math.floor((width - rowLength) / 2) + 1
+        return x >= startX and x < startX + rowLength
+    end
+    if kind == "hex" then
+        local centerY = (height + 1) * 0.5
+        local halfHeight = math.max(1, (height - 1) * 0.5)
+        local maxCut = math.max(1, math.floor(width / 3))
+        local cut = math.floor(maxCut * (math.abs(y - centerY) / halfHeight) + 0.5)
+        local rowLength = math.max(1, width - cut)
+        local startX = math.floor((width - rowLength) / 2) + 1
+        return x >= startX and x < startX + rowLength
+    end
+    return true
 end
 
 local function hexAxial(x, y)
@@ -270,18 +296,20 @@ function Topology.center(kind, x, y, originX, originY)
     return originX + x + 0.5, originY + y + 0.5
 end
 
-function Topology.boardBounds(kind, width, height, originX, originY)
+function Topology.boardBounds(kind, width, height, originX, originY, shape)
     local minX = math.huge
     local minY = math.huge
     local maxX = -math.huge
     local maxY = -math.huge
     for y = 1, height or 0 do
         for x = 1, width or 0 do
-            for _, point in ipairs(Topology.vertices(kind, x, y, 0, originX, originY)) do
-                minX = math.min(minX, point[1])
-                minY = math.min(minY, point[2])
-                maxX = math.max(maxX, point[1])
-                maxY = math.max(maxY, point[2])
+            if Topology.inShape(shape or kind, width, height, x, y) then
+                for _, point in ipairs(Topology.vertices(kind, x, y, 0, originX, originY)) do
+                    minX = math.min(minX, point[1])
+                    minY = math.min(minY, point[2])
+                    maxX = math.max(maxX, point[1])
+                    maxY = math.max(maxY, point[2])
+                end
             end
         end
     end
@@ -291,18 +319,20 @@ function Topology.boardBounds(kind, width, height, originX, originY)
     return minX, minY, maxX, maxY
 end
 
-function Topology.centerBounds(kind, width, height, originX, originY)
+function Topology.centerBounds(kind, width, height, originX, originY, shape)
     local minX = math.huge
     local minY = math.huge
     local maxX = -math.huge
     local maxY = -math.huge
     for y = 1, height or 0 do
         for x = 1, width or 0 do
-            local cx, cy = Topology.center(kind, x, y, originX, originY)
-            minX = math.min(minX, cx)
-            minY = math.min(minY, cy)
-            maxX = math.max(maxX, cx)
-            maxY = math.max(maxY, cy)
+            if Topology.inShape(shape or kind, width, height, x, y) then
+                local cx, cy = Topology.center(kind, x, y, originX, originY)
+                minX = math.min(minX, cx)
+                minY = math.min(minY, cy)
+                maxX = math.max(maxX, cx)
+                maxY = math.max(maxY, cy)
+            end
         end
     end
     if minX == math.huge then

@@ -545,7 +545,7 @@ function Runtime.syncWorld(sim, runtime)
             local worldX = runtime.originX + x
             local worldY = runtime.originY + y
             local tileId = "archive_wall"
-            if x >= 1 and x <= tactics.board.width and y >= 1 and y <= tactics.board.height then
+            if tactics:inBounds(x, y) then
                 local tile = tactics:tileAt(x, y)
                 tileId = "archive_floor"
                 if tile.destroyed then
@@ -576,7 +576,8 @@ function Runtime.syncWorld(sim, runtime)
                     tags = copyList(tile.tags),
                 })
             else
-                sim.world:setTile(worldX, worldY, 0, { id = tileId, data = 0, height = 0, blocker = true, losBlocker = true, kind = "boundary_wall", tags = { "boundary" } })
+                local shapeVoid = x >= 1 and x <= tactics.board.width and y >= 1 and y <= tactics.board.height
+                sim.world:setTile(worldX, worldY, 0, { id = tileId, data = 0, height = 0, blocker = true, losBlocker = true, kind = "boundary_wall", shapeVoid = shapeVoid, tags = shapeVoid and { "shape_void" } or { "boundary" } })
             end
         end
     end

@@ -268,9 +268,9 @@ render-smoke: check-submodules
 	@set -e; \
 	tmp=$$(mktemp); \
 	if command -v xvfb-run >/dev/null 2>&1; then \
-		xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --smoke --render-smoke | tee $$tmp; \
+		SDL_AUDIODRIVER=dummy xvfb-run -a --server-args="-screen 0 1280x720x24" $(LOVE) . --smoke --render-smoke | tee $$tmp; \
 	else \
-		$(LOVE) . --smoke --render-smoke | tee $$tmp; \
+		SDL_AUDIODRIVER=dummy $(LOVE) . --smoke --render-smoke | tee $$tmp; \
 	fi; \
 	grep -q "render-smoke-renderer=render3d" $$tmp; \
 	grep -q "render-smoke-mode=render3d" $$tmp; \

@@ -120,7 +120,7 @@ tests[#tests + 1] = function()
     hitX, hitY = Topology.cellAtPoint("hex", hcx, hcy)
     expect(hitX == 2 and hitY == 2, "hex hit testing should resolve tile centers")
     local triangle = TacticsState.new({
-        board = { width = 4, height = 4, topology = "triangle" },
+        board = { width = 4, height = 4, topology = "triangle", shape = "square" },
         units = { { id = "scout", side = "player", x = 2, y = 2, hp = 3, ap = 2, visionRadius = 4 } },
     })
     expect(#triangle:neighbors(2, 2) == 3, "triangle state movement should use three neighbors")
@@ -132,6 +132,37 @@ tests[#tests + 1] = function()
     expect(#hex:neighbors(3, 3) == 6, "hex state movement should use six neighbors")
     hex:apply(TacticsState.commands.move("scout", "east"))
     expect(hex:unit("scout").x == 4 and hex:unit("scout").y == 3, "hex east move should update unit coordinates")
+    local function shapeCount(kind, width, height)
+        local count = 0
+        for y = 1, height do
+            for x = 1, width do
+                if Topology.inShape(kind, width, height, x, y) then
+                    count = count + 1
+                end
+            end
+        end
+        return count
+    end
+    expect(shapeCount("triangle", 6, 6) == 21 and Topology.inShape("triangle", 6, 6, 3, 1) and not Topology.inShape("triangle", 6, 6, 1, 1), "triangle topology board mask should form a triangle")
+    expect(shapeCount("hex", 6, 6) == 30 and Topology.inShape("hex", 6, 6, 2, 1) and not Topology.inShape("hex", 6, 6, 1, 1) and not Topology.inShape("hex", 6, 6, 6, 2), "hex topology board mask should form a hexagon")
+    expect(shapeCount("square", 6, 6) == 36, "square topology board mask should remain rectangular")
+    local shaped = TacticsState.new({
+        board = { width = 6, height = 6, topology = "triangle" },
+        units = { { id = "warden", side = "player", x = 1, y = 3, hp = 6, ap = 3 } },
+    })
+    expect(shaped:inBounds(shaped:unit("warden").x, shaped:unit("warden").y) and not shaped:inBounds(1, 1), "topology-shaped boards should relocate fixture units into the mask")
+    local sim = {
+        player = { x = 0, y = 0, z = 0 },
+        world = {
+            tiles = {},
+            setTile = function(self, x, y, z, tile)
+                self.tiles[tostring(x) .. ":" .. tostring(y)] = tile
+            end,
+        },
+    }
+    TacticalRuntime.syncWorld(sim, { state = shaped, selectedUnitId = "warden", cursor = { x = 1, y = 1 }, originX = 0, originY = 0 })
+    local warden = shaped:unit("warden")
+    expect(sim.world.tiles["1:1"].shapeVoid == true and sim.world.tiles[tostring(warden.x) .. ":" .. tostring(warden.y)].shapeVoid ~= true, "topology-shaped world sync should mark clipped cells as shape void")
     local runtime = TacticalRuntime.new(makeTacticalSim(9100))
     local before = runtime.topology
     expect(runtime:handleKey("="), "runtime should expose topology increase")
@@ -149,6 +180,24 @@ tests[#tests + 1] = function()
     expect(a == b and a >= 0 and a <= 1, "fractal noise should be deterministic and normalized")
     expect(Noise.sample("simplex", 17, 3, 5) == Noise.sample("simplex", 17, 3, 5), "simplex noise should be deterministic")
     expect(TileAtlas.entryFor({ terrainType = "brine_pool" }).id == "brine_pool", "tile atlas should map terrain type entries")
+    expect(TileAtlas.entryFor({ terrainType = "sunken_water" }).id == "brine_pool", "tile atlas should map terrain aliases")
+    local rect = TileAtlas.uvRect(TileAtlas.entryFor({ terrainType = "heat_vent" }), 64, 48)
+    expect(rect.u0 < rect.u1 and rect.v0 < rect.v1 and rect.entry == "heat_vent", "tile atlas should expose uv rects")
+    local fakeImage = {
+        newImageData = function(width, height)
+            return {
+                width = width,
+                height = height,
+                pixels = 0,
+                setPixel = function(self)
+                    self.pixels = self.pixels + 1
+                end,
+            }
+        end,
+    }
+    local data, columns, rows = TileAtlas.makeImageData(fakeImage)
+    local entryCount = #TileAtlas.entries()
+    expect(data.width == 64 and data.height == 48 and columns == 4 and rows == 3 and data.pixels == entryCount * 16 * 16, "tile atlas should generate a 4x3 16px fallback atlas")
 end
 
 tests[#tests + 1] = function()

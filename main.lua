@@ -1286,6 +1286,9 @@ local function printRenderSmoke(state)
     print("render-smoke-overlay-flank=" .. tostring(overlays.flank or 0))
     print("render-smoke-overlay-intent=" .. tostring(overlays.intent or 0))
     print("render-smoke-overlay-hazard=" .. tostring(overlays.hazard or 0))
+    if love and love.event then
+        love.event.quit(0)
+    end
 end
 
 local function printTacticalSmoke(state)
@@ -2094,7 +2097,7 @@ local function handleKey(key)
         turnView(app, 1)
         refreshTacticalPointerState(app)
         Audio.play(app.audio, "tick")
-    elseif app.tactics and app.tactics:handleKey(key) then
+    elseif app.tactics and app.tactics.handleKey and app.tactics:handleKey(key) then
         TacticalRuntime.syncWorld(sim, app.tactics)
         refreshTacticalPointerState(app)
         consumeTacticalHitEvents(app)
