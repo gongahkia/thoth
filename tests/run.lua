@@ -183,6 +183,25 @@ tests[#tests + 1] = function()
 end
 
 tests[#tests + 1] = function()
+    local state = TacticsState.new({
+        board = { width = 5, height = 3 },
+        units = {
+            { id = "warden", side = "player", x = 1, y = 2, hp = 5, ap = 4 },
+            { id = "bailiff", side = "enemy", x = 4, y = 2, hp = 2 },
+        },
+    })
+    expect(state:unitAt(4, 2).id == "bailiff", "unit index should resolve initial occupant")
+    state:moveUnitTo(state:unit("warden"), 2, 2)
+    expect(state:unitAt(1, 2) == nil and state:unitAt(2, 2).id == "warden", "unit index should update after moveUnitTo")
+    state:unit("bailiff").x = 5
+    expect(state:unitAt(4, 2) == nil and state:unitAt(5, 2).id == "bailiff", "unit index should recover from direct coordinate mutation")
+    state:damageUnit("bailiff", 99)
+    expect(state:unitAt(5, 2) == nil, "unit index should drop dead units")
+    local preview = state:movementPreview("warden", { includePaths = false })
+    expect(preview.reachable[1].path == nil, "movement preview should support no-path overlay mode")
+end
+
+tests[#tests + 1] = function()
     local function makeState()
         return TacticsState.new({
             board = {

@@ -1,4 +1,4 @@
-.PHONY: run smoke title-smoke settings-smoke estate-smoke legacy-combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke tactical-smoke tactical-ai-debug-smoke tactical-perf-smoke storefront-previews sprite-import-smoke model-import-smoke validate test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled render-benchmark package-build package-title-smoke package clean doctor check-submodules
+.PHONY: run smoke title-smoke settings-smoke estate-smoke legacy-combat-smoke curio-smoke camp-smoke pause-smoke confirm-smoke gameover-smoke credits-smoke journal-smoke tutorial-smoke toast-smoke polish-smoke keyboard-smoke controller-smoke render-smoke tactical-smoke tactical-ai-debug-smoke tactical-perf-smoke storefront-previews sprite-import-smoke model-import-smoke validate test check merchant-balance-pass benchmark benchmark-smoke benchmark-scaled benchmark-large render-benchmark package-build package-title-smoke package clean doctor check-submodules
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -436,6 +436,9 @@ benchmark-smoke:
 
 benchmark-scaled:
 	THOTH_BENCH_TICKS=900 THOTH_BENCH_RUNS=24 $(LUAJIT) benchmarks/tactical_route.lua
+
+benchmark-large:
+	$(LUAJIT) benchmarks/tactical_large_map.lua
 
 tactical-perf-smoke: benchmark-smoke render-benchmark
 

@@ -1501,7 +1501,81 @@ local function tacticalBoardBounds(sim, app)
     end
     local originX = source.originX or 0
     local originY = source.originY or 0
-    return originX + 1, originX + tactics.board.width, originY + 1, originY + tactics.board.height
+    local minX, maxX, minY, maxY = Render.tacticalLogicalBounds(source, app)
+    return originX + minX, originX + maxX, originY + minY, originY + maxY
+end
+
+Render.tacticalCullMargin = 4
+Render.tacticalChunkSize = 16
+
+function Render.tacticalChunkMin(value)
+    return math.floor((value - 1) / Render.tacticalChunkSize) * Render.tacticalChunkSize + 1
+end
+
+function Render.tacticalChunkMax(value)
+    return math.ceil(value / Render.tacticalChunkSize) * Render.tacticalChunkSize
+end
+
+function Render.tacticalLogicalBounds(source, app, margin)
+    local tactics = source and (source.state or source)
+    local board = tactics and tactics.board
+    if not board then
+        return 1, 1, 1, 1
+    end
+    local originX = source.originX or 0
+    local originY = source.originY or 0
+    local view = app and app.worldView
+    local camera = view and view.tacticalCamera
+    if not (app and app.tacticalMode and view and camera) then
+        return 1, board.width, 1, board.height
+    end
+    local rect = view.boardRect or { x = 0, y = 0, w = camera.screenWidth or 0, h = camera.screenHeight or 0 }
+    if (rect.w or 0) <= 0 or (rect.h or 0) <= 0 then
+        return 1, board.width, 1, board.height
+    end
+    local minWorldX, maxWorldX, minWorldY, maxWorldY = nil, nil, nil, nil
+    local corners = {
+        { rect.x, rect.y },
+        { rect.x + rect.w, rect.y },
+        { rect.x, rect.y + rect.h },
+        { rect.x + rect.w, rect.y + rect.h },
+    }
+    for _, corner in ipairs(corners) do
+        local worldX, worldY = Render.tacticalScreenToWorldPoint(view, corner[1], corner[2])
+        if worldX and worldY then
+            minWorldX = minWorldX and math.min(minWorldX, worldX) or worldX
+            maxWorldX = maxWorldX and math.max(maxWorldX, worldX) or worldX
+            minWorldY = minWorldY and math.min(minWorldY, worldY) or worldY
+            maxWorldY = maxWorldY and math.max(maxWorldY, worldY) or worldY
+        end
+    end
+    if not minWorldX then
+        return 1, board.width, 1, board.height
+    end
+    local pad = margin or Render.tacticalCullMargin
+    local minX = clamp(Render.tacticalChunkMin(math.floor(minWorldX - originX) - pad), 1, board.width)
+    local maxX = clamp(Render.tacticalChunkMax(math.ceil(maxWorldX - originX) + pad), 1, board.width)
+    local minY = clamp(Render.tacticalChunkMin(math.floor(minWorldY - originY) - pad), 1, board.height)
+    local maxY = clamp(Render.tacticalChunkMax(math.ceil(maxWorldY - originY) + pad), 1, board.height)
+    return minX, maxX, minY, maxY
+end
+
+function Render.tileInTacticalLogicalBounds(x, y, minX, maxX, minY, maxY)
+    return x >= minX and x <= maxX and y >= minY and y <= maxY
+end
+
+function Render.tacticalLod(source, app)
+    local tactics = source and (source.state or source)
+    local board = tactics and tactics.board
+    local cells = board and (board.width * board.height) or 0
+    local zoom = Render.tacticalZoom(app)
+    return {
+        cells = cells,
+        lowZoom = zoom < 1.15,
+        hideGrid = cells >= 8192 and zoom < 1.05,
+        hideMovement = cells >= 4096 and zoom < 1.15,
+        hideHover = cells >= 8192 and zoom < 0.95,
+    }
 end
 
 function Render.tacticalTopology(sim, app)
@@ -1997,14 +2071,18 @@ function Render.tacticalFogSummary(tactics, visibility, lastSeenEnemies)
     return summary
 end
 
-local function buildTacticalFogModel(source, visibility, z)
+local function buildTacticalFogModel(source, visibility, z, minX, maxX, minY, maxY)
     local tactics = source and source.state
     if not (tactics and visibility and visibility.fog and state.g3d and state.assets.white) then
         return nil, 0
     end
     local tiles = {}
-    for y = 1, tactics.board.height do
-        for x = 1, tactics.board.width do
+    minX = minX or 1
+    maxX = maxX or tactics.board.width
+    minY = minY or 1
+    maxY = maxY or tactics.board.height
+    for y = minY, maxY do
+        for x = minX, maxX do
             if visibility.fog[tileKey(x, y)] then
                 local tile = tactics:tileAt(x, y)
                 if Render.shouldDrawTacticalGridTile(tile) then
@@ -2037,15 +2115,20 @@ local function drawTacticalFog(sim, app)
     end
     local visibility = tacticalVisibilityGrid(source, app)
     local z = ((sim and sim.player and sim.player.z) or 0) + 0.026
+    local minX, maxX, minY, maxY = Render.tacticalLogicalBounds(source, app)
     local key = table.concat({
         "fog",
         tostring(source.originX or 0),
         tostring(source.originY or 0),
+        tostring(minX),
+        tostring(maxX),
+        tostring(minY),
+        tostring(maxY),
         tostring(z),
         Render.tacticalVisibilityCacheKey(source.state) or Render.cacheValueKey(visibility and visibility.fog or {}),
     }, "|")
     local model, count = Render.cachedModel("tacticalFog", key, function()
-        return buildTacticalFogModel(source, visibility, z)
+        return buildTacticalFogModel(source, visibility, z, minX, maxX, minY, maxY)
     end)
     if model then
         love.graphics.setColor(1, 1, 1, 1)
@@ -2165,8 +2248,12 @@ local function drawTacticalOverlays(sim, app)
     local entries, counts = Render.cachedTacticalOverlayEntries(source, app)
     counts.total = #entries
     local drawnEntries = {}
+    local minX, maxX, minY, maxY = Render.tacticalLogicalBounds(source, app)
+    local lod = Render.tacticalLod(source, app)
     for _, entry in ipairs(entries) do
-        if entry.kind == "movement" or entry.kind == "intent" or entry.kind == "overwatch" or entry.kind == "aiDebug" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor" then
+        local inView = Render.tileInTacticalLogicalBounds(entry.x, entry.y, minX, maxX, minY, maxY)
+        local movementHidden = lod.hideMovement and entry.kind == "movement"
+        if inView and not movementHidden and (entry.kind == "movement" or entry.kind == "intent" or entry.kind == "overwatch" or entry.kind == "aiDebug" or entry.kind == "objective" or entry.kind == "blocker" or entry.kind == "cursor") then
             if entry.kind == "movement" then
                 drawnEntries[#drawnEntries + 1] = { kind = "movementFill", x = entry.x, y = entry.y, label = entry.label, color = { 0.1, 0.42, 0.9, 0.34 } }
             end
@@ -2174,18 +2261,20 @@ local function drawTacticalOverlays(sim, app)
         end
     end
     local selected = app and app.tactics and app.tactics.selectedUnitId and source.state:unit(app.tactics.selectedUnitId)
-    if selected then
+    if selected and Render.tileInTacticalLogicalBounds(selected.x, selected.y, minX, maxX, minY, maxY) then
         drawnEntries[#drawnEntries + 1] = { kind = "selected", x = selected.x, y = selected.y, label = "selected" }
     end
-    if app and app.tacticalHover then
+    if app and app.tacticalHover and not lod.hideHover and Render.tileInTacticalLogicalBounds(app.tacticalHover.x, app.tacticalHover.y, minX, maxX, minY, maxY) then
         drawnEntries[#drawnEntries + 1] = { kind = "hover", x = app.tacticalHover.x, y = app.tacticalHover.y, label = "hover" }
     end
     if app and app.tacticalIntentHover then
         for _, tile in ipairs(app.tacticalIntentHover.targetTiles or {}) do
-            drawnEntries[#drawnEntries + 1] = { kind = "intent", x = tile.x, y = tile.y, label = "legend_target", color = { 1.0, 0.48, 0.22, 0.96 } }
+            if Render.tileInTacticalLogicalBounds(tile.x, tile.y, minX, maxX, minY, maxY) then
+                drawnEntries[#drawnEntries + 1] = { kind = "intent", x = tile.x, y = tile.y, label = "legend_target", color = { 1.0, 0.48, 0.22, 0.96 } }
+            end
         end
         local sourceTile = app.tacticalIntentHover.sourceTile
-        if sourceTile then
+        if sourceTile and Render.tileInTacticalLogicalBounds(sourceTile.x, sourceTile.y, minX, maxX, minY, maxY) then
             drawnEntries[#drawnEntries + 1] = { kind = "selected", x = sourceTile.x, y = sourceTile.y, label = "legend_source", color = { 1.0, 0.68, 0.24, 0.98 } }
         end
     end
@@ -2197,7 +2286,9 @@ local function drawTacticalOverlays(sim, app)
         if flash.targetSide == "player" and not flash.blocked then
             color = { 1.0, 0.24, 0.18, 0.82 * alpha }
         end
-        drawnEntries[#drawnEntries + 1] = { kind = "intent", x = flash.x, y = flash.y, label = "hit", color = color, iconScale = 1.2 + progress * 0.75 }
+        if Render.tileInTacticalLogicalBounds(flash.x, flash.y, minX, maxX, minY, maxY) then
+            drawnEntries[#drawnEntries + 1] = { kind = "intent", x = flash.x, y = flash.y, label = "hit", color = color, iconScale = 1.2 + progress * 0.75 }
+        end
     end
     if #drawnEntries > 0 and state.g3d and state.assets.white then
         local z = ((sim and sim.player and sim.player.z) or 0) + 0.035
@@ -2205,6 +2296,12 @@ local function drawTacticalOverlays(sim, app)
             "overlayModel",
             tostring(source.originX or 0),
             tostring(source.originY or 0),
+            tostring(minX),
+            tostring(maxX),
+            tostring(minY),
+            tostring(maxY),
+            tostring(lod.hideMovement),
+            tostring(lod.hideHover),
             tostring(z),
             Render.settingsRenderKey(app and app.settings),
             Render.cacheValueKey(drawnEntries),
@@ -2669,10 +2766,15 @@ local function drawTacticalIntentArrows(sim, app)
     end
     local visibility = tacticalVisibilityGrid(source, app)
     local z = ((sim and sim.player and sim.player.z) or 0) + 0.08
+    local minX, maxX, minY, maxY = Render.tacticalLogicalBounds(source, app)
     local key = table.concat({
         "intentArrows",
         tostring(source.originX or 0),
         tostring(source.originY or 0),
+        tostring(minX),
+        tostring(maxX),
+        tostring(minY),
+        tostring(maxY),
         tostring(z),
         Render.tacticalVisibilityCacheKey(tactics) or "",
         Render.cacheValueKey(visibility and visibility.visible or {}),
@@ -2688,7 +2790,9 @@ local function drawTacticalIntentArrows(sim, app)
             local sourceTile = intent and intent.sourceTile
             local sourceVisible = not visibility or visibility.visible[tileKey(unit.x, unit.y)] == true
             local targetVisible = target and (not visibility or visibility.visible[tileKey(target.x, target.y)] == true)
-            if target and sourceTile and sourceVisible and targetVisible then
+            local sourceInView = sourceTile and Render.tileInTacticalLogicalBounds(sourceTile.x, sourceTile.y, minX, maxX, minY, maxY)
+            local targetInView = target and Render.tileInTacticalLogicalBounds(target.x, target.y, minX, maxX, minY, maxY)
+            if target and sourceTile and sourceVisible and targetVisible and (sourceInView or targetInView) then
                 local segments = Render.tacticalGridArrowSegments(sourceTile, target, originX, originY, tactics.board.topology)
                 local sourceHeight = tactics:inBounds(sourceTile.x, sourceTile.y) and Render.tacticalRenderHeight(tactics:tileAt(sourceTile.x, sourceTile.y)) or 0
                 local targetHeight = tactics:inBounds(target.x, target.y) and Render.tacticalRenderHeight(tactics:tileAt(target.x, target.y)) or 0
@@ -2729,11 +2833,15 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
     local originX = source.originX or 0
     local originY = source.originY or 0
     local visibility = tacticalVisibilityGrid(source, app)
+    local minX, maxX, minY, maxY = Render.tacticalLogicalBounds(source, app, Render.tacticalCullMargin + 2)
     local drawn = 0
     local visibleEnemies = {}
     for _, id in ipairs(tactics.unitOrder or {}) do
         local unit = tactics.units[id]
         if unit and unit.alive and not unit.evacuated then
+            if not Render.tileInTacticalLogicalBounds(unit.x, unit.y, minX, maxX, minY, maxY) then
+                goto continue
+            end
             local enemyHidden = unit.side == "enemy" and visibility and not visibility.visible[tileKey(unit.x, unit.y)]
             if enemyHidden then
                 goto continue
@@ -2767,15 +2875,19 @@ local function drawTacticalBillboards(sim, app, yaw, profile)
         local sighting = sightings[id]
         local unit = tactics:unit(id)
         if sighting and unit and unit.alive and not visibleEnemies[id] then
+            if not Render.tileInTacticalLogicalBounds(sighting.x, sighting.y, minX, maxX, minY, maxY) then
+                goto sighting_continue
+            end
             local x, y = Render.Topology.center(tactics.board.topology, sighting.x, sighting.y, originX, originY)
             local tile = tactics:inBounds(sighting.x, sighting.y) and tactics:tileAt(sighting.x, sighting.y) or nil
             local model = newBillboard(0.66, 0.8, enemyFrame("threat", sighting.kind), x, y, (sim.player.z or 0) + 0.03 + Render.tacticalRenderHeight(tile), yaw, state.assets.spriteAtlas or state.assets.white)
             drawTintedModel(model, { 0.36, 0.4, 0.42, 1 }, lightAt(sim, x, y, profile), 0.38)
             drawn = drawn + 1
         end
+        ::sighting_continue::
     end
     local objective = tactics.objectives and tactics.objectives.route_machine
-    if objective and state.assets.white then
+    if objective and state.assets.white and Render.tileInTacticalLogicalBounds(objective.x, objective.y, minX, maxX, minY, maxY) then
         local x, y = Render.Topology.center(tactics.board.topology, objective.x, objective.y, originX, originY)
         local model = newBillboard(0.5, 0.68, 0, x, y, (sim.player.z or 0) + 0.05, yaw, state.assets.white)
         drawTintedModel(model, { 0.84, 0.68, 0.32, 1 }, lightAt(sim, x, y, profile), 0.95)
@@ -2812,7 +2924,9 @@ function Render.drawWorld(sim, app)
     love.graphics.setColor(1, 1, 1, 1)
     model:draw()
     local tacticalGridCount = 0
-    if app and app.tacticalMode then
+    local tacticalLod = app and app.tacticalMode and Render.tacticalLod(app.tactics, app) or nil
+    app.worldView.tacticalLod = tacticalLod
+    if app and app.tacticalMode and not (tacticalLod and tacticalLod.hideGrid) then
         local gridModel, gridCount = Render.cachedTacticalGridModel(sim, profile, app and app.settings, app)
         tacticalGridCount = gridCount or 0
         if gridModel then

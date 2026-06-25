@@ -70,6 +70,75 @@ local function tileKey(x, y)
     return tostring(x) .. ":" .. tostring(y)
 end
 
+local function reverseList(values)
+    local left = 1
+    local right = #values
+    while left < right do
+        values[left], values[right] = values[right], values[left]
+        left = left + 1
+        right = right - 1
+    end
+    return values
+end
+
+local function partyPath(queue, node)
+    local path = {}
+    while node do
+        path[#path + 1] = { x = node.x, y = node.y }
+        node = node.parent and queue[node.parent] or nil
+    end
+    return reverseList(path)
+end
+
+local function heapLess(a, b)
+    if a.priority == b.priority then
+        if a.distance == b.distance then
+            return a.sequence < b.sequence
+        end
+        return a.distance < b.distance
+    end
+    return a.priority < b.priority
+end
+
+local function heapPush(heap, item)
+    heap[#heap + 1] = item
+    local index = #heap
+    while index > 1 do
+        local parent = math.floor(index / 2)
+        if not heapLess(heap[index], heap[parent]) then
+            break
+        end
+        heap[index], heap[parent] = heap[parent], heap[index]
+        index = parent
+    end
+end
+
+local function heapPop(heap)
+    local root = heap[1]
+    local last = table.remove(heap)
+    if #heap > 0 then
+        heap[1] = last
+        local index = 1
+        while true do
+            local left = index * 2
+            local right = left + 1
+            local smallest = index
+            if left <= #heap and heapLess(heap[left], heap[smallest]) then
+                smallest = left
+            end
+            if right <= #heap and heapLess(heap[right], heap[smallest]) then
+                smallest = right
+            end
+            if smallest == index then
+                break
+            end
+            heap[index], heap[smallest] = heap[smallest], heap[index]
+            index = smallest
+        end
+    end
+    return root
+end
+
 local function labelForVerb(verb)
     local words = {}
     for part in tostring(verb or ""):gmatch("[^_]+") do
@@ -922,34 +991,46 @@ function Runtime.partyPathTo(runtime, targetX, targetY)
     end
     local startKey = tileKey(lead.x, lead.y)
     local targetKey = tileKey(targetX, targetY)
-    local queue = { { x = lead.x, y = lead.y, path = { { x = lead.x, y = lead.y } } } }
-    local seen = { [startKey] = true }
-    local best = queue[1]
+    local nodes = { { x = lead.x, y = lead.y, depth = 1, cost = 0 } }
+    local open = {}
+    local seen = { [startKey] = 0 }
+    local closed = {}
+    local best = nodes[1]
     local bestDistance = runtime.state:distance(lead.x, lead.y, targetX, targetY)
-    local index = 1
-    while queue[index] do
-        local node = queue[index]
-        index = index + 1
+    local sequence = 1
+    heapPush(open, { node = 1, priority = bestDistance, distance = bestDistance, sequence = sequence })
+    while #open > 0 do
+        local item = heapPop(open)
+        local nodeIndex = item.node
+        local node = nodes[nodeIndex]
+        local nodeKey = tileKey(node.x, node.y)
+        if closed[nodeKey] then
+            goto continue
+        end
+        closed[nodeKey] = true
         local distance = runtime.state:distance(node.x, node.y, targetX, targetY)
-        if distance < bestDistance or (distance == bestDistance and #node.path > #best.path) then
+        if distance < bestDistance or (distance == bestDistance and (node.depth or 1) > (best.depth or 1)) then
             best = node
             bestDistance = distance
         end
         if tileKey(node.x, node.y) == targetKey then
-            return node.path, "exact"
+            return partyPath(nodes, node), "exact"
         end
         for _, neighbor in ipairs(runtime.state:neighbors(node.x, node.y)) do
             local key = tileKey(neighbor.x, neighbor.y)
-            if not seen[key] and canPartyEnter(runtime.state, neighbor.x, neighbor.y) then
-                seen[key] = true
-                local path = copyValue(node.path)
-                path[#path + 1] = { x = neighbor.x, y = neighbor.y }
-                queue[#queue + 1] = { x = neighbor.x, y = neighbor.y, path = path }
+            local nextCost = (node.cost or 0) + 1
+            if (seen[key] == nil or nextCost < seen[key]) and canPartyEnter(runtime.state, neighbor.x, neighbor.y) then
+                seen[key] = nextCost
+                local nextDistance = runtime.state:distance(neighbor.x, neighbor.y, targetX, targetY)
+                nodes[#nodes + 1] = { x = neighbor.x, y = neighbor.y, parent = nodeIndex, depth = (node.depth or 1) + 1, cost = nextCost }
+                sequence = sequence + 1
+                heapPush(open, { node = #nodes, priority = nextCost + nextDistance, distance = nextDistance, sequence = sequence })
             end
         end
+        ::continue::
     end
-    if best and #best.path > 1 then
-        return best.path, "partial"
+    if best and (best.depth or 1) > 1 then
+        return partyPath(nodes, best), "partial"
     end
     return nil, "unreachable"
 end
@@ -1464,16 +1545,71 @@ function classVerbPreview(runtime, selected, verb)
     return nil
 end
 
-function Runtime.refreshOverlays(runtime)
+local function overlayCache(runtime)
+    local c = cache(runtime)
+    c.overlayParts = c.overlayParts or {}
+    return c.overlayParts
+end
+
+local function cachedMovementOverlay(runtime, selected)
+    local parts = overlayCache(runtime)
     local state = runtime.state
-    local selected = Runtime.selectedUnit(runtime)
-    local visibility = Runtime.visibilityGrid(runtime)
-    revealVisibleEnemyIntents(runtime, visibility)
+    local key = table.concat({
+        "movement",
+        tostring(stateRevision(state, "units")),
+        tostring(stateRevision(state, "terrain")),
+        tostring(selected and selected.id or ""),
+        tostring(selected and selected.x or ""),
+        tostring(selected and selected.y or ""),
+        tostring(selected and selected.ap or ""),
+    }, ":")
+    if parts.movement and parts.movement.key == key then
+        return parts.movement.value
+    end
     local movement = {}
     if selected and selected.side == "player" and selected.alive and selected.ap > 0 then
-        for _, tile in ipairs(cachedMovementPreview(runtime, selected.id).reachable) do
+        local board = state.board or {}
+        local boardCells = (board.width or 0) * (board.height or 0)
+        local overlayMaxCost = selected.ap
+        if boardCells >= 2048 and overlayMaxCost > 16 then
+            overlayMaxCost = 16
+        end
+        for _, tile in ipairs(state:movementPreview(selected.id, { includePaths = false, maxCost = overlayMaxCost }).reachable) do
             movement[#movement + 1] = { x = tile.x, y = tile.y, label = tostring(tile.apCost) .. "AP" }
         end
+    end
+    parts.movement = { key = key, value = movement }
+    return movement
+end
+
+local function activeUnitPositionKey(state, side)
+    local parts = { tostring(side or "all") }
+    for _, id in ipairs(state.unitOrder or {}) do
+        local unit = state.units[id]
+        if unit and (not side or unit.side == side) then
+            parts[#parts + 1] = id
+            parts[#parts + 1] = tostring(unit.x)
+            parts[#parts + 1] = tostring(unit.y)
+            parts[#parts + 1] = tostring(unit.alive == true)
+            parts[#parts + 1] = tostring(unit.evacuated == true)
+        end
+    end
+    return table.concat(parts, ":")
+end
+
+local function cachedIntentOverlay(runtime, visibility)
+    local parts = overlayCache(runtime)
+    local state = runtime.state
+    local key = table.concat({
+        "intent",
+        tostring(stateRevision(state, "units")),
+        tostring(stateRevision(state, "terrain")),
+        tostring(stateRevision(state, "vision")),
+        tostring(stateRevision(state, "overlays")),
+        activeUnitPositionKey(state, "enemy"),
+    }, ":")
+    if parts.intents and parts.intents.key == key then
+        return parts.intents.value
     end
     local intents = {}
     for _, enemy in ipairs(state:unitsForSide("enemy")) do
@@ -1485,6 +1621,34 @@ function Runtime.refreshOverlays(runtime)
                 end
             end
         end
+    end
+    parts.intents = { key = key, value = intents }
+    return intents
+end
+
+local function overwatchSelectionKey(selection)
+    if not selection then
+        return "none"
+    end
+    return table.concat({
+        tostring(selection.direction or ""),
+        tostring(selection.range or ""),
+        tostring(selection.arc or ""),
+        tostring(#(selection.tiles or {})),
+    }, ":")
+end
+
+local function cachedOverwatchOverlay(runtime)
+    local parts = overlayCache(runtime)
+    local state = runtime.state
+    local key = table.concat({
+        "overwatch",
+        tostring(stateRevision(state, "units")),
+        tostring(stateRevision(state, "overlays")),
+        overwatchSelectionKey(runtime.overwatchSelection),
+    }, ":")
+    if parts.overwatch and parts.overwatch.key == key then
+        return parts.overwatch.value
     end
     local overwatch = {}
     for _, zone in ipairs(state.threatZones or {}) do
@@ -1499,6 +1663,12 @@ function Runtime.refreshOverlays(runtime)
             overwatch[#overwatch + 1] = { x = tile.x, y = tile.y, label = "preview" }
         end
     end
+    parts.overwatch = { key = key, value = overwatch }
+    return overwatch
+end
+
+local function aiDebugOverlay(runtime, visibility)
+    local state = runtime.state
     local aiDebug = {}
     if runtime.aiDebug then
         for _, enemy in ipairs(state:unitsForSide("enemy")) do
@@ -1520,6 +1690,18 @@ function Runtime.refreshOverlays(runtime)
             end
         end
     end
+    return aiDebug
+end
+
+function Runtime.refreshOverlays(runtime)
+    local state = runtime.state
+    local selected = Runtime.selectedUnit(runtime)
+    local visibility = Runtime.visibilityGrid(runtime)
+    revealVisibleEnemyIntents(runtime, visibility)
+    local movement = cachedMovementOverlay(runtime, selected)
+    local intents = cachedIntentOverlay(runtime, visibility)
+    local overwatch = cachedOverwatchOverlay(runtime)
+    local aiDebug = aiDebugOverlay(runtime, visibility)
     runtime.overwatchTrigger = state.lastOverwatchTrigger
     runtime.overlays = {
         movement = movement,

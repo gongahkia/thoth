@@ -944,6 +944,7 @@ function State.new(options)
         },
         units = {},
         unitOrder = {},
+        unitByTile = {},
         threatZones = copyMap(options.threatZones),
         intents = {},
         objectives = {},
@@ -969,6 +970,7 @@ function State.new(options)
         state.units[normalized.id] = normalized
         state.unitOrder[#state.unitOrder + 1] = normalized.id
     end
+    state:rebuildUnitIndex()
     if state.selectedUnitId then
         expect(state.units[state.selectedUnitId], "selected unit does not exist")
     end
@@ -1117,6 +1119,35 @@ function State:unitsForSide(side)
     return result
 end
 
+function State:rebuildUnitIndex()
+    self.unitByTile = {}
+    for _, id in ipairs(self.unitOrder or {}) do
+        local unit = self.units[id]
+        if unit and unit.alive and not unit.evacuated and isInteger(unit.x) and isInteger(unit.y) then
+            self.unitByTile[tileKey(unit.x, unit.y)] = unit
+        end
+    end
+    return self.unitByTile
+end
+
+function State:unindexUnit(unit, x, y)
+    if not (self.unitByTile and unit and x and y) then
+        return
+    end
+    local key = tileKey(x, y)
+    if self.unitByTile[key] == unit then
+        self.unitByTile[key] = nil
+    end
+end
+
+function State:indexUnit(unit)
+    if not (unit and unit.alive and not unit.evacuated and isInteger(unit.x) and isInteger(unit.y)) then
+        return
+    end
+    self.unitByTile = self.unitByTile or {}
+    self.unitByTile[tileKey(unit.x, unit.y)] = unit
+end
+
 local function resolveVisionUnit(state, unit)
     if type(unit) == "table" then
         return unit
@@ -1131,8 +1162,12 @@ function State:computeVisibleTiles(unit)
     local radius = expectInteger(unit.visionRadius or 8, "unit vision radius")
     expect(radius >= 0, "unit vision radius must be non-negative")
     local visible = {}
-    for y = 1, self.board.height do
-        for x = 1, self.board.width do
+    local minX = math.max(1, unit.x - radius)
+    local maxX = math.min(self.board.width, unit.x + radius)
+    local minY = math.max(1, unit.y - radius)
+    local maxY = math.min(self.board.height, unit.y + radius)
+    for y = minY, maxY do
+        for x = minX, maxX do
             if self:distance(unit.x, unit.y, x, y) <= radius then
                 if x == unit.x and y == unit.y then
                     visible[tileKey(x, y)] = true
@@ -1191,9 +1226,17 @@ function State:fogGrid(side)
 end
 
 function State:unitAt(x, y)
+    local indexed = self.unitByTile and self.unitByTile[tileKey(x, y)] or nil
+    if indexed then
+        if indexed.alive and not indexed.evacuated and indexed.x == x and indexed.y == y then
+            return indexed
+        end
+        self.unitByTile[tileKey(x, y)] = nil
+    end
     for _, id in ipairs(self.unitOrder) do
         local unit = self.units[id]
         if unit and unit.alive and not unit.evacuated and unit.x == x and unit.y == y then
+            self:rebuildUnitIndex()
             return unit
         end
     end
@@ -1230,8 +1273,12 @@ function State:canEnter(x, y, movingUnitId, fromX, fromY)
 end
 
 function State:moveUnitTo(unit, x, y)
+    local fromX = unit.x
+    local fromY = unit.y
+    self:unindexUnit(unit, fromX, fromY)
     unit.x = x
     unit.y = y
+    self:indexUnit(unit)
     if unit.carryingCargo and self.cargo[unit.carryingCargo] then
         local cargo = self.cargo[unit.carryingCargo]
         cargo.x = x
@@ -1243,6 +1290,9 @@ function State:moveUnitTo(unit, x, y)
         end
     end
     self:resolveThreatAt(unit)
+    if not unit.alive or unit.evacuated then
+        self:unindexUnit(unit, unit.x, unit.y)
+    end
 end
 
 function State:revision(kind)
@@ -1515,21 +1565,43 @@ local function tileTerrainCost(tile)
     return tile and tile.moveCost or 0
 end
 
+local function reverseList(values)
+    local left = 1
+    local right = #values
+    while left < right do
+        values[left], values[right] = values[right], values[left]
+        left = left + 1
+        right = right - 1
+    end
+    return values
+end
+
+local function movementPath(queue, node)
+    local path = {}
+    while node and node.parent do
+        path[#path + 1] = node.direction
+        node = queue[node.parent]
+    end
+    return reverseList(path)
+end
+
 function State:movementPreview(unitId, options)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     expect(unit.alive and not unit.evacuated, "unit is not active")
     options = options or {}
     local stepCost = options.stepCost or self.rules.moveApCost
     local maxCost = options.maxCost or unit.ap or 0
+    local includePaths = options.includePaths ~= false
     local startKey = tileKey(unit.x, unit.y)
     local startTile = self:tileAt(unit.x, unit.y)
     local seen = { [startKey] = 0 }
-    local queue = { { x = unit.x, y = unit.y, apCost = 0, path = {} } }
+    local queue = { { x = unit.x, y = unit.y, apCost = 0 } }
     local reachable = {}
     local collisions = {}
     local collisionSeen = {}
     local index = 1
     while queue[index] do
+        local nodeIndex = index
         local node = queue[index]
         index = index + 1
         local tile = self:tileAt(node.x, node.y)
@@ -1554,7 +1626,7 @@ function State:movementPreview(unitId, options)
                 cargo = unit.carryingCargo,
                 integrityDelta = -((tile.hazard and tile.hazard.carryDamage) or 0),
             } or nil,
-            path = copyValue(node.path),
+            path = includePaths and movementPath(queue, node) or nil,
         }
         for _, neighbor in ipairs(Topology.neighbors(self:topology(), node.x, node.y)) do
             local direction = neighbor.direction
@@ -1576,9 +1648,7 @@ function State:movementPreview(unitId, options)
                 local key = tileKey(nx, ny)
                 if nextCost <= maxCost and (seen[key] == nil or nextCost < seen[key]) then
                     seen[key] = nextCost
-                    local path = copyValue(node.path)
-                    path[#path + 1] = direction
-                    queue[#queue + 1] = { x = nx, y = ny, apCost = nextCost, terrainCost = terrainCost, moveCost = moveCost, path = path }
+                    queue[#queue + 1] = { x = nx, y = ny, apCost = nextCost, terrainCost = terrainCost, moveCost = moveCost, parent = nodeIndex, direction = direction }
                 end
             end
         end
@@ -1779,6 +1849,7 @@ function State:damageUnit(unitOrId, amount, options)
     if unit.hp <= 0 then
         unit.alive = false
         unit.ap = 0
+        self:unindexUnit(unit, unit.x, unit.y)
         if (unit.side or "player") == "player" then
             Bonus.bump(self.bonus, "unitsLost", 1)
             local consequences = Bonds.onUnitDeath(self.bonds, unit.id)
@@ -3043,6 +3114,7 @@ function State:interactTile(unitId, x, y)
         else
             unit.evacuated = true
             unit.ap = 0
+            self:unindexUnit(unit, unit.x, unit.y)
         end
     else
         error("unsupported interaction " .. tostring(kind), 2)
@@ -3134,6 +3206,7 @@ function State:evacuateUnit(unitId, objectiveId)
     end
     unit.evacuated = true
     unit.ap = 0
+    self:unindexUnit(unit, unit.x, unit.y)
     return self:evaluateObjective(objective)
 end
 
@@ -3192,10 +3265,16 @@ function State:displaceUnit(unitOrId, dx, dy, distance, collisionDamage)
             end
             return false, reason
         end
+        self:unindexUnit(unit, unit.x, unit.y)
         unit.x = nx
         unit.y = ny
+        self:indexUnit(unit)
         self:damageObjectiveAt(unit.x, unit.y, collisionDamage)
         self:resolveThreatAt(unit)
+        if not unit.alive or unit.evacuated then
+            self:unindexUnit(unit, unit.x, unit.y)
+            break
+        end
     end
     return true
 end
@@ -3301,10 +3380,24 @@ function State:swapUnits(aId, bId)
     local b = expect(self.units[bId], "unknown unit " .. tostring(bId))
     expect(a.alive and not a.evacuated, "unit is not active")
     expect(b.alive and not b.evacuated, "target is not active")
-    a.x, b.x = b.x, a.x
-    a.y, b.y = b.y, a.y
+    local ax = a.x
+    local ay = a.y
+    local bx = b.x
+    local by = b.y
+    self:unindexUnit(a, ax, ay)
+    self:unindexUnit(b, bx, by)
+    a.x, b.x = bx, ax
+    a.y, b.y = by, ay
+    self:indexUnit(a)
+    self:indexUnit(b)
     self:resolveThreatAt(a)
     self:resolveThreatAt(b)
+    if not a.alive or a.evacuated then
+        self:unindexUnit(a, a.x, a.y)
+    end
+    if not b.alive or b.evacuated then
+        self:unindexUnit(b, b.x, b.y)
+    end
 end
 
 local function pullDelta(actor, target)
