@@ -1,4 +1,5 @@
 local Grid = require("src.core.grid")
+local Topology = require("src.core.topology")
 local Cover = require("src.game.tactics.cover")
 local Bonus = require("src.game.tactics.bonus")
 local Identity = require("src.game.tactics.identity")
@@ -76,7 +77,7 @@ local oppositeDirection = {
 
 local function normalizeCoverEdges(edges)
     local result = {}
-    for _, direction in ipairs(Grid.order) do
+    for _, direction in ipairs(Topology.edgeIds()) do
         local value = (edges and edges[direction]) or "none"
         expect(value == "none" or value == "half" or value == "full", "invalid cover edge " .. tostring(value))
         result[direction] = value
@@ -924,6 +925,7 @@ function State.new(options)
         board = {
             width = width,
             height = height,
+            topology = Topology.normalize(board.topology or options.topology),
             expanse = board.expanse == true,
             regions = copyValue(board.regions),
             districts = copyValue(board.districts),
@@ -1029,6 +1031,24 @@ function State:inBounds(x, y)
     return isInteger(x) and isInteger(y) and x >= 1 and y >= 1 and x <= self.board.width and y <= self.board.height
 end
 
+function State:topology()
+    return Topology.normalize(self.board and self.board.topology)
+end
+
+function State:neighbors(x, y)
+    local result = {}
+    for _, neighbor in ipairs(Topology.neighbors(self:topology(), x, y)) do
+        if self:inBounds(neighbor.x, neighbor.y) then
+            result[#result + 1] = neighbor
+        end
+    end
+    return result
+end
+
+function State:distance(ax, ay, bx, by)
+    return Topology.distance(self:topology(), ax, ay, bx, by)
+end
+
 function State:tileAt(x, y)
     expect(self:inBounds(x, y), "tile out of bounds")
     return self.board.tiles[tileKey(x, y)] or normalizeTile()
@@ -1113,7 +1133,7 @@ function State:computeVisibleTiles(unit)
     local visible = {}
     for y = 1, self.board.height do
         for x = 1, self.board.width do
-            if Grid.manhattan(unit.x, unit.y, x, y) <= radius then
+            if self:distance(unit.x, unit.y, x, y) <= radius then
                 if x == unit.x and y == unit.y then
                     visible[tileKey(x, y)] = true
                 else
@@ -1252,7 +1272,7 @@ end
 
 local function coverDirections(tile)
     local result = {}
-    for _, direction in ipairs(Grid.order) do
+    for _, direction in ipairs(Topology.edgeIds()) do
         if tile and tile.coverEdges and tile.coverEdges[direction] and tile.coverEdges[direction] ~= "none" then
             result[#result + 1] = direction .. ":" .. tile.coverEdges[direction]
         end
@@ -1288,9 +1308,21 @@ local function coverDelta(fromTile, toTile)
     return gained, lost
 end
 
-local function attackDirection(fromX, fromY, toX, toY)
+local function attackDirection(state, fromX, fromY, toX, toY)
     local dx = fromX - toX
     local dy = fromY - toY
+    if state and state:topology() ~= "square" then
+        local best
+        local bestDistance
+        for _, neighbor in ipairs(Topology.neighbors(state:topology(), toX, toY)) do
+            local distance = math.abs(fromX - neighbor.x) + math.abs(fromY - neighbor.y)
+            if not bestDistance or distance < bestDistance then
+                best = neighbor.direction
+                bestDistance = distance
+            end
+        end
+        return best
+    end
     if math.abs(dx) >= math.abs(dy) and dx ~= 0 then
         return dx < 0 and "west" or "east"
     end
@@ -1301,7 +1333,7 @@ local function attackDirection(fromX, fromY, toX, toY)
 end
 
 function State:coverFromAttack(fromX, fromY, targetX, targetY)
-    local direction = attackDirection(fromX, fromY, targetX, targetY)
+    local direction = attackDirection(self, fromX, fromY, targetX, targetY)
     expect(direction, "attack direction required")
     local edge = self:tileAt(targetX, targetY).coverEdges[direction] or "none"
     return {
@@ -1327,37 +1359,13 @@ function State:flankFromAttack(fromX, fromY, targetX, targetY)
     }
 end
 
-local function lineTiles(fromX, fromY, toX, toY)
-    local points = {}
-    local x = fromX
-    local y = fromY
-    local dx = math.abs(toX - fromX)
-    local dy = math.abs(toY - fromY)
-    local sx = fromX < toX and 1 or -1
-    local sy = fromY < toY and 1 or -1
-    local err = dx - dy
-    while not (x == toX and y == toY) do
-        local e2 = err * 2
-        if e2 > -dy then
-            err = err - dy
-            x = x + sx
-        end
-        if e2 < dx then
-            err = err + dx
-            y = y + sy
-        end
-        points[#points + 1] = { x = x, y = y }
-    end
-    return points
-end
-
 function State:lineOfSight(fromX, fromY, toX, toY)
     expect(self:inBounds(fromX, fromY), "LoS source out of bounds")
     expect(self:inBounds(toX, toY), "LoS target out of bounds")
     local fromHeight = self:tileAt(fromX, fromY).height or 0
     local targetHeight = self:tileAt(toX, toY).height or 0
     local sightHeight = math.max(fromHeight, targetHeight)
-    local points = lineTiles(fromX, fromY, toX, toY)
+    local points = Topology.line(self:topology(), fromX, fromY, toX, toY)
     local modifiers = {}
     for index, point in ipairs(points) do
         if index < #points then
@@ -1548,10 +1556,10 @@ function State:movementPreview(unitId, options)
             } or nil,
             path = copyValue(node.path),
         }
-        for _, direction in ipairs(Grid.order) do
-            local delta = Grid.delta(direction)
-            local nx = node.x + delta.x
-            local ny = node.y + delta.y
+        for _, neighbor in ipairs(Topology.neighbors(self:topology(), node.x, node.y)) do
+            local direction = neighbor.direction
+            local nx = neighbor.x
+            local ny = neighbor.y
             local ok, reason = self:canEnter(nx, ny, unit.id, node.x, node.y)
             if not ok then
                 local key = tostring(node.x) .. ":" .. tostring(node.y) .. ":" .. direction
@@ -1976,16 +1984,19 @@ function State:threatZoneTiles(unitId, shape, options)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     options = options or {}
     local direction = options.direction or unit.facing or "east"
-    local forward = Grid.directions[direction]
+    local forward = Topology.delta(self:topology(), direction, unit.x, unit.y)
     expect(forward, "unknown direction " .. tostring(direction))
     local length = options.length or options.range or 1
     local width = options.width or 1
     local result = {}
     local seen = {}
     if shape == "line" then
+        local x = unit.x
+        local y = unit.y
         for step = 1, length do
-            local x = unit.x + forward.x * step
-            local y = unit.y + forward.y * step
+            local stepDelta = Topology.delta(self:topology(), direction, x, y)
+            x = x + stepDelta.x
+            y = y + stepDelta.y
             if self:inBounds(x, y) then
                 appendUniqueTile(result, seen, x, y)
             end
@@ -2000,7 +2011,7 @@ function State:threatZoneTiles(unitId, shape, options)
             end
             local lateral = math.min(width, step - 1)
             for _, sideDirection in ipairs(sides) do
-                local side = Grid.directions[sideDirection]
+                local side = Topology.delta(self:topology(), sideDirection, cx, cy)
                 for offset = 1, lateral do
                     local x = cx + side.x * offset
                     local y = cy + side.y * offset
@@ -2016,7 +2027,7 @@ function State:threatZoneTiles(unitId, shape, options)
             directions[#directions + 1] = side
         end
         for _, arcDirection in ipairs(directions) do
-            local delta = Grid.directions[arcDirection]
+            local delta = Topology.delta(self:topology(), arcDirection, unit.x, unit.y)
             for step = 1, length do
                 local x = unit.x + delta.x * step
                 local y = unit.y + delta.y * step
@@ -2311,7 +2322,7 @@ function State:interruptIntent(unitId, interrupt)
     elseif kind == "seal" then
         self:applyStatus(unitId, "sealed", interrupt.turns or 1, interrupt.amount)
     elseif kind == "shove" then
-        local delta = expect(Grid.directions[interrupt.direction], "unknown direction " .. tostring(interrupt.direction))
+        local delta = expect(Topology.delta(self:topology(), interrupt.direction, unit.x, unit.y), "unknown direction " .. tostring(interrupt.direction))
         self:displaceUnit(unitId, delta.x, delta.y, interrupt.distance or 1, interrupt.collisionDamage or 1)
         result.moved = unit.x ~= intent.sourceTile.x or unit.y ~= intent.sourceTile.y
     elseif kind == "coverRaise" then
@@ -2931,7 +2942,7 @@ function State:dropCargo(unitId, direction)
     local x = unit.x
     local y = unit.y
     if direction then
-        local delta = Grid.directions[direction]
+        local delta = Topology.delta(self:topology(), direction, unit.x, unit.y)
         expect(delta, "unknown direction " .. tostring(direction))
         x = x + delta.x
         y = y + delta.y
@@ -2951,7 +2962,7 @@ function State:dragCargo(unitId, cargoId, direction)
     expect(unit.alive and not unit.evacuated, "unit is not active")
     expect(not cargo.carriedBy and not cargo.extracted and not cargo.failed, "cargo is not available")
     expect(Grid.manhattan(unit.x, unit.y, cargo.x, cargo.y) == 1, "cargo is not adjacent")
-    local delta = Grid.directions[direction]
+    local delta = Topology.delta(self:topology(), direction, unit.x, unit.y)
     expect(delta, "unknown direction " .. tostring(direction))
     local nx = cargo.x + delta.x
     local ny = cargo.y + delta.y
@@ -3193,7 +3204,7 @@ function State:dashUnit(unitId, direction, distance, previewOnly)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     expect(unit.alive and not unit.evacuated, "unit is not active")
     expect(not self:movementBlocked(unit), "unit movement blocked")
-    local delta = Grid.directions[direction]
+    local delta = Topology.delta(self:topology(), direction, unit.x, unit.y)
     expect(delta, "unknown direction " .. tostring(direction))
     distance = distance or 2
     expect(distance > 0, "dash distance must be positive")
@@ -3201,6 +3212,7 @@ function State:dashUnit(unitId, direction, distance, previewOnly)
     local x = unit.x
     local y = unit.y
     for _ = 1, distance do
+        delta = Topology.delta(self:topology(), direction, x, y)
         x = x + delta.x
         y = y + delta.y
         local ok, reason = self:canEnter(x, y, unit.id, unit.x, unit.y)
@@ -3224,7 +3236,7 @@ function State:vaultUnit(unitId, direction, previewOnly)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     expect(unit.alive and not unit.evacuated, "unit is not active")
     expect(not self:movementBlocked(unit), "unit movement blocked")
-    local delta = Grid.directions[direction]
+    local delta = Topology.delta(self:topology(), direction, unit.x, unit.y)
     expect(delta, "unknown direction " .. tostring(direction))
     local fromTile = self:tileAt(unit.x, unit.y)
     local nx = unit.x + delta.x
@@ -3246,7 +3258,7 @@ function State:climbUnit(unitId, direction, maxClimb, previewOnly)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     expect(unit.alive and not unit.evacuated, "unit is not active")
     expect(not self:movementBlocked(unit), "unit movement blocked")
-    local delta = Grid.directions[direction]
+    local delta = Topology.delta(self:topology(), direction, unit.x, unit.y)
     expect(delta, "unknown direction " .. tostring(direction))
     local fromHeight = self:tileAt(unit.x, unit.y).height or 0
     local nx = unit.x + delta.x
@@ -3267,7 +3279,7 @@ function State:dropUnit(unitId, direction, maxDrop, previewOnly)
     local unit = expect(self.units[unitId], "unknown unit " .. tostring(unitId))
     expect(unit.alive and not unit.evacuated, "unit is not active")
     expect(not self:movementBlocked(unit), "unit movement blocked")
-    local delta = Grid.directions[direction]
+    local delta = Topology.delta(self:topology(), direction, unit.x, unit.y)
     expect(delta, "unknown direction " .. tostring(direction))
     local fromHeight = self:tileAt(unit.x, unit.y).height or 0
     local nx = unit.x + delta.x
@@ -3323,7 +3335,7 @@ function State:apply(command)
         local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
         expect(unit.alive and not unit.evacuated, "unit is not active")
         expect(not self:movementBlocked(unit), "unit movement blocked")
-        local delta = Grid.directions[command.direction]
+        local delta = Topology.delta(self:topology(), command.direction, unit.x, unit.y)
         expect(delta, "unknown direction " .. tostring(command.direction))
         local nx = unit.x + delta.x
         local ny = unit.y + delta.y
@@ -3393,7 +3405,7 @@ function State:apply(command)
         end
     elseif kind == "shove" then
         expect(self.units[command.target], "unknown target " .. tostring(command.target))
-        local delta = Grid.directions[command.direction]
+        local delta = Topology.delta(self:topology(), command.direction, self.units[command.target].x, self.units[command.target].y)
         expect(delta, "unknown direction " .. tostring(command.direction))
         self:spendAP(command.unit, command.cost or 1)
         self:displaceUnit(command.target, delta.x, delta.y, command.distance or 1, command.collisionDamage or 1)
@@ -3515,7 +3527,7 @@ function State:apply(command)
         local x = unit.x
         local y = unit.y
         if command.direction then
-            local delta = Grid.directions[command.direction]
+            local delta = Topology.delta(self:topology(), command.direction, unit.x, unit.y)
             expect(delta, "unknown direction " .. tostring(command.direction))
             x = x + delta.x
             y = y + delta.y
@@ -3528,7 +3540,7 @@ function State:apply(command)
     elseif kind == "dragCargo" then
         local unit = expect(self.units[command.unit], "unknown unit " .. tostring(command.unit))
         local cargo = expect(self.cargo[command.cargo], "unknown cargo " .. tostring(command.cargo))
-        local delta = Grid.directions[command.direction]
+        local delta = Topology.delta(self:topology(), command.direction, unit.x, unit.y)
         expect(unit.alive and not unit.evacuated, "unit is not active")
         expect(not cargo.carriedBy and not cargo.extracted and not cargo.failed, "cargo is not available")
         expect(Grid.manhattan(unit.x, unit.y, cargo.x, cargo.y) == 1, "cargo is not adjacent")
@@ -3633,6 +3645,7 @@ function State:snapshot()
         board = {
             width = self.board.width,
             height = self.board.height,
+            topology = self.board.topology,
             expanse = self.board.expanse,
             regions = copyValue(self.board.regions),
             districts = copyValue(self.board.districts),

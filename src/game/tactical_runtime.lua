@@ -661,9 +661,9 @@ local function makeRouteState(options)
     local seed = options and options.seed
     local spec
     if options and options.variantId then
-        spec = Procgen.generateArchiveRouteBoard(options.variantId, seed)
+        spec = Procgen.generateArchiveRouteBoard(options.variantId, seed, { topology = options.topology })
     else
-        spec = Procgen.generateArchiveExpanse(seed)
+        spec = Procgen.generateArchiveExpanse(seed, { topology = options and options.topology })
     end
     applyLiveClassSquad(spec, options and options.squadLoadout)
     -- seed bonus challenges per route board; pick two distinct from pool deterministically
@@ -800,10 +800,16 @@ function Runtime.new(sim, options)
         clearOverwatchPreview = Runtime.clearOverwatchPreview,
         setAiDebug = Runtime.setAiDebug,
         toggleAiDebug = Runtime.toggleAiDebug,
+        setTopology = Runtime.setTopology,
+        partyPathTo = Runtime.partyPathTo,
+        movePartyTo = Runtime.movePartyTo,
         drainHitEvents = Runtime.drainHitEvents,
         hitEvents = {},
         cache = {},
         worldRevision = 0,
+        topology = state.board.topology or "square",
+        partyMovementEnabled = options.partyMovement == true,
+        explorationMode = options.exploration == true,
     }
     Runtime.declareEnemyIntents(runtime)
     Runtime.refreshOverlays(runtime)
@@ -815,7 +821,7 @@ function Runtime.loadRouteVariant(runtime, variantId)
     if runtime.boardSpec and runtime.boardSpec.archiveRoute and runtime.boardSpec.archiveRoute.expanse then
         return setActiveRouteRegion(runtime, variantId) and runtime or nil
     end
-    local state, boardSpec = makeRouteState({ variantId = variantId, squadLoadout = runtime.squadLoadout })
+    local state, boardSpec = makeRouteState({ variantId = variantId, squadLoadout = runtime.squadLoadout, topology = runtime.topology })
     local selectedUnitId = state.selectedUnitId or firstPlayerId(state)
     local selected = selectedUnitId and state:unit(selectedUnitId) or nil
     runtime.state = state
@@ -836,6 +842,140 @@ function Runtime.loadRouteVariant(runtime, variantId)
     runtime.syncedWorldRevision = nil
     Runtime.syncWorld(runtime.sim, runtime)
     return runtime
+end
+
+function Runtime.setTopology(runtime, topology)
+    topology = topology or "square"
+    local currentVariant = runtime.route and runtime.route.variantId
+    local state, boardSpec = makeRouteState({ variantId = runtime.boardSpec and runtime.boardSpec.archiveRoute and not runtime.boardSpec.archiveRoute.expanse and currentVariant or nil, squadLoadout = runtime.squadLoadout, topology = topology })
+    runtime.state = state
+    runtime.boardSpec = boardSpec
+    runtime.topology = state.board.topology or topology
+    runtime.route = boardSpec and boardSpec.archiveRoute or runtime.route
+    runtime.routeOrder = boardSpec and boardSpec.archiveRoute and boardSpec.archiveRoute.variantOrder and copyList(boardSpec.archiveRoute.variantOrder) or runtime.routeOrder
+    runtime.routeIndex = currentVariant and routeVariantIndex(runtime.routeOrder, currentVariant) or runtime.routeIndex
+    local selectedUnitId = state.selectedUnitId or firstPlayerId(state)
+    local selected = selectedUnitId and state:unit(selectedUnitId) or nil
+    runtime.selectedUnitId = selectedUnitId
+    runtime.cursor.x = selected and selected.x or 1
+    runtime.cursor.y = selected and selected.y or 1
+    if boardSpec and boardSpec.archiveRoute and boardSpec.archiveRoute.expanse and currentVariant then
+        setActiveRouteRegion(runtime, currentVariant)
+    end
+    Runtime.declareEnemyIntents(runtime)
+    Runtime.refreshOverlays(runtime)
+    runtime.syncedWorldRevision = nil
+    Runtime.syncWorld(runtime.sim, runtime)
+    setStatus(runtime, "topology " .. tostring(runtime.topology))
+    return runtime
+end
+
+local function partyUnits(runtime)
+    return runtime.state:unitsForSide("player")
+end
+
+local function canPartyEnter(state, x, y)
+    if not state:inBounds(x, y) then
+        return false
+    end
+    local tile = state:tileAt(x, y)
+    if tile.blocker then
+        return false
+    end
+    local unit = state:unitAt(x, y)
+    return not (unit and unit.side == "enemy")
+end
+
+function Runtime.partyPathTo(runtime, targetX, targetY)
+    local units = partyUnits(runtime)
+    local lead = units[1]
+    if not lead then
+        return nil, "no party"
+    end
+    if not runtime.state:inBounds(targetX, targetY) then
+        return nil, "target out of bounds"
+    end
+    local startKey = tileKey(lead.x, lead.y)
+    local targetKey = tileKey(targetX, targetY)
+    local queue = { { x = lead.x, y = lead.y, path = { { x = lead.x, y = lead.y } } } }
+    local seen = { [startKey] = true }
+    local best = queue[1]
+    local bestDistance = runtime.state:distance(lead.x, lead.y, targetX, targetY)
+    local index = 1
+    while queue[index] do
+        local node = queue[index]
+        index = index + 1
+        local distance = runtime.state:distance(node.x, node.y, targetX, targetY)
+        if distance < bestDistance or (distance == bestDistance and #node.path > #best.path) then
+            best = node
+            bestDistance = distance
+        end
+        if tileKey(node.x, node.y) == targetKey then
+            return node.path, "exact"
+        end
+        for _, neighbor in ipairs(runtime.state:neighbors(node.x, node.y)) do
+            local key = tileKey(neighbor.x, neighbor.y)
+            if not seen[key] and canPartyEnter(runtime.state, neighbor.x, neighbor.y) then
+                seen[key] = true
+                local path = copyValue(node.path)
+                path[#path + 1] = { x = neighbor.x, y = neighbor.y }
+                queue[#queue + 1] = { x = neighbor.x, y = neighbor.y, path = path }
+            end
+        end
+    end
+    if best and #best.path > 1 then
+        return best.path, "partial"
+    end
+    return nil, "unreachable"
+end
+
+function Runtime.explorationCombatContact(runtime)
+    for _, enemy in ipairs(runtime.state:unitsForSide("enemy")) do
+        for _, unit in ipairs(runtime.state:unitsForSide("player")) do
+            local los = runtime.state:lineOfSight(unit.x, unit.y, enemy.x, enemy.y)
+            if los.visible and los.obscured ~= true then
+                return true, enemy.id
+            end
+        end
+    end
+    return false
+end
+
+function Runtime.movePartyTo(runtime, targetX, targetY)
+    if not runtime.partyMovementEnabled then
+        return false, "party movement disabled"
+    end
+    local path, kind = Runtime.partyPathTo(runtime, targetX, targetY)
+    if not path then
+        setStatus(runtime, kind or "no route")
+        return false
+    end
+    local units = partyUnits(runtime)
+    for step = 2, #path do
+        local previous = {}
+        for index, unit in ipairs(units) do
+            previous[index] = { x = unit.x, y = unit.y }
+        end
+        runtime.state:moveUnitTo(units[1], path[step].x, path[step].y)
+        for index = 2, #units do
+            runtime.state:moveUnitTo(units[index], previous[index - 1].x, previous[index - 1].y)
+        end
+    end
+    runtime.cursor.x = path[#path].x
+    runtime.cursor.y = path[#path].y
+    if runtime.state.bumpRevision then
+        runtime.state:bumpRevision("units")
+    end
+    local contact, enemyId = Runtime.explorationCombatContact(runtime)
+    if contact then
+        runtime.explorationMode = false
+        Runtime.declareEnemyIntents(runtime)
+        setStatus(runtime, "combat contact " .. tostring(enemyId))
+    else
+        setStatus(runtime, kind == "partial" and "party moved as far as possible" or "party moved")
+    end
+    Runtime.refreshOverlays(runtime)
+    return true
 end
 
 function Runtime.selectedUnit(runtime)
@@ -1541,6 +1681,10 @@ function Runtime.actionAtTile(runtime, x, y)
     end
     local unit = state:unitAt(x, y)
     local selected = Runtime.selectedUnit(runtime)
+    if runtime.explorationMode and runtime.partyMovementEnabled then
+        local path, kind = Runtime.partyPathTo(runtime, x, y)
+        return { kind = "partyMove", label = "Party Move", key = "LMB", enabled = path ~= nil, detail = path and ((kind == "partial" and "partial " or "") .. tostring(math.max(0, #path - 1)) .. " steps") or tostring(kind or "blocked") }
+    end
     if unit and unit.side == "player" then
         return { kind = "select", label = "Select", key = "LMB", enabled = true, detail = unit.id }
     end
@@ -1710,6 +1854,9 @@ function Runtime.handleMouseTile(runtime, x, y, button)
     if button == 2 then
         setStatus(runtime, "cursor " .. tostring(x) .. "," .. tostring(y))
         return true
+    end
+    if runtime.explorationMode and runtime.partyMovementEnabled then
+        return Runtime.movePartyTo(runtime, x, y)
     end
     if unit and unit.side == "player" then
         runtime.selectedUnitId = unit.id
@@ -2175,6 +2322,9 @@ function Runtime.summary(runtime)
     end
     return {
         mode = "tactical",
+        topology = state.board.topology or "square",
+        explorationMode = runtime.explorationMode == true,
+        partyMovementEnabled = runtime.partyMovementEnabled == true,
         tick = state.tick,
         phase = state.phase,
         turn = runtime.turn,

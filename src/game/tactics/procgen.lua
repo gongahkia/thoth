@@ -1,6 +1,7 @@
 local RunCatalog = require("src.game.tactics.run_catalog")
 local EnemyCatalog = require("src.game.tactics.enemy_catalog")
 local Rng = require("src.core.rng")
+local Noise = require("src.core.noise")
 local State = require("src.game.tactics.state")
 
 local Procgen = {}
@@ -1031,42 +1032,12 @@ local function clamp(value, minValue, maxValue)
     return math.max(minValue, math.min(maxValue, value))
 end
 
-local function frac(value)
-    return value - math.floor(value)
-end
-
 local function noise2(seed, x, y, salt)
-    return frac(math.sin((x or 0) * 127.1 + (y or 0) * 311.7 + (seed or 1) * 74.7 + (salt or 0) * 19.19) * 43758.5453)
-end
-
-local function smoothNoise(seed, x, y, salt)
-    local ix = math.floor(x)
-    local iy = math.floor(y)
-    local fx = x - ix
-    local fy = y - iy
-    local a = noise2(seed, ix, iy, salt)
-    local b = noise2(seed, ix + 1, iy, salt)
-    local c = noise2(seed, ix, iy + 1, salt)
-    local d = noise2(seed, ix + 1, iy + 1, salt)
-    fx = fx * fx * (3 - 2 * fx)
-    fy = fy * fy * (3 - 2 * fy)
-    local x1 = a + (b - a) * fx
-    local x2 = c + (d - c) * fx
-    return x1 + (x2 - x1) * fy
+    return Noise.sample("perlin", seed, x, y, { scale = 0.22, salt = salt })
 end
 
 local function fbmNoise(seed, x, y, salt)
-    local total = 0
-    local amplitude = 0.5
-    local frequency = 0.18
-    local norm = 0
-    for octave = 1, 4 do
-        total = total + smoothNoise(seed + octave * 97, x * frequency, y * frequency, salt + octave * 13) * amplitude
-        norm = norm + amplitude
-        amplitude = amplitude * 0.5
-        frequency = frequency * 2
-    end
-    return norm > 0 and total / norm or 0
+    return Noise.sample("fractal", seed, x, y, { source = "perlin", frequency = 0.18, octaves = 4, salt = salt })
 end
 
 local function hybridProfile(options)
@@ -1532,7 +1503,7 @@ local function finalizeHybridSpec(ctx, options)
             id = "hybrid_board_grammar_v1",
             components = components,
         },
-        board = { width = ctx.width, height = ctx.height, tiles = ctx.tiles, profile = ctx.profileId, terrainTypes = components.terrainTypes, generationTechniques = components.generationTechniques, heightBands = components.heightBands, coverFields = components.coverFields, sightBreaks = components.sightBreaks, verticalRoutes = components.verticalRoutes },
+        board = { width = ctx.width, height = ctx.height, topology = options.topology, tiles = ctx.tiles, profile = ctx.profileId, terrainTypes = components.terrainTypes, generationTechniques = components.generationTechniques, heightBands = components.heightBands, coverFields = components.coverFields, sightBreaks = components.sightBreaks, verticalRoutes = components.verticalRoutes },
         units = {
             { id = "warden", side = "player", x = playerTiles[1].x, y = playerTiles[1].y, hp = 6 },
             { id = "duelist", side = "player", x = (playerTiles[2] or playerTiles[1]).x, y = (playerTiles[2] or playerTiles[1]).y, hp = 5 },
@@ -1712,7 +1683,7 @@ function Procgen.generateBoard(seed, options)
                 specialTerrain = specialTerrain,
             },
         },
-        board = { width = width, height = height, tiles = tiles, terrainTypes = terrainTypesUsedByTiles(tiles), generationTechniques = componentListByIds(generationTechniqueById, { "rect_room_pair", "straight_spine_corridor", "terrace_height_bands", "destructible_sight_breaks", "hazard_lane_dressing", "special_terrain_scatter" }) },
+        board = { width = width, height = height, topology = options.topology, tiles = tiles, terrainTypes = terrainTypesUsedByTiles(tiles), generationTechniques = componentListByIds(generationTechniqueById, { "rect_room_pair", "straight_spine_corridor", "terrace_height_bands", "destructible_sight_breaks", "hazard_lane_dressing", "special_terrain_scatter" }) },
         units = {
             { id = "warden", side = "player", x = spawnPockets[1].tiles[1].x, y = spawnPockets[1].tiles[1].y, hp = 6 },
             { id = "duelist", side = "player", x = spawnPockets[1].tiles[2].x, y = spawnPockets[1].tiles[2].y, hp = 5 },
@@ -1768,6 +1739,7 @@ function Procgen.generateArchiveRouteBoard(variantId, seed, options)
     if options.includeElite ~= nil then
         merged.includeElite = options.includeElite
     end
+    merged.topology = options.topology or merged.topology
     local boardSeed = seed or variant.seed
     local spec = Procgen.generateDirectedZoneBoard("buried_archive", boardSeed, merged)
     spec.generator.variantId = variant.id
@@ -2376,7 +2348,7 @@ function Procgen.generateArchiveExpanse(seed, options)
         end
     end
     for index, variantId in ipairs(archiveRouteVariantOrder) do
-        local source = Procgen.generateArchiveRouteBoard(variantId, seed and (seed + index - 1) or nil)
+        local source = Procgen.generateArchiveRouteBoard(variantId, seed and (seed + index - 1) or nil, { topology = options.topology })
         copyRegionSpecIntoExpanse(target, source, archiveExpansePlacements[variantId], variantId, index == 1)
     end
     addExpanseSetPieces(target, seed or archiveRouteVariants.archive_entry_audit.seed)
@@ -2407,7 +2379,7 @@ function Procgen.generateArchiveExpanse(seed, options)
                 generationTechniques = componentListByIds(generationTechniqueById, expanseTechniqueIds),
             },
         },
-        board = { width = width, height = height, tiles = target.tiles, expanse = true, regions = target.regions, districts = target.districts, softGates = target.softGates, landmarks = target.landmarks, metrics = target.metrics, heightBands = target.heightBands, coverFields = target.coverFields, sightBreaks = target.sightBreaks, verticalRoutes = target.verticalRoutes, sightlines = target.sightlines, megaStructures = target.megaStructures, terrainTypes = terrainTypesUsedByTiles(target.tiles), generationTechniques = componentListByIds(generationTechniqueById, expanseTechniqueIds) },
+        board = { width = width, height = height, topology = options and options.topology, tiles = target.tiles, expanse = true, regions = target.regions, districts = target.districts, softGates = target.softGates, landmarks = target.landmarks, metrics = target.metrics, heightBands = target.heightBands, coverFields = target.coverFields, sightBreaks = target.sightBreaks, verticalRoutes = target.verticalRoutes, sightlines = target.sightlines, megaStructures = target.megaStructures, terrainTypes = terrainTypesUsedByTiles(target.tiles), generationTechniques = componentListByIds(generationTechniqueById, expanseTechniqueIds) },
         units = target.units,
         objectives = target.objectives,
         archiveRoute = {

@@ -379,7 +379,7 @@ local function enterTacticalGame(state, squadLoadout)
     resetVisualState(state, sim)
     state.squadLoadout = loadout
     state.squadSelect = nil
-    state.tactics = TacticalRuntime.new(sim, { squadLoadout = state.squadLoadout, tutorial = tutorialMission, aiDebug = state.tacticalAiDebug == true })
+    state.tactics = TacticalRuntime.new(sim, { squadLoadout = state.squadLoadout, tutorial = tutorialMission, aiDebug = state.tacticalAiDebug == true, partyMovement = state.settings and state.settings.partyMovement == true, exploration = state.settings and state.settings.partyMovement == true })
     state.tacticalOverlays = state.tactics.overlays
     TacticalRuntime.syncWorld(sim, state.tactics)
     if tutorialMission then
