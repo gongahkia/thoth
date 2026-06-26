@@ -63,32 +63,6 @@ These are the biggest measurable FPS wins. Land them before geomorphology work b
 
 ---
 
-### T-008 — Faster integer hash         [tier 1] [low]
-
-GOAL: Replace `Rng.mix` modular-LCG with a hot-path-friendly hash (e.g. inlined `bit.bxor` + multiply + rotate). Same determinism contract.
-
-WHY: `src/rng.lua:10–14` uses `% mod` per mix; `Rng.hash` mixes 4 inputs = 4 modulos per call. Called from `unitAt`/`signed` in every noise sample and plate query. [Inference] tens of millions of `%` ops per frame at default render radius.
-
-WHERE: `src/rng.lua`.
-
-DEPENDS ON: none.
-
-ACCEPTANCE:
-- New hash produces a different but still uniformly-distributed bit stream.
-- Determinism contract preserved by re-blessing test fixtures (snapshot diff is expected).
-- All tests pass with refreshed fixtures.
-- A `tests/run.lua --bench-rng` micro-bench shows ≥4× throughput improvement.
-
-NOTES / IMPL HINTS:
-- Use LuaJIT's `bit` library (`require("bit")`); it JITs cleanly.
-- Pattern: `h = bit.bxor(h, bit.lshift(value, 13)); h = h * 0x9E3779B1 % mod` — or full xxhash-mix.
-- All 25 tests in `tests/run.lua` will snapshot-fail because they depend on deterministic output. Plan to re-bless them in the same commit and document the seed-fixture change. `testDeterminism` and `testSeedVariance` test invariants, not specific values, so they remain valid.
-
-REFERENCES:
-- [LuaJIT `bit` module — luajit.org](https://bitop.luajit.org/api.html)
-
----
-
 # TIER 2 — Realistic terrain (geomorphology)
 
 These bring the world closer to actual landscape evolution physics. They are the heart of "true-to-real-world."

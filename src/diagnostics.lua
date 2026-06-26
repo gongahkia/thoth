@@ -2,19 +2,19 @@ local WorldGen = require("src.worldgen")
 
 local Diagnostics = {}
 
-local defaultSeeds = { 17, 19, 26, 53 }
+local defaultSeeds = { 6, 20, 30, 86 }
 local badSeeds = {
-    { seed = 1, flags = { "water_high", "river_low", "single_biome_high" } },
-    { seed = 8, flags = { "river_low", "biome_count_low" } },
-    { seed = 14, flags = { "water_low" } },
-    { seed = 15, flags = { "water_low", "steep_slope_high" } },
+    { seed = 1, flags = { "water_low" } },
+    { seed = 5, flags = { "water_high", "river_low", "biome_count_low", "single_biome_high" } },
+    { seed = 13, flags = { "water_low", "biome_count_low", "single_biome_high" } },
+    { seed = 34, flags = { "water_low", "steep_slope_high" } },
 }
 local regressionSeeds = {
-    { seed = 15, category = "ugly_terrain", flags = { "water_low", "steep_slope_high" } },
-    { seed = 1, category = "all_water", flags = { "water_high" } },
-    { seed = 14, category = "all_land", flags = { "water_low" } },
+    { seed = 34, category = "ugly_terrain", flags = { "water_low", "steep_slope_high" } },
+    { seed = 5, category = "all_water", flags = { "water_high" } },
+    { seed = 1, category = "all_land", flags = { "water_low" } },
     { seed = 20260625, category = "broken_seams", maxSeamMismatches = 0 },
-    { seed = 62, category = "river_discontinuities", maxUphillRejects = 0, minRivers = 1 },
+    { seed = 26, category = "river_discontinuities", maxUphillRejects = 0, minRivers = 1 },
 }
 
 local defaultThresholds = {
