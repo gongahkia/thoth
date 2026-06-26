@@ -68,7 +68,7 @@ local function smoke(args)
     local world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625)))
     local player = Player.new(0, 0)
     local renderStats = Render.visibleStats({ world = world, player = player, camera = Render.defaultCamera() }, 1280, 720)
-    local totals = { land = 0, water = 0, river = 0, chunks = 0 }
+    local totals = { land = 0, water = 0, river = 0, talus = 0, alluvial = 0, floodplain = 0, delta = 0, chunks = 0 }
     for _, scale in ipairs(world:metadata().scales) do
         for cy = -1, 1 do
             for cx = -1, 1 do
@@ -78,6 +78,10 @@ local function smoke(args)
                     for _, cell in ipairs(row) do
                         if cell.water then totals.water = totals.water + 1 else totals.land = totals.land + 1 end
                         if cell.river then totals.river = totals.river + 1 end
+                        if cell.talus then totals.talus = totals.talus + 1 end
+                        if cell.alluvialFan then totals.alluvial = totals.alluvial + 1 end
+                        if cell.floodplain then totals.floodplain = totals.floodplain + 1 end
+                        if cell.delta then totals.delta = totals.delta + 1 end
                     end
                 end
             end
@@ -88,6 +92,10 @@ local function smoke(args)
     print("land=" .. totals.land)
     print("water=" .. totals.water)
     print("rivers=" .. totals.river)
+    print("talus=" .. totals.talus)
+    print("alluvial_fans=" .. totals.alluvial)
+    print("floodplains=" .. totals.floodplain)
+    print("deltas=" .. totals.delta)
     print("mesh_tiles=" .. renderStats.visibleTiles)
     print("triangles=" .. renderStats.triangles)
     print("river_strips=" .. renderStats.riverStrips)

@@ -349,6 +349,11 @@ local function solveRegion(world, chunkX, chunkY, info)
             cell.macroChannelWeight = basinWeight
             cell.erosion = 0
             cell.deposition = 0
+            cell.thermalErosion = 0
+            cell.talus = false
+            cell.alluvialFan = false
+            cell.floodplain = false
+            cell.delta = false
             cell.river = false
             cell.riverBank = false
             cell.lake = false
@@ -413,12 +418,43 @@ local function solveRegion(world, chunkX, chunkY, info)
             cell.lakeSurface = cell.filledElevation
         end
         local flowPower = math.log(cell.flow + 1)
-        cell.erosion = clamp(flowPower * cell.slope * 0.035, 0, 0.22)
+        cell.thermalErosion = clamp((cell.slope - 0.16) * 0.16, 0, 0.09)
+        local hydraulicErosion = clamp(flowPower * cell.slope * 0.035, 0, 0.22)
+        cell.erosion = clamp(hydraulicErosion + cell.thermalErosion, 0, 0.24)
         local lowSlope = cell.slope < 0.024
-        cell.deposition = (cell.flow > threshold and lowSlope) and 0.018 or 0
         cell.water = ocean or cell.lake
         local macroRiver = cell.macroChannelWeight and cell.macroChannelWeight > 0.35
         cell.river = not cell.water and cell.downCell ~= nil and (cell.flow > threshold or macroRiver)
+        cell.talus = not cell.water and cell.thermalErosion > 0.008 and cell.elevationBase > world.seaLevel + 0.04
+        cell.alluvialFan = not cell.water and cell.flow > threshold * 0.45 and cell.slope >= 0.04 and cell.slope < 0.16 and cell.elevationBase > world.seaLevel + 0.035
+        cell.floodplain = not cell.water and cell.flow > threshold * 0.55 and cell.slope < 0.14 and cell.elevationBase > world.seaLevel + 0.01 and cell.elevationBase < 0.56
+        cell.deposition = 0
+        if cell.flow > threshold and lowSlope then cell.deposition = cell.deposition + 0.014 end
+        if cell.alluvialFan then cell.deposition = cell.deposition + 0.012 end
+        if cell.floodplain then cell.deposition = cell.deposition + 0.016 end
+    end
+
+    for _, cell in ipairs(visitOrder) do
+        if cell.river and not cell.water then
+            local mouth = cell.downCell and cell.downCell.water
+            if not mouth then
+                for _, offset in ipairs(neighbors) do
+                    local neighbor = region.cells[key(cell.gx + offset.x, cell.gy + offset.y)]
+                    if neighbor and neighbor.water then
+                        mouth = true
+                        break
+                    end
+                end
+            end
+            cell.delta = mouth and cell.flow > threshold * 0.8 and cell.slope < 0.16 and cell.elevationBase < world.seaLevel + 0.24
+            if cell.delta then
+                cell.floodplain = true
+                cell.deposition = math.max(cell.deposition, 0.03)
+            end
+        end
+    end
+
+    for _, cell in ipairs(visitOrder) do
         if cell.lake then
             cell.elevation = cell.lakeSurface
         elseif cell.water then
@@ -454,6 +490,10 @@ local function solveRegion(world, chunkX, chunkY, info)
         uphillRejects = 0,
         basins = 0,
         macroChannels = 0,
+        talusSlopes = 0,
+        alluvialFans = 0,
+        floodplains = 0,
+        deltas = 0,
         maxFlow = 0,
     }
     local basins = {}
@@ -476,6 +516,10 @@ local function solveRegion(world, chunkX, chunkY, info)
             if cell.river then stats.rivers = stats.rivers + 1 end
             if cell.lake then stats.lakes = stats.lakes + 1 end
             if cell.macroChannelId then stats.macroChannels = stats.macroChannels + 1 end
+            if cell.talus then stats.talusSlopes = stats.talusSlopes + 1 end
+            if cell.alluvialFan then stats.alluvialFans = stats.alluvialFans + 1 end
+            if cell.floodplain then stats.floodplains = stats.floodplains + 1 end
+            if cell.delta then stats.deltas = stats.deltas + 1 end
             if not cell.downCell and not cell.water then stats.endorheic = stats.endorheic + 1 end
             if cell.downCell and cell.filledElevation + 0.000001 < cell.downCell.filledElevation then stats.uphillRejects = stats.uphillRejects + 1 end
             if cell.downCell and not region.cells[key(cell.downCell.gx, cell.downCell.gy)] then stats.seamMismatches = stats.seamMismatches + 1 end

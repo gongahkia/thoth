@@ -20,6 +20,13 @@ local biomeColors = {
     rock = { 0.33, 0.32, 0.31 },
 }
 
+local landformColors = {
+    talus = { 0.46, 0.44, 0.4 },
+    alluvial = { 0.58, 0.49, 0.31 },
+    floodplain = { 0.2, 0.42, 0.22 },
+    delta = { 0.42, 0.48, 0.28 },
+}
+
 local skyTop = { 0.43, 0.55, 0.66 }
 local skyHorizon = { 0.68, 0.74, 0.75 }
 local fogColor = { 0.6, 0.68, 0.69 }
@@ -46,10 +53,19 @@ local function shade(color, amount)
 end
 
 local function baseColor(cell)
-    if cell.river then return biomeColors.river end
+    if cell.river then
+        local color = biomeColors.river
+        if cell.delta then color = mixColor(color, landformColors.delta, 0.45) end
+        if cell.floodplain then color = mixColor(color, landformColors.floodplain, 0.22) end
+        return color
+    end
     if cell.lake then return biomeColors.lake end
     local color = biomeColors[cell.biome] or biomeColors.grassland
     if cell.water then color = cell.biome == "coast" and biomeColors.coast or biomeColors.ocean end
+    if cell.delta then color = mixColor(color, landformColors.delta, 0.55) end
+    if cell.floodplain then color = mixColor(color, landformColors.floodplain, 0.5) end
+    if cell.alluvialFan then color = mixColor(color, landformColors.alluvial, 0.45) end
+    if cell.talus then color = mixColor(color, landformColors.talus, 0.38) end
     if cell.riverBank then color = mixColor(color, biomeColors.river, 0.28) end
     return color
 end

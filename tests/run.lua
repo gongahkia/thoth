@@ -29,6 +29,8 @@ local function encodeCell(cell)
         round(cell.elevation),
         round(cell.flow),
         round(cell.erosion),
+        round(cell.deposition),
+        round(cell.thermalErosion),
         round(cell.lakeDepth),
         round(cell.rainfall),
         round(cell.temperature),
@@ -37,6 +39,10 @@ local function encodeCell(cell)
         tostring(cell.riverBank),
         tostring(cell.lake),
         tostring(cell.water),
+        tostring(cell.talus),
+        tostring(cell.alluvialFan),
+        tostring(cell.floodplain),
+        tostring(cell.delta),
         tostring(cell.plateId),
         tostring(cell.basinId),
         tostring(cell.watershedId),
@@ -137,6 +143,21 @@ local function testHydrologyStats()
         end
     end
     expect(stats.lakes > 0 or inspected == 0, "lake stats should be available when lakes exist")
+end
+
+local function testErosionLandforms()
+    local totals = { talus = 0, alluvial = 0, floodplain = 0, delta = 0 }
+    for _, seed in ipairs({ 19, 46, 99, 616 }) do
+        local stats = WorldGen.new(seed):hydrologyStats(0, 0, "local")
+        totals.talus = totals.talus + stats.talusSlopes
+        totals.alluvial = totals.alluvial + stats.alluvialFans
+        totals.floodplain = totals.floodplain + stats.floodplains
+        totals.delta = totals.delta + stats.deltas
+    end
+    expect(totals.talus > 0, "thermal erosion should expose talus slopes")
+    expect(totals.alluvial > 0, "sediment deposition should expose alluvial fans")
+    expect(totals.floodplain > 0, "sediment deposition should expose floodplains")
+    expect(totals.delta > 0, "river mouths should expose deltas")
 end
 
 local function testBasinHydrologyBudget()
@@ -318,6 +339,10 @@ local function smoke()
     print("rivers=" .. rivers)
     print("lakes=" .. lakes)
     print("basins=" .. localStats.basins)
+    print("talus=" .. localStats.talusSlopes)
+    print("alluvial_fans=" .. localStats.alluvialFans)
+    print("floodplains=" .. localStats.floodplains)
+    print("deltas=" .. localStats.deltas)
     print("seam_mismatches=" .. localStats.seamMismatches)
     print("uphill_rejects=" .. localStats.uphillRejects)
     print("max_flow=" .. string.format("%.3f", localStats.maxFlow))
@@ -330,6 +355,7 @@ local function smoke()
     print("camera_height=" .. string.format("%.3f", stats.cameraHeight))
     expect(land > 0 and water > 0 and rivers > 0, "smoke should cover land, water, and rivers")
     expect(localStats.basins > 0 and localStats.uphillRejects == 0, "smoke should include sane hydrology stats")
+    expect(localStats.talusSlopes + localStats.alluvialFans + localStats.floodplains + localStats.deltas > 0, "smoke should include erosion landforms")
     expect(stats.visibleTiles > 0 and stats.triangles > 0, "smoke should build visible terrain mesh")
     expect(stats.riverStrips > 0 and stats.silhouetteStrips > 0 and stats.landmarks > 0, "smoke should include readability overlays")
 end
@@ -340,6 +366,7 @@ local tests = {
     testSampleChunkAgreement,
     testRiverMonotonicity,
     testHydrologyStats,
+    testErosionLandforms,
     testBasinHydrologyBudget,
     testBasinChannelsSpanDetailRegions,
     testBiomes,

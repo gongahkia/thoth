@@ -2,7 +2,6 @@
 
 ## Terrain
 
-- Add thermal erosion and sediment deposition passes with visible talus slopes, alluvial fans, deltas, and floodplains.
 - Add plate age, oceanic subduction bias, rift valleys, volcanic island arcs, shield regions, and cratons.
 - Calibrate generated elevation, water ratio, river density, and biome ratios against rough Earth-like ranges.
 - Improve lake grouping, outlet labeling, spillover routing, and deltas.
