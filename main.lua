@@ -255,6 +255,7 @@ function love.load(args)
         mouseLook = true,
         renderSmoke = hasArg(args, "--render-smoke"),
         walkSmoke = hasArg(args, "--walk-smoke"),
+        debugTopo = hasArg(args, "--debug-topo"),
         walkSmokeFrames = tonumber(argValue(args, "--walk-smoke-frames", 240)) or 240,
         walkSmokeTurn = tonumber(argValue(args, "--walk-smoke-turn", 0.18)) or 0.18,
         preloadRadius = tonumber(argValue(args, "--preload-radius", 64)) or 64,
@@ -356,6 +357,10 @@ function love.keypressed(key)
     if key == "l" then
         app.debugPerf = not app.debugPerf
         print("[perf] debug=" .. tostring(app.debugPerf))
+    end
+    if key == "t" then
+        app.debugTopo = not app.debugTopo
+        print("[topo] debug=" .. tostring(app.debugTopo))
     end
     if key == "m" then
         Survey.mark(app.survey, app.world, app.player.x, app.player.y, ViewScale.activeScale(app.viewScale))

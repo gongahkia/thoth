@@ -410,6 +410,79 @@ local function fmt(value)
     return string.format("%.3f", value or 0)
 end
 
+local function topoColor(entry)
+    local cell = entry.cell
+    if cell.river then return biomeColors.river end
+    if cell.water then return cell.lake and biomeColors.lake or biomeColors.ocean end
+    local low = { 0.18, 0.34, 0.18 }
+    local high = { 0.78, 0.74, 0.52 }
+    local t = clamp(((cell.elevation or 0) + 0.1) / 0.8, 0, 1)
+    local color = mixColor(low, high, t)
+    if entry.contour then color = shade(color, 0.58) end
+    return color
+end
+
+function Render.topographicMapData(app, sampleCount)
+    local params = viewParams(app)
+    local count = sampleCount or 64
+    local span = (app.topographicSpan or 256) * (params.factor or 1)
+    local step = span / math.max(1, count - 1)
+    local originX = app.player.x - span * 0.5
+    local originY = app.player.y - span * 0.5
+    local rows = {}
+    local stats = { samples = 0, water = 0, rivers = 0, contours = 0, scale = params.target, span = span }
+    for row = 1, count do
+        rows[row] = {}
+        for col = 1, count do
+            local wx = originX + (col - 1) * step
+            local wy = originY + (row - 1) * step
+            local cell = app.world:sample(math.floor(wx), math.floor(wy), params.target)
+            rows[row][col] = { cell = cell, contour = false }
+            stats.samples = stats.samples + 1
+            if cell.water then stats.water = stats.water + 1 end
+            if cell.river then stats.rivers = stats.rivers + 1 end
+        end
+    end
+    for row = 1, count do
+        for col = 1, count do
+            local cell = rows[row][col].cell
+            if not cell.water then
+                local band = math.floor((cell.elevation or 0) / 0.08)
+                local east = rows[row][col + 1] and rows[row][col + 1].cell
+                local south = rows[row + 1] and rows[row + 1][col] and rows[row + 1][col].cell
+                local edge = (east and not east.water and math.floor((east.elevation or 0) / 0.08) ~= band) or (south and not south.water and math.floor((south.elevation or 0) / 0.08) ~= band)
+                if edge then
+                    rows[row][col].contour = true
+                    stats.contours = stats.contours + 1
+                end
+            end
+        end
+    end
+    stats.rows = rows
+    stats.sampleCount = count
+    return stats
+end
+
+local function drawTopographicMap(app, width)
+    local data = Render.topographicMapData(app, app.topographicSamples or 64)
+    local pixel = 3
+    local size = data.sampleCount * pixel
+    local x0 = width - size - 16
+    local y0 = 16
+    love.graphics.setColor(0.02, 0.025, 0.03, 0.82)
+    love.graphics.rectangle("fill", x0 - 8, y0 - 8, size + 16, size + 34)
+    for row = 1, data.sampleCount do
+        for col = 1, data.sampleCount do
+            local color = topoColor(data.rows[row][col])
+            love.graphics.setColor(color[1], color[2], color[3], 1)
+            love.graphics.rectangle("fill", x0 + (col - 1) * pixel, y0 + (row - 1) * pixel, pixel, pixel)
+        end
+    end
+    love.graphics.setColor(0.88, 0.9, 0.82, 1)
+    love.graphics.print("topo " .. tostring(data.scale) .. " / " .. tostring(data.contours) .. " contours", x0, y0 + size + 8)
+    return data
+end
+
 local function drawHud(app, width, height, stats)
     local params = viewParams(app)
     local cell = app.world:sample(math.floor(app.player.x), math.floor(app.player.y), params.target)
@@ -464,6 +537,11 @@ function Render.draw(app)
     end
     love.graphics.setColor(0.95, 0.92, 0.74, 1)
     love.graphics.circle("fill", width * 0.5, height * 0.52, 2)
+    if app.debugTopo then
+        local topo = drawTopographicMap(app, width)
+        meshData.topographicMap = topo.samples
+        meshData.topographicContours = topo.contours
+    end
     drawHud(app, width, height, meshData)
     return meshData
 end

@@ -471,6 +471,15 @@ local function testBiomePalette()
     expect(colorDistance(palette.snow, palette.rock) > 0.75, "high terrain palette should separate snow and rock")
 end
 
+local function testTopographicMapData()
+    local world = testWorld(20260625)
+    local app = { world = world, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(world) }
+    local data = Render.topographicMapData(app, 32)
+    expect(data.samples == 1024 and data.scale == "local", "topographic map should sample local terrain when enabled")
+    expect(data.water > 0 and data.water < data.samples, "topographic map should include land and water")
+    expect(data.rivers > 0 and data.contours > 0, "topographic map should expose rivers and contours")
+end
+
 local function testTerrainDiagnostics()
     local seeds = Diagnostics.defaultSeeds()
     local sweep = Diagnostics.sweep({
@@ -594,6 +603,7 @@ local tests = {
     testBillboards,
     testRenderStats,
     testBiomePalette,
+    testTopographicMapData,
     testTerrainDiagnostics,
     testBadSeedDiagnostics,
     testTerrainFirstScope,
