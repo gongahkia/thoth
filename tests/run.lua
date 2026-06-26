@@ -3,6 +3,7 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 local Player = require("src.player")
 local Render = require("src.render")
 local Rng = require("src.rng")
+local Noise = require("src.noise")
 local Save = require("src.save")
 local Survey = require("src.survey")
 local ViewScale = require("src.viewscale")
@@ -264,7 +265,7 @@ end
 local function testNamedTerrainDiscoveries()
     local world = WorldGen.new(1)
     local repeatWorld = WorldGen.new(1)
-    local points = { { -256, -256 }, { -32, -256 }, { 0, -256 }, { 144, -240 }, { 32, -48 } }
+    local points = { { -320, -320 }, { -64, -320 }, { 0, -320 }, { -32, -128 } }
     local seen = {}
     local expected = {}
     for _, kind in ipairs(WorldGen.discoveryKinds()) do expected[kind] = true end
@@ -364,7 +365,7 @@ local function testDiegeticScaleTransitions()
 end
 
 local function testBasinHydrologyBudget()
-    local world = WorldGen.new(20260625, basinWorldOptions)
+    local world = WorldGen.new(1, basinWorldOptions)
     world:chunk(0, 0, "local")
     local stats = world:hydrologyStats(0, 0, "local")
     local metrics = world:metricsSnapshot()
@@ -432,6 +433,27 @@ local function testRngHashRange()
     expect(minValue < 0.02 and maxValue > 0.98, "Rng.hash should cover the unit range")
     expect(math.abs(sum / 2048 - 0.5) < 0.035, "Rng.hash should have a centered fixture mean")
     expect(buckets >= 28, "Rng.hash should distribute fixture samples across buckets")
+end
+
+local function testOpenSimplexNoise()
+    local minValue, maxValue, sum = 1, 0, 0
+    local axisDelta, diagonalDelta = 0, 0
+    for y = -16, 16 do
+        for x = -16, 16 do
+            local value = Noise.value(20260625, x * 0.21, y * 0.21, 9)
+            expect(value >= 0 and value <= 1, "Noise.value should stay normalized")
+            minValue = math.min(minValue, value)
+            maxValue = math.max(maxValue, value)
+            sum = sum + value
+            axisDelta = axisDelta + math.abs(value - Noise.value(20260625, (x + 1) * 0.21, y * 0.21, 9))
+            diagonalDelta = diagonalDelta + math.abs(value - Noise.value(20260625, (x + 1) * 0.21, (y + 1) * 0.21, 9))
+        end
+    end
+    local mean = sum / (33 * 33)
+    expect(round(Noise.value(7, -2.96, -2.96, 3)) == round(Noise.value(7, -2.96, -2.96, 3)), "Noise.value should be deterministic")
+    expect(round(Noise.value(7, -2.96, -2.96, 3)) ~= round(Noise.value(8, -2.96, -2.96, 3)), "Noise.value should vary by seed")
+    expect(minValue < 0.08 and maxValue > 0.92 and math.abs(mean - 0.5) < 0.04, "OpenSimplex fixture should use the normalized range")
+    expect(axisDelta / diagonalDelta > 0.55 and axisDelta / diagonalDelta < 1.45, "OpenSimplex fixture should not be strongly axis biased")
 end
 
 local function testBasinChannelsSpanDetailRegions()
@@ -536,7 +558,7 @@ local function testBillboards()
 end
 
 local function testRenderStats()
-    local world = testWorld(1)
+    local world = testWorld(3)
     local app = { world = world, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(world) }
     local stats = Render.visibleStats(app, 1280, 720)
     expect(stats.visibleTiles > 0 and stats.triangles == stats.visibleTiles * 2, "render stats should describe terrain mesh")
@@ -759,6 +781,7 @@ local tests = {
     testCacheBoundsAndCounters,
     testPlateCacheBounds,
     testRngHashRange,
+    testOpenSimplexNoise,
     testBasinChannelsSpanDetailRegions,
     testBiomes,
     testPlayer,

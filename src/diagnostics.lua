@@ -2,16 +2,16 @@ local WorldGen = require("src.worldgen")
 
 local Diagnostics = {}
 
-local defaultSeeds = { 6, 20, 30, 86 }
+local defaultSeeds = { 6, 7, 8, 19 }
 local badSeeds = {
     { seed = 1, flags = { "water_low" } },
-    { seed = 5, flags = { "water_high", "river_low", "biome_count_low", "single_biome_high" } },
-    { seed = 13, flags = { "water_low", "biome_count_low", "single_biome_high" } },
-    { seed = 34, flags = { "water_low", "steep_slope_high" } },
+    { seed = 5, flags = { "river_low" } },
+    { seed = 9, flags = { "water_high" } },
+    { seed = 13, flags = { "water_low" } },
 }
 local regressionSeeds = {
-    { seed = 34, category = "ugly_terrain", flags = { "water_low", "steep_slope_high" } },
-    { seed = 5, category = "all_water", flags = { "water_high" } },
+    { seed = 34, category = "ugly_terrain", flags = { "water_low" } },
+    { seed = 9, category = "all_water", flags = { "water_high" } },
     { seed = 1, category = "all_land", flags = { "water_low" } },
     { seed = 20260625, category = "broken_seams", maxSeamMismatches = 0 },
     { seed = 26, category = "river_discontinuities", maxUphillRejects = 0, minRivers = 1 },

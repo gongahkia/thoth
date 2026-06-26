@@ -69,33 +69,6 @@ These bring the world closer to actual landscape evolution physics. They are the
 
 ---
 
-### T-009 — Replace value-noise with OpenSimplex2         [tier 2] [med]
-
-GOAL: `src/noise.lua` returns OpenSimplex2 noise (gradient-based, isotropic). FBM, ridge, warp all wrap the new primitive.
-
-WHY: `noise.lua:17–25` is corner-lerped value noise. Visible square grid artifacts at low octaves, especially in domain-warped fields. Modern standard is Simplex / OpenSimplex2: visually isotropic, no axis-aligned bias, similar cost.
-
-WHERE: `src/noise.lua` entirely.
-
-DEPENDS ON: T-008 if you change the seed hash, otherwise none. Snapshot diffs expected.
-
-ACCEPTANCE:
-- `Noise.value(seed, x, y, salt)` returns 0–1 gradient noise from OpenSimplex2.
-- All existing call sites (`fbm`, `ridge`, `warp`) unchanged.
-- Manual screenshot review confirms no axis-aligned banding in low-octave fields.
-- All tests re-blessed; `testDeterminism` and `testSeedVariance` still meaningful.
-
-NOTES / IMPL HINTS:
-- Port `behreajj/AsepriteOpenSimplex` (Lua port of KdotJPG's reference) — `OpenSimplex2S` variant. It's MIT/CC0.
-- For 2D only; you don't need 3D/4D yet. ~150 LOC.
-- Keep the existing function names and signatures; this is an internal swap.
-
-REFERENCES:
-- [KdotJPG/OpenSimplex2 — GitHub](https://github.com/KdotJPG/OpenSimplex2) — reference impl, multiple language ports.
-- [behreajj/AsepriteOpenSimplex — GitHub](https://github.com/behreajj/AsepriteOpenSimplex) — Lua port of OpenSimplex2S.
-
----
-
 ### T-010 — Iterative Stream Power Law (Braun-Willett O(n))         [tier 2] [high]
 
 GOAL: New module `src/erosion.lua`. On the coarse basin grid, iterate dh/dt = U − K·A^m·S^n with implicit O(n) ordering from Braun & Willett (2013). Output goes back into `cell.elevation`, not just `cell.erosion`.

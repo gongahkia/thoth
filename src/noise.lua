@@ -2,26 +2,79 @@ local Rng = require("src.rng")
 
 local Noise = {}
 
+local skew2D = 0.366025403784439
+local unskew2D = -0.21132486540518713
+local radius2D = 0.5
+local normalizer2D = 0.01001634121365712
+local gradients2D = {
+    { 0.38268343236509 / normalizer2D, 0.923879532511287 / normalizer2D },
+    { 0.923879532511287 / normalizer2D, 0.38268343236509 / normalizer2D },
+    { 0.923879532511287 / normalizer2D, -0.38268343236509 / normalizer2D },
+    { 0.38268343236509 / normalizer2D, -0.923879532511287 / normalizer2D },
+    { -0.38268343236509 / normalizer2D, -0.923879532511287 / normalizer2D },
+    { -0.923879532511287 / normalizer2D, -0.38268343236509 / normalizer2D },
+    { -0.923879532511287 / normalizer2D, 0.38268343236509 / normalizer2D },
+    { -0.38268343236509 / normalizer2D, 0.923879532511287 / normalizer2D },
+    { 0.130526192220052 / normalizer2D, 0.99144486137381 / normalizer2D },
+    { 0.608761429008721 / normalizer2D, 0.793353340291235 / normalizer2D },
+    { 0.793353340291235 / normalizer2D, 0.608761429008721 / normalizer2D },
+    { 0.99144486137381 / normalizer2D, 0.130526192220051 / normalizer2D },
+    { 0.99144486137381 / normalizer2D, -0.130526192220051 / normalizer2D },
+    { 0.793353340291235 / normalizer2D, -0.60876142900872 / normalizer2D },
+    { 0.608761429008721 / normalizer2D, -0.793353340291235 / normalizer2D },
+    { 0.130526192220052 / normalizer2D, -0.99144486137381 / normalizer2D },
+    { -0.130526192220052 / normalizer2D, -0.99144486137381 / normalizer2D },
+    { -0.608761429008721 / normalizer2D, -0.793353340291235 / normalizer2D },
+    { -0.793353340291235 / normalizer2D, -0.608761429008721 / normalizer2D },
+    { -0.99144486137381 / normalizer2D, -0.130526192220052 / normalizer2D },
+    { -0.99144486137381 / normalizer2D, 0.130526192220051 / normalizer2D },
+    { -0.793353340291235 / normalizer2D, 0.608761429008721 / normalizer2D },
+    { -0.608761429008721 / normalizer2D, 0.793353340291235 / normalizer2D },
+    { -0.130526192220052 / normalizer2D, 0.99144486137381 / normalizer2D },
+}
+
+local gradientCount = #gradients2D
+
 local function floor(value)
     return math.floor(value)
 end
 
-local function lerp(a, b, t)
-    return a + (b - a) * t
+local function clamp(value, minValue, maxValue)
+    return math.max(minValue, math.min(maxValue, value))
 end
 
-local function smooth(t)
-    return t * t * (3 - 2 * t)
+local function grad(seed, x, y, salt, dx, dy)
+    local gradient = gradients2D[(Rng.hash(seed, x, y, salt or 0) % gradientCount) + 1]
+    return gradient[1] * dx + gradient[2] * dy
+end
+
+local function contribution(seed, x, y, salt, dx, dy)
+    local a = radius2D - dx * dx - dy * dy
+    if a <= 0 then return 0 end
+    local aa = a * a
+    return aa * aa * grad(seed, x, y, salt, dx, dy)
 end
 
 function Noise.value(seed, x, y, salt)
-    local ix, iy = floor(x), floor(y)
-    local fx, fy = smooth(x - ix), smooth(y - iy)
-    local a = Rng.unitAt(seed, ix, iy, salt or 0)
-    local b = Rng.unitAt(seed, ix + 1, iy, salt or 0)
-    local c = Rng.unitAt(seed, ix, iy + 1, salt or 0)
-    local d = Rng.unitAt(seed, ix + 1, iy + 1, salt or 0)
-    return lerp(lerp(a, b, fx), lerp(c, d, fx), fy)
+    local s = (x + y) * skew2D
+    local xs, ys = x + s, y + s
+    local xsb, ysb = floor(xs), floor(ys)
+    local xi, yi = xs - xsb, ys - ysb
+    local t = (xi + yi) * unskew2D
+    local dx0, dy0 = xi + t, yi + t
+    local value = contribution(seed, xsb, ysb, salt, dx0, dy0)
+    local a1 = 2 * (1 + 2 * unskew2D) * (1 / unskew2D + 2) * t + (-2 * (1 + 2 * unskew2D) * (1 + 2 * unskew2D) + (radius2D - dx0 * dx0 - dy0 * dy0))
+    if a1 > 0 then
+        local dx1, dy1 = dx0 - (1 + 2 * unskew2D), dy0 - (1 + 2 * unskew2D)
+        local aa = a1 * a1
+        value = value + aa * aa * grad(seed, xsb + 1, ysb + 1, salt, dx1, dy1)
+    end
+    if dy0 > dx0 then
+        value = value + contribution(seed, xsb, ysb + 1, salt, dx0 - unskew2D, dy0 - (unskew2D + 1))
+    else
+        value = value + contribution(seed, xsb + 1, ysb, salt, dx0 - (unskew2D + 1), dy0 - unskew2D)
+    end
+    return clamp(value * 0.5 + 0.5, 0, 1)
 end
 
 function Noise.fbm(seed, x, y, options)
