@@ -1,9 +1,5 @@
 # TODO
 
-## Exploration
-
-- Reintroduce region/continent scale as diegetic transitions instead of runtime map zoom.
-
 ## Rendering
 
 - Improve pseudo-3D terrain mesh density and biome palette.

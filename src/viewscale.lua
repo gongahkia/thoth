@@ -38,6 +38,43 @@ local function labelSampleKey(info, x, y)
     return table.concat({ info.id, math.floor(x / span), math.floor(y / span) }, ":")
 end
 
+local anchorRanks = {
+    mountain_range = 1,
+    ridge = 2,
+    pass = 3,
+    watershed = 4,
+    basin = 5,
+    coast = 6,
+    rain_shadow = 7,
+}
+
+local routes = {
+    ["local"] = { target = "region", mode = "outlook" },
+    region = { target = "continent", mode = "horizon" },
+    continent = { target = "local", mode = "return" },
+}
+
+local function terrainAnchor(world, x, y, scaleId)
+    local best
+    local bestRank = 999
+    for _, item in ipairs(world:discoveriesAt(x, y, scaleId)) do
+        local rank = anchorRanks[item.kind] or 99
+        if rank < bestRank then
+            best = item
+            bestRank = rank
+        end
+    end
+    if best then return best end
+    local cell = world:sample(math.floor(x), math.floor(y), scaleId)
+    return {
+        kind = "terrain",
+        id = table.concat({ scaleId, cell.x, cell.y }, ":"),
+        name = tostring(cell.biome) .. " field",
+        x = cell.x,
+        y = cell.y,
+    }
+end
+
 function ViewScale.new(world)
     local initial = scaleInfo(world, "local").id
     return {
@@ -49,6 +86,7 @@ function ViewScale.new(world)
         labels = {},
         labelOrder = {},
         labelSampleKeys = {},
+        anchor = nil,
     }
 end
 
@@ -128,6 +166,30 @@ function ViewScale.shift(view, world, delta, x, y)
     local index = scaleIndex(world, view and view.target or "local")
     index = clamp(index + delta, 1, #scales)
     return ViewScale.set(view, world, scales[index].id, x, y)
+end
+
+function ViewScale.diegeticAnchor(view, world, x, y)
+    local current = ViewScale.activeScale(view)
+    local route = routes[current] or routes["local"]
+    local anchor = terrainAnchor(world, x or 0, y or 0, current)
+    return {
+        from = current,
+        target = route.target,
+        mode = route.mode,
+        kind = anchor.kind,
+        id = anchor.id,
+        name = anchor.name,
+        x = anchor.x,
+        y = anchor.y,
+    }
+end
+
+function ViewScale.advanceDiegetic(view, world, x, y)
+    local anchor = ViewScale.diegeticAnchor(view, world, x or 0, y or 0)
+    ViewScale.collectLabels(view, world, x or 0, y or 0, anchor.from, true)
+    ViewScale.set(view, world, anchor.target, x or 0, y or 0)
+    view.anchor = anchor
+    return anchor
 end
 
 function ViewScale.update(view, dt, world, x, y)

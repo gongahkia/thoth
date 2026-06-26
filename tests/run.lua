@@ -315,6 +315,21 @@ local function testViewScaleTransitions()
     expect(#labels >= labelsAfterLocal and scales["local"] and scales.region and scales.continent, "view labels should persist across nested scales")
 end
 
+local function testDiegeticScaleTransitions()
+    local world = WorldGen.new(99)
+    local view = ViewScale.new(world)
+    local localAnchor = ViewScale.advanceDiegetic(view, world, -64, -64)
+    expect(localAnchor.from == "local" and localAnchor.target == "region" and localAnchor.name, "local scope should use a terrain anchor")
+    ViewScale.update(view, 1, world, -64, -64)
+    local regionAnchor = ViewScale.advanceDiegetic(view, world, -16, 16)
+    expect(regionAnchor.from == "region" and regionAnchor.target == "continent" and regionAnchor.name, "region scope should use a terrain anchor")
+    ViewScale.update(view, 1, world, -16, 16)
+    local returnAnchor = ViewScale.advanceDiegetic(view, world, -16, 16)
+    ViewScale.update(view, 1, world, -16, 16)
+    expect(returnAnchor.from == "continent" and returnAnchor.target == "local", "continent scope should return to local terrain")
+    expect(ViewScale.params(view, world).target == "local" and view.anchor.name == returnAnchor.name, "diegetic scope anchor should persist on the view")
+end
+
 local function testBasinHydrologyBudget()
     local world = WorldGen.new(20260625, basinWorldOptions)
     world:chunk(0, 0, "local")
@@ -557,6 +572,7 @@ local tests = {
     testNamedTerrainDiscoveries,
     testSurveyHistory,
     testViewScaleTransitions,
+    testDiegeticScaleTransitions,
     testBasinHydrologyBudget,
     testBasinChannelsSpanDetailRegions,
     testBiomes,

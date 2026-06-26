@@ -17,7 +17,7 @@ Hydrology uses cached chunk regions, a coarse cached basin pass, Priority-Flood-
 
 Sampled cells expose basin, watershed, ridge, and mountain-range ids for discovery labels and debug overlays.
 `WorldGen:discoveriesAt(x, y, scale)` returns deterministic names for mountain ranges, watersheds, basins, coasts, ridges, passes, and rain shadows.
-Press `Tab` to ease between local, region, and continent views while keeping sampled terrain labels cached.
+Press `Tab` to follow the current terrain label from local to region to continent scope while keeping sampled labels cached.
 Press `M` to mark the current sampled cell and discovered terrain ids in the in-memory survey history.
 
 Tests include a terrain-first guard that rejects runtime ruins, lore, quests, collectibles, combat, or survival systems until landform generation is coherent.
@@ -53,6 +53,6 @@ Controls:
 - mouse or `Q` / `E`: look
 - arrow up/down: pitch
 - `F`: toggle mouse look
-- `Tab`: cycle local / region / continent view
+- `Tab`: follow terrain scope
 - `M`: mark surveyed terrain
 - `R`: new seed

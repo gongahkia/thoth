@@ -362,8 +362,8 @@ function love.keypressed(key)
         print("[survey] cells=" .. tostring(app.survey.cellCount) .. " discoveries=" .. tostring(app.survey.discoveryCount))
     end
     if key == "tab" then
-        local scale = ViewScale.shift(app.viewScale, app.world, 1, app.player.x, app.player.y)
-        print("[scale] " .. tostring(scale))
+        local anchor = ViewScale.advanceDiegetic(app.viewScale, app.world, app.player.x, app.player.y)
+        print("[scale] " .. tostring(anchor.target) .. " via " .. tostring(anchor.name))
         preloadApp(app, "scale")
     end
     if key == "r" then

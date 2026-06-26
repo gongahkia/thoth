@@ -412,20 +412,21 @@ local function drawHud(app, width, height, stats)
     love.graphics.rectangle("fill", 12, 12, 456, 214)
     love.graphics.setColor(0.88, 0.9, 0.82, 1)
     love.graphics.print("Thoth terrain proto / first-person heightfield", 24, 24)
-    love.graphics.print("seed " .. tostring(app.world:metadata().seed) .. "  fps " .. tostring(love.timer.getFPS()) .. "  view " .. tostring(params.target) .. " x" .. string.format("%.1f", params.factor), 24, 44)
+    love.graphics.print("seed " .. tostring(app.world:metadata().seed) .. "  fps " .. tostring(love.timer.getFPS()) .. "  scope " .. tostring(params.target) .. " x" .. string.format("%.1f", params.factor), 24, 44)
     love.graphics.print("pos " .. math.floor(app.player.x) .. ", " .. math.floor(app.player.y) .. "  biome " .. tostring(cell.biome), 24, 66)
     love.graphics.print("elev " .. fmt(cell.elevation) .. " slope " .. fmt(cell.slope) .. " erosion " .. fmt(cell.erosion), 24, 88)
     love.graphics.print("rain " .. fmt(cell.rainfall) .. " flow " .. fmt(cell.flow) .. " river " .. tostring(cell.river), 24, 110)
     local survey = app.survey or {}
     love.graphics.print("mesh " .. tostring(stats.visibleTiles) .. " tiles / " .. tostring(stats.triangles) .. " tris / rivers " .. tostring(stats.riverStrips or 0) .. " / survey " .. tostring(survey.cellCount or 0) .. ":" .. tostring(survey.discoveryCount or 0), 24, 132)
-    love.graphics.print("labels " .. tostring(#labels) .. " cached", 24, 154)
+    local anchor = app.viewScale and app.viewScale.anchor
+    love.graphics.print("anchor " .. tostring(anchor and anchor.name or "terrain labels") .. " / labels " .. tostring(#labels), 24, 154)
     for index, label in ipairs(labels) do
         love.graphics.print(tostring(label.scaleLabel) .. " " .. tostring(label.name), 24, 154 + index * 16)
     end
     love.graphics.setColor(0.02, 0.025, 0.03, 0.7)
     love.graphics.rectangle("fill", width - 428, height - 52, 416, 34)
     love.graphics.setColor(0.88, 0.9, 0.82, 1)
-    love.graphics.print("WASD walk  mouse/QE look  F mouse  Tab scale  M mark  R seed", width - 416, height - 42)
+    love.graphics.print("WASD walk  mouse/QE look  F mouse  Tab scope  M mark  R seed", width - 416, height - 42)
 end
 
 function Render.draw(app)
