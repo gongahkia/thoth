@@ -46,6 +46,37 @@ local billboardKinds = {
     outcrop = true,
 }
 
+local discoveryKinds = {
+    mountain_range = true,
+    watershed = true,
+    basin = true,
+    coast = true,
+    ridge = true,
+    pass = true,
+    rain_shadow = true,
+}
+
+local discoveryAdjectives = {
+    "Ash",
+    "Cedar",
+    "Granite",
+    "High",
+    "Iron",
+    "Mist",
+    "Silver",
+    "Wind",
+}
+
+local discoveryNouns = {
+    mountain_range = "Range",
+    watershed = "Watershed",
+    basin = "Basin",
+    coast = "Coast",
+    ridge = "Ridge",
+    pass = "Pass",
+    rain_shadow = "Rain Shadow",
+}
+
 local function clamp(value, minValue, maxValue)
     if value < minValue then return minValue end
     if value > maxValue then return maxValue end
@@ -67,6 +98,20 @@ local function key(...)
         parts[index] = tostring(select(index, ...))
     end
     return table.concat(parts, ":")
+end
+
+local function textHash(text)
+    local h = 0
+    for index = 1, #tostring(text or "") do
+        h = (h * 33 + string.byte(text, index)) % 2147483647
+    end
+    return h
+end
+
+local function discoveryName(seed, kind, id)
+    local h = Rng.hash(seed, textHash(kind), textHash(id), 907)
+    local adjective = discoveryAdjectives[(h % #discoveryAdjectives) + 1]
+    return adjective .. " " .. (discoveryNouns[kind] or "Feature")
 end
 
 local function scaleInfo(scale)
@@ -180,6 +225,13 @@ end
 function WorldGen.billboardKinds()
     local result = {}
     for id in pairs(billboardKinds) do result[#result + 1] = id end
+    table.sort(result)
+    return result
+end
+
+function WorldGen.discoveryKinds()
+    local result = {}
+    for id in pairs(discoveryKinds) do result[#result + 1] = id end
     table.sort(result)
     return result
 end
@@ -427,6 +479,64 @@ function WorldGen:sample(x, y, scale)
     local lx = gx - chunkX * self.chunkSize
     local ly = gy - chunkY * self.chunkSize
     return self:chunk(chunkX, chunkY, info.id).cells[ly + 1][lx + 1]
+end
+
+local function hasLandWaterEdge(world, cell, scale)
+    local step = (cell.scaleFactor or 1) * 4
+    local hasLand = not cell.water
+    local hasWater = cell.water
+    local offsets = { { step, 0 }, { -step, 0 }, { 0, step }, { 0, -step } }
+    for _, offset in ipairs(offsets) do
+        local neighbor = world:sample(cell.x + offset[1], cell.y + offset[2], scale)
+        hasLand = hasLand or not neighbor.water
+        hasWater = hasWater or neighbor.water
+    end
+    return hasLand and hasWater
+end
+
+local function isPass(world, cell, scale)
+    if cell.water or cell.elevation < 0.12 or cell.slope > 0.22 or not cell.mountainRangeId then return false end
+    local step = (cell.scaleFactor or 1) * 6
+    local east = world:sample(cell.x + step, cell.y, scale)
+    local west = world:sample(cell.x - step, cell.y, scale)
+    local north = world:sample(cell.x, cell.y - step, scale)
+    local south = world:sample(cell.x, cell.y + step, scale)
+    local ewHigh = east.elevation > cell.elevation + 0.02 and west.elevation > cell.elevation + 0.02
+    local nsHigh = north.elevation > cell.elevation + 0.02 and south.elevation > cell.elevation + 0.02
+    return ewHigh or nsHigh or (cell.ridgeId ~= nil and cell.slope < 0.12)
+end
+
+local function addDiscovery(list, seen, seed, kind, id, cell)
+    if not id or seen[kind .. ":" .. tostring(id)] then return end
+    seen[kind .. ":" .. tostring(id)] = true
+    list[#list + 1] = {
+        kind = kind,
+        id = id,
+        name = discoveryName(seed, kind, id),
+        x = cell.x,
+        y = cell.y,
+    }
+end
+
+function WorldGen:discoveriesAt(x, y, scale)
+    local info = scaleInfo(scale)
+    local cell = self:sample(x, y, info.id)
+    local discoveries = {}
+    local seen = {}
+    addDiscovery(discoveries, seen, self.seed, "basin", cell.basinId, cell)
+    addDiscovery(discoveries, seen, self.seed, "watershed", cell.watershedId, cell)
+    addDiscovery(discoveries, seen, self.seed, "ridge", cell.ridgeId, cell)
+    addDiscovery(discoveries, seen, self.seed, "mountain_range", cell.mountainRangeId, cell)
+    if hasLandWaterEdge(self, cell, info.id) then
+        addDiscovery(discoveries, seen, self.seed, "coast", key("coast", info.id, floorDiv(math.floor(cell.x), 128 * info.factor), floorDiv(math.floor(cell.y), 128 * info.factor)), cell)
+    end
+    if isPass(self, cell, info.id) then
+        addDiscovery(discoveries, seen, self.seed, "pass", key("pass", info.id, floorDiv(math.floor(cell.x), 96 * info.factor), floorDiv(math.floor(cell.y), 96 * info.factor)), cell)
+    end
+    if not cell.water and (cell.rainfall or 0) < 0.42 and ((cell.uplift or 0) > 0.12 or (cell.slope or 0) > 0.16) then
+        addDiscovery(discoveries, seen, self.seed, "rain_shadow", key("shadow", info.id, floorDiv(math.floor(cell.x), 160 * info.factor), floorDiv(math.floor(cell.y), 160 * info.factor)), cell)
+    end
+    return discoveries
 end
 
 function WorldGen:heightAt(x, y)

@@ -16,6 +16,7 @@ make run
 Hydrology uses cached chunk regions, a coarse cached basin pass, Priority-Flood-style depression filling, D8 downstream routing, rainfall accumulation, basin/watershed ids, lake surfaces, and seam/uphill diagnostics. The generator default is 2x2 detail regions with an 8-cell halo plus 8-chunk basins at 4-cell stride; the interactive runtime defaults to `--hydrology-region-chunks 1 --hydrology-halo 0 --hydrology-basin-chunks 8 --hydrology-basin-stride 8` to keep first render bounded while preserving larger river corridors.
 
 Sampled cells expose basin, watershed, ridge, and mountain-range ids for discovery labels and debug overlays.
+`WorldGen:discoveriesAt(x, y, scale)` returns deterministic names for mountain ranges, watersheds, basins, coasts, ridges, passes, and rain shadows.
 
 Tests include a terrain-first guard that rejects runtime ruins, lore, quests, collectibles, combat, or survival systems until landform generation is coherent.
 

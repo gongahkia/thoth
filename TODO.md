@@ -2,7 +2,6 @@
 
 ## Exploration
 
-- Add named terrain discovery: mountain ranges, watersheds, basins, coasts, ridges, passes, rain shadows.
 - Add player survey tools that mark sampled terrain history without adding quests/combat/survival.
 - Add smooth nested-scale transitions with persistent labels between local, region, and continent views.
 - Add optional impossible-topology experiments: wrapped valleys, recursive insets, scale doors, and folded map edges.

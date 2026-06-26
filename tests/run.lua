@@ -253,6 +253,27 @@ local function testDiscoveryOverlayIds()
     expect(rangeCount > 0, "sampled cells should expose mountain-range ids")
 end
 
+local function testNamedTerrainDiscoveries()
+    local world = WorldGen.new(99)
+    local repeatWorld = WorldGen.new(99)
+    local points = { { -64, -64 }, { -16, 16 }, { -40, -16 } }
+    local seen = {}
+    local expected = {}
+    for _, kind in ipairs(WorldGen.discoveryKinds()) do expected[kind] = true end
+    for _, point in ipairs(points) do
+        local first = world:discoveriesAt(point[1], point[2], "local")
+        local second = repeatWorld:discoveriesAt(point[1], point[2], "local")
+        expect(#first == #second, "terrain discovery labels should be deterministic")
+        for index, item in ipairs(first) do
+            expect(item.name == second[index].name and item.id == second[index].id, "terrain discovery names should be stable")
+            seen[item.kind] = true
+        end
+    end
+    for kind in pairs(expected) do
+        expect(seen[kind], "terrain discovery should include " .. kind)
+    end
+end
+
 local function testBasinHydrologyBudget()
     local world = WorldGen.new(20260625, basinWorldOptions)
     world:chunk(0, 0, "local")
@@ -485,6 +506,7 @@ local tests = {
     testErosionLandforms,
     testTectonicFeatures,
     testDiscoveryOverlayIds,
+    testNamedTerrainDiscoveries,
     testBasinHydrologyBudget,
     testBasinChannelsSpanDetailRegions,
     testBiomes,
