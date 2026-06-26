@@ -1,5 +1,6 @@
 local Render = {}
 local ViewScale = require("src.viewscale")
+local ffi = require("ffi")
 
 local terrainScale = 18
 
@@ -171,8 +172,82 @@ local function foggedColor(color, depth, radius, amount)
     return mixColor(color, fogColor, fog * (amount or 0.7))
 end
 
+local vertexFloatCount = 6
+local vertexByteCount = vertexFloatCount * 4
+local floatPointer = ffi.typeof("float *")
+
+local meshMinimums = {
+    terrain = 4608,
+    silhouette = 3072,
+    river = 1024,
+}
+
+local function meshCapacity(required, minimum)
+    local capacity = minimum or 256
+    while capacity < required do capacity = capacity * 2 end
+    return capacity
+end
+
+local function vertexCount(vertices)
+    return vertices.count or #vertices
+end
+
+local function resetByteStream(stream, capacity)
+    local oldBytes = stream.bytes
+    local oldCount = stream.count or 0
+    stream.bytes = love.data.newByteData(capacity * vertexByteCount)
+    stream.floats = ffi.cast(floatPointer, stream.bytes:getFFIPointer())
+    if oldBytes and oldCount > 0 then
+        ffi.copy(stream.bytes:getFFIPointer(), oldBytes:getFFIPointer(), oldCount * vertexByteCount)
+    end
+    stream.capacity = capacity
+end
+
+local function vertexStream(app, id)
+    app.vertexBuffers = app.vertexBuffers or {}
+    local vertices = app.vertexBuffers[id]
+    if not vertices then
+        vertices = { count = 0 }
+        app.vertexBuffers[id] = vertices
+    end
+    if love and love.data and not vertices.bytes then
+        resetByteStream(vertices, meshMinimums[id] or 256)
+    end
+    vertices.count = 0
+    return vertices
+end
+
+local function growVertexStream(vertices, required)
+    if required <= (vertices.capacity or 0) then return end
+    resetByteStream(vertices, meshCapacity(required, vertices.capacity or 256))
+end
+
 local function pushVertex(vertices, x, y, color)
-    vertices[#vertices + 1] = { x, y, color[1], color[2], color[3], 1 }
+    local index = (vertices.count or #vertices) + 1
+    if vertices.floats then
+        growVertexStream(vertices, index)
+        local offset = (index - 1) * vertexFloatCount
+        vertices.floats[offset] = x
+        vertices.floats[offset + 1] = y
+        vertices.floats[offset + 2] = color[1]
+        vertices.floats[offset + 3] = color[2]
+        vertices.floats[offset + 4] = color[3]
+        vertices.floats[offset + 5] = 1
+        vertices.count = index
+        return
+    end
+    local vertex = vertices[index]
+    if vertex then
+        vertex[1] = x
+        vertex[2] = y
+        vertex[3] = color[1]
+        vertex[4] = color[2]
+        vertex[5] = color[3]
+        vertex[6] = 1
+    else
+        vertices[index] = { x, y, color[1], color[2], color[3], 1 }
+    end
+    vertices.count = index
 end
 
 local function pushTriCoords(vertices, ax, ay, bx, by, cx, cy, color)
@@ -198,9 +273,9 @@ end
 function Render.buildTerrainMeshData(app, width, height)
     local params = viewParams(app)
     app.camera.eyeZ = cameraHeight(app)
-    local vertices = {}
-    local riverVertices = {}
-    local silhouetteVertices = {}
+    local vertices = vertexStream(app, "terrain")
+    local riverVertices = vertexStream(app, "river")
+    local silhouetteVertices = vertexStream(app, "silhouette")
     local camera = app.camera
     local step = camera.step or 2
     local radius = camera.renderRadius or 86
@@ -292,7 +367,7 @@ function Render.buildTerrainMeshData(app, width, height)
         riverVertices = riverVertices,
         silhouetteVertices = silhouetteVertices,
         visibleTiles = visibleTiles,
-        triangles = #vertices / 3,
+        triangles = vertexCount(vertices) / 3,
         riverStrips = riverStrips,
         silhouetteStrips = silhouetteStrips,
         cameraHeight = app.camera.eyeZ,
@@ -380,6 +455,23 @@ local meshFormat = {
     { "VertexPosition", "float", 2 },
     { "VertexColor", "float", 4 },
 }
+
+local function streamMesh(app, id, vertices)
+    local count = vertexCount(vertices)
+    app.meshes = app.meshes or {}
+    local entry = app.meshes[id]
+    if not entry or count > entry.capacity then
+        local capacity = meshCapacity(count, meshMinimums[id])
+        entry = {
+            mesh = love.graphics.newMesh(meshFormat, capacity, "triangles", "stream"),
+            capacity = capacity,
+        }
+        app.meshes[id] = entry
+    end
+    entry.mesh:setVertices(vertices.bytes or vertices, 1, count)
+    entry.mesh:setDrawRange(1, count)
+    return entry.mesh
+end
 
 local function drawBillboards(list)
     for _, item in ipairs(list) do
@@ -577,20 +669,17 @@ function Render.draw(app)
     love.graphics.clear(skyTop[1], skyTop[2], skyTop[3], 1)
     drawSky(width, height)
     local meshData = Render.buildTerrainMeshData(app, width, height)
-    if #meshData.vertices > 0 then
-        local mesh = love.graphics.newMesh(meshFormat, meshData.vertices, "triangles", "stream")
+    if vertexCount(meshData.vertices) > 0 then
         love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(mesh)
+        love.graphics.draw(streamMesh(app, "terrain", meshData.vertices))
     end
-    if #meshData.silhouetteVertices > 0 then
-        local mesh = love.graphics.newMesh(meshFormat, meshData.silhouetteVertices, "triangles", "stream")
+    if vertexCount(meshData.silhouetteVertices) > 0 then
         love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(mesh)
+        love.graphics.draw(streamMesh(app, "silhouette", meshData.silhouetteVertices))
     end
-    if #meshData.riverVertices > 0 then
-        local mesh = love.graphics.newMesh(meshFormat, meshData.riverVertices, "triangles", "stream")
+    if vertexCount(meshData.riverVertices) > 0 then
         love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(mesh)
+        love.graphics.draw(streamMesh(app, "river", meshData.riverVertices))
     end
     local billboards = Render.billboardDrawList(app, width, height)
     drawBillboards(billboards)

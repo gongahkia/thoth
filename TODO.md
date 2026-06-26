@@ -63,39 +63,6 @@ These are the biggest measurable FPS wins. Land them before geomorphology work b
 
 ---
 
-### T-001 — Persistent terrain mesh, no per-frame allocation         [tier 1] [med]
-
-GOAL: One `Mesh` object per vertex stream (terrain, river, silhouette), allocated once, updated per frame via `Mesh:setVertices`. Zero `love.graphics.newMesh` calls inside `Render.draw`.
-
-WHY: Confirmed bottleneck. `render.lua:517,522,527` calls `newMesh(meshFormat, vertices, "triangles", "stream")` every frame, 3× per frame. The LÖVE wiki itself warns: "`love.graphics.newMesh` can be slow if called repeatedly." Each call allocates a Lua table-backed Mesh, uploads a fresh vertex buffer, and creates GC pressure.
-
-WHERE:
-- `src/render.lua:511–530` — `Render.draw` mesh creation block.
-- `src/render.lua:198–303` — `Render.buildTerrainMeshData` returns `vertices`, `riverVertices`, `silhouetteVertices` as Lua tables.
-
-DEPENDS ON: none.
-
-ACCEPTANCE:
-- `grep -c "newMesh" src/render.lua` returns ≤ 3 *outside* hot paths (init only).
-- `Render.draw` calls `Mesh:setVertices` with a pre-sized buffer.
-- Vertex buffer capacity grows monotonically (call `setVertices` with a sub-range when shrinking, never realloc downward).
-- `make walk-smoke` keeps fps ≥ current baseline +20% (measure both before/after; capture in PR description).
-- `make test` green.
-
-NOTES / IMPL HINTS:
-- Cache meshes on the `app` table (e.g. `app.meshes = { terrain = ..., river = ..., silhouette = ... }`).
-- Initial capacity: allocate for the worst case at current `renderRadius` (e.g. 6000 vertices for terrain).
-- When the frame's vertex count exceeds capacity, double the buffer and re-create the mesh (rare — happens only on first frame or on view-scale change).
-- LÖVE supports `Mesh:setDrawRange(start, count)` to draw only the live prefix without re-uploading the unused tail. Use this.
-- For best perf, build a `love.data.ByteData` of packed floats with FFI and pass that to `setVertices`. See T-025 for SoA path.
-
-REFERENCES:
-- [Mesh:setVertices — LÖVE wiki](https://love2d.org/wiki/Mesh:setVertices) — "often more efficient than setVertex in a loop"; ByteData path.
-- [love.graphics.newMesh — LÖVE wiki](https://love2d.org/wiki/love.graphics.newMesh) — usage flags and the "slow if called repeatedly" warning.
-- [Fast Mesh Vertex Setting — LÖVE forums](https://love2d.org/forums/viewtopic.php?t=83410) — ByteData benchmark thread.
-
----
-
 ### T-002 — Move terrain shading + fog to a fragment shader         [tier 1] [med]
 
 GOAL: A single GLSL pixel-shader handles per-fragment color = base × lighting × fog. CPU-side `litColor`/`foggedColor` math removed from the per-vertex loop; vertices carry only `(position, base color, slope-light intensity, depth)`.
