@@ -34,7 +34,7 @@ love . --hydrology-basin-chunks 8 --hydrology-basin-stride 4
 love . --export-map dist/map --export-size 128
 ```
 
-`--debug-perf` prints FPS, raw/clamped dt, update/draw/preload ms, position, visible/preloaded chunks, cache counts, terrain/basin cache misses, and hydrology cell counts. Press `L` in-game to toggle it. `--debug-topo` starts with the optional topographic debug map open; press `T` to toggle it. `--export-map <prefix>` writes `<prefix>.png` plus seed/scale metadata JSON. Runtime movement clamps simulation dt to reduce jitter after slow terrain loads.
+`--debug-perf` prints FPS, raw/clamped dt, update/draw/preload ms, position, visible/preloaded chunks, cache counts, terrain/basin cache misses, and hydrology cell counts. Press `L` in-game to toggle it. `--debug-topo` starts with the optional topographic debug map open; press `T` to toggle it. `--debug-panels` starts with plate, drainage, erosion, and biome debug panels open; press `B` to toggle them. `--export-map <prefix>` writes `<prefix>.png` plus seed/scale metadata JSON. Runtime movement clamps simulation dt to reduce jitter after slow terrain loads.
 
 Runtime initial preload defaults to 64 cells and refresh preload defaults to 72 cells; raise them when you prefer fewer walking stalls over faster first render.
 
@@ -55,6 +55,7 @@ Controls:
 - mouse or `Q` / `E`: look
 - arrow up/down: pitch
 - `F`: toggle mouse look
+- `B`: toggle debug panels
 - `T`: toggle debug topographic map
 - `Tab`: follow terrain scope
 - `M`: mark surveyed terrain

@@ -481,6 +481,16 @@ local function testTopographicMapData()
     expect(data.rivers > 0 and data.contours > 0, "topographic map should expose rivers and contours")
 end
 
+local function testDebugPanelData()
+    local world = testWorld(20260625)
+    local app = { world = world, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(world) }
+    local data = Render.debugPanelData(app)
+    expect(data.plate.vx == data.plate.vx and data.plate.boundary >= 0, "debug panels should expose finite plate vector inputs")
+    expect(data.drainage.flow >= 0 and data.drainage.dx == data.drainage.dx and data.drainage.watershedId, "debug panels should expose drainage direction inputs")
+    expect(data.erosion.erosion == data.erosion.erosion and data.erosion.thermal == data.erosion.thermal, "debug panels should expose erosion deltas")
+    expect(data.biome.id and data.biome.temperature >= 0 and data.biome.moisture >= 0 and data.biome.slope >= 0, "debug panels should expose biome classifier inputs")
+end
+
 local function testMapExportData()
     local world = testWorld(20260625)
     local map = Export.renderMap(world, { size = 32, span = 256, scale = "local" })
@@ -617,6 +627,7 @@ local tests = {
     testRenderStats,
     testBiomePalette,
     testTopographicMapData,
+    testDebugPanelData,
     testMapExportData,
     testTerrainDiagnostics,
     testBadSeedDiagnostics,

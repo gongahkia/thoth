@@ -463,6 +463,55 @@ function Render.topographicMapData(app, sampleCount)
     return stats
 end
 
+function Render.debugPanelData(app)
+    local params = viewParams(app)
+    local cell = app.world:sample(math.floor(app.player.x), math.floor(app.player.y), params.target)
+    local plate = app.world:plateAt(app.player.x, app.player.y)
+    local scaleFactor = cell.scaleFactor or 1
+    local downX = cell.downX and cell.downX * scaleFactor or cell.x * scaleFactor
+    local downY = cell.downY and cell.downY * scaleFactor or cell.y * scaleFactor
+    return {
+        scale = params.target,
+        plate = {
+            id = plate.id,
+            secondaryId = plate.secondaryId,
+            vx = plate.vx or 0,
+            vy = plate.vy or 0,
+            boundary = plate.boundary or 0,
+            convergent = plate.convergent or 0,
+            divergent = plate.divergent or 0,
+            subduction = plate.oceanicSubduction or 0,
+        },
+        drainage = {
+            dx = downX - app.player.x,
+            dy = downY - app.player.y,
+            flow = cell.flow or 0,
+            basinId = cell.basinId,
+            watershedId = cell.watershedId,
+            river = cell.river == true,
+        },
+        erosion = {
+            erosion = cell.erosion or 0,
+            deposition = cell.deposition or 0,
+            thermal = cell.thermalErosion or 0,
+            talus = cell.talus == true,
+            alluvialFan = cell.alluvialFan == true,
+            floodplain = cell.floodplain == true,
+            delta = cell.delta == true,
+        },
+        biome = {
+            id = cell.biome,
+            elevation = cell.elevation or 0,
+            rainfall = cell.rainfall or 0,
+            moisture = cell.moisture or 0,
+            temperature = cell.temperature or 0,
+            slope = cell.slope or 0,
+            water = cell.water == true,
+            lake = cell.lake == true,
+        },
+    }
+end
+
 local function drawTopographicMap(app, width)
     local data = Render.topographicMapData(app, app.topographicSamples or 64)
     local pixel = 3
@@ -480,6 +529,21 @@ local function drawTopographicMap(app, width)
     end
     love.graphics.setColor(0.88, 0.9, 0.82, 1)
     love.graphics.print("topo " .. tostring(data.scale) .. " / " .. tostring(data.contours) .. " contours", x0, y0 + size + 8)
+    return data
+end
+
+local function drawDebugPanels(app, width, y)
+    local data = Render.debugPanelData(app)
+    local x = width - 364
+    love.graphics.setColor(0.02, 0.025, 0.03, 0.82)
+    love.graphics.rectangle("fill", x - 8, y - 8, 356, 164)
+    love.graphics.setColor(0.88, 0.9, 0.82, 1)
+    love.graphics.print("plates v " .. fmt(data.plate.vx) .. "," .. fmt(data.plate.vy) .. " b " .. fmt(data.plate.boundary) .. " conv " .. fmt(data.plate.convergent), x, y)
+    love.graphics.print("drain -> " .. fmt(data.drainage.dx) .. "," .. fmt(data.drainage.dy) .. " flow " .. fmt(data.drainage.flow) .. " river " .. tostring(data.drainage.river), x, y + 28)
+    love.graphics.print("erosion e " .. fmt(data.erosion.erosion) .. " d " .. fmt(data.erosion.deposition) .. " t " .. fmt(data.erosion.thermal), x, y + 56)
+    love.graphics.print("forms talus " .. tostring(data.erosion.talus) .. " fan " .. tostring(data.erosion.alluvialFan) .. " plain " .. tostring(data.erosion.floodplain), x, y + 84)
+    love.graphics.print("biome " .. tostring(data.biome.id) .. " elev " .. fmt(data.biome.elevation) .. " rain " .. fmt(data.biome.rainfall), x, y + 112)
+    love.graphics.print("inputs temp " .. fmt(data.biome.temperature) .. " moist " .. fmt(data.biome.moisture) .. " slope " .. fmt(data.biome.slope), x, y + 140)
     return data
 end
 
@@ -541,6 +605,12 @@ function Render.draw(app)
         local topo = drawTopographicMap(app, width)
         meshData.topographicMap = topo.samples
         meshData.topographicContours = topo.contours
+    end
+    if app.debugPanels then
+        local debugY = app.debugTopo and 246 or 16
+        local panels = drawDebugPanels(app, width, debugY)
+        meshData.debugPanels = 1
+        meshData.debugPanelScale = panels.scale
     end
     drawHud(app, width, height, meshData)
     return meshData

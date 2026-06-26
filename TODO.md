@@ -2,8 +2,6 @@
 
 ## Rendering
 
-- Add debug panels for plate vectors, drainage arrows, erosion deltas, and biome classifier inputs.
-
 ## Engineering
 
 - Add chunk cache bounds and performance counters.
