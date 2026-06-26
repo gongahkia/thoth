@@ -157,22 +157,14 @@ local function projectWorld(app, width, height, x, y, z)
     return sx, sy, depth
 end
 
-local function litColor(cell, depth, slopeLight, radius)
-    local color = baseColor(cell)
+local function terrainLight(cell, slopeLight)
     local light = 0.72 + clamp(slopeLight, -0.22, 0.28) - clamp(cell.slope or 0, 0, 1) * 0.08
     local brightness = 0.58 + clamp(light, 0, 1) * 0.34 + clamp(cell.elevation + 0.2, 0, 1) * 0.1
     if cell.water then brightness = 0.82 end
-    local shaded = shade(color, brightness)
-    local fog = clamp((depth - 24) / math.max(1, radius - 24), 0, 1)
-    return mixColor(shaded, fogColor, fog * 0.76)
+    return brightness
 end
 
-local function foggedColor(color, depth, radius, amount)
-    local fog = clamp((depth - 24) / math.max(1, radius - 24), 0, 1)
-    return mixColor(color, fogColor, fog * (amount or 0.7))
-end
-
-local vertexFloatCount = 6
+local vertexFloatCount = 8
 local vertexByteCount = vertexFloatCount * 4
 local floatPointer = ffi.typeof("float *")
 
@@ -222,17 +214,21 @@ local function growVertexStream(vertices, required)
     resetByteStream(vertices, meshCapacity(required, vertices.capacity or 256))
 end
 
-local function pushVertex(vertices, x, y, color)
+local function pushVertex(vertices, x, y, color, light, depth)
     local index = (vertices.count or #vertices) + 1
+    light = light or 1
+    depth = depth or 0
     if vertices.floats then
         growVertexStream(vertices, index)
         local offset = (index - 1) * vertexFloatCount
         vertices.floats[offset] = x
         vertices.floats[offset + 1] = y
-        vertices.floats[offset + 2] = color[1]
-        vertices.floats[offset + 3] = color[2]
-        vertices.floats[offset + 4] = color[3]
-        vertices.floats[offset + 5] = 1
+        vertices.floats[offset + 2] = light
+        vertices.floats[offset + 3] = depth
+        vertices.floats[offset + 4] = color[1]
+        vertices.floats[offset + 5] = color[2]
+        vertices.floats[offset + 6] = color[3]
+        vertices.floats[offset + 7] = 1
         vertices.count = index
         return
     end
@@ -240,33 +236,35 @@ local function pushVertex(vertices, x, y, color)
     if vertex then
         vertex[1] = x
         vertex[2] = y
-        vertex[3] = color[1]
-        vertex[4] = color[2]
-        vertex[5] = color[3]
-        vertex[6] = 1
+        vertex[3] = light
+        vertex[4] = depth
+        vertex[5] = color[1]
+        vertex[6] = color[2]
+        vertex[7] = color[3]
+        vertex[8] = 1
     else
-        vertices[index] = { x, y, color[1], color[2], color[3], 1 }
+        vertices[index] = { x, y, light, depth, color[1], color[2], color[3], 1 }
     end
     vertices.count = index
 end
 
-local function pushTriCoords(vertices, ax, ay, bx, by, cx, cy, color)
-    pushVertex(vertices, ax, ay, color)
-    pushVertex(vertices, bx, by, color)
-    pushVertex(vertices, cx, cy, color)
+local function pushTriCoords(vertices, ax, ay, bx, by, cx, cy, color, light, depth)
+    pushVertex(vertices, ax, ay, color, light, depth)
+    pushVertex(vertices, bx, by, color, light, depth)
+    pushVertex(vertices, cx, cy, color, light, depth)
 end
 
-local function pushQuadCoords(vertices, x00, y00, x10, y10, x11, y11, x01, y01, color)
-    pushTriCoords(vertices, x00, y00, x10, y10, x11, y11, color)
-    pushTriCoords(vertices, x00, y00, x11, y11, x01, y01, color)
+local function pushQuadCoords(vertices, x00, y00, x10, y10, x11, y11, x01, y01, color, light, depth)
+    pushTriCoords(vertices, x00, y00, x10, y10, x11, y11, color, light, depth)
+    pushTriCoords(vertices, x00, y00, x11, y11, x01, y01, color, light, depth)
 end
 
-local function pushLineQuad(vertices, ax, ay, bx, by, width, color)
+local function pushLineQuad(vertices, ax, ay, bx, by, width, color, light, depth)
     local dx, dy = bx - ax, by - ay
     local length = math.sqrt(dx * dx + dy * dy)
     if length <= 0.001 then return false end
     local nx, ny = -dy / length * width * 0.5, dx / length * width * 0.5
-    pushQuadCoords(vertices, ax - nx, ay - ny, bx - nx, by - ny, bx + nx, by + ny, ax + nx, ay + ny, color)
+    pushQuadCoords(vertices, ax - nx, ay - ny, bx - nx, by - ny, bx + nx, by + ny, ax + nx, ay + ny, color, light, depth)
     return true
 end
 
@@ -330,14 +328,13 @@ function Render.buildTerrainMeshData(app, width, height)
             local p01x, p01y = project(app, width, height, lat, nextDepth, z3)
             if p00x and p10x and p11x and p01x then
                 local slopeLight = ((z0 + z1) - (z2 + z3)) / (terrainScale * 2)
-                local color = litColor(cell, centerDepth, slopeLight, radius)
-                pushQuadCoords(vertices, p00x, p00y, p10x, p10y, p11x, p11y, p01x, p01y, color)
+                local color = baseColor(cell)
+                pushQuadCoords(vertices, p00x, p00y, p10x, p10y, p11x, p11y, p01x, p01y, color, terrainLight(cell, slopeLight), centerDepth)
                 visibleTiles = visibleTiles + 1
                 local edgeSlope = math.abs(slopeLight)
                 if (cell.slope or 0) > 0.28 or edgeSlope > 0.045 then
-                    local lineColor = foggedColor(silhouetteColor, centerDepth, radius, 0.78)
                     local width = clamp(0.65 + (cell.slope or 0) * 3.2, 0.8, 2.4)
-                    if pushLineQuad(silhouetteVertices, p01x, p01y, p11x, p11y, width, lineColor) then
+                    if pushLineQuad(silhouetteVertices, p01x, p01y, p11x, p11y, width, silhouetteColor, 1, centerDepth) then
                         silhouetteStrips = silhouetteStrips + 1
                     end
                 end
@@ -353,8 +350,7 @@ function Render.buildTerrainMeshData(app, width, height)
                     if ax and bx then
                         local stripDepth = math.max(1, (ad + bd) * 0.5)
                         local stripWidth = clamp((1.15 + math.log((cell.flow or 0) + 1) * 0.12) / stripDepth * (camera.fov or 620), 1.2, 5.2)
-                        local riverColor = foggedColor(biomeColors.river, stripDepth, radius, 0.55)
-                        if pushLineQuad(riverVertices, ax, ay, bx, by, stripWidth, riverColor) then
+                        if pushLineQuad(riverVertices, ax, ay, bx, by, stripWidth, biomeColors.river, 1, stripDepth) then
                             riverStrips = riverStrips + 1
                         end
                     end
@@ -453,8 +449,18 @@ end
 
 local meshFormat = {
     { "VertexPosition", "float", 2 },
+    { "VertexTexCoord", "float", 2 },
     { "VertexColor", "float", 4 },
 }
+
+local function terrainShader(app)
+    app.shaders = app.shaders or {}
+    if not app.shaders.terrain then
+        local source = assert(love.filesystem.read("src/shaders/terrain.frag"))
+        app.shaders.terrain = love.graphics.newShader(source)
+    end
+    return app.shaders.terrain
+end
 
 local function streamMesh(app, id, vertices)
     local count = vertexCount(vertices)
@@ -471,6 +477,21 @@ local function streamMesh(app, id, vertices)
     entry.mesh:setVertices(vertices.bytes or vertices, 1, count)
     entry.mesh:setDrawRange(1, count)
     return entry.mesh
+end
+
+local function drawStream(app, id, vertices, fogAmount, lightAmount)
+    if vertexCount(vertices) <= 0 then return end
+    local radius = app.camera.renderRadius or 50
+    local shader = terrainShader(app)
+    shader:send("fogColor", fogColor)
+    shader:send("fogNear", 24)
+    shader:send("fogFar", math.max(25, radius))
+    shader:send("fogAmount", fogAmount)
+    shader:send("lightAmount", lightAmount)
+    love.graphics.setShader(shader)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(streamMesh(app, id, vertices))
+    love.graphics.setShader()
 end
 
 local function drawBillboards(list)
@@ -669,18 +690,9 @@ function Render.draw(app)
     love.graphics.clear(skyTop[1], skyTop[2], skyTop[3], 1)
     drawSky(width, height)
     local meshData = Render.buildTerrainMeshData(app, width, height)
-    if vertexCount(meshData.vertices) > 0 then
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(streamMesh(app, "terrain", meshData.vertices))
-    end
-    if vertexCount(meshData.silhouetteVertices) > 0 then
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(streamMesh(app, "silhouette", meshData.silhouetteVertices))
-    end
-    if vertexCount(meshData.riverVertices) > 0 then
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(streamMesh(app, "river", meshData.riverVertices))
-    end
+    drawStream(app, "terrain", meshData.vertices, 0.76, 1)
+    drawStream(app, "silhouette", meshData.silhouetteVertices, 0.78, 0)
+    drawStream(app, "river", meshData.riverVertices, 0.55, 0)
     local billboards = Render.billboardDrawList(app, width, height)
     drawBillboards(billboards)
     meshData.billboards = #billboards
