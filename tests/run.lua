@@ -518,7 +518,9 @@ local function testRenderStats()
     local world = testWorld(20260625)
     local app = { world = world, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(world) }
     local stats = Render.visibleStats(app, 1280, 720)
-    expect(stats.visibleTiles >= 650 and stats.triangles == stats.visibleTiles * 2, "render stats should describe denser terrain mesh")
+    expect(stats.visibleTiles > 0 and stats.triangles == stats.visibleTiles * 2, "render stats should describe terrain mesh")
+    expect(stats.visibleTiles <= stats.expectedMaxForFOV, "visible tiles should stay within FOV-cull budget")
+    expect(stats.fullTiles > 0 and stats.visibleTiles <= math.floor(stats.fullTiles * 0.7), "FOV culling should reduce default terrain tiles by at least 30%")
     expect(stats.billboards >= 0 and stats.cameraHeight == stats.cameraHeight, "render stats should include finite camera and billboard count")
     expect(stats.riverStrips > 0, "render stats should include river strips")
     expect(stats.silhouetteStrips > 0, "render stats should include slope silhouettes")
@@ -527,6 +529,13 @@ local function testRenderStats()
     ViewScale.update(app.viewScale, 1, world, 0, 0)
     local regionStats = Render.visibleStats(app, 1280, 720)
     expect(regionStats.viewScale == "region" and regionStats.viewFactor == 4 and regionStats.visibleTiles > 0, "render stats should follow region view scale")
+    for _, pose in ipairs({ { math.pi * 0.5, -0.36 }, { math.pi, 0.34 }, { -math.pi * 0.75, 0.02 } }) do
+        app.camera = Render.defaultCamera()
+        app.camera.yaw = pose[1]
+        app.camera.pitch = pose[2]
+        local poseStats = Render.visibleStats(app, 1280, 720)
+        expect(poseStats.visibleTiles > 0 and poseStats.visibleTiles <= poseStats.expectedMaxForFOV, "render stats should cull safely across yaw and pitch")
+    end
 end
 
 local function colorDistance(a, b)

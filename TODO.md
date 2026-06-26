@@ -63,30 +63,6 @@ These are the biggest measurable FPS wins. Land them before geomorphology work b
 
 ---
 
-### T-007 — Frustum cull + far-plane in mesh build         [tier 1] [low]
-
-GOAL: `buildTerrainMeshData` skips quads that fall behind the camera or beyond `renderRadius`. A real far-plane discard.
-
-WHY: `render.lua:222–289` sweeps lateral × depth grid. Depth bound checked, but `near = 1.2` only rejects directly behind-camera. Off-screen tiles to the side still get projected, lit, packed. No early-out on dot-product against camera forward.
-
-WHERE: `src/render.lua:198–303`.
-
-DEPENDS ON: none.
-
-ACCEPTANCE:
-- Tiles outside FOV cone are not pushed to vertex array.
-- HUD shows `visibleTiles` reduced by ≥30% at default settings.
-- No visual regression at any yaw / pitch (test by spinning during walk-smoke).
-- New assertion in `testRenderStats`: `visibleTiles ≤ expectedMaxForFOV`.
-
-NOTES / IMPL HINTS:
-- For each row of the sweep, compute horizontal angular extent of the FOV at that depth and clip the lateral range. Cheaper than per-quad checks.
-- Optional: also cull entirely-occluded depth rows when the front-row max-z silhouette exceeds back-row min-z (cheap horizon check); leave for later.
-
-REFERENCES: none required.
-
----
-
 ### T-008 — Faster integer hash         [tier 1] [low]
 
 GOAL: Replace `Rng.mix` modular-LCG with a hot-path-friendly hash (e.g. inlined `bit.bxor` + multiply + rotate). Same determinism contract.

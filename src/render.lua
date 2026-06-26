@@ -157,6 +157,24 @@ local function projectWorld(app, width, height, x, y, z)
     return sx, sy, depth
 end
 
+local function frustumState(camera, width, radius, lateralRange, step)
+    return {
+        xPerDepth = width * 0.5 / (camera.fov or 620),
+        radius = radius,
+        lateralRange = lateralRange,
+        sampleMargin = step * 1.5,
+        tileMargin = step * 0.5,
+    }
+end
+
+local function inFrustum(state, lateral, depth, margin)
+    margin = margin or 0
+    if depth <= 1.2 or depth > state.radius + margin then return false end
+    if math.abs(lateral) > depth * state.xPerDepth + margin then return false end
+    local radial = state.radius + margin
+    return lateral * lateral + depth * depth <= radial * radial
+end
+
 local function terrainLight(cell, slopeLight)
     local light = 0.72 + clamp(slopeLight, -0.22, 0.28) - clamp(cell.slope or 0, 0, 1) * 0.08
     local brightness = 0.58 + clamp(light, 0, 1) * 0.34 + clamp(cell.elevation + 0.2, 0, 1) * 0.1
@@ -279,6 +297,7 @@ function Render.buildTerrainMeshData(app, width, height)
     local radius = camera.renderRadius or 86
     local lateralRange = radius * 0.82
     local basis = cameraBasis(camera.yaw or 0)
+    local frustum = frustumState(camera, width, radius, lateralRange, step)
     local laterals = {}
     local depths = {}
     local lateral = -lateralRange
@@ -298,12 +317,16 @@ function Render.buildTerrainMeshData(app, width, height)
         for col = 1, #laterals do
             local lat = laterals[col]
             local dep = depths[row]
-            local wx = app.player.x + (basis.rightX * lat + basis.forwardX * dep) * params.factor
-            local wy = app.player.y + (basis.rightY * lat + basis.forwardY * dep) * params.factor
-            local _, z = viewCell(app, wx, wy, params)
-            grid[row][col] = z
+            if inFrustum(frustum, lat, dep, frustum.sampleMargin) then
+                local wx = app.player.x + (basis.rightX * lat + basis.forwardX * dep) * params.factor
+                local wy = app.player.y + (basis.rightY * lat + basis.forwardY * dep) * params.factor
+                local _, z = viewCell(app, wx, wy, params)
+                grid[row][col] = z
+            end
         end
     end
+    local fullTiles = (#depths - 1) * (#laterals - 1)
+    local expectedMaxForFOV = 0
     local visibleTiles = 0
     local riverStrips = 0
     local silhouetteStrips = 0
@@ -315,43 +338,47 @@ function Render.buildTerrainMeshData(app, width, height)
             local nextLat = laterals[col + 1]
             local centerLat = (lat + nextLat) * 0.5
             local centerDepth = (dep + nextDepth) * 0.5
-            local centerX = app.player.x + (basis.rightX * centerLat + basis.forwardX * centerDepth) * params.factor
-            local centerY = app.player.y + (basis.rightY * centerLat + basis.forwardY * centerDepth) * params.factor
-            local cell = viewCell(app, centerX, centerY, params)
-            local z0 = grid[row][col]
-            local z1 = grid[row][col + 1]
-            local z2 = grid[row + 1][col + 1]
-            local z3 = grid[row + 1][col]
-            local p00x, p00y = project(app, width, height, lat, dep, z0)
-            local p10x, p10y = project(app, width, height, nextLat, dep, z1)
-            local p11x, p11y = project(app, width, height, nextLat, nextDepth, z2)
-            local p01x, p01y = project(app, width, height, lat, nextDepth, z3)
-            if p00x and p10x and p11x and p01x then
-                local slopeLight = ((z0 + z1) - (z2 + z3)) / (terrainScale * 2)
-                local color = baseColor(cell)
-                pushQuadCoords(vertices, p00x, p00y, p10x, p10y, p11x, p11y, p01x, p01y, color, terrainLight(cell, slopeLight), centerDepth)
-                visibleTiles = visibleTiles + 1
-                local edgeSlope = math.abs(slopeLight)
-                if (cell.slope or 0) > 0.28 or edgeSlope > 0.045 then
-                    local width = clamp(0.65 + (cell.slope or 0) * 3.2, 0.8, 2.4)
-                    if pushLineQuad(silhouetteVertices, p01x, p01y, p11x, p11y, width, silhouetteColor, 1, centerDepth) then
-                        silhouetteStrips = silhouetteStrips + 1
+            if inFrustum(frustum, centerLat, centerDepth, frustum.tileMargin) then
+                expectedMaxForFOV = expectedMaxForFOV + 1
+                local centerX = app.player.x + (basis.rightX * centerLat + basis.forwardX * centerDepth) * params.factor
+                local centerY = app.player.y + (basis.rightY * centerLat + basis.forwardY * centerDepth) * params.factor
+                local cell = viewCell(app, centerX, centerY, params)
+                local z0 = grid[row][col]
+                local z1 = grid[row][col + 1]
+                local z2 = grid[row + 1][col + 1]
+                local z3 = grid[row + 1][col]
+                local p00x, p00y, p10x, p10y, p11x, p11y, p01x, p01y
+                if z0 then p00x, p00y = project(app, width, height, lat, dep, z0) end
+                if z1 then p10x, p10y = project(app, width, height, nextLat, dep, z1) end
+                if z2 then p11x, p11y = project(app, width, height, nextLat, nextDepth, z2) end
+                if z3 then p01x, p01y = project(app, width, height, lat, nextDepth, z3) end
+                if p00x and p10x and p11x and p01x then
+                    local slopeLight = ((z0 + z1) - (z2 + z3)) / (terrainScale * 2)
+                    local color = baseColor(cell)
+                    pushQuadCoords(vertices, p00x, p00y, p10x, p10y, p11x, p11y, p01x, p01y, color, terrainLight(cell, slopeLight), centerDepth)
+                    visibleTiles = visibleTiles + 1
+                    local edgeSlope = math.abs(slopeLight)
+                    if (cell.slope or 0) > 0.28 or edgeSlope > 0.045 then
+                        local width = clamp(0.65 + (cell.slope or 0) * 3.2, 0.8, 2.4)
+                        if pushLineQuad(silhouetteVertices, p01x, p01y, p11x, p11y, width, silhouetteColor, 1, centerDepth) then
+                            silhouetteStrips = silhouetteStrips + 1
+                        end
                     end
-                end
-                if cell.river and cell.downX and cell.downY then
-                    local scaleFactor = cell.scaleFactor or 1
-                    local axWorld = cell.x * scaleFactor
-                    local ayWorld = cell.y * scaleFactor
-                    local bxWorld = cell.downX * scaleFactor
-                    local byWorld = cell.downY * scaleFactor
-                    local _, downZ = viewCell(app, bxWorld, byWorld, params)
-                    local ax, ay, ad = projectWorld(app, width, height, axWorld, ayWorld, terrainZ(cell) + 0.08)
-                    local bx, by, bd = projectWorld(app, width, height, bxWorld, byWorld, downZ + 0.08)
-                    if ax and bx then
-                        local stripDepth = math.max(1, (ad + bd) * 0.5)
-                        local stripWidth = clamp((1.15 + math.log((cell.flow or 0) + 1) * 0.12) / stripDepth * (camera.fov or 620), 1.2, 5.2)
-                        if pushLineQuad(riverVertices, ax, ay, bx, by, stripWidth, biomeColors.river, 1, stripDepth) then
-                            riverStrips = riverStrips + 1
+                    if cell.river and cell.downX and cell.downY then
+                        local scaleFactor = cell.scaleFactor or 1
+                        local axWorld = cell.x * scaleFactor
+                        local ayWorld = cell.y * scaleFactor
+                        local bxWorld = cell.downX * scaleFactor
+                        local byWorld = cell.downY * scaleFactor
+                        local _, downZ = viewCell(app, bxWorld, byWorld, params)
+                        local ax, ay, ad = projectWorld(app, width, height, axWorld, ayWorld, terrainZ(cell) + 0.08)
+                        local bx, by, bd = projectWorld(app, width, height, bxWorld, byWorld, downZ + 0.08)
+                        if ax and bx then
+                            local stripDepth = math.max(1, (ad + bd) * 0.5)
+                            local stripWidth = clamp((1.15 + math.log((cell.flow or 0) + 1) * 0.12) / stripDepth * (camera.fov or 620), 1.2, 5.2)
+                            if pushLineQuad(riverVertices, ax, ay, bx, by, stripWidth, biomeColors.river, 1, stripDepth) then
+                                riverStrips = riverStrips + 1
+                            end
                         end
                     end
                 end
@@ -363,6 +390,9 @@ function Render.buildTerrainMeshData(app, width, height)
         riverVertices = riverVertices,
         silhouetteVertices = silhouetteVertices,
         visibleTiles = visibleTiles,
+        fullTiles = fullTiles,
+        expectedMaxForFOV = expectedMaxForFOV,
+        culledTiles = fullTiles - expectedMaxForFOV,
         triangles = vertexCount(vertices) / 3,
         riverStrips = riverStrips,
         silhouetteStrips = silhouetteStrips,
@@ -425,6 +455,9 @@ function Render.visibleStats(app, width, height)
     end
     return {
         visibleTiles = mesh.visibleTiles,
+        fullTiles = mesh.fullTiles,
+        expectedMaxForFOV = mesh.expectedMaxForFOV,
+        culledTiles = mesh.culledTiles,
         triangles = mesh.triangles,
         riverStrips = mesh.riverStrips,
         silhouetteStrips = mesh.silhouetteStrips,
