@@ -361,6 +361,77 @@ function WorldGen:cachePut(cacheKey, value, kind)
     return value
 end
 
+function WorldGen:startAsyncHydrology(options)
+    if not (love and love.thread) then return false end
+    self.asyncHydrology = true
+    self.asyncPending = {}
+    self.asyncOptions = options or {}
+    self.asyncPrefix = "thoth.hydro." .. tostring(self.seed) .. "." .. tostring(os.clock())
+    self.asyncQueue = love.thread.getChannel(self.asyncPrefix .. ".jobs")
+    self.asyncResponse = love.thread.getChannel(self.asyncPrefix .. ".response")
+    self.asyncThread = love.thread.newThread("src/worker.lua")
+    self.asyncThread:start(self.asyncPrefix)
+    self.metrics.asyncHydrologyQueued = 0
+    self.metrics.asyncHydrologyCompleted = 0
+    self.metrics.asyncHydrologyFailed = 0
+    return true
+end
+
+function WorldGen:shutdownAsyncHydrology(waitForExit)
+    if self.asyncQueue then self.asyncQueue:push({ quit = true }) end
+    if waitForExit and self.asyncThread then self.asyncThread:wait() end
+    self.asyncHydrology = false
+end
+
+function WorldGen:queueAsyncChunk(chunkX, chunkY, info)
+    if not (self.asyncHydrology and self.asyncQueue) then return end
+    local jobKey = key(chunkX, chunkY, info.id)
+    if self.asyncPending[jobKey] then return end
+    self.asyncPending[jobKey] = true
+    self.metrics.asyncHydrologyQueued = (self.metrics.asyncHydrologyQueued or 0) + 1
+    self.asyncQueue:push({
+        key = jobKey,
+        seed = self.seed,
+        options = self.asyncOptions,
+        chunkX = chunkX,
+        chunkY = chunkY,
+        scale = info.id,
+    })
+end
+
+function WorldGen:pollAsyncHydrology(limit)
+    if not self.asyncResponse then return 0 end
+    local processed = 0
+    while processed < (limit or 8) do
+        local message = self.asyncResponse:pop()
+        if not message then break end
+        processed = processed + 1
+        self.asyncPending[message.key] = nil
+        if message.ok and message.chunk then
+            message.chunk.pendingHydrology = false
+            self:cachePut(key(message.chunk.x, message.chunk.y, message.chunk.scale), message.chunk, "chunk")
+            self.metrics.asyncHydrologyCompleted = (self.metrics.asyncHydrologyCompleted or 0) + 1
+        else
+            self.metrics.asyncHydrologyFailed = (self.metrics.asyncHydrologyFailed or 0) + 1
+            self.asyncError = message.error
+        end
+    end
+    if self.asyncThread and self.asyncThread:getError() then
+        self.asyncError = self.asyncThread:getError()
+        if not self.asyncErrorCounted then
+            self.metrics.asyncHydrologyFailed = (self.metrics.asyncHydrologyFailed or 0) + 1
+            self.asyncErrorCounted = true
+        end
+    end
+    return processed
+end
+
+function WorldGen:asyncHydrologyPendingCount()
+    local count = 0
+    for _ in pairs(self.asyncPending or {}) do count = count + 1 end
+    return count
+end
+
 function WorldGen:plateAt(x, y)
     local first, second = twoNearestPlates(self.seed, x, y, self.plateCellSize)
     local gap = math.max(0, (second.distance or first.distance) - first.distance)
@@ -478,12 +549,73 @@ function WorldGen:baseSample(x, y, scale)
     }
 end
 
+function WorldGen:baseChunk(chunkX, chunkY, info)
+    local size = self.chunkSize
+    local rows = {}
+    for y = 1, size do
+        rows[y] = {}
+        for x = 1, size do
+            local gx = chunkX * size + x - 1
+            local gy = chunkY * size + y - 1
+            local cell = self:baseSample(gx * info.factor, gy * info.factor, info.id)
+            cell.pendingHydrology = true
+            rows[y][x] = cell
+        end
+    end
+    return {
+        x = chunkX,
+        y = chunkY,
+        scale = info.id,
+        scaleFactor = info.factor,
+        size = size,
+        cells = rows,
+        pendingHydrology = true,
+    }
+end
+
+function WorldGen:pendingSample(x, y, info)
+    return {
+        x = x,
+        y = y,
+        scale = info.id,
+        scaleFactor = info.factor,
+        elevationBase = 0,
+        elevation = 0,
+        water = false,
+        rainfall = 0,
+        temperature = 0.5,
+        moisture = 0,
+        slope = 0,
+        flow = 0,
+        erosion = 0,
+        deposition = 0,
+        thermalErosion = 0,
+        talus = false,
+        alluvialFan = false,
+        floodplain = false,
+        delta = false,
+        river = false,
+        lake = false,
+        lakeDepth = 0,
+        biome = "grassland",
+        pendingHydrology = true,
+    }
+end
+
+
 function WorldGen:chunk(chunkX, chunkY, scale)
     local info = scaleInfo(scale)
     local cacheKey = key(chunkX, chunkY, info.id)
     local cached = self:cacheGet(cacheKey)
-    if cached then return cached end
+    if cached then
+        if cached.pendingHydrology then self:queueAsyncChunk(chunkX, chunkY, info) end
+        return cached
+    end
     self.metrics.chunkMisses = self.metrics.chunkMisses + 1
+    if self.asyncHydrology then
+        self:queueAsyncChunk(chunkX, chunkY, info)
+        return self:baseChunk(chunkX, chunkY, info)
+    end
     local size = self.chunkSize
     local region = Hydrology.region(self, chunkX, chunkY, info)
     local rows = {}
@@ -525,7 +657,11 @@ function WorldGen:preloadAround(x, y, radius, scale)
     local chunks = 0
     for cy = minChunkY, maxChunkY do
         for cx = minChunkX, maxChunkX do
-            self:chunk(cx, cy, info.id)
+            if self.asyncHydrology then
+                self:queueAsyncChunk(cx, cy, info)
+            else
+                self:chunk(cx, cy, info.id)
+            end
             chunks = chunks + 1
         end
     end
@@ -603,6 +739,13 @@ function WorldGen:metricsSnapshot()
             basins = self.metrics.cacheEvictionsByKind.basin or 0,
             billboards = self.metrics.cacheEvictionsByKind.billboard or 0,
         },
+        asyncHydrology = {
+            queued = self.metrics.asyncHydrologyQueued or 0,
+            completed = self.metrics.asyncHydrologyCompleted or 0,
+            failed = self.metrics.asyncHydrologyFailed or 0,
+            pending = self:asyncHydrologyPendingCount(),
+            error = self.asyncError,
+        },
     }
 end
 
@@ -614,6 +757,13 @@ function WorldGen:sample(x, y, scale)
     local chunkY = floorDiv(gy, self.chunkSize)
     local lx = gx - chunkX * self.chunkSize
     local ly = gy - chunkY * self.chunkSize
+    if self.asyncHydrology then
+        local cacheKey = key(chunkX, chunkY, info.id)
+        local chunk = self:cacheGet(cacheKey)
+        if chunk and not chunk.pendingHydrology then return chunk.cells[ly + 1][lx + 1] end
+        self:queueAsyncChunk(chunkX, chunkY, info)
+        return self:pendingSample(gx * info.factor, gy * info.factor, info)
+    end
     return self:chunk(chunkX, chunkY, info.id).cells[ly + 1][lx + 1]
 end
 
@@ -740,6 +890,14 @@ function WorldGen:billboards(chunkX, chunkY)
     local cacheKey = key("billboards", chunkX, chunkY)
     local cached = self:cacheGet(cacheKey)
     if cached then return cached end
+    if self.asyncHydrology then
+        local info = scaleInfo("local")
+        local chunk = self:cacheGet(key(chunkX, chunkY, info.id))
+        if not (chunk and not chunk.pendingHydrology) then
+            self:queueAsyncChunk(chunkX, chunkY, info)
+            return {}
+        end
+    end
     self.metrics.billboardMisses = self.metrics.billboardMisses + 1
     local chunk = self:chunk(chunkX, chunkY, "local")
     local result = {}

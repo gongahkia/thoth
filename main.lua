@@ -74,6 +74,16 @@ local function runtimeWorldOptions(args)
     }
 end
 
+local function startAsyncHydrology(app)
+    if app.asyncHydrology and app.world.startAsyncHydrology then app.world:startAsyncHydrology(app.worldOptions) end
+end
+
+local function replaceWorld(app, seed)
+    if app.world and app.world.shutdownAsyncHydrology then app.world:shutdownAsyncHydrology(false) end
+    app.world = WorldGen.new(seed, app.worldOptions)
+    startAsyncHydrology(app)
+end
+
 local function exportMap(args)
     local output = argValue(args, "--export-map", "thoth-map")
     local world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625)), runtimeWorldOptions(args))
@@ -218,7 +228,7 @@ local function perfSnapshot(app)
     local stats = app.perf.renderStats or {}
     local view = ViewScale.params(app.viewScale, app.world)
     return string.format(
-        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d/%s chunks=%d hydro=%d basins=%d billboard_cache=%d hits=%d cmiss=%d evict=%d evict_kind=c%d/h%d/m%d/b%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
+        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d/%s chunks=%d hydro=%d basins=%d billboard_cache=%d hits=%d cmiss=%d evict=%d evict_kind=c%d/h%d/m%d/b%d async=q%d/d%d/f%d/p%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
         app.perf.frame or 0,
         love.timer.getFPS(),
         (app.perf.lastDt or 0) * 1000,
@@ -257,6 +267,10 @@ local function perfSnapshot(app)
         metrics.evictions and metrics.evictions.hydrology or 0,
         metrics.evictions and metrics.evictions.basins or 0,
         metrics.evictions and metrics.evictions.billboards or 0,
+        metrics.asyncHydrology and metrics.asyncHydrology.queued or 0,
+        metrics.asyncHydrology and metrics.asyncHydrology.completed or 0,
+        metrics.asyncHydrology and metrics.asyncHydrology.failed or 0,
+        metrics.asyncHydrology and metrics.asyncHydrology.pending or 0,
         metrics.chunkMisses,
         metrics.hydrologyMisses,
         metrics.basinMisses,
@@ -280,7 +294,7 @@ local function maybeLogPerf(app)
 end
 
 local function applySnapshot(app, snapshot)
-    app.world = WorldGen.new(tonumber(snapshot.seed) or app.world:metadata().seed, app.worldOptions)
+    replaceWorld(app, tonumber(snapshot.seed) or app.world:metadata().seed)
     app.survey = Survey.fromSnapshot(snapshot.survey)
     app.player.x = snapshot.player and tonumber(snapshot.player.x) or 0
     app.player.y = snapshot.player and tonumber(snapshot.player.y) or 0
@@ -312,9 +326,11 @@ function love.load(args)
         return
     end
     love.graphics.setDefaultFilter("nearest", "nearest")
+    local worldOptions = runtimeWorldOptions(args)
     app = {
-        world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625)), runtimeWorldOptions(args)),
-        worldOptions = runtimeWorldOptions(args),
+        world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625)), worldOptions),
+        worldOptions = worldOptions,
+        asyncHydrology = not (hasArg(args, "--no-async") or hasArg(args, "--render-smoke")),
         survey = Survey.new(),
         viewScale = nil,
         player = Player.new(0, 0),
@@ -333,6 +349,7 @@ function love.load(args)
         debugPerf = hasArg(args, "--debug-perf") or hasArg(args, "--log-fps") or hasArg(args, "--walk-smoke"),
     }
     app.viewScale = ViewScale.new(app.world)
+    startAsyncHydrology(app)
     ViewScale.update(app.viewScale, 0, app.world, app.player.x, app.player.y)
     app.perf = {
         frame = 0,
@@ -364,6 +381,7 @@ function love.update(dt)
     if not app then return end
     local started = now()
     app.perf.preloadMsThisFrame = 0
+    if app.world.pollAsyncHydrology then app.world:pollAsyncHydrology(16) end
     app.perf.lastDt = dt
     local simDt = math.min(dt, maxSimDt)
     app.perf.simDt = simDt
@@ -461,13 +479,17 @@ function love.keypressed(key)
         preloadApp(app, "scale")
     end
     if key == "r" then
-        app.world = WorldGen.new(os.time() % 1000000, app.worldOptions)
+        replaceWorld(app, os.time() % 1000000)
         app.survey = Survey.new()
         app.viewScale = ViewScale.new(app.world)
         app.player.x, app.player.y = 0, 0
         app.perf.preloadMsThisFrame = 0
         preloadApp(app, "seed_reset")
     end
+end
+
+function love.quit()
+    if app and app.world and app.world.shutdownAsyncHydrology then app.world:shutdownAsyncHydrology(true) end
 end
 
 function love.mousemoved(_, _, dx, dy)

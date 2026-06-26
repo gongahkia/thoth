@@ -63,40 +63,6 @@ These are the biggest measurable FPS wins. Land them before geomorphology work b
 
 ---
 
-### T-004 — Async hydrology on `love.thread`         [tier 1] [high]
-
-GOAL: First-touch hydrology solve (Priority-Flood + basin pre-pass) runs on a worker thread. Main thread renders a "loading" placeholder for chunks still pending; integrates results when the worker posts them.
-
-WHY: README acknowledges first-render stall: "interactive runtime defaults to `--hydrology-region-chunks 1 --hydrology-halo 0` to keep first render bounded." That's a workaround, not a fix. Real fix: move `Hydrology.solveRegion` and `solveBasin` off the main thread so chunk discovery never stalls the frame.
-
-WHERE:
-- `src/hydrology.lua:367–612` — `solveRegion`, `solveBasin`.
-- `src/worldgen.lua:376–404` — `WorldGen:chunk` (entry point that triggers solves).
-- New `src/worker.lua` — worker thread script that imports the same modules, listens on a Channel for chunk requests.
-- `main.lua` — spin up worker(s), push pending chunk keys, poll incoming results.
-
-DEPENDS ON: T-005 (bounded cache — otherwise worker results pile up).
-
-ACCEPTANCE:
-- New worker file exists; main thread does not call `solveRegion` / `solveBasin` directly.
-- Walking into unseen terrain never stalls the frame > 16 ms (measured via the existing `--debug-perf` log).
-- Render falls back to a low-fidelity sample (e.g. `baseSample` without hydrology) for pending cells, then upgrades on completion.
-- All existing tests still pass — tests are synchronous and `tests/run.lua` runs on `luajit` (no LÖVE threads). Architect the worker so `WorldGen` exposes both sync API (used by tests) and an async API (used by `main.lua`).
-- A `--no-async` CLI flag forces the synchronous path for parity testing.
-
-NOTES / IMPL HINTS:
-- LÖVE thread workers cannot share Lua state with the main thread. Communicate via `love.thread.getChannel(name)` and serialize chunk requests as `(seed, options, chunkX, chunkY, scaleId)`. The worker re-creates a `WorldGen` instance with the same seed/options.
-- Be careful with the `world.cache` shared map — the worker has its own. Promote completed results to main-thread cache only when received.
-- Watch for nondeterminism if two workers race on the same key — gate insertion through a single "pending" set on the main thread.
-
-REFERENCES:
-- [love.thread — LÖVE wiki](https://love2d.org/wiki/love.thread)
-- [Dead simple threads example — LÖVE forums](https://love2d.org/forums/viewtopic.php?t=82860)
-- [Threads and channels — LÖVE forums](https://love2d.org/forums/viewtopic.php?t=84135)
-- [buckle2000/love2d-threadpc — GitHub](https://github.com/buckle2000/love2d-threadpc) — thread procedure call helper.
-
----
-
 ### T-006 — Plate-cell memoization         [tier 1] [low]
 
 GOAL: `plateCenter(seed, gx, gy, cellSize)` results cached on a small fixed-size table keyed by `(gx, gy)`. `twoNearestPlates` reuses cache entries for its 3×3 sweep.
