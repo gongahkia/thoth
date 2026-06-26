@@ -63,35 +63,6 @@ These are the biggest measurable FPS wins. Land them before geomorphology work b
 
 ---
 
-### T-003 — SpriteBatch billboards instead of per-instance polygons         [tier 1] [low]
-
-GOAL: One `SpriteBatch` per billboard kind (tree, peak, ridge, outcrop, reed, rock, shrub, snow). Repopulate per frame from `Render.billboardDrawList`. Zero `love.graphics.polygon` / `rectangle` calls in `drawBillboards`.
-
-WHY: `render.lua:384–407` issues a fresh primitive call per billboard. At ~500 visible billboards = 500 state-changing draws/frame. SpriteBatch collapses each kind to one draw call. From LÖVE forum guidance: "Drawing many individual images means the CPU has to continuously upload vertex information for every draw call every frame, but SpriteBatches drastically minimize that overhead."
-
-WHERE:
-- `src/render.lua:309–346` — `Render.billboardDrawList`.
-- `src/render.lua:384–407` — `drawBillboards`.
-- New asset: a texture atlas `assets/billboards.png` containing each kind's sprite.
-
-DEPENDS ON: T-019 ships the sprite atlas. Until then, generate a 1×1 white pixel atlas and tint via SpriteBatch color slots; this still beats per-poly draws.
-
-ACCEPTANCE:
-- One `SpriteBatch` per kind, allocated once in `Render` module init.
-- `bind()` / `unbind()` are called around batch refill each frame (see LÖVE wiki — required when adding >~12 sprites).
-- Frame-time spent in `drawBillboards` drops; capture `walk-smoke` numbers.
-- Billboards still render in back-to-front depth order (use a separate per-kind sort key or a single shared batch with z sorting).
-
-NOTES / IMPL HINTS:
-- For depth ordering across kinds, you can either (a) interleave all kinds in a single SpriteBatch and accept that batch order is z-order, or (b) bucket by depth-range and draw far buckets first.
-- Per-instance color via `SpriteBatch:setColor(...) ; SpriteBatch:add(quad, x, y, ...)`.
-
-REFERENCES:
-- [SpriteBatch — LÖVE wiki](https://love2d.org/wiki/SpriteBatch)
-- [SpriteBatch performance thread — LÖVE forums](https://love2d.org/forums/viewtopic.php?t=78271)
-
----
-
 ### T-004 — Async hydrology on `love.thread`         [tier 1] [high]
 
 GOAL: First-touch hydrology solve (Priority-Flood + basin pre-pass) runs on a worker thread. Main thread renders a "loading" placeholder for chunks still pending; integrates results when the worker posts them.

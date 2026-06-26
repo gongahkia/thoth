@@ -453,6 +453,20 @@ local meshFormat = {
     { "VertexColor", "float", 4 },
 }
 
+local billboardAtlasSize = 32
+local billboardAtlasKinds = {
+    "tree",
+    "tree_trunk",
+    "peak",
+    "peak_facet",
+    "ridge",
+    "outcrop",
+    "reed",
+    "rock",
+    "shrub",
+    "snow",
+}
+
 local function terrainShader(app)
     app.shaders = app.shaders or {}
     if not app.shaders.terrain then
@@ -460,6 +474,58 @@ local function terrainShader(app)
         app.shaders.terrain = love.graphics.newShader(source)
     end
     return app.shaders.terrain
+end
+
+local function drawAtlasShape(kind, x, size)
+    if kind == "peak" then
+        love.graphics.polygon("fill", x + size * 0.5, 1, x + size * 0.08, size - 1, x + size * 0.92, size - 1)
+    elseif kind == "peak_facet" then
+        love.graphics.polygon("fill", x + size * 0.5, 1, x + size * 0.68, size * 0.62, x + size * 0.92, size - 1)
+    elseif kind == "ridge" then
+        love.graphics.polygon("fill", x + 1, size - 1, x + size * 0.36, 1, x + size - 1, size * 0.82, x + size * 0.72, size - 1)
+    elseif kind == "outcrop" then
+        love.graphics.polygon("fill", x + 1, size - 1, x + size * 0.28, 1, x + size * 0.94, size * 0.78, x + size - 1, size - 1)
+    elseif kind == "reed" then
+        love.graphics.rectangle("fill", x + size * 0.38, 0, size * 0.24, size)
+    elseif kind == "tree_trunk" then
+        love.graphics.rectangle("fill", x + size * 0.32, 0, size * 0.36, size)
+    else
+        love.graphics.rectangle("fill", x, 0, size, size)
+    end
+end
+
+local function createBillboardAtlas()
+    local size = billboardAtlasSize
+    local canvas = love.graphics.newCanvas(size * #billboardAtlasKinds, size)
+    love.graphics.push("all")
+    love.graphics.setCanvas(canvas)
+    love.graphics.clear(0, 0, 0, 0)
+    love.graphics.setColor(1, 1, 1, 1)
+    for index, kind in ipairs(billboardAtlasKinds) do
+        drawAtlasShape(kind, (index - 1) * size, size)
+    end
+    love.graphics.pop()
+    canvas:setFilter("nearest", "nearest")
+    local width, height = canvas:getDimensions()
+    local quads = {}
+    for index, kind in ipairs(billboardAtlasKinds) do
+        quads[kind] = love.graphics.newQuad((index - 1) * size, 0, size, size, width, height)
+    end
+    return canvas, quads
+end
+
+local function billboardResources(app, requiredSprites)
+    app.billboardSprites = app.billboardSprites or {}
+    local resources = app.billboardSprites
+    if not resources.atlas then
+        resources.atlas, resources.quads = createBillboardAtlas()
+    end
+    if not resources.batch or requiredSprites > resources.capacity then
+        local capacity = meshCapacity(requiredSprites, resources.capacity or 256)
+        resources.batch = love.graphics.newSpriteBatch(resources.atlas, capacity, "stream")
+        resources.capacity = capacity
+    end
+    return resources
 end
 
 local function streamMesh(app, id, vertices)
@@ -494,29 +560,32 @@ local function drawStream(app, id, vertices, fogAmount, lightAmount)
     love.graphics.setShader()
 end
 
-local function drawBillboards(list)
+local function drawBillboards(app, list)
+    if #list == 0 then return end
+    local resources = billboardResources(app, #list * 2)
+    local batch = resources.batch
+    local quads = resources.quads
+    batch:clear()
     for _, item in ipairs(list) do
         local color = item.color
         local fog = clamp((item.depth - 18) / 68, 0, 1)
         local c = mixColor(color, fogColor, fog * 0.75)
-        love.graphics.setColor(c[1], c[2], c[3], 1)
         local h = item.baseY - item.topY
-        if item.kind == "peak" then
-            love.graphics.polygon("fill", item.x, item.topY, item.x - item.w * 0.58, item.baseY, item.x + item.w * 0.58, item.baseY)
-            love.graphics.setColor(c[1] * 1.12, c[2] * 1.12, c[3] * 1.12, 1)
-            love.graphics.polygon("fill", item.x, item.topY, item.x + item.w * 0.22, item.baseY - h * 0.38, item.x + item.w * 0.58, item.baseY)
-        elseif item.kind == "ridge" then
-            love.graphics.polygon("fill", item.x - item.w * 0.55, item.baseY, item.x - item.w * 0.12, item.topY, item.x + item.w * 0.55, item.baseY - h * 0.18, item.x + item.w * 0.22, item.baseY)
-        elseif item.kind == "outcrop" then
-            love.graphics.polygon("fill", item.x - item.w * 0.48, item.baseY, item.x - item.w * 0.22, item.topY, item.x + item.w * 0.44, item.baseY - h * 0.22, item.x + item.w * 0.52, item.baseY)
-        else
-            love.graphics.rectangle("fill", item.x - item.w * 0.5, item.topY, item.w, h)
-        end
-        if item.kind == "tree" then
-            love.graphics.setColor(c[1] * 0.6, c[2] * 0.6, c[3] * 0.6, 1)
-            love.graphics.rectangle("fill", item.x - item.w * 0.12, item.baseY - h * 0.38, item.w * 0.24, h * 0.38)
+        if h > 0 then
+            batch:setColor(c[1], c[2], c[3], 1)
+            batch:add(quads[item.kind] or quads.shrub, item.x - item.w * 0.5, item.topY, 0, item.w / billboardAtlasSize, h / billboardAtlasSize)
+            if item.kind == "peak" then
+                batch:setColor(c[1] * 1.12, c[2] * 1.12, c[3] * 1.12, 1)
+                batch:add(quads.peak_facet, item.x - item.w * 0.5, item.topY, 0, item.w / billboardAtlasSize, h / billboardAtlasSize)
+            elseif item.kind == "tree" then
+                batch:setColor(c[1] * 0.6, c[2] * 0.6, c[3] * 0.6, 1)
+                batch:add(quads.tree_trunk, item.x - item.w * 0.12, item.baseY - h * 0.38, 0, item.w * 0.24 / billboardAtlasSize, h * 0.38 / billboardAtlasSize)
+            end
         end
     end
+    batch:setColor(1, 1, 1, 1)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(batch)
 end
 
 local function fmt(value)
@@ -694,7 +763,7 @@ function Render.draw(app)
     drawStream(app, "silhouette", meshData.silhouetteVertices, 0.78, 0)
     drawStream(app, "river", meshData.riverVertices, 0.55, 0)
     local billboards = Render.billboardDrawList(app, width, height)
-    drawBillboards(billboards)
+    drawBillboards(app, billboards)
     meshData.billboards = #billboards
     meshData.landmarks = 0
     for _, item in ipairs(billboards) do
