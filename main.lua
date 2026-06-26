@@ -1,6 +1,7 @@
 package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.path
 
 local Player = require("src.player")
+local Export = require("src.export")
 local Render = require("src.render")
 local Survey = require("src.survey")
 local ViewScale = require("src.viewscale")
@@ -69,6 +70,36 @@ local function runtimeWorldOptions(args)
         hydrologyBasinHaloCells = tonumber(argValue(args, "--hydrology-basin-halo", 0)) or 0,
         hydrologyBasinFlowScale = tonumber(argValue(args, "--hydrology-basin-flow-scale", 0.6)) or 0.6,
     }
+end
+
+local function exportMap(args)
+    local output = argValue(args, "--export-map", "thoth-map")
+    local world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625)), runtimeWorldOptions(args))
+    local map = Export.renderMap(world, {
+        size = tonumber(argValue(args, "--export-size", 128)) or 128,
+        span = tonumber(argValue(args, "--export-span", 512)) or 512,
+        scale = argValue(args, "--export-scale", "local"),
+        x = tonumber(argValue(args, "--export-x", 0)) or 0,
+        y = tonumber(argValue(args, "--export-y", 0)) or 0,
+    })
+    local imageData = love.image.newImageData(map.size, map.size)
+    local index = 1
+    for y = 0, map.size - 1 do
+        for x = 0, map.size - 1 do
+            local r, g, b = string.byte(map.pixels[index], 1, 3)
+            imageData:setPixel(x, y, r / 255, g / 255, b / 255, 1)
+            index = index + 1
+        end
+    end
+    local fileData = imageData:encode("png")
+    local image = assert(io.open(output .. ".png", "wb"))
+    image:write(fileData:getString())
+    image:close()
+    Export.writeMetadata(output .. ".json", map.metadata)
+    print("export-map=" .. output)
+    print("export-seed=" .. tostring(map.metadata.seed))
+    print("export-size=" .. tostring(map.size))
+    love.event.quit(0)
 end
 
 local function smoke(args)
@@ -239,6 +270,10 @@ local function maybeLogPerf(app)
 end
 
 function love.load(args)
+    if hasArg(args, "--export-map") then
+        exportMap(args)
+        return
+    end
     if hasArg(args, "--smoke") then
         smoke(args)
         return
