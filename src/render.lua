@@ -22,7 +22,8 @@ local biomeColors = {
 
 local skyTop = { 0.43, 0.55, 0.66 }
 local skyHorizon = { 0.68, 0.74, 0.75 }
-local fogColor = { 0.57, 0.66, 0.68 }
+local fogColor = { 0.6, 0.68, 0.69 }
+local silhouetteColor = { 0.08, 0.09, 0.08 }
 
 local function clamp(value, minValue, maxValue)
     return math.max(minValue, math.min(maxValue, value))
@@ -96,6 +97,12 @@ local function project(app, width, height, lateral, depth, z)
     return sx, sy
 end
 
+local function projectWorld(app, width, height, x, y, z)
+    local lateral, depth = cameraLocal(app, x, y)
+    local sx, sy = project(app, width, height, lateral, depth, z)
+    return sx, sy, depth
+end
+
 local function terrainZ(cell)
     if cell.lake and cell.lakeSurface then return cell.lakeSurface * terrainScale end
     if cell.water then return -0.25 * terrainScale end
@@ -108,8 +115,13 @@ local function litColor(cell, depth, slopeLight, radius)
     local brightness = 0.58 + clamp(light, 0, 1) * 0.34 + clamp(cell.elevation + 0.2, 0, 1) * 0.1
     if cell.water then brightness = 0.82 end
     local shaded = shade(color, brightness)
-    local fog = clamp((depth - 18) / math.max(1, radius - 18), 0, 1)
-    return mixColor(shaded, fogColor, fog * 0.86)
+    local fog = clamp((depth - 24) / math.max(1, radius - 24), 0, 1)
+    return mixColor(shaded, fogColor, fog * 0.76)
+end
+
+local function foggedColor(color, depth, radius, amount)
+    local fog = clamp((depth - 24) / math.max(1, radius - 24), 0, 1)
+    return mixColor(color, fogColor, fog * (amount or 0.7))
 end
 
 local function pushVertex(vertices, x, y, color)
@@ -127,9 +139,20 @@ local function pushQuadCoords(vertices, x00, y00, x10, y10, x11, y11, x01, y01, 
     pushTriCoords(vertices, x00, y00, x11, y11, x01, y01, color)
 end
 
+local function pushLineQuad(vertices, ax, ay, bx, by, width, color)
+    local dx, dy = bx - ax, by - ay
+    local length = math.sqrt(dx * dx + dy * dy)
+    if length <= 0.001 then return false end
+    local nx, ny = -dy / length * width * 0.5, dx / length * width * 0.5
+    pushQuadCoords(vertices, ax - nx, ay - ny, bx - nx, by - ny, bx + nx, by + ny, ax + nx, ay + ny, color)
+    return true
+end
+
 function Render.buildTerrainMeshData(app, width, height)
     app.camera.eyeZ = cameraHeight(app)
     local vertices = {}
+    local riverVertices = {}
+    local silhouetteVertices = {}
     local camera = app.camera
     local step = camera.step or 2
     local radius = camera.renderRadius or 86
@@ -161,6 +184,8 @@ function Render.buildTerrainMeshData(app, width, height)
         end
     end
     local visibleTiles = 0
+    local riverStrips = 0
+    local silhouetteStrips = 0
     for row = 1, #depths - 1 do
         local dep = depths[row]
         local nextDepth = depths[row + 1]
@@ -185,13 +210,38 @@ function Render.buildTerrainMeshData(app, width, height)
                 local color = litColor(cell, centerDepth, slopeLight, radius)
                 pushQuadCoords(vertices, p00x, p00y, p10x, p10y, p11x, p11y, p01x, p01y, color)
                 visibleTiles = visibleTiles + 1
+                local edgeSlope = math.abs(slopeLight)
+                if (cell.slope or 0) > 0.2 or edgeSlope > 0.035 then
+                    local lineColor = foggedColor(silhouetteColor, centerDepth, radius, 0.78)
+                    local width = clamp(0.65 + (cell.slope or 0) * 3.2, 0.8, 2.4)
+                    if pushLineQuad(silhouetteVertices, p01x, p01y, p11x, p11y, width, lineColor) then
+                        silhouetteStrips = silhouetteStrips + 1
+                    end
+                end
+                if cell.river and cell.downX and cell.downY then
+                    local downCell = app.world:sample(cell.downX, cell.downY, "local")
+                    local ax, ay, ad = projectWorld(app, width, height, cell.x, cell.y, terrainZ(cell) + 0.08)
+                    local bx, by, bd = projectWorld(app, width, height, cell.downX, cell.downY, terrainZ(downCell) + 0.08)
+                    if ax and bx then
+                        local stripDepth = math.max(1, (ad + bd) * 0.5)
+                        local stripWidth = clamp((1.15 + math.log((cell.flow or 0) + 1) * 0.12) / stripDepth * (camera.fov or 620), 1.2, 5.2)
+                        local riverColor = foggedColor(biomeColors.river, stripDepth, radius, 0.55)
+                        if pushLineQuad(riverVertices, ax, ay, bx, by, stripWidth, riverColor) then
+                            riverStrips = riverStrips + 1
+                        end
+                    end
+                end
             end
         end
     end
     return {
         vertices = vertices,
+        riverVertices = riverVertices,
+        silhouetteVertices = silhouetteVertices,
         visibleTiles = visibleTiles,
         triangles = #vertices / 3,
+        riverStrips = riverStrips,
+        silhouetteStrips = silhouetteStrips,
         cameraHeight = app.camera.eyeZ,
     }
 end
@@ -240,10 +290,17 @@ end
 function Render.visibleStats(app, width, height)
     local mesh = Render.buildTerrainMeshData(app, width or 1280, height or 720)
     local billboards = Render.billboardDrawList(app, width or 1280, height or 720)
+    local landmarks = 0
+    for _, item in ipairs(billboards) do
+        if item.kind == "peak" or item.kind == "ridge" or item.kind == "outcrop" then landmarks = landmarks + 1 end
+    end
     return {
         visibleTiles = mesh.visibleTiles,
         triangles = mesh.triangles,
+        riverStrips = mesh.riverStrips,
+        silhouetteStrips = mesh.silhouetteStrips,
         billboards = #billboards,
+        landmarks = landmarks,
         cameraHeight = mesh.cameraHeight,
     }
 end
@@ -269,7 +326,17 @@ local function drawBillboards(list)
         local c = mixColor(color, fogColor, fog * 0.75)
         love.graphics.setColor(c[1], c[2], c[3], 1)
         local h = item.baseY - item.topY
-        love.graphics.rectangle("fill", item.x - item.w * 0.5, item.topY, item.w, h)
+        if item.kind == "peak" then
+            love.graphics.polygon("fill", item.x, item.topY, item.x - item.w * 0.58, item.baseY, item.x + item.w * 0.58, item.baseY)
+            love.graphics.setColor(c[1] * 1.12, c[2] * 1.12, c[3] * 1.12, 1)
+            love.graphics.polygon("fill", item.x, item.topY, item.x + item.w * 0.22, item.baseY - h * 0.38, item.x + item.w * 0.58, item.baseY)
+        elseif item.kind == "ridge" then
+            love.graphics.polygon("fill", item.x - item.w * 0.55, item.baseY, item.x - item.w * 0.12, item.topY, item.x + item.w * 0.55, item.baseY - h * 0.18, item.x + item.w * 0.22, item.baseY)
+        elseif item.kind == "outcrop" then
+            love.graphics.polygon("fill", item.x - item.w * 0.48, item.baseY, item.x - item.w * 0.22, item.topY, item.x + item.w * 0.44, item.baseY - h * 0.22, item.x + item.w * 0.52, item.baseY)
+        else
+            love.graphics.rectangle("fill", item.x - item.w * 0.5, item.topY, item.w, h)
+        end
         if item.kind == "tree" then
             love.graphics.setColor(c[1] * 0.6, c[2] * 0.6, c[3] * 0.6, 1)
             love.graphics.rectangle("fill", item.x - item.w * 0.12, item.baseY - h * 0.38, item.w * 0.24, h * 0.38)
@@ -291,7 +358,7 @@ local function drawHud(app, width, height, stats)
     love.graphics.print("pos " .. math.floor(app.player.x) .. ", " .. math.floor(app.player.y) .. "  biome " .. tostring(cell.biome), 24, 66)
     love.graphics.print("elev " .. fmt(cell.elevation) .. " slope " .. fmt(cell.slope) .. " erosion " .. fmt(cell.erosion), 24, 88)
     love.graphics.print("rain " .. fmt(cell.rainfall) .. " flow " .. fmt(cell.flow) .. " river " .. tostring(cell.river), 24, 110)
-    love.graphics.print("mesh " .. tostring(stats.visibleTiles) .. " tiles / " .. tostring(stats.triangles) .. " tris / " .. tostring(stats.billboards) .. " billboards", 24, 132)
+    love.graphics.print("mesh " .. tostring(stats.visibleTiles) .. " tiles / " .. tostring(stats.triangles) .. " tris / rivers " .. tostring(stats.riverStrips or 0) .. " / marks " .. tostring(stats.landmarks or 0), 24, 132)
     love.graphics.setColor(0.02, 0.025, 0.03, 0.7)
     love.graphics.rectangle("fill", width - 324, height - 52, 312, 34)
     love.graphics.setColor(0.88, 0.9, 0.82, 1)
@@ -308,9 +375,23 @@ function Render.draw(app)
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.draw(mesh)
     end
+    if #meshData.silhouetteVertices > 0 then
+        local mesh = love.graphics.newMesh(meshFormat, meshData.silhouetteVertices, "triangles", "stream")
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(mesh)
+    end
+    if #meshData.riverVertices > 0 then
+        local mesh = love.graphics.newMesh(meshFormat, meshData.riverVertices, "triangles", "stream")
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(mesh)
+    end
     local billboards = Render.billboardDrawList(app, width, height)
     drawBillboards(billboards)
     meshData.billboards = #billboards
+    meshData.landmarks = 0
+    for _, item in ipairs(billboards) do
+        if item.kind == "peak" or item.kind == "ridge" or item.kind == "outcrop" then meshData.landmarks = meshData.landmarks + 1 end
+    end
     love.graphics.setColor(0.95, 0.92, 0.74, 1)
     love.graphics.circle("fill", width * 0.5, height * 0.52, 2)
     drawHud(app, width, height, meshData)

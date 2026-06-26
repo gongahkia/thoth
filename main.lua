@@ -90,7 +90,10 @@ local function smoke(args)
     print("rivers=" .. totals.river)
     print("mesh_tiles=" .. renderStats.visibleTiles)
     print("triangles=" .. renderStats.triangles)
+    print("river_strips=" .. renderStats.riverStrips)
+    print("silhouettes=" .. renderStats.silhouetteStrips)
     print("billboards=" .. renderStats.billboards)
+    print("landmarks=" .. renderStats.landmarks)
     print("camera_height=" .. string.format("%.3f", renderStats.cameraHeight))
     love.event.quit(0)
 end
@@ -157,7 +160,7 @@ local function perfSnapshot(app)
     local chunkY = math.floor(app.player.y / size)
     local stats = app.perf.renderStats or {}
     return string.format(
-        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s cache=%d chunks=%d hydro=%d basins=%d billboard_cache=%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
+        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d chunks=%d hydro=%d basins=%d billboard_cache=%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
         app.perf.frame or 0,
         love.timer.getFPS(),
         (app.perf.lastDt or 0) * 1000,
@@ -178,6 +181,9 @@ local function perfSnapshot(app)
         tostring(stats.visibleTiles),
         tostring(stats.triangles),
         tostring(stats.billboards),
+        tostring(stats.riverStrips),
+        tostring(stats.silhouetteStrips),
+        tostring(stats.landmarks),
         cache.total,
         cache.chunks,
         cache.hydrology,
@@ -291,7 +297,10 @@ function love.draw()
         print("render-smoke=terrain3d")
         print("render-smoke-tiles=" .. tostring(stats.visibleTiles))
         print("render-smoke-triangles=" .. tostring(stats.triangles))
+        print("render-smoke-river-strips=" .. tostring(stats.riverStrips))
+        print("render-smoke-silhouettes=" .. tostring(stats.silhouetteStrips))
         print("render-smoke-billboards=" .. tostring(stats.billboards))
+        print("render-smoke-landmarks=" .. tostring(stats.landmarks))
         love.event.quit(0)
     end
     if app.walkSmoke and app.perf.frame >= app.walkSmokeFrames then

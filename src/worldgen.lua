@@ -41,6 +41,9 @@ local billboardKinds = {
     rock = true,
     shrub = true,
     snow = true,
+    peak = true,
+    ridge = true,
+    outcrop = true,
 }
 
 local function clamp(value, minValue, maxValue)
@@ -394,7 +397,13 @@ local function billboardSpecFor(seed, cell)
     if cell.water or cell.river then return nil end
     local chance = Rng.unitAt(seed, cell.x, cell.y, 701)
     local kind, width, height, color
-    if (cell.biome == "temperate_forest" or cell.biome == "rainforest" or cell.biome == "boreal_forest") and cell.slope < 0.18 and chance < 0.18 then
+    if cell.elevation > 0.58 and cell.slope > 0.2 and chance < 0.22 then
+        kind, width, height, color = "peak", 1.8, 3.8, { 0.68, 0.67, 0.62 }
+    elseif cell.elevation > 0.16 and cell.slope > 0.18 and chance < 0.12 then
+        kind, width, height, color = "ridge", 1.7, 2.2, { 0.42, 0.4, 0.36 }
+    elseif cell.elevation > 0.08 and cell.slope > 0.12 and chance < 0.07 then
+        kind, width, height, color = "outcrop", 1.4, 1.4, { 0.34, 0.33, 0.29 }
+    elseif (cell.biome == "temperate_forest" or cell.biome == "rainforest" or cell.biome == "boreal_forest") and cell.slope < 0.18 and chance < 0.18 then
         kind, width, height, color = "tree", 1.3, 3.4, { 0.08, 0.26, 0.12 }
     elseif cell.biome == "wetland" and chance < 0.16 then
         kind, width, height, color = "reed", 0.7, 1.8, { 0.28, 0.34, 0.16 }

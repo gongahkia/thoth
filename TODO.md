@@ -1,9 +1,5 @@
 # TODO
 
-## Next Deepening Priority
-
-1. Pseudo-3D readability: river strips, slope silhouettes, landmark billboards, and fog tuning after hydrology stats stabilize.
-
 ## Terrain
 
 - Add thermal erosion and sediment deposition passes with visible talus slopes, alluvial fans, deltas, and floodplains.
@@ -23,7 +19,7 @@
 
 ## Rendering
 
-- Improve pseudo-3D terrain mesh density, horizon fog, river strips, and biome palette.
+- Improve pseudo-3D terrain mesh density and biome palette.
 - Delay major visual polish until hydrology and erosion outputs are stable enough to inspect.
 - Add optional debug topographic map outside the default runtime view.
 - Add screenshot/export command for generated maps and seed metadata.

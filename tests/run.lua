@@ -257,6 +257,9 @@ local function testRenderStats()
     local stats = Render.visibleStats(app, 1280, 720)
     expect(stats.visibleTiles > 0 and stats.triangles == stats.visibleTiles * 2, "render stats should describe terrain mesh")
     expect(stats.billboards >= 0 and stats.cameraHeight == stats.cameraHeight, "render stats should include finite camera and billboard count")
+    expect(stats.riverStrips > 0, "render stats should include river strips")
+    expect(stats.silhouetteStrips > 0, "render stats should include slope silhouettes")
+    expect(stats.landmarks > 0, "render stats should include terrain landmarks")
 end
 
 local function testTerrainDiagnostics()
@@ -320,11 +323,15 @@ local function smoke()
     print("max_flow=" .. string.format("%.3f", localStats.maxFlow))
     print("mesh_tiles=" .. stats.visibleTiles)
     print("triangles=" .. stats.triangles)
+    print("river_strips=" .. stats.riverStrips)
+    print("silhouettes=" .. stats.silhouetteStrips)
     print("billboards=" .. stats.billboards)
+    print("landmarks=" .. stats.landmarks)
     print("camera_height=" .. string.format("%.3f", stats.cameraHeight))
     expect(land > 0 and water > 0 and rivers > 0, "smoke should cover land, water, and rivers")
     expect(localStats.basins > 0 and localStats.uphillRejects == 0, "smoke should include sane hydrology stats")
     expect(stats.visibleTiles > 0 and stats.triangles > 0, "smoke should build visible terrain mesh")
+    expect(stats.riverStrips > 0 and stats.silhouetteStrips > 0 and stats.landmarks > 0, "smoke should include readability overlays")
 end
 
 local tests = {
