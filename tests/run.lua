@@ -44,6 +44,17 @@ local function encodeCell(cell)
         tostring(cell.floodplain),
         tostring(cell.delta),
         tostring(cell.plateId),
+        tostring(cell.secondaryPlateId),
+        round(cell.plateAge),
+        round(cell.secondaryPlateAge),
+        tostring(cell.plateCrust),
+        tostring(cell.secondaryPlateCrust),
+        round(cell.oceanicSubduction),
+        round(cell.subductionBias),
+        round(cell.riftValley),
+        round(cell.volcanicIslandArc),
+        round(cell.shield),
+        round(cell.craton),
         tostring(cell.basinId),
         tostring(cell.watershedId),
         tostring(cell.macroBasinId),
@@ -158,6 +169,30 @@ local function testErosionLandforms()
     expect(totals.alluvial > 0, "sediment deposition should expose alluvial fans")
     expect(totals.floodplain > 0, "sediment deposition should expose floodplains")
     expect(totals.delta > 0, "river mouths should expose deltas")
+end
+
+local function testTectonicFeatures()
+    local counts = { age = 0, subduction = 0, rift = 0, islandArc = 0, shield = 0, craton = 0 }
+    for _, seed in ipairs({ 3, 19, 45, 46, 99, 616, 717, 20260625 }) do
+        local world = WorldGen.new(seed)
+        for y = -1024, 1024, 64 do
+            for x = -1024, 1024, 64 do
+                local cell = world:baseSample(x, y, "local")
+                if cell.plateAge and cell.plateAge >= 0 and cell.plateAge <= 1 then counts.age = counts.age + 1 end
+                if (cell.oceanicSubduction or 0) > 0.08 then counts.subduction = counts.subduction + 1 end
+                if (cell.riftValley or 0) > 0.08 then counts.rift = counts.rift + 1 end
+                if (cell.volcanicIslandArc or 0) > 0.04 then counts.islandArc = counts.islandArc + 1 end
+                if (cell.shield or 0) > 0.2 then counts.shield = counts.shield + 1 end
+                if (cell.craton or 0) > 0.12 then counts.craton = counts.craton + 1 end
+            end
+        end
+    end
+    expect(counts.age > 0, "cells should expose normalized plate age")
+    expect(counts.subduction > 0, "tectonics should include oceanic subduction bias")
+    expect(counts.rift > 0, "tectonics should include rift valleys")
+    expect(counts.islandArc > 0, "tectonics should include volcanic island arcs")
+    expect(counts.shield > 0, "tectonics should include shield regions")
+    expect(counts.craton > 0, "tectonics should include cratons")
 end
 
 local function testBasinHydrologyBudget()
@@ -367,6 +402,7 @@ local tests = {
     testRiverMonotonicity,
     testHydrologyStats,
     testErosionLandforms,
+    testTectonicFeatures,
     testBasinHydrologyBudget,
     testBasinChannelsSpanDetailRegions,
     testBiomes,

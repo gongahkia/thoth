@@ -52,6 +52,11 @@ local function clamp(value, minValue, maxValue)
     return value
 end
 
+local function smoothstep(minValue, maxValue, value)
+    local t = clamp((value - minValue) / (maxValue - minValue), 0, 1)
+    return t * t * (3 - 2 * t)
+end
+
 local function floorDiv(value, divisor)
     return math.floor(value / divisor)
 end
@@ -75,6 +80,7 @@ local function plateCenter(seed, gx, gy, cellSize)
     local angle = Rng.unitAt(seed, gx, gy, 41) * math.pi * 2
     local speed = 0.25 + Rng.unitAt(seed, gx, gy, 43) * 0.75
     local crust = Rng.unitAt(seed, gx, gy, 47) > 0.42 and "continental" or "oceanic"
+    local age = Rng.unitAt(seed, gx, gy, 49)
     return {
         id = id,
         gx = gx,
@@ -84,6 +90,7 @@ local function plateCenter(seed, gx, gy, cellSize)
         vx = math.cos(angle) * speed,
         vy = math.sin(angle) * speed,
         crust = crust,
+        age = age,
     }
 end
 
@@ -207,13 +214,33 @@ function WorldGen:plateAt(x, y)
     local rel = ((first.vx or 0) - (second.vx or 0)) * nx + ((first.vy or 0) - (second.vy or 0)) * ny
     local convergent = clamp(rel, 0, 1)
     local divergent = clamp(-rel, 0, 1)
+    local subducting
+    if convergent > 0 then
+        if first.crust ~= second.crust then
+            subducting = first.crust == "oceanic" and first or second
+        elseif first.crust == "oceanic" then
+            subducting = first.age >= second.age and first or second
+        end
+    end
+    local currentSubducts = subducting and subducting.id == first.id
+    local oceanicSubduction = subducting and boundary * convergent or 0
+    local oceanOceanSubduction = oceanicSubduction * ((first.crust == "oceanic" and second.crust == "oceanic") and 1 or 0)
+    local continentOceanSubduction = oceanicSubduction * ((first.crust ~= second.crust) and 1 or 0)
     return {
         id = first.id,
         secondaryId = second.id,
         crust = first.crust,
+        secondaryCrust = second.crust,
+        age = first.age,
+        secondaryAge = second.age,
         boundary = boundary,
         convergent = convergent,
         divergent = divergent,
+        oceanicSubduction = oceanicSubduction,
+        oceanOceanSubduction = oceanOceanSubduction,
+        continentOceanSubduction = continentOceanSubduction,
+        subducting = currentSubducts == true,
+        subductionBias = oceanicSubduction * (currentSubducts and -1 or 1),
         vx = first.vx,
         vy = first.vy,
     }
@@ -226,15 +253,28 @@ function WorldGen:baseSample(x, y, scale)
     local continent = Noise.fbm(self.seed + 101, wx, wy, { frequency = 0.0009, octaves = 5, salt = 1 })
     local rough = Noise.fbm(self.seed + 202, wx, wy, { frequency = 0.008 / math.sqrt(info.factor), octaves = 5, salt = 2 })
     local ridge = Noise.ridge(self.seed + 303, wx, wy, { frequency = 0.0035 / math.sqrt(info.factor), octaves = 4, salt = 3 })
-    local continentalBias = plate.crust == "continental" and 0.24 or -0.2
-    local uplift = plate.boundary * (plate.convergent * 0.55 + ridge * 0.28)
-    local rift = plate.boundary * plate.divergent * 0.24
-    local elevation = continentalBias + (continent - 0.5) * 0.72 + (rough - 0.5) * 0.24 + uplift - rift
+    local shield = plate.crust == "continental" and smoothstep(0.52, 0.86, plate.age) * (1 - smoothstep(0.18, 0.46, plate.boundary)) or 0
+    local craton = shield * smoothstep(0.74, 0.96, plate.age) * (1 - smoothstep(0.08, 0.26, plate.boundary))
+    local stableDamping = clamp(shield * 0.35 + craton * 0.35, 0, 0.62)
+    local oceanAgeCooling = plate.crust == "oceanic" and plate.age * 0.16 or 0
+    local continentalBias = plate.crust == "continental" and (0.22 + shield * 0.04 + craton * 0.04) or (-0.16 - oceanAgeCooling)
+    local uplift = plate.boundary * (plate.convergent * 0.52 + ridge * 0.26)
+    local continentalRift = (plate.crust == "continental" and plate.secondaryCrust == "continental") and plate.boundary * plate.divergent or 0
+    local riftValley = continentalRift * (0.55 + ridge * 0.45)
+    local trench = plate.subducting and plate.oceanicSubduction * (0.2 + plate.age * 0.12) or 0
+    local subductionUplift = (not plate.subducting) and plate.continentOceanSubduction * 0.24 or 0
+    local islandArc = 0
+    if (not plate.subducting) and plate.oceanOceanSubduction > 0 then
+        local arcNoise = Noise.ridge(self.seed + 606, wx, wy, { frequency = 0.014 / math.sqrt(info.factor), octaves = 3, salt = 6 })
+        islandArc = plate.oceanOceanSubduction * smoothstep(0.42, 0.82, arcNoise)
+    end
+    local roughContribution = (rough - 0.5) * 0.24 * (1 - stableDamping)
+    local elevation = continentalBias + (continent - 0.5) * 0.72 + roughContribution + uplift + subductionUplift + islandArc * 0.36 - riftValley * 0.26 - trench
     local latitude = 0.5 + 0.5 * math.sin(y * 0.00045 + self.seed * 0.0001)
     local temperature = clamp(1 - math.abs(latitude * 2 - 1) * 1.1 - math.max(0, elevation) * 0.42 + (Noise.fbm(self.seed + 404, x, y, { frequency = 0.002, octaves = 3 }) - 0.5) * 0.18, 0, 1)
     local moistureNoise = Noise.fbm(self.seed + 505, x, y, { frequency = 0.0022, octaves = 4 })
-    local rainfall = clamp(0.2 + moistureNoise * 0.62 + (1 - math.abs(latitude - 0.5) * 2) * 0.18 - math.max(0, elevation) * 0.18 - uplift * 0.16, 0, 1)
-    local slope = clamp(ridge * 0.1 + math.abs(rough - 0.5) * 0.16 + plate.boundary * 0.08 + uplift * 0.06, 0, 1)
+    local rainfall = clamp(0.2 + moistureNoise * 0.62 + (1 - math.abs(latitude - 0.5) * 2) * 0.18 - math.max(0, elevation) * 0.18 - uplift * 0.16 + islandArc * 0.06, 0, 1)
+    local slope = clamp(ridge * 0.1 + math.abs(rough - 0.5) * 0.16 * (1 - stableDamping) + plate.boundary * 0.08 + uplift * 0.06 + riftValley * 0.12 + islandArc * 0.18 + trench * 0.08 - shield * 0.025 - craton * 0.035, 0, 1)
     local water = elevation <= self.seaLevel
     return {
         x = x,
@@ -245,8 +285,18 @@ function WorldGen:baseSample(x, y, scale)
         elevation = elevation,
         water = water,
         plateId = plate.id,
+        secondaryPlateId = plate.secondaryId,
         plateBoundary = plate.boundary,
         plateCrust = plate.crust,
+        secondaryPlateCrust = plate.secondaryCrust,
+        plateAge = plate.age,
+        secondaryPlateAge = plate.secondaryAge,
+        oceanicSubduction = plate.oceanicSubduction,
+        subductionBias = plate.subductionBias,
+        riftValley = riftValley,
+        volcanicIslandArc = islandArc,
+        shield = shield,
+        craton = craton,
         uplift = uplift,
         rainfall = rainfall,
         temperature = temperature,

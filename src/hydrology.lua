@@ -418,14 +418,14 @@ local function solveRegion(world, chunkX, chunkY, info)
             cell.lakeSurface = cell.filledElevation
         end
         local flowPower = math.log(cell.flow + 1)
-        cell.thermalErosion = clamp((cell.slope - 0.16) * 0.16, 0, 0.09)
+        cell.thermalErosion = clamp((cell.slope - 0.24) * 0.12, 0, 0.07)
         local hydraulicErosion = clamp(flowPower * cell.slope * 0.035, 0, 0.22)
         cell.erosion = clamp(hydraulicErosion + cell.thermalErosion, 0, 0.24)
         local lowSlope = cell.slope < 0.024
         cell.water = ocean or cell.lake
         local macroRiver = cell.macroChannelWeight and cell.macroChannelWeight > 0.35
         cell.river = not cell.water and cell.downCell ~= nil and (cell.flow > threshold or macroRiver)
-        cell.talus = not cell.water and cell.thermalErosion > 0.008 and cell.elevationBase > world.seaLevel + 0.04
+        cell.talus = not cell.water and cell.thermalErosion > 0.006 and cell.elevationBase > world.seaLevel + 0.04
         cell.alluvialFan = not cell.water and cell.flow > threshold * 0.45 and cell.slope >= 0.04 and cell.slope < 0.16 and cell.elevationBase > world.seaLevel + 0.035
         cell.floodplain = not cell.water and cell.flow > threshold * 0.55 and cell.slope < 0.14 and cell.elevationBase > world.seaLevel + 0.01 and cell.elevationBase < 0.56
         cell.deposition = 0

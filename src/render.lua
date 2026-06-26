@@ -25,6 +25,10 @@ local landformColors = {
     alluvial = { 0.58, 0.49, 0.31 },
     floodplain = { 0.2, 0.42, 0.22 },
     delta = { 0.42, 0.48, 0.28 },
+    rift = { 0.38, 0.28, 0.22 },
+    islandArc = { 0.45, 0.39, 0.34 },
+    shield = { 0.24, 0.34, 0.27 },
+    craton = { 0.3, 0.32, 0.25 },
 }
 
 local skyTop = { 0.43, 0.55, 0.66 }
@@ -62,6 +66,10 @@ local function baseColor(cell)
     if cell.lake then return biomeColors.lake end
     local color = biomeColors[cell.biome] or biomeColors.grassland
     if cell.water then color = cell.biome == "coast" and biomeColors.coast or biomeColors.ocean end
+    if (cell.craton or 0) > 0.12 then color = mixColor(color, landformColors.craton, 0.34) end
+    if (cell.shield or 0) > 0.2 then color = mixColor(color, landformColors.shield, 0.26) end
+    if (cell.riftValley or 0) > 0.08 then color = mixColor(color, landformColors.rift, 0.4) end
+    if (cell.volcanicIslandArc or 0) > 0.04 then color = mixColor(color, landformColors.islandArc, 0.38) end
     if cell.delta then color = mixColor(color, landformColors.delta, 0.55) end
     if cell.floodplain then color = mixColor(color, landformColors.floodplain, 0.5) end
     if cell.alluvialFan then color = mixColor(color, landformColors.alluvial, 0.45) end
@@ -227,7 +235,7 @@ function Render.buildTerrainMeshData(app, width, height)
                 pushQuadCoords(vertices, p00x, p00y, p10x, p10y, p11x, p11y, p01x, p01y, color)
                 visibleTiles = visibleTiles + 1
                 local edgeSlope = math.abs(slopeLight)
-                if (cell.slope or 0) > 0.2 or edgeSlope > 0.035 then
+                if (cell.slope or 0) > 0.28 or edgeSlope > 0.045 then
                     local lineColor = foggedColor(silhouetteColor, centerDepth, radius, 0.78)
                     local width = clamp(0.65 + (cell.slope or 0) * 3.2, 0.8, 2.4)
                     if pushLineQuad(silhouetteVertices, p01x, p01y, p11x, p11y, width, lineColor) then
