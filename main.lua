@@ -69,6 +69,7 @@ local function runtimeWorldOptions(args)
         hydrologyBasinStride = tonumber(argValue(args, "--hydrology-basin-stride", 8)) or 8,
         hydrologyBasinHaloCells = tonumber(argValue(args, "--hydrology-basin-halo", 0)) or 0,
         hydrologyBasinFlowScale = tonumber(argValue(args, "--hydrology-basin-flow-scale", 0.6)) or 0.6,
+        cacheMaxEntries = tonumber(argValue(args, "--cache-max-entries", 512)) or 512,
     }
 end
 
@@ -216,7 +217,7 @@ local function perfSnapshot(app)
     local stats = app.perf.renderStats or {}
     local view = ViewScale.params(app.viewScale, app.world)
     return string.format(
-        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d chunks=%d hydro=%d basins=%d billboard_cache=%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
+        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d/%s chunks=%d hydro=%d basins=%d billboard_cache=%d hits=%d cmiss=%d evict=%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
         app.perf.frame or 0,
         love.timer.getFPS(),
         (app.perf.lastDt or 0) * 1000,
@@ -243,10 +244,14 @@ local function perfSnapshot(app)
         tostring(stats.silhouetteStrips),
         tostring(stats.landmarks),
         cache.total,
+        tostring(cache.maxEntries),
         cache.chunks,
         cache.hydrology,
         cache.basins,
         cache.billboards,
+        metrics.cacheHits,
+        metrics.cacheMisses,
+        metrics.cacheEvictions,
         metrics.chunkMisses,
         metrics.hydrologyMisses,
         metrics.basinMisses,

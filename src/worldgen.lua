@@ -186,6 +186,13 @@ local function option(value, fallback)
     return value
 end
 
+local function cacheKind(cacheKey)
+    if string.sub(cacheKey, 1, 9) == "hydrology" then return "hydrology" end
+    if string.sub(cacheKey, 1, 5) == "basin" then return "basin" end
+    if string.sub(cacheKey, 1, 10) == "billboards" then return "billboard" end
+    return "chunk"
+end
+
 function WorldGen.new(seed, options)
     options = options or {}
     return setmetatable({
@@ -199,7 +206,11 @@ function WorldGen.new(seed, options)
         hydrologyBasinStride = option(options.hydrologyBasinStride, 4),
         hydrologyBasinHaloCells = option(options.hydrologyBasinHaloCells, 0),
         hydrologyBasinFlowScale = option(options.hydrologyBasinFlowScale, 0.6),
+        cacheMaxEntries = option(options.cacheMaxEntries, 512),
         cache = {},
+        cacheMeta = {},
+        cacheClock = 0,
+        cacheSize = 0,
         metrics = {
             chunkMisses = 0,
             hydrologyMisses = 0,
@@ -207,6 +218,10 @@ function WorldGen.new(seed, options)
             basinMisses = 0,
             hydrologyCells = 0,
             basinCells = 0,
+            cacheHits = 0,
+            cacheMisses = 0,
+            cachePuts = 0,
+            cacheEvictions = 0,
         },
     }, WorldGen)
 end
@@ -252,8 +267,46 @@ function WorldGen:metadata()
         hydrologyBasinStride = self.hydrologyBasinStride,
         hydrologyBasinHaloCells = self.hydrologyBasinHaloCells,
         hydrologyBasinFlowScale = self.hydrologyBasinFlowScale,
+        cacheMaxEntries = self.cacheMaxEntries,
         scales = scales,
     }
+end
+
+function WorldGen:cacheGet(cacheKey)
+    local value = self.cache[cacheKey]
+    if value then
+        self.metrics.cacheHits = self.metrics.cacheHits + 1
+        self.cacheClock = self.cacheClock + 1
+        local meta = self.cacheMeta[cacheKey] or { kind = cacheKind(cacheKey) }
+        meta.last = self.cacheClock
+        self.cacheMeta[cacheKey] = meta
+        return value
+    end
+    self.metrics.cacheMisses = self.metrics.cacheMisses + 1
+    return nil
+end
+
+function WorldGen:cachePut(cacheKey, value, kind)
+    if not self.cache[cacheKey] then self.cacheSize = self.cacheSize + 1 end
+    self.cacheClock = self.cacheClock + 1
+    self.cache[cacheKey] = value
+    self.cacheMeta[cacheKey] = { kind = kind or cacheKind(cacheKey), last = self.cacheClock }
+    self.metrics.cachePuts = self.metrics.cachePuts + 1
+    local maxEntries = self.cacheMaxEntries
+    while maxEntries and self.cacheSize > maxEntries do
+        local oldestKey, oldestLast
+        for key, meta in pairs(self.cacheMeta) do
+            if not oldestLast or (meta.last or 0) < oldestLast then
+                oldestKey, oldestLast = key, meta.last or 0
+            end
+        end
+        if not oldestKey then break end
+        self.cache[oldestKey] = nil
+        self.cacheMeta[oldestKey] = nil
+        self.cacheSize = self.cacheSize - 1
+        self.metrics.cacheEvictions = self.metrics.cacheEvictions + 1
+    end
+    return value
 end
 
 function WorldGen:plateAt(x, y)
@@ -376,7 +429,8 @@ end
 function WorldGen:chunk(chunkX, chunkY, scale)
     local info = scaleInfo(scale)
     local cacheKey = key(chunkX, chunkY, info.id)
-    if self.cache[cacheKey] then return self.cache[cacheKey] end
+    local cached = self:cacheGet(cacheKey)
+    if cached then return cached end
     self.metrics.chunkMisses = self.metrics.chunkMisses + 1
     local size = self.chunkSize
     local region = Hydrology.region(self, chunkX, chunkY, info)
@@ -399,8 +453,7 @@ function WorldGen:chunk(chunkX, chunkY, scale)
         size = size,
         cells = rows,
     }
-    self.cache[cacheKey] = chunk
-    return chunk
+    return self:cachePut(cacheKey, chunk, "chunk")
 end
 
 function WorldGen:hydrologyStats(chunkX, chunkY, scale)
@@ -443,14 +496,15 @@ function WorldGen:preloadBillboardsAround(x, y, radius)
 end
 
 function WorldGen:cacheStats()
-    local stats = { total = 0, chunks = 0, hydrology = 0, basins = 0, billboards = 0 }
+    local stats = { total = 0, chunks = 0, hydrology = 0, basins = 0, billboards = 0, maxEntries = self.cacheMaxEntries, evictions = self.metrics.cacheEvictions }
     for cacheKey in pairs(self.cache) do
         stats.total = stats.total + 1
-        if string.sub(cacheKey, 1, 9) == "hydrology" then
+        local kind = (self.cacheMeta[cacheKey] and self.cacheMeta[cacheKey].kind) or cacheKind(cacheKey)
+        if kind == "hydrology" then
             stats.hydrology = stats.hydrology + 1
-        elseif string.sub(cacheKey, 1, 5) == "basin" then
+        elseif kind == "basin" then
             stats.basins = stats.basins + 1
-        elseif string.sub(cacheKey, 1, 10) == "billboards" then
+        elseif kind == "billboard" then
             stats.billboards = stats.billboards + 1
         else
             stats.chunks = stats.chunks + 1
@@ -467,6 +521,10 @@ function WorldGen:metricsSnapshot()
         basinMisses = self.metrics.basinMisses,
         hydrologyCells = self.metrics.hydrologyCells,
         basinCells = self.metrics.basinCells,
+        cacheHits = self.metrics.cacheHits,
+        cacheMisses = self.metrics.cacheMisses,
+        cachePuts = self.metrics.cachePuts,
+        cacheEvictions = self.metrics.cacheEvictions,
     }
 end
 
@@ -602,7 +660,8 @@ end
 
 function WorldGen:billboards(chunkX, chunkY)
     local cacheKey = key("billboards", chunkX, chunkY)
-    if self.cache[cacheKey] then return self.cache[cacheKey] end
+    local cached = self:cacheGet(cacheKey)
+    if cached then return cached end
     self.metrics.billboardMisses = self.metrics.billboardMisses + 1
     local chunk = self:chunk(chunkX, chunkY, "local")
     local result = {}
@@ -615,8 +674,7 @@ function WorldGen:billboards(chunkX, chunkY)
             end
         end
     end
-    self.cache[cacheKey] = result
-    return result
+    return self:cachePut(cacheKey, result, "billboard")
 end
 
 return WorldGen

@@ -174,7 +174,8 @@ local function solveBasin(world, chunkX, chunkY, info)
     local regionX = regionIndex(chunkX, basinChunks)
     local regionY = regionIndex(chunkY, basinChunks)
     local cacheKey = basinCacheKey(info, regionX, regionY, stride)
-    if world.cache[cacheKey] then return world.cache[cacheKey] end
+    local cached = world.cacheGet and world:cacheGet(cacheKey) or world.cache[cacheKey]
+    if cached then return cached end
     if world.metrics then world.metrics.basinMisses = world.metrics.basinMisses + 1 end
 
     local chunkSize = world.chunkSize
@@ -270,6 +271,7 @@ local function solveBasin(world, chunkX, chunkY, info)
     end
     for _ in pairs(basinIds) do stats.basins = stats.basins + 1 end
     region.stats = stats
+    if world.cachePut then return world:cachePut(cacheKey, region, "basin") end
     world.cache[cacheKey] = region
     return region
 end
@@ -369,7 +371,8 @@ local function solveRegion(world, chunkX, chunkY, info)
     local regionX = regionIndex(chunkX, regionChunks)
     local regionY = regionIndex(chunkY, regionChunks)
     local cacheKey = regionCacheKey(info, regionX, regionY)
-    if world.cache[cacheKey] then return world.cache[cacheKey] end
+    local cached = world.cacheGet and world:cacheGet(cacheKey) or world.cache[cacheKey]
+    if cached then return cached end
     if world.metrics then world.metrics.hydrologyMisses = world.metrics.hydrologyMisses + 1 end
 
     local chunkSize = world.chunkSize
@@ -607,6 +610,7 @@ local function solveRegion(world, chunkX, chunkY, info)
     end
     for _ in pairs(basins) do stats.basins = stats.basins + 1 end
     region.stats = stats
+    if world.cachePut then return world:cachePut(cacheKey, region, "hydrology") end
     world.cache[cacheKey] = region
     return region
 end

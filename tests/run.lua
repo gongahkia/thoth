@@ -343,6 +343,28 @@ local function testBasinHydrologyBudget()
     expect(cache.hydrology == 1 and cache.basins == 1, "first chunk should cache one hydrology region and one basin")
 end
 
+local function testCacheBoundsAndCounters()
+    local world = WorldGen.new(20260625, {
+        hydrologyRegionChunks = 1,
+        hydrologyHaloCells = 0,
+        hydrologyBasinChunks = 8,
+        hydrologyBasinStride = 8,
+        cacheMaxEntries = 10,
+    })
+    for cy = -1, 1 do
+        for cx = -1, 1 do
+            world:chunk(cx, cy, "local")
+        end
+    end
+    local cache = world:cacheStats()
+    local metrics = world:metricsSnapshot()
+    expect(cache.total <= 10 and cache.maxEntries == 10, "cache should enforce configured entry bound")
+    expect(metrics.cachePuts > 10 and metrics.cacheEvictions > 0 and metrics.cacheMisses > 0, "cache metrics should count puts, evictions, and misses")
+    world:chunk(1, 1, "local")
+    local after = world:metricsSnapshot()
+    expect(after.cacheHits > metrics.cacheHits, "cache metrics should count hits")
+end
+
 local function testBasinChannelsSpanDetailRegions()
     local world = WorldGen.new(20260625, basinWorldOptions)
     local spans = {}
@@ -619,6 +641,7 @@ local tests = {
     testViewScaleTransitions,
     testDiegeticScaleTransitions,
     testBasinHydrologyBudget,
+    testCacheBoundsAndCounters,
     testBasinChannelsSpanDetailRegions,
     testBiomes,
     testPlayer,
