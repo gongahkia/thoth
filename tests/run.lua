@@ -39,6 +39,14 @@ local function encodeCell(cell)
         tostring(cell.riverBank),
         tostring(cell.lake),
         tostring(cell.water),
+        tostring(cell.lakeId),
+        tostring(cell.lakeGroupSize),
+        tostring(cell.lakeOutletX),
+        tostring(cell.lakeOutletY),
+        round(cell.spilloverElevation),
+        round(cell.spilloverFlow),
+        tostring(cell.spillover),
+        tostring(cell.spilloverLakeId),
         tostring(cell.talus),
         tostring(cell.alluvialFan),
         tostring(cell.floodplain),
@@ -154,6 +162,31 @@ local function testHydrologyStats()
         end
     end
     expect(stats.lakes > 0 or inspected == 0, "lake stats should be available when lakes exist")
+end
+
+local function testLakeGroupingAndSpillover()
+    local world = WorldGen.new(62)
+    local stats = world:hydrologyStats(0, 0, "local")
+    expect(stats.lakeCells > 0 and stats.lakeGroups > 0, "fixture seed should include grouped lakes")
+    local inspected = 0
+    for cy = -1, 0 do
+        for cx = -1, 0 do
+            local chunk = world:chunk(cx, cy, "local")
+            for y = 1, chunk.size do
+                for x = 1, chunk.size do
+                    local cell = chunk.cells[y][x]
+                    if cell.lake then
+                        expect(cell.lakeId and cell.lakeGroupSize and cell.lakeGroupSize > 0, "lake cells should expose stable group ids and size")
+                        expect(cell.lakeOutletX and cell.lakeOutletY and cell.spilloverElevation, "lake cells should expose outlet and spillover labels")
+                        local outlet = world:sample(cell.lakeOutletX, cell.lakeOutletY, "local")
+                        expect(outlet.spillover and outlet.spilloverLakeId == cell.lakeId, "lake outlet should be labeled as spillover")
+                        inspected = inspected + 1
+                    end
+                end
+            end
+        end
+    end
+    expect(inspected == stats.lakeCells, "lake group fixture should inspect every lake cell in the region")
 end
 
 local function testErosionLandforms()
@@ -375,6 +408,7 @@ local function smoke()
     print("rivers=" .. rivers)
     print("lakes=" .. lakes)
     print("basins=" .. localStats.basins)
+    print("lake_groups=" .. localStats.lakeGroups)
     print("talus=" .. localStats.talusSlopes)
     print("alluvial_fans=" .. localStats.alluvialFans)
     print("floodplains=" .. localStats.floodplains)
@@ -402,6 +436,7 @@ local tests = {
     testSampleChunkAgreement,
     testRiverMonotonicity,
     testHydrologyStats,
+    testLakeGroupingAndSpillover,
     testErosionLandforms,
     testTectonicFeatures,
     testBasinHydrologyBudget,

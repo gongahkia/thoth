@@ -294,6 +294,76 @@ local function basinFlowFor(world, gx, gy, info)
     return flow * scale * weight, cell, weight
 end
 
+local function labelLakeGroups(region, visitOrder, info)
+    local groups = {}
+    local seen = {}
+    for _, start in ipairs(visitOrder) do
+        local startKey = key(start.gx, start.gy)
+        if start.lake and not seen[startKey] then
+            local stack = { start }
+            local cells = {}
+            local outlet
+            local surface = start.lakeSurface or start.filledElevation
+            local maxDepth = 0
+            local maxFlow = 0
+            seen[startKey] = true
+            while #stack > 0 do
+                local cell = stack[#stack]
+                stack[#stack] = nil
+                cells[#cells + 1] = cell
+                surface = math.max(surface or 0, cell.lakeSurface or cell.filledElevation or 0)
+                maxDepth = math.max(maxDepth, cell.lakeDepth or 0)
+                maxFlow = math.max(maxFlow, cell.flow or 0)
+                local candidate = lakeOutlet(cell)
+                if candidate and (not outlet or (candidate.filledElevation or candidate.elevationBase or 0) < (outlet.filledElevation or outlet.elevationBase or 0)) then
+                    outlet = candidate
+                end
+                for _, offset in ipairs(neighbors) do
+                    local neighbor = region.cells[key(cell.gx + offset.x, cell.gy + offset.y)]
+                    if neighbor and neighbor.lake then
+                        local neighborKey = key(neighbor.gx, neighbor.gy)
+                        if not seen[neighborKey] then
+                            seen[neighborKey] = true
+                            stack[#stack + 1] = neighbor
+                        end
+                    end
+                end
+            end
+            local anchor = outlet or cells[1]
+            local groupId = key("lg", info.id, math.floor((surface or 0) * 10000 + 0.5), anchor.gx, anchor.gy)
+            local group = {
+                id = groupId,
+                cells = cells,
+                outlet = outlet,
+                surface = surface,
+                maxDepth = maxDepth,
+                maxFlow = maxFlow,
+            }
+            groups[#groups + 1] = group
+            for _, cell in ipairs(cells) do
+                cell.lakeId = groupId
+                cell.lakeGroupSize = #cells
+                cell.lakeMaxDepth = maxDepth
+                cell.spilloverElevation = surface
+                cell.spilloverFlow = maxFlow
+                if outlet then
+                    cell.outletX = outlet.x
+                    cell.outletY = outlet.y
+                    cell.lakeOutletX = outlet.x
+                    cell.lakeOutletY = outlet.y
+                end
+            end
+            if outlet then
+                outlet.spillover = true
+                outlet.spilloverLakeId = groupId
+                outlet.spilloverElevation = surface
+                outlet.spilloverFlow = math.max(outlet.spilloverFlow or 0, maxFlow)
+            end
+        end
+    end
+    return groups
+end
+
 local function solveRegion(world, chunkX, chunkY, info)
     local regionChunks = world.hydrologyRegionChunks or 4
     local regionX = regionIndex(chunkX, regionChunks)
@@ -434,19 +504,33 @@ local function solveRegion(world, chunkX, chunkY, info)
         if cell.floodplain then cell.deposition = cell.deposition + 0.016 end
     end
 
+    local lakeGroups = labelLakeGroups(region, visitOrder, info)
+    region.lakeGroups = lakeGroups
+    for _, group in ipairs(lakeGroups) do
+        local outlet = group.outlet
+        if outlet and not outlet.water and (group.maxFlow or 0) > threshold * 0.28 then
+            outlet.river = true
+            outlet.floodplain = outlet.floodplain or ((outlet.slope or 0) < 0.16)
+            outlet.deposition = math.max(outlet.deposition or 0, 0.02)
+        end
+    end
+
     for _, cell in ipairs(visitOrder) do
         if cell.river and not cell.water then
             local mouth = cell.downCell and cell.downCell.water
+            local waterLevel = world.seaLevel
+            if mouth and cell.downCell and cell.downCell.lakeSurface then waterLevel = cell.downCell.lakeSurface end
             if not mouth then
                 for _, offset in ipairs(neighbors) do
                     local neighbor = region.cells[key(cell.gx + offset.x, cell.gy + offset.y)]
                     if neighbor and neighbor.water then
                         mouth = true
+                        if neighbor.lakeSurface then waterLevel = neighbor.lakeSurface end
                         break
                     end
                 end
             end
-            cell.delta = mouth and cell.flow > threshold * 0.8 and cell.slope < 0.16 and cell.elevationBase < world.seaLevel + 0.24
+            cell.delta = mouth and cell.flow > threshold * 0.35 and cell.slope < 0.18 and cell.elevationBase < waterLevel + 0.22
             if cell.delta then
                 cell.floodplain = true
                 cell.deposition = math.max(cell.deposition, 0.03)
@@ -490,6 +574,7 @@ local function solveRegion(world, chunkX, chunkY, info)
         uphillRejects = 0,
         basins = 0,
         macroChannels = 0,
+        lakeGroups = #lakeGroups,
         talusSlopes = 0,
         alluvialFans = 0,
         floodplains = 0,
@@ -505,12 +590,6 @@ local function solveRegion(world, chunkX, chunkY, info)
             cell.watershedId = key("w", info.id, regionX, regionY, root.gx, root.gy)
             basins[cell.basinId] = true
             if cell.lake then
-                local outlet = lakeOutlet(cell)
-                if outlet then
-                    cell.outletX = outlet.x
-                    cell.outletY = outlet.y
-                    cell.lakeId = key("l", info.id, math.floor(cell.lakeSurface * 10000 + 0.5), outlet.gx, outlet.gy)
-                end
                 stats.lakeCells = stats.lakeCells + 1
             end
             if cell.river then stats.rivers = stats.rivers + 1 end
