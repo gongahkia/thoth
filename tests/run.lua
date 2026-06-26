@@ -3,6 +3,7 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 local Player = require("src.player")
 local Render = require("src.render")
 local WorldGen = require("src.worldgen")
+local Diagnostics = require("src.diagnostics")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -258,6 +259,39 @@ local function testRenderStats()
     expect(stats.billboards >= 0 and stats.cameraHeight == stats.cameraHeight, "render stats should include finite camera and billboard count")
 end
 
+local function testTerrainDiagnostics()
+    local seeds = Diagnostics.defaultSeeds()
+    local sweep = Diagnostics.sweep({
+        seeds = seeds,
+        chunkRadius = 1,
+        sampleStep = 8,
+        worldOptions = basinWorldOptions,
+    })
+    expect(#sweep.results == #seeds, "diagnostics should report every fixture seed")
+    expect(#sweep.failed == 0, "diagnostic fixtures should stay inside terrain sanity bounds:\n" .. Diagnostics.formatFailures(sweep.failed))
+    for _, stats in ipairs(sweep.results) do
+        expect(stats.cells > 0 and stats.land + stats.water == stats.cells, "diagnostics should count sampled cells")
+        expect(stats.waterRatio >= 0 and stats.waterRatio <= 1, "water ratio should be normalized")
+        expect(stats.riverRatio >= 0 and stats.riverRatio <= 1, "river ratio should be normalized")
+        expect(stats.biomeCount >= 3, "diagnostics should observe multiple biomes")
+    end
+end
+
+local function testBadSeedDiagnostics()
+    for _, fixture in ipairs(Diagnostics.badSeeds()) do
+        local stats = Diagnostics.analyzeSeed(fixture.seed, {
+            chunkRadius = 1,
+            sampleStep = 8,
+            worldOptions = basinWorldOptions,
+        })
+        local flags = {}
+        for _, flag in ipairs(stats.flags) do flags[flag] = true end
+        for _, expectedFlag in ipairs(fixture.flags) do
+            expect(flags[expectedFlag], "bad seed fixture should flag " .. expectedFlag .. " for seed " .. tostring(fixture.seed))
+        end
+    end
+end
+
 local function smoke()
     local world = WorldGen.new(20260625)
     local app = { world = world, player = Player.new(0, 0), camera = Render.defaultCamera() }
@@ -306,10 +340,66 @@ local tests = {
     testHeightInterpolationAndNormal,
     testBillboards,
     testRenderStats,
+    testTerrainDiagnostics,
+    testBadSeedDiagnostics,
 }
+
+local function hasCliFlag(args, flag)
+    for _, item in ipairs(args or {}) do
+        if item == flag then return true end
+    end
+    return false
+end
+
+local function cliValue(args, flag, fallback)
+    for index, item in ipairs(args or {}) do
+        if item == flag then return args[index + 1] or fallback end
+    end
+    return fallback
+end
+
+local function diagnosticSeeds(args)
+    local csv = cliValue(args, "--seeds")
+    if csv then
+        local seeds = {}
+        for item in string.gmatch(csv, "([^,]+)") do
+            seeds[#seeds + 1] = tonumber(item)
+        end
+        return seeds
+    end
+    if not (hasCliFlag(args, "--seed-start") or hasCliFlag(args, "--seed-count")) then
+        return Diagnostics.defaultSeeds()
+    end
+    local start = tonumber(cliValue(args, "--seed-start", 1)) or 1
+    local count = tonumber(cliValue(args, "--seed-count", 12)) or 12
+    local seeds = {}
+    for offset = 0, count - 1 do seeds[#seeds + 1] = start + offset end
+    return seeds
+end
+
+local function diagnostics(args)
+    local sweep = Diagnostics.sweep({
+        seeds = diagnosticSeeds(args),
+        chunkRadius = tonumber(cliValue(args, "--chunk-radius", 1)) or 1,
+        sampleStep = tonumber(cliValue(args, "--sample-step", 8)) or 8,
+        worldOptions = basinWorldOptions,
+    })
+    print("diagnostics=terrain")
+    for _, stats in ipairs(sweep.results) do
+        print(Diagnostics.formatResult(stats))
+    end
+    if #sweep.failed > 0 then
+        error("diagnostic sweep failed:\n" .. Diagnostics.formatFailures(sweep.failed), 0)
+    end
+end
 
 if arg and arg[1] == "--smoke" then
     smoke()
+    return
+end
+
+if arg and arg[1] == "--diagnostics" then
+    diagnostics(arg)
     return
 end
 

@@ -2,8 +2,7 @@
 
 ## Next Deepening Priority
 
-1. Terrain diagnostics: add seed sweeps for land/water/river/lake/slope/biome ratios and bad-seed regression fixtures.
-2. Pseudo-3D readability: river strips, slope silhouettes, landmark billboards, and fog tuning after hydrology stats stabilize.
+1. Pseudo-3D readability: river strips, slope silhouettes, landmark billboards, and fog tuning after hydrology stats stabilize.
 
 ## Terrain
 
