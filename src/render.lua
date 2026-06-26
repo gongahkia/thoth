@@ -4,21 +4,21 @@ local ViewScale = require("src.viewscale")
 local terrainScale = 18
 
 local biomeColors = {
-    ocean = { 0.05, 0.15, 0.32 },
-    coast = { 0.08, 0.3, 0.52 },
-    lake = { 0.1, 0.34, 0.56 },
-    river = { 0.12, 0.46, 0.78 },
-    wetland = { 0.18, 0.36, 0.24 },
-    desert = { 0.67, 0.58, 0.34 },
-    grassland = { 0.31, 0.5, 0.24 },
-    savanna = { 0.52, 0.5, 0.24 },
-    temperate_forest = { 0.13, 0.34, 0.18 },
-    rainforest = { 0.04, 0.28, 0.14 },
-    boreal_forest = { 0.14, 0.3, 0.29 },
-    tundra = { 0.5, 0.54, 0.49 },
-    alpine = { 0.46, 0.44, 0.42 },
-    snow = { 0.84, 0.86, 0.82 },
-    rock = { 0.33, 0.32, 0.31 },
+    ocean = { 0.035, 0.12, 0.28 },
+    coast = { 0.065, 0.28, 0.46 },
+    lake = { 0.08, 0.32, 0.5 },
+    river = { 0.1, 0.43, 0.72 },
+    wetland = { 0.16, 0.34, 0.2 },
+    desert = { 0.72, 0.63, 0.36 },
+    grassland = { 0.34, 0.54, 0.22 },
+    savanna = { 0.58, 0.52, 0.22 },
+    temperate_forest = { 0.12, 0.36, 0.16 },
+    rainforest = { 0.025, 0.29, 0.12 },
+    boreal_forest = { 0.11, 0.27, 0.28 },
+    tundra = { 0.48, 0.52, 0.46 },
+    alpine = { 0.49, 0.47, 0.41 },
+    snow = { 0.86, 0.88, 0.84 },
+    rock = { 0.35, 0.33, 0.3 },
 }
 
 local landformColors = {
@@ -87,9 +87,15 @@ function Render.defaultCamera()
         pitch = 0.02,
         eyeHeight = 3.2,
         fov = 620,
-        renderRadius = 42,
-        step = 3,
+        renderRadius = 50,
+        step = 2.25,
     }
+end
+
+function Render.biomePalette()
+    local out = {}
+    for id, color in pairs(biomeColors) do out[id] = { color[1], color[2], color[3] } end
+    return out
 end
 
 local function cameraBasis(yaw)

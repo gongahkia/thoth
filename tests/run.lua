@@ -447,7 +447,7 @@ local function testRenderStats()
     local world = testWorld(20260625)
     local app = { world = world, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(world) }
     local stats = Render.visibleStats(app, 1280, 720)
-    expect(stats.visibleTiles > 0 and stats.triangles == stats.visibleTiles * 2, "render stats should describe terrain mesh")
+    expect(stats.visibleTiles >= 650 and stats.triangles == stats.visibleTiles * 2, "render stats should describe denser terrain mesh")
     expect(stats.billboards >= 0 and stats.cameraHeight == stats.cameraHeight, "render stats should include finite camera and billboard count")
     expect(stats.riverStrips > 0, "render stats should include river strips")
     expect(stats.silhouetteStrips > 0, "render stats should include slope silhouettes")
@@ -456,6 +456,19 @@ local function testRenderStats()
     ViewScale.update(app.viewScale, 1, world, 0, 0)
     local regionStats = Render.visibleStats(app, 1280, 720)
     expect(regionStats.viewScale == "region" and regionStats.viewFactor == 4 and regionStats.visibleTiles > 0, "render stats should follow region view scale")
+end
+
+local function colorDistance(a, b)
+    local dr, dg, db = a[1] - b[1], a[2] - b[2], a[3] - b[3]
+    return math.sqrt(dr * dr + dg * dg + db * db)
+end
+
+local function testBiomePalette()
+    local palette = Render.biomePalette()
+    expect(colorDistance(palette.ocean, palette.river) > 0.28, "water palette should separate ocean and rivers")
+    expect(colorDistance(palette.desert, palette.grassland) > 0.35, "dry and grass biomes should have distinct colors")
+    expect(colorDistance(palette.rainforest, palette.boreal_forest) > 0.16, "forest biomes should avoid a single green ramp")
+    expect(colorDistance(palette.snow, palette.rock) > 0.75, "high terrain palette should separate snow and rock")
 end
 
 local function testTerrainDiagnostics()
@@ -580,6 +593,7 @@ local tests = {
     testHeightInterpolationAndNormal,
     testBillboards,
     testRenderStats,
+    testBiomePalette,
     testTerrainDiagnostics,
     testBadSeedDiagnostics,
     testTerrainFirstScope,
