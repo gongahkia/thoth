@@ -8,6 +8,7 @@ local ViewScale = require("src.viewscale")
 local WorldGen = require("src.worldgen")
 local Diagnostics = require("src.diagnostics")
 local Export = require("src.export")
+local Benchmark = require("src.benchmark")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -552,6 +553,19 @@ local function testMapExportData()
     expect(string.find(json, '"seed": 20260625', 1, true) ~= nil, "export metadata should encode seed json")
 end
 
+local function testTerrainBenchmark()
+    local result = Benchmark.run({
+        seed = 20260625,
+        chunkRadius = 0,
+        scales = { "local", "region", "continent" },
+        worldOptions = basinWorldOptions,
+    })
+    expect(result.chunks == 3 and result.cells == 3 * 64 * 64, "benchmark should visit requested chunks and scales")
+    expect(result.seconds > 0 and result.chunksPerSecond > 0 and result.cellsPerSecond > 0, "benchmark should report timing rates")
+    expect(result.cache.total > 0 and result.metrics.chunkMisses == 3, "benchmark should expose cache and miss counters")
+    expect(string.find(Benchmark.format(result), "benchmark=terrain", 1, true) ~= nil, "benchmark should format cli output")
+end
+
 local function testTerrainDiagnostics()
     local seeds = Diagnostics.defaultSeeds()
     local sweep = Diagnostics.sweep({
@@ -596,6 +610,7 @@ local function testTerrainFirstScope()
         "src/survey.lua",
         "src/viewscale.lua",
         "src/export.lua",
+        "src/benchmark.lua",
         "src/worldgen.lua",
     }
     local forbidden = { "ruin", "lore", "quest", "collectible", "combat", "survival" }
@@ -682,6 +697,7 @@ local tests = {
     testTopographicMapData,
     testDebugPanelData,
     testMapExportData,
+    testTerrainBenchmark,
     testTerrainDiagnostics,
     testBadSeedDiagnostics,
     testTerrainFirstScope,
@@ -736,6 +752,23 @@ local function diagnostics(args)
     end
 end
 
+local function csvList(value)
+    if not value then return nil end
+    local out = {}
+    for item in string.gmatch(value, "([^,]+)") do out[#out + 1] = item end
+    return out
+end
+
+local function benchmark(args)
+    local result = Benchmark.run({
+        seed = tonumber(cliValue(args, "--seed", 20260625)) or 20260625,
+        chunkRadius = tonumber(cliValue(args, "--chunk-radius", 1)) or 1,
+        scales = csvList(cliValue(args, "--scales")),
+        worldOptions = basinWorldOptions,
+    })
+    print(Benchmark.format(result))
+end
+
 if arg and arg[1] == "--smoke" then
     smoke()
     return
@@ -743,6 +776,11 @@ end
 
 if arg and arg[1] == "--diagnostics" then
     diagnostics(arg)
+    return
+end
+
+if arg and arg[1] == "--benchmark" then
+    benchmark(arg)
     return
 end
 
