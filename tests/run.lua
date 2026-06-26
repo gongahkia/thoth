@@ -309,7 +309,7 @@ local function testBillboards()
 end
 
 local function testRenderStats()
-    local app = { world = testWorld(717), player = Player.new(0, 0), camera = Render.defaultCamera() }
+    local app = { world = testWorld(20260625), player = Player.new(0, 0), camera = Render.defaultCamera() }
     local stats = Render.visibleStats(app, 1280, 720)
     expect(stats.visibleTiles > 0 and stats.triangles == stats.visibleTiles * 2, "render stats should describe terrain mesh")
     expect(stats.billboards >= 0 and stats.cameraHeight == stats.cameraHeight, "render stats should include finite camera and billboard count")

@@ -265,7 +265,7 @@ function WorldGen:baseSample(x, y, scale)
     local subductionUplift = (not plate.subducting) and plate.continentOceanSubduction * 0.24 or 0
     local islandArc = 0
     if (not plate.subducting) and plate.oceanOceanSubduction > 0 then
-        local arcNoise = Noise.ridge(self.seed + 606, wx, wy, { frequency = 0.014 / math.sqrt(info.factor), octaves = 3, salt = 6 })
+        local arcNoise = Noise.value(self.seed + 606, wx * 0.014 / math.sqrt(info.factor), wy * 0.014 / math.sqrt(info.factor), 6)
         islandArc = plate.oceanOceanSubduction * smoothstep(0.42, 0.82, arcNoise)
     end
     local roughContribution = (rough - 0.5) * 0.24 * (1 - stableDamping)
