@@ -12,7 +12,7 @@ make walk-smoke
 make run
 ```
 
-Hydrology uses cached chunk regions, Priority-Flood-style depression filling, D8 downstream routing, rainfall accumulation, basin/watershed ids, lake surfaces, and seam/uphill diagnostics. The generator default is 2x2 regions with an 8-cell halo; the interactive runtime defaults to `--hydrology-region-chunks 1 --hydrology-halo 0` to reduce walking stalls.
+Hydrology uses cached chunk regions, a coarse cached basin pass, Priority-Flood-style depression filling, D8 downstream routing, rainfall accumulation, basin/watershed ids, lake surfaces, and seam/uphill diagnostics. The generator default is 2x2 detail regions with an 8-cell halo plus 8-chunk basins at 4-cell stride; the interactive runtime defaults to `--hydrology-region-chunks 1 --hydrology-halo 0 --hydrology-basin-chunks 8 --hydrology-basin-stride 8` to keep first render bounded while preserving larger river corridors.
 
 Runtime performance logging:
 
@@ -21,9 +21,12 @@ love . --debug-perf
 love . --walk-smoke --walk-smoke-frames 240 --perf-interval 0.5
 love . --preload-radius 128 --refresh-preload-radius 96
 love . --hydrology-region-chunks 2 --hydrology-halo 8
+love . --hydrology-basin-chunks 8 --hydrology-basin-stride 4
 ```
 
-`--debug-perf` prints FPS, raw/clamped dt, update/draw/preload ms, position, visible/preloaded chunks, cache counts, and terrain cache misses. Press `L` in-game to toggle it. Runtime movement clamps simulation dt to reduce jitter after slow terrain loads.
+`--debug-perf` prints FPS, raw/clamped dt, update/draw/preload ms, position, visible/preloaded chunks, cache counts, terrain/basin cache misses, and hydrology cell counts. Press `L` in-game to toggle it. Runtime movement clamps simulation dt to reduce jitter after slow terrain loads.
+
+Runtime initial preload defaults to 64 cells and refresh preload defaults to 72 cells; raise them when you prefer fewer walking stalls over faster first render.
 
 Controls:
 

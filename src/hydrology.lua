@@ -93,6 +93,10 @@ local function regionCacheKey(info, regionX, regionY)
     return key("hydrology", info.id, regionX, regionY)
 end
 
+local function basinCacheKey(info, regionX, regionY, stride)
+    return key("basin", info.id, stride, regionX, regionY)
+end
+
 local function boundaryCell(region, gx, gy)
     return region.cells[key(gx, gy)]
 end
@@ -146,6 +150,150 @@ local function addBoundary(region, heap, visitOrder, cell)
     heap:push(cell, cell.filledElevation)
 end
 
+local function basinCenter(cell, stride)
+    return cell.gx * stride + (stride - 1) * 0.5, cell.gy * stride + (stride - 1) * 0.5
+end
+
+local function pointSegmentDistance(px, py, ax, ay, bx, by)
+    local vx, vy = bx - ax, by - ay
+    local length2 = vx * vx + vy * vy
+    if length2 <= 0 then
+        local dx, dy = px - ax, py - ay
+        return math.sqrt(dx * dx + dy * dy)
+    end
+    local t = clamp(((px - ax) * vx + (py - ay) * vy) / length2, 0, 1)
+    local sx, sy = ax + vx * t, ay + vy * t
+    local dx, dy = px - sx, py - sy
+    return math.sqrt(dx * dx + dy * dy)
+end
+
+local function solveBasin(world, chunkX, chunkY, info)
+    local basinChunks = world.hydrologyBasinChunks or 0
+    local stride = math.max(1, world.hydrologyBasinStride or 1)
+    if basinChunks <= 0 or stride <= 1 then return nil end
+    local regionX = regionIndex(chunkX, basinChunks)
+    local regionY = regionIndex(chunkY, basinChunks)
+    local cacheKey = basinCacheKey(info, regionX, regionY, stride)
+    if world.cache[cacheKey] then return world.cache[cacheKey] end
+    if world.metrics then world.metrics.basinMisses = world.metrics.basinMisses + 1 end
+
+    local chunkSize = world.chunkSize
+    local startChunkX = regionStart(regionX, basinChunks)
+    local startChunkY = regionStart(regionY, basinChunks)
+    local interiorMinX = floorDiv(startChunkX * chunkSize, stride)
+    local interiorMinY = floorDiv(startChunkY * chunkSize, stride)
+    local interiorMaxX = floorDiv((startChunkX + basinChunks) * chunkSize - 1, stride)
+    local interiorMaxY = floorDiv((startChunkY + basinChunks) * chunkSize - 1, stride)
+    local halo = math.floor((world.hydrologyBasinHaloCells or 0) / stride)
+    local minX = interiorMinX - halo
+    local minY = interiorMinY - halo
+    local maxX = interiorMaxX + halo
+    local maxY = interiorMaxY + halo
+    local threshold = riverThreshold(info.id) * math.max(1, stride * stride * 0.35)
+    local region = {
+        id = key("basin", info.id, regionX, regionY),
+        scale = info.id,
+        scaleFactor = info.factor,
+        regionX = regionX,
+        regionY = regionY,
+        stride = stride,
+        threshold = threshold,
+        minX = minX,
+        minY = minY,
+        maxX = maxX,
+        maxY = maxY,
+        cells = {},
+    }
+    if world.metrics then world.metrics.basinCells = world.metrics.basinCells + (maxX - minX + 1) * (maxY - minY + 1) end
+
+    for gy = minY, maxY do
+        for gx = minX, maxX do
+            local sampleGX = gx * stride + (stride - 1) * 0.5
+            local sampleGY = gy * stride + (stride - 1) * 0.5
+            local cell = world:baseSample(sampleGX * info.factor, sampleGY * info.factor, info.id)
+            cell.gx = gx
+            cell.gy = gy
+            cell.filledElevation = cell.elevationBase
+            cell.flow = math.max(0.01, cell.rainfall or 0) * stride * stride
+            cell.water = cell.elevationBase <= world.seaLevel
+            cell.river = false
+            region.cells[key(gx, gy)] = cell
+        end
+    end
+
+    local heap = Heap.new()
+    local visitOrder = {}
+    for gx = minX, maxX do
+        addBoundary(region, heap, visitOrder, boundaryCell(region, gx, minY))
+        addBoundary(region, heap, visitOrder, boundaryCell(region, gx, maxY))
+    end
+    for gy = minY + 1, maxY - 1 do
+        addBoundary(region, heap, visitOrder, boundaryCell(region, minX, gy))
+        addBoundary(region, heap, visitOrder, boundaryCell(region, maxX, gy))
+    end
+
+    while true do
+        local cell = heap:pop()
+        if not cell then break end
+        for _, offset in ipairs(neighbors) do
+            local nextCell = region.cells[key(cell.gx + offset.x, cell.gy + offset.y)]
+            if nextCell and not nextCell.hydroVisited then
+                nextCell.hydroVisited = true
+                nextCell.downCell = cell
+                nextCell.downDistance = offset.distance * stride * info.factor
+                nextCell.filledElevation = math.max(nextCell.elevationBase, cell.filledElevation)
+                visitOrder[#visitOrder + 1] = nextCell
+                heap:push(nextCell, nextCell.filledElevation)
+            end
+        end
+    end
+
+    for index = #visitOrder, 1, -1 do
+        local cell = visitOrder[index]
+        if cell.downCell then
+            cell.downCell.flow = cell.downCell.flow + cell.flow * 0.985
+        end
+    end
+
+    local stats = { rivers = 0, basins = 0, maxFlow = 0 }
+    local basinIds = {}
+    for _, cell in ipairs(visitOrder) do
+        local root = terminal(cell)
+        cell.basinId = key("mb", info.id, root.gx, root.gy)
+        basinIds[cell.basinId] = true
+        cell.river = not cell.water and cell.downCell ~= nil and cell.flow > threshold
+        if cell.downCell then
+            cell.channelId = key("mc", info.id, cell.gx, cell.gy, cell.downCell.gx, cell.downCell.gy)
+        end
+        if cell.river then stats.rivers = stats.rivers + 1 end
+        if cell.flow > stats.maxFlow then stats.maxFlow = cell.flow end
+    end
+    for _ in pairs(basinIds) do stats.basins = stats.basins + 1 end
+    region.stats = stats
+    world.cache[cacheKey] = region
+    return region
+end
+
+local function basinFlowFor(world, gx, gy, info)
+    local stride = math.max(1, world.hydrologyBasinStride or 1)
+    if (world.hydrologyBasinChunks or 0) <= 0 or stride <= 1 then return 0, nil, 0 end
+    local chunkX = floorDiv(gx, world.chunkSize)
+    local chunkY = floorDiv(gy, world.chunkSize)
+    local basin = solveBasin(world, chunkX, chunkY, info)
+    if not basin then return 0, nil, 0 end
+    local cell = basin.cells[key(floorDiv(gx, stride), floorDiv(gy, stride))]
+    if not (cell and cell.river and cell.downCell) then return 0, cell, 0 end
+    local ax, ay = basinCenter(cell, stride)
+    local bx, by = basinCenter(cell.downCell, stride)
+    local distance = pointSegmentDistance(gx, gy, ax, ay, bx, by)
+    local width = math.max(0.75, math.min(2.25, stride * 0.28))
+    local weight = clamp(1 - distance / width, 0, 1)
+    if weight <= 0 then return 0, cell, 0 end
+    local scale = world.hydrologyBasinFlowScale or 0.6
+    local flow = math.max(0, cell.flow - basin.threshold) / math.max(1, stride * stride)
+    return flow * scale * weight, cell, weight
+end
+
 local function solveRegion(world, chunkX, chunkY, info)
     local regionChunks = world.hydrologyRegionChunks or 4
     local regionX = regionIndex(chunkX, regionChunks)
@@ -184,15 +332,21 @@ local function solveRegion(world, chunkX, chunkY, info)
         maxY = maxY,
         cells = {},
     }
+    if world.metrics then world.metrics.hydrologyCells = world.metrics.hydrologyCells + (maxX - minX + 1) * (maxY - minY + 1) end
 
     for gy = minY, maxY do
         for gx = minX, maxX do
             local cell = world:baseSample(gx * info.factor, gy * info.factor, info.id)
+            local basinFlow, basinCell, basinWeight = basinFlowFor(world, gx, gy, info)
             cell.gx = gx
             cell.gy = gy
             cell.hydrologyRegion = region.id
             cell.filledElevation = cell.elevationBase
-            cell.flow = math.max(0.01, cell.rainfall or 0)
+            cell.flow = math.max(0.01, cell.rainfall or 0) + basinFlow
+            cell.basinFlow = basinCell and basinCell.flow or 0
+            cell.macroBasinId = basinCell and basinCell.basinId or nil
+            cell.macroChannelId = basinWeight > 0 and basinCell and basinCell.channelId or nil
+            cell.macroChannelWeight = basinWeight
             cell.erosion = 0
             cell.deposition = 0
             cell.river = false
@@ -263,7 +417,8 @@ local function solveRegion(world, chunkX, chunkY, info)
         local lowSlope = cell.slope < 0.024
         cell.deposition = (cell.flow > threshold and lowSlope) and 0.018 or 0
         cell.water = ocean or cell.lake
-        cell.river = not cell.water and cell.flow > threshold and cell.downCell ~= nil
+        local macroRiver = cell.macroChannelWeight and cell.macroChannelWeight > 0.35
+        cell.river = not cell.water and cell.downCell ~= nil and (cell.flow > threshold or macroRiver)
         if cell.lake then
             cell.elevation = cell.lakeSurface
         elseif cell.water then
@@ -298,6 +453,7 @@ local function solveRegion(world, chunkX, chunkY, info)
         seamMismatches = 0,
         uphillRejects = 0,
         basins = 0,
+        macroChannels = 0,
         maxFlow = 0,
     }
     local basins = {}
@@ -319,6 +475,7 @@ local function solveRegion(world, chunkX, chunkY, info)
             end
             if cell.river then stats.rivers = stats.rivers + 1 end
             if cell.lake then stats.lakes = stats.lakes + 1 end
+            if cell.macroChannelId then stats.macroChannels = stats.macroChannels + 1 end
             if not cell.downCell and not cell.water then stats.endorheic = stats.endorheic + 1 end
             if cell.downCell and cell.filledElevation + 0.000001 < cell.downCell.filledElevation then stats.uphillRejects = stats.uphillRejects + 1 end
             if cell.downCell and not region.cells[key(cell.downCell.gx, cell.downCell.gy)] then stats.seamMismatches = stats.seamMismatches + 1 end

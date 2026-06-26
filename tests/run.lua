@@ -12,7 +12,8 @@ local function round(value)
     return math.floor((value or 0) * 100000 + 0.5) / 100000
 end
 
-local fastWorldOptions = { hydrologyRegionChunks = 2, hydrologyHaloCells = 0 }
+local fastWorldOptions = { hydrologyRegionChunks = 2, hydrologyHaloCells = 0, hydrologyBasinChunks = 8, hydrologyBasinStride = 8 }
+local basinWorldOptions = { hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 8, hydrologyBasinStride = 8, hydrologyBasinFlowScale = 0.6 }
 
 local function testWorld(seed)
     return WorldGen.new(seed, fastWorldOptions)
@@ -38,6 +39,8 @@ local function encodeCell(cell)
         tostring(cell.plateId),
         tostring(cell.basinId),
         tostring(cell.watershedId),
+        tostring(cell.macroBasinId),
+        tostring(cell.macroChannelId),
     }, "|")
 end
 
@@ -133,6 +136,49 @@ local function testHydrologyStats()
         end
     end
     expect(stats.lakes > 0 or inspected == 0, "lake stats should be available when lakes exist")
+end
+
+local function testBasinHydrologyBudget()
+    local world = WorldGen.new(20260625, basinWorldOptions)
+    world:chunk(0, 0, "local")
+    local stats = world:hydrologyStats(0, 0, "local")
+    local metrics = world:metricsSnapshot()
+    local cache = world:cacheStats()
+    expect(stats.macroChannels > 0, "coarse basin pass should feed local macro channels")
+    expect(metrics.hydrologyMisses == 1 and metrics.basinMisses == 1, "first chunk should solve one detail region and one coarse basin")
+    expect(metrics.hydrologyCells == 4096 and metrics.basinCells == 4096, "first chunk hydrology should stay bounded")
+    expect(cache.hydrology == 1 and cache.basins == 1, "first chunk should cache one hydrology region and one basin")
+end
+
+local function testBasinChannelsSpanDetailRegions()
+    local world = WorldGen.new(20260625, basinWorldOptions)
+    local spans = {}
+    for cy = -2, 3 do
+        for cx = -2, 3 do
+            local chunk = world:chunk(cx, cy, "local")
+            for y = 1, chunk.size, 4 do
+                for x = 1, chunk.size, 4 do
+                    local cell = chunk.cells[y][x]
+                    if cell.river and cell.macroBasinId then
+                        local span = spans[cell.macroBasinId] or { regions = {}, count = 0 }
+                        span.regions[cell.hydrologyRegion] = true
+                        span.count = span.count + 1
+                        spans[cell.macroBasinId] = span
+                    end
+                end
+            end
+        end
+    end
+    local bestRegions, bestCount = 0, 0
+    for _, span in pairs(spans) do
+        local regions = 0
+        for _ in pairs(span.regions) do regions = regions + 1 end
+        if regions > bestRegions or (regions == bestRegions and span.count > bestCount) then
+            bestRegions, bestCount = regions, span.count
+        end
+    end
+    expect(bestRegions >= 8 and bestCount > 24, "macro basins should persist across distant 1x1 hydrology regions")
+    expect(world:cacheStats().basins == 1, "scanned chunks should share the same cached coarse basin")
 end
 
 local function testBiomes()
@@ -253,6 +299,8 @@ local tests = {
     testSampleChunkAgreement,
     testRiverMonotonicity,
     testHydrologyStats,
+    testBasinHydrologyBudget,
+    testBasinChannelsSpanDetailRegions,
     testBiomes,
     testPlayer,
     testHeightInterpolationAndNormal,

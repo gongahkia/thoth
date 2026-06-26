@@ -2,13 +2,11 @@
 
 ## Next Deepening Priority
 
-1. Hydrology v2: expand from bounded 2x2 regions to larger cached/streamed basins without slowing first render.
-2. Terrain diagnostics: add seed sweeps for land/water/river/lake/slope/biome ratios and bad-seed regression fixtures.
-3. Pseudo-3D readability: river strips, slope silhouettes, landmark billboards, and fog tuning after hydrology stats stabilize.
+1. Terrain diagnostics: add seed sweeps for land/water/river/lake/slope/biome ratios and bad-seed regression fixtures.
+2. Pseudo-3D readability: river strips, slope silhouettes, landmark billboards, and fog tuning after hydrology stats stabilize.
 
 ## Terrain
 
-- Extend bounded regional hydrology so large rivers persist across distant chunk boundaries.
 - Add thermal erosion and sediment deposition passes with visible talus slopes, alluvial fans, deltas, and floodplains.
 - Add plate age, oceanic subduction bias, rift valleys, volcanic island arcs, shield regions, and cratons.
 - Calibrate generated elevation, water ratio, river density, and biome ratios against rough Earth-like ranges.

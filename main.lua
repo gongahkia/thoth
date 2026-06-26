@@ -57,6 +57,10 @@ local function runtimeWorldOptions(args)
     return {
         hydrologyRegionChunks = tonumber(argValue(args, "--hydrology-region-chunks", 1)) or 1,
         hydrologyHaloCells = tonumber(argValue(args, "--hydrology-halo", 0)) or 0,
+        hydrologyBasinChunks = tonumber(argValue(args, "--hydrology-basin-chunks", 8)) or 8,
+        hydrologyBasinStride = tonumber(argValue(args, "--hydrology-basin-stride", 8)) or 8,
+        hydrologyBasinHaloCells = tonumber(argValue(args, "--hydrology-basin-halo", 0)) or 0,
+        hydrologyBasinFlowScale = tonumber(argValue(args, "--hydrology-basin-flow-scale", 0.6)) or 0.6,
     }
 end
 
@@ -153,7 +157,7 @@ local function perfSnapshot(app)
     local chunkY = math.floor(app.player.y / size)
     local stats = app.perf.renderStats or {}
     return string.format(
-        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s cache=%d chunks=%d hydro=%d billboard_cache=%d misses=c%d/h%d/b%d",
+        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s cache=%d chunks=%d hydro=%d basins=%d billboard_cache=%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
         app.perf.frame or 0,
         love.timer.getFPS(),
         (app.perf.lastDt or 0) * 1000,
@@ -177,10 +181,14 @@ local function perfSnapshot(app)
         cache.total,
         cache.chunks,
         cache.hydrology,
+        cache.basins,
         cache.billboards,
         metrics.chunkMisses,
         metrics.hydrologyMisses,
-        metrics.billboardMisses
+        metrics.basinMisses,
+        metrics.billboardMisses,
+        metrics.hydrologyCells,
+        metrics.basinCells
     )
 end
 
@@ -214,7 +222,7 @@ function love.load(args)
         walkSmoke = hasArg(args, "--walk-smoke"),
         walkSmokeFrames = tonumber(argValue(args, "--walk-smoke-frames", 240)) or 240,
         walkSmokeTurn = tonumber(argValue(args, "--walk-smoke-turn", 0.18)) or 0.18,
-        preloadRadius = tonumber(argValue(args, "--preload-radius", 96)) or 96,
+        preloadRadius = tonumber(argValue(args, "--preload-radius", 64)) or 64,
         refreshPreloadRadius = tonumber(argValue(args, "--refresh-preload-radius", 72)) or 72,
         debugPerf = hasArg(args, "--debug-perf") or hasArg(args, "--log-fps") or hasArg(args, "--walk-smoke"),
     }
@@ -224,7 +232,7 @@ function love.load(args)
         slowFrameMs = tonumber(argValue(args, "--slow-frame-ms", 24)) or 24,
         lastLogAt = now(),
     }
-    perfLine(app, string.format("load seed=%s render_radius=%d preload_radius=%d refresh_radius=%d preload_stride=%d hydrology_regions=%d hydrology_halo=%d slow_ms=%.1f interval=%.2f",
+    perfLine(app, string.format("load seed=%s render_radius=%d preload_radius=%d refresh_radius=%d preload_stride=%d hydrology_regions=%d hydrology_halo=%d basin_chunks=%d basin_stride=%d slow_ms=%.1f interval=%.2f",
         tostring(app.world:metadata().seed),
         app.camera.renderRadius or 0,
         app.preloadRadius,
@@ -232,6 +240,8 @@ function love.load(args)
         preloadStride,
         app.world:metadata().hydrologyRegionChunks or 0,
         app.world:metadata().hydrologyHaloCells or 0,
+        app.world:metadata().hydrologyBasinChunks or 0,
+        app.world:metadata().hydrologyBasinStride or 0,
         app.perf.slowFrameMs,
         app.perf.interval
     ))

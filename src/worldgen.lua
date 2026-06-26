@@ -126,20 +126,32 @@ local function copyCell(cell)
     return out
 end
 
+local function option(value, fallback)
+    if value == nil then return fallback end
+    return value
+end
+
 function WorldGen.new(seed, options)
     options = options or {}
     return setmetatable({
         seed = tonumber(seed) or 1,
-        chunkSize = options.chunkSize or 64,
-        seaLevel = options.seaLevel or 0,
-        plateCellSize = options.plateCellSize or 640,
-        hydrologyRegionChunks = options.hydrologyRegionChunks or 2,
-        hydrologyHaloCells = options.hydrologyHaloCells or 8,
+        chunkSize = option(options.chunkSize, 64),
+        seaLevel = option(options.seaLevel, 0),
+        plateCellSize = option(options.plateCellSize, 640),
+        hydrologyRegionChunks = option(options.hydrologyRegionChunks, 2),
+        hydrologyHaloCells = option(options.hydrologyHaloCells, 8),
+        hydrologyBasinChunks = option(options.hydrologyBasinChunks, 8),
+        hydrologyBasinStride = option(options.hydrologyBasinStride, 4),
+        hydrologyBasinHaloCells = option(options.hydrologyBasinHaloCells, 0),
+        hydrologyBasinFlowScale = option(options.hydrologyBasinFlowScale, 0.6),
         cache = {},
         metrics = {
             chunkMisses = 0,
             hydrologyMisses = 0,
             billboardMisses = 0,
+            basinMisses = 0,
+            hydrologyCells = 0,
+            basinCells = 0,
         },
     }, WorldGen)
 end
@@ -174,6 +186,10 @@ function WorldGen:metadata()
         seaLevel = self.seaLevel,
         hydrologyRegionChunks = self.hydrologyRegionChunks,
         hydrologyHaloCells = self.hydrologyHaloCells,
+        hydrologyBasinChunks = self.hydrologyBasinChunks,
+        hydrologyBasinStride = self.hydrologyBasinStride,
+        hydrologyBasinHaloCells = self.hydrologyBasinHaloCells,
+        hydrologyBasinFlowScale = self.hydrologyBasinFlowScale,
         scales = scales,
     }
 end
@@ -312,11 +328,13 @@ function WorldGen:preloadBillboardsAround(x, y, radius)
 end
 
 function WorldGen:cacheStats()
-    local stats = { total = 0, chunks = 0, hydrology = 0, billboards = 0 }
+    local stats = { total = 0, chunks = 0, hydrology = 0, basins = 0, billboards = 0 }
     for cacheKey in pairs(self.cache) do
         stats.total = stats.total + 1
         if string.sub(cacheKey, 1, 9) == "hydrology" then
             stats.hydrology = stats.hydrology + 1
+        elseif string.sub(cacheKey, 1, 5) == "basin" then
+            stats.basins = stats.basins + 1
         elseif string.sub(cacheKey, 1, 10) == "billboards" then
             stats.billboards = stats.billboards + 1
         else
@@ -331,6 +349,9 @@ function WorldGen:metricsSnapshot()
         chunkMisses = self.metrics.chunkMisses,
         hydrologyMisses = self.metrics.hydrologyMisses,
         billboardMisses = self.metrics.billboardMisses,
+        basinMisses = self.metrics.basinMisses,
+        hydrologyCells = self.metrics.hydrologyCells,
+        basinCells = self.metrics.basinCells,
     }
 end
 
