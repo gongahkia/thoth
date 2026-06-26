@@ -400,6 +400,19 @@ local function testCacheBoundsAndCounters()
     expect(after.cacheHits > metrics.cacheHits, "cache metrics should count hits")
 end
 
+local function testPlateCacheBounds()
+    local world = WorldGen.new(20260625, { plateCacheEntries = 16 })
+    for gy = -4, 4 do
+        for gx = -4, 4 do
+            world:plateAt(gx * world.plateCellSize, gy * world.plateCellSize)
+        end
+    end
+    expect(world.plateCache.count <= world.plateCacheEntries, "plate cache should enforce configured entry bound")
+    local first = encodeCell(world:baseSample(384, -192, "local"))
+    local second = encodeCell(WorldGen.new(20260625, { plateCacheEntries = 16 }):baseSample(384, -192, "local"))
+    expect(first == second, "plate cache should preserve deterministic base samples")
+end
+
 local function testBasinChannelsSpanDetailRegions()
     local world = WorldGen.new(20260625, basinWorldOptions)
     local spans = {}
@@ -714,6 +727,7 @@ local tests = {
     testDiegeticScaleTransitions,
     testBasinHydrologyBudget,
     testCacheBoundsAndCounters,
+    testPlateCacheBounds,
     testBasinChannelsSpanDetailRegions,
     testBiomes,
     testPlayer,
@@ -797,6 +811,25 @@ local function benchmark(args)
     print(Benchmark.format(result))
 end
 
+local function plateBenchmark(args)
+    local result = WorldGen.benchmarkPlates({
+        seed = tonumber(cliValue(args, "--seed", 20260625)) or 20260625,
+        count = tonumber(cliValue(args, "--count", 10000)) or 10000,
+        cacheLimit = tonumber(cliValue(args, "--cache-limit", 4096)) or 4096,
+    })
+    print(string.format(
+        "benchmark=plates count=%d cold=%.6f cached=%.6f speedup=%.2f cache_entries=%d checksum=%d",
+        result.count,
+        result.cold.seconds,
+        result.cached.seconds,
+        result.speedup,
+        result.cached.cacheEntries,
+        result.cached.checksum
+    ))
+    expect(result.cold.checksum == result.cached.checksum, "plate benchmark should preserve outputs")
+    expect(result.speedup >= 3, "plate benchmark should show at least 3x speedup")
+end
+
 local function regressions()
     for _, fixture in ipairs(Diagnostics.regressionSeeds()) do
         local stats = Diagnostics.analyzeSeed(fixture.seed, {
@@ -820,6 +853,11 @@ end
 
 if arg and arg[1] == "--benchmark" then
     benchmark(arg)
+    return
+end
+
+if arg and arg[1] == "--bench-plates" then
+    plateBenchmark(arg)
     return
 end
 

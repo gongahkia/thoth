@@ -119,7 +119,11 @@ local function scaleInfo(scale)
     return scaleById[scale or "local"] or scales[1]
 end
 
-local function plateCenter(seed, gx, gy, cellSize)
+local function plateCacheKey(gx, gy)
+    return tostring(gx) .. ":" .. tostring(gy)
+end
+
+local function buildPlateCenter(seed, gx, gy, cellSize)
     local jitterX = Rng.signed(seed, gx, gy, 11) * cellSize * 0.38
     local jitterY = Rng.signed(seed, gx, gy, 23) * cellSize * 0.38
     local id = Rng.hash(seed, gx, gy, 37)
@@ -140,12 +144,22 @@ local function plateCenter(seed, gx, gy, cellSize)
     }
 end
 
-local function twoNearestPlates(seed, x, y, cellSize)
+local function plateCenter(seed, gx, gy, cellSize, cache)
+    if not cache then return buildPlateCenter(seed, gx, gy, cellSize) end
+    local cacheKey = plateCacheKey(gx, gy)
+    local plate = cache:get(cacheKey)
+    if plate then return plate end
+    plate = buildPlateCenter(seed, gx, gy, cellSize)
+    cache:set(cacheKey, plate)
+    return plate
+end
+
+local function twoNearestPlates(seed, x, y, cellSize, cache)
     local gx, gy = floorDiv(x, cellSize), floorDiv(y, cellSize)
     local first, second
     for yy = gy - 1, gy + 1 do
         for xx = gx - 1, gx + 1 do
-            local plate = plateCenter(seed, xx, yy, cellSize)
+            local plate = plateCenter(seed, xx, yy, cellSize, cache)
             local dx, dy = x - plate.x, y - plate.y
             plate.distance = math.sqrt(dx * dx + dy * dy)
             if not first or plate.distance < first.distance then
@@ -236,6 +250,8 @@ function WorldGen.new(seed, options)
         chunkSize = option(options.chunkSize, 64),
         seaLevel = option(options.seaLevel, 0),
         plateCellSize = option(options.plateCellSize, 640),
+        plateCacheEntries = option(options.plateCacheEntries, 4096),
+        plateCache = Lru.new(option(options.plateCacheEntries, 4096)),
         hydrologyRegionChunks = option(options.hydrologyRegionChunks, 2),
         hydrologyHaloCells = option(options.hydrologyHaloCells, 8),
         hydrologyBasinChunks = option(options.hydrologyBasinChunks, 8),
@@ -268,6 +284,40 @@ function WorldGen.new(seed, options)
             cacheEvictionsByKind = { chunk = 0, hydrology = 0, basin = 0, billboard = 0 },
         },
     }, WorldGen)
+end
+
+function WorldGen.benchmarkPlates(options)
+    options = options or {}
+    local count = options.count or 10000
+    local seed = options.seed or 20260625
+    local cellSize = options.cellSize or 640
+    local cacheLimit = options.cacheLimit or 4096
+    local function coords(index)
+        local n = index - 1
+        return (n % 100) * 7.25, math.floor(n / 100) * 7.25
+    end
+    local function run(cache)
+        local checksum = 0
+        local started = os.clock()
+        for index = 1, count do
+            local x, y = coords(index)
+            local first, second = twoNearestPlates(seed, x, y, cellSize, cache)
+            checksum = checksum + (first.id % 997) + (second.id % 991)
+        end
+        return {
+            seconds = math.max(0.000001, os.clock() - started),
+            checksum = checksum,
+            cacheEntries = cache and cache.count or 0,
+        }
+    end
+    local cold = run(nil)
+    local cached = run(Lru.new(cacheLimit))
+    return {
+        count = count,
+        cold = cold,
+        cached = cached,
+        speedup = cold.seconds / cached.seconds,
+    }
 end
 
 function WorldGen.scaleInfo(scale)
@@ -313,6 +363,7 @@ function WorldGen:metadata()
         hydrologyBasinFlowScale = self.hydrologyBasinFlowScale,
         cacheMaxEntries = self.cacheMaxEntries,
         cacheLimits = self.cacheLimits,
+        plateCacheEntries = self.plateCacheEntries,
         scales = scales,
     }
 end
@@ -433,7 +484,7 @@ function WorldGen:asyncHydrologyPendingCount()
 end
 
 function WorldGen:plateAt(x, y)
-    local first, second = twoNearestPlates(self.seed, x, y, self.plateCellSize)
+    local first, second = twoNearestPlates(self.seed, x, y, self.plateCellSize, self.plateCache)
     local gap = math.max(0, (second.distance or first.distance) - first.distance)
     local boundary = clamp(1 - gap / (self.plateCellSize * 0.34), 0, 1)
     local nx, ny = second.x - first.x, second.y - first.y

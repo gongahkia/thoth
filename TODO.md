@@ -63,29 +63,6 @@ These are the biggest measurable FPS wins. Land them before geomorphology work b
 
 ---
 
-### T-006 — Plate-cell memoization         [tier 1] [low]
-
-GOAL: `plateCenter(seed, gx, gy, cellSize)` results cached on a small fixed-size table keyed by `(gx, gy)`. `twoNearestPlates` reuses cache entries for its 3×3 sweep.
-
-WHY: `worldgen.lua:121–140` (`plateCenter`) hashes 6 random values per call. `twoNearestPlates` calls it 9× per `baseSample`. With hydrology halos, `baseSample` runs thousands of times per chunk. Easily 50k+ redundant `plateCenter` calls per chunk solve.
-
-WHERE: `src/worldgen.lua:121–159`.
-
-DEPENDS ON: none.
-
-ACCEPTANCE:
-- A per-world `plateCache[gx][gy]` (or `plateCache[key]`) memoizes results.
-- Cache evicts oldest when it exceeds, e.g. 4096 entries (plates are tiny — keep them).
-- New micro-benchmark (`tests/run.lua --bench-plates`) shows ≥3× speedup of `twoNearestPlates` over 10k calls.
-- Determinism tests still pass.
-
-NOTES / IMPL HINTS:
-- Use a single table keyed by `gx * P + gy` (with P large prime) for cache-friendly hash distribution. Or a 2D table — measure.
-
-REFERENCES: none required; pure local optimization.
-
----
-
 ### T-007 — Frustum cull + far-plane in mesh build         [tier 1] [low]
 
 GOAL: `buildTerrainMeshData` skips quads that fall behind the camera or beyond `renderRadius`. A real far-plane discard.
