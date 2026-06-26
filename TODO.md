@@ -97,36 +97,6 @@ REFERENCES:
 
 ---
 
-### T-005 — Bounded LRU cache for `world.cache`         [tier 1] [low]
-
-GOAL: `WorldGen.cache` enforces a configurable max-entry limit; least-recently-touched entries are evicted. Per-tier limits (chunks / hydrology regions / basins / billboards).
-
-WHY: `TODO.md` explicitly lists this. `worldgen.lua:202` initializes `cache = {}` with unbounded growth. An endless-world session leaks memory monotonically and [Inference] eventually thrashes the GC.
-
-WHERE:
-- `src/worldgen.lua:189–212` — constructor; add cache config.
-- `src/worldgen.lua:445–459` — `cacheStats`; extend to also track eviction count.
-- New `src/lru.lua` — small doubly-linked-list + map LRU; under 80 LOC.
-
-DEPENDS ON: none.
-
-ACCEPTANCE:
-- `WorldGen.new(seed, { cacheLimits = { chunk = 2048, hydrology = 256, basin = 64, billboards = 1024 } })` accepted.
-- Defaults chosen so an idle session at default render radius does not evict; only long walks do.
-- New test `testCacheEviction` walks the player across N chunks, asserts cache size stays at limit and that re-visiting an evicted chunk produces identical content (determinism preserved).
-- `metricsSnapshot` exposes `evictions = { chunks, hydrology, basins, billboards }`.
-- HUD `[perf]` log line includes eviction counters.
-
-NOTES / IMPL HINTS:
-- Reference: `openresty/lua-resty-lrucache` (FFI-backed, fast) or `starius/lua-lru` (pure Lua). For simplicity, write a minimal in-tree version — doubly-linked list nodes as `{ prev, next, key, value }`; hashmap from `key -> node`. O(1) get/set/evict.
-- Important: cache key prefix is already namespaced (`hydrology:`, `basin:`, `billboards:`, or plain `chunk-coord` key). Use the prefix to route to the right per-tier LRU.
-
-REFERENCES:
-- [openresty/lua-resty-lrucache — GitHub](https://github.com/openresty/lua-resty-lrucache)
-- [starius/lua-lru — GitHub](https://github.com/starius/lua-lru)
-
----
-
 ### T-006 — Plate-cell memoization         [tier 1] [low]
 
 GOAL: `plateCenter(seed, gx, gy, cellSize)` results cached on a small fixed-size table keyed by `(gx, gy)`. `twoNearestPlates` reuses cache entries for its 3×3 sweep.

@@ -218,7 +218,7 @@ local function perfSnapshot(app)
     local stats = app.perf.renderStats or {}
     local view = ViewScale.params(app.viewScale, app.world)
     return string.format(
-        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d/%s chunks=%d hydro=%d basins=%d billboard_cache=%d hits=%d cmiss=%d evict=%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
+        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d/%s chunks=%d hydro=%d basins=%d billboard_cache=%d hits=%d cmiss=%d evict=%d evict_kind=c%d/h%d/m%d/b%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
         app.perf.frame or 0,
         love.timer.getFPS(),
         (app.perf.lastDt or 0) * 1000,
@@ -253,6 +253,10 @@ local function perfSnapshot(app)
         metrics.cacheHits,
         metrics.cacheMisses,
         metrics.cacheEvictions,
+        metrics.evictions and metrics.evictions.chunks or 0,
+        metrics.evictions and metrics.evictions.hydrology or 0,
+        metrics.evictions and metrics.evictions.basins or 0,
+        metrics.evictions and metrics.evictions.billboards or 0,
         metrics.chunkMisses,
         metrics.hydrologyMisses,
         metrics.basinMisses,

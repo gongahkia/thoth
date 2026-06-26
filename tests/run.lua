@@ -379,7 +379,9 @@ local function testCacheBoundsAndCounters()
         hydrologyBasinChunks = 8,
         hydrologyBasinStride = 8,
         cacheMaxEntries = 10,
+        cacheLimits = { chunks = 3, hydrology = 2, basins = 1, billboards = 2 },
     })
+    local first = encodeChunk(world:chunk(0, 0, "local"))
     for cy = -1, 1 do
         for cx = -1, 1 do
             world:chunk(cx, cy, "local")
@@ -388,8 +390,12 @@ local function testCacheBoundsAndCounters()
     local cache = world:cacheStats()
     local metrics = world:metricsSnapshot()
     expect(cache.total <= 10 and cache.maxEntries == 10, "cache should enforce configured entry bound")
+    expect(cache.chunks <= 3 and cache.hydrology <= 2 and cache.basins <= 1, "cache should enforce per-tier entry bounds")
+    expect(cache.limits.chunks == 3 and cache.limits.hydrology == 2 and cache.limits.basins == 1, "cache stats should expose tier limits")
     expect(metrics.cachePuts > 10 and metrics.cacheEvictions > 0 and metrics.cacheMisses > 0, "cache metrics should count puts, evictions, and misses")
-    world:chunk(1, 1, "local")
+    expect(metrics.evictions.chunks > 0 and metrics.evictions.hydrology > 0 and metrics.evictions.basins >= 0, "cache metrics should expose tier evictions")
+    expect(encodeChunk(world:chunk(0, 0, "local")) == first, "evicted chunk should regenerate deterministically")
+    world:chunk(0, 0, "local")
     local after = world:metricsSnapshot()
     expect(after.cacheHits > metrics.cacheHits, "cache metrics should count hits")
 end
