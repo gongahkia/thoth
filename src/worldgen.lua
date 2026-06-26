@@ -79,7 +79,7 @@ local function plateCenter(seed, gx, gy, cellSize)
     local id = Rng.hash(seed, gx, gy, 37)
     local angle = Rng.unitAt(seed, gx, gy, 41) * math.pi * 2
     local speed = 0.25 + Rng.unitAt(seed, gx, gy, 43) * 0.75
-    local crust = Rng.unitAt(seed, gx, gy, 47) > 0.42 and "continental" or "oceanic"
+    local crust = Rng.unitAt(seed, gx, gy, 47) > 0.66 and "continental" or "oceanic"
     local age = Rng.unitAt(seed, gx, gy, 49)
     return {
         id = id,
@@ -123,10 +123,10 @@ local function classifyBiome(elevation, water, river, temperature, moisture, slo
     if slope > 0.18 and elevation > 0.45 then return "alpine" end
     if temperature < 0.18 then return "snow" end
     if temperature < 0.32 then return moisture > 0.48 and "boreal_forest" or "tundra" end
-    if moisture < 0.18 then return "desert" end
-    if moisture < 0.36 then return temperature > 0.62 and "savanna" or "grassland" end
-    if moisture > 0.78 and elevation < 0.12 then return "wetland" end
-    if moisture > 0.68 and temperature > 0.58 then return "rainforest" end
+    if moisture < 0.24 then return "desert" end
+    if moisture < 0.5 then return temperature > 0.62 and "savanna" or "grassland" end
+    if moisture > 0.82 and elevation < 0.12 then return "wetland" end
+    if moisture > 0.72 and temperature > 0.58 then return "rainforest" end
     return "temperate_forest"
 end
 
@@ -273,7 +273,7 @@ function WorldGen:baseSample(x, y, scale)
     local latitude = 0.5 + 0.5 * math.sin(y * 0.00045 + self.seed * 0.0001)
     local temperature = clamp(1 - math.abs(latitude * 2 - 1) * 1.1 - math.max(0, elevation) * 0.42 + (Noise.fbm(self.seed + 404, x, y, { frequency = 0.002, octaves = 3 }) - 0.5) * 0.18, 0, 1)
     local moistureNoise = Noise.fbm(self.seed + 505, x, y, { frequency = 0.0022, octaves = 4 })
-    local rainfall = clamp(0.2 + moistureNoise * 0.62 + (1 - math.abs(latitude - 0.5) * 2) * 0.18 - math.max(0, elevation) * 0.18 - uplift * 0.16 + islandArc * 0.06, 0, 1)
+    local rainfall = clamp(0.08 + moistureNoise * 0.7 + (1 - math.abs(latitude - 0.5) * 2) * 0.16 - math.max(0, elevation) * 0.2 - uplift * 0.16 + islandArc * 0.06, 0, 1)
     local slope = clamp(ridge * 0.1 + math.abs(rough - 0.5) * 0.16 * (1 - stableDamping) + plate.boundary * 0.08 + uplift * 0.06 + riftValley * 0.12 + islandArc * 0.18 + trench * 0.08 - shield * 0.025 - craton * 0.035, 0, 1)
     local water = elevation <= self.seaLevel
     return {

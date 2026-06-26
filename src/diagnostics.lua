@@ -2,22 +2,22 @@ local WorldGen = require("src.worldgen")
 
 local Diagnostics = {}
 
-local defaultSeeds = { 3, 13, 18, 28 }
+local defaultSeeds = { 17, 19, 26, 53 }
 local badSeeds = {
     { seed = 1, flags = { "water_high", "river_low", "single_biome_high" } },
-    { seed = 9, flags = { "water_low", "single_biome_high" } },
-    { seed = 42, flags = { "water_high" } },
-    { seed = 99, flags = { "water_low", "steep_slope_high" } },
+    { seed = 8, flags = { "river_low", "biome_count_low" } },
+    { seed = 14, flags = { "water_low" } },
+    { seed = 15, flags = { "water_low", "steep_slope_high" } },
 }
 
 local defaultThresholds = {
-    waterRatioMin = 0.12,
-    waterRatioMax = 0.88,
+    waterRatioMin = 0.45,
+    waterRatioMax = 0.9,
     riverRatioMin = 0.001,
-    riverRatioMax = 0.18,
+    riverRatioMax = 0.12,
     lakeRatioMax = 0.18,
     meanSlopeMax = 0.36,
-    steepSlopeRatioMax = 0.58,
+    steepSlopeRatioMax = 0.62,
     singleBiomeMax = 0.92,
     minBiomeCount = 3,
 }
@@ -56,6 +56,26 @@ local function sortedBiomeRatios(stats)
     return out
 end
 
+local function biomeGroups(biomes, cells, waterRatio)
+    local groups = { water = waterRatio, forest = 0, grass = 0, dry = 0, cold = 0, rock = 0 }
+    local total = math.max(1, cells)
+    for id, count in pairs(biomes) do
+        local ratio = count / total
+        if id == "temperate_forest" or id == "rainforest" or id == "boreal_forest" then
+            groups.forest = groups.forest + ratio
+        elseif id == "grassland" or id == "savanna" or id == "wetland" then
+            groups.grass = groups.grass + ratio
+        elseif id == "desert" then
+            groups.dry = groups.dry + ratio
+        elseif id == "tundra" or id == "snow" then
+            groups.cold = groups.cold + ratio
+        elseif id == "rock" or id == "alpine" then
+            groups.rock = groups.rock + ratio
+        end
+    end
+    return groups
+end
+
 local function finalize(stats, thresholds)
     stats.landRatio = stats.land / math.max(1, stats.cells)
     stats.waterRatio = stats.water / math.max(1, stats.cells)
@@ -64,6 +84,7 @@ local function finalize(stats, thresholds)
     stats.meanSlope = stats.slopeSum / math.max(1, stats.cells)
     stats.steepSlopeRatio = stats.steepSlopes / math.max(1, stats.cells)
     stats.biomeRatios = sortedBiomeRatios(stats)
+    stats.biomeGroups = biomeGroups(stats.biomes, stats.cells, stats.waterRatio)
     stats.biomeCount = #stats.biomeRatios
     stats.topBiome = stats.biomeRatios[1]
 
@@ -169,8 +190,9 @@ end
 function Diagnostics.formatResult(stats)
     local top = stats.topBiome and (stats.topBiome.id .. ":" .. string.format("%.3f", stats.topBiome.ratio)) or "none"
     local flags = #stats.flags > 0 and table.concat(stats.flags, ",") or "ok"
+    local groups = stats.biomeGroups or {}
     return string.format(
-        "seed=%s cells=%d land=%.3f water=%.3f river=%.3f lake=%.3f mean_slope=%.3f steep=%.3f biomes=%d top=%s max_flow=%.2f flags=%s",
+        "seed=%s cells=%d land=%.3f water=%.3f river=%.3f lake=%.3f mean_slope=%.3f steep=%.3f forest=%.3f grass=%.3f dry=%.3f cold=%.3f rock=%.3f biomes=%d top=%s max_flow=%.2f flags=%s",
         tostring(stats.seed),
         stats.cells,
         stats.landRatio,
@@ -179,6 +201,11 @@ function Diagnostics.formatResult(stats)
         stats.lakeRatio,
         stats.meanSlope,
         stats.steepSlopeRatio,
+        groups.forest or 0,
+        groups.grass or 0,
+        groups.dry or 0,
+        groups.cold or 0,
+        groups.rock or 0,
         stats.biomeCount,
         top,
         stats.maxFlow,

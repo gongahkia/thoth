@@ -189,7 +189,7 @@ local function solveBasin(world, chunkX, chunkY, info)
     local minY = interiorMinY - halo
     local maxX = interiorMaxX + halo
     local maxY = interiorMaxY + halo
-    local threshold = riverThreshold(info.id) * math.max(1, stride * stride * 0.35)
+    local threshold = riverThreshold(info.id) * math.max(1, stride * stride * 0.18)
     local region = {
         id = key("basin", info.id, regionX, regionY),
         scale = info.id,

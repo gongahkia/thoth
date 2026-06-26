@@ -37,7 +37,7 @@ luajit tests/run.lua --diagnostics --seed-start 1 --seed-count 32
 luajit tests/run.lua --diagnostics --seeds 1,42,99,20260625 --chunk-radius 2 --sample-step 8
 ```
 
-Diagnostics report land/water/river/lake/slope/biome ratios and fail fixture sweeps on extreme all-water/all-land, riverless, over-lake, over-steep, or single-biome seeds. Bounds are intentionally broad; they are sanity gates, not Earth calibration.
+Diagnostics report land/water/river/lake/slope/biome ratios and fail fixture sweeps on extreme all-water/all-land, riverless, over-lake, over-steep, or single-biome seeds. Bounds are broad Earth-inspired calibration gates, not strict geoscience targets.
 
 Controls:
 

@@ -289,8 +289,8 @@ local function encodeBillboards(list)
 end
 
 local function testBillboards()
-    local a = testWorld(616)
-    local b = testWorld(616)
+    local a = testWorld(717)
+    local b = testWorld(717)
     local kinds = {}
     for _, kind in ipairs(WorldGen.billboardKinds()) do kinds[kind] = true end
     local count = 0
@@ -332,6 +332,7 @@ local function testTerrainDiagnostics()
         expect(stats.cells > 0 and stats.land + stats.water == stats.cells, "diagnostics should count sampled cells")
         expect(stats.waterRatio >= 0 and stats.waterRatio <= 1, "water ratio should be normalized")
         expect(stats.riverRatio >= 0 and stats.riverRatio <= 1, "river ratio should be normalized")
+        expect(stats.biomeGroups and stats.biomeGroups.water >= 0, "diagnostics should report biome group ratios")
         expect(stats.biomeCount >= 3, "diagnostics should observe multiple biomes")
     end
 end

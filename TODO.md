@@ -2,7 +2,6 @@
 
 ## Terrain
 
-- Calibrate generated elevation, water ratio, river density, and biome ratios against rough Earth-like ranges.
 - Improve lake grouping, outlet labeling, spillover routing, and deltas.
 - Expose watershed, basin, ridge, and mountain-range ids on sampled cells for discovery/debug overlays.
 - Keep terrain-first sequencing: no ruins, lore objects, quests, or collectibles until landforms are coherent.
