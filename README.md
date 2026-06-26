@@ -10,6 +10,7 @@ make smoke
 make diagnostics
 make render-smoke
 make walk-smoke
+make export-smoke
 make run
 ```
 
@@ -30,9 +31,10 @@ love . --walk-smoke --walk-smoke-frames 240 --perf-interval 0.5
 love . --preload-radius 128 --refresh-preload-radius 96
 love . --hydrology-region-chunks 2 --hydrology-halo 8
 love . --hydrology-basin-chunks 8 --hydrology-basin-stride 4
+love . --export-map dist/map --export-size 128
 ```
 
-`--debug-perf` prints FPS, raw/clamped dt, update/draw/preload ms, position, visible/preloaded chunks, cache counts, terrain/basin cache misses, and hydrology cell counts. Press `L` in-game to toggle it. `--debug-topo` starts with the optional topographic debug map open; press `T` to toggle it. Runtime movement clamps simulation dt to reduce jitter after slow terrain loads.
+`--debug-perf` prints FPS, raw/clamped dt, update/draw/preload ms, position, visible/preloaded chunks, cache counts, terrain/basin cache misses, and hydrology cell counts. Press `L` in-game to toggle it. `--debug-topo` starts with the optional topographic debug map open; press `T` to toggle it. `--export-map <prefix>` writes `<prefix>.png` plus seed/scale metadata JSON. Runtime movement clamps simulation dt to reduce jitter after slow terrain loads.
 
 Runtime initial preload defaults to 64 cells and refresh preload defaults to 72 cells; raise them when you prefer fewer walking stalls over faster first render.
 

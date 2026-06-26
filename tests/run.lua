@@ -6,6 +6,7 @@ local Survey = require("src.survey")
 local ViewScale = require("src.viewscale")
 local WorldGen = require("src.worldgen")
 local Diagnostics = require("src.diagnostics")
+local Export = require("src.export")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -480,6 +481,17 @@ local function testTopographicMapData()
     expect(data.rivers > 0 and data.contours > 0, "topographic map should expose rivers and contours")
 end
 
+local function testMapExportData()
+    local world = testWorld(20260625)
+    local map = Export.renderMap(world, { size = 32, span = 256, scale = "local" })
+    local ppm = Export.ppmBytes(map)
+    local json = Export.metadataJson(map.metadata)
+    expect(map.metadata.seed == 20260625 and map.metadata.size == 32, "export metadata should include seed and size")
+    expect(map.stats.land > 0 and map.stats.water > 0 and map.stats.rivers > 0, "export map should include terrain stats")
+    expect(string.sub(ppm, 1, 12) == "P6\n32 32\n255" and #ppm > 32 * 32 * 3, "export should produce image bytes")
+    expect(string.find(json, '"seed": 20260625', 1, true) ~= nil, "export metadata should encode seed json")
+end
+
 local function testTerrainDiagnostics()
     local seeds = Diagnostics.defaultSeeds()
     local sweep = Diagnostics.sweep({
@@ -522,6 +534,7 @@ local function testTerrainFirstScope()
         "src/render.lua",
         "src/survey.lua",
         "src/viewscale.lua",
+        "src/export.lua",
         "src/worldgen.lua",
     }
     local forbidden = { "ruin", "lore", "quest", "collectible", "combat", "survival" }
@@ -604,6 +617,7 @@ local tests = {
     testRenderStats,
     testBiomePalette,
     testTopographicMapData,
+    testMapExportData,
     testTerrainDiagnostics,
     testBadSeedDiagnostics,
     testTerrainFirstScope,

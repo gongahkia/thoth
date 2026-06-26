@@ -2,7 +2,6 @@
 
 ## Rendering
 
-- Add screenshot/export command for generated maps and seed metadata.
 - Add debug panels for plate vectors, drainage arrows, erosion deltas, and biome classifier inputs.
 
 ## Engineering
