@@ -63,35 +63,6 @@ These are the biggest measurable FPS wins. Land them before geomorphology work b
 
 ---
 
-### T-002 — Move terrain shading + fog to a fragment shader         [tier 1] [med]
-
-GOAL: A single GLSL pixel-shader handles per-fragment color = base × lighting × fog. CPU-side `litColor`/`foggedColor` math removed from the per-vertex loop; vertices carry only `(position, base color, slope-light intensity, depth)`.
-
-WHY: `render.lua:159–172` computes shading in Lua per quad (`litColor`, `foggedColor`, `mixColor`). That is ~4 float mixes per quad × ~1900 quads = ~7600 mixes/frame in interpreted Lua. Moving this to a fragment shader removes Lua work entirely and gives smooth per-pixel fog instead of per-quad fog (visible banding today).
-
-WHERE:
-- `src/render.lua:159–196` — color math.
-- `src/render.lua:198–303` — `buildTerrainMeshData` — strip lighting from vertex pack; pass raw slope-light + depth.
-- New file `src/shaders/terrain.frag` (or inline string in `render.lua` if you prefer single-file).
-
-DEPENDS ON: T-001 (persistent mesh format).
-
-ACCEPTANCE:
-- New mesh format adds 2 floats (slopeLight, depth) per vertex; vertex shader passes them as varyings.
-- Fragment shader does fog and slope shading on GPU.
-- Color output is visually equivalent (compare `make render-smoke` screenshot before/after).
-- No CPU `mixColor` calls inside the per-quad loop.
-
-NOTES / IMPL HINTS:
-- LÖVE's default vertex pipeline already passes `VaryingColor` and `VaryingTexCoord`. You can stuff slope-light into the alpha channel of VertexColor and recover it.
-- Fog color is global — set as a shader `uniform` once per frame.
-- Refer to LÖVE shader guide for exact `effect`/`vec4 effect(...)` signature in 11.5.
-
-REFERENCES:
-- [A Beginner's Guide to Shaders — LÖVE community blog](https://blogs.love2d.org/content/beginners-guide-shaders) — LÖVE-flavored GLSL primer.
-
----
-
 ### T-003 — SpriteBatch billboards instead of per-instance polygons         [tier 1] [low]
 
 GOAL: One `SpriteBatch` per billboard kind (tree, peak, ridge, outcrop, reed, rock, shrub, snow). Repopulate per frame from `Render.billboardDrawList`. Zero `love.graphics.polygon` / `rectangle` calls in `drawBillboards`.
