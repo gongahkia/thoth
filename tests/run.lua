@@ -600,6 +600,27 @@ local function testBadSeedDiagnostics()
     end
 end
 
+local function testRegressionSeedDiagnostics()
+    local categories = {}
+    for _, fixture in ipairs(Diagnostics.regressionSeeds()) do
+        categories[fixture.category] = true
+        local stats = Diagnostics.analyzeSeed(fixture.seed, {
+            chunkRadius = 1,
+            sampleStep = 8,
+            worldOptions = basinWorldOptions,
+        })
+        local flags = {}
+        for _, flag in ipairs(stats.flags) do flags[flag] = true end
+        for _, expectedFlag in ipairs(fixture.flags or {}) do
+            expect(flags[expectedFlag], "regression seed should flag " .. expectedFlag .. " for " .. fixture.category)
+        end
+        if fixture.maxSeamMismatches then expect(stats.seamMismatches <= fixture.maxSeamMismatches, "regression seed should bound seam mismatches") end
+        if fixture.maxUphillRejects then expect(stats.uphillRejects <= fixture.maxUphillRejects, "regression seed should bound river discontinuities") end
+        if fixture.minRivers then expect(stats.rivers >= fixture.minRivers, "regression seed should keep river coverage") end
+    end
+    expect(categories.ugly_terrain and categories.all_water and categories.all_land and categories.broken_seams and categories.river_discontinuities, "regression seed categories should cover terrain failure modes")
+end
+
 local function testTerrainFirstScope()
     local files = {
         "main.lua",
@@ -700,6 +721,7 @@ local tests = {
     testTerrainBenchmark,
     testTerrainDiagnostics,
     testBadSeedDiagnostics,
+    testRegressionSeedDiagnostics,
     testTerrainFirstScope,
 }
 
@@ -769,6 +791,17 @@ local function benchmark(args)
     print(Benchmark.format(result))
 end
 
+local function regressions()
+    for _, fixture in ipairs(Diagnostics.regressionSeeds()) do
+        local stats = Diagnostics.analyzeSeed(fixture.seed, {
+            chunkRadius = 1,
+            sampleStep = 8,
+            worldOptions = basinWorldOptions,
+        })
+        print("regression=" .. fixture.category .. " " .. Diagnostics.formatResult(stats))
+    end
+end
+
 if arg and arg[1] == "--smoke" then
     smoke()
     return
@@ -781,6 +814,11 @@ end
 
 if arg and arg[1] == "--benchmark" then
     benchmark(arg)
+    return
+end
+
+if arg and arg[1] == "--regressions" then
+    regressions()
     return
 end
 

@@ -1,4 +1,4 @@
-.PHONY: run test smoke diagnostics benchmark render-smoke walk-smoke export-smoke clean
+.PHONY: run test smoke diagnostics regressions benchmark render-smoke walk-smoke export-smoke clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -14,6 +14,9 @@ smoke:
 
 diagnostics:
 	$(LUAJIT) tests/run.lua --diagnostics
+
+regressions:
+	$(LUAJIT) tests/run.lua --regressions
 
 benchmark:
 	$(LUAJIT) tests/run.lua --benchmark --chunk-radius 1

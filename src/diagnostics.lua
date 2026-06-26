@@ -9,6 +9,13 @@ local badSeeds = {
     { seed = 14, flags = { "water_low" } },
     { seed = 15, flags = { "water_low", "steep_slope_high" } },
 }
+local regressionSeeds = {
+    { seed = 15, category = "ugly_terrain", flags = { "water_low", "steep_slope_high" } },
+    { seed = 1, category = "all_water", flags = { "water_high" } },
+    { seed = 14, category = "all_land", flags = { "water_low" } },
+    { seed = 20260625, category = "broken_seams", maxSeamMismatches = 0 },
+    { seed = 62, category = "river_discontinuities", maxUphillRejects = 0, minRivers = 1 },
+}
 
 local defaultThresholds = {
     waterRatioMin = 0.45,
@@ -97,6 +104,8 @@ local function finalize(stats, thresholds)
     if stats.steepSlopeRatio > thresholds.steepSlopeRatioMax then addFlag(stats, "steep_slope_high") end
     if stats.biomeCount < thresholds.minBiomeCount then addFlag(stats, "biome_count_low") end
     if stats.topBiome and stats.topBiome.ratio > thresholds.singleBiomeMax then addFlag(stats, "single_biome_high") end
+    if (stats.seamMismatches or 0) > 0 then addFlag(stats, "broken_seams") end
+    if (stats.uphillRejects or 0) > 0 then addFlag(stats, "river_discontinuity") end
     return stats
 end
 
@@ -108,6 +117,21 @@ function Diagnostics.badSeeds()
     local out = {}
     for index, fixture in ipairs(badSeeds) do
         out[index] = { seed = fixture.seed, flags = copyList(fixture.flags) }
+    end
+    return out
+end
+
+function Diagnostics.regressionSeeds()
+    local out = {}
+    for index, fixture in ipairs(regressionSeeds) do
+        out[index] = {
+            seed = fixture.seed,
+            category = fixture.category,
+            flags = copyList(fixture.flags),
+            maxSeamMismatches = fixture.maxSeamMismatches,
+            maxUphillRejects = fixture.maxUphillRejects,
+            minRivers = fixture.minRivers,
+        }
     end
     return out
 end
@@ -139,13 +163,23 @@ function Diagnostics.analyzeSeed(seed, options)
         minElevation = math.huge,
         maxElevation = -math.huge,
         maxFlow = 0,
+        seamMismatches = 0,
+        uphillRejects = 0,
         biomes = {},
         flags = {},
     }
 
+    local seenHydrology = {}
     for cy = -chunkRadius, chunkRadius do
         for cx = -chunkRadius, chunkRadius do
             local chunk = world:chunk(cx, cy, scale)
+            local regionId = chunk.cells[1][1].hydrologyRegion
+            if regionId and not seenHydrology[regionId] then
+                seenHydrology[regionId] = true
+                local hydrology = world:hydrologyStats(cx, cy, scale)
+                stats.seamMismatches = stats.seamMismatches + (hydrology.seamMismatches or 0)
+                stats.uphillRejects = stats.uphillRejects + (hydrology.uphillRejects or 0)
+            end
             for y = 1, chunk.size, sampleStep do
                 for x = 1, chunk.size, sampleStep do
                     local cell = chunk.cells[y][x]
@@ -192,7 +226,7 @@ function Diagnostics.formatResult(stats)
     local flags = #stats.flags > 0 and table.concat(stats.flags, ",") or "ok"
     local groups = stats.biomeGroups or {}
     return string.format(
-        "seed=%s cells=%d land=%.3f water=%.3f river=%.3f lake=%.3f mean_slope=%.3f steep=%.3f forest=%.3f grass=%.3f dry=%.3f cold=%.3f rock=%.3f biomes=%d top=%s max_flow=%.2f flags=%s",
+        "seed=%s cells=%d land=%.3f water=%.3f river=%.3f lake=%.3f mean_slope=%.3f steep=%.3f forest=%.3f grass=%.3f dry=%.3f cold=%.3f rock=%.3f biomes=%d top=%s max_flow=%.2f seams=%d uphill=%d flags=%s",
         tostring(stats.seed),
         stats.cells,
         stats.landRatio,
@@ -209,6 +243,8 @@ function Diagnostics.formatResult(stats)
         stats.biomeCount,
         top,
         stats.maxFlow,
+        stats.seamMismatches or 0,
+        stats.uphillRejects or 0,
         flags
     )
 end

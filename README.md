@@ -8,6 +8,7 @@ Pseudo-3D terrain exploration prototype in LÖVE. The focus is deterministic ter
 make test
 make smoke
 make diagnostics
+make regressions
 make benchmark
 make render-smoke
 make walk-smoke
@@ -47,10 +48,11 @@ Terrain diagnostics:
 make diagnostics
 luajit tests/run.lua --diagnostics --seed-start 1 --seed-count 32
 luajit tests/run.lua --diagnostics --seeds 1,42,99,20260625 --chunk-radius 2 --sample-step 8
+luajit tests/run.lua --regressions
 luajit tests/run.lua --benchmark --chunk-radius 1 --scales local,region,continent
 ```
 
-Diagnostics report land/water/river/lake/slope/biome ratios and fail fixture sweeps on extreme all-water/all-land, riverless, over-lake, over-steep, or single-biome seeds. Bounds are broad Earth-inspired calibration gates, not strict geoscience targets.
+Diagnostics report land/water/river/lake/slope/biome ratios, seam mismatches, and uphill drainage rejects. Fixture sweeps cover ugly terrain, all-water/all-land, riverless, over-lake, over-steep, single-biome, seam, and river-continuity regressions. Bounds are broad Earth-inspired calibration gates, not strict geoscience targets.
 
 Controls:
 
