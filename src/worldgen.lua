@@ -276,6 +276,8 @@ function WorldGen:baseSample(x, y, scale)
     local rainfall = clamp(0.08 + moistureNoise * 0.7 + (1 - math.abs(latitude - 0.5) * 2) * 0.16 - math.max(0, elevation) * 0.2 - uplift * 0.16 + islandArc * 0.06, 0, 1)
     local slope = clamp(ridge * 0.1 + math.abs(rough - 0.5) * 0.16 * (1 - stableDamping) + plate.boundary * 0.08 + uplift * 0.06 + riftValley * 0.12 + islandArc * 0.18 + trench * 0.08 - shield * 0.025 - craton * 0.035, 0, 1)
     local water = elevation <= self.seaLevel
+    local ridgeId = (ridge > 0.62 or plate.boundary > 0.55) and key("ridge", info.id, floorDiv(math.floor(wx), 192 * info.factor), floorDiv(math.floor(wy), 192 * info.factor), plate.id) or nil
+    local mountainRangeId = (uplift > 0.18 or plate.convergent * plate.boundary > 0.24) and key("range", info.id, plate.id, plate.secondaryId) or nil
     return {
         x = x,
         y = y,
@@ -297,6 +299,8 @@ function WorldGen:baseSample(x, y, scale)
         volcanicIslandArc = islandArc,
         shield = shield,
         craton = craton,
+        ridgeId = ridgeId,
+        mountainRangeId = mountainRangeId,
         uplift = uplift,
         rainfall = rainfall,
         temperature = temperature,

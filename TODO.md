@@ -2,7 +2,6 @@
 
 ## Terrain
 
-- Expose watershed, basin, ridge, and mountain-range ids on sampled cells for discovery/debug overlays.
 - Keep terrain-first sequencing: no ruins, lore objects, quests, or collectibles until landforms are coherent.
 
 ## Exploration

@@ -63,6 +63,8 @@ local function encodeCell(cell)
         round(cell.volcanicIslandArc),
         round(cell.shield),
         round(cell.craton),
+        tostring(cell.ridgeId),
+        tostring(cell.mountainRangeId),
         tostring(cell.basinId),
         tostring(cell.watershedId),
         tostring(cell.macroBasinId),
@@ -226,6 +228,29 @@ local function testTectonicFeatures()
     expect(counts.islandArc > 0, "tectonics should include volcanic island arcs")
     expect(counts.shield > 0, "tectonics should include shield regions")
     expect(counts.craton > 0, "tectonics should include cratons")
+end
+
+local function testDiscoveryOverlayIds()
+    local world = WorldGen.new(99)
+    local ridgeIds, rangeIds = {}, {}
+    for cy = -1, 1 do
+        for cx = -1, 1 do
+            local chunk = world:chunk(cx, cy, "local")
+            for y = 1, chunk.size, 4 do
+                for x = 1, chunk.size, 4 do
+                    local cell = chunk.cells[y][x]
+                    expect(cell.basinId and cell.watershedId, "sampled cells should expose basin and watershed ids")
+                    if cell.ridgeId then ridgeIds[cell.ridgeId] = true end
+                    if cell.mountainRangeId then rangeIds[cell.mountainRangeId] = true end
+                end
+            end
+        end
+    end
+    local ridgeCount, rangeCount = 0, 0
+    for _ in pairs(ridgeIds) do ridgeCount = ridgeCount + 1 end
+    for _ in pairs(rangeIds) do rangeCount = rangeCount + 1 end
+    expect(ridgeCount > 0, "sampled cells should expose ridge ids")
+    expect(rangeCount > 0, "sampled cells should expose mountain-range ids")
 end
 
 local function testBasinHydrologyBudget()
@@ -439,6 +464,7 @@ local tests = {
     testLakeGroupingAndSpillover,
     testErosionLandforms,
     testTectonicFeatures,
+    testDiscoveryOverlayIds,
     testBasinHydrologyBudget,
     testBasinChannelsSpanDetailRegions,
     testBiomes,
