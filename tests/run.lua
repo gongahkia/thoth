@@ -2,6 +2,7 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 
 local Player = require("src.player")
 local Render = require("src.render")
+local Save = require("src.save")
 local Survey = require("src.survey")
 local ViewScale = require("src.viewscale")
 local WorldGen = require("src.worldgen")
@@ -291,6 +292,33 @@ local function testSurveyHistory()
     expect(history.cellCount > cellsAfterFirst and history.discoveryCount >= discoveriesAfterFirst, "survey should grow when marking new cells")
 end
 
+local function testSaveLoadRoundTrip()
+    local world = WorldGen.new(99)
+    local survey = Survey.new()
+    Survey.mark(survey, world, -64, -64, "local")
+    local viewScale = ViewScale.new(world)
+    ViewScale.set(viewScale, world, "region", -64, -64)
+    ViewScale.update(viewScale, 1, world, -64, -64)
+    local app = {
+        world = world,
+        player = { x = 12.5, y = -7.25 },
+        camera = { yaw = 0.7, pitch = -0.1 },
+        survey = survey,
+        viewScale = viewScale,
+        mouseLook = false,
+        debugPerf = true,
+        debugTopo = true,
+        debugPanels = true,
+    }
+    local encoded = Save.encode(Save.snapshot(app))
+    local decoded = Save.decode(encoded)
+    local restoredSurvey = Survey.fromSnapshot(decoded.survey)
+    expect(decoded.seed == 99 and decoded.player.x == 12.5 and decoded.player.y == -7.25, "save should round-trip seed and player position")
+    expect(decoded.camera.yaw == 0.7 and decoded.display.viewScale == "region", "save should round-trip camera and display settings")
+    expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.debugPanels and not decoded.display.mouseLook, "save should round-trip display toggles")
+    expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
+end
+
 local function testViewScaleTransitions()
     local world = WorldGen.new(99)
     local view = ViewScale.new(world)
@@ -564,6 +592,7 @@ local function testTerrainFirstScope()
         "src/hydrology.lua",
         "src/player.lua",
         "src/render.lua",
+        "src/save.lua",
         "src/survey.lua",
         "src/viewscale.lua",
         "src/export.lua",
@@ -638,6 +667,7 @@ local tests = {
     testDiscoveryOverlayIds,
     testNamedTerrainDiscoveries,
     testSurveyHistory,
+    testSaveLoadRoundTrip,
     testViewScaleTransitions,
     testDiegeticScaleTransitions,
     testBasinHydrologyBudget,

@@ -3,6 +3,7 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 local Player = require("src.player")
 local Export = require("src.export")
 local Render = require("src.render")
+local Save = require("src.save")
 local Survey = require("src.survey")
 local ViewScale = require("src.viewscale")
 local WorldGen = require("src.worldgen")
@@ -274,6 +275,29 @@ local function maybeLogPerf(app)
     end
 end
 
+local function applySnapshot(app, snapshot)
+    app.world = WorldGen.new(tonumber(snapshot.seed) or app.world:metadata().seed, app.worldOptions)
+    app.survey = Survey.fromSnapshot(snapshot.survey)
+    app.player.x = snapshot.player and tonumber(snapshot.player.x) or 0
+    app.player.y = snapshot.player and tonumber(snapshot.player.y) or 0
+    app.camera = Render.defaultCamera()
+    app.camera.yaw = snapshot.camera and tonumber(snapshot.camera.yaw) or app.camera.yaw
+    app.camera.pitch = snapshot.camera and tonumber(snapshot.camera.pitch) or app.camera.pitch
+    local display = snapshot.display or {}
+    app.mouseLook = display.mouseLook == true
+    app.debugPerf = display.debugPerf == true
+    app.debugTopo = display.debugTopo == true
+    app.debugPanels = display.debugPanels == true
+    app.viewScale = ViewScale.new(app.world)
+    if display.viewScale then
+        ViewScale.set(app.viewScale, app.world, display.viewScale, app.player.x, app.player.y)
+        ViewScale.update(app.viewScale, 1, app.world, app.player.x, app.player.y)
+    end
+    if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(app.mouseLook) end
+    app.perf.preloadMsThisFrame = 0
+    preloadApp(app, "save_load")
+end
+
 function love.load(args)
     if hasArg(args, "--export-map") then
         exportMap(args)
@@ -301,6 +325,7 @@ function love.load(args)
         walkSmokeTurn = tonumber(argValue(args, "--walk-smoke-turn", 0.18)) or 0.18,
         preloadRadius = tonumber(argValue(args, "--preload-radius", 64)) or 64,
         refreshPreloadRadius = tonumber(argValue(args, "--refresh-preload-radius", 72)) or 72,
+        savePath = argValue(args, "--save-path", "thoth-save.json"),
         debugPerf = hasArg(args, "--debug-perf") or hasArg(args, "--log-fps") or hasArg(args, "--walk-smoke"),
     }
     app.viewScale = ViewScale.new(app.world)
@@ -325,8 +350,10 @@ function love.load(args)
         app.perf.slowFrameMs,
         app.perf.interval
     ))
+    local loadPath = argValue(args, "--load-save", nil)
+    if loadPath then applySnapshot(app, Save.read(loadPath)) end
     preloadApp(app, "load")
-    if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(true) end
+    if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(app.mouseLook) end
 end
 
 function love.update(dt)
@@ -406,6 +433,19 @@ function love.keypressed(key)
     if key == "b" then
         app.debugPanels = not app.debugPanels
         print("[panels] debug=" .. tostring(app.debugPanels))
+    end
+    if key == "f5" then
+        Save.write(app.savePath, Save.snapshot(app))
+        print("[save] wrote=" .. tostring(app.savePath))
+    end
+    if key == "f9" then
+        local ok, snapshot = pcall(Save.read, app.savePath)
+        if ok then
+            applySnapshot(app, snapshot)
+            print("[save] loaded=" .. tostring(app.savePath))
+        else
+            print("[save] load_failed=" .. tostring(snapshot))
+        end
     end
     if key == "m" then
         Survey.mark(app.survey, app.world, app.player.x, app.player.y, ViewScale.activeScale(app.viewScale))

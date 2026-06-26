@@ -46,4 +46,44 @@ function Survey.mark(history, world, x, y, scale)
     return history.cells[cellKey]
 end
 
+local function sortedEntries(tableValue)
+    local entries = {}
+    for entryKey, value in pairs(tableValue or {}) do
+        local copy = { key = entryKey }
+        for k, v in pairs(value) do copy[k] = v end
+        entries[#entries + 1] = copy
+    end
+    table.sort(entries, function(a, b) return tostring(a.key) < tostring(b.key) end)
+    return entries
+end
+
+function Survey.snapshot(history)
+    history = history or Survey.new()
+    return {
+        cells = sortedEntries(history.cells),
+        discoveries = sortedEntries(history.discoveries),
+        lastCellKey = history.lastCellKey,
+    }
+end
+
+function Survey.fromSnapshot(snapshot)
+    local history = Survey.new()
+    for _, item in ipairs((snapshot and snapshot.cells) or {}) do
+        local entryKey = item.key or key(item.scale, item.x, item.y)
+        local copy = {}
+        for k, v in pairs(item) do if k ~= "key" then copy[k] = v end end
+        history.cells[entryKey] = copy
+        history.cellCount = history.cellCount + 1
+    end
+    for _, item in ipairs((snapshot and snapshot.discoveries) or {}) do
+        local entryKey = item.key or key(item.kind, item.id)
+        local copy = {}
+        for k, v in pairs(item) do if k ~= "key" then copy[k] = v end end
+        history.discoveries[entryKey] = copy
+        history.discoveryCount = history.discoveryCount + 1
+    end
+    history.lastCellKey = snapshot and snapshot.lastCellKey or nil
+    return history
+end
+
 return Survey
