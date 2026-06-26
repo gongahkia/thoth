@@ -3,6 +3,7 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 local Player = require("src.player")
 local Render = require("src.render")
 local Survey = require("src.survey")
+local ViewScale = require("src.viewscale")
 local WorldGen = require("src.worldgen")
 
 local app
@@ -32,12 +33,17 @@ local function frustumRadius(app)
     return math.ceil(math.sqrt(renderRadius * renderRadius + (renderRadius * 0.82) * (renderRadius * 0.82)))
 end
 
-local function chunkRange(app, radius)
+local function chunkRange(app, radius, scaleId)
     local size = app.world:metadata().chunkSize
-    return math.floor((app.player.x - radius) / size),
-        math.floor((app.player.x + radius) / size),
-        math.floor((app.player.y - radius) / size),
-        math.floor((app.player.y + radius) / size)
+    local info = WorldGen.scaleInfo(scaleId)
+    local minGX = math.floor((app.player.x - radius) / (info.factor or 1))
+    local maxGX = math.floor((app.player.x + radius) / (info.factor or 1))
+    local minGY = math.floor((app.player.y - radius) / (info.factor or 1))
+    local maxGY = math.floor((app.player.y + radius) / (info.factor or 1))
+    return math.floor(minGX / size),
+        math.floor(maxGX / size),
+        math.floor(minGY / size),
+        math.floor(maxGY / size)
 end
 
 local function hasArg(args, value)
@@ -109,23 +115,30 @@ end
 
 local function preloadApp(app, reason)
     local started = now()
+    local view = ViewScale.params(app.viewScale, app.world)
     local viewRadius = frustumRadius(app)
     local configuredRadius = (reason == "load" or reason == "seed_reset") and app.preloadRadius or app.refreshPreloadRadius
-    local terrainRadius = math.max(viewRadius + terrainPreloadPadding, configuredRadius or 0)
+    local terrainRadius = math.max(viewRadius * view.factor + terrainPreloadPadding, (configuredRadius or 0) * view.factor)
     local billboardRadius = math.max(viewRadius + billboardPreloadPadding, configuredRadius or 0)
-    local terrainChunks = app.world:preloadAround(app.player.x, app.player.y, terrainRadius, "local")
-    local billboardChunks = app.world:preloadBillboardsAround(app.player.x, app.player.y, billboardRadius)
+    local terrainChunks = 0
+    for _, scaleId in ipairs(ViewScale.preloadScales(app.viewScale)) do
+        terrainChunks = terrainChunks + app.world:preloadAround(app.player.x, app.player.y, terrainRadius, scaleId)
+    end
+    local billboardChunks = view.factor <= 2.1 and app.world:preloadBillboardsAround(app.player.x, app.player.y, billboardRadius) or 0
     local size = app.world:metadata().chunkSize
     app.preloadedChunkX = math.floor(app.player.x / size)
     app.preloadedChunkY = math.floor(app.player.y / size)
     app.preloadedBandX = math.floor(app.player.x / preloadStride)
     app.preloadedBandY = math.floor(app.player.y / preloadStride)
-    app.preloadedMinChunkX, app.preloadedMaxChunkX, app.preloadedMinChunkY, app.preloadedMaxChunkY = chunkRange(app, terrainRadius)
+    app.preloadedScale = view.target
+    app.preloadedMinChunkX, app.preloadedMaxChunkX, app.preloadedMinChunkY, app.preloadedMaxChunkY = chunkRange(app, terrainRadius, view.target)
     local elapsed = msSince(started)
     if app.perf then app.perf.preloadMsThisFrame = (app.perf.preloadMsThisFrame or 0) + elapsed end
     perfLine(app, string.format(
-        "preload reason=%s ms=%.2f terrain_chunks=%d billboard_chunks=%d terrain_radius=%d billboard_radius=%d chunk=%d,%d band=%d,%d",
+        "preload reason=%s scale=%s factor=%.2f ms=%.2f terrain_chunks=%d billboard_chunks=%d terrain_radius=%.0f billboard_radius=%.0f chunk=%d,%d band=%d,%d",
         reason or "manual",
+        view.target,
+        view.factor,
         elapsed,
         terrainChunks,
         billboardChunks,
@@ -139,12 +152,14 @@ local function preloadApp(app, reason)
 end
 
 local function refreshPreloadIfNeeded(app)
+    local view = ViewScale.params(app.viewScale, app.world)
     local size = app.world:metadata().chunkSize
     local chunkX = math.floor(app.player.x / size)
     local chunkY = math.floor(app.player.y / size)
-    local minChunkX, maxChunkX, minChunkY, maxChunkY = chunkRange(app, frustumRadius(app))
-    if app.preloadedMinChunkX and minChunkX >= app.preloadedMinChunkX and maxChunkX <= app.preloadedMaxChunkX and minChunkY >= app.preloadedMinChunkY and maxChunkY <= app.preloadedMaxChunkY then return end
-    perfLine(app, string.format("preload_due pos=%.2f,%.2f chunk=%d,%d visible_chunks=%d..%d,%d..%d loaded_chunks=%s..%s,%s..%s",
+    local minChunkX, maxChunkX, minChunkY, maxChunkY = chunkRange(app, frustumRadius(app) * view.factor, view.target)
+    if app.preloadedScale == view.target and app.preloadedMinChunkX and minChunkX >= app.preloadedMinChunkX and maxChunkX <= app.preloadedMaxChunkX and minChunkY >= app.preloadedMinChunkY and maxChunkY <= app.preloadedMaxChunkY then return end
+    perfLine(app, string.format("preload_due scale=%s pos=%.2f,%.2f chunk=%d,%d visible_chunks=%d..%d,%d..%d loaded_chunks=%s..%s,%s..%s",
+        view.target,
         app.player.x,
         app.player.y,
         chunkX,
@@ -168,8 +183,9 @@ local function perfSnapshot(app)
     local chunkX = math.floor(app.player.x / size)
     local chunkY = math.floor(app.player.y / size)
     local stats = app.perf.renderStats or {}
+    local view = ViewScale.params(app.viewScale, app.world)
     return string.format(
-        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d chunks=%d hydro=%d basins=%d billboard_cache=%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
+        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d chunks=%d hydro=%d basins=%d billboard_cache=%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
         app.perf.frame or 0,
         love.timer.getFPS(),
         (app.perf.lastDt or 0) * 1000,
@@ -177,6 +193,8 @@ local function perfSnapshot(app)
         app.perf.updateMs or 0,
         app.perf.drawMs or 0,
         app.perf.preloadMsThisFrame or 0,
+        view.target,
+        view.factor,
         app.player.x,
         app.player.y,
         chunkX,
@@ -230,6 +248,7 @@ function love.load(args)
         world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625)), runtimeWorldOptions(args)),
         worldOptions = runtimeWorldOptions(args),
         survey = Survey.new(),
+        viewScale = nil,
         player = Player.new(0, 0),
         camera = Render.defaultCamera(),
         paused = false,
@@ -242,14 +261,17 @@ function love.load(args)
         refreshPreloadRadius = tonumber(argValue(args, "--refresh-preload-radius", 72)) or 72,
         debugPerf = hasArg(args, "--debug-perf") or hasArg(args, "--log-fps") or hasArg(args, "--walk-smoke"),
     }
+    app.viewScale = ViewScale.new(app.world)
+    ViewScale.update(app.viewScale, 0, app.world, app.player.x, app.player.y)
     app.perf = {
         frame = 0,
         interval = tonumber(argValue(args, "--perf-interval", 1)) or 1,
         slowFrameMs = tonumber(argValue(args, "--slow-frame-ms", 24)) or 24,
         lastLogAt = now(),
     }
-    perfLine(app, string.format("load seed=%s render_radius=%d preload_radius=%d refresh_radius=%d preload_stride=%d hydrology_regions=%d hydrology_halo=%d basin_chunks=%d basin_stride=%d slow_ms=%.1f interval=%.2f",
+    perfLine(app, string.format("load seed=%s scale=%s render_radius=%d preload_radius=%d refresh_radius=%d preload_stride=%d hydrology_regions=%d hydrology_halo=%d basin_chunks=%d basin_stride=%d slow_ms=%.1f interval=%.2f",
         tostring(app.world:metadata().seed),
+        ViewScale.activeScale(app.viewScale),
         app.camera.renderRadius or 0,
         app.preloadRadius,
         app.refreshPreloadRadius,
@@ -288,6 +310,7 @@ function love.update(dt)
     app.perf.moving = input.forward or input.back or input.left or input.right
     app.perf.sprint = input.sprint
     Player.update(app.player, simDt, input, app.world)
+    ViewScale.update(app.viewScale, simDt, app.world, app.player.x, app.player.y)
     refreshPreloadIfNeeded(app)
     app.camera.x = app.camera.x + (app.player.x - app.camera.x) * math.min(1, simDt * 10)
     app.camera.y = app.camera.y + (app.player.y - app.camera.y) * math.min(1, simDt * 10)
@@ -335,12 +358,18 @@ function love.keypressed(key)
         print("[perf] debug=" .. tostring(app.debugPerf))
     end
     if key == "m" then
-        Survey.mark(app.survey, app.world, app.player.x, app.player.y, "local")
+        Survey.mark(app.survey, app.world, app.player.x, app.player.y, ViewScale.activeScale(app.viewScale))
         print("[survey] cells=" .. tostring(app.survey.cellCount) .. " discoveries=" .. tostring(app.survey.discoveryCount))
+    end
+    if key == "tab" then
+        local scale = ViewScale.shift(app.viewScale, app.world, 1, app.player.x, app.player.y)
+        print("[scale] " .. tostring(scale))
+        preloadApp(app, "scale")
     end
     if key == "r" then
         app.world = WorldGen.new(os.time() % 1000000, app.worldOptions)
         app.survey = Survey.new()
+        app.viewScale = ViewScale.new(app.world)
         app.player.x, app.player.y = 0, 0
         app.perf.preloadMsThisFrame = 0
         preloadApp(app, "seed_reset")

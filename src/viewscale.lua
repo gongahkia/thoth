@@ -1,0 +1,173 @@
+local ViewScale = {}
+
+local function clamp(value, minValue, maxValue)
+    return math.max(minValue, math.min(maxValue, value))
+end
+
+local function mix(a, b, t)
+    return a + (b - a) * t
+end
+
+local function ease(t)
+    return t * t * (3 - 2 * t)
+end
+
+local function scaleInfo(world, scaleId)
+    local metadata = world and world:metadata() or {}
+    for _, scale in ipairs(metadata.scales or {}) do
+        if scale.id == scaleId then return scale end
+    end
+    return { id = "local", factor = 1, label = "local" }
+end
+
+local function scaleIndex(world, scaleId)
+    local metadata = world and world:metadata() or {}
+    local scales = metadata.scales or {}
+    for index, scale in ipairs(scales) do
+        if scale.id == scaleId then return index end
+    end
+    return 1
+end
+
+local function labelKey(scaleId, item)
+    return table.concat({ scaleId, item.kind, tostring(item.id) }, ":")
+end
+
+local function labelSampleKey(info, x, y)
+    local span = math.max(8, 32 * (info.factor or 1))
+    return table.concat({ info.id, math.floor(x / span), math.floor(y / span) }, ":")
+end
+
+function ViewScale.new(world)
+    local initial = scaleInfo(world, "local").id
+    return {
+        from = initial,
+        target = initial,
+        current = initial,
+        progress = 1,
+        duration = 0.55,
+        labels = {},
+        labelOrder = {},
+        labelSampleKeys = {},
+    }
+end
+
+function ViewScale.activeScale(view)
+    return (view and view.target) or "local"
+end
+
+function ViewScale.collectLabels(view, world, x, y, scaleId, force)
+    if not (view and world) then return 0 end
+    local info = scaleInfo(world, scaleId or view.target)
+    local sampleKey = labelSampleKey(info, x, y)
+    if not force and view.labelSampleKeys[info.id] == sampleKey then return 0 end
+    view.labelSampleKeys[info.id] = sampleKey
+    local added = 0
+    for _, item in ipairs(world:discoveriesAt(x, y, info.id)) do
+        local key = labelKey(info.id, item)
+        if not view.labels[key] then
+            view.labels[key] = {
+                scale = info.id,
+                scaleLabel = info.label,
+                kind = item.kind,
+                id = item.id,
+                name = item.name,
+                x = item.x,
+                y = item.y,
+                seen = 0,
+            }
+            view.labelOrder[#view.labelOrder + 1] = key
+            added = added + 1
+        end
+        local label = view.labels[key]
+        label.lastX = x
+        label.lastY = y
+        label.seen = (label.seen or 0) + 1
+    end
+    return added
+end
+
+function ViewScale.params(view, world)
+    local fromInfo = scaleInfo(world, view and view.from or "local")
+    local targetInfo = scaleInfo(world, view and view.target or "local")
+    local progress = clamp(view and view.progress or 1, 0, 1)
+    local t = ease(progress)
+    return {
+        from = fromInfo.id,
+        target = targetInfo.id,
+        scale = targetInfo.id,
+        label = targetInfo.label,
+        fromFactor = fromInfo.factor,
+        targetFactor = targetInfo.factor,
+        factor = mix(fromInfo.factor, targetInfo.factor, t),
+        progress = progress,
+        ease = t,
+        transitioning = progress < 1,
+    }
+end
+
+function ViewScale.set(view, world, scaleId, x, y)
+    if not view then return "local" end
+    local target = scaleInfo(world, scaleId).id
+    if view.target == target and (view.progress or 1) >= 1 then
+        ViewScale.collectLabels(view, world, x or 0, y or 0, target, true)
+        return target
+    end
+    view.from = view.target or view.current or "local"
+    view.target = target
+    view.current = view.from
+    view.progress = 0
+    ViewScale.collectLabels(view, world, x or 0, y or 0, view.from, true)
+    ViewScale.collectLabels(view, world, x or 0, y or 0, view.target, true)
+    return target
+end
+
+function ViewScale.shift(view, world, delta, x, y)
+    local metadata = world and world:metadata() or {}
+    local scales = metadata.scales or { { id = "local" } }
+    local index = scaleIndex(world, view and view.target or "local")
+    index = clamp(index + delta, 1, #scales)
+    return ViewScale.set(view, world, scales[index].id, x, y)
+end
+
+function ViewScale.update(view, dt, world, x, y)
+    if not view then return end
+    ViewScale.collectLabels(view, world, x or 0, y or 0, view.from)
+    ViewScale.collectLabels(view, world, x or 0, y or 0, view.target)
+    if (view.progress or 1) < 1 then
+        view.progress = math.min(1, view.progress + (dt or 0) / (view.duration or 0.55))
+        if view.progress >= 1 then
+            view.current = view.target
+            view.from = view.target
+        end
+    end
+end
+
+function ViewScale.preloadScales(view)
+    local result = {}
+    local seen = {}
+    local function add(scaleId)
+        scaleId = scaleId or "local"
+        if seen[scaleId] then return end
+        seen[scaleId] = true
+        result[#result + 1] = scaleId
+    end
+    add(view and view.from)
+    add(view and view.target)
+    return result
+end
+
+function ViewScale.visibleLabels(view, limit)
+    local result = {}
+    if not view then return result end
+    for index = #view.labelOrder, 1, -1 do
+        local label = view.labels[view.labelOrder[index]]
+        if label then
+            result[#result + 1] = label
+            if limit and #result >= limit then break end
+        end
+    end
+    return result
+end
+
+return ViewScale

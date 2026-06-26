@@ -2,8 +2,6 @@
 
 ## Exploration
 
-- Add smooth nested-scale transitions with persistent labels between local, region, and continent views.
-- Add optional impossible-topology experiments: wrapped valleys, recursive insets, scale doors, and folded map edges.
 - Reintroduce region/continent scale as diegetic transitions instead of runtime map zoom.
 
 ## Rendering

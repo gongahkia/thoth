@@ -1,4 +1,5 @@
 local Render = {}
+local ViewScale = require("src.viewscale")
 
 local terrainScale = 18
 
@@ -100,14 +101,36 @@ local function cameraBasis(yaw)
     }
 end
 
-local function cameraLocal(app, x, y)
+local function viewParams(app)
+    return ViewScale.params(app.viewScale, app.world)
+end
+
+local function terrainZ(cell)
+    if cell.lake and cell.lakeSurface then return cell.lakeSurface * terrainScale end
+    if cell.water then return -0.25 * terrainScale end
+    return cell.elevation * terrainScale
+end
+
+local function cameraLocal(app, x, y, params)
+    params = params or viewParams(app)
     local basis = cameraBasis(app.camera.yaw or 0)
-    local dx, dy = x - app.player.x, y - app.player.y
+    local factor = params.factor or 1
+    local dx, dy = (x - app.player.x) / factor, (y - app.player.y) / factor
     return dx * basis.rightX + dy * basis.rightY, dx * basis.forwardX + dy * basis.forwardY
 end
 
+local function viewCell(app, x, y, params)
+    params = params or viewParams(app)
+    local target = app.world:sample(math.floor(x), math.floor(y), params.target)
+    if not params.transitioning or params.from == params.target then return target, terrainZ(target) end
+    local from = app.world:sample(math.floor(x), math.floor(y), params.from)
+    return target, mix(terrainZ(from), terrainZ(target), params.ease)
+end
+
 local function cameraHeight(app)
-    return app.world:heightAt(app.player.x, app.player.y) * terrainScale + (app.camera.eyeHeight or 3.2)
+    local params = viewParams(app)
+    local _, z = viewCell(app, app.player.x, app.player.y, params)
+    return z + (app.camera.eyeHeight or 3.2) * (1 + math.log(params.factor or 1) * 0.34)
 end
 
 local function project(app, width, height, lateral, depth, z)
@@ -125,12 +148,6 @@ local function projectWorld(app, width, height, x, y, z)
     local lateral, depth = cameraLocal(app, x, y)
     local sx, sy = project(app, width, height, lateral, depth, z)
     return sx, sy, depth
-end
-
-local function terrainZ(cell)
-    if cell.lake and cell.lakeSurface then return cell.lakeSurface * terrainScale end
-    if cell.water then return -0.25 * terrainScale end
-    return cell.elevation * terrainScale
 end
 
 local function litColor(cell, depth, slopeLight, radius)
@@ -173,6 +190,7 @@ local function pushLineQuad(vertices, ax, ay, bx, by, width, color)
 end
 
 function Render.buildTerrainMeshData(app, width, height)
+    local params = viewParams(app)
     app.camera.eyeZ = cameraHeight(app)
     local vertices = {}
     local riverVertices = {}
@@ -201,10 +219,10 @@ function Render.buildTerrainMeshData(app, width, height)
         for col = 1, #laterals do
             local lat = laterals[col]
             local dep = depths[row]
-            local wx = app.player.x + basis.rightX * lat + basis.forwardX * dep
-            local wy = app.player.y + basis.rightY * lat + basis.forwardY * dep
-            local cell = app.world:sample(math.floor(wx), math.floor(wy), "local")
-            grid[row][col] = terrainZ(cell)
+            local wx = app.player.x + (basis.rightX * lat + basis.forwardX * dep) * params.factor
+            local wy = app.player.y + (basis.rightY * lat + basis.forwardY * dep) * params.factor
+            local _, z = viewCell(app, wx, wy, params)
+            grid[row][col] = z
         end
     end
     local visibleTiles = 0
@@ -218,9 +236,9 @@ function Render.buildTerrainMeshData(app, width, height)
             local nextLat = laterals[col + 1]
             local centerLat = (lat + nextLat) * 0.5
             local centerDepth = (dep + nextDepth) * 0.5
-            local centerX = app.player.x + basis.rightX * centerLat + basis.forwardX * centerDepth
-            local centerY = app.player.y + basis.rightY * centerLat + basis.forwardY * centerDepth
-            local cell = app.world:sample(math.floor(centerX), math.floor(centerY), "local")
+            local centerX = app.player.x + (basis.rightX * centerLat + basis.forwardX * centerDepth) * params.factor
+            local centerY = app.player.y + (basis.rightY * centerLat + basis.forwardY * centerDepth) * params.factor
+            local cell = viewCell(app, centerX, centerY, params)
             local z0 = grid[row][col]
             local z1 = grid[row][col + 1]
             local z2 = grid[row + 1][col + 1]
@@ -243,9 +261,14 @@ function Render.buildTerrainMeshData(app, width, height)
                     end
                 end
                 if cell.river and cell.downX and cell.downY then
-                    local downCell = app.world:sample(cell.downX, cell.downY, "local")
-                    local ax, ay, ad = projectWorld(app, width, height, cell.x, cell.y, terrainZ(cell) + 0.08)
-                    local bx, by, bd = projectWorld(app, width, height, cell.downX, cell.downY, terrainZ(downCell) + 0.08)
+                    local scaleFactor = cell.scaleFactor or 1
+                    local axWorld = cell.x * scaleFactor
+                    local ayWorld = cell.y * scaleFactor
+                    local bxWorld = cell.downX * scaleFactor
+                    local byWorld = cell.downY * scaleFactor
+                    local _, downZ = viewCell(app, bxWorld, byWorld, params)
+                    local ax, ay, ad = projectWorld(app, width, height, axWorld, ayWorld, terrainZ(cell) + 0.08)
+                    local bx, by, bd = projectWorld(app, width, height, bxWorld, byWorld, downZ + 0.08)
                     if ax and bx then
                         local stripDepth = math.max(1, (ad + bd) * 0.5)
                         local stripWidth = clamp((1.15 + math.log((cell.flow or 0) + 1) * 0.12) / stripDepth * (camera.fov or 620), 1.2, 5.2)
@@ -267,6 +290,9 @@ function Render.buildTerrainMeshData(app, width, height)
         riverStrips = riverStrips,
         silhouetteStrips = silhouetteStrips,
         cameraHeight = app.camera.eyeZ,
+        viewScale = params.target,
+        viewFactor = params.factor,
+        viewProgress = params.progress,
     }
 end
 
@@ -275,6 +301,8 @@ local function chunkCoord(value, size)
 end
 
 function Render.billboardDrawList(app, width, height)
+    local params = viewParams(app)
+    if params.factor > 2.1 then return {} end
     app.camera.eyeZ = app.camera.eyeZ or cameraHeight(app)
     local size = app.world:metadata().chunkSize
     local radius = app.camera.renderRadius or 62
@@ -286,7 +314,7 @@ function Render.billboardDrawList(app, width, height)
     for y = minChunkY, maxChunkY do
         for x = minChunkX, maxChunkX do
             for _, spec in ipairs(app.world:billboards(x, y)) do
-                local lateral, depth = cameraLocal(app, spec.x, spec.y)
+                local lateral, depth = cameraLocal(app, spec.x, spec.y, params)
                 if depth > 2 and depth < radius then
                     local baseZ = spec.z * terrainScale
                     local bx, by = project(app, width, height, lateral, depth, baseZ)
@@ -326,6 +354,10 @@ function Render.visibleStats(app, width, height)
         billboards = #billboards,
         landmarks = landmarks,
         cameraHeight = mesh.cameraHeight,
+        viewScale = mesh.viewScale,
+        viewFactor = mesh.viewFactor,
+        viewProgress = mesh.viewProgress,
+        labels = #(ViewScale.visibleLabels(app.viewScale, 8)),
     }
 end
 
@@ -373,21 +405,27 @@ local function fmt(value)
 end
 
 local function drawHud(app, width, height, stats)
-    local cell = app.world:sample(math.floor(app.player.x), math.floor(app.player.y), "local")
+    local params = viewParams(app)
+    local cell = app.world:sample(math.floor(app.player.x), math.floor(app.player.y), params.target)
+    local labels = ViewScale.visibleLabels(app.viewScale, 4)
     love.graphics.setColor(0.02, 0.025, 0.03, 0.78)
-    love.graphics.rectangle("fill", 12, 12, 420, 142)
+    love.graphics.rectangle("fill", 12, 12, 456, 214)
     love.graphics.setColor(0.88, 0.9, 0.82, 1)
     love.graphics.print("Thoth terrain proto / first-person heightfield", 24, 24)
-    love.graphics.print("seed " .. tostring(app.world:metadata().seed) .. "  fps " .. tostring(love.timer.getFPS()), 24, 44)
+    love.graphics.print("seed " .. tostring(app.world:metadata().seed) .. "  fps " .. tostring(love.timer.getFPS()) .. "  view " .. tostring(params.target) .. " x" .. string.format("%.1f", params.factor), 24, 44)
     love.graphics.print("pos " .. math.floor(app.player.x) .. ", " .. math.floor(app.player.y) .. "  biome " .. tostring(cell.biome), 24, 66)
     love.graphics.print("elev " .. fmt(cell.elevation) .. " slope " .. fmt(cell.slope) .. " erosion " .. fmt(cell.erosion), 24, 88)
     love.graphics.print("rain " .. fmt(cell.rainfall) .. " flow " .. fmt(cell.flow) .. " river " .. tostring(cell.river), 24, 110)
     local survey = app.survey or {}
     love.graphics.print("mesh " .. tostring(stats.visibleTiles) .. " tiles / " .. tostring(stats.triangles) .. " tris / rivers " .. tostring(stats.riverStrips or 0) .. " / survey " .. tostring(survey.cellCount or 0) .. ":" .. tostring(survey.discoveryCount or 0), 24, 132)
+    love.graphics.print("labels " .. tostring(#labels) .. " cached", 24, 154)
+    for index, label in ipairs(labels) do
+        love.graphics.print(tostring(label.scaleLabel) .. " " .. tostring(label.name), 24, 154 + index * 16)
+    end
     love.graphics.setColor(0.02, 0.025, 0.03, 0.7)
-    love.graphics.rectangle("fill", width - 356, height - 52, 344, 34)
+    love.graphics.rectangle("fill", width - 428, height - 52, 416, 34)
     love.graphics.setColor(0.88, 0.9, 0.82, 1)
-    love.graphics.print("WASD walk  mouse/QE look  F mouse  M mark  R seed", width - 344, height - 42)
+    love.graphics.print("WASD walk  mouse/QE look  F mouse  Tab scale  M mark  R seed", width - 416, height - 42)
 end
 
 function Render.draw(app)

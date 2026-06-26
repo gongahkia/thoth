@@ -3,6 +3,7 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 local Player = require("src.player")
 local Render = require("src.render")
 local Survey = require("src.survey")
+local ViewScale = require("src.viewscale")
 local WorldGen = require("src.worldgen")
 local Diagnostics = require("src.diagnostics")
 
@@ -289,6 +290,31 @@ local function testSurveyHistory()
     expect(history.cellCount > cellsAfterFirst and history.discoveryCount >= discoveriesAfterFirst, "survey should grow when marking new cells")
 end
 
+local function testViewScaleTransitions()
+    local world = WorldGen.new(99)
+    local view = ViewScale.new(world)
+    ViewScale.update(view, 0, world, -64, -64)
+    expect(ViewScale.activeScale(view) == "local", "view scale should start local")
+    local labelsAfterLocal = #ViewScale.visibleLabels(view, 16)
+    ViewScale.shift(view, world, 1, -64, -64)
+    local mid = ViewScale.params(view, world)
+    expect(mid.target == "region" and mid.factor == 1, "view scale should begin region transition from local")
+    ViewScale.update(view, 0.28, world, -64, -64)
+    mid = ViewScale.params(view, world)
+    expect(mid.factor > 1 and mid.factor < 4 and mid.transitioning, "view scale should ease between local and region")
+    ViewScale.update(view, 1, world, -64, -64)
+    local region = ViewScale.params(view, world)
+    expect(region.target == "region" and region.factor == 4 and not region.transitioning, "view scale should finish at region")
+    ViewScale.shift(view, world, 1, -16, 16)
+    ViewScale.update(view, 1, world, -16, 16)
+    local continent = ViewScale.params(view, world)
+    local labels = ViewScale.visibleLabels(view, 32)
+    local scales = {}
+    for _, label in ipairs(labels) do scales[label.scale] = true end
+    expect(continent.target == "continent" and continent.factor == 16, "view scale should reach continent")
+    expect(#labels >= labelsAfterLocal and scales["local"] and scales.region and scales.continent, "view labels should persist across nested scales")
+end
+
 local function testBasinHydrologyBudget()
     local world = WorldGen.new(20260625, basinWorldOptions)
     world:chunk(0, 0, "local")
@@ -403,13 +429,18 @@ local function testBillboards()
 end
 
 local function testRenderStats()
-    local app = { world = testWorld(20260625), player = Player.new(0, 0), camera = Render.defaultCamera() }
+    local world = testWorld(20260625)
+    local app = { world = world, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(world) }
     local stats = Render.visibleStats(app, 1280, 720)
     expect(stats.visibleTiles > 0 and stats.triangles == stats.visibleTiles * 2, "render stats should describe terrain mesh")
     expect(stats.billboards >= 0 and stats.cameraHeight == stats.cameraHeight, "render stats should include finite camera and billboard count")
     expect(stats.riverStrips > 0, "render stats should include river strips")
     expect(stats.silhouetteStrips > 0, "render stats should include slope silhouettes")
     expect(stats.landmarks > 0, "render stats should include terrain landmarks")
+    ViewScale.shift(app.viewScale, world, 1, 0, 0)
+    ViewScale.update(app.viewScale, 1, world, 0, 0)
+    local regionStats = Render.visibleStats(app, 1280, 720)
+    expect(regionStats.viewScale == "region" and regionStats.viewFactor == 4 and regionStats.visibleTiles > 0, "render stats should follow region view scale")
 end
 
 local function testTerrainDiagnostics()
@@ -453,6 +484,7 @@ local function testTerrainFirstScope()
         "src/player.lua",
         "src/render.lua",
         "src/survey.lua",
+        "src/viewscale.lua",
         "src/worldgen.lua",
     }
     local forbidden = { "ruin", "lore", "quest", "collectible", "combat", "survival" }
@@ -524,6 +556,7 @@ local tests = {
     testDiscoveryOverlayIds,
     testNamedTerrainDiscoveries,
     testSurveyHistory,
+    testViewScaleTransitions,
     testBasinHydrologyBudget,
     testBasinChannelsSpanDetailRegions,
     testBiomes,
