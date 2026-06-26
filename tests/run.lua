@@ -410,6 +410,26 @@ local function testBadSeedDiagnostics()
     end
 end
 
+local function testTerrainFirstScope()
+    local files = {
+        "main.lua",
+        "src/hydrology.lua",
+        "src/player.lua",
+        "src/render.lua",
+        "src/worldgen.lua",
+    }
+    local forbidden = { "ruin", "lore", "quest", "collectible", "combat", "survival" }
+    for _, path in ipairs(files) do
+        local handle = assert(io.open(path, "r"))
+        local text = handle:read("*a")
+        handle:close()
+        local lower = string.lower(text)
+        for _, term in ipairs(forbidden) do
+            expect(not string.find(lower, term, 1, true), "terrain-first runtime should not include " .. term .. " in " .. path)
+        end
+    end
+end
+
 local function smoke()
     local world = WorldGen.new(20260625)
     local app = { world = world, player = Player.new(0, 0), camera = Render.defaultCamera() }
@@ -474,6 +494,7 @@ local tests = {
     testRenderStats,
     testTerrainDiagnostics,
     testBadSeedDiagnostics,
+    testTerrainFirstScope,
 }
 
 local function hasCliFlag(args, flag)

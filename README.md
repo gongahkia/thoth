@@ -17,6 +17,8 @@ Hydrology uses cached chunk regions, a coarse cached basin pass, Priority-Flood-
 
 Sampled cells expose basin, watershed, ridge, and mountain-range ids for discovery labels and debug overlays.
 
+Tests include a terrain-first guard that rejects runtime ruins, lore, quests, collectibles, combat, or survival systems until landform generation is coherent.
+
 Runtime performance logging:
 
 ```sh

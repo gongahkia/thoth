@@ -1,9 +1,5 @@
 # TODO
 
-## Terrain
-
-- Keep terrain-first sequencing: no ruins, lore objects, quests, or collectibles until landforms are coherent.
-
 ## Exploration
 
 - Add named terrain discovery: mountain ranges, watersheds, basins, coasts, ridges, passes, rain shadows.
