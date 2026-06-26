@@ -2,7 +2,6 @@
 
 ## Rendering
 
-- Delay major visual polish until hydrology and erosion outputs are stable enough to inspect.
 - Add optional debug topographic map outside the default runtime view.
 - Add screenshot/export command for generated maps and seed metadata.
 - Add debug panels for plate vectors, drainage arrows, erosion deltas, and biome classifier inputs.
