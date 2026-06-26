@@ -2,6 +2,7 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 
 local Player = require("src.player")
 local Render = require("src.render")
+local Survey = require("src.survey")
 local WorldGen = require("src.worldgen")
 
 local app
@@ -228,6 +229,7 @@ function love.load(args)
     app = {
         world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625)), runtimeWorldOptions(args)),
         worldOptions = runtimeWorldOptions(args),
+        survey = Survey.new(),
         player = Player.new(0, 0),
         camera = Render.defaultCamera(),
         paused = false,
@@ -332,8 +334,13 @@ function love.keypressed(key)
         app.debugPerf = not app.debugPerf
         print("[perf] debug=" .. tostring(app.debugPerf))
     end
+    if key == "m" then
+        Survey.mark(app.survey, app.world, app.player.x, app.player.y, "local")
+        print("[survey] cells=" .. tostring(app.survey.cellCount) .. " discoveries=" .. tostring(app.survey.discoveryCount))
+    end
     if key == "r" then
         app.world = WorldGen.new(os.time() % 1000000, app.worldOptions)
+        app.survey = Survey.new()
         app.player.x, app.player.y = 0, 0
         app.perf.preloadMsThisFrame = 0
         preloadApp(app, "seed_reset")

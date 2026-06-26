@@ -382,11 +382,12 @@ local function drawHud(app, width, height, stats)
     love.graphics.print("pos " .. math.floor(app.player.x) .. ", " .. math.floor(app.player.y) .. "  biome " .. tostring(cell.biome), 24, 66)
     love.graphics.print("elev " .. fmt(cell.elevation) .. " slope " .. fmt(cell.slope) .. " erosion " .. fmt(cell.erosion), 24, 88)
     love.graphics.print("rain " .. fmt(cell.rainfall) .. " flow " .. fmt(cell.flow) .. " river " .. tostring(cell.river), 24, 110)
-    love.graphics.print("mesh " .. tostring(stats.visibleTiles) .. " tiles / " .. tostring(stats.triangles) .. " tris / rivers " .. tostring(stats.riverStrips or 0) .. " / marks " .. tostring(stats.landmarks or 0), 24, 132)
+    local survey = app.survey or {}
+    love.graphics.print("mesh " .. tostring(stats.visibleTiles) .. " tiles / " .. tostring(stats.triangles) .. " tris / rivers " .. tostring(stats.riverStrips or 0) .. " / survey " .. tostring(survey.cellCount or 0) .. ":" .. tostring(survey.discoveryCount or 0), 24, 132)
     love.graphics.setColor(0.02, 0.025, 0.03, 0.7)
-    love.graphics.rectangle("fill", width - 324, height - 52, 312, 34)
+    love.graphics.rectangle("fill", width - 356, height - 52, 344, 34)
     love.graphics.setColor(0.88, 0.9, 0.82, 1)
-    love.graphics.print("WASD walk  mouse/QE look  F mouse  R seed", width - 312, height - 42)
+    love.graphics.print("WASD walk  mouse/QE look  F mouse  M mark  R seed", width - 344, height - 42)
 end
 
 function Render.draw(app)

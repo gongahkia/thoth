@@ -2,6 +2,7 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 
 local Player = require("src.player")
 local Render = require("src.render")
+local Survey = require("src.survey")
 local WorldGen = require("src.worldgen")
 local Diagnostics = require("src.diagnostics")
 
@@ -274,6 +275,20 @@ local function testNamedTerrainDiscoveries()
     end
 end
 
+local function testSurveyHistory()
+    local world = WorldGen.new(99)
+    local history = Survey.new()
+    Survey.mark(history, world, -64, -64, "local")
+    local cellsAfterFirst = history.cellCount
+    local discoveriesAfterFirst = history.discoveryCount
+    expect(cellsAfterFirst == 1, "survey should mark sampled terrain cells")
+    expect(discoveriesAfterFirst > 0, "survey should record terrain discoveries")
+    Survey.mark(history, world, -64, -64, "local")
+    expect(history.cellCount == cellsAfterFirst and history.discoveryCount == discoveriesAfterFirst, "survey should dedupe repeated marks")
+    Survey.mark(history, world, -16, 16, "local")
+    expect(history.cellCount > cellsAfterFirst and history.discoveryCount >= discoveriesAfterFirst, "survey should grow when marking new cells")
+end
+
 local function testBasinHydrologyBudget()
     local world = WorldGen.new(20260625, basinWorldOptions)
     world:chunk(0, 0, "local")
@@ -437,6 +452,7 @@ local function testTerrainFirstScope()
         "src/hydrology.lua",
         "src/player.lua",
         "src/render.lua",
+        "src/survey.lua",
         "src/worldgen.lua",
     }
     local forbidden = { "ruin", "lore", "quest", "collectible", "combat", "survival" }
@@ -507,6 +523,7 @@ local tests = {
     testTectonicFeatures,
     testDiscoveryOverlayIds,
     testNamedTerrainDiscoveries,
+    testSurveyHistory,
     testBasinHydrologyBudget,
     testBasinChannelsSpanDetailRegions,
     testBiomes,
