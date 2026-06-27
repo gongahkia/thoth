@@ -93,6 +93,11 @@ local function encodeCell(cell)
         round(cell.glacialDelta),
         round(cell.glacialErosion),
         tostring(cell.glaciated),
+        tostring(cell.coastCliff),
+        tostring(cell.coastBeach),
+        round(cell.coastExposure),
+        round(cell.coastErosion),
+        round(cell.coastDeposition),
     }, "|")
 end
 
@@ -680,6 +685,22 @@ local function testGlacialFeatures()
     expect(glaciated > 0 and eroded > glaciated and inspected == chunk.size * chunk.size, "glacial pass should widen beyond primary ice cells")
 end
 
+local function testCoastlines()
+    local totals = { cliffs = 0, beaches = 0 }
+    for _, seed in ipairs({ 1, 6, 7, 30 }) do
+        local world = WorldGen.new(seed)
+        for cy = -1, 1 do
+            for cx = -1, 1 do
+                local stats = world:hydrologyStats(cx, cy, "local")
+                totals.cliffs = totals.cliffs + (stats.coastCliffs or 0)
+                totals.beaches = totals.beaches + (stats.coastBeaches or 0)
+            end
+        end
+    end
+    expect(totals.cliffs > 0, "coastline pass should expose windward cliffs")
+    expect(totals.beaches > 0, "coastline pass should expose sheltered beaches")
+end
+
 local function testPlayer()
     local world = testWorld(88)
     local player = Player.new(0, 0)
@@ -924,6 +945,8 @@ local function smoke()
     print("deltas=" .. localStats.deltas)
     print("sediment_cells=" .. localStats.sedimentCells)
     print("glaciated_cells=" .. localStats.glaciatedCells)
+    print("coast_cliffs=" .. localStats.coastCliffs)
+    print("coast_beaches=" .. localStats.coastBeaches)
     print("seam_mismatches=" .. localStats.seamMismatches)
     print("uphill_rejects=" .. localStats.uphillRejects)
     print("max_flow=" .. string.format("%.3f", localStats.maxFlow))
@@ -969,6 +992,7 @@ local tests = {
     testWhittakerBins,
     testWhittakerDiagnostics,
     testGlacialFeatures,
+    testCoastlines,
     testPlayer,
     testHeightInterpolationAndNormal,
     testBillboards,

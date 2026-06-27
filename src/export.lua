@@ -18,6 +18,8 @@ local function colorFor(cell, palette)
     if cell.river then return palette.river end
     if cell.water then return cell.lake and palette.lake or palette.ocean end
     local base = palette[cell.biome] or palette.grassland
+    if cell.coastBeach then base = { 0.76, 0.68, 0.42 } end
+    if cell.coastCliff then base = { 0.34, 0.33, 0.32 } end
     local t = clamp(((cell.elevation or 0) + 0.12) / 0.86, 0, 1)
     return {
         mix(base[1] * 0.72, base[1] * 1.18, t),

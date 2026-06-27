@@ -1,5 +1,6 @@
 local Erosion = require("src.erosion")
 local Climate = require("src.climate")
+local Coast = require("src.coast")
 
 local Hydrology = {}
 
@@ -604,6 +605,8 @@ local function solveRegion(world, chunkX, chunkY, info)
         end
     end
 
+    region.coast = Coast.apply(region, { seaLevel = world.seaLevel })
+
     for _, cell in ipairs(visitOrder) do
         if cell.river then
             for _, offset in ipairs(neighbors) do
@@ -637,6 +640,8 @@ local function solveRegion(world, chunkX, chunkY, info)
         deltas = 0,
         sedimentCells = 0,
         glaciatedCells = 0,
+        coastCliffs = 0,
+        coastBeaches = 0,
         maxSediment = 0,
         maxFlow = 0,
     }
@@ -660,6 +665,8 @@ local function solveRegion(world, chunkX, chunkY, info)
             if cell.delta then stats.deltas = stats.deltas + 1 end
             if (cell.sediment or 0) > 0 then stats.sedimentCells = stats.sedimentCells + 1 end
             if cell.glaciated then stats.glaciatedCells = stats.glaciatedCells + 1 end
+            if cell.coastCliff then stats.coastCliffs = stats.coastCliffs + 1 end
+            if cell.coastBeach then stats.coastBeaches = stats.coastBeaches + 1 end
             if (cell.sediment or 0) > stats.maxSediment then stats.maxSediment = cell.sediment or 0 end
             if not cell.downCell and not cell.water then stats.endorheic = stats.endorheic + 1 end
             if cell.downCell and cell.filledElevation + 0.000001 < cell.downCell.filledElevation then stats.uphillRejects = stats.uphillRejects + 1 end

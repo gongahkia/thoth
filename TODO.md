@@ -69,34 +69,6 @@ These bring the world closer to actual landscape evolution physics. They are the
 
 ---
 
-### T-015 — Coastal wave erosion + beach deposition         [tier 2] [med]
-
-GOAL: At the land-water boundary, cells experience a wave-power pass: high-wave-exposure cliffs steepen, sheltered cells accumulate beach sediment.
-
-WHY: Coasts today are just `elevation <= seaLevel` cliffs. No beaches, no sea cliffs, no headlands/bays differentiation.
-
-WHERE:
-- New `src/coast.lua`, or extend `src/erosion.lua`.
-- `src/worldgen.lua` biome rules — extend `coast` biome with cliff/beach sub-tags.
-
-DEPENDS ON: T-010 (stable elevation field), T-012 (wind direction available — drives wave direction).
-
-ACCEPTANCE:
-- Cells flagged `coastCliff` or `coastBeach`.
-- Visual: windward shores have steep cliffs; leeward shores have flatter beaches with sediment.
-- Render colors differ for cliff vs beach (palette extension).
-- `testCoastlines` asserts both cliff and beach cells exist across a 4-seed sweep.
-
-NOTES / IMPL HINTS:
-- Wave exposure = `dot(windDirection, coastNormal)`. Where `coastNormal` is the outward normal at the land-water edge.
-- High exposure → erode (lower `elevation` near edge); low exposure → deposit (add sediment thickness).
-- This is qualitative, not geophysics-rigorous. That's fine.
-
-REFERENCES: none specific; geomorphology textbook chapter on coastal processes suffices. The Visually Improved Erosion paper covers tile-based coastline tactics:
-- [Visually Improved Erosion Algorithm — arXiv 2210.14496](https://arxiv.org/pdf/2210.14496)
-
----
-
 ### T-016 — Aeolian erosion (dunes) in arid biomes         [tier 2] [low]
 
 GOAL: A pass on `desert` biome cells that builds dune patterns from wind direction and noise.

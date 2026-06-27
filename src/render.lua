@@ -27,6 +27,8 @@ local landformColors = {
     alluvial = { 0.58, 0.49, 0.31 },
     floodplain = { 0.2, 0.42, 0.22 },
     delta = { 0.42, 0.48, 0.28 },
+    coastBeach = { 0.76, 0.68, 0.42 },
+    coastCliff = { 0.34, 0.33, 0.32 },
     rift = { 0.38, 0.28, 0.22 },
     islandArc = { 0.45, 0.39, 0.34 },
     shield = { 0.24, 0.34, 0.27 },
@@ -73,6 +75,8 @@ local function baseColor(cell)
     if (cell.riftValley or 0) > 0.08 then color = mixColor(color, landformColors.rift, 0.4) end
     if (cell.volcanicIslandArc or 0) > 0.04 then color = mixColor(color, landformColors.islandArc, 0.38) end
     if cell.delta then color = mixColor(color, landformColors.delta, 0.55) end
+    if cell.coastBeach then color = mixColor(color, landformColors.coastBeach, 0.68) end
+    if cell.coastCliff then color = mixColor(color, landformColors.coastCliff, 0.6) end
     if cell.floodplain then color = mixColor(color, landformColors.floodplain, 0.5) end
     if cell.alluvialFan then color = mixColor(color, landformColors.alluvial, 0.45) end
     if cell.talus then color = mixColor(color, landformColors.talus, 0.38) end
