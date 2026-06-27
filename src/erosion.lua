@@ -25,6 +25,12 @@ local function upliftFor(cell, mode)
     return uplift * 0.00018 + uplift * boundary * 0.00022
 end
 
+local function sedimentCapacity(cell, options)
+    local flow = math.max(1, cell.flow or 1)
+    local slope = math.max(0.0001, cell.streamPowerSlope or 0)
+    return (options.sedimentCapacity or 0.18) * flow * slope
+end
+
 function Erosion.relax(region, options)
     options = options or {}
     local iterations = options.iterations
@@ -91,12 +97,49 @@ function Erosion.relax(region, options)
         if erosion > maxErosion then maxErosion = erosion end
     end
 
+    local sedimentSum, maxSediment = 0, 0
+    local sedimentYield = options.sedimentYield or 1.0
+    local depositionG = options.G or 1.2
+    local transfer = options.sedimentTransfer or 0.985
+    local maxDeposit = options.maxDeposit or 0.06
+    for _, cell in ipairs(order) do
+        cell.sediment = 0
+        cell.sedimentFlux = 0
+        cell.sedimentCapacity = 0
+    end
+    for index = #order, 1, -1 do
+        local cell = order[index]
+        if not cell.water then
+            local flow = math.max(1, cell.flow or 1)
+            local source = (cell.streamPowerErosion or 0) * flow * sedimentYield
+            local flux = (cell.sedimentFlux or 0) + source
+            local capacity = sedimentCapacity(cell, options)
+            local deposit = 0
+            if flux > capacity then
+                local excess = flux - capacity
+                deposit = math.min(excess, depositionG * flux / flow)
+                deposit = math.min(deposit, maxDeposit)
+                flux = flux - deposit
+            end
+            cell.sediment = deposit
+            cell.sedimentFlux = flux
+            cell.sedimentCapacity = capacity
+            sedimentSum = sedimentSum + deposit
+            if deposit > maxSediment then maxSediment = deposit end
+            if cell.downCell then
+                cell.downCell.sedimentFlux = (cell.downCell.sedimentFlux or 0) + flux * transfer
+            end
+        end
+    end
+
     return {
         iterations = iterations,
         maxDelta = maxDelta,
         meanErosion = erosionSum / math.max(1, #order),
         meanUplift = upliftSum / math.max(1, #order),
         maxErosion = maxErosion,
+        meanSediment = sedimentSum / math.max(1, #order),
+        maxSediment = maxSediment,
     }
 end
 

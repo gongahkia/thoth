@@ -69,33 +69,6 @@ These bring the world closer to actual landscape evolution physics. They are the
 
 ---
 
-### T-011 — Sediment-aware deposition (Yuan-Braun-Guerit-Rouby-Cordonnier 2019)         [tier 2] [high]
-
-GOAL: Erosion solver advects a sediment field; rivers deposit when transport capacity is exceeded, building floodplains and alluvial fans from physics, not thresholds.
-
-WHY: `hydrology.lua:498–504` paints `floodplain` / `alluvialFan` / `delta` from threshold checks on flow+slope. That's labeling, not deposition. Real floodplains form where stream-power drops below sediment carrying capacity.
-
-WHERE:
-- `src/erosion.lua` (from T-010), add `sediment` field per cell.
-- `src/hydrology.lua:472–504` — replace threshold-tag landform code with sediment-thickness-derived tags.
-
-DEPENDS ON: T-010.
-
-ACCEPTANCE:
-- Each basin cell tracks `sediment` (>=0); erosion adds, deposition removes.
-- `floodplain`/`alluvialFan`/`delta` flags derived from `sediment > threshold` *and* topographic context (slope, distance to channel).
-- Visual: alluvial fans appear at break-of-slope below mountains; floodplains widen downstream; deltas grow where rivers hit standing water.
-- `testErosionLandforms` updated assertions (still must produce >0 of each type).
-
-NOTES / IMPL HINTS:
-- Yuan et al. 2019 formula: deposition rate ∝ G·Q_s / Q (where Q is water discharge, Q_s is sediment flux, G is dimensionless deposition coefficient). When solver finds Q_s > capacity, dump excess as sediment.
-
-REFERENCES:
-- [Yuan, Braun, Guerit, Rouby, Cordonnier 2019 (JGR)](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2018JF004867)
-- [HAL preprint](https://hal.science/hal-02136641)
-
----
-
 ### T-012 — Orographic precipitation (Smith-Barstad linear theory, lite)         [tier 2] [high]
 
 GOAL: Rainfall on the coarse basin grid is computed from a wind field and the terrain's windward/leeward orientation. Replaces current latitude+noise rainfall.

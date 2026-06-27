@@ -57,6 +57,7 @@ local function workerKey(message)
         options.streamPowerN or "",
         keyValue(options.streamPowerUplift),
         options.streamPowerDetailScale or "",
+        options.streamPowerSedimentScale or "",
         options.cacheMaxEntries or "",
     }, "|")
 end

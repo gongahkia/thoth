@@ -276,11 +276,14 @@ local function solveBasin(world, chunkX, chunkY, info)
     local streamPowerSamples = world.streamPowerSamples
     if streamPowerSamples then
         for _, cell in ipairs(visitOrder) do
-            streamPowerSamples[streamPowerKey(info, cell.gx, cell.gy)] = cell.streamPowerDelta or 0
+            streamPowerSamples[streamPowerKey(info, cell.gx, cell.gy)] = {
+                delta = cell.streamPowerDelta or 0,
+                sediment = cell.sediment or 0,
+            }
         end
     end
 
-    local stats = { rivers = 0, basins = 0, maxFlow = 0, streamPowerMaxDelta = region.erosion.maxDelta or 0, streamPowerMeanErosion = region.erosion.meanErosion or 0 }
+    local stats = { rivers = 0, basins = 0, maxFlow = 0, streamPowerMaxDelta = region.erosion.maxDelta or 0, streamPowerMeanErosion = region.erosion.meanErosion or 0, maxSediment = region.erosion.maxSediment or 0 }
     local basinIds = {}
     for _, cell in ipairs(visitOrder) do
         local root = terminal(cell)
@@ -526,17 +529,19 @@ local function solveRegion(world, chunkX, chunkY, info)
         cell.thermalErosion = clamp((cell.slope - 0.24) * 0.12, 0, 0.07)
         local hydraulicErosion = clamp(flowPower * cell.slope * 0.035, 0, 0.22)
         cell.erosion = clamp(hydraulicErosion + cell.thermalErosion, 0, 0.24)
-        local lowSlope = cell.slope < 0.024
         cell.water = ocean or cell.lake
         local macroRiver = cell.macroChannelWeight and cell.macroChannelWeight > 0.35
         cell.river = not cell.water and cell.downCell ~= nil and (cell.flow > threshold or macroRiver)
         cell.talus = not cell.water and cell.thermalErosion > 0.006 and cell.elevationBase > world.seaLevel + 0.04
-        cell.alluvialFan = not cell.water and cell.flow > threshold * 0.45 and cell.slope >= 0.04 and cell.slope < 0.16 and cell.elevationBase > world.seaLevel + 0.035
-        cell.floodplain = not cell.water and cell.flow > threshold * 0.55 and cell.slope < 0.14 and cell.elevationBase > world.seaLevel + 0.01 and cell.elevationBase < 0.56
-        cell.deposition = 0
-        if cell.flow > threshold and lowSlope then cell.deposition = cell.deposition + 0.014 end
-        if cell.alluvialFan then cell.deposition = cell.deposition + 0.012 end
-        if cell.floodplain then cell.deposition = cell.deposition + 0.016 end
+        local sediment = cell.sediment or 0
+        local sedimentThreshold = 0.002
+        local channelContext = cell.flow > threshold * 0.35 or (cell.macroChannelWeight or 0) > 0.12
+        local mountainContext = cell.mountainRangeId or (cell.uplift or 0) > 0.1 or (cell.plateBoundary or 0) > 0.35
+        cell.alluvialFan = not cell.water and sediment > sedimentThreshold * 2 and channelContext and mountainContext and cell.slope >= 0.04 and cell.slope < 0.12 and cell.elevationBase > world.seaLevel + 0.035 and cell.elevationBase < 0.5
+        cell.floodplain = not cell.water and sediment > sedimentThreshold * 0.8 and channelContext and cell.slope < 0.14 and cell.elevationBase > world.seaLevel + 0.01 and cell.elevationBase < 0.56
+        cell.deposition = sediment
+        if cell.alluvialFan then cell.deposition = cell.deposition + sediment * 0.5 end
+        if cell.floodplain then cell.deposition = cell.deposition + sediment * 0.75 end
     end
 
     local lakeGroups = labelLakeGroups(region, visitOrder, info)
@@ -545,8 +550,8 @@ local function solveRegion(world, chunkX, chunkY, info)
         local outlet = group.outlet
         if outlet and not outlet.water and (group.maxFlow or 0) > threshold * 0.28 then
             outlet.river = true
-            outlet.floodplain = outlet.floodplain or ((outlet.slope or 0) < 0.16)
-            outlet.deposition = math.max(outlet.deposition or 0, 0.02)
+            outlet.floodplain = outlet.floodplain or ((outlet.sediment or 0) > 0.0016 and (outlet.slope or 0) < 0.16)
+            outlet.deposition = math.max(outlet.deposition or 0, outlet.sediment or 0)
         end
     end
 
@@ -565,10 +570,10 @@ local function solveRegion(world, chunkX, chunkY, info)
                     end
                 end
             end
-            cell.delta = mouth and cell.flow > threshold * 0.35 and cell.slope < 0.18 and cell.elevationBase < waterLevel + 0.22
+            cell.delta = mouth and (cell.sediment or 0) > 0.0014 and cell.flow > threshold * 0.2 and cell.slope < 0.18 and cell.elevationBase < waterLevel + 0.22
             if cell.delta then
                 cell.floodplain = true
-                cell.deposition = math.max(cell.deposition, 0.03)
+                cell.deposition = math.max(cell.deposition, (cell.sediment or 0) * 1.8)
             end
         end
     end
@@ -614,6 +619,8 @@ local function solveRegion(world, chunkX, chunkY, info)
         alluvialFans = 0,
         floodplains = 0,
         deltas = 0,
+        sedimentCells = 0,
+        maxSediment = 0,
         maxFlow = 0,
     }
     local basins = {}
@@ -634,6 +641,8 @@ local function solveRegion(world, chunkX, chunkY, info)
             if cell.alluvialFan then stats.alluvialFans = stats.alluvialFans + 1 end
             if cell.floodplain then stats.floodplains = stats.floodplains + 1 end
             if cell.delta then stats.deltas = stats.deltas + 1 end
+            if (cell.sediment or 0) > 0 then stats.sedimentCells = stats.sedimentCells + 1 end
+            if (cell.sediment or 0) > stats.maxSediment then stats.maxSediment = cell.sediment or 0 end
             if not cell.downCell and not cell.water then stats.endorheic = stats.endorheic + 1 end
             if cell.downCell and cell.filledElevation + 0.000001 < cell.downCell.filledElevation then stats.uphillRejects = stats.uphillRejects + 1 end
             if cell.downCell and not region.cells[key(cell.downCell.gx, cell.downCell.gy)] then stats.seamMismatches = stats.seamMismatches + 1 end

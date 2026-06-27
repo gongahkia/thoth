@@ -202,15 +202,18 @@ local function option(value, fallback)
 end
 
 local function streamPowerSampleAt(store, scale, gx, gy)
-    return store[key(scale, gx, gy)]
+    local sample = store[key(scale, gx, gy)]
+    if sample == nil then return nil, nil end
+    if type(sample) == "table" then return sample.delta or 0, sample.sediment or 0 end
+    return sample, 0
 end
 
-local function streamPowerDeltaAt(world, info, x, y)
-    if (world.streamPowerSampleDepth or 0) > 0 then return nil end
+local function streamPowerAt(world, info, x, y)
+    if (world.streamPowerSampleDepth or 0) > 0 then return nil, nil end
     local store = world.streamPowerSamples
-    if not store then return nil end
+    if not store then return nil, nil end
     local stride = math.max(1, world.hydrologyBasinStride or 1)
-    if stride <= 1 then return nil end
+    if stride <= 1 then return nil, nil end
     local scaleX = x / info.factor
     local scaleY = y / info.factor
     local bx = (scaleX - (stride - 1) * 0.5) / stride
@@ -219,14 +222,16 @@ local function streamPowerDeltaAt(world, info, x, y)
     local iy = math.floor(by)
     local tx = bx - ix
     local ty = by - iy
-    local d00 = streamPowerSampleAt(store, info.id, ix, iy)
-    local d10 = streamPowerSampleAt(store, info.id, ix + 1, iy)
-    local d01 = streamPowerSampleAt(store, info.id, ix, iy + 1)
-    local d11 = streamPowerSampleAt(store, info.id, ix + 1, iy + 1)
+    local d00, s00 = streamPowerSampleAt(store, info.id, ix, iy)
+    local d10, s10 = streamPowerSampleAt(store, info.id, ix + 1, iy)
+    local d01, s01 = streamPowerSampleAt(store, info.id, ix, iy + 1)
+    local d11, s11 = streamPowerSampleAt(store, info.id, ix + 1, iy + 1)
     if d00 and d10 and d01 and d11 then
         local dx0 = d00 + (d10 - d00) * tx
         local dx1 = d01 + (d11 - d01) * tx
-        return dx0 + (dx1 - dx0) * ty
+        local sx0 = s00 + (s10 - s00) * tx
+        local sx1 = s01 + (s11 - s01) * tx
+        return dx0 + (dx1 - dx0) * ty, sx0 + (sx1 - sx0) * ty
     end
     return streamPowerSampleAt(store, info.id, math.floor(bx + 0.5), math.floor(by + 0.5))
 end
@@ -294,6 +299,7 @@ function WorldGen.new(seed, options)
         streamPowerN = option(options.streamPowerN, 1.0),
         streamPowerUplift = option(options.streamPowerUplift, "plateBased"),
         streamPowerDetailScale = option(options.streamPowerDetailScale, 0.45),
+        streamPowerSedimentScale = option(options.streamPowerSedimentScale, 0.65),
         streamPowerSamples = {},
         cacheMaxEntries = maxEntries,
         cacheLimits = limits,
@@ -404,6 +410,7 @@ function WorldGen:metadata()
         streamPowerN = self.streamPowerN,
         streamPowerUplift = self.streamPowerUplift,
         streamPowerDetailScale = self.streamPowerDetailScale,
+        streamPowerSedimentScale = self.streamPowerSedimentScale,
         cacheMaxEntries = self.cacheMaxEntries,
         cacheLimits = self.cacheLimits,
         plateCacheEntries = self.plateCacheEntries,
@@ -592,8 +599,10 @@ function WorldGen:baseSample(x, y, scale)
     end
     local roughContribution = (rough - 0.5) * 0.24 * (1 - stableDamping)
     local elevation = continentalBias + (continent - 0.5) * 0.72 + roughContribution + uplift + subductionUplift + islandArc * 0.36 - riftValley * 0.26 - trench
-    local streamPowerDelta = (streamPowerDeltaAt(self, info, x, y) or 0) * (self.streamPowerDetailScale or 0.45)
-    elevation = elevation + streamPowerDelta
+    local rawStreamPowerDelta, rawSediment = streamPowerAt(self, info, x, y)
+    local streamPowerDelta = (rawStreamPowerDelta or 0) * (self.streamPowerDetailScale or 0.45)
+    local sediment = (rawSediment or 0) * (self.streamPowerSedimentScale or 0.65)
+    elevation = elevation + streamPowerDelta + sediment
     local latitude = 0.5 + 0.5 * math.sin(y * 0.00045 + self.seed * 0.0001)
     local temperature = clamp(1 - math.abs(latitude * 2 - 1) * 1.1 - math.max(0, elevation) * 0.42 + (Noise.fbm(self.seed + 404, x, y, { frequency = 0.002, octaves = 3 }) - 0.5) * 0.18, 0, 1)
     local moistureNoise = Noise.fbm(self.seed + 505, x, y, { frequency = 0.0022, octaves = 4 })
@@ -612,6 +621,7 @@ function WorldGen:baseSample(x, y, scale)
         streamPowerDelta = streamPowerDelta,
         streamPowerErosion = math.max(0, -streamPowerDelta),
         streamPowerUplift = math.max(0, streamPowerDelta),
+        sediment = sediment,
         water = water,
         plateId = plate.id,
         secondaryPlateId = plate.secondaryId,
@@ -687,6 +697,7 @@ function WorldGen:pendingSample(x, y, info)
         slope = 0,
         flow = 0,
         erosion = 0,
+        sediment = 0,
         deposition = 0,
         thermalErosion = 0,
         talus = false,
