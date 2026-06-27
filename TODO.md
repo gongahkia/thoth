@@ -75,34 +75,6 @@ These convert the current "low-poly muted realism" look into something closer to
 
 ---
 
-### T-020 — Palette quantization post-process         [tier 3] [med]
-
-GOAL: A fragment shader applied on Canvas present quantizes scene colors to a small palette (16–32 colors). Per-region palette LUT enables Proteus-style mood shifts.
-
-WHY: Proteus's color grading is unmistakable — a curated narrow palette per season/region. You currently have a 15-color biome palette but full RGB lighting interpolation between them, so the screen has thousands of colors.
-
-WHERE:
-- New shader file or inline GLSL in `src/postfx.lua`.
-- Applied between Canvas-render and window-present.
-
-DEPENDS ON: T-018.
-
-ACCEPTANCE:
-- A 1D palette texture (e.g. 32×1 RGB) bound as shader uniform.
-- Fragment shader picks nearest palette color (`min ||rgb - palette[i]||`).
-- Visible color banding; chunkier feel.
-- Palette swappable at runtime — different palette per scope (local/region/continent) or per season (see T-022).
-
-NOTES / IMPL HINTS:
-- Naive nearest-color is O(palette_size) per fragment. At 32-color palette × 800k fragments = 25M ops/frame — fine on any GPU.
-- For ordered dithering, multiply distance by a Bayer matrix value before nearest.
-
-REFERENCES:
-- [Angled pixelation with palette quantization & fog — Godot Shaders](https://godotshaders.com/shader/angled-pixelation-with-color-palette-quantization-and-fog/) — port-able GLSL.
-- [Creating pixel-art shader for Unity (palette technique)](https://tante.hashnode.dev/creating-a-lot-of-variations-of-your-pixelart-quickly)
-
----
-
 ### T-021 — Skybox dome + horizon haze         [tier 3] [low]
 
 GOAL: Replace the three flat-rectangle sky in `drawSky` with a gradient dome rendered via a full-screen shader (or two stacked stripes + a noise band).

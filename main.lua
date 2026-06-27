@@ -434,6 +434,7 @@ function love.draw()
         print("render-smoke-landmarks=" .. tostring(stats.landmarks))
         print("render-smoke-pixel-scale=" .. tostring(stats.pixelScale))
         print("render-smoke-lowres=" .. tostring(stats.lowResCanvasWidth) .. "x" .. tostring(stats.lowResCanvasHeight))
+        print("render-smoke-palette=" .. tostring(stats.paletteId) .. ":" .. tostring(stats.paletteSize))
         love.event.quit(0)
     end
     if app.walkSmoke and app.perf.frame >= app.walkSmokeFrames then
