@@ -4,6 +4,7 @@ local Hydrology = require("src.hydrology")
 local Climate = require("src.climate")
 local Lru = require("src.lru")
 local Biomes = require("src.biomes")
+local Aeolian = require("src.aeolian")
 
 local WorldGen = {}
 WorldGen.__index = WorldGen
@@ -645,6 +646,9 @@ function WorldGen:baseSample(x, y, scale)
         coastExposure = 0,
         coastErosion = 0,
         coastDeposition = 0,
+        duneDelta = 0,
+        duneAmplitude = 0,
+        dunePhase = 0,
         water = water,
         plateId = plate.id,
         secondaryPlateId = plate.secondaryId,
@@ -737,6 +741,9 @@ function WorldGen:pendingSample(x, y, info)
         coastExposure = 0,
         coastErosion = 0,
         coastDeposition = 0,
+        duneDelta = 0,
+        duneAmplitude = 0,
+        dunePhase = 0,
         deposition = 0,
         thermalErosion = 0,
         talus = false,
@@ -775,6 +782,7 @@ function WorldGen:chunk(chunkX, chunkY, scale)
             local gy = chunkY * size + y - 1
             local cell = copyCell(Hydrology.cell(region, gx, gy))
             cell.biome = classifyBiome(cell.elevation, cell.water, cell.river, cell.temperature, cell.moisture, cell.slope, cell.lake)
+            Aeolian.applyCell(cell, self.seed)
             rows[y][x] = cell
         end
     end

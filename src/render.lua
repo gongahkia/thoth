@@ -29,6 +29,8 @@ local landformColors = {
     delta = { 0.42, 0.48, 0.28 },
     coastBeach = { 0.76, 0.68, 0.42 },
     coastCliff = { 0.34, 0.33, 0.32 },
+    duneLight = { 0.82, 0.73, 0.43 },
+    duneShade = { 0.5, 0.42, 0.22 },
     rift = { 0.38, 0.28, 0.22 },
     islandArc = { 0.45, 0.39, 0.34 },
     shield = { 0.24, 0.34, 0.27 },
@@ -77,6 +79,7 @@ local function baseColor(cell)
     if cell.delta then color = mixColor(color, landformColors.delta, 0.55) end
     if cell.coastBeach then color = mixColor(color, landformColors.coastBeach, 0.68) end
     if cell.coastCliff then color = mixColor(color, landformColors.coastCliff, 0.6) end
+    if (cell.duneAmplitude or 0) > 0 then color = mixColor(color, (cell.duneDelta or 0) >= 0 and landformColors.duneLight or landformColors.duneShade, clamp((cell.duneAmplitude or 0) * 12, 0.18, 0.42)) end
     if cell.floodplain then color = mixColor(color, landformColors.floodplain, 0.5) end
     if cell.alluvialFan then color = mixColor(color, landformColors.alluvial, 0.45) end
     if cell.talus then color = mixColor(color, landformColors.talus, 0.38) end

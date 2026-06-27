@@ -14,6 +14,7 @@ local Benchmark = require("src.benchmark")
 local Erosion = require("src.erosion")
 local Climate = require("src.climate")
 local Biomes = require("src.biomes")
+local Aeolian = require("src.aeolian")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -98,6 +99,9 @@ local function encodeCell(cell)
         round(cell.coastExposure),
         round(cell.coastErosion),
         round(cell.coastDeposition),
+        round(cell.duneDelta),
+        round(cell.duneAmplitude),
+        round(cell.dunePhase),
     }, "|")
 end
 
@@ -701,6 +705,44 @@ local function testCoastlines()
     expect(totals.beaches > 0, "coastline pass should expose sheltered beaches")
 end
 
+local function testAeolianDunes()
+    local cell = {
+        x = 128,
+        y = -64,
+        elevation = 0.18,
+        elevationBase = 0.18,
+        slope = 0.02,
+        biome = "desert",
+        windX = 1,
+        windY = 0,
+    }
+    Aeolian.applyCell(cell, 20260625)
+    expect(cell.duneAmplitude > 0 and cell.duneAmplitude < 0.04, "aeolian pass should add bounded dune amplitude")
+    expect(math.abs(cell.elevation - cell.elevationBase) < 0.04, "aeolian dunes should keep elevation deltas small")
+    local repeatCell = {
+        x = 128,
+        y = -64,
+        elevation = 0.18,
+        elevationBase = 0.18,
+        slope = 0.02,
+        biome = "desert",
+        windX = 1,
+        windY = 0,
+    }
+    Aeolian.applyCell(repeatCell, 20260625)
+    expect(round(cell.duneDelta) == round(repeatCell.duneDelta), "aeolian dunes should be deterministic")
+
+    local world = WorldGen.new(20260625, { hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 0 })
+    local chunk = world:chunk(0, 0, "local")
+    local dunes = 0
+    for y = 1, chunk.size do
+        for x = 1, chunk.size do
+            if (chunk.cells[y][x].duneAmplitude or 0) > 0 then dunes = dunes + 1 end
+        end
+    end
+    expect(dunes > 0, "aeolian worldgen hook should mark desert dune cells")
+end
+
 local function testPlayer()
     local world = testWorld(88)
     local player = Player.new(0, 0)
@@ -993,6 +1035,7 @@ local tests = {
     testWhittakerDiagnostics,
     testGlacialFeatures,
     testCoastlines,
+    testAeolianDunes,
     testPlayer,
     testHeightInterpolationAndNormal,
     testBillboards,
