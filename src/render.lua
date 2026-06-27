@@ -495,16 +495,20 @@ local meshFormat = {
 
 local billboardAtlasSize = 32
 local billboardAtlasKinds = {
-    "tree",
-    "tree_trunk",
-    "peak",
-    "peak_facet",
-    "ridge",
-    "outcrop",
+    "tree_deciduous",
+    "tree_conifer",
+    "tree_dead",
+    "shrub",
     "reed",
     "rock",
-    "shrub",
-    "snow",
+    "outcrop",
+    "peak",
+    "ridge",
+    "snow_tuft",
+}
+local billboardAtlasAliases = {
+    snow = "snow_tuft",
+    tree = "tree_deciduous",
 }
 
 local function terrainShader(app)
@@ -516,42 +520,25 @@ local function terrainShader(app)
     return app.shaders.terrain
 end
 
-local function drawAtlasShape(kind, x, size)
-    if kind == "peak" then
-        love.graphics.polygon("fill", x + size * 0.5, 1, x + size * 0.08, size - 1, x + size * 0.92, size - 1)
-    elseif kind == "peak_facet" then
-        love.graphics.polygon("fill", x + size * 0.5, 1, x + size * 0.68, size * 0.62, x + size * 0.92, size - 1)
-    elseif kind == "ridge" then
-        love.graphics.polygon("fill", x + 1, size - 1, x + size * 0.36, 1, x + size - 1, size * 0.82, x + size * 0.72, size - 1)
-    elseif kind == "outcrop" then
-        love.graphics.polygon("fill", x + 1, size - 1, x + size * 0.28, 1, x + size * 0.94, size * 0.78, x + size - 1, size - 1)
-    elseif kind == "reed" then
-        love.graphics.rectangle("fill", x + size * 0.38, 0, size * 0.24, size)
-    elseif kind == "tree_trunk" then
-        love.graphics.rectangle("fill", x + size * 0.32, 0, size * 0.36, size)
-    else
-        love.graphics.rectangle("fill", x, 0, size, size)
-    end
+function Render.billboardAtlasKinds()
+    local out = {}
+    for index, kind in ipairs(billboardAtlasKinds) do out[index] = kind end
+    return out
+end
+
+function Render.billboardAtlasKindFor(kind)
+    return billboardAtlasAliases[kind] or kind
 end
 
 local function createBillboardAtlas()
-    local size = billboardAtlasSize
-    local canvas = love.graphics.newCanvas(size * #billboardAtlasKinds, size)
-    love.graphics.push("all")
-    love.graphics.setCanvas(canvas)
-    love.graphics.clear(0, 0, 0, 0)
-    love.graphics.setColor(1, 1, 1, 1)
-    for index, kind in ipairs(billboardAtlasKinds) do
-        drawAtlasShape(kind, (index - 1) * size, size)
-    end
-    love.graphics.pop()
-    canvas:setFilter("nearest", "nearest")
-    local width, height = canvas:getDimensions()
+    local image = love.graphics.newImage("assets/billboards.png")
+    image:setFilter("nearest", "nearest")
+    local width, height = image:getDimensions()
     local quads = {}
     for index, kind in ipairs(billboardAtlasKinds) do
-        quads[kind] = love.graphics.newQuad((index - 1) * size, 0, size, size, width, height)
+        quads[kind] = love.graphics.newQuad((index - 1) * billboardAtlasSize, 0, billboardAtlasSize, billboardAtlasSize, width, height)
     end
-    return canvas, quads
+    return image, quads
 end
 
 local function billboardResources(app, requiredSprites)
@@ -613,14 +600,8 @@ local function drawBillboards(app, list)
         local h = item.baseY - item.topY
         if h > 0 then
             batch:setColor(c[1], c[2], c[3], 1)
-            batch:add(quads[item.kind] or quads.shrub, item.x - item.w * 0.5, item.topY, 0, item.w / billboardAtlasSize, h / billboardAtlasSize)
-            if item.kind == "peak" then
-                batch:setColor(c[1] * 1.12, c[2] * 1.12, c[3] * 1.12, 1)
-                batch:add(quads.peak_facet, item.x - item.w * 0.5, item.topY, 0, item.w / billboardAtlasSize, h / billboardAtlasSize)
-            elseif item.kind == "tree" then
-                batch:setColor(c[1] * 0.6, c[2] * 0.6, c[3] * 0.6, 1)
-                batch:add(quads.tree_trunk, item.x - item.w * 0.12, item.baseY - h * 0.38, 0, item.w * 0.24 / billboardAtlasSize, h * 0.38 / billboardAtlasSize)
-            end
+            local atlasKind = Render.billboardAtlasKindFor(item.kind)
+            batch:add(quads[atlasKind] or quads.shrub, item.x - item.w * 0.5, item.topY, 0, item.w / billboardAtlasSize, h / billboardAtlasSize)
         end
     end
     batch:setColor(1, 1, 1, 1)

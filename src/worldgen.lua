@@ -40,11 +40,13 @@ local biomeIds = {
 }
 
 local billboardKinds = {
-    tree = true,
+    tree_deciduous = true,
+    tree_conifer = true,
+    tree_dead = true,
     reed = true,
     rock = true,
     shrub = true,
-    snow = true,
+    snow_tuft = true,
     peak = true,
     ridge = true,
     outcrop = true,
@@ -1025,7 +1027,13 @@ local function billboardSpecFor(seed, cell)
     elseif cell.elevation > 0.08 and cell.slope > 0.12 and chance < 0.07 then
         kind, width, height, color = "outcrop", 1.4, 1.4, { 0.34, 0.33, 0.29 }
     elseif (cell.biome == "temperate_forest" or cell.biome == "rainforest" or cell.biome == "boreal_forest") and cell.slope < 0.18 and chance < 0.18 then
-        kind, width, height, color = "tree", 1.3, 3.4, { 0.08, 0.26, 0.12 }
+        if cell.biome == "boreal_forest" then
+            kind, width, height, color = "tree_conifer", 1.2, 3.5, { 0.09, 0.26, 0.18 }
+        else
+            kind, width, height, color = "tree_deciduous", 1.4, 3.2, { 0.08, 0.28, 0.12 }
+        end
+    elseif (cell.biome == "grassland" or cell.biome == "savanna") and (cell.rainfall or 0) < 0.34 and chance < 0.035 then
+        kind, width, height, color = "tree_dead", 1.0, 2.6, { 0.42, 0.35, 0.25 }
     elseif cell.biome == "wetland" and chance < 0.16 then
         kind, width, height, color = "reed", 0.7, 1.8, { 0.28, 0.34, 0.16 }
     elseif (cell.biome == "rock" or cell.biome == "alpine") and chance < 0.12 then
@@ -1033,7 +1041,7 @@ local function billboardSpecFor(seed, cell)
     elseif cell.biome == "desert" and chance < 0.1 then
         kind, width, height, color = "shrub", 0.9, 1.2, { 0.34, 0.28, 0.12 }
     elseif cell.biome == "snow" and chance < 0.08 then
-        kind, width, height, color = "snow", 0.9, 1.1, { 0.86, 0.88, 0.82 }
+        kind, width, height, color = "snow_tuft", 0.9, 1.1, { 0.86, 0.88, 0.82 }
     else
         return nil
     end

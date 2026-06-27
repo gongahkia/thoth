@@ -75,33 +75,6 @@ These convert the current "low-poly muted realism" look into something closer to
 
 ---
 
-### T-019 — 2D sprite atlas for flora and fauna         [tier 3] [med]
-
-GOAL: Trees, shrubs, peaks, reeds, etc. are real pixel-art sprites in a single atlas image, drawn via SpriteBatch (see T-003) instead of polygonal primitives.
-
-WHY: Proteus is built on 2D sprite vegetation contrasted with 3D terrain. Your current vector polygons (`render.lua:391–406`) read as low-poly debug shapes, not pixel-art flora.
-
-WHERE:
-- New `assets/billboards.png` — texture atlas.
-- `src/render.lua:309–407` — billboard pipeline.
-- `src/worldgen.lua:566–601` (`billboardSpecFor`) — `kind` already returns the right enum; render side maps to atlas quad.
-
-DEPENDS ON: T-003 (SpriteBatch), T-018 (low-res Canvas — sprites must look right at the target pixel scale).
-
-ACCEPTANCE:
-- Atlas exists with at minimum: tree (deciduous + conifer + dead variant), shrub, reed, rock, outcrop, peak, snow-tuft. 32×32 or 64×64 cells.
-- Each `billboard.kind` maps to a quad in the atlas.
-- Sprites are billboarded (always face camera; rotate only around z-axis if at all).
-- Tinting per-instance still works (via `SpriteBatch:setColor` before each `add`).
-
-NOTES / IMPL HINTS:
-- Don't draw sprites yourself; this is asset work. Either commission/source CC0 sprites, or generate them programmatically once (a `tools/make-billboards.lua` script that draws to a Canvas, saves PNG, then is never run again).
-- If you can't commit a binary, document the procedural generation script and check it in instead of the PNG.
-
-REFERENCES: same as T-003.
-
----
-
 ### T-020 — Palette quantization post-process         [tier 3] [med]
 
 GOAL: A fragment shader applied on Canvas present quantizes scene colors to a small palette (16–32 colors). Per-region palette LUT enables Proteus-style mood shifts.

@@ -847,6 +847,29 @@ local function encodeBillboards(list)
     return table.concat(parts, "|")
 end
 
+local function pngDimensions(path)
+    local file = assert(io.open(path, "rb"))
+    local header = file:read(24)
+    file:close()
+    expect(header and string.sub(header, 1, 8) == "\137PNG\r\n\26\n", "atlas should be a PNG")
+    local b = { string.byte(header, 17, 24) }
+    return b[1] * 16777216 + b[2] * 65536 + b[3] * 256 + b[4], b[5] * 16777216 + b[6] * 65536 + b[7] * 256 + b[8]
+end
+
+local function testBillboardAtlas()
+    local kinds = Render.billboardAtlasKinds()
+    local width, height = pngDimensions("assets/billboards.png")
+    expect(width == #kinds * 32 and height == 32, "billboard atlas should have one 32px cell per kind")
+    local atlas = {}
+    for _, kind in ipairs(kinds) do atlas[kind] = true end
+    for _, kind in ipairs({ "tree_deciduous", "tree_conifer", "tree_dead", "shrub", "reed", "rock", "outcrop", "peak", "snow_tuft" }) do
+        expect(atlas[kind], "billboard atlas missing " .. kind)
+    end
+    for _, kind in ipairs(WorldGen.billboardKinds()) do
+        expect(atlas[Render.billboardAtlasKindFor(kind)], "billboard kind missing atlas quad " .. kind)
+    end
+end
+
 local function testBillboards()
     local a = testWorld(717)
     local b = testWorld(717)
@@ -1118,6 +1141,7 @@ local tests = {
     testAeolianDunes,
     testPlayer,
     testHeightInterpolationAndNormal,
+    testBillboardAtlas,
     testBillboards,
     testRenderStats,
     testBiomePalette,
