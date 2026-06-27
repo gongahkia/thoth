@@ -69,31 +69,6 @@ These bring the world closer to actual landscape evolution physics. They are the
 
 ---
 
-### T-017 — Isostatic rebound coupling         [tier 2] [med]
-
-GOAL: After erosion strips mass from a mountain, surrounding crust rises slightly. Mountains stay tall longer than naive erosion would predict.
-
-WHY: Real Earth: 5 m eroded → 4 m rebound (verified by web research). Without this, eroded mountains flatten too aggressively. [Inference] hard to notice in static seeds but matters once T-027 (plate motion over time) lands.
-
-WHERE: `src/erosion.lua` — between stream-power iterations.
-
-DEPENDS ON: T-010.
-
-ACCEPTANCE:
-- After each erosion iteration, eroded mass × 0.8 is added back to a Gaussian-smoothed support region around each cell.
-- Diagnostics: mean elevation at plate-boundary regions is higher than without rebound, given the same iteration count.
-- `testIsostasy` checks conservation: total mass added back ≈ 0.8 × total mass eroded.
-
-NOTES / IMPL HINTS:
-- Smoothing kernel radius ~ crust elastic length scale; in arbitrary units pick ~stride * 4 cells.
-- Skip if performance is a concern; this is the lowest-value Tier-2 task.
-
-REFERENCES:
-- [Biology Insights — Do Mountains Have Roots? (Isostasy explainer)](https://biologyinsights.com/do-mountains-have-roots-the-science-of-isostasy/)
-- [Numerical models of ductile rebound of crustal roots (GJI)](https://academic.oup.com/gji/article/139/2/556/553427)
-
----
-
 # TIER 3 — Proteus aesthetic
 
 These convert the current "low-poly muted realism" look into something closer to Ed Key's Proteus: pixel-snapped framebuffer, 2D sprite flora against 3D terrain, palette-driven mood.

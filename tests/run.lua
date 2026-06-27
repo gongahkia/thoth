@@ -83,6 +83,7 @@ local function encodeCell(cell)
         round(cell.streamPowerDelta),
         round(cell.streamPowerErosion),
         round(cell.streamPowerUplift),
+        round(cell.isostaticRebound),
         round(cell.sediment),
         round(cell.sedimentFlux),
         round(cell.sedimentCapacity),
@@ -510,16 +511,84 @@ local function testStreamPowerConvergence()
 
     local region = makeRegion()
     local before = region.visitOrder[#region.visitOrder].elevation
-    local result = Erosion.relax(region, { iterations = 320, K = 0.016, m = 0.5, n = 1.0, uplift = false })
+    local result = Erosion.relax(region, { iterations = 320, K = 0.016, m = 0.5, n = 1.0, uplift = false, isostasy = false })
     expect(region.visitOrder[#region.visitOrder].elevation < before, "stream power relaxation should mutate elevations in-place")
     expect(result.maxDelta < 0.0001, "stream power relaxation should converge below fixture delta")
     expect(region.visitOrder[#region.visitOrder].streamPowerErosion > 0, "stream power relaxation should expose erosion depth")
 
     local repeatRegion = makeRegion()
-    Erosion.relax(repeatRegion, { iterations = 320, K = 0.016, m = 0.5, n = 1.0, uplift = false })
+    Erosion.relax(repeatRegion, { iterations = 320, K = 0.016, m = 0.5, n = 1.0, uplift = false, isostasy = false })
     for index, cell in ipairs(region.visitOrder) do
         expect(round(cell.elevation) == round(repeatRegion.visitOrder[index].elevation), "stream power relaxation should be deterministic")
     end
+end
+
+local function testIsostasy()
+    local function makeRegion()
+        local region = { stride = 1, seaLevel = -1, cells = {}, visitOrder = {}, minX = 1, minY = 0, maxX = 28, maxY = 0 }
+        for index = 1, 28 do
+            local cell = {
+                gx = index,
+                gy = 0,
+                elevationBase = (index - 1) * 0.034 + ((index % 6 == 0) and 0.09 or 0),
+                flow = (29 - index) * (29 - index) * 5,
+                water = false,
+                uplift = 0,
+                plateBoundary = index >= 14 and 1 or 0,
+            }
+            cell.elevation = cell.elevationBase
+            region.cells[index] = cell
+            region.visitOrder[index] = cell
+            if index > 1 then
+                cell.downCell = region.visitOrder[index - 1]
+                cell.downDistance = 1
+            end
+        end
+        return region
+    end
+    local function boundaryMean(region)
+        local sum, count = 0, 0
+        for _, cell in ipairs(region.visitOrder) do
+            if (cell.plateBoundary or 0) > 0.35 then
+                sum = sum + cell.elevation
+                count = count + 1
+            end
+        end
+        return sum / math.max(1, count)
+    end
+    local without = makeRegion()
+    Erosion.relax(without, { iterations = 80, K = 0.014, m = 0.5, n = 1.0, uplift = false, isostasy = false })
+    local with = makeRegion()
+    local result = Erosion.relax(with, { iterations = 80, K = 0.014, m = 0.5, n = 1.0, uplift = false, isostasy = true, isostasyRatio = 0.8, isostasyRadius = 2 })
+    expect(result.isostaticErosion > 0, "isostasy should record eroded mass")
+    expect(math.abs(result.isostaticRebound - result.isostaticErosion * 0.8) < 0.00001, "isostasy should conserve rebound ratio")
+    expect(boundaryMean(with) > boundaryMean(without), "isostasy should raise plate-boundary mean elevation")
+
+    local function broadThresholds()
+        return {
+            waterRatioMin = 0,
+            waterRatioMax = 1,
+            riverRatioMin = 0,
+            riverRatioMax = 1,
+            lakeRatioMax = 1,
+            meanSlopeMax = 1,
+            steepSlopeRatioMax = 1,
+            singleBiomeMax = 1,
+            minBiomeCount = 1,
+        }
+    end
+    local function options(enabled)
+        local out = {}
+        for k, v in pairs(basinWorldOptions) do out[k] = v end
+        out.streamPowerIterations = 24
+        out.streamPowerK = 0.0009
+        out.streamPowerIsostasy = enabled
+        return out
+    end
+    local low = Diagnostics.analyzeSeed(26, { chunkRadius = 1, sampleStep = 16, worldOptions = options(false), thresholds = broadThresholds() })
+    local high = Diagnostics.analyzeSeed(26, { chunkRadius = 1, sampleStep = 16, worldOptions = options(true), thresholds = broadThresholds() })
+    expect(low.plateBoundaryCells > 0 and high.plateBoundaryCells > 0, "isostasy diagnostics should sample plate-boundary cells")
+    expect(high.meanPlateBoundaryElevation > low.meanPlateBoundaryElevation, "isostasy diagnostics should raise plate-boundary elevation")
 end
 
 local function testStreamPowerDiagnostics()
@@ -1027,6 +1096,7 @@ local tests = {
     testRngHashRange,
     testOpenSimplexNoise,
     testStreamPowerConvergence,
+    testIsostasy,
     testStreamPowerDiagnostics,
     testOrographicRainShadow,
     testBasinChannelsSpanDetailRegions,

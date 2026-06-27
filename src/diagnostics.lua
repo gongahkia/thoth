@@ -91,6 +91,7 @@ local function finalize(stats, thresholds)
     stats.meanSlope = stats.slopeSum / math.max(1, stats.cells)
     stats.meanNonMountainSlope = stats.nonMountainSlopeSum / math.max(1, stats.nonMountainCells)
     stats.meanPlateBoundarySlope = stats.plateBoundarySlopeSum / math.max(1, stats.plateBoundaryCells)
+    stats.meanPlateBoundaryElevation = stats.plateBoundaryElevationSum / math.max(1, stats.plateBoundaryCells)
     stats.steepSlopeRatio = stats.steepSlopes / math.max(1, stats.cells)
     stats.biomeRatios = sortedBiomeRatios(stats)
     stats.biomeGroups = biomeGroups(stats.biomes, stats.cells, stats.waterRatio)
@@ -163,6 +164,7 @@ function Diagnostics.analyzeSeed(seed, options)
         nonMountainSlopeSum = 0,
         nonMountainCells = 0,
         plateBoundarySlopeSum = 0,
+        plateBoundaryElevationSum = 0,
         plateBoundaryCells = 0,
         maxSlope = 0,
         steepSlopes = 0,
@@ -202,6 +204,7 @@ function Diagnostics.analyzeSeed(seed, options)
                     end
                     if (cell.plateBoundary or 0) > 0.35 then
                         stats.plateBoundarySlopeSum = stats.plateBoundarySlopeSum + slope
+                        stats.plateBoundaryElevationSum = stats.plateBoundaryElevationSum + (cell.elevation or 0)
                         stats.plateBoundaryCells = stats.plateBoundaryCells + 1
                     end
                     if slope > stats.maxSlope then stats.maxSlope = slope end
@@ -241,7 +244,7 @@ function Diagnostics.formatResult(stats)
     local flags = #stats.flags > 0 and table.concat(stats.flags, ",") or "ok"
     local groups = stats.biomeGroups or {}
     return string.format(
-        "seed=%s cells=%d land=%.3f water=%.3f river=%.3f lake=%.3f mean_slope=%.3f non_mountain_slope=%.3f plate_boundary_slope=%.3f steep=%.3f forest=%.3f grass=%.3f dry=%.3f cold=%.3f rock=%.3f biomes=%d top=%s max_flow=%.2f seams=%d uphill=%d flags=%s",
+        "seed=%s cells=%d land=%.3f water=%.3f river=%.3f lake=%.3f mean_slope=%.3f non_mountain_slope=%.3f plate_boundary_slope=%.3f plate_boundary_elev=%.3f steep=%.3f forest=%.3f grass=%.3f dry=%.3f cold=%.3f rock=%.3f biomes=%d top=%s max_flow=%.2f seams=%d uphill=%d flags=%s",
         tostring(stats.seed),
         stats.cells,
         stats.landRatio,
@@ -251,6 +254,7 @@ function Diagnostics.formatResult(stats)
         stats.meanSlope,
         stats.meanNonMountainSlope,
         stats.meanPlateBoundarySlope,
+        stats.meanPlateBoundaryElevation,
         stats.steepSlopeRatio,
         groups.forest or 0,
         groups.grass or 0,

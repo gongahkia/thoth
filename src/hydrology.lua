@@ -281,6 +281,9 @@ local function solveBasin(world, chunkX, chunkY, info)
         m = world.streamPowerM,
         n = world.streamPowerN,
         uplift = world.streamPowerUplift,
+        isostasy = world.streamPowerIsostasy,
+        isostasyRatio = world.streamPowerIsostasyRatio,
+        isostasyRadius = world.streamPowerIsostasyRadius,
     })
     region.glaciers = Erosion.glaciate(region, {
         freezeTemperature = world.glacialFreezeTemperature,
@@ -294,6 +297,7 @@ local function solveBasin(world, chunkX, chunkY, info)
             streamPowerSamples[streamPowerKey(info, cell.gx, cell.gy)] = {
                 delta = cell.streamPowerDelta or 0,
                 sediment = cell.sediment or 0,
+                isostaticRebound = cell.isostaticRebound or 0,
                 glacialDelta = cell.glacialDelta or 0,
                 glaciated = cell.glaciated and 1 or 0,
             }

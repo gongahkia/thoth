@@ -199,8 +199,8 @@ end
 local function streamPowerSampleAt(store, scale, gx, gy)
     local sample = store[key(scale, gx, gy)]
     if sample == nil then return nil, nil end
-    if type(sample) == "table" then return sample.delta or 0, sample.sediment or 0, sample.glacialDelta or 0, sample.glaciated or 0 end
-    return sample, 0, 0, 0
+    if type(sample) == "table" then return sample.delta or 0, sample.sediment or 0, sample.glacialDelta or 0, sample.glaciated or 0, sample.isostaticRebound or 0 end
+    return sample, 0, 0, 0, 0
 end
 
 local function streamPowerAt(world, info, x, y)
@@ -217,10 +217,10 @@ local function streamPowerAt(world, info, x, y)
     local iy = math.floor(by)
     local tx = bx - ix
     local ty = by - iy
-    local d00, s00, g00, i00 = streamPowerSampleAt(store, info.id, ix, iy)
-    local d10, s10, g10, i10 = streamPowerSampleAt(store, info.id, ix + 1, iy)
-    local d01, s01, g01, i01 = streamPowerSampleAt(store, info.id, ix, iy + 1)
-    local d11, s11, g11, i11 = streamPowerSampleAt(store, info.id, ix + 1, iy + 1)
+    local d00, s00, g00, i00, r00 = streamPowerSampleAt(store, info.id, ix, iy)
+    local d10, s10, g10, i10, r10 = streamPowerSampleAt(store, info.id, ix + 1, iy)
+    local d01, s01, g01, i01, r01 = streamPowerSampleAt(store, info.id, ix, iy + 1)
+    local d11, s11, g11, i11, r11 = streamPowerSampleAt(store, info.id, ix + 1, iy + 1)
     if d00 and d10 and d01 and d11 then
         local dx0 = d00 + (d10 - d00) * tx
         local dx1 = d01 + (d11 - d01) * tx
@@ -230,7 +230,9 @@ local function streamPowerAt(world, info, x, y)
         local gx1 = g01 + (g11 - g01) * tx
         local ix0 = i00 + (i10 - i00) * tx
         local ix1 = i01 + (i11 - i01) * tx
-        return dx0 + (dx1 - dx0) * ty, sx0 + (sx1 - sx0) * ty, gx0 + (gx1 - gx0) * ty, ix0 + (ix1 - ix0) * ty
+        local rx0 = r00 + (r10 - r00) * tx
+        local rx1 = r01 + (r11 - r01) * tx
+        return dx0 + (dx1 - dx0) * ty, sx0 + (sx1 - sx0) * ty, gx0 + (gx1 - gx0) * ty, ix0 + (ix1 - ix0) * ty, rx0 + (rx1 - rx0) * ty
     end
     return streamPowerSampleAt(store, info.id, math.floor(bx + 0.5), math.floor(by + 0.5))
 end
@@ -297,6 +299,9 @@ function WorldGen.new(seed, options)
         streamPowerM = option(options.streamPowerM, 0.5),
         streamPowerN = option(options.streamPowerN, 1.0),
         streamPowerUplift = option(options.streamPowerUplift, "plateBased"),
+        streamPowerIsostasy = option(options.streamPowerIsostasy, true),
+        streamPowerIsostasyRatio = option(options.streamPowerIsostasyRatio, 0.8),
+        streamPowerIsostasyRadius = option(options.streamPowerIsostasyRadius, 4),
         streamPowerDetailScale = option(options.streamPowerDetailScale, 0.45),
         streamPowerSedimentScale = option(options.streamPowerSedimentScale, 0.65),
         glacialDetailScale = option(options.glacialDetailScale, 0.8),
@@ -612,10 +617,11 @@ function WorldGen:baseSample(x, y, scale)
     end
     local roughContribution = (rough - 0.5) * 0.24 * (1 - stableDamping)
     local elevation = continentalBias + (continent - 0.5) * 0.72 + roughContribution + uplift + subductionUplift + islandArc * 0.36 - riftValley * 0.26 - trench
-    local rawStreamPowerDelta, rawSediment, rawGlacialDelta, rawGlaciated = streamPowerAt(self, info, x, y)
+    local rawStreamPowerDelta, rawSediment, rawGlacialDelta, rawGlaciated, rawIsostaticRebound = streamPowerAt(self, info, x, y)
     local streamPowerDelta = (rawStreamPowerDelta or 0) * (self.streamPowerDetailScale or 0.45)
     local sediment = (rawSediment or 0) * (self.streamPowerSedimentScale or 0.65)
     local glacialDelta = (rawGlacialDelta or 0) * (self.glacialDetailScale or 0.8)
+    local isostaticRebound = (rawIsostaticRebound or 0) * (self.streamPowerDetailScale or 0.45)
     elevation = elevation + streamPowerDelta + sediment + glacialDelta
     local latitude = 0.5 + 0.5 * math.sin(y * 0.00045 + self.seed * 0.0001)
     local temperature = clamp(1 - math.abs(latitude * 2 - 1) * 1.1 - math.max(0, elevation) * 0.42 + (Noise.fbm(self.seed + 404, x, y, { frequency = 0.002, octaves = 3 }) - 0.5) * 0.18, 0, 1)
@@ -637,6 +643,7 @@ function WorldGen:baseSample(x, y, scale)
         streamPowerDelta = streamPowerDelta,
         streamPowerErosion = math.max(0, -streamPowerDelta),
         streamPowerUplift = math.max(0, streamPowerDelta),
+        isostaticRebound = isostaticRebound,
         sediment = sediment,
         glacialDelta = glacialDelta,
         glacialErosion = math.max(0, -glacialDelta),
@@ -732,6 +739,7 @@ function WorldGen:pendingSample(x, y, info)
         slope = 0,
         flow = 0,
         erosion = 0,
+        isostaticRebound = 0,
         sediment = 0,
         glacialDelta = 0,
         glacialErosion = 0,
