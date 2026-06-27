@@ -69,34 +69,6 @@ These bring the world closer to actual landscape evolution physics. They are the
 
 ---
 
-### T-014 — Glacial erosion mask + U-valley carving         [tier 2] [med]
-
-GOAL: A glacial-erosion pass runs on cells above an elevation+latitude threshold; it widens valleys (U-shape) where ice once flowed.
-
-WHY: No glacial features today. U-valleys and fjords are signature high-latitude landforms; their absence makes Thoth's snowy zones look like rocky deserts.
-
-WHERE:
-- `src/erosion.lua` (or new `src/glaciers.lua`) — apply after stream-power converges.
-- `src/worldgen.lua` biome rules — fjord/glacier biome ids optionally added (keep id set lean if undesired).
-
-DEPENDS ON: T-010.
-
-ACCEPTANCE:
-- Cells flagged "glaciated" where `temperature < t_freeze` AND `elevation > h_snowline` AND drainage area > threshold.
-- For glaciated cells, apply lateral widening: lower neighbors within radius R, slight terrace effect on valley walls.
-- Visual: clear U-shaped cross-sections in alpine valleys; flat valley floors with steep sides.
-- New `testGlacialFeatures` seeds an alpine fixture and asserts at least one glaciated reach exists.
-
-NOTES / IMPL HINTS:
-- Shallow Ice Approximation is the rigorous approach. For a procgen prototype, a heightfield filter that takes the max of `(h, neighbor_h - flat_offset)` over a radius proportional to drainage area gives the visual signature.
-- See Cordonnier et al. SIGGRAPH 2023 glacial work for the modern reference.
-
-REFERENCES:
-- [Cordonnier et al. — Forming Terrains by Glacial Erosion (HAL)](https://inria.hal.science/hal-04090644/file/Sigg23_Glacial_Erosion__author.pdf)
-- [Terrain generation using glacial and tectonic models — ResearchGate](https://www.researchgate.net/publication/317267554_Terrain_generation_using_glacial_and_tectonic_models)
-
----
-
 ### T-015 — Coastal wave erosion + beach deposition         [tier 2] [med]
 
 GOAL: At the land-water boundary, cells experience a wave-power pass: high-wave-exposure cliffs steepen, sheltered cells accumulate beach sediment.

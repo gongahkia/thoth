@@ -31,6 +31,10 @@ local function sedimentCapacity(cell, options)
     return (options.sedimentCapacity or 0.18) * flow * slope
 end
 
+local function cellKey(gx, gy)
+    return tostring(gx) .. ":" .. tostring(gy)
+end
+
 function Erosion.relax(region, options)
     options = options or {}
     local iterations = options.iterations
@@ -141,6 +145,60 @@ function Erosion.relax(region, options)
         meanSediment = sedimentSum / math.max(1, #order),
         maxSediment = maxSediment,
     }
+end
+
+function Erosion.glaciate(region, options)
+    options = options or {}
+    local order = orderedCells(region)
+    local freeze = options.freezeTemperature or 0.38
+    local snowline = options.snowline or 0.52
+    local minFlow = options.minFlow or math.max(1, (region.threshold or 1) * 0.04)
+    local maxCut = options.maxCut or 0.075
+    local cells = region.cells or {}
+    local deltas, primary = {}, {}
+
+    for _, cell in ipairs(order) do
+        cell.glaciated = false
+        cell.glacialDelta = 0
+        cell.glacialErosion = 0
+        if not cell.water and (cell.temperature or 1) < freeze and (cell.elevation or cell.elevationBase or 0) > snowline and (cell.flow or 0) > minFlow then
+            local cold = (freeze - (cell.temperature or freeze)) / freeze
+            local height = ((cell.elevation or cell.elevationBase or 0) - snowline) / math.max(0.1, 1 - snowline)
+            local flowFactor = math.min(1, math.sqrt((cell.flow or 0) / math.max(1, minFlow * 12)))
+            local cut = math.min(maxCut, (0.018 + cold * 0.035 + height * 0.03) * flowFactor)
+            deltas[cell] = math.min(deltas[cell] or 0, -cut)
+            primary[cell] = true
+            local radius = cut > maxCut * 0.55 and 2 or 1
+            for oy = -radius, radius do
+                for ox = -radius, radius do
+                    local distance = math.sqrt(ox * ox + oy * oy)
+                    if distance > 0 and distance <= radius then
+                        local neighbor = cells[cellKey((cell.gx or 0) + ox, (cell.gy or 0) + oy)]
+                        if neighbor and not neighbor.water then
+                            local sideCut = cut * 0.48 * (1 - distance / (radius + 0.75))
+                            deltas[neighbor] = math.min(deltas[neighbor] or 0, -sideCut)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    local count, erosionSum = 0, 0
+    for cell, delta in pairs(deltas) do
+        local old = cell.elevation or cell.elevationBase or 0
+        cell.elevation = old + delta
+        cell.glacialDelta = delta
+        cell.glacialErosion = -delta
+        cell.glaciated = primary[cell] == true
+        if cell.glaciated then count = count + 1 end
+        erosionSum = erosionSum - delta
+    end
+    region.glaciers = {
+        glaciatedCells = count,
+        meanGlacialErosion = erosionSum / math.max(1, #order),
+    }
+    return region.glaciers
 end
 
 return Erosion

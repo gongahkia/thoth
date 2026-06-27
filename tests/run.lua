@@ -90,6 +90,9 @@ local function encodeCell(cell)
         tostring(cell.rainShadow),
         round(cell.windX),
         round(cell.windY),
+        round(cell.glacialDelta),
+        round(cell.glacialErosion),
+        tostring(cell.glaciated),
     }, "|")
 end
 
@@ -657,6 +660,26 @@ local function testWhittakerDiagnostics()
     expect(topRatio / #sweep.results < 0.62, "Whittaker diagnostics should avoid single-biome dominance")
 end
 
+local function testGlacialFeatures()
+    local world = WorldGen.new(12)
+    local stats = world:hydrologyStats(0, -2, "local")
+    expect(stats.glaciatedCells > 0, "alpine fixture should expose glaciated reaches")
+    local chunk = world:chunk(0, -2, "local")
+    local glaciated, eroded, inspected = 0, 0, 0
+    for y = 1, chunk.size do
+        for x = 1, chunk.size do
+            local cell = chunk.cells[y][x]
+            if cell.glaciated then
+                glaciated = glaciated + 1
+                expect(cell.temperature < 0.38 and cell.elevationBase > 0.52, "glaciated cells should be cold high terrain")
+            end
+            if (cell.glacialErosion or 0) > 0 then eroded = eroded + 1 end
+            inspected = inspected + 1
+        end
+    end
+    expect(glaciated > 0 and eroded > glaciated and inspected == chunk.size * chunk.size, "glacial pass should widen beyond primary ice cells")
+end
+
 local function testPlayer()
     local world = testWorld(88)
     local player = Player.new(0, 0)
@@ -900,6 +923,7 @@ local function smoke()
     print("floodplains=" .. localStats.floodplains)
     print("deltas=" .. localStats.deltas)
     print("sediment_cells=" .. localStats.sedimentCells)
+    print("glaciated_cells=" .. localStats.glaciatedCells)
     print("seam_mismatches=" .. localStats.seamMismatches)
     print("uphill_rejects=" .. localStats.uphillRejects)
     print("max_flow=" .. string.format("%.3f", localStats.maxFlow))
@@ -944,6 +968,7 @@ local tests = {
     testBiomes,
     testWhittakerBins,
     testWhittakerDiagnostics,
+    testGlacialFeatures,
     testPlayer,
     testHeightInterpolationAndNormal,
     testBillboards,

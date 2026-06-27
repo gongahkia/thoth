@@ -281,17 +281,25 @@ local function solveBasin(world, chunkX, chunkY, info)
         n = world.streamPowerN,
         uplift = world.streamPowerUplift,
     })
+    region.glaciers = Erosion.glaciate(region, {
+        freezeTemperature = world.glacialFreezeTemperature,
+        snowline = world.glacialSnowline,
+        minFlow = world.glacialMinFlow,
+        maxCut = world.glacialMaxCut,
+    })
     local streamPowerSamples = world.streamPowerSamples
     if streamPowerSamples then
         for _, cell in ipairs(visitOrder) do
             streamPowerSamples[streamPowerKey(info, cell.gx, cell.gy)] = {
                 delta = cell.streamPowerDelta or 0,
                 sediment = cell.sediment or 0,
+                glacialDelta = cell.glacialDelta or 0,
+                glaciated = cell.glaciated and 1 or 0,
             }
         end
     end
 
-    local stats = { rivers = 0, basins = 0, maxFlow = 0, streamPowerMaxDelta = region.erosion.maxDelta or 0, streamPowerMeanErosion = region.erosion.meanErosion or 0, maxSediment = region.erosion.maxSediment or 0 }
+    local stats = { rivers = 0, basins = 0, maxFlow = 0, streamPowerMaxDelta = region.erosion.maxDelta or 0, streamPowerMeanErosion = region.erosion.meanErosion or 0, maxSediment = region.erosion.maxSediment or 0, glaciatedCells = region.glaciers.glaciatedCells or 0 }
     local basinIds = {}
     for _, cell in ipairs(visitOrder) do
         local root = terminal(cell)
@@ -628,6 +636,7 @@ local function solveRegion(world, chunkX, chunkY, info)
         floodplains = 0,
         deltas = 0,
         sedimentCells = 0,
+        glaciatedCells = 0,
         maxSediment = 0,
         maxFlow = 0,
     }
@@ -650,6 +659,7 @@ local function solveRegion(world, chunkX, chunkY, info)
             if cell.floodplain then stats.floodplains = stats.floodplains + 1 end
             if cell.delta then stats.deltas = stats.deltas + 1 end
             if (cell.sediment or 0) > 0 then stats.sedimentCells = stats.sedimentCells + 1 end
+            if cell.glaciated then stats.glaciatedCells = stats.glaciatedCells + 1 end
             if (cell.sediment or 0) > stats.maxSediment then stats.maxSediment = cell.sediment or 0 end
             if not cell.downCell and not cell.water then stats.endorheic = stats.endorheic + 1 end
             if cell.downCell and cell.filledElevation + 0.000001 < cell.downCell.filledElevation then stats.uphillRejects = stats.uphillRejects + 1 end
