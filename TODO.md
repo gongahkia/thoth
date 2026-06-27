@@ -69,29 +69,6 @@ These bring the world closer to actual landscape evolution physics. They are the
 
 ---
 
-### T-016 — Aeolian erosion (dunes) in arid biomes         [tier 2] [low]
-
-GOAL: A pass on `desert` biome cells that builds dune patterns from wind direction and noise.
-
-WHY: Deserts today are uniform pale-yellow. Real dunes have barchan/transverse/longitudinal structure that's a clear visual win.
-
-WHERE: New `src/aeolian.lua`. Called from worldgen after biome assignment, modifies `elevation` by small amounts.
-
-DEPENDS ON: T-012 (wind direction), T-013 (Whittaker biomes — gives stable desert mask).
-
-ACCEPTANCE:
-- Dune crests are visible at local scale, perpendicular to wind in transverse setting.
-- Elevation deltas are small (< 0.04) so they don't shift biome classification.
-- `testAeolianDunes` asserts dune cells have non-zero `duneAmplitude` field.
-
-NOTES / IMPL HINTS:
-- Cheap effect: `h += A * sin((x * windX + y * windY) * f) * desertMask`. Add noise-modulated phase for irregularity.
-- More accurate: lattice-Boltzmann or sand-slab models — overkill here.
-
-REFERENCES: none required; standard procgen trick.
-
----
-
 ### T-017 — Isostatic rebound coupling         [tier 2] [med]
 
 GOAL: After erosion strips mass from a mountain, surrounding crust rises slightly. Mountains stay tall longer than naive erosion would predict.
