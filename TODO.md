@@ -69,41 +69,6 @@ These bring the world closer to actual landscape evolution physics. They are the
 
 ---
 
-### T-010 — Iterative Stream Power Law (Braun-Willett O(n))         [tier 2] [high]
-
-GOAL: New module `src/erosion.lua`. On the coarse basin grid, iterate dh/dt = U − K·A^m·S^n with implicit O(n) ordering from Braun & Willett (2013). Output goes back into `cell.elevation`, not just `cell.erosion`.
-
-WHY: Current `hydrology.lua:472–504` applies erosion as a single multiplicative factor that doesn't feed back into elevation iteratively. Real river valleys form from the equilibrium between uplift (U) and stream-power incision (K·A^m·S^n). Cordonnier et al. 2016 introduced this to CG; FastScape (Braun-Willett) is the O(n) implicit solver. ~100–300 iterations on coarse grid converges visually.
-
-WHERE:
-- New `src/erosion.lua`.
-- `src/hydrology.lua:170–275` (`solveBasin`) — extend to call `Erosion.relax(region)` after the flow-accumulation step.
-- `src/worldgen.lua:301–374` (`baseSample`) — read post-erosion elevation if available.
-
-DEPENDS ON: T-005 (cache).
-
-ACCEPTANCE:
-- New `Erosion.relax(region, { iterations = 80, K = 0.0006, m = 0.5, n = 1.0, uplift = "plateBased" })` mutates `cell.elevation` in-place.
-- Visual: ridge lines sharpen, valleys deepen, drainage networks become dendritic instead of straight downhill.
-- Diagnostics: mean slope in non-mountain biomes drops; mean slope in plate-boundary regions increases.
-- New test `testStreamPowerConvergence` — after N iterations, max-elevation delta between iterations falls below `1e-4`.
-- Determinism preserved.
-
-NOTES / IMPL HINTS:
-- Braun-Willett ordering: build a list of nodes sorted by elevation (Priority-Flood already produces `visitOrder` from low to high). Iterate from highest to lowest; for each node compute `h_new = (h_old + dt·U + K·dt·A^m·h_down / dx^n) / (1 + K·dt·A^m / dx^n)` (the implicit step).
-- `A` is upstream drainage area = `cell.flow` (already accumulated).
-- `U` (uplift rate) comes from `cell.uplift` + `plate.convergent * plate.boundary`.
-- `dt` controls convergence speed; tune so that 80 iterations are visually stable.
-- Run on the coarse basin grid only (stride 4–8) — that's where it pays off; detail grid stays one-shot to keep solve time bounded.
-
-REFERENCES:
-- [Braun & Willett 2013 — O(n) implicit method (Geomorphology)](https://www.researchgate.net/publication/236741975_A_very_efficient_On_implicit_and_parallel_method_to_solve_the_stream_power_equation_governing_fluvial_incision_and_landscape_evolution)
-- [Cordonnier et al. 2016 — Large Scale Terrain Generation from Tectonic Uplift and Fluvial Erosion (PDF)](https://www.cs.purdue.edu/cgvlab/www/resources/papers/Cordonnier-Computer_Graphics_Forum-2016-Large_Scale_Terrain_Generation_from_Tectonic_Uplift_and_Fluvial_.pdf)
-- [Cordonnier preview — Semantic Scholar](https://www.semanticscholar.org/paper/Large-Scale-Terrain-Generation-from-Tectonic-Uplift-Cordonnier-Braun/edfae1a0c5e58a3bb2c97255d43e3b48e902ee27)
-- [Terrain Erosion on the GPU — aparis69](https://aparis69.github.io/public_html/posts/terrain_erosion.html) — practical CG perspective.
-
----
-
 ### T-011 — Sediment-aware deposition (Yuan-Braun-Guerit-Rouby-Cordonnier 2019)         [tier 2] [high]
 
 GOAL: Erosion solver advects a sediment field; rivers deposit when transport capacity is exceeded, building floodplains and alluvial fans from physics, not thresholds.

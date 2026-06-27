@@ -201,6 +201,36 @@ local function option(value, fallback)
     return value
 end
 
+local function streamPowerSampleAt(store, scale, gx, gy)
+    return store[key(scale, gx, gy)]
+end
+
+local function streamPowerDeltaAt(world, info, x, y)
+    if (world.streamPowerSampleDepth or 0) > 0 then return nil end
+    local store = world.streamPowerSamples
+    if not store then return nil end
+    local stride = math.max(1, world.hydrologyBasinStride or 1)
+    if stride <= 1 then return nil end
+    local scaleX = x / info.factor
+    local scaleY = y / info.factor
+    local bx = (scaleX - (stride - 1) * 0.5) / stride
+    local by = (scaleY - (stride - 1) * 0.5) / stride
+    local ix = math.floor(bx)
+    local iy = math.floor(by)
+    local tx = bx - ix
+    local ty = by - iy
+    local d00 = streamPowerSampleAt(store, info.id, ix, iy)
+    local d10 = streamPowerSampleAt(store, info.id, ix + 1, iy)
+    local d01 = streamPowerSampleAt(store, info.id, ix, iy + 1)
+    local d11 = streamPowerSampleAt(store, info.id, ix + 1, iy + 1)
+    if d00 and d10 and d01 and d11 then
+        local dx0 = d00 + (d10 - d00) * tx
+        local dx1 = d01 + (d11 - d01) * tx
+        return dx0 + (dx1 - dx0) * ty
+    end
+    return streamPowerSampleAt(store, info.id, math.floor(bx + 0.5), math.floor(by + 0.5))
+end
+
 local function cacheKind(cacheKey)
     if string.sub(cacheKey, 1, 9) == "hydrology" then return "hydrology" end
     if string.sub(cacheKey, 1, 5) == "basin" then return "basin" end
@@ -258,6 +288,13 @@ function WorldGen.new(seed, options)
         hydrologyBasinStride = option(options.hydrologyBasinStride, 4),
         hydrologyBasinHaloCells = option(options.hydrologyBasinHaloCells, 0),
         hydrologyBasinFlowScale = option(options.hydrologyBasinFlowScale, 0.6),
+        streamPowerIterations = option(options.streamPowerIterations, 80),
+        streamPowerK = option(options.streamPowerK, 0.0006),
+        streamPowerM = option(options.streamPowerM, 0.5),
+        streamPowerN = option(options.streamPowerN, 1.0),
+        streamPowerUplift = option(options.streamPowerUplift, "plateBased"),
+        streamPowerDetailScale = option(options.streamPowerDetailScale, 0.45),
+        streamPowerSamples = {},
         cacheMaxEntries = maxEntries,
         cacheLimits = limits,
         cache = {},
@@ -361,6 +398,12 @@ function WorldGen:metadata()
         hydrologyBasinStride = self.hydrologyBasinStride,
         hydrologyBasinHaloCells = self.hydrologyBasinHaloCells,
         hydrologyBasinFlowScale = self.hydrologyBasinFlowScale,
+        streamPowerIterations = self.streamPowerIterations,
+        streamPowerK = self.streamPowerK,
+        streamPowerM = self.streamPowerM,
+        streamPowerN = self.streamPowerN,
+        streamPowerUplift = self.streamPowerUplift,
+        streamPowerDetailScale = self.streamPowerDetailScale,
         cacheMaxEntries = self.cacheMaxEntries,
         cacheLimits = self.cacheLimits,
         plateCacheEntries = self.plateCacheEntries,
@@ -549,6 +592,8 @@ function WorldGen:baseSample(x, y, scale)
     end
     local roughContribution = (rough - 0.5) * 0.24 * (1 - stableDamping)
     local elevation = continentalBias + (continent - 0.5) * 0.72 + roughContribution + uplift + subductionUplift + islandArc * 0.36 - riftValley * 0.26 - trench
+    local streamPowerDelta = (streamPowerDeltaAt(self, info, x, y) or 0) * (self.streamPowerDetailScale or 0.45)
+    elevation = elevation + streamPowerDelta
     local latitude = 0.5 + 0.5 * math.sin(y * 0.00045 + self.seed * 0.0001)
     local temperature = clamp(1 - math.abs(latitude * 2 - 1) * 1.1 - math.max(0, elevation) * 0.42 + (Noise.fbm(self.seed + 404, x, y, { frequency = 0.002, octaves = 3 }) - 0.5) * 0.18, 0, 1)
     local moistureNoise = Noise.fbm(self.seed + 505, x, y, { frequency = 0.0022, octaves = 4 })
@@ -564,6 +609,9 @@ function WorldGen:baseSample(x, y, scale)
         scaleFactor = info.factor,
         elevationBase = elevation,
         elevation = elevation,
+        streamPowerDelta = streamPowerDelta,
+        streamPowerErosion = math.max(0, -streamPowerDelta),
+        streamPowerUplift = math.max(0, streamPowerDelta),
         water = water,
         plateId = plate.id,
         secondaryPlateId = plate.secondaryId,

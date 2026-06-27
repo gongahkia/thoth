@@ -1,3 +1,5 @@
+local Erosion = require("src.erosion")
+
 local Hydrology = {}
 
 local function clamp(value, minValue, maxValue)
@@ -95,6 +97,10 @@ end
 
 local function basinCacheKey(info, regionX, regionY, stride)
     return key("basin", info.id, stride, regionX, regionY)
+end
+
+local function streamPowerKey(info, gx, gy)
+    return key(info.id, gx, gy)
 end
 
 local function boundaryCell(region, gx, gy)
@@ -207,6 +213,7 @@ local function solveBasin(world, chunkX, chunkY, info)
     }
     if world.metrics then world.metrics.basinCells = world.metrics.basinCells + (maxX - minX + 1) * (maxY - minY + 1) end
 
+    world.streamPowerSampleDepth = (world.streamPowerSampleDepth or 0) + 1
     for gy = minY, maxY do
         for gx = minX, maxX do
             local sampleGX = gx * stride + (stride - 1) * 0.5
@@ -221,6 +228,7 @@ local function solveBasin(world, chunkX, chunkY, info)
             region.cells[key(gx, gy)] = cell
         end
     end
+    world.streamPowerSampleDepth = world.streamPowerSampleDepth - 1
 
     local heap = Heap.new()
     local visitOrder = {}
@@ -256,12 +264,29 @@ local function solveBasin(world, chunkX, chunkY, info)
         end
     end
 
-    local stats = { rivers = 0, basins = 0, maxFlow = 0 }
+    region.visitOrder = visitOrder
+    region.seaLevel = world.seaLevel
+    region.erosion = Erosion.relax(region, {
+        iterations = world.streamPowerIterations,
+        K = world.streamPowerK,
+        m = world.streamPowerM,
+        n = world.streamPowerN,
+        uplift = world.streamPowerUplift,
+    })
+    local streamPowerSamples = world.streamPowerSamples
+    if streamPowerSamples then
+        for _, cell in ipairs(visitOrder) do
+            streamPowerSamples[streamPowerKey(info, cell.gx, cell.gy)] = cell.streamPowerDelta or 0
+        end
+    end
+
+    local stats = { rivers = 0, basins = 0, maxFlow = 0, streamPowerMaxDelta = region.erosion.maxDelta or 0, streamPowerMeanErosion = region.erosion.meanErosion or 0 }
     local basinIds = {}
     for _, cell in ipairs(visitOrder) do
         local root = terminal(cell)
         cell.basinId = key("mb", info.id, root.gx, root.gy)
         basinIds[cell.basinId] = true
+        cell.water = cell.elevation <= world.seaLevel
         cell.river = not cell.water and cell.downCell ~= nil and cell.flow > threshold
         if cell.downCell then
             cell.channelId = key("mc", info.id, cell.gx, cell.gy, cell.downCell.gx, cell.downCell.gy)
@@ -409,8 +434,8 @@ local function solveRegion(world, chunkX, chunkY, info)
 
     for gy = minY, maxY do
         for gx = minX, maxX do
-            local cell = world:baseSample(gx * info.factor, gy * info.factor, info.id)
             local basinFlow, basinCell, basinWeight = basinFlowFor(world, gx, gy, info)
+            local cell = world:baseSample(gx * info.factor, gy * info.factor, info.id)
             cell.gx = gx
             cell.gy = gy
             cell.hydrologyRegion = region.id
@@ -484,6 +509,13 @@ local function solveRegion(world, chunkX, chunkY, info)
             hydroSlope = math.max(filledFall, baseFall * 0.25) / distance
         end
         cell.slope = clamp(math.max(cell.slope or 0, hydroSlope), 0, 1)
+        local streamPowerDelta = cell.streamPowerDelta or 0
+        if streamPowerDelta < 0 and not cell.mountainRangeId and (cell.plateBoundary or 0) <= 0.35 and cell.elevationBase > world.seaLevel then
+            cell.slope = cell.slope * (1 - clamp(-streamPowerDelta * 32, 0, 0.2))
+        end
+        if (cell.plateBoundary or 0) > 0.35 and streamPowerDelta ~= 0 then
+            cell.slope = clamp(cell.slope + clamp(math.abs(streamPowerDelta) * 5, 0, 0.035), 0, 1)
+        end
         local ocean = cell.elevationBase <= world.seaLevel
         cell.lakeDepth = math.max(0, cell.filledElevation - cell.elevationBase)
         cell.lake = (not ocean) and cell.lakeDepth > lakeMinDepth and cell.filledElevation > world.seaLevel + 0.006

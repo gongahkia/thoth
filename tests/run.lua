@@ -11,6 +11,7 @@ local WorldGen = require("src.worldgen")
 local Diagnostics = require("src.diagnostics")
 local Export = require("src.export")
 local Benchmark = require("src.benchmark")
+local Erosion = require("src.erosion")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -76,6 +77,9 @@ local function encodeCell(cell)
         tostring(cell.watershedId),
         tostring(cell.macroBasinId),
         tostring(cell.macroChannelId),
+        round(cell.streamPowerDelta),
+        round(cell.streamPowerErosion),
+        round(cell.streamPowerUplift),
     }, "|")
 end
 
@@ -456,6 +460,86 @@ local function testOpenSimplexNoise()
     expect(axisDelta / diagonalDelta > 0.55 and axisDelta / diagonalDelta < 1.45, "OpenSimplex fixture should not be strongly axis biased")
 end
 
+local function testStreamPowerConvergence()
+    local function makeRegion()
+        local region = { stride = 1, seaLevel = -1, cells = {}, visitOrder = {} }
+        for index = 1, 28 do
+            local cell = {
+                gx = index,
+                gy = 0,
+                elevationBase = (index - 1) * 0.035 + ((index % 7 == 0) and 0.08 or 0),
+                flow = (29 - index) * (29 - index) * 5,
+                water = false,
+                uplift = 0,
+                plateBoundary = 0,
+            }
+            cell.elevation = cell.elevationBase
+            region.cells[index] = cell
+            region.visitOrder[index] = cell
+            if index > 1 then
+                cell.downCell = region.visitOrder[index - 1]
+                cell.downDistance = 1
+            end
+        end
+        return region
+    end
+
+    local region = makeRegion()
+    local before = region.visitOrder[#region.visitOrder].elevation
+    local result = Erosion.relax(region, { iterations = 320, K = 0.016, m = 0.5, n = 1.0, uplift = false })
+    expect(region.visitOrder[#region.visitOrder].elevation < before, "stream power relaxation should mutate elevations in-place")
+    expect(result.maxDelta < 0.0001, "stream power relaxation should converge below fixture delta")
+    expect(region.visitOrder[#region.visitOrder].streamPowerErosion > 0, "stream power relaxation should expose erosion depth")
+
+    local repeatRegion = makeRegion()
+    Erosion.relax(repeatRegion, { iterations = 320, K = 0.016, m = 0.5, n = 1.0, uplift = false })
+    for index, cell in ipairs(region.visitOrder) do
+        expect(round(cell.elevation) == round(repeatRegion.visitOrder[index].elevation), "stream power relaxation should be deterministic")
+    end
+end
+
+local function testStreamPowerDiagnostics()
+    local function broadThresholds()
+        return {
+            waterRatioMin = 0,
+            waterRatioMax = 1,
+            riverRatioMin = 0,
+            riverRatioMax = 1,
+            lakeRatioMax = 1,
+            meanSlopeMax = 1,
+            steepSlopeRatioMax = 1,
+            singleBiomeMax = 1,
+            minBiomeCount = 1,
+        }
+    end
+    local function worldOptions(iterations)
+        local out = {}
+        for k, v in pairs(basinWorldOptions) do out[k] = v end
+        out.streamPowerIterations = iterations
+        return out
+    end
+    local function slopeMeans(iterations)
+        local nonMountain, boundary = 0, 0
+        local seeds = { 1, 6, 26 }
+        for _, seed in ipairs(seeds) do
+            local stats = Diagnostics.analyzeSeed(seed, {
+                chunkRadius = 1,
+                sampleStep = 16,
+                worldOptions = worldOptions(iterations),
+                thresholds = broadThresholds(),
+            })
+            nonMountain = nonMountain + stats.meanNonMountainSlope
+            boundary = boundary + stats.meanPlateBoundarySlope
+        end
+        return nonMountain / #seeds, boundary / #seeds
+    end
+
+    local baseNonMountain, baseBoundary = slopeMeans(0)
+    local erodedNonMountain, erodedBoundary = slopeMeans(80)
+    expect(erodedNonMountain < baseNonMountain, "stream power diagnostics should lower stable non-mountain slope")
+    expect(erodedBoundary > baseBoundary, "stream power diagnostics should raise plate-boundary slope")
+end
+
 local function testBasinChannelsSpanDetailRegions()
     local world = WorldGen.new(1, basinWorldOptions)
     local spans = {}
@@ -782,6 +866,8 @@ local tests = {
     testPlateCacheBounds,
     testRngHashRange,
     testOpenSimplexNoise,
+    testStreamPowerConvergence,
+    testStreamPowerDiagnostics,
     testBasinChannelsSpanDetailRegions,
     testBiomes,
     testPlayer,

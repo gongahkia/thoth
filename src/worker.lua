@@ -37,6 +37,10 @@ end
 
 local function workerKey(message)
     local options = message.options or {}
+    local function keyValue(value)
+        if value == nil then return "" end
+        return tostring(value)
+    end
     return table.concat({
         message.seed,
         options.chunkSize or "",
@@ -47,6 +51,12 @@ local function workerKey(message)
         options.hydrologyBasinStride or "",
         options.hydrologyBasinHaloCells or "",
         options.hydrologyBasinFlowScale or "",
+        options.streamPowerIterations or "",
+        options.streamPowerK or "",
+        options.streamPowerM or "",
+        options.streamPowerN or "",
+        keyValue(options.streamPowerUplift),
+        options.streamPowerDetailScale or "",
         options.cacheMaxEntries or "",
     }, "|")
 end
