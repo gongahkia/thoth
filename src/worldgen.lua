@@ -3,6 +3,7 @@ local Rng = require("src.rng")
 local Hydrology = require("src.hydrology")
 local Climate = require("src.climate")
 local Lru = require("src.lru")
+local Biomes = require("src.biomes")
 
 local WorldGen = {}
 WorldGen.__index = WorldGen
@@ -180,15 +181,7 @@ local function classifyBiome(elevation, water, river, temperature, moisture, slo
         return elevation > -0.06 and "coast" or "ocean"
     end
     if river then return "river" end
-    if elevation > 0.72 then return temperature < 0.35 and "snow" or "rock" end
-    if slope > 0.18 and elevation > 0.45 then return "alpine" end
-    if temperature < 0.18 then return "snow" end
-    if temperature < 0.32 then return moisture > 0.48 and "boreal_forest" or "tundra" end
-    if moisture < 0.24 then return "desert" end
-    if moisture < 0.5 then return temperature > 0.62 and "savanna" or "grassland" end
-    if moisture > 0.82 and elevation < 0.12 then return "wetland" end
-    if moisture > 0.72 and temperature > 0.58 then return "rainforest" end
-    return "temperate_forest"
+    return Biomes.lookup(temperature, moisture, elevation, false, slope)
 end
 
 local function copyCell(cell)

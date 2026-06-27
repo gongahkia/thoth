@@ -13,6 +13,7 @@ local Export = require("src.export")
 local Benchmark = require("src.benchmark")
 local Erosion = require("src.erosion")
 local Climate = require("src.climate")
+local Biomes = require("src.biomes")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -628,6 +629,34 @@ local function testBiomes()
     end
 end
 
+local function testWhittakerBins()
+    expect(Biomes.lookup(0.74, 0.1, 0.1, false, 0.02) == "desert", "hot arid Whittaker bin should be desert")
+    expect(Biomes.lookup(0.74, 0.36, 0.1, false, 0.02) == "savanna", "hot seasonal Whittaker bin should be savanna")
+    expect(Biomes.lookup(0.76, 0.9, 0.2, false, 0.02) == "rainforest", "hot wet Whittaker bin should be rainforest")
+    expect(Biomes.lookup(0.48, 0.64, 0.1, false, 0.02) == "temperate_forest", "temperate mesic Whittaker bin should be forest")
+    expect(Biomes.lookup(0.24, 0.64, 0.1, false, 0.02) == "boreal_forest", "cold wet Whittaker bin should be boreal forest")
+    expect(Biomes.lookup(0.18, 0.22, 0.1, false, 0.02) == "tundra", "cold dry Whittaker bin should be tundra")
+    expect(Biomes.lookup(0.7, 0.9, 0.05, false, 0.02) == "wetland", "low saturated Whittaker bin should be wetland")
+    expect(Biomes.lookup(0.4, 0.6, 0.8, false, 0.02) == "rock", "high warm Whittaker override should be rock")
+    expect(Biomes.lookup(0.2, 0.6, 0.8, false, 0.02) == "snow", "high cold Whittaker override should be snow")
+end
+
+local function testWhittakerDiagnostics()
+    local sweep = Diagnostics.sweep({
+        seeds = Diagnostics.defaultSeeds(),
+        chunkRadius = 1,
+        sampleStep = 8,
+        worldOptions = basinWorldOptions,
+    })
+    local biomeCount, topRatio = 0, 0
+    for _, stats in ipairs(sweep.results) do
+        biomeCount = biomeCount + stats.biomeCount
+        topRatio = topRatio + (stats.topBiome and stats.topBiome.ratio or 1)
+    end
+    expect(biomeCount / #sweep.results >= 5, "Whittaker diagnostics should keep biome diversity above fixture baseline")
+    expect(topRatio / #sweep.results < 0.62, "Whittaker diagnostics should avoid single-biome dominance")
+end
+
 local function testPlayer()
     local world = testWorld(88)
     local player = Player.new(0, 0)
@@ -913,6 +942,8 @@ local tests = {
     testOrographicRainShadow,
     testBasinChannelsSpanDetailRegions,
     testBiomes,
+    testWhittakerBins,
+    testWhittakerDiagnostics,
     testPlayer,
     testHeightInterpolationAndNormal,
     testBillboards,

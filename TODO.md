@@ -69,35 +69,6 @@ These bring the world closer to actual landscape evolution physics. They are the
 
 ---
 
-### T-013 — Whittaker biome lookup table         [tier 2] [low]
-
-GOAL: `classifyBiome(elevation, water, river, T, P, slope, lake)` switches from rule-chain to a 2D lookup table `biome[T_bin][P_bin]`.
-
-WHY: `worldgen.lua:161–176` is a 9-line if/elif tower. Visible step-changes at thresholds; biome boundaries look gridded. Whittaker's classification uses mean annual T × mean annual P → biome. Cleaner, smoother, and matches real ecology.
-
-WHERE: `src/worldgen.lua:161–176`.
-
-DEPENDS ON: T-012 (better moisture field gives Whittaker better signal).
-
-ACCEPTANCE:
-- New `src/biomes.lua` with a `lookup(temperature, precipitation, elevation, water, slope) -> biomeId` function.
-- Lookup is a precomputed 2D grid (e.g. 16×16 bins covering normalized T,P). Cells map to biome IDs.
-- Border cells optionally blend (return weighted neighbor) for smoother transitions.
-- The 15 existing biome IDs in `worldgen.lua:20–36` are preserved.
-- Diagnostics: `biomeCount` increases; `singleBiomeMax` ratio decreases for default seeds.
-- `testBiomes` still passes; new `testWhittakerBins` asserts each combination of (cold/temperate/hot) × (arid/mesic/wet) maps to a sensible biome.
-
-NOTES / IMPL HINTS:
-- Whittaker's diagram: x = precipitation (cm/yr, 0 to ~450), y = temperature (°C, −15 to +30). Map your normalized 0..1 ranges into those.
-- Reference table: Wikipedia "Biome" diagram has the classic Whittaker chart; the Springer AutoBiomes paper has a CG-ready discretization.
-- Water/lake/river/coast cases short-circuit before lookup (those are not climate-driven biomes).
-
-REFERENCES:
-- [Whittaker biome diagram — Wikipedia "Biome"](https://en.wikipedia.org/wiki/Biome)
-- [AutoBiomes paper (Visual Computer)](https://link.springer.com/article/10.1007/s00371-020-01920-7) — game-suitable Whittaker variant.
-
----
-
 ### T-014 — Glacial erosion mask + U-valley carving         [tier 2] [med]
 
 GOAL: A glacial-erosion pass runs on cells above an elevation+latitude threshold; it widens valleys (U-shape) where ice once flowed.
