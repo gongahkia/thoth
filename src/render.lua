@@ -794,8 +794,7 @@ local function drawHud(app, width, height, stats)
     love.graphics.print("WASD walk  mouse/QE look  F mouse  Tab scope  M mark  R seed", width - 416, height - 42)
 end
 
-function Render.draw(app)
-    local width, height = love.graphics.getDimensions()
+function Render.drawScene(app, width, height)
     love.graphics.clear(skyTop[1], skyTop[2], skyTop[3], 1)
     drawSky(width, height)
     local meshData = Render.buildTerrainMeshData(app, width, height)
@@ -809,6 +808,11 @@ function Render.draw(app)
     for _, item in ipairs(billboards) do
         if item.kind == "peak" or item.kind == "ridge" or item.kind == "outcrop" then meshData.landmarks = meshData.landmarks + 1 end
     end
+    return meshData
+end
+
+function Render.drawHud(app, width, height, meshData)
+    meshData = meshData or {}
     love.graphics.setColor(0.95, 0.92, 0.74, 1)
     love.graphics.circle("fill", width * 0.5, height * 0.52, 2)
     if app.debugTopo then
@@ -824,6 +828,12 @@ function Render.draw(app)
     end
     drawHud(app, width, height, meshData)
     return meshData
+end
+
+function Render.draw(app)
+    local width, height = love.graphics.getDimensions()
+    local meshData = Render.drawScene(app, width, height)
+    return Render.drawHud(app, width, height, meshData)
 end
 
 return Render

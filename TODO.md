@@ -75,35 +75,6 @@ These convert the current "low-poly muted realism" look into something closer to
 
 ---
 
-### T-018 — Low-res Canvas + nearest upscale framebuffer         [tier 3] [med]
-
-GOAL: All scene rendering targets a Canvas at, e.g. 640×360 (half-window). On present, that Canvas is upscaled with nearest-neighbor to the window. HUD draws on top at native resolution.
-
-WHY: Proteus's chunky pixel look comes from a low-res framebuffer scaled up. You already set `setDefaultFilter("nearest","nearest")` (`main.lua:281`) but never use a Canvas, so individual primitives are smooth at native res.
-
-WHERE:
-- `src/render.lua:511–547` — `Render.draw`.
-- New `src/postfx.lua` or inline — Canvas allocation, draw-to-canvas, present.
-
-DEPENDS ON: T-002 if you want fog/shading on the Canvas pass.
-
-ACCEPTANCE:
-- A new `app.lowResCanvas` of dimensions `floor(window.w / scale)` × `floor(window.h / scale)` with `scale ∈ {2, 3, 4}` configurable via CLI `--pixel-scale`.
-- Scene draws to this Canvas; HUD draws to default after presenting.
-- Visible pixelation; no per-frame Canvas allocation.
-- Resize-safe (re-create on `love.resize`).
-
-NOTES / IMPL HINTS:
-- `love.graphics.setCanvas(canvas)`; draw scene; `setCanvas()` (default); `draw(canvas, 0, 0, 0, scale, scale)`.
-- Pre-set `setDefaultFilter("nearest","nearest")` (already done) ensures upscale is hard-edged.
-
-REFERENCES:
-- [How to do pixel-perfect rendering in löve? — forums](https://love2d.org/forums/viewtopic.php?t=91869)
-- [Pixel-art scaling — LÖVE forums](https://love2d.org/forums/viewtopic.php?t=9374)
-- [Pixelart - Canvas rendering question — LÖVE forums](https://love2d.org/forums/viewtopic.php?t=83702)
-
----
-
 ### T-019 — 2D sprite atlas for flora and fauna         [tier 3] [med]
 
 GOAL: Trees, shrubs, peaks, reeds, etc. are real pixel-art sprites in a single atlas image, drawn via SpriteBatch (see T-003) instead of polygonal primitives.

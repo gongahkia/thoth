@@ -2,6 +2,7 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 
 local Player = require("src.player")
 local Export = require("src.export")
+local PostFX = require("src.postfx")
 local Render = require("src.render")
 local Save = require("src.save")
 local Survey = require("src.survey")
@@ -335,6 +336,7 @@ function love.load(args)
         viewScale = nil,
         player = Player.new(0, 0),
         camera = Render.defaultCamera(),
+        pixelScale = PostFX.parsePixelScale(argValue(args, "--pixel-scale", 2)),
         paused = false,
         mouseLook = true,
         renderSmoke = hasArg(args, "--render-smoke"),
@@ -348,6 +350,7 @@ function love.load(args)
         savePath = argValue(args, "--save-path", "thoth-save.json"),
         debugPerf = hasArg(args, "--debug-perf") or hasArg(args, "--log-fps") or hasArg(args, "--walk-smoke"),
     }
+    PostFX.resize(app, love.graphics.getDimensions())
     app.viewScale = ViewScale.new(app.world)
     startAsyncHydrology(app)
     ViewScale.update(app.viewScale, 0, app.world, app.player.x, app.player.y)
@@ -411,7 +414,11 @@ end
 function love.draw()
     if not app then return end
     local started = now()
-    local stats = Render.draw(app)
+    local stats = PostFX.draw(app, function(width, height)
+        return Render.drawScene(app, width, height)
+    end, function(width, height, meshData)
+        return Render.drawHud(app, width, height, meshData)
+    end)
     app.perf.drawMs = msSince(started)
     app.perf.renderStats = stats
     app.perf.frame = (app.perf.frame or 0) + 1
@@ -425,6 +432,8 @@ function love.draw()
         print("render-smoke-silhouettes=" .. tostring(stats.silhouetteStrips))
         print("render-smoke-billboards=" .. tostring(stats.billboards))
         print("render-smoke-landmarks=" .. tostring(stats.landmarks))
+        print("render-smoke-pixel-scale=" .. tostring(stats.pixelScale))
+        print("render-smoke-lowres=" .. tostring(stats.lowResCanvasWidth) .. "x" .. tostring(stats.lowResCanvasHeight))
         love.event.quit(0)
     end
     if app.walkSmoke and app.perf.frame >= app.walkSmokeFrames then
@@ -434,6 +443,10 @@ function love.draw()
         print("walk-smoke-final=" .. perfSnapshot(app))
         love.event.quit(0)
     end
+end
+
+function love.resize(width, height)
+    if app then PostFX.resize(app, width, height) end
 end
 
 function love.keypressed(key)

@@ -6,6 +6,7 @@ local Rng = require("src.rng")
 local Noise = require("src.noise")
 local Save = require("src.save")
 local Survey = require("src.survey")
+local PostFX = require("src.postfx")
 local ViewScale = require("src.viewscale")
 local WorldGen = require("src.worldgen")
 local Diagnostics = require("src.diagnostics")
@@ -903,6 +904,15 @@ local function testBiomePalette()
     expect(colorDistance(palette.snow, palette.rock) > 0.75, "high terrain palette should separate snow and rock")
 end
 
+local function testPostFxPixelScale()
+    expect(PostFX.parsePixelScale(nil) == 2, "postfx default pixel scale should be 2")
+    expect(PostFX.parsePixelScale("3") == 3 and PostFX.parsePixelScale(4) == 4, "postfx should accept configured pixel scales")
+    local width, height = PostFX.lowResSize(1280, 720, 2)
+    expect(width == 640 and height == 360, "postfx should compute half-res canvas dimensions")
+    local ok = pcall(PostFX.parsePixelScale, "5")
+    expect(not ok, "postfx should reject unsupported pixel scales")
+end
+
 local function testTopographicMapData()
     local world = testWorld(20260625)
     local app = { world = world, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(world) }
@@ -1111,6 +1121,7 @@ local tests = {
     testBillboards,
     testRenderStats,
     testBiomePalette,
+    testPostFxPixelScale,
     testTopographicMapData,
     testDebugPanelData,
     testMapExportData,
