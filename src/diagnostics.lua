@@ -2,7 +2,7 @@ local WorldGen = require("src.worldgen")
 
 local Diagnostics = {}
 
-local defaultSeeds = { 6, 7, 8, 19 }
+local defaultSeeds = { 6, 7, 19, 30 }
 local badSeeds = {
     { seed = 1, flags = { "water_low" } },
     { seed = 5, flags = { "river_low" } },

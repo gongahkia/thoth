@@ -69,37 +69,6 @@ These bring the world closer to actual landscape evolution physics. They are the
 
 ---
 
-### T-012 — Orographic precipitation (Smith-Barstad linear theory, lite)         [tier 2] [high]
-
-GOAL: Rainfall on the coarse basin grid is computed from a wind field and the terrain's windward/leeward orientation. Replaces current latitude+noise rainfall.
-
-WHY: `worldgen.lua:325–328` computes rainfall from `latitude + FBM − tiny uplift penalty`. No physical relationship to wind direction → mountains. Rain shadows are *labeled* (in `discoveriesAt`) but not *generated*. Smith & Barstad 2004 is the standard linearized model.
-
-WHERE:
-- New `src/climate.lua`.
-- `src/worldgen.lua:325–328` — `rainfall` read from `climate.precipitationAt(...)` rather than computed inline.
-
-DEPENDS ON: T-009 (good noise primitive), T-010 (coarse grid already in place).
-
-ACCEPTANCE:
-- `Climate.solveRegion(world, basinRegion)` produces a `precipitation` field per basin cell.
-- Wind direction is a function of latitude (trade-easterlies, westerlies, polar easterlies — three bands).
-- Visible rain shadow: leeward side of mountain ranges has measurably lower precipitation than windward side (diagnostics check: `precipitation(windward) > 1.5 × precipitation(leeward)` for steep ranges).
-- `rain_shadow` discovery overlay now lights up the *actual* dry side, not just any high+dry cell.
-
-NOTES / IMPL HINTS:
-- Lite version: advect a moisture quantity `m` along the wind direction. At each cell, condensation rate is proportional to upslope velocity component (wind · ∇h). Subtract condensed amount from `m`; add to `precipitation[cell]`. Continue advecting downstream.
-- Full Smith-Barstad uses FFT-based linear-wave solution; overkill here. The simple upslope/advection scheme captures the rain-shadow phenomenon well enough.
-- Latitude wind direction: e.g. `windX = cos(latitude_band_angle)`, `windY = sin(...)`. Three bands: 0–30 lat (easterlies), 30–60 (westerlies), 60–90 (easterlies).
-- Coriolis-like deflection: optional ±15° rotation; ship without it first.
-
-REFERENCES:
-- [Smith & Barstad 2004 — A Linear Theory of Orographic Precipitation (JAS)](https://journals.ametsoc.org/view/journals/atsc/61/12/1520-0469_2004_061_1377_altoop_2.0.co_2.xml)
-- [Nick McDonald — Procedural Weather Patterns blog](https://nickmcd.me/2018/07/10/procedural-weather-patterns/) — practical games-engineering approach.
-- [orographic_precipitation Python package — PyPI](https://pypi.org/project/orographic_precipitation/) — reference implementation of Smith-Barstad you can read.
-
----
-
 ### T-013 — Whittaker biome lookup table         [tier 2] [low]
 
 GOAL: `classifyBiome(elevation, water, river, T, P, slope, lake)` switches from rule-chain to a 2D lookup table `biome[T_bin][P_bin]`.

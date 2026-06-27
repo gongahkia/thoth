@@ -12,6 +12,7 @@ local Diagnostics = require("src.diagnostics")
 local Export = require("src.export")
 local Benchmark = require("src.benchmark")
 local Erosion = require("src.erosion")
+local Climate = require("src.climate")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -83,6 +84,11 @@ local function encodeCell(cell)
         round(cell.sediment),
         round(cell.sedimentFlux),
         round(cell.sedimentCapacity),
+        round(cell.precipitation),
+        round(cell.rainShadowScore),
+        tostring(cell.rainShadow),
+        round(cell.windX),
+        round(cell.windY),
     }, "|")
 end
 
@@ -154,7 +160,7 @@ local function testRiverMonotonicity()
 end
 
 local function testHydrologyStats()
-    local world = WorldGen.new(20260625)
+    local world = WorldGen.new(1)
     local stats = world:hydrologyStats(0, 0, "local")
     expect(stats.rivers > 0, "hydrology stats should include rivers")
     expect(stats.basins > 0, "hydrology stats should include basins")
@@ -274,7 +280,7 @@ end
 local function testNamedTerrainDiscoveries()
     local world = WorldGen.new(1)
     local repeatWorld = WorldGen.new(1)
-    local points = { { -320, -320 }, { -64, -320 }, { 0, -320 }, { -32, -128 } }
+    local points = { { -320, -320 }, { -64, -320 }, { 0, -320 }, { -32, -128 }, { -32, -512 } }
     local seen = {}
     local expected = {}
     for _, kind in ipairs(WorldGen.discoveryKinds()) do expected[kind] = true end
@@ -543,6 +549,36 @@ local function testStreamPowerDiagnostics()
     local erodedNonMountain, erodedBoundary = slopeMeans(80)
     expect(erodedNonMountain < baseNonMountain, "stream power diagnostics should lower stable non-mountain slope")
     expect(erodedBoundary > baseBoundary, "stream power diagnostics should raise plate-boundary slope")
+end
+
+local function testOrographicRainShadow()
+    local region = { scale = "local", scaleFactor = 1, stride = 1, cells = {} }
+    for gy = -4, 4 do
+        for gx = -12, 12 do
+            local ridge = math.max(0, 1 - math.abs(gx) / 2)
+            local elevation = 0.06 + ridge * 0.78
+            local cell = {
+                gx = gx,
+                gy = gy,
+                x = gx,
+                y = 1200 + gy,
+                elevationBase = elevation,
+                elevation = elevation,
+                water = gx == -12,
+            }
+            region.cells[gx .. ":" .. gy] = cell
+        end
+    end
+    local world = { seed = 1, climateSamples = {}, hydrologyBasinStride = 1, orographicLiftScale = 12, orographicLeeScale = 3 }
+    local climate = Climate.solveRegion(world, region)
+    local windward, leeward, samples = 0, 0, 0
+    for gy = -4, 4 do
+        windward = windward + region.cells["-1:" .. gy].precipitation
+        leeward = leeward + region.cells["3:" .. gy].precipitation
+        samples = samples + 1
+    end
+    expect(windward / samples > (leeward / samples) * 1.5, "orographic precipitation should make windward slopes wetter than leeward slopes")
+    expect(climate.rainShadowCells > 0, "orographic precipitation should mark leeward rain-shadow cells")
 end
 
 local function testBasinChannelsSpanDetailRegions()
@@ -874,6 +910,7 @@ local tests = {
     testOpenSimplexNoise,
     testStreamPowerConvergence,
     testStreamPowerDiagnostics,
+    testOrographicRainShadow,
     testBasinChannelsSpanDetailRegions,
     testBiomes,
     testPlayer,

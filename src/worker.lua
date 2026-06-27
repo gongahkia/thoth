@@ -58,6 +58,8 @@ local function workerKey(message)
         keyValue(options.streamPowerUplift),
         options.streamPowerDetailScale or "",
         options.streamPowerSedimentScale or "",
+        options.orographicLiftScale or "",
+        options.orographicLeeScale or "",
         options.cacheMaxEntries or "",
     }, "|")
 end

@@ -1,4 +1,5 @@
 local Erosion = require("src.erosion")
+local Climate = require("src.climate")
 
 local Hydrology = {}
 
@@ -214,6 +215,7 @@ local function solveBasin(world, chunkX, chunkY, info)
     if world.metrics then world.metrics.basinCells = world.metrics.basinCells + (maxX - minX + 1) * (maxY - minY + 1) end
 
     world.streamPowerSampleDepth = (world.streamPowerSampleDepth or 0) + 1
+    world.climateSampleDepth = (world.climateSampleDepth or 0) + 1
     for gy = minY, maxY do
         for gx = minX, maxX do
             local sampleGX = gx * stride + (stride - 1) * 0.5
@@ -229,6 +231,12 @@ local function solveBasin(world, chunkX, chunkY, info)
         end
     end
     world.streamPowerSampleDepth = world.streamPowerSampleDepth - 1
+    world.climateSampleDepth = world.climateSampleDepth - 1
+
+    Climate.solveRegion(world, region)
+    for _, cell in pairs(region.cells) do
+        cell.flow = math.max(0.01, cell.rainfall or cell.precipitation or 0) * stride * stride
+    end
 
     local heap = Heap.new()
     local visitOrder = {}

@@ -1,6 +1,7 @@
 local Noise = require("src.noise")
 local Rng = require("src.rng")
 local Hydrology = require("src.hydrology")
+local Climate = require("src.climate")
 local Lru = require("src.lru")
 
 local WorldGen = {}
@@ -301,6 +302,9 @@ function WorldGen.new(seed, options)
         streamPowerDetailScale = option(options.streamPowerDetailScale, 0.45),
         streamPowerSedimentScale = option(options.streamPowerSedimentScale, 0.65),
         streamPowerSamples = {},
+        climateSamples = {},
+        orographicLiftScale = option(options.orographicLiftScale, 8.5),
+        orographicLeeScale = option(options.orographicLeeScale, 2.4),
         cacheMaxEntries = maxEntries,
         cacheLimits = limits,
         cache = {},
@@ -411,6 +415,8 @@ function WorldGen:metadata()
         streamPowerUplift = self.streamPowerUplift,
         streamPowerDetailScale = self.streamPowerDetailScale,
         streamPowerSedimentScale = self.streamPowerSedimentScale,
+        orographicLiftScale = self.orographicLiftScale,
+        orographicLeeScale = self.orographicLeeScale,
         cacheMaxEntries = self.cacheMaxEntries,
         cacheLimits = self.cacheLimits,
         plateCacheEntries = self.plateCacheEntries,
@@ -605,8 +611,10 @@ function WorldGen:baseSample(x, y, scale)
     elevation = elevation + streamPowerDelta + sediment
     local latitude = 0.5 + 0.5 * math.sin(y * 0.00045 + self.seed * 0.0001)
     local temperature = clamp(1 - math.abs(latitude * 2 - 1) * 1.1 - math.max(0, elevation) * 0.42 + (Noise.fbm(self.seed + 404, x, y, { frequency = 0.002, octaves = 3 }) - 0.5) * 0.18, 0, 1)
+    local climate = Climate.sample(self, info, x, y)
     local moistureNoise = Noise.fbm(self.seed + 505, x, y, { frequency = 0.0022, octaves = 4 })
-    local rainfall = clamp(0.08 + moistureNoise * 0.7 + (1 - math.abs(latitude - 0.5) * 2) * 0.16 - math.max(0, elevation) * 0.2 - uplift * 0.16 + islandArc * 0.06, 0, 1)
+    local fallbackRainfall = clamp(0.08 + moistureNoise * 0.7 + (1 - math.abs(latitude - 0.5) * 2) * 0.16 - math.max(0, elevation) * 0.2 - uplift * 0.16 + islandArc * 0.06, 0, 1)
+    local rainfall = clamp((climate and climate.precipitation) or fallbackRainfall, 0, 1)
     local slope = clamp(ridge * 0.1 + math.abs(rough - 0.5) * 0.16 * (1 - stableDamping) + plate.boundary * 0.08 + uplift * 0.06 + riftValley * 0.12 + islandArc * 0.18 + trench * 0.08 - shield * 0.025 - craton * 0.035, 0, 1)
     local water = elevation <= self.seaLevel
     local ridgeId = (ridge > 0.62 or plate.boundary > 0.55) and key("ridge", info.id, floorDiv(math.floor(wx), 192 * info.factor), floorDiv(math.floor(wy), 192 * info.factor), plate.id) or nil
@@ -639,6 +647,11 @@ function WorldGen:baseSample(x, y, scale)
         ridgeId = ridgeId,
         mountainRangeId = mountainRangeId,
         uplift = uplift,
+        precipitation = rainfall,
+        windX = climate and climate.windX or nil,
+        windY = climate and climate.windY or nil,
+        rainShadow = climate and (climate.rainShadow or 0) > 0.35 or false,
+        rainShadowScore = climate and climate.rainShadow or 0,
         rainfall = rainfall,
         temperature = temperature,
         moisture = rainfall,
@@ -691,6 +704,9 @@ function WorldGen:pendingSample(x, y, info)
         elevationBase = 0,
         elevation = 0,
         water = false,
+        precipitation = 0,
+        rainShadow = false,
+        rainShadowScore = 0,
         rainfall = 0,
         temperature = 0.5,
         moisture = 0,
@@ -929,7 +945,7 @@ function WorldGen:discoveriesAt(x, y, scale)
     if isPass(self, cell, info.id) then
         addDiscovery(discoveries, seen, self.seed, "pass", key("pass", info.id, floorDiv(math.floor(cell.x), 96 * info.factor), floorDiv(math.floor(cell.y), 96 * info.factor)), cell)
     end
-    if not cell.water and (cell.rainfall or 0) < 0.42 and ((cell.uplift or 0) > 0.12 or (cell.slope or 0) > 0.16) then
+    if not cell.water and (cell.rainShadow or ((cell.rainfall or 0) < 0.32 and ((cell.uplift or 0) > 0.12 or (cell.slope or 0) > 0.16))) then
         addDiscovery(discoveries, seen, self.seed, "rain_shadow", key("shadow", info.id, floorDiv(math.floor(cell.x), 160 * info.factor), floorDiv(math.floor(cell.y), 160 * info.factor)), cell)
     end
     return discoveries
