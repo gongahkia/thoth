@@ -337,6 +337,7 @@ function love.load(args)
         player = Player.new(0, 0),
         camera = Render.defaultCamera(),
         pixelScale = PostFX.parsePixelScale(argValue(args, "--pixel-scale", 2)),
+        atmosphereTime = (tonumber(argValue(args, "--time-of-day", 0.25)) or 0.25) % 1,
         paused = false,
         mouseLook = true,
         renderSmoke = hasArg(args, "--render-smoke"),
@@ -435,6 +436,7 @@ function love.draw()
         print("render-smoke-pixel-scale=" .. tostring(stats.pixelScale))
         print("render-smoke-lowres=" .. tostring(stats.lowResCanvasWidth) .. "x" .. tostring(stats.lowResCanvasHeight))
         print("render-smoke-palette=" .. tostring(stats.paletteId) .. ":" .. tostring(stats.paletteSize))
+        print("render-smoke-sky=" .. tostring(stats.skyDome) .. ":" .. string.format("%.3f", stats.skyTime or 0))
         love.event.quit(0)
     end
     if app.walkSmoke and app.perf.frame >= app.walkSmokeFrames then

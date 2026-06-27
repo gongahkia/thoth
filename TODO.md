@@ -75,28 +75,6 @@ These convert the current "low-poly muted realism" look into something closer to
 
 ---
 
-### T-021 — Skybox dome + horizon haze         [tier 3] [low]
-
-GOAL: Replace the three flat-rectangle sky in `drawSky` with a gradient dome rendered via a full-screen shader (or two stacked stripes + a noise band).
-
-WHY: Current sky reads as a flat painted backdrop; Proteus's sky is part of the world's mood.
-
-WHERE: `src/render.lua:370–377` (`drawSky`).
-
-DEPENDS ON: T-018 (canvas), T-020 (palette).
-
-ACCEPTANCE:
-- Gradient from `skyTop` to `skyHorizon` over the full upper half, hazing into `fogColor` at the terrain horizon.
-- Optional: a noise-driven cloud band.
-- Sky reacts to time-of-day uniform (see T-022).
-
-NOTES / IMPL HINTS:
-- Easiest: one full-screen quad with a fragment shader that interpolates colors by `y`.
-
-REFERENCES: none needed.
-
----
-
 ### T-022 — Time-of-day and season palette LUT         [tier 3] [med]
 
 GOAL: A `time` and `season` value modulate the active palette and sky colors. Day/dusk/night cycle and four-season cycle.

@@ -41,6 +41,29 @@ local skyTop = { 0.43, 0.55, 0.66 }
 local skyHorizon = { 0.68, 0.74, 0.75 }
 local fogColor = { 0.6, 0.68, 0.69 }
 local silhouetteColor = { 0.08, 0.09, 0.08 }
+local tau = math.pi * 2
+local skyShaderSource = [[
+extern vec3 skyTop;
+extern vec3 skyHorizon;
+extern vec3 fogColor;
+extern vec2 skySize;
+extern number timeOfDay;
+
+vec4 effect(vec4 color, Image texture, vec2 textureCoords, vec2 screenCoords)
+{
+    number y = clamp(screenCoords.y / max(1.0, skySize.y), 0.0, 1.0);
+    number dome = smoothstep(0.0, 0.58, y);
+    vec3 sky = mix(skyTop, skyHorizon, dome);
+    number haze = smoothstep(0.38, 0.76, y);
+    sky = mix(sky, fogColor, haze * 0.55);
+    number daylight = clamp(sin(timeOfDay * 6.2831853), 0.0, 1.0);
+    number band = smoothstep(0.2, 0.36, y) * (1.0 - smoothstep(0.48, 0.64, y));
+    number wave = sin(screenCoords.x * 0.026 + timeOfDay * 6.2831853) * 0.5 + 0.5;
+    number cloud = smoothstep(0.72, 0.96, wave) * band * daylight * 0.22;
+    sky = mix(sky, vec3(0.88, 0.9, 0.84), cloud);
+    return vec4(sky, 1.0);
+}
+]]
 
 local function clamp(value, minValue, maxValue)
     return math.max(minValue, math.min(maxValue, value))
@@ -59,6 +82,21 @@ local function shade(color, amount)
         clamp(color[1] * amount, 0, 1),
         clamp(color[2] * amount, 0, 1),
         clamp(color[3] * amount, 0, 1),
+    }
+end
+
+function Render.skyColors(timeOfDay)
+    local t = (tonumber(timeOfDay) or 0.25) % 1
+    local daylight = clamp(math.sin(t * tau), 0, 1)
+    local dusk = 1 - daylight
+    local nightTop = { 0.035, 0.045, 0.12 }
+    local nightHorizon = { 0.16, 0.12, 0.2 }
+    local nightFog = { 0.18, 0.2, 0.26 }
+    return {
+        top = mixColor(nightTop, skyTop, daylight),
+        horizon = mixColor(nightHorizon, skyHorizon, daylight),
+        fog = mixColor(nightFog, fogColor, daylight * 0.85 + dusk * 0.18),
+        daylight = daylight,
     }
 end
 
@@ -478,13 +516,26 @@ function Render.visibleStats(app, width, height)
     }
 end
 
-local function drawSky(width, height)
-    love.graphics.setColor(skyTop[1], skyTop[2], skyTop[3], 1)
+local function skyShader(app)
+    app.shaders = app.shaders or {}
+    if not app.shaders.skyDome then app.shaders.skyDome = love.graphics.newShader(skyShaderSource) end
+    return app.shaders.skyDome
+end
+
+local function drawSky(app, width, height)
+    local timeOfDay = app.atmosphereTime or 0.25
+    local colors = Render.skyColors(timeOfDay)
+    local shader = skyShader(app)
+    shader:send("skyTop", colors.top)
+    shader:send("skyHorizon", colors.horizon)
+    shader:send("fogColor", colors.fog)
+    shader:send("skySize", { width, height })
+    shader:send("timeOfDay", timeOfDay % 1)
+    love.graphics.setShader(shader)
+    love.graphics.setColor(1, 1, 1, 1)
     love.graphics.rectangle("fill", 0, 0, width, height)
-    love.graphics.setColor(skyHorizon[1], skyHorizon[2], skyHorizon[3], 1)
-    love.graphics.rectangle("fill", 0, height * 0.38, width, height * 0.28)
-    love.graphics.setColor(fogColor[1], fogColor[2], fogColor[3], 0.35)
-    love.graphics.rectangle("fill", 0, height * 0.54, width, height * 0.46)
+    love.graphics.setShader()
+    return colors
 end
 
 local meshFormat = {
@@ -777,8 +828,11 @@ end
 
 function Render.drawScene(app, width, height)
     love.graphics.clear(skyTop[1], skyTop[2], skyTop[3], 1)
-    drawSky(width, height)
+    local sky = drawSky(app, width, height)
     local meshData = Render.buildTerrainMeshData(app, width, height)
+    meshData.skyDome = 1
+    meshData.skyTime = app.atmosphereTime or 0.25
+    meshData.skyDaylight = sky.daylight
     drawStream(app, "terrain", meshData.vertices, 0.76, 1)
     drawStream(app, "silhouette", meshData.silhouetteVertices, 0.78, 0)
     drawStream(app, "river", meshData.riverVertices, 0.55, 0)

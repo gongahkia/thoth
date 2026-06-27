@@ -927,6 +927,13 @@ local function testBiomePalette()
     expect(colorDistance(palette.snow, palette.rock) > 0.75, "high terrain palette should separate snow and rock")
 end
 
+local function testSkyDomeColors()
+    local noon = Render.skyColors(0.25)
+    local midnight = Render.skyColors(0.75)
+    expect(colorDistance(noon.top, midnight.top) > 0.32, "sky dome should react to time of day")
+    expect(colorDistance(noon.horizon, noon.fog) < 0.25, "sky dome should haze horizon toward fog")
+end
+
 local function testPostFxPixelScale()
     expect(PostFX.parsePixelScale(nil) == 2, "postfx default pixel scale should be 2")
     expect(PostFX.parsePixelScale("3") == 3 and PostFX.parsePixelScale(4) == 4, "postfx should accept configured pixel scales")
@@ -1148,6 +1155,7 @@ local tests = {
     testBillboards,
     testRenderStats,
     testBiomePalette,
+    testSkyDomeColors,
     testPostFxPixelScale,
     testTopographicMapData,
     testDebugPanelData,
