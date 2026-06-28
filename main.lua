@@ -450,6 +450,9 @@ function love.draw()
         print("render-smoke-lowres=" .. tostring(stats.lowResCanvasWidth) .. "x" .. tostring(stats.lowResCanvasHeight))
         print("render-smoke-palette=" .. tostring(stats.paletteId) .. ":" .. tostring(stats.paletteSize))
         print("render-smoke-sky=" .. tostring(stats.skyDome) .. ":" .. string.format("%.3f", stats.skyTime or 0) .. ":" .. tostring(stats.skySeason))
+        if stats.clipmap then
+            print("render-smoke-clipmap=" .. tostring(stats.clipmapRings or 0) .. ":" .. tostring(stats.clipmapRadius or 0) .. ":" .. tostring(stats.clipmapSteps or "") .. ":" .. tostring(stats.clipmapSamplesRefilled or 0))
+        end
         love.event.quit(0)
     end
     if app.walkSmoke and app.perf.frame >= app.walkSmokeFrames then

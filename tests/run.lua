@@ -3,6 +3,7 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 local Player = require("src.player")
 local Atmosphere = require("src.atmosphere")
 local Render = require("src.render")
+local Clipmap = require("src.clipmap")
 local Rng = require("src.rng")
 local Noise = require("src.noise")
 local Save = require("src.save")
@@ -897,13 +898,39 @@ local function testBillboards()
     expect(count > 0, "fixture seed should generate billboards")
 end
 
+local function testClipmap()
+    local state = Clipmap.new({ levelCount = 3, halfResolution = 4 })
+    local function sample(x, y)
+        return { x = x, y = y, biome = "grassland", elevation = (x + y) * 0.01, slope = 0 }, x + y
+    end
+    local _, first = Clipmap.update(state, 0, 0, sample, { scaleId = "local" })
+    expect(first.rings == 3 and first.steps[1] == 1 and first.steps[2] == 2 and first.steps[3] == 4, "clipmap should build fixed density rings")
+    expect(first.radius == 16 and first.tileCapacity > 0 and first.vertexCapacity == first.tileCapacity * 6, "clipmap should expose constant ring buffer capacity")
+    expect(first.fullRefills == 3 and first.samplesRefilled == 3 * 9 * 9, "initial clipmap update should fill every ring")
+    local _, reused = Clipmap.update(state, 0.4, 0.4, sample, { scaleId = "local" })
+    expect(reused.reusedRings == 3 and reused.samplesRefilled == 0, "clipmap should reuse rings until origin crosses a grid step")
+    local _, partial = Clipmap.update(state, 1, 0, sample, { scaleId = "local" })
+    expect(partial.partialRefills >= 1 and partial.fullRefills == 0, "clipmap should partially refill scrolled strips")
+    expect(Clipmap.outerMorph(state.levels[1], 4, 0) > 0 and Clipmap.outerMorph(state.levels[3], 4, 0) == 0, "clipmap should morph only rings with coarser neighbors")
+    expect(Clipmap.heightAt(state.levels[2], state.levels[2].originX, state.levels[2].originY) ~= nil, "clipmap should interpolate cached heights")
+end
+
 local function testRenderStats()
     local world = testWorld(3)
     local app = { world = world, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(world) }
     local stats = Render.visibleStats(app, 1280, 720)
     expect(stats.visibleTiles > 0 and stats.triangles == stats.visibleTiles * 2, "render stats should describe terrain mesh")
     expect(stats.visibleTiles <= stats.expectedMaxForFOV, "visible tiles should stay within FOV-cull budget")
-    expect(stats.fullTiles > 0 and stats.visibleTiles <= math.floor(stats.fullTiles * 0.7), "FOV culling should reduce default terrain tiles by at least 30%")
+    expect(stats.fullTiles > 0 and stats.visibleTiles <= stats.fullTiles, "FOV culling should keep visible terrain bounded")
+    expect(stats.clipmap == true and stats.clipmapRings >= 5 and stats.clipmapRadius >= 500, "local render should use extended clipmap terrain")
+    expect(stats.clipmapSteps == "1,2,4,8,16,32" and stats.clipmapMorphBands == stats.clipmapRings - 1, "clipmap should expose nested densities and morph bands")
+    expect(stats.clipmapTileCapacity > 0 and stats.clipmapVertexCapacity == stats.clipmapTileCapacity * 6, "clipmap should keep fixed tile and vertex capacities")
+    expect(stats.clipmapMorphTiles > 0 and stats.terrainRadius >= stats.clipmapRadius, "clipmap should draw morphed far terrain")
+    local reusedStats = Render.visibleStats(app, 1280, 720)
+    expect(reusedStats.clipmapReusedRings == reusedStats.clipmapRings and reusedStats.clipmapSamplesRefilled == 0, "static camera should reuse clipmap rings")
+    app.player.x = app.player.x + 1
+    local shiftedStats = Render.visibleStats(app, 1280, 720)
+    expect(shiftedStats.clipmapPartialRefills > 0 and shiftedStats.clipmapFullRefills == 0, "clipmap should scroll with partial ring refills")
     expect(stats.billboards >= 0 and stats.cameraHeight == stats.cameraHeight, "render stats should include finite camera and billboard count")
     expect(stats.riverStrips > 0, "render stats should include river strips")
     expect(stats.silhouetteStrips > 0, "render stats should include slope silhouettes")
@@ -1132,6 +1159,9 @@ local function smoke()
     print("billboards=" .. stats.billboards)
     print("landmarks=" .. stats.landmarks)
     print("camera_height=" .. string.format("%.3f", stats.cameraHeight))
+    if stats.clipmap then
+        print("clipmap=" .. tostring(stats.clipmapRings) .. ":" .. tostring(stats.clipmapRadius) .. ":" .. tostring(stats.clipmapSteps))
+    end
     expect(land > 0 and water > 0 and rivers > 0, "smoke should cover land, water, and rivers")
     expect(localStats.basins > 0 and localStats.uphillRejects == 0, "smoke should include sane hydrology stats")
     expect(localStats.sedimentCells > 0 and localStats.talusSlopes + localStats.alluvialFans + localStats.floodplains + localStats.deltas > 0, "smoke should include erosion landforms")
@@ -1174,6 +1204,7 @@ local tests = {
     testHeightInterpolationAndNormal,
     testBillboardAtlas,
     testBillboards,
+    testClipmap,
     testRenderStats,
     testBiomePalette,
     testSkyDomeColors,

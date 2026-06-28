@@ -1,5 +1,6 @@
 local Render = {}
 local ViewScale = require("src.viewscale")
+local Clipmap = require("src.clipmap")
 local ffi = require("ffi")
 
 local terrainScale = 18
@@ -346,8 +347,8 @@ local function pushLineQuad(vertices, ax, ay, bx, by, width, color, light, depth
     return true
 end
 
-function Render.buildTerrainMeshData(app, width, height)
-    local params = viewParams(app)
+local function buildGridTerrainMeshData(app, width, height, params)
+    params = params or viewParams(app)
     app.camera.eyeZ = cameraHeight(app)
     local vertices = vertexStream(app, "terrain")
     local riverVertices = vertexStream(app, "river")
@@ -463,6 +464,146 @@ function Render.buildTerrainMeshData(app, width, height)
     }
 end
 
+local function terrainClipmap(app)
+    app.terrainClipmap = app.terrainClipmap or Clipmap.new()
+    return app.terrainClipmap
+end
+
+local function clipmapSampleFn(app, params)
+    return function(x, y, level)
+        local gx, gy = math.floor(x), math.floor(y)
+        local cell = level.index <= 2 and app.world:sample(gx, gy, params.target) or app.world:baseSample(gx, gy, params.target)
+        return cell, terrainZ(cell)
+    end
+end
+
+local function clipmapZ(level, nextLevel, sample, ix, iy)
+    local z = sample.z
+    local morph = Clipmap.outerMorph(level, ix, iy)
+    if morph > 0 and nextLevel then
+        local coarseZ = Clipmap.heightAt(nextLevel, sample.x, sample.y)
+        if coarseZ then z = mix(z, coarseZ, morph) end
+    end
+    return z, morph
+end
+
+local function projectClipmapSample(app, width, height, params, sample, z)
+    local lateral, depth = cameraLocal(app, sample.x, sample.y, params)
+    local sx, sy = project(app, width, height, lateral, depth, z)
+    return sx, sy, depth
+end
+
+local function buildClipmapTerrainMeshData(app, width, height, params)
+    params = params or viewParams(app)
+    app.camera.eyeZ = cameraHeight(app)
+    local vertices = vertexStream(app, "terrain")
+    local riverVertices = vertexStream(app, "river")
+    local silhouetteVertices = vertexStream(app, "silhouette")
+    local camera = app.camera
+    local clipmap = terrainClipmap(app)
+    local _, clipStats = Clipmap.update(clipmap, app.player.x, app.player.y, clipmapSampleFn(app, params), { scaleId = params.target })
+    local radius = math.max(camera.renderRadius or 86, clipStats.radius)
+    local frustum = frustumState(camera, width, radius, radius * 0.82, 1)
+    local visibleTiles = 0
+    local expectedMaxForFOV = 0
+    local riverStrips = 0
+    local silhouetteStrips = 0
+    local morphTiles = 0
+    for levelIndex, level in ipairs(clipmap.levels) do
+        local nextLevel = clipmap.levels[levelIndex + 1]
+        for _, tile in ipairs(level.tiles) do
+            local s00 = level.samples[tile.i00]
+            local s10 = level.samples[tile.i10]
+            local s11 = level.samples[tile.i11]
+            local s01 = level.samples[tile.i01]
+            local centerX = (s00.x + s11.x) * 0.5
+            local centerY = (s00.y + s11.y) * 0.5
+            local centerLat, centerDepth = cameraLocal(app, centerX, centerY, params)
+            if inFrustum(frustum, centerLat, centerDepth, level.step * 1.5) then
+                expectedMaxForFOV = expectedMaxForFOV + 1
+                local z00, m00 = clipmapZ(level, nextLevel, s00, tile.ix, tile.iy)
+                local z10, m10 = clipmapZ(level, nextLevel, s10, tile.ix + 1, tile.iy)
+                local z11, m11 = clipmapZ(level, nextLevel, s11, tile.ix + 1, tile.iy + 1)
+                local z01, m01 = clipmapZ(level, nextLevel, s01, tile.ix, tile.iy + 1)
+                local p00x, p00y = projectClipmapSample(app, width, height, params, s00, z00)
+                local p10x, p10y = projectClipmapSample(app, width, height, params, s10, z10)
+                local p11x, p11y = projectClipmapSample(app, width, height, params, s11, z11)
+                local p01x, p01y = projectClipmapSample(app, width, height, params, s01, z01)
+                if p00x and p10x and p11x and p01x then
+                    if math.max(m00, m10, m11, m01) > 0 then morphTiles = morphTiles + 1 end
+                    local cell = s00.cell
+                    local slopeLight = ((z00 + z10) - (z11 + z01)) / (terrainScale * 2)
+                    local color = baseColor(cell)
+                    pushQuadCoords(vertices, p00x, p00y, p10x, p10y, p11x, p11y, p01x, p01y, color, terrainLight(cell, slopeLight), centerDepth)
+                    visibleTiles = visibleTiles + 1
+                    local edgeSlope = math.abs(slopeLight)
+                    if (cell.slope or 0) > 0.28 or edgeSlope > 0.045 then
+                        local stripWidth = clamp(0.65 + (cell.slope or 0) * 3.2, 0.8, 2.4)
+                        if pushLineQuad(silhouetteVertices, p01x, p01y, p11x, p11y, stripWidth, silhouetteColor, 1, centerDepth) then
+                            silhouetteStrips = silhouetteStrips + 1
+                        end
+                    end
+                    if level.index <= 2 and cell.river and cell.downX and cell.downY then
+                        local scaleFactor = cell.scaleFactor or 1
+                        local axWorld = cell.x * scaleFactor
+                        local ayWorld = cell.y * scaleFactor
+                        local bxWorld = cell.downX * scaleFactor
+                        local byWorld = cell.downY * scaleFactor
+                        local _, downZ = viewCell(app, bxWorld, byWorld, params)
+                        local ax, ay, ad = projectWorld(app, width, height, axWorld, ayWorld, terrainZ(cell) + 0.08)
+                        local bx, by, bd = projectWorld(app, width, height, bxWorld, byWorld, downZ + 0.08)
+                        if ax and bx then
+                            local stripDepth = math.max(1, (ad + bd) * 0.5)
+                            local stripWidth = clamp((1.15 + math.log((cell.flow or 0) + 1) * 0.12) / stripDepth * (camera.fov or 620), 1.2, 5.2)
+                            if pushLineQuad(riverVertices, ax, ay, bx, by, stripWidth, biomeColors.river, 1, stripDepth) then
+                                riverStrips = riverStrips + 1
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return {
+        vertices = vertices,
+        riverVertices = riverVertices,
+        silhouetteVertices = silhouetteVertices,
+        visibleTiles = visibleTiles,
+        fullTiles = clipStats.tileCapacity,
+        expectedMaxForFOV = expectedMaxForFOV,
+        culledTiles = clipStats.tileCapacity - expectedMaxForFOV,
+        triangles = vertexCount(vertices) / 3,
+        riverStrips = riverStrips,
+        silhouetteStrips = silhouetteStrips,
+        cameraHeight = app.camera.eyeZ,
+        viewScale = params.target,
+        viewFactor = params.factor,
+        viewProgress = params.progress,
+        terrainRadius = radius,
+        clipmap = true,
+        clipmapRings = clipStats.rings,
+        clipmapRadius = clipStats.radius,
+        clipmapSteps = table.concat(clipStats.steps, ","),
+        clipmapTileCapacity = clipStats.tileCapacity,
+        clipmapVertexCapacity = clipStats.vertexCapacity,
+        clipmapRefilledRings = clipStats.refilledRings,
+        clipmapReusedRings = clipStats.reusedRings,
+        clipmapPartialRefills = clipStats.partialRefills,
+        clipmapFullRefills = clipStats.fullRefills,
+        clipmapSamplesRefilled = clipStats.samplesRefilled,
+        clipmapMorphBands = clipStats.morphBands,
+        clipmapMorphTiles = morphTiles,
+    }
+end
+
+function Render.buildTerrainMeshData(app, width, height)
+    local params = viewParams(app)
+    if params.target == "local" and not params.transitioning then
+        return buildClipmapTerrainMeshData(app, width, height, params)
+    end
+    return buildGridTerrainMeshData(app, width, height, params)
+end
+
 local function chunkCoord(value, size)
     return math.floor(value / size)
 end
@@ -530,6 +671,20 @@ function Render.visibleStats(app, width, height)
         viewScale = mesh.viewScale,
         viewFactor = mesh.viewFactor,
         viewProgress = mesh.viewProgress,
+        terrainRadius = mesh.terrainRadius,
+        clipmap = mesh.clipmap,
+        clipmapRings = mesh.clipmapRings,
+        clipmapRadius = mesh.clipmapRadius,
+        clipmapSteps = mesh.clipmapSteps,
+        clipmapTileCapacity = mesh.clipmapTileCapacity,
+        clipmapVertexCapacity = mesh.clipmapVertexCapacity,
+        clipmapRefilledRings = mesh.clipmapRefilledRings,
+        clipmapReusedRings = mesh.clipmapReusedRings,
+        clipmapPartialRefills = mesh.clipmapPartialRefills,
+        clipmapFullRefills = mesh.clipmapFullRefills,
+        clipmapSamplesRefilled = mesh.clipmapSamplesRefilled,
+        clipmapMorphBands = mesh.clipmapMorphBands,
+        clipmapMorphTiles = mesh.clipmapMorphTiles,
         labels = #(ViewScale.visibleLabels(app.viewScale, 8)),
     }
 end
@@ -696,9 +851,9 @@ local function streamMesh(app, id, vertices)
     return entry.mesh
 end
 
-local function drawStream(app, id, vertices, fogAmount, lightAmount)
+local function drawStream(app, id, vertices, fogAmount, lightAmount, radiusOverride)
     if vertexCount(vertices) <= 0 then return end
-    local radius = app.camera.renderRadius or 50
+    local radius = radiusOverride or app.camera.renderRadius or 50
     local shader = terrainShader(app)
     shader:send("fogColor", fogColor)
     shader:send("fogNear", 24)
@@ -913,9 +1068,9 @@ function Render.drawScene(app, width, height)
     meshData.skyTime = app.atmosphere and app.atmosphere.time or app.atmosphereTime or 0.25
     meshData.skySeason = app.atmosphere and app.atmosphere.season or "summer"
     meshData.skyDaylight = sky.daylight
-    drawStream(app, "terrain", meshData.vertices, 0.76, 1)
-    drawStream(app, "silhouette", meshData.silhouetteVertices, 0.78, 0)
-    drawStream(app, "river", meshData.riverVertices, 0.55, 0)
+    drawStream(app, "terrain", meshData.vertices, 0.76, 1, meshData.terrainRadius)
+    drawStream(app, "silhouette", meshData.silhouetteVertices, 0.78, 0, meshData.terrainRadius)
+    drawStream(app, "river", meshData.riverVertices, 0.55, 0, meshData.terrainRadius)
     local billboards = Render.billboardDrawList(app, width, height)
     drawBillboards(app, billboards)
     meshData.billboards = #billboards

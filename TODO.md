@@ -81,37 +81,6 @@ These extend the world's reach and the engine's ability to handle long sessions.
 
 ---
 
-### T-024 — Geometry clipmap LOD inside local scale         [tier 4] [high]
-
-GOAL: Replace the three discrete view-scales (local/region/continent) — or augment them — with a continuous LOD via geometry clipmaps. Nested rings of decreasing resolution centered on the camera.
-
-WHY: Current `viewscale.lua` only switches between 3 fixed factors with eased transitions. A real geometry clipmap (Losasso & Hoppe 2004) keeps vertex count constant while extending the visible radius arbitrarily far. The user wants "endlessly generated world" — clipmaps are the canonical solution.
-
-WHERE:
-- Major rewrite of `src/render.lua:198–303`.
-- Possibly new `src/clipmap.lua`.
-
-DEPENDS ON: T-001, T-002, T-007.
-
-ACCEPTANCE:
-- N concentric rings (e.g. 5) at decreasing sample density (1 cell, 2, 4, 8, 16).
-- Each ring's grid is a constant-size vertex/index buffer reused frame to frame.
-- Transition morphing between rings hides seams.
-- Visible terrain extends to e.g. 500 cells without per-frame regenerated mesh.
-
-NOTES / IMPL HINTS:
-- LÖVE doesn't expose vertex textures the way the GPU Gems chapter does, but you can still do clipmap-style nested vertex buffers, refilling sub-windows as the camera moves.
-- Start with the wandering-clipmap pattern (advance the clipmap origin in grid-step increments; only refill the L-shaped strip that scrolled in).
-- Optional: skip the texture path and just keep a 2D array of heights per ring; vertex shader reads from a uniform array.
-
-REFERENCES:
-- [Losasso & Hoppe — Geometry Clipmaps project page](https://hhoppe.com/proj/geomclipmap/)
-- [GPU Gems 2 Ch. 2 — Terrain Rendering Using GPU-Based Geometry Clipmaps (NVIDIA)](https://developer.nvidia.com/gpugems/gpugems2/part-i-geometric-complexity/chapter-2-terrain-rendering-using-gpu-based-geometry)
-- [Infinite Terrain in Godot 4 — Wandering Clipmap (YouTube)](https://www.youtube.com/watch?v=rcsIMlet7Fw) — good intuition pump even though Godot.
-- [Olluo/geometry-clipmaps-demo — GitHub](https://github.com/Olluo/geometry-clipmaps-demo)
-
----
-
 ### T-025 — Struct-of-arrays cell storage via LuaJIT FFI         [tier 4] [high]
 
 GOAL: Per-chunk cell data lives in FFI `ctype` arrays of doubles, not 4096 tables × ~30 keys each. SoA layout for cache-friendliness.
