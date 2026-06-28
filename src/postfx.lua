@@ -1,4 +1,5 @@
 local PostFX = {}
+local Atmosphere = require("src.atmosphere")
 
 local validScales = { [2] = true, [3] = true, [4] = true }
 local paletteSize = 32
@@ -69,8 +70,10 @@ function PostFX.lowResSize(width, height, scale)
     return math.max(1, math.floor(width / scale)), math.max(1, math.floor(height / scale))
 end
 
-function PostFX.paletteFor(id)
-    return palettes[id] or palettes["local"]
+function PostFX.paletteFor(id, atmosphere)
+    local base = palettes[id] or palettes["local"]
+    if atmosphere then return Atmosphere.palette(base, atmosphere) end
+    return base
 end
 
 function PostFX.paletteIds()
@@ -83,13 +86,14 @@ end
 
 local function ensurePaletteTexture(app)
     local id = PostFX.activePaletteId(app)
-    local palette = PostFX.paletteFor(id)
-    if app.paletteTexture and app.paletteTextureId == id then return app.paletteTexture, id, #palette end
+    local key = id .. ":" .. Atmosphere.paletteKey(app.atmosphere)
+    local palette = PostFX.paletteFor(id, app.atmosphere)
+    if app.paletteTexture and app.paletteTextureId == key then return app.paletteTexture, id, #palette end
     local imageData = love.image.newImageData(#palette, 1)
     for index, color in ipairs(palette) do imageData:setPixel(index - 1, 0, color[1], color[2], color[3], 1) end
     app.paletteTexture = love.graphics.newImage(imageData)
     app.paletteTexture:setFilter("nearest", "nearest")
-    app.paletteTextureId = id
+    app.paletteTextureId = key
     return app.paletteTexture, id, #palette
 end
 
@@ -143,6 +147,7 @@ function PostFX.draw(app, drawScene, drawHud)
     stats.lowResCanvasHeight = canvasHeight
     stats.paletteId = paletteId
     stats.paletteSize = colors
+    stats.paletteKey = app.paletteTextureId
     return stats
 end
 

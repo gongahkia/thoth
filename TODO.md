@@ -75,31 +75,6 @@ These convert the current "low-poly muted realism" look into something closer to
 
 ---
 
-### T-022 — Time-of-day and season palette LUT         [tier 3] [med]
-
-GOAL: A `time` and `season` value modulate the active palette and sky colors. Day/dusk/night cycle and four-season cycle.
-
-WHY: Proteus's mood comes from time + season palette swaps. None of that exists today.
-
-WHERE:
-- New `src/atmosphere.lua` — owns `time` (0–1) and `season` (spring/summer/autumn/winter).
-- `src/render.lua:6–38` — palette tables become functions returning the current palette.
-- `main.lua` — advance `time` in `love.update`.
-
-DEPENDS ON: T-020 (palette LUT mechanic).
-
-ACCEPTANCE:
-- Walking a full day cycle in 60s of wall clock (configurable) visibly shifts palette and sky.
-- Seasonal shift accessible via a key (e.g. `[`/`]`) for testing without waiting.
-- `testAtmosphereCycle` asserts palette at noon ≠ palette at midnight.
-
-NOTES / IMPL HINTS:
-- Define 4 palettes × 4 times-of-day = 16 LUTs. Mix between adjacent ones.
-
-REFERENCES: none required.
-
----
-
 ### T-023 — Animated billboards (wind sway)         [tier 3] [low]
 
 GOAL: Trees and reeds gently sway via per-instance time-offset uniform passed to the billboard shader.

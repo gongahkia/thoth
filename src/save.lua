@@ -1,4 +1,5 @@
 local Survey = require("src.survey")
+local Atmosphere = require("src.atmosphere")
 local ViewScale = require("src.viewscale")
 
 local Save = {}
@@ -123,6 +124,7 @@ function Save.snapshot(app)
         seed = metadata.seed,
         player = { x = app.player.x, y = app.player.y },
         camera = { yaw = app.camera.yaw, pitch = app.camera.pitch },
+        atmosphere = Atmosphere.snapshot(app.atmosphere),
         display = {
             mouseLook = app.mouseLook == true,
             debugPerf = app.debugPerf == true,

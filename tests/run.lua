@@ -1,6 +1,7 @@
 package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.path
 
 local Player = require("src.player")
+local Atmosphere = require("src.atmosphere")
 local Render = require("src.render")
 local Rng = require("src.rng")
 local Noise = require("src.noise")
@@ -344,12 +345,14 @@ local function testSaveLoadRoundTrip()
         debugPerf = true,
         debugTopo = true,
         debugPanels = true,
+        atmosphere = Atmosphere.new({ time = 0.4, season = "autumn", dayLength = 90 }),
     }
     local encoded = Save.encode(Save.snapshot(app))
     local decoded = Save.decode(encoded)
     local restoredSurvey = Survey.fromSnapshot(decoded.survey)
     expect(decoded.seed == 99 and decoded.player.x == 12.5 and decoded.player.y == -7.25, "save should round-trip seed and player position")
     expect(decoded.camera.yaw == 0.7 and decoded.display.viewScale == "region", "save should round-trip camera and display settings")
+    expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
     expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.debugPanels and not decoded.display.mouseLook, "save should round-trip display toggles")
     expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
 end
@@ -932,6 +935,20 @@ local function testSkyDomeColors()
     local midnight = Render.skyColors(0.75)
     expect(colorDistance(noon.top, midnight.top) > 0.32, "sky dome should react to time of day")
     expect(colorDistance(noon.horizon, noon.fog) < 0.25, "sky dome should haze horizon toward fog")
+    expect(colorDistance(Render.skyColors(0.25, "summer").top, Render.skyColors(0.25, "winter").top) > 0.08, "sky dome should react to season")
+end
+
+local function testAtmosphereCycle()
+    local base = PostFX.paletteFor("local")
+    local noon = Atmosphere.palette(base, Atmosphere.new({ time = 0.25, season = "summer" }))
+    local midnight = Atmosphere.palette(base, Atmosphere.new({ time = 0.75, season = "summer" }))
+    expect(colorDistance(noon[12], midnight[12]) > 0.18, "atmosphere palette at noon should differ from midnight")
+    local winter = Atmosphere.palette(base, Atmosphere.new({ time = 0.25, season = "winter" }))
+    expect(colorDistance(noon[23], winter[23]) > 0.08, "atmosphere palette should vary by season")
+    local state = Atmosphere.new({ time = 0.99, season = "winter", dayLength = 60 })
+    Atmosphere.update(state, 1.2)
+    expect(state.time > 0 and state.time < 0.02, "atmosphere update should wrap day cycle")
+    expect(Atmosphere.shiftSeason(state, 1) == "spring" and Atmosphere.shiftSeason(state, -1) == "winter", "atmosphere season shift should wrap")
 end
 
 local function testPostFxPixelScale()
@@ -1156,6 +1173,7 @@ local tests = {
     testRenderStats,
     testBiomePalette,
     testSkyDomeColors,
+    testAtmosphereCycle,
     testPostFxPixelScale,
     testTopographicMapData,
     testDebugPanelData,

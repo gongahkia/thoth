@@ -1,6 +1,7 @@
 package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.path
 
 local Player = require("src.player")
+local Atmosphere = require("src.atmosphere")
 local Export = require("src.export")
 local PostFX = require("src.postfx")
 local Render = require("src.render")
@@ -307,6 +308,8 @@ local function applySnapshot(app, snapshot)
     app.debugPerf = display.debugPerf == true
     app.debugTopo = display.debugTopo == true
     app.debugPanels = display.debugPanels == true
+    app.atmosphere = Atmosphere.new(snapshot.atmosphere or { time = display.atmosphereTime or 0.25, season = display.season or "summer" })
+    app.atmosphereTime = app.atmosphere.time
     app.viewScale = ViewScale.new(app.world)
     if display.viewScale then
         ViewScale.set(app.viewScale, app.world, display.viewScale, app.player.x, app.player.y)
@@ -337,7 +340,11 @@ function love.load(args)
         player = Player.new(0, 0),
         camera = Render.defaultCamera(),
         pixelScale = PostFX.parsePixelScale(argValue(args, "--pixel-scale", 2)),
-        atmosphereTime = (tonumber(argValue(args, "--time-of-day", 0.25)) or 0.25) % 1,
+        atmosphere = Atmosphere.new({
+            time = tonumber(argValue(args, "--time-of-day", 0.25)) or 0.25,
+            season = argValue(args, "--season", "summer"),
+            dayLength = tonumber(argValue(args, "--day-length", 60)) or 60,
+        }),
         paused = false,
         mouseLook = true,
         renderSmoke = hasArg(args, "--render-smoke"),
@@ -351,6 +358,7 @@ function love.load(args)
         savePath = argValue(args, "--save-path", "thoth-save.json"),
         debugPerf = hasArg(args, "--debug-perf") or hasArg(args, "--log-fps") or hasArg(args, "--walk-smoke"),
     }
+    app.atmosphereTime = app.atmosphere.time
     PostFX.resize(app, love.graphics.getDimensions())
     app.viewScale = ViewScale.new(app.world)
     startAsyncHydrology(app)
@@ -389,6 +397,10 @@ function love.update(dt)
     app.perf.lastDt = dt
     local simDt = math.min(dt, maxSimDt)
     app.perf.simDt = simDt
+    if not app.paused then
+        Atmosphere.update(app.atmosphere, simDt)
+        app.atmosphereTime = app.atmosphere.time
+    end
     local turn = (love.keyboard.isDown("e", "right") and 1 or 0) - (love.keyboard.isDown("q", "left") and 1 or 0)
     local pitch = (love.keyboard.isDown("down") and 1 or 0) - (love.keyboard.isDown("up") and 1 or 0)
     if app.walkSmoke then turn = app.walkSmokeTurn end
@@ -436,7 +448,7 @@ function love.draw()
         print("render-smoke-pixel-scale=" .. tostring(stats.pixelScale))
         print("render-smoke-lowres=" .. tostring(stats.lowResCanvasWidth) .. "x" .. tostring(stats.lowResCanvasHeight))
         print("render-smoke-palette=" .. tostring(stats.paletteId) .. ":" .. tostring(stats.paletteSize))
-        print("render-smoke-sky=" .. tostring(stats.skyDome) .. ":" .. string.format("%.3f", stats.skyTime or 0))
+        print("render-smoke-sky=" .. tostring(stats.skyDome) .. ":" .. string.format("%.3f", stats.skyTime or 0) .. ":" .. tostring(stats.skySeason))
         love.event.quit(0)
     end
     if app.walkSmoke and app.perf.frame >= app.walkSmokeFrames then
@@ -471,6 +483,10 @@ function love.keypressed(key)
     if key == "b" then
         app.debugPanels = not app.debugPanels
         print("[panels] debug=" .. tostring(app.debugPanels))
+    end
+    if key == "[" or key == "]" then
+        local season = Atmosphere.shiftSeason(app.atmosphere, key == "]" and 1 or -1)
+        print("[season] " .. tostring(season))
     end
     if key == "f5" then
         Save.write(app.savePath, Save.snapshot(app))

@@ -42,6 +42,12 @@ local skyHorizon = { 0.68, 0.74, 0.75 }
 local fogColor = { 0.6, 0.68, 0.69 }
 local silhouetteColor = { 0.08, 0.09, 0.08 }
 local tau = math.pi * 2
+local seasonSkyTints = {
+    spring = { top = { 0.96, 1.04, 0.98 }, horizon = { 1.02, 0.98, 0.92 }, fog = { 0.96, 1.04, 0.98 } },
+    summer = { top = { 1.04, 1.0, 0.9 }, horizon = { 1.08, 0.96, 0.84 }, fog = { 1.02, 0.98, 0.9 } },
+    autumn = { top = { 1.06, 0.92, 0.86 }, horizon = { 1.12, 0.86, 0.74 }, fog = { 1.08, 0.9, 0.8 } },
+    winter = { top = { 0.82, 0.92, 1.12 }, horizon = { 0.86, 0.94, 1.08 }, fog = { 0.82, 0.94, 1.08 } },
+}
 local skyShaderSource = [[
 extern vec3 skyTop;
 extern vec3 skyHorizon;
@@ -85,17 +91,26 @@ local function shade(color, amount)
     }
 end
 
-function Render.skyColors(timeOfDay)
+local function tintColor(color, tint)
+    return { clamp(color[1] * tint[1], 0, 1), clamp(color[2] * tint[2], 0, 1), clamp(color[3] * tint[3], 0, 1) }
+end
+
+function Render.skyColors(timeOfDay, season)
+    if type(timeOfDay) == "table" then
+        season = timeOfDay.season
+        timeOfDay = timeOfDay.time
+    end
     local t = (tonumber(timeOfDay) or 0.25) % 1
     local daylight = clamp(math.sin(t * tau), 0, 1)
     local dusk = 1 - daylight
     local nightTop = { 0.035, 0.045, 0.12 }
     local nightHorizon = { 0.16, 0.12, 0.2 }
     local nightFog = { 0.18, 0.2, 0.26 }
+    local tint = seasonSkyTints[season or "summer"] or seasonSkyTints.summer
     return {
-        top = mixColor(nightTop, skyTop, daylight),
-        horizon = mixColor(nightHorizon, skyHorizon, daylight),
-        fog = mixColor(nightFog, fogColor, daylight * 0.85 + dusk * 0.18),
+        top = tintColor(mixColor(nightTop, skyTop, daylight), tint.top),
+        horizon = tintColor(mixColor(nightHorizon, skyHorizon, daylight), tint.horizon),
+        fog = tintColor(mixColor(nightFog, fogColor, daylight * 0.85 + dusk * 0.18), tint.fog),
         daylight = daylight,
     }
 end
@@ -523,8 +538,9 @@ local function skyShader(app)
 end
 
 local function drawSky(app, width, height)
-    local timeOfDay = app.atmosphereTime or 0.25
-    local colors = Render.skyColors(timeOfDay)
+    local atmosphere = app.atmosphere
+    local timeOfDay = (atmosphere and atmosphere.time) or app.atmosphereTime or 0.25
+    local colors = Render.skyColors(atmosphere or timeOfDay)
     local shader = skyShader(app)
     shader:send("skyTop", colors.top)
     shader:send("skyHorizon", colors.horizon)
@@ -831,7 +847,8 @@ function Render.drawScene(app, width, height)
     local sky = drawSky(app, width, height)
     local meshData = Render.buildTerrainMeshData(app, width, height)
     meshData.skyDome = 1
-    meshData.skyTime = app.atmosphereTime or 0.25
+    meshData.skyTime = app.atmosphere and app.atmosphere.time or app.atmosphereTime or 0.25
+    meshData.skySeason = app.atmosphere and app.atmosphere.season or "summer"
     meshData.skyDaylight = sky.daylight
     drawStream(app, "terrain", meshData.vertices, 0.76, 1)
     drawStream(app, "silhouette", meshData.silhouetteVertices, 0.78, 0)
