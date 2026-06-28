@@ -1,6 +1,6 @@
 # Thoth
 
-Pseudo-3D terrain exploration prototype in LÖVE. The focus is deterministic terrain generation: plate age, subduction, rifts, island arcs, shields/cratons, uplift, rainfall, bounded regional hydrology, grouped lake fill/spillover, erosion, depositional landforms, rivers, biome colors, and dense terrain mesh inspection.
+Pseudo-3D terrain exploration prototype in LÖVE. The focus is deterministic terrain generation in a procedurally generated world, then plate age, subduction, rifts, island arcs, shields/cratons, uplift, rainfall, bounded regional hydrology, grouped lake fill/spillover, erosion, depositional landforms, rivers, biome colors, and dense terrain mesh inspection.
 
 ## Development
 
