@@ -496,6 +496,7 @@ function Render.billboardDrawList(app, width, height)
                             depth = depth,
                             color = spec.color,
                             kind = spec.kind,
+                            swayPhase = spec.swayPhase or 0,
                         }
                     end
                 end
@@ -509,9 +510,10 @@ end
 function Render.visibleStats(app, width, height)
     local mesh = Render.buildTerrainMeshData(app, width or 1280, height or 720)
     local billboards = Render.billboardDrawList(app, width or 1280, height or 720)
-    local landmarks = 0
+    local landmarks, swayBillboards = 0, 0
     for _, item in ipairs(billboards) do
         if item.kind == "peak" or item.kind == "ridge" or item.kind == "outcrop" then landmarks = landmarks + 1 end
+        if Render.billboardSwayMagnitude(item.kind) > 0 then swayBillboards = swayBillboards + 1 end
     end
     return {
         visibleTiles = mesh.visibleTiles,
@@ -522,6 +524,7 @@ function Render.visibleStats(app, width, height)
         riverStrips = mesh.riverStrips,
         silhouetteStrips = mesh.silhouetteStrips,
         billboards = #billboards,
+        swayBillboards = swayBillboards,
         landmarks = landmarks,
         cameraHeight = mesh.cameraHeight,
         viewScale = mesh.viewScale,
@@ -577,6 +580,50 @@ local billboardAtlasAliases = {
     snow = "snow_tuft",
     tree = "tree_deciduous",
 }
+local billboardSwayMagnitudes = {
+    tree_deciduous = 1.15,
+    tree_conifer = 1.05,
+    tree_dead = 0.42,
+    shrub = 0.24,
+    reed = 0.68,
+    rock = 0,
+    outcrop = 0,
+    peak = 0,
+    ridge = 0,
+    snow_tuft = 0,
+}
+local billboardShaderSource = [[
+extern number time;
+extern number atlasColumns;
+
+#ifdef VERTEX
+vec4 position(mat4 transform_projection, vec4 vertex_position)
+{
+    number cell = floor(VertexTexCoord.x * atlasColumns);
+    number top = 1.0 - VertexTexCoord.y;
+    number magnitude = 0.0;
+    if (cell < 2.0) {
+        magnitude = 1.15;
+    } else if (cell < 3.0) {
+        magnitude = 0.42;
+    } else if (cell < 4.0) {
+        magnitude = 0.24;
+    } else if (cell < 5.0) {
+        magnitude = 0.68;
+    }
+    vertex_position.x += sin(time * 6.2831853 + VertexColor.a * 6.2831853) * magnitude * top * top;
+    return transform_projection * vertex_position;
+}
+#endif
+
+#ifdef PIXEL
+vec4 effect(vec4 color, Image texture, vec2 textureCoords, vec2 screenCoords)
+{
+    vec4 texel = Texel(texture, textureCoords);
+    return vec4(texel.rgb * color.rgb, texel.a);
+}
+#endif
+]]
 
 local function terrainShader(app)
     app.shaders = app.shaders or {}
@@ -595,6 +642,16 @@ end
 
 function Render.billboardAtlasKindFor(kind)
     return billboardAtlasAliases[kind] or kind
+end
+
+function Render.billboardSwayMagnitude(kind)
+    return billboardSwayMagnitudes[Render.billboardAtlasKindFor(kind)] or 0
+end
+
+local function billboardShader(app)
+    app.shaders = app.shaders or {}
+    if not app.shaders.billboardSway then app.shaders.billboardSway = love.graphics.newShader(billboardShaderSource) end
+    return app.shaders.billboardSway
 end
 
 local function createBillboardAtlas()
@@ -666,14 +723,20 @@ local function drawBillboards(app, list)
         local c = mixColor(color, fogColor, fog * 0.75)
         local h = item.baseY - item.topY
         if h > 0 then
-            batch:setColor(c[1], c[2], c[3], 1)
+            local phase = clamp((item.swayPhase or 0) * 0.5 + 0.5, 0, 1)
+            batch:setColor(c[1], c[2], c[3], phase)
             local atlasKind = Render.billboardAtlasKindFor(item.kind)
             batch:add(quads[atlasKind] or quads.shrub, item.x - item.w * 0.5, item.topY, 0, item.w / billboardAtlasSize, h / billboardAtlasSize)
         end
     end
     batch:setColor(1, 1, 1, 1)
     love.graphics.setColor(1, 1, 1, 1)
+    local shader = billboardShader(app)
+    shader:send("time", app.atmosphere and app.atmosphere.time or app.atmosphereTime or 0)
+    shader:send("atlasColumns", #billboardAtlasKinds)
+    love.graphics.setShader(shader)
     love.graphics.draw(batch)
+    love.graphics.setShader()
 end
 
 local function fmt(value)
@@ -856,10 +919,13 @@ function Render.drawScene(app, width, height)
     local billboards = Render.billboardDrawList(app, width, height)
     drawBillboards(app, billboards)
     meshData.billboards = #billboards
+    meshData.swayBillboards = 0
     meshData.landmarks = 0
     for _, item in ipairs(billboards) do
         if item.kind == "peak" or item.kind == "ridge" or item.kind == "outcrop" then meshData.landmarks = meshData.landmarks + 1 end
+        if Render.billboardSwayMagnitude(item.kind) > 0 then meshData.swayBillboards = meshData.swayBillboards + 1 end
     end
+    meshData.swayTime = app.atmosphere and app.atmosphere.time or app.atmosphereTime or 0
     return meshData
 end
 

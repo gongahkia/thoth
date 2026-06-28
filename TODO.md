@@ -75,30 +75,6 @@ These convert the current "low-poly muted realism" look into something closer to
 
 ---
 
-### T-023 — Animated billboards (wind sway)         [tier 3] [low]
-
-GOAL: Trees and reeds gently sway via per-instance time-offset uniform passed to the billboard shader.
-
-WHY: Static billboards feel dead. Proteus has subtle motion.
-
-WHERE:
-- `src/render.lua` billboard draw path.
-- New shader uniform `time`.
-
-DEPENDS ON: T-003, T-019, T-022.
-
-ACCEPTANCE:
-- Sway is per-instance phase-offset (use `Rng.signed(seed, x, y)` for the phase).
-- Magnitude scales with billboard kind (trees more, rocks zero).
-- No FPS regression.
-
-NOTES / IMPL HINTS:
-- Vertex shader displacement: `pos.x += A * sin(time * freq + phase) * (vertex.y / height)` — top sways, base doesn't.
-
-REFERENCES: none required.
-
----
-
 # TIER 4 — Endless world infrastructure
 
 These extend the world's reach and the engine's ability to handle long sessions.

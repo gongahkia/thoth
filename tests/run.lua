@@ -845,7 +845,7 @@ end
 local function encodeBillboards(list)
     local parts = {}
     for _, item in ipairs(list) do
-        parts[#parts + 1] = table.concat({ item.kind, round(item.x), round(item.y), round(item.z), round(item.width), round(item.height) }, ":")
+        parts[#parts + 1] = table.concat({ item.kind, round(item.x), round(item.y), round(item.z), round(item.width), round(item.height), round(item.swayPhase) }, ":")
     end
     return table.concat(parts, "|")
 end
@@ -871,6 +871,9 @@ local function testBillboardAtlas()
     for _, kind in ipairs(WorldGen.billboardKinds()) do
         expect(atlas[Render.billboardAtlasKindFor(kind)], "billboard kind missing atlas quad " .. kind)
     end
+    expect(Render.billboardSwayMagnitude("tree_deciduous") > Render.billboardSwayMagnitude("reed"), "tree sway should exceed reed sway")
+    expect(Render.billboardSwayMagnitude("reed") > Render.billboardSwayMagnitude("shrub"), "reed sway should exceed shrub sway")
+    expect(Render.billboardSwayMagnitude("rock") == 0 and Render.billboardSwayMagnitude("peak") == 0, "static billboard kinds should not sway")
 end
 
 local function testBillboards()
@@ -886,6 +889,7 @@ local function testBillboards()
             for _, item in ipairs(list) do
                 expect(kinds[item.kind], "invalid billboard kind")
                 expect(item.x == item.x and item.y == item.y and item.z == item.z, "billboard coordinates should be finite")
+                expect((item.swayPhase or 0) >= -1 and (item.swayPhase or 0) <= 1, "billboard sway phase should be normalized")
                 count = count + 1
             end
         end

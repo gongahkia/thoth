@@ -1054,6 +1054,7 @@ local function billboardSpecFor(seed, cell)
         z = cell.elevation,
         width = width,
         height = height,
+        swayPhase = Rng.signed(seed, cell.x, cell.y, 733),
         color = color,
         biome = cell.biome,
     }
