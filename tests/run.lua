@@ -1138,6 +1138,10 @@ local function testRegressionSeedDiagnostics()
         if fixture.minRivers then expect(stats.rivers >= fixture.minRivers, "regression seed should keep river coverage") end
     end
     expect(categories.ugly_terrain and categories.all_water and categories.all_land and categories.broken_seams and categories.river_discontinuities, "regression seed categories should cover terrain failure modes")
+    expect(categories.riverless and categories.single_biome and categories.biome_count_low and categories.steep_slopes and categories.drowned_basin, "regression seed categories should cover extended failure modes")
+    local count = 0
+    for _ in pairs(categories) do count = count + 1 end
+    expect(count >= 10, "regression seed fixtures should cover at least 10 categories")
 end
 
 local function testTerrainFirstScope()
