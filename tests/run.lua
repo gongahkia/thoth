@@ -18,6 +18,7 @@ local Erosion = require("src.erosion")
 local Climate = require("src.climate")
 local SoilProduction = require("src.soil_production")
 local Hillslope = require("src.hillslope")
+local Meander = require("src.meander")
 local Biomes = require("src.biomes")
 local Aeolian = require("src.aeolian")
 
@@ -110,6 +111,8 @@ local function encodeCell(cell)
         round(cell.hotspotAgeMy),
         tostring(cell.hotspotId),
         tostring(cell.isFloodBasalt),
+        round(cell.meanderBend),
+        tostring(cell.oxbowLake),
         round(cell.glacialDelta),
         round(cell.glacialErosion),
         round(cell.iceThickness),
@@ -396,7 +399,7 @@ local function testSurveyHistory()
 end
 
 local function testSaveLoadRoundTrip()
-    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200, glacialGamma = 6e-9, glacialBeta = 0.01, glacialBmax = 1.5, glacialKg = 7e-5, glacialSiaIterations = 5, seasonRate = 2, itczOffsetAmp = 0.1, monsoonSeasonalContrast = 1.4, windCoriolisScale = 0.3, hotspotCount = 12, hotspotMantleExtent = 32768, hotspotMinSeparation = 2048, hotspotBucketSize = 4096, hotspotSigma = 768, hotspotTrailSteps = 5, hotspotTrailDt = 0.15, hotspotTau = 2.5, hotspotElevationScale = 0.33, floodBasaltThreshold = 0.25 })
+    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200, glacialGamma = 6e-9, glacialBeta = 0.01, glacialBmax = 1.5, glacialKg = 7e-5, glacialSiaIterations = 5, seasonRate = 2, itczOffsetAmp = 0.1, monsoonSeasonalContrast = 1.4, windCoriolisScale = 0.3, hotspotCount = 12, hotspotMantleExtent = 32768, hotspotMinSeparation = 2048, hotspotBucketSize = 4096, hotspotSigma = 768, hotspotTrailSteps = 5, hotspotTrailDt = 0.15, hotspotTau = 2.5, hotspotElevationScale = 0.33, floodBasaltThreshold = 0.25, meanderWidthScale = 2.2, meanderMigrationScale = 0.8 })
     local survey = Survey.new()
     Survey.mark(survey, world, -64, -64, "local")
     local viewScale = ViewScale.new(world)
@@ -427,6 +430,7 @@ local function testSaveLoadRoundTrip()
     expect(decoded.world.seasonRate == 2 and decoded.world.itczOffsetAmp == 0.1 and decoded.world.monsoonSeasonalContrast == 1.4 and decoded.world.windCoriolisScale == 0.3, "save should round-trip climate-band settings")
     expect(decoded.world.hotspotCount == 12 and decoded.world.hotspotMantleExtent == 32768 and decoded.world.hotspotMinSeparation == 2048 and decoded.world.hotspotBucketSize == 4096, "save should round-trip hotspot grid settings")
     expect(decoded.world.hotspotSigma == 768 and decoded.world.hotspotTrailSteps == 5 and decoded.world.hotspotTrailDt == 0.15 and decoded.world.hotspotTau == 2.5 and decoded.world.hotspotElevationScale == 0.33 and decoded.world.floodBasaltThreshold == 0.25, "save should round-trip hotspot physics settings")
+    expect(decoded.world.meanderWidthScale == 2.2 and decoded.world.meanderMigrationScale == 0.8, "save should round-trip meander settings")
     expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
     expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.debugPanels and not decoded.display.mouseLook, "save should round-trip display toggles")
     expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
@@ -1066,6 +1070,46 @@ local function testOrographicRainShadow()
     expect(climate.rainShadowCells > 0, "orographic precipitation should mark leeward rain-shadow cells")
 end
 
+local function testMeanderSinuosity()
+    local function regionFixture()
+        local region = { scale = "local", scaleFactor = 1, stride = 1, threshold = 10, cells = {} }
+        for gy = -8, 8 do
+            for gx = 0, 24 do
+                local cell = {
+                    gx = gx,
+                    gy = gy,
+                    x = gx,
+                    y = gy,
+                    elevationBase = 0.2,
+                    elevation = 0.2,
+                    flow = gy == 0 and 120 or 8,
+                    slope = 0.03,
+                    water = false,
+                    river = gy == 0 and gx < 24,
+                    floodplain = false,
+                }
+                region.cells[gx .. ":" .. gy] = cell
+            end
+        end
+        for gx = 0, 23 do
+            region.cells[gx .. ":0"].downCell = region.cells[(gx + 1) .. ":0"]
+        end
+        return region
+    end
+    local region = regionFixture()
+    local result = Meander.applyRegion(region, { threshold = 10, seed = 20260625, widthScale = 2.0, migrationScale = 0.85 })
+    local repeatRegion = regionFixture()
+    Meander.applyRegion(repeatRegion, { threshold = 10, seed = 20260625, widthScale = 2.0, migrationScale = 0.85 })
+    local bends = 0
+    for gx = 0, 23 do
+        local bend = region.cells[gx .. ":0"].meanderBend or 0
+        if math.abs(bend) > 0.1 then bends = bends + 1 end
+        expect(round(bend) == round(repeatRegion.cells[gx .. ":0"].meanderBend), "meander migration should be deterministic")
+    end
+    expect(result.maxSinuosity > 1.2 and bends > 8, "meander pass should raise lowland river sinuosity")
+    expect(#region.oxbowPolygons > 0 and result.oxbowLakes == #region.oxbowPolygons, "meander pass should stamp oxbow lakes")
+end
+
 local function testBasinChannelsSpanDetailRegions()
     local world = WorldGen.new(1, basinWorldOptions)
     local spans = {}
@@ -1691,6 +1735,7 @@ local tests = {
     testIsostasy,
     testStreamPowerDiagnostics,
     testOrographicRainShadow,
+    testMeanderSinuosity,
     testBasinChannelsSpanDetailRegions,
     testBiomes,
     testWhittakerBins,

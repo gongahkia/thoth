@@ -97,6 +97,8 @@ local function workerKey(message)
         options.hotspotTau or "",
         options.hotspotElevationScale or "",
         options.floodBasaltThreshold or "",
+        options.meanderWidthScale or "",
+        options.meanderMigrationScale or "",
         options.orographicLiftScale or "",
         options.orographicLeeScale or "",
         options.cacheMaxEntries or "",

@@ -3,6 +3,7 @@ local Climate = require("src.climate")
 local Coast = require("src.coast")
 local SoilProduction = require("src.soil_production")
 local Hillslope = require("src.hillslope")
+local Meander = require("src.meander")
 
 local Hydrology = {}
 
@@ -670,6 +671,13 @@ local function solveRegion(world, chunkX, chunkY, info)
         end
     end
 
+    region.meanders = Meander.applyRegion(region, {
+        threshold = threshold,
+        seed = world.seed,
+        widthScale = world.meanderWidthScale,
+        migrationScale = world.meanderMigrationScale,
+    })
+
     for _, cell in ipairs(visitOrder) do
         if cell.lake then
             cell.elevation = cell.lakeSurface
@@ -727,6 +735,9 @@ local function solveRegion(world, chunkX, chunkY, info)
         glacialIceVolume = region.glaciers and region.glaciers.iceVolume or 0,
         coastCliffs = 0,
         coastBeaches = 0,
+        meanderSegments = region.meanders and region.meanders.segments or 0,
+        maxMeanderSinuosity = region.meanders and region.meanders.maxSinuosity or 0,
+        oxbowLakes = 0,
         maxSediment = 0,
         maxFlow = 0,
     }
@@ -748,6 +759,7 @@ local function solveRegion(world, chunkX, chunkY, info)
             if cell.alluvialFan then stats.alluvialFans = stats.alluvialFans + 1 end
             if cell.floodplain then stats.floodplains = stats.floodplains + 1 end
             if cell.delta then stats.deltas = stats.deltas + 1 end
+            if cell.oxbowLake then stats.oxbowLakes = stats.oxbowLakes + 1 end
             if (cell.sediment or 0) > 0 then stats.sedimentCells = stats.sedimentCells + 1 end
             if cell.glaciated then stats.glaciatedCells = stats.glaciatedCells + 1 end
             stats.glacialIceVolume = stats.glacialIceVolume + (cell.iceThickness or 0)

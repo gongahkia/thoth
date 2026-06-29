@@ -8,8 +8,8 @@ local Aeolian = require("src.aeolian")
 local SoilProduction = require("src.soil_production")
 local ffi = require("ffi")
 
-local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "hillslopeDelta", "debrisFlowDelta" }
-local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt" }
+local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "meanderBend", "hillslopeDelta", "debrisFlowDelta" }
+local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake" }
 local soaInt32FieldList = { "plateId", "secondaryPlateId", "hotspotId" }
 local soaDoubleArray = ffi.typeof("double[?]")
 local soaInt8Array = ffi.typeof("int8_t[?]")
@@ -643,6 +643,8 @@ function WorldGen.new(seed, options)
         hotspotTau = option(options.hotspotTau, 3),
         hotspotElevationScale = option(options.hotspotElevationScale, 0.42),
         floodBasaltThreshold = option(options.floodBasaltThreshold, 0.34),
+        meanderWidthScale = option(options.meanderWidthScale, 1.8),
+        meanderMigrationScale = option(options.meanderMigrationScale, 0.72),
         orographicLiftScale = option(options.orographicLiftScale, 8.5),
         orographicLeeScale = option(options.orographicLeeScale, 2.4),
         cacheMaxEntries = maxEntries,
@@ -798,6 +800,8 @@ function WorldGen:metadata()
         hotspotTau = self.hotspotTau,
         hotspotElevationScale = self.hotspotElevationScale,
         floodBasaltThreshold = self.floodBasaltThreshold,
+        meanderWidthScale = self.meanderWidthScale,
+        meanderMigrationScale = self.meanderMigrationScale,
         orographicLiftScale = self.orographicLiftScale,
         orographicLeeScale = self.orographicLeeScale,
         cacheMaxEntries = self.cacheMaxEntries,
@@ -1056,6 +1060,8 @@ function WorldGen:baseSample(x, y, scale)
         hotspotAgeMy = hotspot.hotspotAgeMy,
         hotspotId = hotspot.hotspotId,
         isFloodBasalt = hotspot.isFloodBasalt,
+        meanderBend = 0,
+        oxbowLake = false,
         marineTerrace = 0,
         fluvialTerrace = 0,
         paleoShoreline = false,
@@ -1174,6 +1180,8 @@ function WorldGen:pendingSample(x, y, info)
         hotspotAgeMy = 0,
         hotspotId = 0,
         isFloodBasalt = false,
+        meanderBend = 0,
+        oxbowLake = false,
         marineTerrace = 0,
         fluvialTerrace = 0,
         paleoShoreline = false,

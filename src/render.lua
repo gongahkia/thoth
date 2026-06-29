@@ -136,6 +136,7 @@ local function baseColor(cell)
     if cell.delta then color = mixColor(color, landformColors.delta, 0.55) end
     if cell.coastBeach then color = mixColor(color, landformColors.coastBeach, 0.68) end
     if cell.coastCliff then color = mixColor(color, landformColors.coastCliff, 0.6) end
+    if cell.oxbowLake then color = mixColor(color, biomeColors.lake, 0.5) end
     if (cell.duneAmplitude or 0) > 0 then color = mixColor(color, (cell.duneDelta or 0) >= 0 and landformColors.duneLight or landformColors.duneShade, clamp((cell.duneAmplitude or 0) * 12, 0.18, 0.42)) end
     if cell.floodplain then color = mixColor(color, landformColors.floodplain, 0.5) end
     if cell.alluvialFan then color = mixColor(color, landformColors.alluvial, 0.45) end

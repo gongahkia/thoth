@@ -159,6 +159,8 @@ function Save.snapshot(app)
             hotspotTau = metadata.hotspotTau,
             hotspotElevationScale = metadata.hotspotElevationScale,
             floodBasaltThreshold = metadata.floodBasaltThreshold,
+            meanderWidthScale = metadata.meanderWidthScale,
+            meanderMigrationScale = metadata.meanderMigrationScale,
         },
         player = { x = app.player.x, y = app.player.y },
         camera = { yaw = app.camera.yaw, pitch = app.camera.pitch },

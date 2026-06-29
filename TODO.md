@@ -132,44 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-044 — Howard-Knutson meandering rivers + oxbow cutoffs      [tier 6] [med]
-
-GOAL: For each river segment above flow threshold, convert grid-locked D8 polyline to a curvature-driven meandering centerline migrating per Howard & Knutson 1984. Detect neck cutoffs to form oxbow lakes.
-
-WHY: Rivers currently lock to 8 D8 directions and never meander. Adding curvature-driven migration transforms planforms into recognizably-real river shapes; oxbows accumulate in floodplain bands.
-
-WHERE:
-- New `src/meander.lua` exposing `Meander.applyRegion(region, options)`.
-- `src/hydrology.lua:553-567` river labelling — for each `cell.river`, group into segments by `channelId`. Build polyline per segment.
-- `src/hydrology.lua:594-605` deltas/floodplain — extend to mark `cell.oxbowLake = true` and `cell.meanderBend` along migrated centerline.
-- New per-cell field `meanderBend:double`; `oxbowLake:int8`. New per-region `region.oxbowPolygons[]` for render.
-
-DEPENDS ON: none new.
-
-ACCEPTANCE:
-- Sinuosity (channel length / valley length) > 1.2 for lowland rivers after migration.
-- Oxbow lakes appear in floodplain band ~3–5·W wide where W = channel width.
-- Same seed → same meander positions.
-- `testMeanderSinuosity` gates expected sinuosity range.
-
-NOTES / IMPL HINTS:
-- Channel width `W = sqrt(flow) · widthScale` (Leopold-Maddock `W ∝ Q^0.5`).
-- Polyline nodes at uniform arc length `ds_target = W/2`.
-- Curvature: `κ_i = 2·cross(r_{i-1}-r_i, r_{i+1}-r_i) / (|r_{i-1}-r_i|·|r_i-r_{i+1}|·|r_{i-1}-r_{i+1}|)`.
-- Smoothed curvature: `ω_i = Σ_j w_{i-j}·κ_j`, `w_k = (ds/L_d)·exp(-k·ds/L_d)`, `L_d = 10·W`, truncate at `5·L_d`.
-- Migration: `r_i += dt · E₀ · ω_i · n_i` (n = outward normal). Tune `E₀` so peak migration ≈ 1% of W per step.
-- Resample to uniform arc length after migration; 3-point moving-average smoothing every 5 steps.
-- Neck cutoff: scan node pairs `(i,j)` with `|i-j|·ds > 5·W`; if `|r_i - r_j| < 1.0·W`, splice — remove nodes between, store removed polyline as oxbow polygon.
-- Pin endpoints at chunk-boundary entry/exit.
-- `dt ≈ 1–5 yr` per step; run once per geologicTime advance, not per frame.
-
-REFERENCES:
-- [Howard & Knutson 1984 WRR](https://doi.org/10.1029/WR020i011p01659).
-- [Ikeda, Parker & Sawai 1981 JFM](https://doi.org/10.1017/S0022112081002231) — upstream influence kernel.
-- [Vimont et al. 2023 TOG](https://dl.acm.org/doi/10.1145/3618350) — modern authoring.
-
----
-
 ### T-045 — Ashton-Murray-Arnoult shoreline instability           [tier 6] [med]
 
 GOAL: Replace exposure-only coast logic (coast.lua:39-80) with AMA 2001 shoreline-instability solver. Run after T-046 GDH1. High-angle wave climate produces capes, spits, cuspate forelands; low-angle smooths.
