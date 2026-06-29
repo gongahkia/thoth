@@ -2,7 +2,7 @@
 
 ## 0. Project context (one screen)
 
-**What Thoth is today:** A LÖVE 11.5 (Lua) prototype of a first-person, endlessly-explored procedural terrain. ~3.2 kLOC. Deterministic seed-driven. Three nested view scales (local/region/continent, factors 1/4/16). Solid geomorphology vocabulary (plates, subduction, rifts, cratons, deltas, lakes, watersheds) and a real Priority-Flood depression-fill + D8 flow hydrology layer. CPU-only rendering via per-frame `love.graphics.newMesh(..., "stream")`. No shaders, no canvases, no threads.
+**What Thoth is today:** A LÖVE 11.5 (Lua) prototype of a first-person, endlessly-explored procedural terrain. ~7.3 kLOC. Deterministic seed-driven, with an optional `--geologic-time` plate-drift parameter. Three nested view scales (local/region/continent, factors 1/4/16). Geomorphology vocabulary (plates, subduction, rifts, cratons, deltas, lakes, watersheds), OpenSimplex2 noise + iterative stream-power and glacial erosion, Priority-Flood + D8 hydrology with an async worker, geometry-clipmap LOD terrain with persistent streamed meshes, terrain/billboard shaders, a low-res palette-quantized canvas, atmosphere day/season cycling driving sun direction and palette tint, per-chunk LRU caches, and a benchmark/baseline gate.
 
 **Three north-star goals (from the user):**
 1. Rendering style similar to *Proteus* (Ed Key / Twisted Tree, 2013): pixel-art look, 2D sprite flora/fauna against 3D terrain, mood-driven palette, low-poly chunky hills.
@@ -10,20 +10,33 @@
 3. High FPS in an endlessly generated world.
 
 **File map (verified):**
-- `main.lua` — LÖVE entrypoint, perf log harness, CLI flags
+- `main.lua` — LÖVE entrypoint, perf log harness, CLI flags, save/load, debug-panel toggles
 - `conf.lua` — window 1280×720, physics+video off
-- `src/worldgen.lua` (622 LOC) — plates, biome classifier, chunk/billboard caches, `heightAt`/`normalAt`
-- `src/hydrology.lua` (629 LOC) — Priority-Flood, D8, basin pre-pass, lake grouping
-- `src/noise.lua` (58 LOC) — value-noise + FBM + ridge + domain warp
-- `src/rng.lua` (50 LOC) — deterministic hash
-- `src/render.lua` (549 LOC) — pseudo-3D CPU mesh build + draw
-- `src/viewscale.lua` (235 LOC) — three-scale easing transitions
-- `src/player.lua` (31 LOC) — WASD movement + slope/water slowdown
-- `src/survey.lua` (49 LOC) — marked-cell history
-- `src/diagnostics.lua` (224 LOC) — seed sweep with bound thresholds
-- `src/export.lua` (100 LOC) — PNG/PPM map export
-- `tests/run.lua` (689 LOC) — 25 deterministic tests, smoke harness, diagnostics CLI
-- `Makefile` — `run`, `test`, `smoke`, `diagnostics`, `render-smoke`, `walk-smoke`, `export-smoke`
+- `src/worldgen.lua` — plates (`geologicTime`-aware), OpenSimplex base, biome classifier, chunk/billboard caches, `heightAt`/`normalAt`
+- `src/hydrology.lua` — Priority-Flood, D8, basin pre-pass, lake grouping
+- `src/worker.lua` — async hydrology worker thread
+- `src/erosion.lua` — stream-power + glacial + isostatic rebound
+- `src/climate.lua` — orographic precipitation
+- `src/biomes.lua` — Whittaker lookup
+- `src/coast.lua` — coastal erosion + beaches
+- `src/aeolian.lua` — dune deltas
+- `src/noise.lua` — OpenSimplex2 + FBM + ridge + domain warp
+- `src/rng.lua` — BitOp-mixed deterministic hash
+- `src/lru.lua` — bounded LRU cache
+- `src/render.lua` — clipmap terrain + persistent mesh streams + shader pipeline
+- `src/clipmap.lua` — geometry clipmap LOD
+- `src/postfx.lua` — low-res canvas + palette quantization
+- `src/atmosphere.lua` — day/season cycle + palette tint + `sunDirection`
+- `src/viewscale.lua` — three-scale easing transitions
+- `src/player.lua` — WASD movement + slope/water slowdown
+- `src/survey.lua` — marked-cell history
+- `src/save.lua` — JSON-ish save/load
+- `src/diagnostics.lua` — seed sweeps + regression fixtures
+- `src/export.lua` — PNG/PPM map export
+- `src/benchmark.lua` — headless terrain benchmark + baseline gate
+- `tests/run.lua` — 52 deterministic tests + diagnostics/benchmark/regressions CLI
+- `tests/bench.baseline.json` — committed benchmark baseline
+- `Makefile` — `run`, `test`, `smoke`, `diagnostics`, `regressions`, `benchmark`, `bench`, `bench-update`, `render-smoke`, `walk-smoke`, `export-smoke`
 
 **House rules (from CLAUDE.md, must follow):**
 - Extreme terseness in code and prose. Inline comments lowercase, after code, only when WHY is non-obvious.
@@ -109,51 +122,9 @@ REFERENCES:
 
 ---
 
-### T-028 — Save / load state         [tier 4] [low]
-
-GOAL: `F5` saves seed, player position, view scale, survey, options to `love.filesystem.getSaveDirectory()`. `F9` restores.
-
-WHY: `TODO.md` lists this. Without save/load no long-session play.
-
-WHERE: `main.lua` (key handler), new `src/save.lua`.
-
-DEPENDS ON: none.
-
-ACCEPTANCE:
-- `F5` writes JSON (or Lua-table-string) save file with: seed, player x/y, view scale, survey history.
-- `F9` reads back; world resumes at saved location with identical terrain (determinism).
-- New `testSaveRoundtrip` re-loads and asserts state equality.
-
-NOTES / IMPL HINTS:
-- LÖVE's `love.filesystem` provides safe write/read.
-- Don't bother serializing caches; they re-warm.
-
-REFERENCES:
-- [love.filesystem — LÖVE wiki](https://love2d.org/wiki/love.filesystem)
-
----
-
 # TIER 5 — Engineering hygiene
 
 Small targeted fixes for issues spotted during the audit. Land any time after Tier 1.
-
----
-
-### T-033 — Document everything: README sync         [tier 5] [low]
-
-GOAL: README and TODO updated to reflect all Tier-1..3 changes. Adopted CLI flags documented.
-
-WHY: README will drift as tasks land. Keep it sync'd.
-
-WHERE: `README.md`, `TODO.md`.
-
-DEPENDS ON: after each tier is complete.
-
-ACCEPTANCE:
-- README mentions: pixel-perfect canvas, async hydrology, palette swap, save/load, geometry clipmap (if landed), bench harness.
-- TODO has resolved items struck out or removed.
-
-REFERENCES: none required.
 
 ---
 

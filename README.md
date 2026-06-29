@@ -2,6 +2,8 @@
 
 Pseudo-3D terrain exploration prototype in LÖVE. The focus is deterministic terrain generation in a procedurally generated world, then plate age, subduction, rifts, island arcs, shields/cratons, uplift, rainfall, bounded regional hydrology, grouped lake fill/spillover, erosion, depositional landforms, rivers, biome colors, and dense terrain mesh inspection.
 
+Rendering pipeline: OpenSimplex2 noise + iterative stream-power and glacial erosion drive a heightfield that's drawn via geometry-clipmap terrain tiles + persistent streamed meshes + per-cell sun-direction lighting. A low-resolution canvas + palette-quantization post-process and pixel sprite billboards provide the Proteus-style look. Atmosphere cycles tint the palette and drive sun direction across dawn/noon/dusk/night. An async hydrology worker (`--no-async` to disable) keeps Priority-Flood + D8 routing off the render thread.
+
 ## Development
 
 ```sh
@@ -39,9 +41,15 @@ love . --hydrology-basin-chunks 8 --hydrology-basin-stride 4
 love . --export-map dist/map --export-size 128
 love . --save-path thoth-save.json --load-save thoth-save.json
 love . --geologic-time 0.5
+love . --pixel-scale 2 --time-of-day 0.25 --season summer --day-length 60
+love . --no-async
 ```
 
 `--geologic-time` drifts every plate along its velocity vector (clamped via tanh below 80% of half plate-cell, so plates never collide). `0` keeps the static contract; the `(seed, geologicTime)` pair is the new determinism contract.
+
+`--pixel-scale` controls the low-resolution canvas downsample (2, 3, or 4); palette quantization snaps the result to a 32-color biome palette swapped per active view scope. `--time-of-day`, `--season`, and `--day-length` configure the atmosphere day cycle that drives both palette tint and sun direction for terrain lighting; press `[` / `]` in-game to step seasons. `--no-async` runs hydrology on the render thread (useful when debugging determinism).
+
+`make bench` runs the headless terrain benchmark and gates against `tests/bench.baseline.json`; `make bench-update` rewrites the baseline. Non-zero exit on regressions below tolerance (50% in the default `make bench`; 10% for direct `--baseline-tolerance` runs per CI gating). The `bench-baseline` artifact is uploaded by the CI workflow.
 
 `--debug-perf` prints FPS, raw/clamped dt, update/draw/preload ms, position, visible/preloaded chunks, bounded cache counts, cache hits/misses/evictions, terrain/basin cache misses, and hydrology cell counts. Press `L` in-game to toggle it. `--debug-topo` starts with the optional topographic debug map open; press `T` to toggle it. `--debug-panels` starts with plate, drainage, erosion, and biome debug panels open; press `B` to toggle them. `--export-map <prefix>` writes `<prefix>.png` plus seed/scale metadata JSON. `F5` saves seed, player, survey annotations, and display settings; `F9` loads `--save-path`. Runtime movement clamps simulation dt to reduce jitter after slow terrain loads.
 
@@ -57,7 +65,7 @@ luajit tests/run.lua --regressions
 luajit tests/run.lua --benchmark --chunk-radius 1 --scales local,region,continent
 ```
 
-Diagnostics report land/water/river/lake/slope/biome ratios, seam mismatches, and uphill drainage rejects. Fixture sweeps cover ugly terrain, all-water/all-land, riverless, over-lake, over-steep, single-biome, seam, and river-continuity regressions. Bounds are broad Earth-inspired calibration gates, not strict geoscience targets.
+Diagnostics report land/water/river/lake/slope/biome ratios, seam mismatches, and uphill drainage rejects. Fixture sweeps cover ten regression categories: ugly_terrain, all_water, all_land, riverless, single_biome, biome_count_low, steep_slopes, drowned_basin, broken_seams, and river_discontinuities. Bounds are broad Earth-inspired calibration gates, not strict geoscience targets.
 
 Controls:
 
