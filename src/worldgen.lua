@@ -8,9 +8,9 @@ local Aeolian = require("src.aeolian")
 local SoilProduction = require("src.soil_production")
 local ffi = require("ffi")
 
-local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hillslopeDelta", "debrisFlowDelta" }
-local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId" }
-local soaInt32FieldList = { "plateId", "secondaryPlateId" }
+local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "hillslopeDelta", "debrisFlowDelta" }
+local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt" }
+local soaInt32FieldList = { "plateId", "secondaryPlateId", "hotspotId" }
 local soaDoubleArray = ffi.typeof("double[?]")
 local soaInt8Array = ffi.typeof("int8_t[?]")
 local soaInt32Array = ffi.typeof("int32_t[?]")
@@ -95,6 +95,8 @@ local biomeIds = {
     alpine = true,
     snow = true,
     rock = true,
+    lava_flow = true,
+    shield = true,
 }
 
 local billboardKinds = {
@@ -192,6 +194,119 @@ local function plateDrift(vx, vy, cellSize, time)
     return math.tanh(vx * time) * driftScale, math.tanh(vy * time) * driftScale
 end
 
+local function wrapMantle(value, extent)
+    return value - math.floor(value / extent) * extent
+end
+
+local function mantleDelta(a, b, extent)
+    local delta = math.abs(a - b)
+    if delta > extent * 0.5 then delta = extent - delta end
+    return delta
+end
+
+local function mantleDistance2(ax, ay, bx, by, extent)
+    local dx = mantleDelta(ax, bx, extent)
+    local dy = mantleDelta(ay, by, extent)
+    return dx * dx + dy * dy
+end
+
+local function hotspotBucketKey(x, y, bucketSize)
+    return floorDiv(x, bucketSize) .. ":" .. floorDiv(y, bucketSize)
+end
+
+local function buildHotspots(world)
+    local seed = world.seed
+    local count = world.hotspotCount or 64
+    local extent = world.hotspotMantleExtent or 65536
+    local minSeparation = world.hotspotMinSeparation or 4096
+    local bucketSize = world.hotspotBucketSize or 8192
+    local hotspots, grid = {}, {}
+    local rng = Rng.new(seed + 1201)
+    local attempt, maxAttempts = 0, count * 320
+    while #hotspots < count and attempt < maxAttempts do
+        attempt = attempt + 1
+        local x = rng:unit() * extent
+        local y = rng:unit() * extent
+        local ok = true
+        for _, hotspot in ipairs(hotspots) do
+            if mantleDistance2(x, y, hotspot.x, hotspot.y, extent) < minSeparation * minSeparation then
+                ok = false
+                break
+            end
+        end
+        if ok then
+            local id = #hotspots + 1
+            local hotspot = {
+                id = id,
+                x = x,
+                y = y,
+                intensity = 0.72 + rng:unit() * 0.56,
+            }
+            hotspots[id] = hotspot
+            local bucket = hotspotBucketKey(x, y, bucketSize)
+            grid[bucket] = grid[bucket] or {}
+            grid[bucket][#grid[bucket] + 1] = id
+        end
+    end
+    return hotspots, grid
+end
+
+local function hotspotAt(world, wx, wy, plate)
+    if not (world.hotspots and world.hotspotGrid) then return { contribution = 0, hotspotId = 0, hotspotAgeMy = 0, isFloodBasalt = false } end
+    local extent = world.hotspotMantleExtent or 65536
+    local bucketSize = world.hotspotBucketSize or 8192
+    local bucketCount = math.max(1, math.floor(extent / bucketSize))
+    local sigma = world.hotspotSigma or 1024
+    local sigma2 = sigma * sigma
+    local maxDistance2 = sigma2 * 9
+    local trailDt = world.hotspotTrailDt or 0.2
+    local trailSteps = world.hotspotTrailSteps or 8
+    local tau = world.hotspotTau or 3
+    local currentDx, currentDy = plateDrift(plate.vx or 0, plate.vy or 0, world.plateCellSize or 640, world.geologicTime or 0)
+    local mantleX = wrapMantle(wx - currentDx, extent)
+    local mantleY = wrapMantle(wy - currentDy, extent)
+    local maxTrail = math.min(trailSteps - 1, math.floor(math.max(0, world.geologicTime or 0) / math.max(0.000001, trailDt)))
+    local sum, bestWeight, bestId, bestAge = 0, 0, 0, 0
+    local bucketRadius = math.max(1, math.ceil((world.hotspotSigma or 1024) * 3 / bucketSize))
+    for ageIndex = 0, maxTrail do
+        local pastDx, pastDy = plateDrift(plate.vx or 0, plate.vy or 0, world.plateCellSize or 640, ageIndex * trailDt)
+        local targetX = wrapMantle(mantleX + pastDx, extent)
+        local targetY = wrapMantle(mantleY + pastDy, extent)
+        local bx, by = floorDiv(targetX, bucketSize), floorDiv(targetY, bucketSize)
+        local ageDecay = math.exp(-ageIndex / tau)
+        for oy = -bucketRadius, bucketRadius do
+            for ox = -bucketRadius, bucketRadius do
+                local nx = (bx + ox) % bucketCount
+                local ny = (by + oy) % bucketCount
+                local bucket = world.hotspotGrid[nx .. ":" .. ny]
+                if bucket then
+                    for _, id in ipairs(bucket) do
+                        local hotspot = world.hotspots[id]
+                        local d2 = mantleDistance2(targetX, targetY, hotspot.x, hotspot.y, extent)
+                        if d2 <= maxDistance2 then
+                            local weight = hotspot.intensity * math.exp(-d2 / sigma2) * ageDecay
+                            sum = sum + weight
+                            if weight > bestWeight then
+                                bestWeight = weight
+                                bestId = hotspot.id
+                                bestAge = ageIndex * trailDt * 100
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    local contribution = clamp(sum * (world.hotspotElevationScale or 0.42), 0, 0.45)
+    return {
+        contribution = contribution,
+        hotspotId = bestId,
+        hotspotAgeMy = bestAge,
+        isFloodBasalt = contribution > (world.floodBasaltThreshold or 0.34) and (plate.boundary or 1) < 0.18,
+        intensity = bestWeight,
+    }
+end
+
 local function buildPlateCenter(seed, gx, gy, cellSize, time)
     local jitterX = Rng.signed(seed, gx, gy, 11) * cellSize * 0.38
     local jitterY = Rng.signed(seed, gx, gy, 23) * cellSize * 0.38
@@ -245,13 +360,13 @@ local function twoNearestPlates(seed, x, y, cellSize, cache, time)
     return first, second
 end
 
-local function classifyBiome(elevation, water, river, temperature, moisture, slope, lake)
+local function classifyBiome(elevation, water, river, temperature, moisture, slope, lake, cell)
     if lake then return "lake" end
     if water then
         return elevation > -0.06 and "coast" or "ocean"
     end
     if river then return "river" end
-    return Biomes.lookup(temperature, moisture, elevation, false, slope)
+    return Biomes.lookup(temperature, moisture, elevation, false, slope, cell and cell.hotspotContribution or 0, cell and cell.isFloodBasalt)
 end
 
 local function lithologyProps(id)
@@ -518,6 +633,16 @@ function WorldGen.new(seed, options)
         itczOffsetAmp = option(options.itczOffsetAmp, 0.17),
         monsoonSeasonalContrast = option(options.monsoonSeasonalContrast, 1.3),
         windCoriolisScale = option(options.windCoriolisScale, 0.22),
+        hotspotCount = option(options.hotspotCount, 64),
+        hotspotMantleExtent = option(options.hotspotMantleExtent, 65536),
+        hotspotMinSeparation = option(options.hotspotMinSeparation, 4096),
+        hotspotBucketSize = option(options.hotspotBucketSize, 8192),
+        hotspotSigma = option(options.hotspotSigma, 1024),
+        hotspotTrailSteps = option(options.hotspotTrailSteps, 8),
+        hotspotTrailDt = option(options.hotspotTrailDt, 0.2),
+        hotspotTau = option(options.hotspotTau, 3),
+        hotspotElevationScale = option(options.hotspotElevationScale, 0.42),
+        floodBasaltThreshold = option(options.floodBasaltThreshold, 0.34),
         orographicLiftScale = option(options.orographicLiftScale, 8.5),
         orographicLeeScale = option(options.orographicLeeScale, 2.4),
         cacheMaxEntries = maxEntries,
@@ -547,6 +672,7 @@ function WorldGen.new(seed, options)
         },
     }, WorldGen)
     world.climateBands = Climate.buildBands(world)
+    world.hotspots, world.hotspotGrid = buildHotspots(world)
     return world
 end
 
@@ -662,6 +788,16 @@ function WorldGen:metadata()
         itczOffsetAmp = self.itczOffsetAmp,
         monsoonSeasonalContrast = self.monsoonSeasonalContrast,
         windCoriolisScale = self.windCoriolisScale,
+        hotspotCount = self.hotspotCount,
+        hotspotMantleExtent = self.hotspotMantleExtent,
+        hotspotMinSeparation = self.hotspotMinSeparation,
+        hotspotBucketSize = self.hotspotBucketSize,
+        hotspotSigma = self.hotspotSigma,
+        hotspotTrailSteps = self.hotspotTrailSteps,
+        hotspotTrailDt = self.hotspotTrailDt,
+        hotspotTau = self.hotspotTau,
+        hotspotElevationScale = self.hotspotElevationScale,
+        floodBasaltThreshold = self.floodBasaltThreshold,
         orographicLiftScale = self.orographicLiftScale,
         orographicLeeScale = self.orographicLeeScale,
         cacheMaxEntries = self.cacheMaxEntries,
@@ -848,10 +984,15 @@ function WorldGen:plateAt(x, y)
     }
 end
 
+function WorldGen:hotspotAt(x, y, plate)
+    return hotspotAt(self, x, y, plate or self:plateAt(x, y))
+end
+
 function WorldGen:baseSample(x, y, scale)
     local info = scaleInfo(scale)
     local wx, wy = Noise.warp(self.seed, x, y, { amount = 48 * info.factor, frequency = 0.0015 / info.factor })
     local plate = self:plateAt(wx, wy)
+    local hotspot = hotspotAt(self, wx, wy, plate)
     local continent = Noise.fbm(self.seed + 101, wx, wy, { frequency = 0.0009, octaves = 5, salt = 1 })
     local rough = Noise.fbm(self.seed + 202, wx, wy, { frequency = 0.008 / math.sqrt(info.factor), octaves = 5, salt = 2 })
     local ridge = Noise.ridge(self.seed + 303, wx, wy, { frequency = 0.0035 / math.sqrt(info.factor), octaves = 4, salt = 3 })
@@ -871,7 +1012,7 @@ function WorldGen:baseSample(x, y, scale)
         islandArc = plate.oceanOceanSubduction * smoothstep(0.42, 0.82, arcNoise)
     end
     local roughContribution = (rough - 0.5) * 0.24 * (1 - stableDamping)
-    local elevation = continentalBias + (continent - 0.5) * 0.72 + roughContribution + uplift + subductionUplift + islandArc * 0.36 - riftValley * 0.26 - trench
+    local elevation = continentalBias + (continent - 0.5) * 0.72 + roughContribution + uplift + subductionUplift + islandArc * 0.36 + hotspot.contribution - riftValley * 0.26 - trench
     local rawStreamPowerDelta, rawSediment, rawGlacialDelta, rawGlaciated, rawIsostaticRebound, rawHillslopeDelta, rawDebrisFlowDelta, rawDebrisFlow, rawIceThickness = streamPowerAt(self, info, x, y)
     local streamPowerDelta = (rawStreamPowerDelta or 0) * (self.streamPowerDetailScale or 0.45)
     local sediment = (rawSediment or 0) * (self.streamPowerSedimentScale or 0.65)
@@ -892,7 +1033,7 @@ function WorldGen:baseSample(x, y, scale)
     local fallbackRainfall = clamp(baselinePrecip * 0.55 + moistureNoise * 0.34 + (1 - latitudeUnit) * 0.08 - math.max(0, elevation) * 0.2 - uplift * 0.16 + islandArc * 0.06, 0, 1)
     local rainfall = clamp((climate and climate.precipitation) or fallbackRainfall, 0, 1)
     local lithology, erodibilityK, lithologyAge = classifyLithology(self, plate, x, y, latitudeUnit, rainfall, elevation, shield, craton, riftValley, islandArc)
-    local slope = clamp(ridge * 0.1 + math.abs(rough - 0.5) * 0.16 * (1 - stableDamping) + plate.boundary * 0.08 + uplift * 0.06 + riftValley * 0.12 + islandArc * 0.18 + trench * 0.08 - shield * 0.025 - craton * 0.035, 0, 1)
+    local slope = clamp(ridge * 0.1 + math.abs(rough - 0.5) * 0.16 * (1 - stableDamping) + plate.boundary * 0.08 + uplift * 0.06 + riftValley * 0.12 + islandArc * 0.18 + hotspot.contribution * 0.08 + trench * 0.08 - shield * 0.025 - craton * 0.035, 0, 1)
     local seaLevel = self:seaLevelAt(self.geologicTime)
     local water = elevation <= seaLevel
     local ridgeId = (ridge > 0.62 or plate.boundary > 0.55) and key("ridge", info.id, floorDiv(math.floor(wx), 192 * info.factor), floorDiv(math.floor(wy), 192 * info.factor), plate.id) or nil
@@ -911,6 +1052,10 @@ function WorldGen:baseSample(x, y, scale)
         baselinePrecip = baselinePrecip,
         pressureCellId = (climate and climate.pressureCellId) or climateBand.pressureCellId,
         monsoonIndex = (climate and climate.monsoonIndex) or 0,
+        hotspotContribution = hotspot.contribution,
+        hotspotAgeMy = hotspot.hotspotAgeMy,
+        hotspotId = hotspot.hotspotId,
+        isFloodBasalt = hotspot.isFloodBasalt,
         marineTerrace = 0,
         fluvialTerrace = 0,
         paleoShoreline = false,
@@ -975,7 +1120,7 @@ function WorldGen:baseSample(x, y, scale)
         river = false,
         lake = false,
         lakeDepth = 0,
-        biome = classifyBiome(elevation, water, false, temperature, rainfall, slope, false),
+        biome = Biomes.lookup(temperature, rainfall, elevation, water, slope, hotspot.contribution, hotspot.isFloodBasalt),
     }
 end
 
@@ -1025,6 +1170,10 @@ function WorldGen:pendingSample(x, y, info)
         baselinePrecip = 0,
         pressureCellId = 0,
         monsoonIndex = 0,
+        hotspotContribution = 0,
+        hotspotAgeMy = 0,
+        hotspotId = 0,
+        isFloodBasalt = false,
         marineTerrace = 0,
         fluvialTerrace = 0,
         paleoShoreline = false,
@@ -1096,7 +1245,7 @@ function WorldGen:chunk(chunkX, chunkY, scale)
             local gx = chunkX * size + x - 1
             local gy = chunkY * size + y - 1
             local cell = copyCell(Hydrology.cell(region, gx, gy))
-            cell.biome = classifyBiome(cell.elevation, cell.water, cell.river, cell.temperature, cell.moisture, cell.slope, cell.lake)
+            cell.biome = classifyBiome(cell.elevation, cell.water, cell.river, cell.temperature, cell.moisture, cell.slope, cell.lake, cell)
             Aeolian.applyCell(cell, self.seed)
             SoilProduction.syncCell(cell)
             rows[y][x] = cell

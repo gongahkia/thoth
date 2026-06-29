@@ -39,12 +39,14 @@ for t = 1, bins do
     end
 end
 
-function Biomes.lookup(temperature, precipitation, elevation, water, slope)
+function Biomes.lookup(temperature, precipitation, elevation, water, slope, hotspotContribution, isFloodBasalt)
     temperature = clamp(temperature or 0.5, 0, 1)
     precipitation = clamp(precipitation or 0.5, 0, 1)
     elevation = elevation or 0
     slope = slope or 0
     if water then return elevation > -0.06 and "coast" or "ocean" end
+    if isFloodBasalt then return "lava_flow" end
+    if (hotspotContribution or 0) > 0.25 and slope < 0.2 then return "shield" end
     if elevation > 0.72 then return temperature < 0.35 and "snow" or "rock" end
     if slope > 0.18 and elevation > 0.45 then return "alpine" end
     if temperature < 0.14 then return "snow" end

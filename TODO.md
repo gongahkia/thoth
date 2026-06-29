@@ -132,43 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-043 — Hotspot point-set + flood-basalt provinces            [tier 6] [med]
-
-GOAL: Static Poisson-disk-distributed hotspot set in mantle reference frame (deterministic from seed). As plates drift over hotspots via existing `geologicTime`, shield-volcano elevation + lava-biome contributions accumulate, producing volcanic chains.
-
-WHY: No intra-plate volcanism currently modelled (only convergent island arcs at worldgen.lua:651-654). Hawaii-Emperor-style trails fall out of existing plate drift mechanics with negligible cost — highest ROI tectonic feature.
-
-WHERE:
-- `src/worldgen.lua:314-378` `WorldGen.new` — add `world.hotspots = []` (Poisson-disk sampled) and `world.hotspotGrid` (spatial index).
-- `src/worldgen.lua:636-637` `baseSample` — after `plate = self:plateAt(wx, wy)`, compute `mantleCell = (wx, wy) - integratedPlateDrift(plate, geologicTime)`, query nearby hotspots from grid, accumulate kernel-weighted contribution.
-- `src/worldgen.lua:656` — add `hotspotContribution` to elevation sum (cap at +0.45).
-- `src/worldgen.lua:10` — append `hotspotContribution:double, hotspotAgeMy:double` to `soaFieldList`; `hotspotId:int32` to `soaInt32FieldList`; `isFloodBasalt:int8` to `soaInt8FieldList`.
-- `src/biomes.lua:42-55` — add `lava_flow`, `shield` biomes when `hotspotContribution > 0.25 && slope < 0.2`.
-
-DEPENDS ON: T-038 (int8/int32 SoA).
-
-ACCEPTANCE:
-- 64 hotspots default; positions deterministic from seed.
-- As `geologicTime` advances, a chain of shields traces back along the plate drift path (Hawaiian-Emperor signature).
-- Flood-basalt cells (`isFloodBasalt = 1`) appear at high-intensity hotspots when `plate.boundary < 0.18`.
-- `testHotspotTrails` runs three geologicTime steps and verifies trail emergence (chain of decreasing elevation).
-- `make test` green after T-056.
-
-NOTES / IMPL HINTS:
-- Poisson-disk sample 64 hotspots in `[0, mantleExtent)²` with `minSeparation = 4096` world units.
-- `world.hotspotGrid[bucketX][bucketY] = [hotspotIds...]` with bucket size 8192 for O(1) candidate lookup.
-- Per cell: `contribution = Σ_{k=0..7} kernel(dist(mantleCell, hotspot - plateVelocity·k·dt)) · decay(k)` summing over 8 past timesteps. `kernel(d) = exp(-d²/σ²), σ = 1024`. `decay(k) = exp(-k/τ), τ = 3`.
-- Use same `tanh`-clamped velocity integration as `plateDrift` (worldgen.lua:154-157) for consistency.
-- `isFloodBasalt = (intensity > floodThreshold) && (plate.boundary < 0.18)`.
-- Existing volcanic-island-arc (worldgen.lua:651-654) stays — hotspots are intra-plate, island arcs are convergent-boundary; they're independent.
-
-REFERENCES:
-- [Hawaii-Emperor chain Nature Comms 2024](https://www.nature.com/articles/s41467-024-51055-9).
-- [Tectonics.js davidson16807](https://davidson16807.github.io/tectonics.js/blog/) — hotspots in procgen.
-- [Flowy 2024 — lava emplacement (optional for T-051)](https://arxiv.org/pdf/2405.20144).
-
----
-
 ### T-044 — Howard-Knutson meandering rivers + oxbow cutoffs      [tier 6] [med]
 
 GOAL: For each river segment above flow threshold, convert grid-locked D8 polyline to a curvature-driven meandering centerline migrating per Howard & Knutson 1984. Detect neck cutoffs to form oxbow lakes.

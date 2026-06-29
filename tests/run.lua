@@ -106,6 +106,10 @@ local function encodeCell(cell)
         round(cell.baselinePrecip),
         tostring(cell.pressureCellId),
         round(cell.monsoonIndex),
+        round(cell.hotspotContribution),
+        round(cell.hotspotAgeMy),
+        tostring(cell.hotspotId),
+        tostring(cell.isFloodBasalt),
         round(cell.glacialDelta),
         round(cell.glacialErosion),
         round(cell.iceThickness),
@@ -297,6 +301,42 @@ local function testTectonicFeatures()
     expect(counts.craton > 0, "tectonics should include cratons")
 end
 
+local function testHotspotTrails()
+    local world = WorldGen.new(20260625, { geologicTime = 1.0, hotspotSigma = 8, hotspotElevationScale = 0.25, floodBasaltThreshold = 0.1 })
+    local same = WorldGen.new(20260625, { geologicTime = 1.0, hotspotSigma = 8, hotspotElevationScale = 0.25, floodBasaltThreshold = 0.1 })
+    expect(#world.hotspots == 64 and #same.hotspots == 64, "hotspot set should default to 64 deterministic points")
+    for index, hotspot in ipairs(world.hotspots) do
+        local other = same.hotspots[index]
+        expect(round(hotspot.x) == round(other.x) and round(hotspot.y) == round(other.y), "hotspot positions should be deterministic")
+        for previous = 1, index - 1 do
+            local prior = world.hotspots[previous]
+            local dx = math.abs(hotspot.x - prior.x)
+            local dy = math.abs(hotspot.y - prior.y)
+            local extent = world.hotspotMantleExtent
+            if dx > extent * 0.5 then dx = extent - dx end
+            if dy > extent * 0.5 then dy = extent - dy end
+            expect(math.sqrt(dx * dx + dy * dy) >= world.hotspotMinSeparation, "hotspot Poisson spacing should hold")
+        end
+    end
+    local function drift(v, t)
+        return math.tanh(v * t) * 640 * 0.4
+    end
+    local hotspot = world.hotspots[1]
+    local plate = { vx = 0.5, vy = 0, boundary = 0.05 }
+    local previousContribution, flood = math.huge, false
+    for step = 0, 3 do
+        local x = hotspot.x + drift(plate.vx, world.geologicTime) - drift(plate.vx, step * world.hotspotTrailDt)
+        local result = world:hotspotAt(x, hotspot.y, plate)
+        expect(result.hotspotId == hotspot.id and result.hotspotAgeMy == step * world.hotspotTrailDt * 100, "hotspot trail should track plate drift age")
+        expect(result.contribution > 0 and result.contribution <= previousContribution + 0.000001, "hotspot trail should decay away from active shield")
+        flood = flood or result.isFloodBasalt
+        previousContribution = result.contribution
+    end
+    expect(flood, "high-intensity intraplate hotspot should flag flood basalt cells")
+    local active = world:hotspotAt(hotspot.x + drift(plate.vx, world.geologicTime), hotspot.y, plate)
+    expect(active.contribution > 0.1 and active.hotspotId == hotspot.id, "hotspot helper should expose active shield fields")
+end
+
 local function testDiscoveryOverlayIds()
     local world = WorldGen.new(99)
     local ridgeIds, rangeIds = {}, {}
@@ -356,7 +396,7 @@ local function testSurveyHistory()
 end
 
 local function testSaveLoadRoundTrip()
-    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200, glacialGamma = 6e-9, glacialBeta = 0.01, glacialBmax = 1.5, glacialKg = 7e-5, glacialSiaIterations = 5, seasonRate = 2, itczOffsetAmp = 0.1, monsoonSeasonalContrast = 1.4, windCoriolisScale = 0.3 })
+    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200, glacialGamma = 6e-9, glacialBeta = 0.01, glacialBmax = 1.5, glacialKg = 7e-5, glacialSiaIterations = 5, seasonRate = 2, itczOffsetAmp = 0.1, monsoonSeasonalContrast = 1.4, windCoriolisScale = 0.3, hotspotCount = 12, hotspotMantleExtent = 32768, hotspotMinSeparation = 2048, hotspotBucketSize = 4096, hotspotSigma = 768, hotspotTrailSteps = 5, hotspotTrailDt = 0.15, hotspotTau = 2.5, hotspotElevationScale = 0.33, floodBasaltThreshold = 0.25 })
     local survey = Survey.new()
     Survey.mark(survey, world, -64, -64, "local")
     local viewScale = ViewScale.new(world)
@@ -385,6 +425,8 @@ local function testSaveLoadRoundTrip()
     expect(decoded.world.debrisK == 0.01 and decoded.world.debrisCriticalConcentration == 0.2 and decoded.world.debrisSedimentYield == 1200, "save should round-trip debris-flow settings")
     expect(decoded.world.glacialGamma == 6e-9 and decoded.world.glacialBeta == 0.01 and decoded.world.glacialBmax == 1.5 and decoded.world.glacialKg == 7e-5 and decoded.world.glacialSiaIterations == 5, "save should round-trip glacial SIA settings")
     expect(decoded.world.seasonRate == 2 and decoded.world.itczOffsetAmp == 0.1 and decoded.world.monsoonSeasonalContrast == 1.4 and decoded.world.windCoriolisScale == 0.3, "save should round-trip climate-band settings")
+    expect(decoded.world.hotspotCount == 12 and decoded.world.hotspotMantleExtent == 32768 and decoded.world.hotspotMinSeparation == 2048 and decoded.world.hotspotBucketSize == 4096, "save should round-trip hotspot grid settings")
+    expect(decoded.world.hotspotSigma == 768 and decoded.world.hotspotTrailSteps == 5 and decoded.world.hotspotTrailDt == 0.15 and decoded.world.hotspotTau == 2.5 and decoded.world.hotspotElevationScale == 0.33 and decoded.world.floodBasaltThreshold == 0.25, "save should round-trip hotspot physics settings")
     expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
     expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.debugPanels and not decoded.display.mouseLook, "save should round-trip display toggles")
     expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
@@ -1079,6 +1121,8 @@ local function testWhittakerBins()
     expect(Biomes.lookup(0.24, 0.64, 0.1, false, 0.02) == "boreal_forest", "cold wet Whittaker bin should be boreal forest")
     expect(Biomes.lookup(0.18, 0.22, 0.1, false, 0.02) == "tundra", "cold dry Whittaker bin should be tundra")
     expect(Biomes.lookup(0.7, 0.9, 0.05, false, 0.02) == "wetland", "low saturated Whittaker bin should be wetland")
+    expect(Biomes.lookup(0.7, 0.4, 0.2, false, 0.02, 0.3, false) == "shield", "hotspot shield override should expose shield biome")
+    expect(Biomes.lookup(0.7, 0.4, 0.2, false, 0.02, 0.3, true) == "lava_flow", "flood basalt override should expose lava-flow biome")
     expect(Biomes.lookup(0.4, 0.6, 0.8, false, 0.02) == "rock", "high warm Whittaker override should be rock")
     expect(Biomes.lookup(0.2, 0.6, 0.8, false, 0.02) == "snow", "high cold Whittaker override should be snow")
 end
@@ -1621,6 +1665,7 @@ local tests = {
     testLakeGroupingAndSpillover,
     testErosionLandforms,
     testTectonicFeatures,
+    testHotspotTrails,
     testDiscoveryOverlayIds,
     testNamedTerrainDiscoveries,
     testSurveyHistory,

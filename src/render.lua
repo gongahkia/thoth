@@ -22,6 +22,8 @@ local biomeColors = {
     alpine = { 0.49, 0.47, 0.41 },
     snow = { 0.86, 0.88, 0.84 },
     rock = { 0.35, 0.33, 0.3 },
+    lava_flow = { 0.18, 0.13, 0.11 },
+    shield = { 0.28, 0.32, 0.25 },
 }
 
 local landformColors = {
