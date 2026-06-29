@@ -1,4 +1,4 @@
-.PHONY: run test smoke diagnostics regressions benchmark render-smoke walk-smoke export-smoke clean
+.PHONY: run test smoke diagnostics regressions benchmark bench bench-update render-smoke walk-smoke export-smoke clean
 
 LOVE ?= love
 LUAJIT ?= luajit
@@ -20,6 +20,12 @@ regressions:
 
 benchmark:
 	$(LUAJIT) tests/run.lua --benchmark --chunk-radius 1
+
+bench:
+	$(LUAJIT) tests/run.lua --benchmark --chunk-radius 1 --baseline tests/bench.baseline.json --baseline-tolerance 0.5
+
+bench-update:
+	$(LUAJIT) tests/run.lua --benchmark --chunk-radius 1 --update-baseline tests/bench.baseline.json
 
 render-smoke:
 	SDL_AUDIODRIVER=dummy $(LOVE) . --render-smoke

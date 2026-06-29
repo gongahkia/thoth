@@ -10,6 +10,8 @@ make smoke
 make diagnostics
 make regressions
 make benchmark
+make bench
+make bench-update
 make render-smoke
 make walk-smoke
 make export-smoke

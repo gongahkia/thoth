@@ -109,30 +109,6 @@ REFERENCES:
 
 ---
 
-### T-027 — Headless walk benchmark + perf snapshot         [tier 4] [low]
-
-GOAL: A `make bench` target runs a fixed seed + fixed walk path + fixed duration headless; prints per-frame perf snapshot to stdout; CI-friendly machine-readable output.
-
-WHY: `TODO.md` lists "headless terrain benchmark over many chunks and scales." Currently `make walk-smoke` exists but it's not a benchmark — it just runs LÖVE with `SDL_AUDIODRIVER=dummy`. Need a reproducible perf number to gate regressions against.
-
-WHERE:
-- `Makefile` new `bench` target.
-- New `tests/bench.lua` driver that uses `WorldGen` + `Render.visibleStats` without LÖVE (mock window dims, no actual draw).
-
-DEPENDS ON: none.
-
-ACCEPTANCE:
-- `make bench` prints lines like `bench seed=20260625 step=42 ms=8.4 fps=119 cache=...` to stdout.
-- Output is parseable by a follow-up CI script (T-029).
-- A "baseline" file `tests/bench.baseline.json` committed; bench compares current run to baseline; non-zero exit on >10% regression.
-
-NOTES / IMPL HINTS:
-- For pure-Lua benchmark you can omit `love.graphics.newMesh` calls and just exercise `buildTerrainMeshData` for its CPU cost. Confirm the perf numbers track real frame time.
-
-REFERENCES: none required.
-
----
-
 ### T-028 — Save / load state         [tier 4] [low]
 
 GOAL: `F5` saves seed, player position, view scale, survey, options to `love.filesystem.getSaveDirectory()`. `F9` restores.

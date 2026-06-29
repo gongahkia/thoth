@@ -1057,6 +1057,22 @@ local function testTerrainBenchmark()
     expect(string.find(Benchmark.format(result), "benchmark=terrain", 1, true) ~= nil, "benchmark should format cli output")
 end
 
+local function testBenchmarkBaselineGate()
+    local result = Benchmark.run({
+        seed = 20260625,
+        chunkRadius = 0,
+        scales = { "local" },
+        worldOptions = basinWorldOptions,
+    })
+    local snapshot = Benchmark.snapshot(result)
+    expect(snapshot.cellsPerSecond and snapshot.cellsPerSecond > 0, "snapshot should preserve cellsPerSecond")
+    local pass = Benchmark.compareToBaseline(result, { cellsPerSecond = result.cellsPerSecond * 0.5 }, 0.1)
+    expect(pass.ok, "current run should beat 50% of itself")
+    local fail = Benchmark.compareToBaseline(result, { cellsPerSecond = result.cellsPerSecond * 4 }, 0.1)
+    expect(not fail.ok, "4x baseline should detect regression")
+    expect(Benchmark.compareToBaseline(result, nil, 0.1).ok, "missing baseline should not block")
+end
+
 local function testTerrainDiagnostics()
     local seeds = Diagnostics.defaultSeeds()
     local sweep = Diagnostics.sweep({
@@ -1235,6 +1251,7 @@ local tests = {
     testDebugPanelData,
     testMapExportData,
     testTerrainBenchmark,
+    testBenchmarkBaselineGate,
     testTerrainDiagnostics,
     testBadSeedDiagnostics,
     testRegressionSeedDiagnostics,
@@ -1305,6 +1322,40 @@ local function benchmark(args)
         worldOptions = basinWorldOptions,
     })
     print(Benchmark.format(result))
+    local baselinePath = cliValue(args, "--baseline")
+    if cliValue(args, "--update-baseline") then
+        local outPath = cliValue(args, "--update-baseline")
+        Benchmark.writeBaseline(outPath, Benchmark.snapshot(result))
+        print("benchmark-baseline-written=" .. outPath)
+        return
+    end
+    if baselinePath then
+        local baseline = Benchmark.readBaseline(baselinePath)
+        if not baseline then
+            print("benchmark-baseline-missing=" .. baselinePath)
+            return
+        end
+        local tolerance = tonumber(cliValue(args, "--baseline-tolerance", 0.1)) or 0.1
+        local check = Benchmark.compareToBaseline(result, baseline, tolerance)
+        print(string.format(
+            "benchmark-baseline=%s baseline_cells_per_sec=%.0f current_cells_per_sec=%.0f ratio=%.3f tolerance=%.2f status=%s",
+            baselinePath,
+            check.baseline or 0,
+            check.current or 0,
+            check.ratio or 0,
+            tolerance,
+            check.ok and "ok" or "regression"
+        ))
+        if not check.ok then
+            error(string.format(
+                "benchmark regression: %.0f cells/sec is below %.0f floor (baseline %.0f, tolerance %.0f%%)",
+                check.current,
+                check.floor,
+                check.baseline,
+                tolerance * 100
+            ), 0)
+        end
+    end
 end
 
 local function plateBenchmark(args)

@@ -1,4 +1,5 @@
 local WorldGen = require("src.worldgen")
+local Save = require("src.save")
 
 local Benchmark = {}
 
@@ -66,6 +67,55 @@ function Benchmark.format(result)
         result.metrics.basinMisses,
         result.metrics.billboardMisses
     )
+end
+
+function Benchmark.snapshot(result)
+    return {
+        seed = tonumber(result.seed) or result.seed,
+        chunkRadius = result.chunkRadius,
+        scales = copyList(result.scales),
+        chunks = result.chunks,
+        cells = result.cells,
+        cellsPerSecond = result.cellsPerSecond,
+        chunksPerSecond = result.chunksPerSecond,
+    }
+end
+
+function Benchmark.readBaseline(path)
+    local handle = io.open(path, "r")
+    if not handle then return nil end
+    local text = handle:read("*a")
+    handle:close()
+    if not text or text == "" then return nil end
+    return Save.decode(text)
+end
+
+function Benchmark.writeBaseline(path, snapshot)
+    local handle = assert(io.open(path, "w"))
+    handle:write(Save.encode(snapshot))
+    handle:write("\n")
+    handle:close()
+end
+
+function Benchmark.compareToBaseline(result, baseline, tolerance)
+    tolerance = tolerance or 0.1
+    if not baseline or not baseline.cellsPerSecond then return { ok = true, reason = "no baseline" } end
+    local floor = baseline.cellsPerSecond * (1 - tolerance)
+    if result.cellsPerSecond >= floor then
+        return {
+            ok = true,
+            baseline = baseline.cellsPerSecond,
+            current = result.cellsPerSecond,
+            ratio = result.cellsPerSecond / baseline.cellsPerSecond,
+        }
+    end
+    return {
+        ok = false,
+        baseline = baseline.cellsPerSecond,
+        current = result.cellsPerSecond,
+        ratio = result.cellsPerSecond / baseline.cellsPerSecond,
+        floor = floor,
+    }
 end
 
 return Benchmark
