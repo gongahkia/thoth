@@ -139,6 +139,10 @@ local function streamPowerKey(info, gx, gy)
     return key(info.id, gx, gy)
 end
 
+local function iceFieldKey(info, regionX, regionY)
+    return key("ice", info.id, regionX, regionY)
+end
+
 local function boundaryCell(region, gx, gy)
     return region.cells[key(gx, gy)]
 end
@@ -334,12 +338,23 @@ local function solveBasin(world, chunkX, chunkY, info)
         debrisCriticalConcentration = world.debrisCriticalConcentration,
         debrisSedimentYield = world.debrisSedimentYield,
     })
+    local iceKey = iceFieldKey(info, regionX, regionY)
+    local iceState = world.iceField and world.iceField:get(iceKey) or nil
     region.glaciers = Erosion.glaciate(region, {
         freezeTemperature = world.glacialFreezeTemperature,
         snowline = world.glacialSnowline,
         minFlow = world.glacialMinFlow,
         maxCut = world.glacialMaxCut,
+        seaLevel = seaLevel,
+        geologicTimeStep = world.geologicTimeStep,
+        Gamma = world.glacialGamma,
+        beta = world.glacialBeta,
+        bmax = world.glacialBmax,
+        Kg = world.glacialKg,
+        siaIterations = world.glacialSiaIterations,
+        iceState = iceState,
     })
+    if world.iceField and region.glaciers.iceState then world.iceField:set(iceKey, region.glaciers.iceState) end
     local streamPowerSamples = world.streamPowerSamples
     if streamPowerSamples then
         for _, cell in ipairs(visitOrder) do
@@ -349,6 +364,7 @@ local function solveBasin(world, chunkX, chunkY, info)
                 isostaticRebound = cell.isostaticRebound or 0,
                 glacialDelta = cell.glacialDelta or 0,
                 glaciated = cell.glaciated and 1 or 0,
+                iceThickness = cell.iceThickness or 0,
                 hillslopeDelta = cell.hillslopeDelta or 0,
                 debrisFlowDelta = cell.debrisFlowDelta or 0,
                 debrisFlow = cell.debrisFlow and 1 or 0,
@@ -356,7 +372,7 @@ local function solveBasin(world, chunkX, chunkY, info)
         end
     end
 
-    local stats = { rivers = 0, basins = 0, maxFlow = 0, streamPowerMaxDelta = region.erosion.maxDelta or 0, streamPowerMeanErosion = region.erosion.meanErosion or 0, maxSediment = region.erosion.maxSediment or 0, debrisFlowCells = region.erosion.debrisFlowCells or 0, glaciatedCells = region.glaciers.glaciatedCells or 0 }
+    local stats = { rivers = 0, basins = 0, maxFlow = 0, streamPowerMaxDelta = region.erosion.maxDelta or 0, streamPowerMeanErosion = region.erosion.meanErosion or 0, maxSediment = region.erosion.maxSediment or 0, debrisFlowCells = region.erosion.debrisFlowCells or 0, glaciatedCells = region.glaciers.glaciatedCells or 0, glacialIceVolume = region.glaciers.iceVolume or 0 }
     local basinIds = {}
     for _, cell in ipairs(visitOrder) do
         local root = terminal(cell)
@@ -708,6 +724,7 @@ local function solveRegion(world, chunkX, chunkY, info)
         sedimentCells = 0,
         debrisFlowCells = region.erosion and region.erosion.debrisFlowCells or 0,
         glaciatedCells = 0,
+        glacialIceVolume = region.glaciers and region.glaciers.iceVolume or 0,
         coastCliffs = 0,
         coastBeaches = 0,
         maxSediment = 0,
@@ -733,6 +750,7 @@ local function solveRegion(world, chunkX, chunkY, info)
             if cell.delta then stats.deltas = stats.deltas + 1 end
             if (cell.sediment or 0) > 0 then stats.sedimentCells = stats.sedimentCells + 1 end
             if cell.glaciated then stats.glaciatedCells = stats.glaciatedCells + 1 end
+            stats.glacialIceVolume = stats.glacialIceVolume + (cell.iceThickness or 0)
             if cell.coastCliff then stats.coastCliffs = stats.coastCliffs + 1 end
             if cell.coastBeach then stats.coastBeaches = stats.coastBeaches + 1 end
             if (cell.sediment or 0) > stats.maxSediment then stats.maxSediment = cell.sediment or 0 end

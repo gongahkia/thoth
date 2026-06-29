@@ -105,6 +105,7 @@ local function encodeCell(cell)
         round(cell.windY),
         round(cell.glacialDelta),
         round(cell.glacialErosion),
+        round(cell.iceThickness),
         tostring(cell.glaciated),
         tostring(cell.coastCliff),
         tostring(cell.coastBeach),
@@ -352,7 +353,7 @@ local function testSurveyHistory()
 end
 
 local function testSaveLoadRoundTrip()
-    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200 })
+    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200, glacialGamma = 6e-9, glacialBeta = 0.01, glacialBmax = 1.5, glacialKg = 7e-5, glacialSiaIterations = 5 })
     local survey = Survey.new()
     Survey.mark(survey, world, -64, -64, "local")
     local viewScale = ViewScale.new(world)
@@ -379,6 +380,7 @@ local function testSaveLoadRoundTrip()
     expect(decoded.world.legacyLatitude == false and decoded.world.worldCircumference == 1024 and decoded.world.omega == 0.0001, "save should round-trip latitude settings")
     expect(decoded.world.hillslopeD == 0.02 and decoded.world.hillslopeSc == 0.9 and decoded.world.hillslopeIterations == 3, "save should round-trip hillslope settings")
     expect(decoded.world.debrisK == 0.01 and decoded.world.debrisCriticalConcentration == 0.2 and decoded.world.debrisSedimentYield == 1200, "save should round-trip debris-flow settings")
+    expect(decoded.world.glacialGamma == 6e-9 and decoded.world.glacialBeta == 0.01 and decoded.world.glacialBmax == 1.5 and decoded.world.glacialKg == 7e-5 and decoded.world.glacialSiaIterations == 5, "save should round-trip glacial SIA settings")
     expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
     expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.debugPanels and not decoded.display.mouseLook, "save should round-trip display toggles")
     expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
@@ -1050,10 +1052,56 @@ local function testWhittakerDiagnostics()
     expect(topRatio / #sweep.results < 0.62, "Whittaker diagnostics should avoid single-biome dominance")
 end
 
+local function testGlacialSIA()
+    local n = 3
+    local length = 40
+    local ela = 0.56
+    local head = 0.70
+    local region = { cells = {}, stride = 1, scaleFactor = 1, seaLevel = -1 }
+    local function key(gx, gy)
+        return tostring(gx) .. ":" .. tostring(gy)
+    end
+    for gx = 0, length do
+        local u = gx / length
+        local elevation = head - (head - ela) * u ^ ((n + 1) / n)
+        region.cells[key(gx, 0)] = {
+            gx = gx,
+            gy = 0,
+            elevation = elevation,
+            elevationBase = elevation,
+            bedrockElevation = elevation,
+            regolithDepth = 0,
+            temperature = 0.1,
+            water = false,
+            latitudeRadians = 0,
+        }
+    end
+    local result = Erosion.glaciate(region, {
+        snowline = ela,
+        initialIceScale = 0.12,
+        normalizedBeta = 0,
+        siaIterations = 1,
+        dt = 0,
+        maxCut = 0,
+        seaLevel = -1,
+    })
+    expect(result.iceVolume > 0 and result.glaciatedCells > 0, "SIA glacier should expose ice volume and primary ice cells")
+    local h0 = region.cells[key(0, 0)].iceThickness or 0
+    local maxError = 0
+    for gx = 0, length - 4, 4 do
+        local u = gx / length
+        local expected = (1 - u ^ ((n + 1) / n)) ^ (n / (2 * n + 2))
+        local actual = (region.cells[key(gx, 0)].iceThickness or 0) / h0
+        maxError = math.max(maxError, math.abs(actual - expected))
+    end
+    expect(h0 > 0 and maxError <= 0.10, "SIA ice profile should match Vialov within 10%")
+end
+
 local function testGlacialFeatures()
     local world = WorldGen.new(12)
     local stats = world:hydrologyStats(0, -2, "local")
     expect(stats.glaciatedCells > 0, "alpine fixture should expose glaciated reaches")
+    expect((stats.glacialIceVolume or 0) > 0, "alpine fixture should expose glacial ice volume")
     local chunk = world:chunk(0, -2, "local")
     local glaciated, eroded, inspected = 0, 0, 0
     for y = 1, chunk.size do
@@ -1062,6 +1110,7 @@ local function testGlacialFeatures()
             if cell.glaciated then
                 glaciated = glaciated + 1
                 expect(cell.temperature < 0.38 and cell.elevationBase > 0.52, "glaciated cells should be cold high terrain")
+                expect((cell.iceThickness or 0) > 0, "glaciated cells should carry persisted ice thickness")
             end
             if (cell.glacialErosion or 0) > 0 then eroded = eroded + 1 end
             inspected = inspected + 1
@@ -1553,6 +1602,7 @@ local tests = {
     testBiomes,
     testWhittakerBins,
     testWhittakerDiagnostics,
+    testGlacialSIA,
     testGlacialFeatures,
     testCoastlines,
     testAeolianDunes,

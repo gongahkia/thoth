@@ -132,49 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-041 — Cordonnier shallow-ice approximation glacial pass     [tier 6] [high]
-
-GOAL: Replace threshold-cut `Erosion.glaciate` (erosion.lua:277-329) with mass-conserving SIA. Ice thickness `H` evolves via `∂H/∂t + ∇·(Γ H^5 |∇h|² ∇h) = b(h)`; erosion `dz/dt = -K_g · u_b²`.
-
-WHY: Current code is a binary cut-with-Gaussian-radius proxy. It produces sharp valleys but cannot generate recognisable cirque/horn/arête/fjord morphology — those emerge as a single physics-based pass under SIA. Realism delta is large.
-
-WHERE:
-- Rewrite body of `src/erosion.lua:277-329` `Erosion.glaciate`. Keep signature compatible so `src/hydrology.lua:288` call still works.
-- New per-cell field `iceThickness:double` persisting across geologicTime steps via `world.iceField` LRU cache (so H accumulates between calls).
-- Keep `cell.glaciated, cell.glacialDelta, cell.glacialErosion` for backward compat with overlays.
-
-DEPENDS ON: T-035 (bedrock separation — ice rests on bedrock surface, not on regolith-inflated `elevation`).
-
-ACCEPTANCE:
-- Steady-state ice profile matches Vialov: `H(x) ∝ (1 - (x/L)^((n+1)/n))^(n/(2n+2))`, parabolic.
-- Iconic glacial landforms emerge: U-shaped trunk valleys (cross-section width > linear-diffusion expectation), cirques at headwall confluences, hanging valleys where tributary ice was thinner than trunk.
-- `region.glaciers.iceVolume` stat exposed.
-- `testGlacialSIA` gates Vialov profile within 10%.
-- `make test` green after T-056.
-
-NOTES / IMPL HINTS:
-- Glen flow law `n=3`: `Q = -Γ · H^5 · |∇h|² · ∇h`. Compute `Γ = 2·A·(ρg)^n / (n+2)` with `A = 2.4e-24 Pa⁻³ s⁻¹` (temperate ice), `ρ = 917 kg/m³`, `g = 9.81 m/s²`. Convert time units to yr (× 3.15e7) → `Γ ≈ 4.4e-9 m⁻²·yr⁻¹`.
-- SMB: `b(h) = clamp(β · (h - ELA), -3.0, b_max)`. Defaults: `ELA = 0.55 + 0.04·(1 - latitudeUnit)`, `β = 0.008 yr⁻¹/m`, `b_max = 2 m/yr` ice-equivalent.
-- Sliding: `u_b = f · u_def, f = 0.5, u_def ≈ |Q|/H` at face.
-- Abrasion: `dz/dt = -K_g · u_b²` with `K_g = 5e-5 yr/m`.
-- Discretization (FTCS staggered grid):
-  1. `h = z_bed + H`.
-  2. Face slopes `∇h_face = (h_neighbor - h)/dx`; face thickness `H_face = 0.5·(H + H_neighbor)`.
-  3. Face flux `Q_face = -Γ · H_face^5 · |∇h_face|² · ∇h_face`.
-  4. `H_new = H + dt · (-div(Q) + b(h))`; clamp `H ≥ 0`.
-  5. `z_bed -= dt · K_g · u_b²`.
-- CFL: `dt ≤ 0.5 · dx² / (4 · max(D_ice))`, `D_ice = Γ · H_face^5 · |∇h_face|²`. Adaptive sub-stepping.
-- Marine termination: Dirichlet `H=0` at cells below seaLevel.
-- Persistence: `world.iceField[chunkKey]` LRU keyed by chunk coords; on geologicTime step run SIA for `dt = world.geologicTimeStep`, persist `H` between calls.
-
-REFERENCES:
-- [Cordonnier et al. 2023 SIGGRAPH (HAL)](https://inria.hal.science/hal-04090644/file/Sigg23_Glacial_Erosion__author.pdf) — Forming Terrains by Glacial Erosion.
-- [Hallet 1979 J Glaciol](https://doi.org/10.3189/S0022143000029798) — abrasion law.
-- [Herman et al. 2015 EPSL](https://doi.org/10.1016/j.epsl.2015.06.035) — sliding-velocity² erosion.
-- [Cuffey & Paterson — Physics of Glaciers 4e](https://www.elsevier.com/books/the-physics-of-glaciers/cuffey/978-0-12-369461-4) — Glen A value.
-
----
-
 ### T-042 — 3-cell Hadley/Ferrel/polar climate + ITCZ + monsoon   [tier 6] [med]
 
 GOAL: Replace hardcoded 2-band wind (climate.lua:29-36) with 3-cell zonal model: Hadley 0–30°, Ferrel 30–60°, polar 60–90°. ITCZ migrates seasonally; monsoon emerges where zonal land-ocean contrast exceeds threshold.

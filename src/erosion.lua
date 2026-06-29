@@ -332,53 +332,153 @@ function Erosion.glaciate(region, options)
     options = options or {}
     local order = orderedCells(region)
     local freeze = options.freezeTemperature or 0.38
-    local snowline = options.snowline or 0.52
-    local minFlow = options.minFlow or math.max(1, (region.threshold or 1) * 0.04)
+    local snowline = options.snowline
     local maxCut = options.maxCut or 0.075
     local cells = region.cells or {}
-    local deltas, primary = {}, {}
+    local seaLevel = option(options.seaLevel, region.seaLevel or -math.huge)
+    local beta = option(options.beta, 0.008)
+    local bmax = option(options.bmax, 2)
+    local gamma = option(options.normalizedGamma, option(options.Gamma, 4.4e-9) * 8e11)
+    local kg = option(options.Kg, 5e-5)
+    local slidingFraction = option(options.slidingFraction, 0.5)
+    local accumulationRate = option(options.normalizedBeta, beta * 80)
+    local accumulationMax = option(options.accumulationMax, math.min(0.18, bmax * 0.08))
+    local ablationMax = option(options.ablationMax, 0.12)
+    local erosionScale = option(options.erosionScale, 1600)
+    local minIce = option(options.minIceThickness, 0.0005)
+    local initialIceScale = option(options.initialIceScale, 0.06)
+    local dt = option(options.dt, math.max(1, (options.geologicTimeStep or 0) * 20))
+    local iterations = math.max(1, math.floor(option(options.siaIterations, 3)))
+    local dx = math.max(0.000001, option(options.dx, math.max(1, region.stride or 1) * math.max(1, region.scaleFactor or 1)))
+    local subdt = dt / iterations
+    local iceState = options.iceState or {}
+    local nextIceState = {}
+    local indexByCell, bed, ice, marine, maxVelocity, slopeMax = {}, {}, {}, {}, {}, {}
+    local faces = { { x = 1, y = 0, distance = 1 }, { x = 0, y = 1, distance = 1 } }
 
-    for _, cell in ipairs(order) do
+    local function surfaceBase(cell)
+        return cell.elevationBase or cell.elevation or cell.bedrockElevation or 0
+    end
+
+    local function bedrock(cell)
+        return cell.bedrockElevation or surfaceBase(cell) - math.max(0, cell.regolithDepth or 0)
+    end
+
+    local function cellIceKey(cell)
+        return cellKey(cell.gx or 0, cell.gy or 0)
+    end
+
+    local function elaFor(cell)
+        if snowline then return snowline end
+        local latitudeUnit = math.min(1, math.abs(cell.latitudeRadians or 0) / (math.pi / 2))
+        return 0.55 + 0.04 * (1 - latitudeUnit)
+    end
+
+    local function isAccumulationCell(cell)
+        return not cell.water and (cell.temperature or 1) < freeze and surfaceBase(cell) > elaFor(cell)
+    end
+
+    local function smbFor(cell, h)
+        if cell.water or bedrock(cell) <= seaLevel then return -ablationMax end
+        if (cell.temperature or 1) >= freeze then return -ablationMax * clamp(((cell.temperature or freeze) - freeze) / math.max(0.000001, 1 - freeze), 0, 1) end
+        return clamp(accumulationRate * (h - elaFor(cell)), -ablationMax, accumulationMax)
+    end
+
+    for index, cell in ipairs(order) do
+        indexByCell[cell] = index
+        local zBed = bedrock(cell)
+        bed[index] = zBed
+        marine[index] = cell.water or zBed <= seaLevel
         cell.glaciated = false
         cell.glacialDelta = 0
         cell.glacialErosion = 0
-        if not cell.water and (cell.temperature or 1) < freeze and (cell.elevation or cell.elevationBase or 0) > snowline and (cell.flow or 0) > minFlow then
-            local cold = (freeze - (cell.temperature or freeze)) / freeze
-            local height = ((cell.elevation or cell.elevationBase or 0) - snowline) / math.max(0.1, 1 - snowline)
-            local flowFactor = math.min(1, math.sqrt((cell.flow or 0) / math.max(1, minFlow * 12)))
-            local cut = math.min(maxCut, (0.018 + cold * 0.035 + height * 0.03) * flowFactor)
-            deltas[cell] = math.min(deltas[cell] or 0, -cut)
-            primary[cell] = true
-            local radius = cut > maxCut * 0.55 and 2 or 1
-            for oy = -radius, radius do
-                for ox = -radius, radius do
-                    local distance = math.sqrt(ox * ox + oy * oy)
-                    if distance > 0 and distance <= radius then
-                        local neighbor = cells[cellKey((cell.gx or 0) + ox, (cell.gy or 0) + oy)]
-                        if neighbor and not neighbor.water then
-                            local sideCut = cut * 0.48 * (1 - distance / (radius + 0.75))
-                            deltas[neighbor] = math.min(deltas[neighbor] or 0, -sideCut)
-                        end
-                    end
-                end
+        maxVelocity[index] = 0
+        slopeMax[index] = 0
+        if marine[index] then
+            ice[index] = 0
+        else
+            ice[index] = math.max(0, iceState[cellIceKey(cell)] or cell.iceThickness or 0)
+            if ice[index] <= 0 and isAccumulationCell(cell) then
+                local ela = elaFor(cell)
+                local excess = math.max(0, surfaceBase(cell) - ela) / math.max(0.000001, 1 - ela)
+                ice[index] = initialIceScale * excess ^ 0.375
             end
         end
     end
 
-    local count, erosionSum = 0, 0
-    for cell, delta in pairs(deltas) do
-        local old = cell.elevation or cell.elevationBase or 0
-        cell.elevation = old + delta
-        cell.glacialDelta = delta
-        cell.glacialErosion = -delta
-        cell.glaciated = primary[cell] == true
-        SoilProduction.syncCell(cell)
-        if cell.glaciated then count = count + 1 end
-        erosionSum = erosionSum - delta
+    for _ = 1, iterations do
+        local delta = {}
+        for index, cell in ipairs(order) do
+            local h = bed[index] + ice[index]
+            delta[index] = smbFor(cell, h) * subdt
+        end
+        for index, cell in ipairs(order) do
+            for _, offset in ipairs(faces) do
+                local neighbor = cells[cellKey((cell.gx or 0) + offset.x, (cell.gy or 0) + offset.y)]
+                local nIndex = neighbor and indexByCell[neighbor]
+                if nIndex then
+                    local hFace = 0.5 * (ice[index] + ice[nIndex])
+                    if hFace > minIce then
+                        local faceDx = dx * offset.distance
+                        local surfaceA = bed[index] + ice[index]
+                        local surfaceB = bed[nIndex] + ice[nIndex]
+                        local slope = (surfaceB - surfaceA) / faceDx
+                        local q = -gamma * hFace ^ 5 * math.abs(slope) ^ 2 * slope
+                        local source = q >= 0 and index or nIndex
+                        local limit = ice[source] * 0.45 * faceDx / math.max(subdt, 0.000001)
+                        if q > limit then q = limit elseif q < -limit then q = -limit end
+                        local transfer = q * subdt / faceDx
+                        delta[index] = delta[index] - transfer
+                        delta[nIndex] = delta[nIndex] + transfer
+                        local ub = slidingFraction * math.abs(q) / math.max(hFace, minIce)
+                        if ub > maxVelocity[index] then maxVelocity[index] = ub end
+                        if ub > maxVelocity[nIndex] then maxVelocity[nIndex] = ub end
+                        local slopeAbs = math.abs(slope)
+                        if slopeAbs > slopeMax[index] then slopeMax[index] = slopeAbs end
+                        if slopeAbs > slopeMax[nIndex] then slopeMax[nIndex] = slopeAbs end
+                    end
+                end
+            end
+        end
+        for index = 1, #order do
+            if marine[index] then
+                ice[index] = 0
+            else
+                ice[index] = math.max(0, ice[index] + delta[index])
+            end
+        end
     end
+
+    local count, erosionSum, iceVolume = 0, 0, 0
+    for index, cell in ipairs(order) do
+        local h = ice[index]
+        local primary = h > minIce and isAccumulationCell(cell)
+        local velocity = maxVelocity[index] or 0
+        local abrasion = kg * erosionScale * velocity * velocity * dt
+        local pluck = h > minIce and math.min(maxCut * 0.35, h * math.min(1, slopeMax[index] or 0) * 0.08) or 0
+        local cut = (not cell.water and h > minIce) and math.min(maxCut, abrasion + pluck) or 0
+        if cut > 0 then
+            local old = cell.elevation or cell.elevationBase or 0
+            cell.elevation = old - cut
+            cell.glacialDelta = -cut
+            cell.glacialErosion = cut
+            SoilProduction.syncCell(cell)
+            erosionSum = erosionSum + cut
+        else
+            SoilProduction.syncCell(cell)
+        end
+        cell.iceThickness = h
+        cell.glaciated = primary
+        if primary then count = count + 1 end
+        iceVolume = iceVolume + h
+        nextIceState[cellIceKey(cell)] = h
+    end
+
     region.glaciers = {
         glaciatedCells = count,
         meanGlacialErosion = erosionSum / math.max(1, #order),
+        iceVolume = iceVolume,
+        iceState = nextIceState,
     }
     return region.glaciers
 end
