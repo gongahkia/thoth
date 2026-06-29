@@ -271,36 +271,6 @@ REFERENCES:
 
 ---
 
-### T-038 — Extend buildChunkArrays to int8/int32 SoA (FFI infra)  [tier 6] [low]
-
-GOAL: `buildChunkArrays` (worldgen.lua:12-30) supports `double[?]`, `int8_t[?]`, and `int32_t[?]` arrays. New globals `soaInt8FieldList` and `soaInt32FieldList` parallel to existing `soaFieldList`.
-
-WHY: T-034 (lithology int8), T-036 (paleoShoreline int8), T-042 (pressureCellId int8), T-043 (hotspotId int32, isFloodBasalt int8), T-048 (karstType int8), T-049 (reefStage int8), T-050 (archetypeId int8) all need small-int storage. Currently FFI SoA is `double[?]` only — using doubles for int8 wastes 7 bytes/cell × ~10 fields = ~70 KB/chunk overhead.
-
-WHERE:
-- `src/worldgen.lua:10` — add `soaInt8FieldList = {}` and `soaInt32FieldList = {}` parallel to existing `soaFieldList`.
-- `src/worldgen.lua:12-30` — refactor `buildChunkArrays` to iterate three field lists, allocating the matching FFI type.
-- `src/worker.lua` (worker thread, ~92 lines) — if it constructs arrays separately, mirror the change. Verify by grepping `ffi.new` in `src/worker.lua`.
-
-DEPENDS ON: none.
-
-ACCEPTANCE:
-- `WorldGen.soaFields()` returns combined list, or expose three accessors `soaDoubleFields()`, `soaInt8Fields()`, `soaInt32Fields()`.
-- `testChunkSoAArrays` extends to gate int8 and int32 consistency vs cell tables.
-- Memory per chunk drops by `count(int8) * 7 + count(int32) * 4` bytes per cell once boolean migration (T-025 remaining work) lands.
-
-NOTES / IMPL HINTS:
-- FFI types via `ffi.new("double[?]", n)`, `ffi.new("int8_t[?]", n)`, `ffi.new("int32_t[?]", n)`.
-- Predeclare typedefs once via `ffi.cdef` at module top to avoid per-call cdata jit-stub overhead.
-- For T-025 remaining boolean migration, also store flags in `int8` arrays (0/1).
-
-REFERENCES:
-- [LuaJIT FFI Semantics](https://luajit.org/ext_ffi_semantics.html).
-- [LuaJIT FFI API](https://luajit.org/ext_ffi_api.html).
-- [LuaJIT FFI array perf thread](https://www.freelists.org/post/luajit/FFI-array-performance).
-
----
-
 ### T-039 — Roering nonlinear hillslope diffusion + soil coupling [tier 6] [med]
 
 GOAL: Add Roering 1999/2001 nonlinear hillslope flux `q = -D∇z / (1 - (|∇z|/Sc)²)` coupled to T-035 regolith. New pass runs between climate and stream-power in the hydrology pipeline.

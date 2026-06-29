@@ -8,22 +8,45 @@ local Aeolian = require("src.aeolian")
 local ffi = require("ffi")
 
 local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "isostaticRebound", "streamPowerDelta" }
+local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow" }
+local soaInt32FieldList = { "plateId", "secondaryPlateId" }
+local soaDoubleArray = ffi.typeof("double[?]")
+local soaInt8Array = ffi.typeof("int8_t[?]")
+local soaInt32Array = ffi.typeof("int32_t[?]")
+
+local function soaValue(value)
+    if value == true then return 1 end
+    if value == false or value == nil then return 0 end
+    return value
+end
+
+local function allocateChunkArrays(arrays, fields, ctype, total)
+    for _, field in ipairs(fields) do
+        arrays[field] = ffi.new(ctype, total)
+    end
+end
+
+local function writeChunkArrays(arrays, fields, cell, index)
+    for _, field in ipairs(fields) do
+        arrays[field][index] = soaValue(cell[field])
+    end
+end
 
 local function buildChunkArrays(rows, size)
     local total = size * size
     local arrays = {}
-    for _, field in ipairs(soaFieldList) do
-        arrays[field] = ffi.new("double[?]", total)
-    end
+    allocateChunkArrays(arrays, soaFieldList, soaDoubleArray, total)
+    allocateChunkArrays(arrays, soaInt8FieldList, soaInt8Array, total)
+    allocateChunkArrays(arrays, soaInt32FieldList, soaInt32Array, total)
     for y = 1, size do
         local row = rows[y]
         local base = (y - 1) * size
         for x = 1, size do
             local cell = row[x]
             local index = base + (x - 1)
-            for _, field in ipairs(soaFieldList) do
-                arrays[field][index] = cell[field] or 0
-            end
+            writeChunkArrays(arrays, soaFieldList, cell, index)
+            writeChunkArrays(arrays, soaInt8FieldList, cell, index)
+            writeChunkArrays(arrays, soaInt32FieldList, cell, index)
         end
     end
     return arrays
@@ -845,7 +868,27 @@ end
 
 function WorldGen.soaFields()
     local out = {}
+    for _, field in ipairs(soaFieldList) do out[#out + 1] = field end
+    for _, field in ipairs(soaInt8FieldList) do out[#out + 1] = field end
+    for _, field in ipairs(soaInt32FieldList) do out[#out + 1] = field end
+    return out
+end
+
+function WorldGen.soaDoubleFields()
+    local out = {}
     for index, field in ipairs(soaFieldList) do out[index] = field end
+    return out
+end
+
+function WorldGen.soaInt8Fields()
+    local out = {}
+    for index, field in ipairs(soaInt8FieldList) do out[index] = field end
+    return out
+end
+
+function WorldGen.soaInt32Fields()
+    local out = {}
+    for index, field in ipairs(soaInt32FieldList) do out[index] = field end
     return out
 end
 

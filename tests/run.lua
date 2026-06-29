@@ -27,6 +27,12 @@ local function round(value)
     return math.floor((value or 0) * 100000 + 0.5) / 100000
 end
 
+local function soaValue(value)
+    if value == true then return 1 end
+    if value == false or value == nil then return 0 end
+    return value
+end
+
 local fastWorldOptions = { hydrologyRegionChunks = 2, hydrologyHaloCells = 0, hydrologyBasinChunks = 8, hydrologyBasinStride = 8 }
 local basinWorldOptions = { hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 8, hydrologyBasinStride = 8, hydrologyBasinFlowScale = 0.6 }
 
@@ -441,8 +447,12 @@ end
 local function testChunkSoAArrays()
     local world = testWorld(20260625)
     local chunk = world:chunk(0, 0, "local")
+    local doubleFields = WorldGen.soaDoubleFields()
+    local int8Fields = WorldGen.soaInt8Fields()
+    local int32Fields = WorldGen.soaInt32Fields()
     local fields = WorldGen.soaFields()
     expect(#fields > 0 and chunk.arrays, "chunk should expose ffi-backed SoA arrays")
+    expect(#doubleFields > 0 and #int8Fields > 0 and #int32Fields > 0, "soa field groups should cover double, int8, and int32 arrays")
     for _, field in ipairs(fields) do
         expect(chunk.arrays[field] ~= nil, "soa array should exist for " .. field)
     end
@@ -452,9 +462,18 @@ local function testChunkSoAArrays()
         for x = 1, chunk.size do
             local cell = chunk.cells[y][x]
             local index = (y - 1) * chunk.size + (x - 1)
-            for _, field in ipairs(fields) do
+            for _, field in ipairs(doubleFields) do
                 total = total + 1
-                if round(chunk.arrays[field][index]) ~= round(cell[field] or 0) then mismatches = mismatches + 1 end
+                if round(chunk.arrays[field][index]) ~= round(soaValue(cell[field])) then mismatches = mismatches + 1 end
+            end
+            for _, field in ipairs(int8Fields) do
+                total = total + 1
+                local value = tonumber(chunk.arrays[field][index])
+                if value ~= soaValue(cell[field]) or (value ~= 0 and value ~= 1) then mismatches = mismatches + 1 end
+            end
+            for _, field in ipairs(int32Fields) do
+                total = total + 1
+                if tonumber(chunk.arrays[field][index]) ~= soaValue(cell[field]) then mismatches = mismatches + 1 end
             end
         end
     end
