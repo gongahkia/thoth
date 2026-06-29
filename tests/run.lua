@@ -21,6 +21,7 @@ local Hillslope = require("src.hillslope")
 local Meander = require("src.meander")
 local Biomes = require("src.biomes")
 local Aeolian = require("src.aeolian")
+local Coast = require("src.coast")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -122,6 +123,7 @@ local function encodeCell(cell)
         round(cell.coastExposure),
         round(cell.coastErosion),
         round(cell.coastDeposition),
+        tostring(cell.shorelineNode),
         round(cell.duneDelta),
         round(cell.duneAmplitude),
         round(cell.dunePhase),
@@ -1307,6 +1309,45 @@ local function testCoastlines()
     expect(totals.beaches > 0, "coastline pass should expose sheltered beaches")
 end
 
+local function testShorelineCapes()
+    local function makeRegion()
+        local region = { scale = "local", scaleFactor = 1, stride = 1, seaLevel = 0, cells = {} }
+        for gy = 0, 48 do
+            local distance = math.abs(gy - 24)
+            local protrusion = distance <= 3 and 2 or (distance == 4 and 1 or 0)
+            for gx = -5, 6 do
+                local water = gx > protrusion
+                region.cells[gx .. ":" .. gy] = {
+                    gx = gx,
+                    gy = gy,
+                    x = gx,
+                    y = gy,
+                    elevationBase = water and -0.08 or 0.06,
+                    elevation = water and -0.08 or 0.06,
+                    slope = 0.03,
+                    sediment = 0.01,
+                    windX = -0.2,
+                    windY = 0.9,
+                    water = water,
+                }
+            end
+        end
+        return region
+    end
+    local high = makeRegion()
+    local highResult = Coast.apply(high, { seaLevel = 0, highAngleFraction = 0.72, waveAngleDegrees = 70, asymmetry = 0.1 })
+    local low = makeRegion()
+    local lowResult = Coast.apply(low, { seaLevel = 0, highAngleFraction = 0.18, waveAngleDegrees = 24, asymmetry = 0 })
+    local asymmetric = makeRegion()
+    local asymmetricResult = Coast.apply(asymmetric, { seaLevel = 0, highAngleFraction = 0.74, waveAngleDegrees = 72, asymmetry = 0.8 })
+    expect(highResult.shorelines > 0 and highResult.shorelineNodes > 0, "shoreline solver should extract polylines")
+    expect(high.cells["2:24"].shorelineNode > 0, "coastal cells should point at shoreline nodes")
+    expect(highResult.capes > lowResult.capes and highResult.maxCapeScore > lowResult.maxCapeScore, "high-angle waves should amplify cape perturbations")
+    expect(lowResult.smoothed > 0, "low-angle waves should smooth shoreline perturbations")
+    expect(asymmetricResult.spits > 0 and #asymmetric.spits == asymmetricResult.spits, "asymmetric high-angle waves should mark spits")
+    expect(asymmetricResult.lagoons > 0 and #asymmetric.lagoons == asymmetricResult.lagoons, "spits should create sheltered lagoon records")
+end
+
 local function testAeolianDunes()
     local cell = {
         x = 128,
@@ -1781,6 +1822,7 @@ local tests = {
     testGlacialSIA,
     testGlacialFeatures,
     testCoastlines,
+    testShorelineCapes,
     testAeolianDunes,
     testPlayer,
     testHeightInterpolationAndNormal,

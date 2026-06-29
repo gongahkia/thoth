@@ -10,7 +10,7 @@ local ffi = require("ffi")
 
 local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "oceanDepthMeters", "oceanAgeMyr", "meanderBend", "hillslopeDelta", "debrisFlowDelta" }
 local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake" }
-local soaInt32FieldList = { "plateId", "secondaryPlateId", "hotspotId" }
+local soaInt32FieldList = { "plateId", "secondaryPlateId", "hotspotId", "shorelineNode" }
 local soaDoubleArray = ffi.typeof("double[?]")
 local soaInt8Array = ffi.typeof("int8_t[?]")
 local soaInt32Array = ffi.typeof("int32_t[?]")
@@ -1122,6 +1122,7 @@ function WorldGen:baseSample(x, y, scale)
         coastExposure = 0,
         coastErosion = 0,
         coastDeposition = 0,
+        shorelineNode = 0,
         duneDelta = 0,
         duneAmplitude = 0,
         dunePhase = 0,
@@ -1251,6 +1252,7 @@ function WorldGen:pendingSample(x, y, info)
         coastExposure = 0,
         coastErosion = 0,
         coastDeposition = 0,
+        shorelineNode = 0,
         duneDelta = 0,
         duneAmplitude = 0,
         dunePhase = 0,

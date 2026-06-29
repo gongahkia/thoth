@@ -132,44 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-045 — Ashton-Murray-Arnoult shoreline instability           [tier 6] [med]
-
-GOAL: Replace exposure-only coast logic (coast.lua:39-80) with AMA 2001 shoreline-instability solver. Run after T-046 GDH1. High-angle wave climate produces capes, spits, cuspate forelands; low-angle smooths.
-
-WHY: Current coast generates only per-cell cliffs and beaches — no spit/tombolo/cape/barrier-island morphology. AMA is a 1D polyline solver, cheap, produces recognizable real coast features.
-
-WHERE:
-- Extend `src/coast.lua:39-80` `Coast.apply` — extract shoreline polyline from `cell.water` transitions, run shoreline-flux divergence per node, advance shoreline normal.
-- New per-region fields `region.shorelines[]`, `region.spits[]`, `region.lagoons[]`.
-- New per-cell `shorelineNode:int32` (index into polyline).
-
-DEPENDS ON: T-038 (int32 SoA), T-046 (GDH1 — depth-of-closure scales with bathymetry).
-
-ACCEPTANCE:
-- High-angle wave fraction `U_hi > 0.5` produces cape spacing 10–100 km.
-- Strongly asymmetric high-angle produces downcoast-migrating spits.
-- Low-angle (`U_hi < 0.3`) smooths perturbations.
-- Lagoons appear behind spits.
-- `testShorelineCapes` runs synthetic straight-coast + perturbation; checks cape emergence under high-angle climate.
-
-NOTES / IMPL HINTS:
-- Shoreline extraction: walk water/land cell boundaries, build ordered polyline per connected component.
-- Resample to uniform alongshore spacing `ds = 4·stride`.
-- Per node: `φ_i = atan2(y_{i+1} - y_{i-1}, x_{i+1} - x_{i-1})`.
-- Sample wave-approach angle `θ_t` per step from climate PDF; `U_hi` per region from latitude band (storm tracks higher at 45–55°).
-- Longshore flux: `Q_s = K · H_b^(12/5) · cos(θ_b)^(6/5) · sin(θ_b)`, `θ_b = θ - φ`. `K = 0.39`, `H_b = 1.5 m`.
-- Shadow zone: walk along shoreline, sweep along wave direction, O(N).
-- Advance: `Δη_i = -(Q_{i+1/2} - Q_{i-1/2}) / (D · ds) · dt`. `D = 10 m`.
-- Self-intersection → splice; new island + lagoon.
-- Stochastic event-based update: 1 storm per step, `dt = days`. Aggregate over geologicTime.
-
-REFERENCES:
-- [Ashton, Murray & Arnoult 2001 Nature](https://doi.org/10.1038/35104541).
-- [Ashton & Murray 2006a JGR](https://doi.org/10.1029/2005JF000422).
-- [ShorelineS Frontiers 2020](https://www.frontiersin.org/journals/marine-science/articles/10.3389/fmars.2020.00535/full).
-
----
-
 ### T-047 — Werner cellular dune CA (replaces aeolian.lua)        [tier 6] [med]
 
 GOAL: Replace sinusoidal dune proxy (aeolian.lua:21-37) with Werner 1995 cellular automaton: random pick → erode if not in shadow → transport L cells downwind → deposit with `p_sand=0.6, p_rock=0.4` → repose-angle slumping at 33°. Wind regime determines morphology (barchan / transverse / seif / star / parabolic).
