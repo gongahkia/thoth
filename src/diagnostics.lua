@@ -10,16 +10,16 @@ local badSeeds = {
     { seed = 13, flags = { "water_low" } },
 }
 local regressionSeeds = {
-    { seed = 34, category = "ugly_terrain", flags = { "water_low" } },
-    { seed = 9, category = "all_water", flags = { "water_high" } },
-    { seed = 1, category = "all_land", flags = { "water_low" } },
-    { seed = 20260625, category = "broken_seams", maxSeamMismatches = 0 },
-    { seed = 26, category = "river_discontinuities", maxUphillRejects = 0, minRivers = 1 },
-    { seed = 15, category = "riverless", flags = { "river_low" } },
-    { seed = 17, category = "single_biome", flags = { "single_biome_high" } },
-    { seed = 13, category = "biome_count_low", flags = { "biome_count_low" } },
-    { seed = 41, category = "steep_slopes", flags = { "steep_slope_high" } },
-    { seed = 21, category = "drowned_basin", flags = { "water_high" } },
+    { seed = 34, category = "ugly_terrain", flags = { "water_low" } }, -- catch-all dry continent
+    { seed = 9, category = "all_water", flags = { "water_high" } }, -- ocean-dominated
+    { seed = 1, category = "all_land", flags = { "water_low" } }, -- land-dominated
+    { seed = 20260625, category = "broken_seams", maxSeamMismatches = 0 }, -- hydrology seam regression gate
+    { seed = 26, category = "river_discontinuities", maxUphillRejects = 0, minRivers = 1 }, -- uphill river gate
+    { seed = 5, category = "riverless", flags = { "river_low" } }, -- few rivers despite land
+    { seed = 25, category = "single_biome", flags = { "single_biome_high" } }, -- one biome dominates
+    { seed = 14, category = "biome_count_low", flags = { "biome_count_low" } }, -- biome variety collapse
+    { seed = 41, category = "steep_slopes", flags = { "steep_slope_high" } }, -- excess steep terrain
+    { seed = 21, category = "drowned_basin", flags = { "water_high" } }, -- flooded with no rivers
 }
 
 local defaultThresholds = {

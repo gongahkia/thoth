@@ -139,25 +139,6 @@ Small targeted fixes for issues spotted during the audit. Land any time after Ti
 
 ---
 
-### T-031 — Regression seed fixtures (TODO entry)         [tier 5] [low]
-
-GOAL: A test that generates terrain from a curated list of known-bad and known-ugly seeds and asserts they still fail diagnostics in the documented way (locked-in failure mode).
-
-WHY: `TODO.md` lists "Add regression seeds for ugly terrain, all-water/all-land maps, broken seams, and river discontinuities." Without these, future refactors might silently mask edge cases.
-
-WHERE: `src/diagnostics.lua:6–11` already has 4 known-bad seeds; extend.
-
-DEPENDS ON: none.
-
-ACCEPTANCE:
-- ≥10 known-bad / known-ugly seeds covering: all-water, all-land, riverless, lake-flooded, single-biome, broken seam (if one exists), uphill river (which is currently rejected by the algorithm).
-- Each fixture documents its failure mode in a comment.
-- `make diagnostics --seeds <list>` exercises them.
-
-REFERENCES: none required.
-
----
-
 ### T-032 — Debug panels for plate vectors, drainage, biome inputs (TODO entry)         [tier 5] [low]
 
 GOAL: Toggleable debug overlays drawing plate-velocity arrows, drainage-arrow flow, erosion deltas, and biome classifier inputs.
