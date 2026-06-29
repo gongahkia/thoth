@@ -132,41 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-035 — Regolith depth SoA + bedrock surface tracking         [tier 6] [med]
-
-GOAL: Every cell tracks `regolithDepth:double` (soil thickness [m]) and `bedrockElevation:double` separately from `elevation = bedrockElevation + regolithDepth`. Bedrock-to-regolith conversion follows Heimsath et al. 1997 exponential `P(h) = P₀ · exp(-h/h*)`.
-
-WHY: T-039 (Roering nonlinear diffusion) needs a two-layer model — diffusion must transport regolith, not bedrock. Without this, hillslope diffusion magically lowers bedrock and conservation is violated. Also feeds T-054 (soil classifier).
-
-WHERE:
-- `src/worldgen.lua:10` — append `regolithDepth`, `bedrockElevation` to `soaFieldList`.
-- `src/worldgen.lua:633-712` `baseSample` — initialize `cell.bedrockElevation = cell.elevation` and `cell.regolithDepth = 0.0` (post-tectonic, pre-erosion).
-- New `src/soil_production.lua` — exposes `SoilProduction.step(region, options)` running one Heimsath step per cell.
-- `src/hydrology.lua:277` — call `SoilProduction.step(region, { dt = world.geologicTimeStep })` once before `Erosion.relax`.
-- Add `world.geologicTimeStep` option (default `0.05` when `geologicTime > 0`, else `0`).
-
-DEPENDS ON: none new.
-
-ACCEPTANCE:
-- Steady-state regolith depth `h_ss = h* · ln(P₀/E)` on hillslopes with E=100 m/Myr ≈ 0.2 m (with defaults).
-- Per-step `regolithDepth ≥ 0` always (clamped).
-- Surface elevation invariant when no erosion (mass-conservative).
-- `testRegolithProduction` asserts anti-correlation between slope and `regolithDepth`.
-- `make test` green.
-
-NOTES / IMPL HINTS:
-- Defaults: `P₀ = 1.5e-4 m/yr`, `h* = 0.5 m`, `ρ_r/ρ_s = 1.5` (bedrock-to-soil bulking).
-- Per cell per step: `dP = P₀ · exp(-h/h*) · dt`; `bedrockElevation -= dP`; `regolithDepth += dP · (ρ_r/ρ_s)`.
-- Clamp `regolithDepth ≥ 0` every step (floating-point drift).
-- Stable when `dt · P₀ < h*` → safe `dt ≤ 0.1 · h*/P₀ ≈ 333 yr` (single-step stable for any geologicTimeStep <= 0.33 Myr).
-
-REFERENCES:
-- [Heimsath et al. 1997 Nature](https://doi.org/10.1038/41056) — bedrock-to-regolith exponential.
-- [Heimsath 2001 ESPL](https://doi.org/10.1002/esp.260) — Oregon Coast Range cosmogenic calibration.
-- [Yoo & Mudd 2008 JGR](https://doi.org/10.1029/2007JF000846) — bulking ratio reference.
-
----
-
 ### T-036 — Eustatic sea level as function of geologicTime         [tier 6] [med]
 
 GOAL: Replace scalar `world.seaLevel` (worldgen.lua:321) with `world:seaLevelAt(t)` driven by Milankovitch-scale superposition. Cells record `marineTerrace`, `fluvialTerrace`, `paleoShoreline` where past sea levels left a signature.

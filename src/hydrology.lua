@@ -1,6 +1,7 @@
 local Erosion = require("src.erosion")
 local Climate = require("src.climate")
 local Coast = require("src.coast")
+local SoilProduction = require("src.soil_production")
 
 local Hydrology = {}
 
@@ -238,6 +239,7 @@ local function solveBasin(world, chunkX, chunkY, info)
     for _, cell in pairs(region.cells) do
         cell.flow = math.max(0.01, cell.rainfall or cell.precipitation or 0) * stride * stride
     end
+    region.soilProduction = SoilProduction.step(region, { dt = world.geologicTimeStep })
 
     local heap = Heap.new()
     local visitOrder = {}
@@ -564,6 +566,7 @@ local function solveRegion(world, chunkX, chunkY, info)
         if cell.alluvialFan then cell.deposition = cell.deposition + sediment * 0.5 end
         if cell.floodplain then cell.deposition = cell.deposition + sediment * 0.75 end
     end
+    region.soilProduction = SoilProduction.step(region, { dt = world.geologicTimeStep })
 
     local lakeGroups = labelLakeGroups(region, visitOrder, info)
     region.lakeGroups = lakeGroups
@@ -633,6 +636,7 @@ local function solveRegion(world, chunkX, chunkY, info)
             world:refineLithology(cell)
         end
     end
+    SoilProduction.syncRegion(region)
 
     local stats = {
         rivers = 0,

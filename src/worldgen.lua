@@ -5,9 +5,10 @@ local Climate = require("src.climate")
 local Lru = require("src.lru")
 local Biomes = require("src.biomes")
 local Aeolian = require("src.aeolian")
+local SoilProduction = require("src.soil_production")
 local ffi = require("ffi")
 
-local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge" }
+local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation" }
 local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology" }
 local soaInt32FieldList = { "plateId", "secondaryPlateId" }
 local soaDoubleArray = ffi.typeof("double[?]")
@@ -387,6 +388,7 @@ function WorldGen.new(seed, options)
     options = options or {}
     local limits = cacheLimits(options)
     local maxEntries = option(options.cacheMaxEntries, totalCacheLimit(limits))
+    local geologicTime = option(options.geologicTime, 0)
     return setmetatable({
         seed = tonumber(seed) or 1,
         chunkSize = option(options.chunkSize, 64),
@@ -395,7 +397,8 @@ function WorldGen.new(seed, options)
         plateCellSize = option(options.plateCellSize, 640),
         plateCacheEntries = option(options.plateCacheEntries, 4096),
         plateCache = Lru.new(option(options.plateCacheEntries, 4096)),
-        geologicTime = option(options.geologicTime, 0),
+        geologicTime = geologicTime,
+        geologicTimeStep = option(options.geologicTimeStep, geologicTime > 0 and 0.05 or 0),
         hydrologyRegionChunks = option(options.hydrologyRegionChunks, 2),
         hydrologyHaloCells = option(options.hydrologyHaloCells, 8),
         hydrologyBasinChunks = option(options.hydrologyBasinChunks, 8),
@@ -541,6 +544,7 @@ function WorldGen:metadata()
         cacheLimits = self.cacheLimits,
         plateCacheEntries = self.plateCacheEntries,
         geologicTime = self.geologicTime,
+        geologicTimeStep = self.geologicTimeStep,
         scales = scales,
     }
 end
@@ -752,6 +756,8 @@ function WorldGen:baseSample(x, y, scale)
         scaleFactor = info.factor,
         elevationBase = elevation,
         elevation = elevation,
+        bedrockElevation = elevation,
+        regolithDepth = 0,
         streamPowerDelta = streamPowerDelta,
         streamPowerErosion = math.max(0, -streamPowerDelta),
         streamPowerUplift = math.max(0, streamPowerDelta),
@@ -851,6 +857,8 @@ function WorldGen:pendingSample(x, y, info)
         scaleFactor = info.factor,
         elevationBase = 0,
         elevation = 0,
+        bedrockElevation = 0,
+        regolithDepth = 0,
         water = false,
         precipitation = 0,
         rainShadow = false,
@@ -916,6 +924,7 @@ function WorldGen:chunk(chunkX, chunkY, scale)
             local cell = copyCell(Hydrology.cell(region, gx, gy))
             cell.biome = classifyBiome(cell.elevation, cell.water, cell.river, cell.temperature, cell.moisture, cell.slope, cell.lake)
             Aeolian.applyCell(cell, self.seed)
+            SoilProduction.syncCell(cell)
             rows[y][x] = cell
         end
     end

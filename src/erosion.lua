@@ -1,4 +1,5 @@
 local Erosion = {}
+local SoilProduction = require("src.soil_production")
 
 local function option(value, fallback)
     if value == nil then return fallback end
@@ -221,6 +222,7 @@ function Erosion.relax(region, options)
         else
             cell.streamPowerSlope = 0
         end
+        SoilProduction.syncCell(cell)
         erosionSum = erosionSum + erosion
         upliftSum = upliftSum + uplift
         if erosion > maxErosion then maxErosion = erosion end
@@ -318,6 +320,7 @@ function Erosion.glaciate(region, options)
         cell.glacialDelta = delta
         cell.glacialErosion = -delta
         cell.glaciated = primary[cell] == true
+        SoilProduction.syncCell(cell)
         if cell.glaciated then count = count + 1 end
         erosionSum = erosionSum - delta
     end

@@ -16,6 +16,7 @@ local Export = require("src.export")
 local Benchmark = require("src.benchmark")
 local Erosion = require("src.erosion")
 local Climate = require("src.climate")
+local SoilProduction = require("src.soil_production")
 local Biomes = require("src.biomes")
 local Aeolian = require("src.aeolian")
 
@@ -115,6 +116,8 @@ local function encodeCell(cell)
         tostring(cell.lithology),
         round(cell.erodibilityK),
         round(cell.lithologyAge),
+        round(cell.regolithDepth),
+        round(cell.bedrockElevation),
     }, "|")
 end
 
@@ -555,6 +558,33 @@ local function testLithologyErodibilityScalesStreamPower()
         return high.streamPowerErosion or 0
     end
     expect(erosionFor(1.6) > erosionFor(0.4), "lithology erodibility should scale stream-power erosion")
+end
+
+local function testRegolithProduction()
+    local steady = SoilProduction.steadyStateDepth(100 / 1000000)
+    expect(math.abs(steady - 0.2027) < 0.01, "regolith steady-state depth should match Heimsath exponential")
+    local low = { elevation = 1, elevationBase = 1, slope = 0.02, regolithDepth = 0 }
+    local mid = { elevation = 1, elevationBase = 1, slope = 0.2, regolithDepth = 0 }
+    local high = { elevation = 1, elevationBase = 1, slope = 0.8, regolithDepth = -1 }
+    SoilProduction.step({ cells = { low = low, mid = mid, high = high } }, { dt = 0.05 })
+    expect(low.elevation == 1 and mid.elevation == 1 and high.elevation == 1, "soil production should preserve surface elevation")
+    expect(low.regolithDepth >= mid.regolithDepth and mid.regolithDepth > high.regolithDepth, "regolith depth should anti-correlate with slope")
+    for _, cell in ipairs({ low, mid, high }) do
+        expect(cell.regolithDepth >= 0, "regolith depth should stay non-negative")
+        expect(math.abs((cell.bedrockElevation + cell.regolithDepth) - cell.elevation) < 0.000001, "bedrock plus regolith should equal surface")
+    end
+    local world = WorldGen.new(20260625, { geologicTime = 0.5, hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 4, hydrologyBasinStride = 4 })
+    expect(world:metadata().geologicTimeStep == 0.05, "geologic worlds should default a soil-production step")
+    local chunk = world:chunk(0, 0, "local")
+    local produced = 0
+    for y = 1, chunk.size do
+        for x = 1, chunk.size do
+            local cell = chunk.cells[y][x]
+            if (cell.regolithDepth or 0) > 0 then produced = produced + 1 end
+            expect(math.abs(((cell.bedrockElevation or 0) + (cell.regolithDepth or 0)) - (cell.elevation or 0)) < 0.000001, "chunk cells should preserve bedrock/regolith invariant")
+        end
+    end
+    expect(produced > 0, "geologic-time chunks should produce regolith")
 end
 
 local function testPlateMotionGeologicTime()
@@ -1369,6 +1399,7 @@ local tests = {
     testChunkSoAArrays,
     testLithologyDistribution,
     testLithologyErodibilityScalesStreamPower,
+    testRegolithProduction,
     testPlateMotionGeologicTime,
     testRngHashRange,
     testOpenSimplexNoise,

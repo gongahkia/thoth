@@ -69,6 +69,8 @@ local function workerKey(message)
         options.orographicLiftScale or "",
         options.orographicLeeScale or "",
         options.cacheMaxEntries or "",
+        options.geologicTime or "",
+        options.geologicTimeStep or "",
     }, "|")
 end
 
