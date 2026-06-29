@@ -109,30 +109,6 @@ REFERENCES:
 
 ---
 
-### T-026 — Plate motion over geologic time         [tier 4] [med]
-
-GOAL: Plates drift; their positions are a function of `(seed, geologicTime)`. A user-controllable `--time-step` exposes terrain snapshots at different epochs.
-
-WHY: `worldgen.lua:121–140` defines plates as static. Real continents drift. This is mostly an aesthetic / curiosity feature (the world won't change at runtime), but it unlocks the "true-to-real-world" feel by making terrain a snapshot of an ongoing process.
-
-WHERE: `src/worldgen.lua:121–159`.
-
-DEPENDS ON: none.
-
-ACCEPTANCE:
-- `plateCenter(seed, gx, gy, cellSize, time)` interpolates position along the velocity vector by `time`.
-- Default `time = 0` keeps current behavior; `--geologic-time 0.5` shifts plates noticeably.
-- Determinism still holds: `(seed, time)` is the new contract.
-- The CLI flag is documented in README.
-
-NOTES / IMPL HINTS:
-- This necessitates re-running tectonics-derived elevation contributions. The good news: `plateCenter` already exposes velocity. New: clamp drift so plates don't run into each other.
-
-REFERENCES:
-- [nickmcd.me — Clustered Convection for Procedural Plate Tectonics](https://nickmcd.me/2020/12/03/clustered-convection-for-simulating-plate-tectonics/) — full plate-motion sim, good inspiration.
-
----
-
 ### T-027 — Headless walk benchmark + perf snapshot         [tier 4] [low]
 
 GOAL: A `make bench` target runs a fixed seed + fixed walk path + fixed duration headless; prints per-frame perf snapshot to stdout; CI-friendly machine-readable output.

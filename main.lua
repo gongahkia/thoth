@@ -73,6 +73,7 @@ local function runtimeWorldOptions(args)
         hydrologyBasinHaloCells = tonumber(argValue(args, "--hydrology-basin-halo", 0)) or 0,
         hydrologyBasinFlowScale = tonumber(argValue(args, "--hydrology-basin-flow-scale", 0.6)) or 0.6,
         cacheMaxEntries = tonumber(argValue(args, "--cache-max-entries", 512)) or 512,
+        geologicTime = tonumber(argValue(args, "--geologic-time", 0)) or 0,
     }
 end
 

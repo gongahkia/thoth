@@ -36,7 +36,10 @@ love . --hydrology-region-chunks 2 --hydrology-halo 8
 love . --hydrology-basin-chunks 8 --hydrology-basin-stride 4
 love . --export-map dist/map --export-size 128
 love . --save-path thoth-save.json --load-save thoth-save.json
+love . --geologic-time 0.5
 ```
+
+`--geologic-time` drifts every plate along its velocity vector (clamped via tanh below 80% of half plate-cell, so plates never collide). `0` keeps the static contract; the `(seed, geologicTime)` pair is the new determinism contract.
 
 `--debug-perf` prints FPS, raw/clamped dt, update/draw/preload ms, position, visible/preloaded chunks, bounded cache counts, cache hits/misses/evictions, terrain/basin cache misses, and hydrology cell counts. Press `L` in-game to toggle it. `--debug-topo` starts with the optional topographic debug map open; press `T` to toggle it. `--debug-panels` starts with plate, drainage, erosion, and biome debug panels open; press `B` to toggle them. `--export-map <prefix>` writes `<prefix>.png` plus seed/scale metadata JSON. `F5` saves seed, player, survey annotations, and display settings; `F9` loads `--save-path`. Runtime movement clamps simulation dt to reduce jitter after slow terrain loads.
 

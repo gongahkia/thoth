@@ -438,6 +438,26 @@ local function testCacheBoundsAndCounters()
     expect(after.cacheHits > metrics.cacheHits, "cache metrics should count hits")
 end
 
+local function testPlateMotionGeologicTime()
+    local stationary = WorldGen.new(20260625)
+    local stationaryAgain = WorldGen.new(20260625)
+    local drifted = WorldGen.new(20260625, { geologicTime = 0.5 })
+    local driftedAgain = WorldGen.new(20260625, { geologicTime = 0.5 })
+    expect(stationary:metadata().geologicTime == 0, "default geologic time should be zero")
+    expect(drifted:metadata().geologicTime == 0.5, "geologic time should round trip in metadata")
+    local probes = { { 0, 0 }, { 384, -192 }, { -640, 320 } }
+    for _, probe in ipairs(probes) do
+        local x, y = probe[1], probe[2]
+        local a = stationary:plateAt(x, y)
+        local b = stationaryAgain:plateAt(x, y)
+        local c = drifted:plateAt(x, y)
+        local d = driftedAgain:plateAt(x, y)
+        expect(a.id == b.id and round(a.boundary) == round(b.boundary), "stationary plateAt should be deterministic per seed")
+        expect(round(c.boundary) == round(d.boundary), "drifted plateAt should be deterministic per (seed, time)")
+        expect(round(a.boundary) ~= round(c.boundary) or a.id ~= c.id, "non-zero geologic time should shift plate field")
+    end
+end
+
 local function testPlateCacheBounds()
     local world = WorldGen.new(20260625, { plateCacheEntries = 16 })
     for gy = -4, 4 do
@@ -1187,6 +1207,7 @@ local tests = {
     testBasinHydrologyBudget,
     testCacheBoundsAndCounters,
     testPlateCacheBounds,
+    testPlateMotionGeologicTime,
     testRngHashRange,
     testOpenSimplexNoise,
     testStreamPowerConvergence,

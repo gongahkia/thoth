@@ -128,7 +128,13 @@ local function plateCacheKey(gx, gy)
     return tostring(gx) .. ":" .. tostring(gy)
 end
 
-local function buildPlateCenter(seed, gx, gy, cellSize)
+local function plateDrift(vx, vy, cellSize, time)
+    if not time or time == 0 then return 0, 0 end
+    local driftScale = cellSize * 0.4 -- clamp drift below 80% half-cell so plates do not collide
+    return math.tanh(vx * time) * driftScale, math.tanh(vy * time) * driftScale
+end
+
+local function buildPlateCenter(seed, gx, gy, cellSize, time)
     local jitterX = Rng.signed(seed, gx, gy, 11) * cellSize * 0.38
     local jitterY = Rng.signed(seed, gx, gy, 23) * cellSize * 0.38
     local id = Rng.hash(seed, gx, gy, 37)
@@ -136,35 +142,38 @@ local function buildPlateCenter(seed, gx, gy, cellSize)
     local speed = 0.25 + Rng.unitAt(seed, gx, gy, 43) * 0.75
     local crust = Rng.unitAt(seed, gx, gy, 47) > 0.66 and "continental" or "oceanic"
     local age = Rng.unitAt(seed, gx, gy, 49)
+    local vx = math.cos(angle) * speed
+    local vy = math.sin(angle) * speed
+    local dx, dy = plateDrift(vx, vy, cellSize, time)
     return {
         id = id,
         gx = gx,
         gy = gy,
-        x = (gx + 0.5) * cellSize + jitterX,
-        y = (gy + 0.5) * cellSize + jitterY,
-        vx = math.cos(angle) * speed,
-        vy = math.sin(angle) * speed,
+        x = (gx + 0.5) * cellSize + jitterX + dx,
+        y = (gy + 0.5) * cellSize + jitterY + dy,
+        vx = vx,
+        vy = vy,
         crust = crust,
         age = age,
     }
 end
 
-local function plateCenter(seed, gx, gy, cellSize, cache)
-    if not cache then return buildPlateCenter(seed, gx, gy, cellSize) end
+local function plateCenter(seed, gx, gy, cellSize, cache, time)
+    if not cache then return buildPlateCenter(seed, gx, gy, cellSize, time) end
     local cacheKey = plateCacheKey(gx, gy)
     local plate = cache:get(cacheKey)
     if plate then return plate end
-    plate = buildPlateCenter(seed, gx, gy, cellSize)
+    plate = buildPlateCenter(seed, gx, gy, cellSize, time)
     cache:set(cacheKey, plate)
     return plate
 end
 
-local function twoNearestPlates(seed, x, y, cellSize, cache)
+local function twoNearestPlates(seed, x, y, cellSize, cache, time)
     local gx, gy = floorDiv(x, cellSize), floorDiv(y, cellSize)
     local first, second
     for yy = gy - 1, gy + 1 do
         for xx = gx - 1, gx + 1 do
-            local plate = plateCenter(seed, xx, yy, cellSize, cache)
+            local plate = plateCenter(seed, xx, yy, cellSize, cache, time)
             local dx, dy = x - plate.x, y - plate.y
             plate.distance = math.sqrt(dx * dx + dy * dy)
             if not first or plate.distance < first.distance then
@@ -290,6 +299,7 @@ function WorldGen.new(seed, options)
         plateCellSize = option(options.plateCellSize, 640),
         plateCacheEntries = option(options.plateCacheEntries, 4096),
         plateCache = Lru.new(option(options.plateCacheEntries, 4096)),
+        geologicTime = option(options.geologicTime, 0),
         hydrologyRegionChunks = option(options.hydrologyRegionChunks, 2),
         hydrologyHaloCells = option(options.hydrologyHaloCells, 8),
         hydrologyBasinChunks = option(options.hydrologyBasinChunks, 8),
@@ -434,6 +444,7 @@ function WorldGen:metadata()
         cacheMaxEntries = self.cacheMaxEntries,
         cacheLimits = self.cacheLimits,
         plateCacheEntries = self.plateCacheEntries,
+        geologicTime = self.geologicTime,
         scales = scales,
     }
 end
@@ -554,7 +565,7 @@ function WorldGen:asyncHydrologyPendingCount()
 end
 
 function WorldGen:plateAt(x, y)
-    local first, second = twoNearestPlates(self.seed, x, y, self.plateCellSize, self.plateCache)
+    local first, second = twoNearestPlates(self.seed, x, y, self.plateCellSize, self.plateCache, self.geologicTime)
     local gap = math.max(0, (second.distance or first.distance) - first.distance)
     local boundary = clamp(1 - gap / (self.plateCellSize * 0.34), 0, 1)
     local nx, ny = second.x - first.x, second.y - first.y
