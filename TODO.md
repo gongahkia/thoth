@@ -139,25 +139,6 @@ Small targeted fixes for issues spotted during the audit. Land any time after Ti
 
 ---
 
-### T-030 — Use `normalAt` for terrain lighting         [tier 5] [low]
-
-GOAL: Replace `slopeLight` (derived from quad-corner z-deltas at `render.lua:257`) with a dot product between the cell's surface normal (`world:normalAt(x, y)`) and a sun direction uniform.
-
-WHY: `worldgen.lua:556–564` (`normalAt`) exists and is unit-length, but is never called. The current `slopeLight` is direction-agnostic — light comes from above, which is unphysical and bland.
-
-WHERE: `src/render.lua:257–267`.
-
-DEPENDS ON: T-002 (shader pass — sun direction is a uniform).
-
-ACCEPTANCE:
-- A `sun = { x, y, z }` direction (configurable) shades the terrain.
-- Slopes facing the sun are visibly brighter; opposite slopes darker.
-- Sun direction couples to time-of-day (T-022) once landed.
-
-REFERENCES: none required.
-
----
-
 ### T-031 — Regression seed fixtures (TODO entry)         [tier 5] [low]
 
 GOAL: A test that generates terrain from a curated list of known-bad and known-ugly seeds and asserts they still fail diagnostics in the documented way (locked-in failure mode).

@@ -1002,6 +1002,18 @@ local function testAtmosphereCycle()
     expect(Atmosphere.shiftSeason(state, 1) == "spring" and Atmosphere.shiftSeason(state, -1) == "winter", "atmosphere season shift should wrap")
 end
 
+local function testAtmosphereSunDirection()
+    local noon = Atmosphere.sunDirection(Atmosphere.new({ time = 0.25 }))
+    local midnight = Atmosphere.sunDirection(Atmosphere.new({ time = 0.75 }))
+    local dusk = Atmosphere.sunDirection(Atmosphere.new({ time = 0.5 }))
+    local function unit(v) return math.abs(math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) - 1) < 1e-6 end
+    expect(unit(noon) and unit(midnight) and unit(dusk), "sun direction should be unit length")
+    expect(noon.z > midnight.z, "sun should be higher at noon than midnight")
+    expect(noon.daylight > midnight.daylight, "daylight should be greater at noon than midnight")
+    expect(math.abs(noon.x) < 0.01, "sun should be near zenith east-west at noon")
+    expect(dusk.x < 0, "sun should swing west at dusk")
+end
+
 local function testPostFxPixelScale()
     expect(PostFX.parsePixelScale(nil) == 2, "postfx default pixel scale should be 2")
     expect(PostFX.parsePixelScale("3") == 3 and PostFX.parsePixelScale(4) == 4, "postfx should accept configured pixel scales")
@@ -1246,6 +1258,7 @@ local tests = {
     testBiomePalette,
     testSkyDomeColors,
     testAtmosphereCycle,
+    testAtmosphereSunDirection,
     testPostFxPixelScale,
     testTopographicMapData,
     testDebugPanelData,

@@ -128,6 +128,26 @@ function Atmosphere.paletteKey(atmosphere)
     return tostring(state.season or "summer") .. ":" .. tostring(step)
 end
 
+function Atmosphere.sunDirection(atmosphere)
+    local state = atmosphere or Atmosphere.new()
+    local time = (state.time or 0.25) % 1
+    local angle = (time - 0.25) * math.pi * 2 -- noon = 0, dawn = -π/2, dusk = π/2
+    local zenith = math.cos(angle) -- sun height above horizon, negative at night
+    local horizon = -math.sin(angle) -- dawn east (+x), dusk west (-x)
+    local elev = math.max(0.18, zenith) -- keep a soft floor so night still has shading
+    local x = horizon * 0.85
+    local y = -0.3
+    local z = elev
+    local length = math.sqrt(x * x + y * y + z * z)
+    if length <= 0 then return { x = 0, y = 0, z = 1, daylight = 0 } end
+    return {
+        x = x / length,
+        y = y / length,
+        z = z / length,
+        daylight = clamp(zenith, 0, 1),
+    }
+end
+
 function Atmosphere.snapshot(atmosphere)
     return {
         time = atmosphere and atmosphere.time or 0.25,

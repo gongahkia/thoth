@@ -1,6 +1,7 @@
 local Render = {}
 local ViewScale = require("src.viewscale")
 local Clipmap = require("src.clipmap")
+local Atmosphere = require("src.atmosphere")
 local ffi = require("ffi")
 
 local terrainScale = 18
@@ -236,11 +237,19 @@ local function inFrustum(state, lateral, depth, margin)
     return lateral * lateral + depth * depth <= radial * radial
 end
 
-local function terrainLight(cell, slopeLight)
-    local light = 0.72 + clamp(slopeLight, -0.22, 0.28) - clamp(cell.slope or 0, 0, 1) * 0.08
+local function terrainLight(cell, diffuse)
+    local light = 0.72 + clamp(diffuse, -0.32, 0.42) - clamp(cell.slope or 0, 0, 1) * 0.08
     local brightness = 0.58 + clamp(light, 0, 1) * 0.34 + clamp(cell.elevation + 0.2, 0, 1) * 0.1
     if cell.water then brightness = 0.82 end
     return brightness
+end
+
+local function quadDiffuse(z00, z10, z11, z01, sx, sy, sz)
+    local slopeRight = ((z10 + z11) - (z00 + z01)) * 0.5 / terrainScale
+    local slopeForward = ((z01 + z11) - (z00 + z10)) * 0.5 / terrainScale
+    local nx, ny, nz = -slopeRight, -slopeForward, 1
+    local invLen = 1 / math.sqrt(nx * nx + ny * ny + nz * nz)
+    return (nx * sx + ny * sy + nz * sz) * invLen
 end
 
 local vertexFloatCount = 8
@@ -359,6 +368,10 @@ local function buildGridTerrainMeshData(app, width, height, params)
     local lateralRange = radius * 0.82
     local basis = cameraBasis(camera.yaw or 0)
     local frustum = frustumState(camera, width, radius, lateralRange, step)
+    local sun = Atmosphere.sunDirection(app.atmosphere)
+    local sunLat = sun.x * basis.rightX + sun.y * basis.rightY
+    local sunDep = sun.x * basis.forwardX + sun.y * basis.forwardY
+    local sunZ = sun.z
     local laterals = {}
     local depths = {}
     local lateral = -lateralRange
@@ -414,11 +427,11 @@ local function buildGridTerrainMeshData(app, width, height, params)
                 if z2 then p11x, p11y = project(app, width, height, nextLat, nextDepth, z2) end
                 if z3 then p01x, p01y = project(app, width, height, lat, nextDepth, z3) end
                 if p00x and p10x and p11x and p01x then
-                    local slopeLight = ((z0 + z1) - (z2 + z3)) / (terrainScale * 2)
+                    local diffuse = quadDiffuse(z0, z1, z2, z3, sunLat, sunDep, sunZ)
+                    local edgeSlope = math.abs((z0 + z1 - z2 - z3) / (terrainScale * 2))
                     local color = baseColor(cell)
-                    pushQuadCoords(vertices, p00x, p00y, p10x, p10y, p11x, p11y, p01x, p01y, color, terrainLight(cell, slopeLight), centerDepth)
+                    pushQuadCoords(vertices, p00x, p00y, p10x, p10y, p11x, p11y, p01x, p01y, color, terrainLight(cell, diffuse), centerDepth)
                     visibleTiles = visibleTiles + 1
-                    local edgeSlope = math.abs(slopeLight)
                     if (cell.slope or 0) > 0.28 or edgeSlope > 0.045 then
                         local width = clamp(0.65 + (cell.slope or 0) * 3.2, 0.8, 2.4)
                         if pushLineQuad(silhouetteVertices, p01x, p01y, p11x, p11y, width, silhouetteColor, 1, centerDepth) then
@@ -504,6 +517,11 @@ local function buildClipmapTerrainMeshData(app, width, height, params)
     local _, clipStats = Clipmap.update(clipmap, app.player.x, app.player.y, clipmapSampleFn(app, params), { scaleId = params.target })
     local radius = math.max(camera.renderRadius or 86, clipStats.radius)
     local frustum = frustumState(camera, width, radius, radius * 0.82, 1)
+    local basis = cameraBasis(camera.yaw or 0)
+    local sun = Atmosphere.sunDirection(app.atmosphere)
+    local sunLat = sun.x * basis.rightX + sun.y * basis.rightY
+    local sunDep = sun.x * basis.forwardX + sun.y * basis.forwardY
+    local sunZ = sun.z
     local visibleTiles = 0
     local expectedMaxForFOV = 0
     local riverStrips = 0
@@ -532,11 +550,11 @@ local function buildClipmapTerrainMeshData(app, width, height, params)
                 if p00x and p10x and p11x and p01x then
                     if math.max(m00, m10, m11, m01) > 0 then morphTiles = morphTiles + 1 end
                     local cell = s00.cell
-                    local slopeLight = ((z00 + z10) - (z11 + z01)) / (terrainScale * 2)
+                    local diffuse = quadDiffuse(z00, z10, z11, z01, sunLat, sunDep, sunZ)
+                    local edgeSlope = math.abs((z00 + z10 - z11 - z01) / (terrainScale * 2))
                     local color = baseColor(cell)
-                    pushQuadCoords(vertices, p00x, p00y, p10x, p10y, p11x, p11y, p01x, p01y, color, terrainLight(cell, slopeLight), centerDepth)
+                    pushQuadCoords(vertices, p00x, p00y, p10x, p10y, p11x, p11y, p01x, p01y, color, terrainLight(cell, diffuse), centerDepth)
                     visibleTiles = visibleTiles + 1
-                    local edgeSlope = math.abs(slopeLight)
                     if (cell.slope or 0) > 0.28 or edgeSlope > 0.045 then
                         local stripWidth = clamp(0.65 + (cell.slope or 0) * 3.2, 0.8, 2.4)
                         if pushLineQuad(silhouetteVertices, p01x, p01y, p11x, p11y, stripWidth, silhouetteColor, 1, centerDepth) then
