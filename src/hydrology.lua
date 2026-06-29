@@ -84,6 +84,38 @@ local function riverThreshold(scaleId)
     return 24
 end
 
+local function currentSeaLevel(world)
+    if world.seaLevelAt then return world:seaLevelAt(world.geologicTime) end
+    return world.seaLevel or 0
+end
+
+local function applyPaleoSeaLevel(world, visitOrder, threshold, seaLevel)
+    local paleoMax = world.seaLevelPaleoMax or seaLevel
+    local paleoMin = world.seaLevelPaleoMin or seaLevel
+    local seaDrop = math.max(0, paleoMax - seaLevel)
+    for _, cell in ipairs(visitOrder) do
+        local elevation = cell.elevation or cell.elevationBase or 0
+        cell.marineTerrace = 0
+        cell.fluvialTerrace = 0
+        cell.paleoShoreline = false
+        cell.riverHistorical = false
+        if not cell.water and elevation < paleoMax then
+            cell.marineTerrace = paleoMax - elevation
+            cell.paleoShoreline = true
+        end
+        local historicalChannel = cell.river or cell.macroChannelId ~= nil or (cell.flow or 0) > threshold * 0.35
+        if cell.water and historicalChannel and (cell.elevationBase or elevation) <= paleoMax + 0.03 and (cell.elevationBase or elevation) >= paleoMin - 0.12 then
+            cell.paleoShoreline = true
+            cell.riverHistorical = true
+        end
+        if cell.river and cell.downCell then
+            local distance = math.max(1, cell.downDistance or 1)
+            local drop = math.max(0, elevation - (cell.downCell.elevation or cell.downCell.elevationBase or elevation))
+            cell.fluvialTerrace = math.max(0, drop - 0.0005 * distance + seaDrop * 0.15)
+        end
+    end
+end
+
 local function regionIndex(chunkCoord, regionChunks)
     local offset = math.floor(regionChunks / 2)
     return floorDiv(chunkCoord + offset, regionChunks)
@@ -180,6 +212,7 @@ local function solveBasin(world, chunkX, chunkY, info)
     local basinChunks = world.hydrologyBasinChunks or 0
     local stride = math.max(1, world.hydrologyBasinStride or 1)
     if basinChunks <= 0 or stride <= 1 then return nil end
+    local seaLevel = currentSeaLevel(world)
     local regionX = regionIndex(chunkX, basinChunks)
     local regionY = regionIndex(chunkY, basinChunks)
     local cacheKey = basinCacheKey(info, regionX, regionY, stride)
@@ -227,7 +260,7 @@ local function solveBasin(world, chunkX, chunkY, info)
             cell.gy = gy
             cell.filledElevation = cell.elevationBase
             cell.flow = math.max(0.01, cell.rainfall or 0) * stride * stride
-            cell.water = cell.elevationBase <= world.seaLevel
+            cell.water = cell.elevationBase <= seaLevel
             cell.river = false
             region.cells[key(gx, gy)] = cell
         end
@@ -276,7 +309,7 @@ local function solveBasin(world, chunkX, chunkY, info)
     end
 
     region.visitOrder = visitOrder
-    region.seaLevel = world.seaLevel
+    region.seaLevel = seaLevel
     region.erosion = Erosion.relax(region, {
         iterations = world.streamPowerIterations,
         K = world.streamPowerK,
@@ -312,7 +345,7 @@ local function solveBasin(world, chunkX, chunkY, info)
         local root = terminal(cell)
         cell.basinId = key("mb", info.id, root.gx, root.gy)
         basinIds[cell.basinId] = true
-        cell.water = cell.elevation <= world.seaLevel
+        cell.water = cell.elevation <= seaLevel
         cell.river = not cell.water and cell.downCell ~= nil and cell.flow > threshold
         if cell.downCell then
             cell.channelId = key("mc", info.id, cell.gx, cell.gy, cell.downCell.gx, cell.downCell.gy)
@@ -421,6 +454,7 @@ local function solveRegion(world, chunkX, chunkY, info)
     local regionChunks = world.hydrologyRegionChunks or 4
     local regionX = regionIndex(chunkX, regionChunks)
     local regionY = regionIndex(chunkY, regionChunks)
+    local seaLevel = currentSeaLevel(world)
     local cacheKey = regionCacheKey(info, regionX, regionY)
     local cached = world.cacheGet and world:cacheGet(cacheKey) or world.cache[cacheKey]
     if cached then return cached end
@@ -454,6 +488,7 @@ local function solveRegion(world, chunkX, chunkY, info)
         minY = minY,
         maxX = maxX,
         maxY = maxY,
+        seaLevel = seaLevel,
         cells = {},
     }
     if world.metrics then world.metrics.hydrologyCells = world.metrics.hydrologyCells + (maxX - minX + 1) * (maxY - minY + 1) end
@@ -536,15 +571,15 @@ local function solveRegion(world, chunkX, chunkY, info)
         end
         cell.slope = clamp(math.max(cell.slope or 0, hydroSlope), 0, 1)
         local streamPowerDelta = cell.streamPowerDelta or 0
-        if streamPowerDelta < 0 and not cell.mountainRangeId and (cell.plateBoundary or 0) <= 0.35 and cell.elevationBase > world.seaLevel then
+        if streamPowerDelta < 0 and not cell.mountainRangeId and (cell.plateBoundary or 0) <= 0.35 and cell.elevationBase > seaLevel then
             cell.slope = cell.slope * (1 - clamp(-streamPowerDelta * 32, 0, 0.2))
         end
         if (cell.plateBoundary or 0) > 0.35 and streamPowerDelta ~= 0 then
             cell.slope = clamp(cell.slope + clamp(math.abs(streamPowerDelta) * 5, 0, 0.035), 0, 1)
         end
-        local ocean = cell.elevationBase <= world.seaLevel
+        local ocean = cell.elevationBase <= seaLevel
         cell.lakeDepth = math.max(0, cell.filledElevation - cell.elevationBase)
-        cell.lake = (not ocean) and cell.lakeDepth > lakeMinDepth and cell.filledElevation > world.seaLevel + 0.006
+        cell.lake = (not ocean) and cell.lakeDepth > lakeMinDepth and cell.filledElevation > seaLevel + 0.006
         if cell.lake then
             cell.lakeSurface = cell.filledElevation
         end
@@ -555,13 +590,13 @@ local function solveRegion(world, chunkX, chunkY, info)
         cell.water = ocean or cell.lake
         local macroRiver = cell.macroChannelWeight and cell.macroChannelWeight > 0.35
         cell.river = not cell.water and cell.downCell ~= nil and (cell.flow > threshold or macroRiver)
-        cell.talus = not cell.water and cell.thermalErosion > 0.006 and cell.elevationBase > world.seaLevel + 0.04
+        cell.talus = not cell.water and cell.thermalErosion > 0.006 and cell.elevationBase > seaLevel + 0.04
         local sediment = cell.sediment or 0
         local sedimentThreshold = 0.002
         local channelContext = cell.flow > threshold * 0.35 or (cell.macroChannelWeight or 0) > 0.12
         local mountainContext = cell.mountainRangeId or (cell.uplift or 0) > 0.1 or (cell.plateBoundary or 0) > 0.35
-        cell.alluvialFan = not cell.water and sediment > sedimentThreshold * 2 and channelContext and mountainContext and cell.slope >= 0.04 and cell.slope < 0.12 and cell.elevationBase > world.seaLevel + 0.035 and cell.elevationBase < 0.5
-        cell.floodplain = not cell.water and sediment > sedimentThreshold * 0.8 and channelContext and cell.slope < 0.14 and cell.elevationBase > world.seaLevel + 0.01 and cell.elevationBase < 0.56
+        cell.alluvialFan = not cell.water and sediment > sedimentThreshold * 2 and channelContext and mountainContext and cell.slope >= 0.04 and cell.slope < 0.12 and cell.elevationBase > seaLevel + 0.035 and cell.elevationBase < 0.5
+        cell.floodplain = not cell.water and sediment > sedimentThreshold * 0.8 and channelContext and cell.slope < 0.14 and cell.elevationBase > seaLevel + 0.01 and cell.elevationBase < 0.56
         cell.deposition = sediment
         if cell.alluvialFan then cell.deposition = cell.deposition + sediment * 0.5 end
         if cell.floodplain then cell.deposition = cell.deposition + sediment * 0.75 end
@@ -582,7 +617,7 @@ local function solveRegion(world, chunkX, chunkY, info)
     for _, cell in ipairs(visitOrder) do
         if cell.river and not cell.water then
             local mouth = cell.downCell and cell.downCell.water
-            local waterLevel = world.seaLevel
+            local waterLevel = seaLevel
             if mouth and cell.downCell and cell.downCell.lakeSurface then waterLevel = cell.downCell.lakeSurface end
             if not mouth then
                 for _, offset in ipairs(neighbors) do
@@ -612,7 +647,7 @@ local function solveRegion(world, chunkX, chunkY, info)
         end
     end
 
-    region.coast = Coast.apply(region, { seaLevel = world.seaLevel })
+    region.coast = Coast.apply(region, { seaLevel = seaLevel })
 
     for _, cell in ipairs(visitOrder) do
         if cell.river then
@@ -636,6 +671,7 @@ local function solveRegion(world, chunkX, chunkY, info)
             world:refineLithology(cell)
         end
     end
+    applyPaleoSeaLevel(world, visitOrder, threshold, seaLevel)
     SoilProduction.syncRegion(region)
 
     local stats = {

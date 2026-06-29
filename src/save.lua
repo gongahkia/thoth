@@ -122,6 +122,16 @@ function Save.snapshot(app)
     return {
         version = 1,
         seed = metadata.seed,
+        world = {
+            geologicTime = metadata.geologicTime,
+            geologicTimeStep = metadata.geologicTimeStep,
+            seaLevel = metadata.baseSeaLevel or metadata.seaLevel,
+            seaLevelAmplitude1 = metadata.seaLevelAmplitude1,
+            seaLevelPeriod1 = metadata.seaLevelPeriod1,
+            seaLevelAmplitude2 = metadata.seaLevelAmplitude2,
+            seaLevelPeriod2 = metadata.seaLevelPeriod2,
+            seaLevelResidualAmplitude = metadata.seaLevelResidualAmplitude,
+        },
         player = { x = app.player.x, y = app.player.y },
         camera = { yaw = app.camera.yaw, pitch = app.camera.pitch },
         atmosphere = Atmosphere.snapshot(app.atmosphere),

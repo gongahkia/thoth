@@ -118,6 +118,10 @@ local function encodeCell(cell)
         round(cell.lithologyAge),
         round(cell.regolithDepth),
         round(cell.bedrockElevation),
+        round(cell.marineTerrace),
+        round(cell.fluvialTerrace),
+        tostring(cell.paleoShoreline),
+        tostring(cell.riverHistorical),
     }, "|")
 end
 
@@ -342,7 +346,7 @@ local function testSurveyHistory()
 end
 
 local function testSaveLoadRoundTrip()
-    local world = WorldGen.new(99)
+    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0 })
     local survey = Survey.new()
     Survey.mark(survey, world, -64, -64, "local")
     local viewScale = ViewScale.new(world)
@@ -365,6 +369,7 @@ local function testSaveLoadRoundTrip()
     local restoredSurvey = Survey.fromSnapshot(decoded.survey)
     expect(decoded.seed == 99 and decoded.player.x == 12.5 and decoded.player.y == -7.25, "save should round-trip seed and player position")
     expect(decoded.camera.yaw == 0.7 and decoded.display.viewScale == "region", "save should round-trip camera and display settings")
+    expect(decoded.world.geologicTime == 0.4 and decoded.world.geologicTimeStep == 0.03 and decoded.world.seaLevelAmplitude1 == 0.04, "save should round-trip world sea-level settings")
     expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
     expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.debugPanels and not decoded.display.mouseLook, "save should round-trip display toggles")
     expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
@@ -511,7 +516,7 @@ local function testLithologyDistribution()
                 local lithology = cell.lithology
                 classes[lithology] = true
                 if type(lithology) ~= "number" or lithology < 0 or lithology > 7 then invalid = invalid + 1 end
-                if cell.elevation > world.seaLevel then
+                if cell.elevation > world:seaLevelAt(world.geologicTime) then
                     land = land + 1
                     if lithology < 1 or lithology > 7 then unknownLand = unknownLand + 1 end
                 end
@@ -585,6 +590,27 @@ local function testRegolithProduction()
         end
     end
     expect(produced > 0, "geologic-time chunks should produce regolith")
+end
+
+local function testSeaLevelSeries()
+    local flat = WorldGen.new(20260625, { seaLevel = 0.03, geologicTime = 0.5, seaLevelAmplitude1 = 0, seaLevelAmplitude2 = 0, seaLevelResidualAmplitude = 0 })
+    expect(flat:seaLevelAt(0.25) == 0.03 and flat:seaLevelAt(0.9) == 0.03, "zero-amplitude sea level should preserve scalar baseline")
+    expect(#flat.seaLevelSeries == 128 and flat.seaLevelPaleoMin == 0.03 and flat.seaLevelPaleoMax == 0.03, "sea-level series should precompute flat baselines")
+    local varying = WorldGen.new(20260625, { geologicTime = 0.35, seaLevelAmplitude1 = 0.08, seaLevelPeriod1 = 0.2, seaLevelAmplitude2 = 0.03, seaLevelPeriod2 = 0.071, seaLevelResidualAmplitude = 0.01, chunkSize = 32, hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 4, hydrologyBasinStride = 4 })
+    expect(round(varying:seaLevelAt(0.2)) == round(varying:seaLevelAt(0.2)), "seaLevelAt should be idempotent")
+    local same = WorldGen.new(20260625, { geologicTime = 0.35, seaLevelAmplitude1 = 0.08, seaLevelPeriod1 = 0.2, seaLevelAmplitude2 = 0.03, seaLevelPeriod2 = 0.071, seaLevelResidualAmplitude = 0.01, chunkSize = 32, hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 4, hydrologyBasinStride = 4 })
+    local chunk = varying:chunk(0, 0, "local")
+    expect(encodeChunk(chunk) == encodeChunk(same:chunk(0, 0, "local")), "seed and geologicTime should reproduce sea-level terrain")
+    local terraces, drowned = 0, 0
+    for y = 1, chunk.size do
+        for x = 1, chunk.size do
+            local cell = chunk.cells[y][x]
+            if (cell.marineTerrace or 0) > 0 then terraces = terraces + 1 end
+            if cell.paleoShoreline and cell.water and cell.riverHistorical then drowned = drowned + 1 end
+        end
+    end
+    expect(terraces > 0, "sea-level history should stamp marine terraces")
+    expect(drowned > 0, "sea-level history should stamp drowned river valleys")
 end
 
 local function testPlateMotionGeologicTime()
@@ -1400,6 +1426,7 @@ local tests = {
     testLithologyDistribution,
     testLithologyErodibilityScalesStreamPower,
     testRegolithProduction,
+    testSeaLevelSeries,
     testPlateMotionGeologicTime,
     testRngHashRange,
     testOpenSimplexNoise,

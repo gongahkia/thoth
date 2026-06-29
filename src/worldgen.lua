@@ -8,8 +8,8 @@ local Aeolian = require("src.aeolian")
 local SoilProduction = require("src.soil_production")
 local ffi = require("ffi")
 
-local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation" }
-local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology" }
+local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace" }
+local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical" }
 local soaInt32FieldList = { "plateId", "secondaryPlateId" }
 local soaDoubleArray = ffi.typeof("double[?]")
 local soaInt8Array = ffi.typeof("int8_t[?]")
@@ -268,7 +268,7 @@ end
 local function classifyLithology(world, plate, x, y, latitudeUnit, rainfall, elevation, shield, craton, riftValley, islandArc)
     local age = plate.age or 0
     local boundary = plate.boundary or 0
-    local seaLevel = world.seaLevel or 0
+    local seaLevel = world:seaLevelAt(world.geologicTime)
     if plate.crust == "oceanic" then
         if age < 0.1 then return 1, lithologyProps(1).erodibilityK, age end
         if age > 0.7 then return 6, lithologyProps(6).erodibilityK, age end
@@ -301,6 +301,53 @@ end
 local function option(value, fallback)
     if value == nil then return fallback end
     return value
+end
+
+local function seaLevelPhase(seed, salt)
+    return Rng.unitAt(seed, salt, 1051) * math.pi * 2
+end
+
+local function buildSeaLevelConfig(seed, options)
+    return {
+        base = option(options.seaLevel, 0),
+        amplitude1 = option(options.seaLevelAmplitude1, 0.012),
+        period1 = option(options.seaLevelPeriod1, 0.1),
+        phase1 = seaLevelPhase(seed, 1),
+        amplitude2 = option(options.seaLevelAmplitude2, 0.005),
+        period2 = option(options.seaLevelPeriod2, 0.041),
+        phase2 = seaLevelPhase(seed, 2),
+        residualAmplitude = option(options.seaLevelResidualAmplitude, 0.003),
+        residualPhase1 = seaLevelPhase(seed, 3),
+        residualPhase2 = seaLevelPhase(seed, 4),
+    }
+end
+
+local function cycleLevel(t, amplitude, period, phase)
+    if amplitude == 0 or period == 0 then return 0 end
+    return amplitude * (math.sin((math.pi * 2 * t) / period + phase) - math.sin(phase))
+end
+
+local function seaLevelAtConfig(config, t)
+    t = t or 0
+    local residual = cycleLevel(t, config.residualAmplitude * 0.65, 0.023, config.residualPhase1)
+        + cycleLevel(t, config.residualAmplitude * 0.35, 0.071, config.residualPhase2)
+    return config.base
+        + cycleLevel(t, config.amplitude1, config.period1, config.phase1)
+        + cycleLevel(t, config.amplitude2, config.period2, config.phase2)
+        + residual
+end
+
+local function buildSeaLevelSeries(config, geologicTime)
+    local series, minLevel, maxLevel = {}, math.huge, -math.huge
+    local startTime = (geologicTime or 0) - 1
+    for index = 1, 128 do
+        local t = startTime + (index - 1) / 127
+        local level = seaLevelAtConfig(config, t)
+        series[index] = { t = t, level = level }
+        if level < minLevel then minLevel = level end
+        if level > maxLevel then maxLevel = level end
+    end
+    return series, minLevel, maxLevel
 end
 
 local function streamPowerSampleAt(store, scale, gx, gy)
@@ -388,11 +435,20 @@ function WorldGen.new(seed, options)
     options = options or {}
     local limits = cacheLimits(options)
     local maxEntries = option(options.cacheMaxEntries, totalCacheLimit(limits))
+    local numericSeed = tonumber(seed) or 1
     local geologicTime = option(options.geologicTime, 0)
+    local seaLevelConfig = buildSeaLevelConfig(numericSeed, options)
+    local seaLevelSeries, seaLevelMin, seaLevelMax = buildSeaLevelSeries(seaLevelConfig, geologicTime)
+    local currentSeaLevel = seaLevelAtConfig(seaLevelConfig, geologicTime)
     return setmetatable({
-        seed = tonumber(seed) or 1,
+        seed = numericSeed,
         chunkSize = option(options.chunkSize, 64),
-        seaLevel = option(options.seaLevel, 0),
+        baseSeaLevel = seaLevelConfig.base,
+        seaLevel = currentSeaLevel,
+        seaLevelConfig = seaLevelConfig,
+        seaLevelSeries = seaLevelSeries,
+        seaLevelPaleoMin = seaLevelMin,
+        seaLevelPaleoMax = seaLevelMax,
         lithologyTable = lithologyTable,
         plateCellSize = option(options.plateCellSize, 640),
         plateCacheEntries = option(options.plateCacheEntries, 4096),
@@ -521,6 +577,14 @@ function WorldGen:metadata()
         seed = self.seed,
         chunkSize = self.chunkSize,
         seaLevel = self.seaLevel,
+        baseSeaLevel = self.baseSeaLevel,
+        seaLevelAmplitude1 = self.seaLevelConfig.amplitude1,
+        seaLevelPeriod1 = self.seaLevelConfig.period1,
+        seaLevelAmplitude2 = self.seaLevelConfig.amplitude2,
+        seaLevelPeriod2 = self.seaLevelConfig.period2,
+        seaLevelResidualAmplitude = self.seaLevelConfig.residualAmplitude,
+        seaLevelPaleoMin = self.seaLevelPaleoMin,
+        seaLevelPaleoMax = self.seaLevelPaleoMax,
         hydrologyRegionChunks = self.hydrologyRegionChunks,
         hydrologyHaloCells = self.hydrologyHaloCells,
         hydrologyBasinChunks = self.hydrologyBasinChunks,
@@ -547,6 +611,10 @@ function WorldGen:metadata()
         geologicTimeStep = self.geologicTimeStep,
         scales = scales,
     }
+end
+
+function WorldGen:seaLevelAt(t)
+    return seaLevelAtConfig(self.seaLevelConfig, t)
 end
 
 function WorldGen:cacheEvict(cacheKey)
@@ -746,7 +814,8 @@ function WorldGen:baseSample(x, y, scale)
     local rainfall = clamp((climate and climate.precipitation) or fallbackRainfall, 0, 1)
     local lithology, erodibilityK, lithologyAge = classifyLithology(self, plate, x, y, latitudeUnit, rainfall, elevation, shield, craton, riftValley, islandArc)
     local slope = clamp(ridge * 0.1 + math.abs(rough - 0.5) * 0.16 * (1 - stableDamping) + plate.boundary * 0.08 + uplift * 0.06 + riftValley * 0.12 + islandArc * 0.18 + trench * 0.08 - shield * 0.025 - craton * 0.035, 0, 1)
-    local water = elevation <= self.seaLevel
+    local seaLevel = self:seaLevelAt(self.geologicTime)
+    local water = elevation <= seaLevel
     local ridgeId = (ridge > 0.62 or plate.boundary > 0.55) and key("ridge", info.id, floorDiv(math.floor(wx), 192 * info.factor), floorDiv(math.floor(wy), 192 * info.factor), plate.id) or nil
     local mountainRangeId = (uplift > 0.18 or plate.convergent * plate.boundary > 0.24) and key("range", info.id, plate.id, plate.secondaryId) or nil
     return {
@@ -758,6 +827,10 @@ function WorldGen:baseSample(x, y, scale)
         elevation = elevation,
         bedrockElevation = elevation,
         regolithDepth = 0,
+        marineTerrace = 0,
+        fluvialTerrace = 0,
+        paleoShoreline = false,
+        riverHistorical = false,
         streamPowerDelta = streamPowerDelta,
         streamPowerErosion = math.max(0, -streamPowerDelta),
         streamPowerUplift = math.max(0, streamPowerDelta),
@@ -859,6 +932,10 @@ function WorldGen:pendingSample(x, y, info)
         elevation = 0,
         bedrockElevation = 0,
         regolithDepth = 0,
+        marineTerrace = 0,
+        fluvialTerrace = 0,
+        paleoShoreline = false,
+        riverHistorical = false,
         water = false,
         precipitation = 0,
         rainShadow = false,

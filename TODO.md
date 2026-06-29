@@ -132,41 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-036 — Eustatic sea level as function of geologicTime         [tier 6] [med]
-
-GOAL: Replace scalar `world.seaLevel` (worldgen.lua:321) with `world:seaLevelAt(t)` driven by Milankovitch-scale superposition. Cells record `marineTerrace`, `fluvialTerrace`, `paleoShoreline` where past sea levels left a signature.
-
-WHY: Single static sea level produces no marine terraces, no drowned valleys (rias), no fluvial terraces. Real coasts show transgression/regression episodes that produce these features. Required by T-049 (reef subsidence is sea-level relative).
-
-WHERE:
-- `src/worldgen.lua:321` — replace `seaLevel = option(options.seaLevel, 0)` with constructor that builds `world.seaLevelSeries[128]` plus accessor `world:seaLevelAt(t)`.
-- Replace all reads of `world.seaLevel` → `world:seaLevelAt(world.geologicTime)`. Locations to update: `src/hydrology.lua:229,277,313,537,543,545`, `src/erosion.lua:155,188`, `src/coast.lua:41` (called via `options.seaLevel`), `src/biomes.lua` (water classifier — passes through `cell.water`), `src/export.lua`, `main.lua` save/load.
-- `src/worldgen.lua:10` — append `marineTerrace:double`, `fluvialTerrace:double` to `soaFieldList`; `paleoShoreline:int8` to `soaInt8FieldList`.
-
-DEPENDS ON: T-038 (int8 SoA infra).
-
-ACCEPTANCE:
-- `seaLevelAt(t)` is pure function of `t` (idempotent).
-- With `world.geologicTime = 0` and all amplitudes zero, output identical to pre-change baseline (backward compat verified before T-056 rebake).
-- `cell.marineTerrace > 0` where land elevation < paleo-max sea level.
-- Drowned-valley signature: cells with `paleoShoreline && water && riverHistorical`.
-- `(seed, geologicTime)` reproduces identical chunk encoding.
-
-NOTES / IMPL HINTS:
-- `seaLevelAt(t) = baseSeaLevel + a₁·sin(2π·t/p₁ + φ₁) + a₂·sin(2π·t/p₂ + φ₂) + noiseResidual(t)`.
-- Defaults: `baseSeaLevel = 0`, `a₁ = 0.012, p₁ = 0.1` (100 ka eccentricity proxy), `a₂ = 0.005, p₂ = 0.041` (41 ka obliquity), residual amplitude `0.003`.
-- Phases `φ₁, φ₂` from `Rng.hash(seed, 1051)`.
-- Precompute `world.seaLevelSeries[128]` for `t ∈ [geologicTime - 1.0, geologicTime]`; per-cell paleo-max = `max(seaLevelSeries)`.
-- Marine terrace: `marineTerrace = max(0, paleoMaxSL - currentElevation)` on non-water cells with prior submersion.
-- Fluvial terrace: river cells where `cell.elevation - downCell.elevation > k · stride` after sea-level drop — record stepped historical bed levels.
-- Hydrology already passes `region.seaLevel = world.seaLevel` (hydrology.lua:277) — single source-side change propagates to erosion (erosion.lua:155).
-
-REFERENCES:
-- [Haq, Hardenbol & Vail 1987 Science](https://www.science.org/doi/10.1126/science.235.4793.1156) — eustatic curve.
-- [Miller et al. 2005 Science](https://www.science.org/doi/10.1126/science.1116412) — Phanerozoic sea level.
-
----
-
 ### T-037 — Geographic latitude + Coriolis SoA channels            [tier 6] [low]
 
 GOAL: Replace noise-based `latitudeFor(seed, y)` (climate.lua:19-21, also worldgen.lua:663) with geographic latitude `latitudeRadians ∈ [-π/2, π/2]` derived from `y / world.worldCircumference`. Add `coriolisF:double = 2Ω sin(latitudeRadians)`.

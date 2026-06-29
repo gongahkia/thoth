@@ -298,6 +298,11 @@ local function maybeLogPerf(app)
 end
 
 local function applySnapshot(app, snapshot)
+    if type(snapshot.world) == "table" then
+        for key, value in pairs(snapshot.world) do
+            if value ~= nil then app.worldOptions[key] = value end
+        end
+    end
     replaceWorld(app, tonumber(snapshot.seed) or app.world:metadata().seed)
     app.survey = Survey.fromSnapshot(snapshot.survey)
     app.player.x = snapshot.player and tonumber(snapshot.player.x) or 0
