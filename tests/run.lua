@@ -1348,32 +1348,48 @@ local function testShorelineCapes()
     expect(asymmetricResult.lagoons > 0 and #asymmetric.lagoons == asymmetricResult.lagoons, "spits should create sheltered lagoon records")
 end
 
-local function testAeolianDunes()
-    local cell = {
-        x = 128,
-        y = -64,
-        elevation = 0.18,
-        elevationBase = 0.18,
-        slope = 0.02,
-        biome = "desert",
-        windX = 1,
-        windY = 0,
+local function testWernerDuneRegimes()
+    local function makeRegion(cover)
+        local region = { seed = 20260625, scale = "local", scaleFactor = 1, stride = 1, cells = {} }
+        local period = 10
+        local threshold = math.floor(cover * period + 0.5)
+        for gy = 0, 23 do
+            for gx = 0, 47 do
+                region.cells[gx .. ":" .. gy] = {
+                    gx = gx,
+                    gy = gy,
+                    x = gx,
+                    y = gy,
+                    elevation = 0.18,
+                    elevationBase = 0.18,
+                    slope = 0.02,
+                    biome = "desert",
+                    windX = 1,
+                    windY = 0,
+                    water = false,
+                    duneSand = (gx + gy * 3) % period < threshold and 1 or 0,
+                }
+            end
+        end
+        return region
+    end
+    local cases = {
+        { cover = 0.3, regime = "unimodal", expected = "barchan" },
+        { cover = 0.8, regime = "unimodal", expected = "transverse" },
+        { cover = 0.6, regime = "bimodal", expected = "seif" },
+        { cover = 0.6, regime = "star", expected = "star" },
     }
-    Aeolian.applyCell(cell, 20260625)
-    expect(cell.duneAmplitude > 0 and cell.duneAmplitude < 0.04, "aeolian pass should add bounded dune amplitude")
-    expect(math.abs(cell.elevation - cell.elevationBase) < 0.04, "aeolian dunes should keep elevation deltas small")
-    local repeatCell = {
-        x = 128,
-        y = -64,
-        elevation = 0.18,
-        elevationBase = 0.18,
-        slope = 0.02,
-        biome = "desert",
-        windX = 1,
-        windY = 0,
-    }
-    Aeolian.applyCell(repeatCell, 20260625)
-    expect(round(cell.duneDelta) == round(repeatCell.duneDelta), "aeolian dunes should be deterministic")
+    for _, case in ipairs(cases) do
+        local region = makeRegion(case.cover)
+        local result = Aeolian.applyRegion(region, { seed = 20260625, windRegime = case.regime, iterations = 50000, sandCover = case.cover })
+        expect(result.morphology == case.expected, "Werner CA should classify " .. case.expected .. " morphology")
+        expect(result.activeCells > 0 and result.maxAmplitude > 0, "Werner CA should redistribute sand slabs")
+    end
+    local first = makeRegion(0.3)
+    local firstResult = Aeolian.applyRegion(first, { seed = 20260625, windRegime = "unimodal", iterations = 50000, sandCover = 0.3 })
+    local repeatRegion = makeRegion(0.3)
+    local repeatResult = Aeolian.applyRegion(repeatRegion, { seed = 20260625, windRegime = "unimodal", iterations = 50000, sandCover = 0.3 })
+    expect(firstResult.moved == repeatResult.moved and round(first.cells["8:8"].duneDelta) == round(repeatRegion.cells["8:8"].duneDelta), "Werner CA should be deterministic")
 
     local world = WorldGen.new(20260625, { hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 0 })
     local chunk = world:chunk(0, 0, "local")
@@ -1823,7 +1839,7 @@ local tests = {
     testGlacialFeatures,
     testCoastlines,
     testShorelineCapes,
-    testAeolianDunes,
+    testWernerDuneRegimes,
     testPlayer,
     testHeightInterpolationAndNormal,
     testBillboardAtlas,

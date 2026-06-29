@@ -132,41 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-047 — Werner cellular dune CA (replaces aeolian.lua)        [tier 6] [med]
-
-GOAL: Replace sinusoidal dune proxy (aeolian.lua:21-37) with Werner 1995 cellular automaton: random pick → erode if not in shadow → transport L cells downwind → deposit with `p_sand=0.6, p_rock=0.4` → repose-angle slumping at 33°. Wind regime determines morphology (barchan / transverse / seif / star / parabolic).
-
-WHY: Current sinusoid produces only wind-aligned ripples; cannot generate barchans, seif, star, or parabolic dunes. Werner CA reproduces all from a single rule set with deterministic seeding.
-
-WHERE:
-- Replace body of `src/aeolian.lua:17-37` with new `Aeolian.applyRegion(region, options)` iterating `K · cellCount` times.
-- `src/worldgen.lua:830` call site — change from per-cell `applyCell` to per-region invocation after `classifyBiome` for the region (move call into hydrology pipeline post-coast, before per-cell biome finalization).
-
-DEPENDS ON: none. Climate winds available from `cell.windX, windY` (climate.lua:144-145).
-
-ACCEPTANCE:
-- 30% sand cover + unimodal wind + 50k iterations → discrete barchans with horns downwind, wavelength ~10–30 cells.
-- 80% cover + unimodal → transverse ridges, axes perpendicular to wind, wavelength ~20 cells.
-- Bimodal 60/40 split at 90° → linear seifs along resultant.
-- Multimodal wind (3+ directions sampled) → star dunes.
-- `testWernerDuneRegimes` runs 4 wind regimes and gates morphology classifier output.
-
-NOTES / IMPL HINTS:
-- `slabHeight = 0.005` (internal unit, ~0.5% of biome relief).
-- Iterations per "step": `10 · cellCount` for visible morphology.
-- Shadow check: scan upwind cells `(i - k·wx, j - k·wy)` for k=1..k_max=12; cell shadowed if any upwind `n[u] - n[i] > k · tan(15°)`.
-- Repose: BFS from modified cell; if `|n[a] - n[b]| > 1` slab-unit, transfer one slab; iterate until stable.
-- Transport jump `L = 3` cells. If deposition fails (`Rng.unit ≥ p`), continue another L; bound retries at 5 hops.
-- Wind regime: read `(cell.windX, cell.windY)` from climate. Bimodal/multimodal modeled by alternating wind direction across iterations per climate distribution.
-- Determinism: `Rng.unitAt(seed, gx, gy, iteration)` for cell pick — not `math.random`.
-
-REFERENCES:
-- [Werner 1995 Geology](https://doi.org/10.1130/0091-7613(1995)023%3C1107:EDCSAA%3E2.3.CO;2) — cellular dune model.
-- [Real-Time Sand Dune Simulation ACM 2023](https://dl.acm.org/doi/abs/10.1145/3585510) — extended morphologies.
-- [Parteli et al. 2013 arXiv](https://arxiv.org/pdf/1304.6573) — barchan asymmetry.
-
----
-
 ### T-048 — Karst surface overlay (lithology-gated)               [tier 6] [med]
 
 GOAL: For cells with `lithology == carbonate` (T-034), stamp sinkhole (doline), polje (closed depression), and tower-karst pillar features. Modifies elevation; assigns new `karst` biome.

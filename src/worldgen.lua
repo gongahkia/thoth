@@ -1287,6 +1287,7 @@ function WorldGen:chunk(chunkX, chunkY, scale)
     local size = self.chunkSize
     local region = Hydrology.region(self, chunkX, chunkY, info)
     local rows = {}
+    local duneRegion = { seed = self.seed, scale = info.id, scaleFactor = info.factor, stride = 1, cells = {} }
     for y = 1, size do
         rows[y] = {}
         for x = 1, size do
@@ -1294,9 +1295,14 @@ function WorldGen:chunk(chunkX, chunkY, scale)
             local gy = chunkY * size + y - 1
             local cell = copyCell(Hydrology.cell(region, gx, gy))
             cell.biome = classifyBiome(cell.elevation, cell.water, cell.river, cell.temperature, cell.moisture, cell.slope, cell.lake, cell)
-            Aeolian.applyCell(cell, self.seed)
-            SoilProduction.syncCell(cell)
+            duneRegion.cells[key(gx, gy)] = cell
             rows[y][x] = cell
+        end
+    end
+    Aeolian.applyRegion(duneRegion, { seed = self.seed })
+    for y = 1, size do
+        for x = 1, size do
+            SoilProduction.syncCell(rows[y][x])
         end
     end
     local chunk = {
