@@ -132,48 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-042 — 3-cell Hadley/Ferrel/polar climate + ITCZ + monsoon   [tier 6] [med]
-
-GOAL: Replace hardcoded 2-band wind (climate.lua:29-36) with 3-cell zonal model: Hadley 0–30°, Ferrel 30–60°, polar 60–90°. ITCZ migrates seasonally; monsoon emerges where zonal land-ocean contrast exceeds threshold.
-
-WHY: Current code has 2 latitude bands with fixed direction, no seasonality, no monsoon. Result: desert/grassland/forest belts cluster at wrong latitudes. Hadley convergence → desert at 30°, wet at equator is canonical Earth signature.
-
-WHERE:
-- `src/climate.lua:29-36` `Climate.windAt` — replace body with 3-cell band lookup table.
-- `src/climate.lua:102-172` `Climate.solveRegion` — feed band wind + baseline precip into existing orographic loop instead of `localSource` constants at line 131-133.
-- `src/worldgen.lua:314-378` `WorldGen.new` — add `seasonRate` (default 1.0), `itczOffsetAmp` (default 0.17 rad ≈ 10°) options.
-- New `world.climateBands` table built once at world ctor (~180 latitude bins).
-- `src/worldgen.lua:10` — append `pressureCellId:int8` to `soaInt8FieldList`, `monsoonIndex:double` to `soaFieldList`.
-
-DEPENDS ON: T-037 (geographic latitude + Coriolis), T-038 (int8 SoA).
-
-ACCEPTANCE:
-- Deserts cluster near `|lat| = 25–35°` (Hadley descending), wet equatorial band + ~50° polar front.
-- Cells with `pressureCellId == 3` (ITCZ) have `baselinePrecip > 0.5`.
-- Monsoon: cells where zonal land fraction > 0.6 and `|lat| < 0.5` toggle wet-dry biannual cycle visible via `cell.monsoonIndex`.
-- `testClimateBands` asserts band-mean precip differs > 30% between Hadley descending and rising limbs.
-- `make test` green after T-056.
-
-NOTES / IMPL HINTS:
-- Build `world.climateBands[i]` for ~180 latitude bins (1° per bin). Per bin: `{ zonalU, meridionalV, baselinePrecip, pressureCellId }`.
-- Pressure cell ids int8: 0=Hadley_rising, 1=Hadley_descending, 2=Ferrel, 3=ITCZ, 4=horse, 5=subpolarLow, 6=polar.
-- Band defaults:
-  - ITCZ (|lat|<10°): `baselinePrecip=0.55`, converging winds.
-  - Hadley descending (|lat|∈[20°,35°]): `baselinePrecip=0.12`, easterly trade.
-  - Ferrel (35–60°): `baselinePrecip=0.42`, westerlies.
-  - Polar (>60°): `baselinePrecip=0.18`, easterlies.
-- Coriolis deflection: rotate `(zonalU, meridionalV)` by angle `arctan(coriolisF · scale)` — NH deflects right, SH left.
-- ITCZ shift: `itczLat = itczOffsetAmp · sin(2π · t / seasonRate)`. Rebake bins within ±15° of equator each season.
-- Monsoon: estimate `landFraction_zone` by sampling 32 longitudinal positions at `continent` scale at fixed `Rng.hash(seed, lat, 991)` offsets. `monsoonIndex = (landFraction - 0.5) · seasonalContrast`. Apply ±50% precip modulation where `monsoonIndex > 0.3`.
-- Replace `Climate.windAt` (line 29) to return `(windX, windY)` from band lookup + Coriolis.
-
-REFERENCES:
-- [Hadley cell — Wikipedia](https://en.wikipedia.org/wiki/Hadley_cell).
-- [Schneider, Bischoff & Haug 2014 Nature](https://www.nature.com/articles/nature13636) — ITCZ migration.
-- [Palubicki Ecoclimates 2022](https://history.siggraph.org/learning/ecoclimates-climate-response-modeling-of-vegetation-by-palubicki-makowski-gajda-hadrich-michels-et-al/).
-
----
-
 ### T-043 — Hotspot point-set + flood-basalt provinces            [tier 6] [med]
 
 GOAL: Static Poisson-disk-distributed hotspot set in mantle reference frame (deterministic from seed). As plates drift over hotspots via existing `geologicTime`, shield-volcano elevation + lava-biome contributions accumulate, producing volcanic chains.

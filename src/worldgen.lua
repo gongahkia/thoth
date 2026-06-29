@@ -8,8 +8,8 @@ local Aeolian = require("src.aeolian")
 local SoilProduction = require("src.soil_production")
 local ffi = require("ffi")
 
-local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "hillslopeDelta", "debrisFlowDelta" }
-local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow" }
+local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hillslopeDelta", "debrisFlowDelta" }
+local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId" }
 local soaInt32FieldList = { "plateId", "secondaryPlateId" }
 local soaDoubleArray = ffi.typeof("double[?]")
 local soaInt8Array = ffi.typeof("int8_t[?]")
@@ -461,7 +461,7 @@ function WorldGen.new(seed, options)
     local seaLevelConfig = buildSeaLevelConfig(numericSeed, options)
     local seaLevelSeries, seaLevelMin, seaLevelMax = buildSeaLevelSeries(seaLevelConfig, geologicTime)
     local currentSeaLevel = seaLevelAtConfig(seaLevelConfig, geologicTime)
-    return setmetatable({
+    local world = setmetatable({
         seed = numericSeed,
         chunkSize = option(options.chunkSize, 64),
         baseSeaLevel = seaLevelConfig.base,
@@ -514,6 +514,10 @@ function WorldGen.new(seed, options)
         iceField = Lru.new(option(options.iceFieldEntries, math.max(8, limits.hydrology * 2))),
         streamPowerSamples = {},
         climateSamples = {},
+        seasonRate = option(options.seasonRate, 1.0),
+        itczOffsetAmp = option(options.itczOffsetAmp, 0.17),
+        monsoonSeasonalContrast = option(options.monsoonSeasonalContrast, 1.3),
+        windCoriolisScale = option(options.windCoriolisScale, 0.22),
         orographicLiftScale = option(options.orographicLiftScale, 8.5),
         orographicLeeScale = option(options.orographicLeeScale, 2.4),
         cacheMaxEntries = maxEntries,
@@ -542,6 +546,8 @@ function WorldGen.new(seed, options)
             cacheEvictionsByKind = { chunk = 0, hydrology = 0, basin = 0, billboard = 0 },
         },
     }, WorldGen)
+    world.climateBands = Climate.buildBands(world)
+    return world
 end
 
 function WorldGen.benchmarkPlates(options)
@@ -652,6 +658,10 @@ function WorldGen:metadata()
         glacialBmax = self.glacialBmax,
         glacialKg = self.glacialKg,
         glacialSiaIterations = self.glacialSiaIterations,
+        seasonRate = self.seasonRate,
+        itczOffsetAmp = self.itczOffsetAmp,
+        monsoonSeasonalContrast = self.monsoonSeasonalContrast,
+        windCoriolisScale = self.windCoriolisScale,
         orographicLiftScale = self.orographicLiftScale,
         orographicLeeScale = self.orographicLeeScale,
         cacheMaxEntries = self.cacheMaxEntries,
@@ -876,8 +886,10 @@ function WorldGen:baseSample(x, y, scale)
     local coriolisF = self:coriolisAt(y)
     local temperature = clamp(1 - latitudeUnit * 1.1 - math.max(0, elevation) * 0.42 + (Noise.fbm(self.seed + 404, x, y, { frequency = 0.002, octaves = 3 }) - 0.5) * 0.18, 0, 1)
     local climate = Climate.sample(self, info, x, y)
+    local climateBand = Climate.bandAt(self, y)
     local moistureNoise = Noise.fbm(self.seed + 505, x, y, { frequency = 0.0022, octaves = 4 })
-    local fallbackRainfall = clamp(0.08 + moistureNoise * 0.7 + (1 - latitudeUnit) * 0.16 - math.max(0, elevation) * 0.2 - uplift * 0.16 + islandArc * 0.06, 0, 1)
+    local baselinePrecip = (climate and climate.baselinePrecip) or climateBand.baselinePrecip
+    local fallbackRainfall = clamp(baselinePrecip * 0.55 + moistureNoise * 0.34 + (1 - latitudeUnit) * 0.08 - math.max(0, elevation) * 0.2 - uplift * 0.16 + islandArc * 0.06, 0, 1)
     local rainfall = clamp((climate and climate.precipitation) or fallbackRainfall, 0, 1)
     local lithology, erodibilityK, lithologyAge = classifyLithology(self, plate, x, y, latitudeUnit, rainfall, elevation, shield, craton, riftValley, islandArc)
     local slope = clamp(ridge * 0.1 + math.abs(rough - 0.5) * 0.16 * (1 - stableDamping) + plate.boundary * 0.08 + uplift * 0.06 + riftValley * 0.12 + islandArc * 0.18 + trench * 0.08 - shield * 0.025 - craton * 0.035, 0, 1)
@@ -896,6 +908,9 @@ function WorldGen:baseSample(x, y, scale)
         regolithDepth = 0,
         latitudeRadians = geographicLatitude,
         coriolisF = coriolisF,
+        baselinePrecip = baselinePrecip,
+        pressureCellId = (climate and climate.pressureCellId) or climateBand.pressureCellId,
+        monsoonIndex = (climate and climate.monsoonIndex) or 0,
         marineTerrace = 0,
         fluvialTerrace = 0,
         paleoShoreline = false,
@@ -941,8 +956,8 @@ function WorldGen:baseSample(x, y, scale)
         mountainRangeId = mountainRangeId,
         uplift = uplift,
         precipitation = rainfall,
-        windX = climate and climate.windX or nil,
-        windY = climate and climate.windY or nil,
+        windX = climate and climate.windX or climateBand.windX,
+        windY = climate and climate.windY or climateBand.windY,
         rainShadow = climate and (climate.rainShadow or 0) > 0.35 or false,
         rainShadowScore = climate and climate.rainShadow or 0,
         rainfall = rainfall,
@@ -1007,6 +1022,9 @@ function WorldGen:pendingSample(x, y, info)
         regolithDepth = 0,
         latitudeRadians = 0,
         coriolisF = 0,
+        baselinePrecip = 0,
+        pressureCellId = 0,
+        monsoonIndex = 0,
         marineTerrace = 0,
         fluvialTerrace = 0,
         paleoShoreline = false,

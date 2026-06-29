@@ -103,6 +103,9 @@ local function encodeCell(cell)
         tostring(cell.rainShadow),
         round(cell.windX),
         round(cell.windY),
+        round(cell.baselinePrecip),
+        tostring(cell.pressureCellId),
+        round(cell.monsoonIndex),
         round(cell.glacialDelta),
         round(cell.glacialErosion),
         round(cell.iceThickness),
@@ -353,7 +356,7 @@ local function testSurveyHistory()
 end
 
 local function testSaveLoadRoundTrip()
-    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200, glacialGamma = 6e-9, glacialBeta = 0.01, glacialBmax = 1.5, glacialKg = 7e-5, glacialSiaIterations = 5 })
+    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200, glacialGamma = 6e-9, glacialBeta = 0.01, glacialBmax = 1.5, glacialKg = 7e-5, glacialSiaIterations = 5, seasonRate = 2, itczOffsetAmp = 0.1, monsoonSeasonalContrast = 1.4, windCoriolisScale = 0.3 })
     local survey = Survey.new()
     Survey.mark(survey, world, -64, -64, "local")
     local viewScale = ViewScale.new(world)
@@ -381,6 +384,7 @@ local function testSaveLoadRoundTrip()
     expect(decoded.world.hillslopeD == 0.02 and decoded.world.hillslopeSc == 0.9 and decoded.world.hillslopeIterations == 3, "save should round-trip hillslope settings")
     expect(decoded.world.debrisK == 0.01 and decoded.world.debrisCriticalConcentration == 0.2 and decoded.world.debrisSedimentYield == 1200, "save should round-trip debris-flow settings")
     expect(decoded.world.glacialGamma == 6e-9 and decoded.world.glacialBeta == 0.01 and decoded.world.glacialBmax == 1.5 and decoded.world.glacialKg == 7e-5 and decoded.world.glacialSiaIterations == 5, "save should round-trip glacial SIA settings")
+    expect(decoded.world.seasonRate == 2 and decoded.world.itczOffsetAmp == 0.1 and decoded.world.monsoonSeasonalContrast == 1.4 and decoded.world.windCoriolisScale == 0.3, "save should round-trip climate-band settings")
     expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
     expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.debugPanels and not decoded.display.mouseLook, "save should round-trip display toggles")
     expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
@@ -725,6 +729,49 @@ local function testGeographicLatitudeAndCoriolis()
     local y = 1234
     local oldSigned = math.sin(y * 0.00045 + 20260625 * 0.0001)
     expect(round(legacy:latitudeAt(y) / (math.pi / 2)) == round(oldSigned), "legacy latitude should preserve old climate latitude")
+end
+
+local function testClimateBands()
+    local world = WorldGen.new(20260625, { itczOffsetAmp = 0, seasonRate = 1 })
+    local itcz = Climate.bandForLatitude(world, 0)
+    expect(itcz.pressureCellId == 3 and itcz.baselinePrecip > 0.5, "ITCZ band should be wet and use pressure cell id 3")
+    local rising, descending = 0, 0
+    for _, degrees in ipairs({ -10, 0, 10 }) do
+        rising = rising + Climate.bandForLatitude(world, math.rad(degrees)).baselinePrecip
+    end
+    for _, degrees in ipairs({ 25, 30, 35 }) do
+        descending = descending + Climate.bandForLatitude(world, math.rad(degrees)).baselinePrecip
+    end
+    expect((rising / 3) > (descending / 3) * 1.3, "Hadley rising limb should be at least 30% wetter than descending limb")
+
+    local region = { scale = "local", scaleFactor = 1, stride = 1, cells = {} }
+    for gx = 1, 10 do
+        region.cells[gx .. ":0"] = {
+            gx = gx,
+            gy = 0,
+            x = gx,
+            y = 0,
+            elevationBase = 0.1,
+            elevation = 0.1,
+            water = gx <= 2,
+        }
+    end
+    local monsoonWorld = {
+        seed = 1,
+        climateSamples = {},
+        hydrologyBasinStride = 1,
+        geologicTime = 0.25,
+        seasonRate = 1,
+        itczOffsetAmp = 0,
+        monsoonSeasonalContrast = 1.3,
+        orographicLiftScale = 8.5,
+        orographicLeeScale = 2.4,
+        latitudeAt = function() return 0 end,
+    }
+    monsoonWorld.climateBands = Climate.buildBands(monsoonWorld)
+    Climate.solveRegion(monsoonWorld, region)
+    local cell = region.cells["5:0"]
+    expect(cell.monsoonIndex > 0.3 and cell.baselinePrecip > itcz.baselinePrecip, "monsoon land rows should boost wet-season precipitation")
 end
 
 local function testPlateMotionGeologicTime()
@@ -1591,6 +1638,7 @@ local tests = {
     testDebrisFlowSignature,
     testSeaLevelSeries,
     testGeographicLatitudeAndCoriolis,
+    testClimateBands,
     testPlateMotionGeologicTime,
     testRngHashRange,
     testOpenSimplexNoise,

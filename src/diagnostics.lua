@@ -5,7 +5,7 @@ local Diagnostics = {}
 local defaultSeeds = { 6, 7, 19, 30 }
 local badSeeds = {
     { seed = 1, flags = { "water_low" } },
-    { seed = 5, flags = { "river_low" } },
+    { seed = 15, flags = { "river_low" } },
     { seed = 9, flags = { "water_high" } },
     { seed = 13, flags = { "water_low" } },
 }
@@ -15,7 +15,7 @@ local regressionSeeds = {
     { seed = 1, category = "all_land", flags = { "water_low" } }, -- land-dominated
     { seed = 20260625, category = "broken_seams", maxSeamMismatches = 0 }, -- hydrology seam regression gate
     { seed = 26, category = "river_discontinuities", maxUphillRejects = 0, minRivers = 1 }, -- uphill river gate
-    { seed = 5, category = "riverless", flags = { "river_low" } }, -- few rivers despite land
+    { seed = 15, category = "riverless", flags = { "river_low" } }, -- few rivers despite land
     { seed = 25, category = "single_biome", flags = { "single_biome_high" } }, -- one biome dominates
     { seed = 14, category = "biome_count_low", flags = { "biome_count_low" } }, -- biome variety collapse
     { seed = 41, category = "steep_slopes", flags = { "steep_slope_high" } }, -- excess steep terrain
