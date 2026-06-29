@@ -1035,6 +1035,14 @@ local function testTopographicMapData()
     expect(data.rivers > 0 and data.contours > 0, "topographic map should expose rivers and contours")
 end
 
+local function testDebugPanelIds()
+    local ids = Render.debugPanelIds()
+    local seen = {}
+    for _, id in ipairs(ids) do seen[id] = true end
+    expect(seen.plate and seen.drainage and seen.erosion and seen.biome, "debug panel ids should expose plate, drainage, erosion, biome overlays")
+    expect(#ids == 4, "render should expose exactly four toggleable panels")
+end
+
 local function testDebugPanelData()
     local world = testWorld(20260625)
     local app = { world = world, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(world) }
@@ -1265,6 +1273,7 @@ local tests = {
     testAtmosphereSunDirection,
     testPostFxPixelScale,
     testTopographicMapData,
+    testDebugPanelIds,
     testDebugPanelData,
     testMapExportData,
     testTerrainBenchmark,

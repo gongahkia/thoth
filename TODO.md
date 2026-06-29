@@ -139,24 +139,6 @@ Small targeted fixes for issues spotted during the audit. Land any time after Ti
 
 ---
 
-### T-032 — Debug panels for plate vectors, drainage, biome inputs (TODO entry)         [tier 5] [low]
-
-GOAL: Toggleable debug overlays drawing plate-velocity arrows, drainage-arrow flow, erosion deltas, and biome classifier inputs.
-
-WHY: `TODO.md` lists this. Useful for verifying T-010 and T-012 outputs.
-
-WHERE: `src/render.lua` — new debug draw functions; new key bindings.
-
-DEPENDS ON: none.
-
-ACCEPTANCE:
-- Keys `1`–`5` toggle distinct debug overlays.
-- Each overlay reads existing cell fields; no new computation cost when off.
-
-REFERENCES: none required.
-
----
-
 ### T-033 — Document everything: README sync         [tier 5] [low]
 
 GOAL: README and TODO updated to reflect all Tier-1..3 changes. Adopted CLI flags documented.

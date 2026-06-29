@@ -308,7 +308,17 @@ local function applySnapshot(app, snapshot)
     app.mouseLook = display.mouseLook == true
     app.debugPerf = display.debugPerf == true
     app.debugTopo = display.debugTopo == true
-    app.debugPanels = display.debugPanels == true
+    if type(display.debugPanels) == "table" then
+        app.debugPanels = {
+            plate = display.debugPanels.plate == true,
+            drainage = display.debugPanels.drainage == true,
+            erosion = display.debugPanels.erosion == true,
+            biome = display.debugPanels.biome == true,
+        }
+    else
+        local on = display.debugPanels == true
+        app.debugPanels = { plate = on, drainage = on, erosion = on, biome = on }
+    end
     app.atmosphere = Atmosphere.new(snapshot.atmosphere or { time = display.atmosphereTime or 0.25, season = display.season or "summer" })
     app.atmosphereTime = app.atmosphere.time
     app.viewScale = ViewScale.new(app.world)
@@ -351,7 +361,10 @@ function love.load(args)
         renderSmoke = hasArg(args, "--render-smoke"),
         walkSmoke = hasArg(args, "--walk-smoke"),
         debugTopo = hasArg(args, "--debug-topo"),
-        debugPanels = hasArg(args, "--debug-panels"),
+        debugPanels = (function()
+            local on = hasArg(args, "--debug-panels")
+            return { plate = on, drainage = on, erosion = on, biome = on }
+        end)(),
         walkSmokeFrames = tonumber(argValue(args, "--walk-smoke-frames", 240)) or 240,
         walkSmokeTurn = tonumber(argValue(args, "--walk-smoke-turn", 0.18)) or 0.18,
         preloadRadius = tonumber(argValue(args, "--preload-radius", 64)) or 64,
@@ -486,8 +499,32 @@ function love.keypressed(key)
         print("[topo] debug=" .. tostring(app.debugTopo))
     end
     if key == "b" then
-        app.debugPanels = not app.debugPanels
-        print("[panels] debug=" .. tostring(app.debugPanels))
+        if type(app.debugPanels) ~= "table" then
+            app.debugPanels = { plate = false, drainage = false, erosion = false, biome = false }
+        end
+        local anyOn = false
+        for _, value in pairs(app.debugPanels) do if value then anyOn = true break end end
+        local nextValue = not anyOn
+        app.debugPanels.plate = nextValue
+        app.debugPanels.drainage = nextValue
+        app.debugPanels.erosion = nextValue
+        app.debugPanels.biome = nextValue
+        print("[panels] all=" .. tostring(nextValue))
+    end
+    do
+        local panelByKey = { ["1"] = "plate", ["2"] = "drainage", ["3"] = "erosion", ["4"] = "biome" }
+        local id = panelByKey[key]
+        if id then
+            if type(app.debugPanels) ~= "table" then
+                app.debugPanels = { plate = false, drainage = false, erosion = false, biome = false }
+            end
+            app.debugPanels[id] = not app.debugPanels[id]
+            print("[panel] " .. id .. "=" .. tostring(app.debugPanels[id]))
+        end
+        if key == "5" then
+            app.debugTopo = not app.debugTopo
+            print("[topo] debug=" .. tostring(app.debugTopo))
+        end
     end
     if key == "[" or key == "]" then
         local season = Atmosphere.shiftSeason(app.atmosphere, key == "]" and 1 or -1)

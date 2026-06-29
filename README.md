@@ -66,7 +66,9 @@ Controls:
 - mouse or `Q` / `E`: look
 - arrow up/down: pitch
 - `F`: toggle mouse look
-- `B`: toggle debug panels
+- `B`: toggle all debug panels
+- `1` / `2` / `3` / `4`: toggle plate / drainage / erosion / biome overlay
+- `5`: toggle topographic map overlay
 - `T`: toggle debug topographic map
 - `F5` / `F9`: save / load
 - `Tab`: follow terrain scope

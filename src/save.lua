@@ -129,7 +129,18 @@ function Save.snapshot(app)
             mouseLook = app.mouseLook == true,
             debugPerf = app.debugPerf == true,
             debugTopo = app.debugTopo == true,
-            debugPanels = app.debugPanels == true,
+            debugPanels = (function()
+                if type(app.debugPanels) == "table" then
+                    return {
+                        plate = app.debugPanels.plate == true,
+                        drainage = app.debugPanels.drainage == true,
+                        erosion = app.debugPanels.erosion == true,
+                        biome = app.debugPanels.biome == true,
+                    }
+                end
+                local on = app.debugPanels == true
+                return { plate = on, drainage = on, erosion = on, biome = on }
+            end)(),
             viewScale = ViewScale.activeScale(app.viewScale),
         },
         survey = Survey.snapshot(app.survey),

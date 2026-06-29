@@ -1038,18 +1038,42 @@ local function drawTopographicMap(app, width)
     return data
 end
 
+local debugPanelLines = {
+    { id = "plate", label = function(d) return "plates v " .. fmt(d.plate.vx) .. "," .. fmt(d.plate.vy) .. " b " .. fmt(d.plate.boundary) .. " conv " .. fmt(d.plate.convergent) end },
+    { id = "drainage", label = function(d) return "drain -> " .. fmt(d.drainage.dx) .. "," .. fmt(d.drainage.dy) .. " flow " .. fmt(d.drainage.flow) .. " river " .. tostring(d.drainage.river) end },
+    { id = "erosion", label = function(d) return "erosion e " .. fmt(d.erosion.erosion) .. " d " .. fmt(d.erosion.deposition) .. " t " .. fmt(d.erosion.thermal) .. " talus " .. tostring(d.erosion.talus) end },
+    { id = "biome", label = function(d) return "biome " .. tostring(d.biome.id) .. " temp " .. fmt(d.biome.temperature) .. " moist " .. fmt(d.biome.moisture) .. " slope " .. fmt(d.biome.slope) end },
+}
+
+function Render.debugPanelIds()
+    local out = {}
+    for index, panel in ipairs(debugPanelLines) do out[index] = panel.id end
+    return out
+end
+
+local function debugPanelToggles(app)
+    if type(app.debugPanels) == "table" then return app.debugPanels end
+    local master = app.debugPanels == true
+    return { plate = master, drainage = master, erosion = master, biome = master }
+end
+
 local function drawDebugPanels(app, width, y)
+    local toggles = debugPanelToggles(app)
+    local active = {}
+    for _, panel in ipairs(debugPanelLines) do
+        if toggles[panel.id] then active[#active + 1] = panel end
+    end
+    if #active == 0 then return Render.debugPanelData(app) end
     local data = Render.debugPanelData(app)
     local x = width - 364
+    local lineHeight = 28
+    local panelHeight = #active * lineHeight + 12
     love.graphics.setColor(0.02, 0.025, 0.03, 0.82)
-    love.graphics.rectangle("fill", x - 8, y - 8, 356, 164)
+    love.graphics.rectangle("fill", x - 8, y - 8, 356, panelHeight)
     love.graphics.setColor(0.88, 0.9, 0.82, 1)
-    love.graphics.print("plates v " .. fmt(data.plate.vx) .. "," .. fmt(data.plate.vy) .. " b " .. fmt(data.plate.boundary) .. " conv " .. fmt(data.plate.convergent), x, y)
-    love.graphics.print("drain -> " .. fmt(data.drainage.dx) .. "," .. fmt(data.drainage.dy) .. " flow " .. fmt(data.drainage.flow) .. " river " .. tostring(data.drainage.river), x, y + 28)
-    love.graphics.print("erosion e " .. fmt(data.erosion.erosion) .. " d " .. fmt(data.erosion.deposition) .. " t " .. fmt(data.erosion.thermal), x, y + 56)
-    love.graphics.print("forms talus " .. tostring(data.erosion.talus) .. " fan " .. tostring(data.erosion.alluvialFan) .. " plain " .. tostring(data.erosion.floodplain), x, y + 84)
-    love.graphics.print("biome " .. tostring(data.biome.id) .. " elev " .. fmt(data.biome.elevation) .. " rain " .. fmt(data.biome.rainfall), x, y + 112)
-    love.graphics.print("inputs temp " .. fmt(data.biome.temperature) .. " moist " .. fmt(data.biome.moisture) .. " slope " .. fmt(data.biome.slope), x, y + 140)
+    for index, panel in ipairs(active) do
+        love.graphics.print(panel.label(data), x, y + (index - 1) * lineHeight)
+    end
     return data
 end
 
@@ -1111,11 +1135,16 @@ function Render.drawHud(app, width, height, meshData)
         meshData.topographicMap = topo.samples
         meshData.topographicContours = topo.contours
     end
-    if app.debugPanels then
-        local debugY = app.debugTopo and 246 or 16
-        local panels = drawDebugPanels(app, width, debugY)
-        meshData.debugPanels = 1
-        meshData.debugPanelScale = panels.scale
+    do
+        local toggles = debugPanelToggles(app)
+        local any = false
+        for _, panel in ipairs(debugPanelLines) do if toggles[panel.id] then any = true break end end
+        if any then
+            local debugY = app.debugTopo and 246 or 16
+            local panels = drawDebugPanels(app, width, debugY)
+            meshData.debugPanels = 1
+            meshData.debugPanelScale = panels.scale
+        end
     end
     drawHud(app, width, height, meshData)
     return meshData
