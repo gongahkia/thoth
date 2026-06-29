@@ -237,7 +237,7 @@ local function testHydrologyStats()
 end
 
 local function testLakeGroupingAndSpillover()
-    local world = WorldGen.new(17)
+    local world = WorldGen.new(1)
     local stats = world:hydrologyStats(-1, -2, "continent")
     expect(stats.lakeCells > 0 and stats.lakeGroups > 0, "fixture seed should include grouped lakes")
     local inspected = 0
@@ -366,7 +366,7 @@ end
 local function testNamedTerrainDiscoveries()
     local world = WorldGen.new(1)
     local repeatWorld = WorldGen.new(1)
-    local points = { { -320, -320 }, { -64, -320 }, { 0, -320 }, { -32, -128 }, { -32, -512 } }
+    local points = { { -320, -320 }, { -64, -320 }, { 0, -320 }, { -32, -128 }, { -32, -512 }, { -32, -1536 } }
     local seen = {}
     local expected = {}
     for _, kind in ipairs(WorldGen.discoveryKinds()) do expected[kind] = true end
@@ -399,7 +399,7 @@ local function testSurveyHistory()
 end
 
 local function testSaveLoadRoundTrip()
-    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200, glacialGamma = 6e-9, glacialBeta = 0.01, glacialBmax = 1.5, glacialKg = 7e-5, glacialSiaIterations = 5, seasonRate = 2, itczOffsetAmp = 0.1, monsoonSeasonalContrast = 1.4, windCoriolisScale = 0.3, hotspotCount = 12, hotspotMantleExtent = 32768, hotspotMinSeparation = 2048, hotspotBucketSize = 4096, hotspotSigma = 768, hotspotTrailSteps = 5, hotspotTrailDt = 0.15, hotspotTau = 2.5, hotspotElevationScale = 0.33, floodBasaltThreshold = 0.25, meanderWidthScale = 2.2, meanderMigrationScale = 0.8 })
+    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, zScale = 12000, maxOceanAgeMyr = 160, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200, glacialGamma = 6e-9, glacialBeta = 0.01, glacialBmax = 1.5, glacialKg = 7e-5, glacialSiaIterations = 5, seasonRate = 2, itczOffsetAmp = 0.1, monsoonSeasonalContrast = 1.4, windCoriolisScale = 0.3, hotspotCount = 12, hotspotMantleExtent = 32768, hotspotMinSeparation = 2048, hotspotBucketSize = 4096, hotspotSigma = 768, hotspotTrailSteps = 5, hotspotTrailDt = 0.15, hotspotTau = 2.5, hotspotElevationScale = 0.33, floodBasaltThreshold = 0.25, meanderWidthScale = 2.2, meanderMigrationScale = 0.8 })
     local survey = Survey.new()
     Survey.mark(survey, world, -64, -64, "local")
     local viewScale = ViewScale.new(world)
@@ -423,6 +423,7 @@ local function testSaveLoadRoundTrip()
     expect(decoded.seed == 99 and decoded.player.x == 12.5 and decoded.player.y == -7.25, "save should round-trip seed and player position")
     expect(decoded.camera.yaw == 0.7 and decoded.display.viewScale == "region", "save should round-trip camera and display settings")
     expect(decoded.world.geologicTime == 0.4 and decoded.world.geologicTimeStep == 0.03 and decoded.world.seaLevelAmplitude1 == 0.04, "save should round-trip world sea-level settings")
+    expect(decoded.world.zScale == 12000 and decoded.world.maxOceanAgeMyr == 160, "save should round-trip bathymetry settings")
     expect(decoded.world.legacyLatitude == false and decoded.world.worldCircumference == 1024 and decoded.world.omega == 0.0001, "save should round-trip latitude settings")
     expect(decoded.world.hillslopeD == 0.02 and decoded.world.hillslopeSc == 0.9 and decoded.world.hillslopeIterations == 3, "save should round-trip hillslope settings")
     expect(decoded.world.debrisK == 0.01 and decoded.world.debrisCriticalConcentration == 0.2 and decoded.world.debrisSedimentYield == 1200, "save should round-trip debris-flow settings")
@@ -746,9 +747,9 @@ local function testSeaLevelSeries()
     local flat = WorldGen.new(20260625, { seaLevel = 0.03, geologicTime = 0.5, seaLevelAmplitude1 = 0, seaLevelAmplitude2 = 0, seaLevelResidualAmplitude = 0 })
     expect(flat:seaLevelAt(0.25) == 0.03 and flat:seaLevelAt(0.9) == 0.03, "zero-amplitude sea level should preserve scalar baseline")
     expect(#flat.seaLevelSeries == 128 and flat.seaLevelPaleoMin == 0.03 and flat.seaLevelPaleoMax == 0.03, "sea-level series should precompute flat baselines")
-    local varying = WorldGen.new(20260625, { geologicTime = 0.35, seaLevelAmplitude1 = 0.08, seaLevelPeriod1 = 0.2, seaLevelAmplitude2 = 0.03, seaLevelPeriod2 = 0.071, seaLevelResidualAmplitude = 0.01, chunkSize = 32, hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 4, hydrologyBasinStride = 4 })
+    local varying = WorldGen.new(11, { geologicTime = 0.35, seaLevelAmplitude1 = 0.08, seaLevelPeriod1 = 0.2, seaLevelAmplitude2 = 0.03, seaLevelPeriod2 = 0.071, seaLevelResidualAmplitude = 0.01, chunkSize = 32, hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 4, hydrologyBasinStride = 4 })
     expect(round(varying:seaLevelAt(0.2)) == round(varying:seaLevelAt(0.2)), "seaLevelAt should be idempotent")
-    local same = WorldGen.new(20260625, { geologicTime = 0.35, seaLevelAmplitude1 = 0.08, seaLevelPeriod1 = 0.2, seaLevelAmplitude2 = 0.03, seaLevelPeriod2 = 0.071, seaLevelResidualAmplitude = 0.01, chunkSize = 32, hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 4, hydrologyBasinStride = 4 })
+    local same = WorldGen.new(11, { geologicTime = 0.35, seaLevelAmplitude1 = 0.08, seaLevelPeriod1 = 0.2, seaLevelAmplitude2 = 0.03, seaLevelPeriod2 = 0.071, seaLevelResidualAmplitude = 0.01, chunkSize = 32, hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 4, hydrologyBasinStride = 4 })
     local chunk = varying:chunk(0, 0, "local")
     expect(encodeChunk(chunk) == encodeChunk(same:chunk(0, 0, "local")), "seed and geologicTime should reproduce sea-level terrain")
     local terraces, drowned = 0, 0
@@ -761,6 +762,42 @@ local function testSeaLevelSeries()
     end
     expect(terraces > 0, "sea-level history should stamp marine terraces")
     expect(drowned > 0, "sea-level history should stamp drowned river valleys")
+end
+
+local function testGDH1Profile()
+    local world = WorldGen.new(20260625, { seaLevel = 0.03, seaLevelAmplitude1 = 0, seaLevelAmplitude2 = 0, seaLevelResidualAmplitude = 0, zScale = 10000, maxOceanAgeMyr = 180, hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 4, hydrologyBasinStride = 4 })
+    local function analytical(ageMyr)
+        if ageMyr < 20 then return 2600 + 365 * math.sqrt(ageMyr) end
+        return 5651 - 2473 * math.exp(-ageMyr / 36)
+    end
+    for _, ageMyr in ipairs({ 0, 5, 19.9, 20, 80, 180 }) do
+        local expected = analytical(ageMyr)
+        local actual = WorldGen.gdh1DepthMeters(ageMyr)
+        expect(math.abs(actual - expected) / expected < 0.05, "GDH1 depth should match analytical curve within 5%")
+    end
+    local seaLevel = world:seaLevelAt(world.geologicTime)
+    local ridgeElevation, ridgeDepth = world:oceanAgeElevation({ age = 0 }, seaLevel)
+    local abyssElevation, abyssDepth = world:oceanAgeElevation({ age = 1 }, seaLevel)
+    expect(math.abs(ridgeDepth - 2600) / 2600 < 0.05, "ridge-age bathymetry should be about 2.6 km below sea level")
+    expect(math.abs(abyssDepth - analytical(180)) / analytical(180) < 0.05, "old abyssal bathymetry should follow GDH1")
+    expect(round(ridgeElevation) == round(seaLevel - ridgeDepth / world.zScale), "GDH1 depth should convert through zScale")
+    expect(abyssElevation < ridgeElevation, "older oceanic crust should be deeper than ridge crust")
+    local matched = 0
+    for gy = -768, 768, 128 do
+        for gx = -768, 768, 128 do
+            local plate = world:plateAt(gx, gy)
+            if plate.crust == "oceanic" then
+                local cell = world:baseSample(gx, gy, "local")
+                local expected = analytical(cell.oceanAgeMyr)
+                expect(cell.plateCrust == "oceanic" and cell.oceanDepthMeters > 0, "ocean cells should expose GDH1 depth")
+                expect(math.abs(cell.oceanDepthMeters - expected) / expected < 0.05, "sampled ocean cells should gate against GDH1 curve")
+                matched = matched + 1
+                if matched >= 8 then break end
+            end
+        end
+        if matched >= 8 then break end
+    end
+    expect(matched >= 4, "GDH1 test should sample multiple ocean cells")
 end
 
 local function testGeographicLatitudeAndCoriolis()
@@ -1726,6 +1763,7 @@ local tests = {
     testHillslopeProfile,
     testDebrisFlowSignature,
     testSeaLevelSeries,
+    testGDH1Profile,
     testGeographicLatitudeAndCoriolis,
     testClimateBands,
     testPlateMotionGeologicTime,

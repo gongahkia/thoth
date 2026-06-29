@@ -170,37 +170,6 @@ REFERENCES:
 
 ---
 
-### T-046 — GDH1 crust-age bathymetry                             [tier 6] [low]
-
-GOAL: Replace per-cell `oceanAgeCooling` proxy with Stein & Stein 1992 GDH1: `d(t) = 2600 + 365·√t` for `t < 20 Myr`, `5651 - 2473·exp(-t/36)` for older. Produces canonical mid-ocean-ridge → abyssal-plain depth gradient.
-
-WHY: Current ocean is uniform-depth proxy. GDH1 gives the canonical depth-vs-age curve with no additional state (plate.age already tracked at worldgen.lua:644).
-
-WHERE:
-- `src/worldgen.lua:644-656` `baseSample` — for ocean cells (`plate.crust == "oceanic"`), compute `d_phys = GDH1(plate.age · world.maxOceanAgeMyr)`, convert to elevation contribution `e_age = currentSeaLevel - d_phys / world.zScale`, blend with tectonic `e_tect`.
-- New options `world.zScale` (default 10000 m), `world.maxOceanAgeMyr` (default 180).
-
-DEPENDS ON: none.
-
-ACCEPTANCE:
-- Mid-ocean ridges shallow (~2.6 km below surface); abyssal plains uniform ~5.5 km.
-- Symmetric depth-vs-distance from ridge on both flanks.
-- `testGDH1Profile` samples ocean cells along plate-age gradient, gates against analytical curve within 5%.
-
-NOTES / IMPL HINTS:
-- `plate.age ∈ [0, 1]` → `t_Ma = plate.age · world.maxOceanAgeMyr`.
-- `GDH1(t_Ma) = t_Ma < 20 ? 2600 + 365·√t_Ma : 5651 - 2473·exp(-t_Ma/36)` (continuous at t=20).
-- `e_age = currentSeaLevel - d_phys / world.zScale`.
-- Blend with tectonic elevation: `e_final = (1 - w_ocean) · e_tect + w_ocean · e_age`, `w_ocean = smoothstep(0, 1, oceanicCrustWeight)`.
-- For continental cells: skip (GDH1 oceanic-only).
-- Continental shelf transition: smooth blend over passive margin (~30 cells at continent scale).
-
-REFERENCES:
-- [Stein & Stein 1992 Nature](https://doi.org/10.1038/359123a0) — GDH1 model.
-- [Crosby & McKenzie 2009 GJI](https://doi.org/10.1111/j.1365-246X.2009.04085.x) — thermal subsidence updates.
-
----
-
 ### T-047 — Werner cellular dune CA (replaces aeolian.lua)        [tier 6] [med]
 
 GOAL: Replace sinusoidal dune proxy (aeolian.lua:21-37) with Werner 1995 cellular automaton: random pick → erode if not in shadow → transport L cells downwind → deposit with `p_sand=0.6, p_rock=0.4` → repose-angle slumping at 33°. Wind regime determines morphology (barchan / transverse / seif / star / parabolic).

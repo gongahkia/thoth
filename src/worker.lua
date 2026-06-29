@@ -50,6 +50,8 @@ local function workerKey(message)
         options.seaLevelAmplitude2 or "",
         options.seaLevelPeriod2 or "",
         options.seaLevelResidualAmplitude or "",
+        options.zScale or "",
+        options.maxOceanAgeMyr or "",
         options.hydrologyRegionChunks or "",
         options.hydrologyHaloCells or "",
         options.hydrologyBasinChunks or "",

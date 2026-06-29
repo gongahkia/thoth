@@ -131,6 +131,8 @@ function Save.snapshot(app)
             seaLevelAmplitude2 = metadata.seaLevelAmplitude2,
             seaLevelPeriod2 = metadata.seaLevelPeriod2,
             seaLevelResidualAmplitude = metadata.seaLevelResidualAmplitude,
+            zScale = metadata.zScale,
+            maxOceanAgeMyr = metadata.maxOceanAgeMyr,
             worldCircumference = metadata.worldCircumference,
             omega = metadata.omega,
             legacyLatitude = metadata.legacyLatitude,
