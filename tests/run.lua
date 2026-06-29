@@ -438,6 +438,29 @@ local function testCacheBoundsAndCounters()
     expect(after.cacheHits > metrics.cacheHits, "cache metrics should count hits")
 end
 
+local function testChunkSoAArrays()
+    local world = testWorld(20260625)
+    local chunk = world:chunk(0, 0, "local")
+    local fields = WorldGen.soaFields()
+    expect(#fields > 0 and chunk.arrays, "chunk should expose ffi-backed SoA arrays")
+    for _, field in ipairs(fields) do
+        expect(chunk.arrays[field] ~= nil, "soa array should exist for " .. field)
+    end
+    local mismatches = 0
+    local total = 0
+    for y = 1, chunk.size do
+        for x = 1, chunk.size do
+            local cell = chunk.cells[y][x]
+            local index = (y - 1) * chunk.size + (x - 1)
+            for _, field in ipairs(fields) do
+                total = total + 1
+                if round(chunk.arrays[field][index]) ~= round(cell[field] or 0) then mismatches = mismatches + 1 end
+            end
+        end
+    end
+    expect(total > 0 and mismatches == 0, "soa arrays should mirror cell field values")
+end
+
 local function testPlateMotionGeologicTime()
     local stationary = WorldGen.new(20260625)
     local stationaryAgain = WorldGen.new(20260625)
@@ -1247,6 +1270,7 @@ local tests = {
     testBasinHydrologyBudget,
     testCacheBoundsAndCounters,
     testPlateCacheBounds,
+    testChunkSoAArrays,
     testPlateMotionGeologicTime,
     testRngHashRange,
     testOpenSimplexNoise,

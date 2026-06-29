@@ -5,6 +5,29 @@ local Climate = require("src.climate")
 local Lru = require("src.lru")
 local Biomes = require("src.biomes")
 local Aeolian = require("src.aeolian")
+local ffi = require("ffi")
+
+local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "isostaticRebound", "streamPowerDelta" }
+
+local function buildChunkArrays(rows, size)
+    local total = size * size
+    local arrays = {}
+    for _, field in ipairs(soaFieldList) do
+        arrays[field] = ffi.new("double[?]", total)
+    end
+    for y = 1, size do
+        local row = rows[y]
+        local base = (y - 1) * size
+        for x = 1, size do
+            local cell = row[x]
+            local index = base + (x - 1)
+            for _, field in ipairs(soaFieldList) do
+                arrays[field][index] = cell[field] or 0
+            end
+        end
+    end
+    return arrays
+end
 
 local WorldGen = {}
 WorldGen.__index = WorldGen
@@ -541,6 +564,7 @@ function WorldGen:pollAsyncHydrology(limit)
         self.asyncPending[message.key] = nil
         if message.ok and message.chunk then
             message.chunk.pendingHydrology = false
+            message.chunk.arrays = buildChunkArrays(message.chunk.cells, message.chunk.size)
             self:cachePut(key(message.chunk.x, message.chunk.y, message.chunk.scale), message.chunk, "chunk")
             self.metrics.asyncHydrologyCompleted = (self.metrics.asyncHydrologyCompleted or 0) + 1
         else
@@ -814,8 +838,15 @@ function WorldGen:chunk(chunkX, chunkY, scale)
         scaleFactor = info.factor,
         size = size,
         cells = rows,
+        arrays = buildChunkArrays(rows, size),
     }
     return self:cachePut(cacheKey, chunk, "chunk")
+end
+
+function WorldGen.soaFields()
+    local out = {}
+    for index, field in ipairs(soaFieldList) do out[index] = field end
+    return out
 end
 
 function WorldGen:hydrologyStats(chunkX, chunkY, scale)

@@ -96,24 +96,20 @@ These extend the world's reach and the engine's ability to handle long sessions.
 
 ### T-025 — Struct-of-arrays cell storage via LuaJIT FFI         [tier 4] [high]
 
-GOAL: Per-chunk cell data lives in FFI `ctype` arrays of doubles, not 4096 tables × ~30 keys each. SoA layout for cache-friendliness.
+STATUS: **Partial**. `chunk.arrays = { elevation, slope, flow, temperature, rainfall, sediment, glacialDelta, isostaticRebound, streamPowerDelta }` are now `ffi.new("double[?]", size²)` flat arrays populated alongside `chunk.cells` at chunk finalization (sync + async hydrology paths). `WorldGen.soaFields()` enumerates the available SoA fields. `testChunkSoAArrays` gates array/table consistency.
 
-WHY: `worldgen.lua` cells are tables with 30+ string-keyed fields (encoder dumps 47). Iteration cost is dominated by hash lookups in Lua. The FFI-array benchmark cited in the LuaJIT docs shows 1.27 ns/element (double array) vs 75 ns/element (struct of one double) — i.e. native double arrays are dramatically faster.
+REMAINING:
+- Migrate hot read sites in `src/render.lua`, `src/hydrology.lua`, `src/erosion.lua`, `src/climate.lua` to read `chunk.arrays.field[index]` instead of `cell.field`. This is the actual perf win — currently arrays are populated but consumers still read tables.
+- Extend SoA to booleans (water, river, lake, talus, etc.) as `int8` arrays.
+- Move string-keyed IDs (biome, basinId, watershedId, etc.) into a parallel sparse ref table per chunk; or accept that strings stay in `cell` tables.
+- Remove `chunk.cells` table allocation once consumers are migrated, so memory per chunk actually drops.
+- Update encoder in `tests/run.lua:encodeCell` to read from arrays.
 
-WHERE: All of `src/worldgen.lua` and `src/hydrology.lua` consumer/producer sites.
-
-DEPENDS ON: T-001 (so mesh layer can also benefit), T-005 (cache eviction must free FFI memory cleanly).
-
-ACCEPTANCE:
-- A `Chunk` is a set of parallel FFI arrays (`elevation`, `temperature`, `rainfall`, `slope`, `flow`, etc.) of size `chunkSize²`.
-- `cell.field` access replaced with `chunk.field[index]`.
-- Tests still pass (encoder updated to iterate FFI arrays).
-- Memory per chunk drops measurably (LuaJIT docs cite 35× reduction in a similar case).
-
-NOTES / IMPL HINTS:
-- Use `ffi.new("double[?]", size)` for each field array; or one big struct array if you prefer AoS. SoA is better for the hot inner loops.
-- Caveat from research: nested struct init is not JIT-compiled in inner loops — keep types flat.
-- This is a large refactor. Schedule it after Tier 1–3 ship; otherwise everything else has to be rewritten on top.
+ACCEPTANCE (full):
+- A `Chunk` is a set of parallel FFI arrays (`elevation`, `temperature`, `rainfall`, `slope`, `flow`, etc.) of size `chunkSize²`. *(double fields landed; boolean + string fields pending.)*
+- `cell.field` access replaced with `chunk.field[index]`. *(arrays exposed but consumers not migrated.)*
+- Tests still pass (encoder updated to iterate FFI arrays). *(test added but encoder still uses cell tables.)*
+- Memory per chunk drops measurably. *(currently goes up because arrays are duplicated; will drop once `chunk.cells` is removed.)*
 
 REFERENCES:
 - [LuaJIT FFI Semantics](https://luajit.org/ext_ffi_semantics.html)
