@@ -124,6 +124,797 @@ Small targeted fixes for issues spotted during the audit. Land any time after Ti
 
 ---
 
+# TIER 6 — Earth-fidelity geomorphic expansion
+
+These add real-world geomorphic, climatic, lithologic, and biotic processes missing from current Thoth. Substrate tasks (T-034 through T-038) must land first; downstream process passes (T-039+) consume their fields. Tasks reference `[Author Year](url)` for primary sources; formulas and parameter defaults inline so an independent agent can implement from this file + repo state alone.
+
+Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` (worldgen.lua:633) → `Climate.solveRegion` (hydrology.lua:237) → priority-flood D8 (lines 242-274) → `Erosion.relax` (line 278) → `Erosion.glaciate` (line 288) → river/basin labelling (line 309-321) → `Coast.apply` (line 612) → per-cell `classifyBiome` + `Aeolian.applyCell` (worldgen.lua:828-830) → `buildChunkArrays` (worldgen.lua:841). New passes plug in at the call sites named per task.
+
+---
+
+### T-034 — Lithology SoA channel + tectonic-context classifier   [tier 6] [med]
+
+GOAL: Every chunk cell carries an `int8 lithology` ∈ {basalt, granite, gneiss, carbonate, sandstone, shale, evaporite, unknown} plus `double erodibilityK` derived from existing tectonic fields. Stream-power K scales per-cell with `erodibilityK`.
+
+WHY: Karst (T-048), reef substrate (T-049), differential weathering (modulates stream-power K at `src/erosion.lua:149`), volcanic landform classification (T-051), soil classifier (T-054) all require rock-class. Without it the world is uniform-erodibility everywhere and karst/reef cannot exist.
+
+WHERE:
+- `src/worldgen.lua:10` — extend `soaFieldList` (double `erodibilityK`, `lithologyAge`); add to new `soaInt8FieldList` (`lithology`).
+- `src/worldgen.lua:633-712` `baseSample` — after `plate = self:plateAt(wx, wy)` (line 637), call new `classifyLithology(self, plate, secondary, wx, wy, info)` returning `(lithologyId, erodibilityK, lithologyAge)`. Write to cell.
+- `src/erosion.lua:149-182` — read `cell.erodibilityK` and multiply `k` so per-cell stream-power scales with lithology.
+- New `world.lithologyTable[id] = { name, density, erodibilityK, albedo }`.
+
+DEPENDS ON: T-038 (int8 SoA infra).
+
+ACCEPTANCE:
+- `cell.lithology ∈ {1..7}` for all land cells, 0 only on abyssal far-from-shelf cells.
+- Continental shield + craton > 0.5 → granite/gneiss (deterministic 50/50 split by hash).
+- Oceanic crust `plate.age < 0.1` → basalt; `plate.age > 0.7` → pelagic shale.
+- Continental stable platform + `latitudeUnit < 0.5` (tropical-temperate) → carbonate.
+- Arid endorheic basin (`rainfall < 0.12`, no outlet) → evaporite.
+- New test `testLithologyDistribution` asserts ≥4 classes present in 32-seed sweep.
+- `make test`, `make diagnostics`, `make regressions` green after T-056 rebake.
+
+NOTES / IMPL HINTS:
+- 8 classes int8: 0=unknown, 1=basalt, 2=granite, 3=gneiss, 4=carbonate, 5=sandstone, 6=shale, 7=evaporite.
+- K multipliers (relative to current default 0.0006): basalt 0.6, granite 0.5, gneiss 0.4, carbonate 1.4 (chemically soluble), sandstone 0.9, shale 1.2, evaporite 1.6.
+- Tie-break randomness: `Rng.unitAt(seed, gx, gy, 1031)`.
+- Distance-to-trench / ridge / mountain-range-ridge requires 4-cell halo over chunk; piggyback on existing region halo (`src/hydrology.lua:178-232`).
+- Pure function of `(plate.crust, plate.age, plate.boundary, oceanicSubduction, mountainRangeId, hotspotContribution, latitudeUnit, rainfall)` → determinism automatic.
+
+REFERENCES:
+- [Tectonics.js davidson16807](https://davidson16807.github.io/tectonics.js/blog/) — lithology distribution heuristics in procgen worlds.
+- [Anbar & Knoll 2002 Science](https://www.science.org/doi/10.1126/science.1069651) — global rock-type distribution drivers.
+
+---
+
+### T-035 — Regolith depth SoA + bedrock surface tracking         [tier 6] [med]
+
+GOAL: Every cell tracks `regolithDepth:double` (soil thickness [m]) and `bedrockElevation:double` separately from `elevation = bedrockElevation + regolithDepth`. Bedrock-to-regolith conversion follows Heimsath et al. 1997 exponential `P(h) = P₀ · exp(-h/h*)`.
+
+WHY: T-039 (Roering nonlinear diffusion) needs a two-layer model — diffusion must transport regolith, not bedrock. Without this, hillslope diffusion magically lowers bedrock and conservation is violated. Also feeds T-054 (soil classifier).
+
+WHERE:
+- `src/worldgen.lua:10` — append `regolithDepth`, `bedrockElevation` to `soaFieldList`.
+- `src/worldgen.lua:633-712` `baseSample` — initialize `cell.bedrockElevation = cell.elevation` and `cell.regolithDepth = 0.0` (post-tectonic, pre-erosion).
+- New `src/soil_production.lua` — exposes `SoilProduction.step(region, options)` running one Heimsath step per cell.
+- `src/hydrology.lua:277` — call `SoilProduction.step(region, { dt = world.geologicTimeStep })` once before `Erosion.relax`.
+- Add `world.geologicTimeStep` option (default `0.05` when `geologicTime > 0`, else `0`).
+
+DEPENDS ON: none new.
+
+ACCEPTANCE:
+- Steady-state regolith depth `h_ss = h* · ln(P₀/E)` on hillslopes with E=100 m/Myr ≈ 0.2 m (with defaults).
+- Per-step `regolithDepth ≥ 0` always (clamped).
+- Surface elevation invariant when no erosion (mass-conservative).
+- `testRegolithProduction` asserts anti-correlation between slope and `regolithDepth`.
+- `make test` green.
+
+NOTES / IMPL HINTS:
+- Defaults: `P₀ = 1.5e-4 m/yr`, `h* = 0.5 m`, `ρ_r/ρ_s = 1.5` (bedrock-to-soil bulking).
+- Per cell per step: `dP = P₀ · exp(-h/h*) · dt`; `bedrockElevation -= dP`; `regolithDepth += dP · (ρ_r/ρ_s)`.
+- Clamp `regolithDepth ≥ 0` every step (floating-point drift).
+- Stable when `dt · P₀ < h*` → safe `dt ≤ 0.1 · h*/P₀ ≈ 333 yr` (single-step stable for any geologicTimeStep <= 0.33 Myr).
+
+REFERENCES:
+- [Heimsath et al. 1997 Nature](https://doi.org/10.1038/41056) — bedrock-to-regolith exponential.
+- [Heimsath 2001 ESPL](https://doi.org/10.1002/esp.260) — Oregon Coast Range cosmogenic calibration.
+- [Yoo & Mudd 2008 JGR](https://doi.org/10.1029/2007JF000846) — bulking ratio reference.
+
+---
+
+### T-036 — Eustatic sea level as function of geologicTime         [tier 6] [med]
+
+GOAL: Replace scalar `world.seaLevel` (worldgen.lua:321) with `world:seaLevelAt(t)` driven by Milankovitch-scale superposition. Cells record `marineTerrace`, `fluvialTerrace`, `paleoShoreline` where past sea levels left a signature.
+
+WHY: Single static sea level produces no marine terraces, no drowned valleys (rias), no fluvial terraces. Real coasts show transgression/regression episodes that produce these features. Required by T-049 (reef subsidence is sea-level relative).
+
+WHERE:
+- `src/worldgen.lua:321` — replace `seaLevel = option(options.seaLevel, 0)` with constructor that builds `world.seaLevelSeries[128]` plus accessor `world:seaLevelAt(t)`.
+- Replace all reads of `world.seaLevel` → `world:seaLevelAt(world.geologicTime)`. Locations to update: `src/hydrology.lua:229,277,313,537,543,545`, `src/erosion.lua:155,188`, `src/coast.lua:41` (called via `options.seaLevel`), `src/biomes.lua` (water classifier — passes through `cell.water`), `src/export.lua`, `main.lua` save/load.
+- `src/worldgen.lua:10` — append `marineTerrace:double`, `fluvialTerrace:double` to `soaFieldList`; `paleoShoreline:int8` to `soaInt8FieldList`.
+
+DEPENDS ON: T-038 (int8 SoA infra).
+
+ACCEPTANCE:
+- `seaLevelAt(t)` is pure function of `t` (idempotent).
+- With `world.geologicTime = 0` and all amplitudes zero, output identical to pre-change baseline (backward compat verified before T-056 rebake).
+- `cell.marineTerrace > 0` where land elevation < paleo-max sea level.
+- Drowned-valley signature: cells with `paleoShoreline && water && riverHistorical`.
+- `(seed, geologicTime)` reproduces identical chunk encoding.
+
+NOTES / IMPL HINTS:
+- `seaLevelAt(t) = baseSeaLevel + a₁·sin(2π·t/p₁ + φ₁) + a₂·sin(2π·t/p₂ + φ₂) + noiseResidual(t)`.
+- Defaults: `baseSeaLevel = 0`, `a₁ = 0.012, p₁ = 0.1` (100 ka eccentricity proxy), `a₂ = 0.005, p₂ = 0.041` (41 ka obliquity), residual amplitude `0.003`.
+- Phases `φ₁, φ₂` from `Rng.hash(seed, 1051)`.
+- Precompute `world.seaLevelSeries[128]` for `t ∈ [geologicTime - 1.0, geologicTime]`; per-cell paleo-max = `max(seaLevelSeries)`.
+- Marine terrace: `marineTerrace = max(0, paleoMaxSL - currentElevation)` on non-water cells with prior submersion.
+- Fluvial terrace: river cells where `cell.elevation - downCell.elevation > k · stride` after sea-level drop — record stepped historical bed levels.
+- Hydrology already passes `region.seaLevel = world.seaLevel` (hydrology.lua:277) — single source-side change propagates to erosion (erosion.lua:155).
+
+REFERENCES:
+- [Haq, Hardenbol & Vail 1987 Science](https://www.science.org/doi/10.1126/science.235.4793.1156) — eustatic curve.
+- [Miller et al. 2005 Science](https://www.science.org/doi/10.1126/science.1116412) — Phanerozoic sea level.
+
+---
+
+### T-037 — Geographic latitude + Coriolis SoA channels            [tier 6] [low]
+
+GOAL: Replace noise-based `latitudeFor(seed, y)` (climate.lua:19-21, also worldgen.lua:663) with geographic latitude `latitudeRadians ∈ [-π/2, π/2]` derived from `y / world.worldCircumference`. Add `coriolisF:double = 2Ω sin(latitudeRadians)`.
+
+WHY: T-042 (3-cell climate) needs real latitude bands at 0°/30°/60°/90°; current noise-modulated latitude jumbles bands so deserts/forests don't cluster at their canonical latitudes. Coriolis-deflected wind requires real `f`.
+
+WHERE:
+- `src/climate.lua:19-21` — replace `latitudeFor` body.
+- `src/worldgen.lua:663` — replace local `latitude = 0.5 + 0.5 * sin(...)` with `world:latitudeAt(y)`.
+- `src/worldgen.lua:10` — append `latitudeRadians, coriolisF` to `soaFieldList`.
+- `src/worldgen.lua:314-378` `WorldGen.new` — add `worldCircumference` option (default `4194304` = 2^22 world units), `omega` option (default `7.2921e-5 rad/s`).
+
+DEPENDS ON: none.
+
+ACCEPTANCE:
+- `latitudeRadians ∈ [-π/2, π/2]`; sign of `coriolisF` flips at equator.
+- Existing biome distribution shifts: deserts cluster near `|lat| ≈ 30°` after T-042 lands.
+- Backward-compat flag `world.legacyLatitude = true` keeps old behavior until T-056 rebakes fixtures.
+
+NOTES / IMPL HINTS:
+- `y` is unbounded world coord; map to latitude by treating world as a sphere unrolled along meridian:
+  - `yUnit = y / world.worldCircumference`
+  - `wrappedY = 2 · abs(yUnit - floor(yUnit + 0.5))` ∈ [0, 1]
+  - `latitudeRadians = (1 - wrappedY) · (π/2) · sign((yUnit + 0.5) mod 1 - 0.5)`
+- `Ω = 7.2921e-5 rad/s`; `coriolisF = 2 · Ω · sin(latitudeRadians)`.
+- All existing fixtures will diverge — gate via `world.legacyLatitude` until T-056.
+
+REFERENCES:
+- [Hadley cell — Wikipedia](https://en.wikipedia.org/wiki/Hadley_cell).
+- [Coriolis parameter — Wikipedia](https://en.wikipedia.org/wiki/Coriolis_frequency).
+
+---
+
+### T-038 — Extend buildChunkArrays to int8/int32 SoA (FFI infra)  [tier 6] [low]
+
+GOAL: `buildChunkArrays` (worldgen.lua:12-30) supports `double[?]`, `int8_t[?]`, and `int32_t[?]` arrays. New globals `soaInt8FieldList` and `soaInt32FieldList` parallel to existing `soaFieldList`.
+
+WHY: T-034 (lithology int8), T-036 (paleoShoreline int8), T-042 (pressureCellId int8), T-043 (hotspotId int32, isFloodBasalt int8), T-048 (karstType int8), T-049 (reefStage int8), T-050 (archetypeId int8) all need small-int storage. Currently FFI SoA is `double[?]` only — using doubles for int8 wastes 7 bytes/cell × ~10 fields = ~70 KB/chunk overhead.
+
+WHERE:
+- `src/worldgen.lua:10` — add `soaInt8FieldList = {}` and `soaInt32FieldList = {}` parallel to existing `soaFieldList`.
+- `src/worldgen.lua:12-30` — refactor `buildChunkArrays` to iterate three field lists, allocating the matching FFI type.
+- `src/worker.lua` (worker thread, ~92 lines) — if it constructs arrays separately, mirror the change. Verify by grepping `ffi.new` in `src/worker.lua`.
+
+DEPENDS ON: none.
+
+ACCEPTANCE:
+- `WorldGen.soaFields()` returns combined list, or expose three accessors `soaDoubleFields()`, `soaInt8Fields()`, `soaInt32Fields()`.
+- `testChunkSoAArrays` extends to gate int8 and int32 consistency vs cell tables.
+- Memory per chunk drops by `count(int8) * 7 + count(int32) * 4` bytes per cell once boolean migration (T-025 remaining work) lands.
+
+NOTES / IMPL HINTS:
+- FFI types via `ffi.new("double[?]", n)`, `ffi.new("int8_t[?]", n)`, `ffi.new("int32_t[?]", n)`.
+- Predeclare typedefs once via `ffi.cdef` at module top to avoid per-call cdata jit-stub overhead.
+- For T-025 remaining boolean migration, also store flags in `int8` arrays (0/1).
+
+REFERENCES:
+- [LuaJIT FFI Semantics](https://luajit.org/ext_ffi_semantics.html).
+- [LuaJIT FFI API](https://luajit.org/ext_ffi_api.html).
+- [LuaJIT FFI array perf thread](https://www.freelists.org/post/luajit/FFI-array-performance).
+
+---
+
+### T-039 — Roering nonlinear hillslope diffusion + soil coupling [tier 6] [med]
+
+GOAL: Add Roering 1999/2001 nonlinear hillslope flux `q = -D∇z / (1 - (|∇z|/Sc)²)` coupled to T-035 regolith. New pass runs between climate and stream-power in the hydrology pipeline.
+
+WHY: Linear diffusion (and current `thermalErosion` slope flag at `src/hydrology.lua:556`) cannot produce the convex-near-crest, planar-near-base hillslope signature characteristic of real soil-mantled slopes. Nonlinear diffusion is the standard physically-based law. Largest realism delta for same per-cell cost.
+
+WHERE:
+- New `src/hillslope.lua` exposing `Hillslope.diffuse(region, options)`.
+- `src/hydrology.lua:269-278` — insert `Hillslope.diffuse(region, { D, Sc, dt, iterations })` between flow accumulation (line 269-274) and `Erosion.relax` (line 278). After diffusion, recompute `streamPowerSlope` for the erosion pass.
+- `src/erosion.lua:149,182` — multiply `k` by `cell.erodibilityK` (T-034); gate diffusion by `cell.regolithDepth > 0` (T-035 — bare bedrock cells use reduced `D = 0.1·D_default`).
+- New per-cell field `hillslopeDelta:double` for diagnostics.
+
+DEPENDS ON: T-035 (regolith), T-034 (erodibilityK).
+
+ACCEPTANCE:
+- Long-time hillslope profiles show convex hilltop, planar mid-slope, characteristic transition near `|s|/Sc ≈ 0.6`.
+- Hilltop curvature anti-correlates with erosion rate.
+- `testHillslopeProfile` plots a synthetic 1D ridge and gates against expected shape (Sc-induced kink within ±10%).
+- Determinism preserved.
+- `make test` green after T-056.
+
+NOTES / IMPL HINTS:
+- Defaults: `D = 0.005 m²/yr`, `Sc = 1.2` (~50°). Per-cell override: arid granular slopes (`cell.lithology == evaporite`) use `Sc = 0.8`.
+- Stencil 4-connected FTCS: face slope `s_face = (z_neighbor - z) / dx`, face flux `q_face = -D · s_face / (1 - (|s_face|/Sc)²)`; divergence `dz/dt = -(qE - qW)/dx - (qN - qS)/dy`.
+- Clamp `|s_face|/Sc ≤ 0.99` to prevent denominator blowup.
+- CFL: `dt ≤ 0.2 · dx² / (4 · D_eff)` where `D_eff = D / (1 - (s_max/Sc)²)²`. Sub-step when `s_max/Sc > 0.9`.
+- Two-layer coupling with T-035: transport `min(regolithDepth, |q|·dt)` per face; subtract from `regolithDepth`, not `bedrockElevation`. If regolith exhausted, expose bedrock; next step's soil production refills.
+- Boundary: zero-flux Neumann at chunk halo edges (mirror cells).
+
+REFERENCES:
+- [Roering, Kirchner & Dietrich 1999 WRR](https://doi.org/10.1029/1998WR900090) — nonlinear flux law.
+- [Roering, Kirchner & Dietrich 2001 JGR](https://doi.org/10.1029/2001JB000323) — Gabilan Mesa calibration.
+- [Roering 2008 GSA Bulletin](https://doi.org/10.1130/B26283.1) — review + Sc literature range.
+
+---
+
+### T-040 — Jain debris-flow erosion on steep slopes               [tier 6] [med]
+
+GOAL: Add Jain et al. 2024 debris-flow regime to `Erosion.relax`. Cells with sediment concentration `C > 0.4` switch from fluvial `E_f = K_f A^m S^n` to debris `E_d = K_d q_w S^β` with `β=2`. Deposition when `S < S_dep = 0.1`.
+
+WHY: Existing stream-power deposits sediment but cannot generate the debris-flow signature (over-deepened scars + alluvial cones at slope breaks) seen on steep first-order channels. Adds recognizably real morphology at ridge bases.
+
+WHERE:
+- `src/erosion.lua:171-206` `Erosion.relax` iteration loop — branch per cell on `C = cell.sedimentFlux / max(cell.flow, 1)`. Replace single-coeff incision (line 182-189) with regime-switched form.
+- New per-cell fields `debrisFlow:int8` (0/1), `debrisFlowDelta:double`.
+
+DEPENDS ON: T-039 (nonlinear hillslope produces the steep gradients), T-034 (erodibilityK modulates `K_d` per lithology).
+
+ACCEPTANCE:
+- `region.erosion.debrisFlowCells > 0` in mountainous chunks.
+- Debris-flow cells show longitudinal profile signature: over-deepened upstream reach, convex alluvial cone where slope drops below `S_dep`.
+- `testDebrisFlowSignature` gates against a synthetic ridge fixture.
+- `make test` green after T-056.
+
+NOTES / IMPL HINTS:
+- Parameters: `K_f = 1e-5`, `K_d = 5e-4` (~50× fluvial), `m = 0.5`, `n = 1`, `β = 2`, `C_crit = 0.4`, `S_init = 0.3`, `S_dep = 0.1`, `L_d = 10 · stride`.
+- `C_eq(S) = max(0, C_crit · (S - S_dep)/(S_init - S_dep))`.
+- Per cell per iter:
+  1. `C = sedimentFlux / max(flow, 1)`.
+  2. If `C > C_crit`: debris. `dE = K_d · flow · S^β · dt · erodibilityK`.
+  3. Else fluvial: `dE = K_f · flow^m · S^n · dt · erodibilityK` (existing form).
+  4. If `C > C_eq(S)`: deposit `dD = (sedimentFlux - C_eq · flow) / L_d · dt`; `z += dD`; `sedimentFlux -= dD · dx²`.
+- Cap `dE` at `0.5 · dx · S` per step (no over-deepening past downstream cell).
+- Topo-sort cells (already done via `orderedCells` at erosion.lua:8-22 + priority-flood) — no extra pit handling needed.
+
+REFERENCES:
+- [Jain, Mukherjee, Cordonnier, Galin, Gain, Guérin 2024 TOG](https://www.cs.purdue.edu/cgvlab/www/resources/papers/Arymaan-ToG-2024-efficient.pdf) — Efficient Debris-Flow Simulation.
+- [Iverson 1997 Rev Geophys](https://doi.org/10.1029/97RG00426) — debris-flow physics.
+
+---
+
+### T-041 — Cordonnier shallow-ice approximation glacial pass     [tier 6] [high]
+
+GOAL: Replace threshold-cut `Erosion.glaciate` (erosion.lua:277-329) with mass-conserving SIA. Ice thickness `H` evolves via `∂H/∂t + ∇·(Γ H^5 |∇h|² ∇h) = b(h)`; erosion `dz/dt = -K_g · u_b²`.
+
+WHY: Current code is a binary cut-with-Gaussian-radius proxy. It produces sharp valleys but cannot generate recognisable cirque/horn/arête/fjord morphology — those emerge as a single physics-based pass under SIA. Realism delta is large.
+
+WHERE:
+- Rewrite body of `src/erosion.lua:277-329` `Erosion.glaciate`. Keep signature compatible so `src/hydrology.lua:288` call still works.
+- New per-cell field `iceThickness:double` persisting across geologicTime steps via `world.iceField` LRU cache (so H accumulates between calls).
+- Keep `cell.glaciated, cell.glacialDelta, cell.glacialErosion` for backward compat with overlays.
+
+DEPENDS ON: T-035 (bedrock separation — ice rests on bedrock surface, not on regolith-inflated `elevation`).
+
+ACCEPTANCE:
+- Steady-state ice profile matches Vialov: `H(x) ∝ (1 - (x/L)^((n+1)/n))^(n/(2n+2))`, parabolic.
+- Iconic glacial landforms emerge: U-shaped trunk valleys (cross-section width > linear-diffusion expectation), cirques at headwall confluences, hanging valleys where tributary ice was thinner than trunk.
+- `region.glaciers.iceVolume` stat exposed.
+- `testGlacialSIA` gates Vialov profile within 10%.
+- `make test` green after T-056.
+
+NOTES / IMPL HINTS:
+- Glen flow law `n=3`: `Q = -Γ · H^5 · |∇h|² · ∇h`. Compute `Γ = 2·A·(ρg)^n / (n+2)` with `A = 2.4e-24 Pa⁻³ s⁻¹` (temperate ice), `ρ = 917 kg/m³`, `g = 9.81 m/s²`. Convert time units to yr (× 3.15e7) → `Γ ≈ 4.4e-9 m⁻²·yr⁻¹`.
+- SMB: `b(h) = clamp(β · (h - ELA), -3.0, b_max)`. Defaults: `ELA = 0.55 + 0.04·(1 - latitudeUnit)`, `β = 0.008 yr⁻¹/m`, `b_max = 2 m/yr` ice-equivalent.
+- Sliding: `u_b = f · u_def, f = 0.5, u_def ≈ |Q|/H` at face.
+- Abrasion: `dz/dt = -K_g · u_b²` with `K_g = 5e-5 yr/m`.
+- Discretization (FTCS staggered grid):
+  1. `h = z_bed + H`.
+  2. Face slopes `∇h_face = (h_neighbor - h)/dx`; face thickness `H_face = 0.5·(H + H_neighbor)`.
+  3. Face flux `Q_face = -Γ · H_face^5 · |∇h_face|² · ∇h_face`.
+  4. `H_new = H + dt · (-div(Q) + b(h))`; clamp `H ≥ 0`.
+  5. `z_bed -= dt · K_g · u_b²`.
+- CFL: `dt ≤ 0.5 · dx² / (4 · max(D_ice))`, `D_ice = Γ · H_face^5 · |∇h_face|²`. Adaptive sub-stepping.
+- Marine termination: Dirichlet `H=0` at cells below seaLevel.
+- Persistence: `world.iceField[chunkKey]` LRU keyed by chunk coords; on geologicTime step run SIA for `dt = world.geologicTimeStep`, persist `H` between calls.
+
+REFERENCES:
+- [Cordonnier et al. 2023 SIGGRAPH (HAL)](https://inria.hal.science/hal-04090644/file/Sigg23_Glacial_Erosion__author.pdf) — Forming Terrains by Glacial Erosion.
+- [Hallet 1979 J Glaciol](https://doi.org/10.3189/S0022143000029798) — abrasion law.
+- [Herman et al. 2015 EPSL](https://doi.org/10.1016/j.epsl.2015.06.035) — sliding-velocity² erosion.
+- [Cuffey & Paterson — Physics of Glaciers 4e](https://www.elsevier.com/books/the-physics-of-glaciers/cuffey/978-0-12-369461-4) — Glen A value.
+
+---
+
+### T-042 — 3-cell Hadley/Ferrel/polar climate + ITCZ + monsoon   [tier 6] [med]
+
+GOAL: Replace hardcoded 2-band wind (climate.lua:29-36) with 3-cell zonal model: Hadley 0–30°, Ferrel 30–60°, polar 60–90°. ITCZ migrates seasonally; monsoon emerges where zonal land-ocean contrast exceeds threshold.
+
+WHY: Current code has 2 latitude bands with fixed direction, no seasonality, no monsoon. Result: desert/grassland/forest belts cluster at wrong latitudes. Hadley convergence → desert at 30°, wet at equator is canonical Earth signature.
+
+WHERE:
+- `src/climate.lua:29-36` `Climate.windAt` — replace body with 3-cell band lookup table.
+- `src/climate.lua:102-172` `Climate.solveRegion` — feed band wind + baseline precip into existing orographic loop instead of `localSource` constants at line 131-133.
+- `src/worldgen.lua:314-378` `WorldGen.new` — add `seasonRate` (default 1.0), `itczOffsetAmp` (default 0.17 rad ≈ 10°) options.
+- New `world.climateBands` table built once at world ctor (~180 latitude bins).
+- `src/worldgen.lua:10` — append `pressureCellId:int8` to `soaInt8FieldList`, `monsoonIndex:double` to `soaFieldList`.
+
+DEPENDS ON: T-037 (geographic latitude + Coriolis), T-038 (int8 SoA).
+
+ACCEPTANCE:
+- Deserts cluster near `|lat| = 25–35°` (Hadley descending), wet equatorial band + ~50° polar front.
+- Cells with `pressureCellId == 3` (ITCZ) have `baselinePrecip > 0.5`.
+- Monsoon: cells where zonal land fraction > 0.6 and `|lat| < 0.5` toggle wet-dry biannual cycle visible via `cell.monsoonIndex`.
+- `testClimateBands` asserts band-mean precip differs > 30% between Hadley descending and rising limbs.
+- `make test` green after T-056.
+
+NOTES / IMPL HINTS:
+- Build `world.climateBands[i]` for ~180 latitude bins (1° per bin). Per bin: `{ zonalU, meridionalV, baselinePrecip, pressureCellId }`.
+- Pressure cell ids int8: 0=Hadley_rising, 1=Hadley_descending, 2=Ferrel, 3=ITCZ, 4=horse, 5=subpolarLow, 6=polar.
+- Band defaults:
+  - ITCZ (|lat|<10°): `baselinePrecip=0.55`, converging winds.
+  - Hadley descending (|lat|∈[20°,35°]): `baselinePrecip=0.12`, easterly trade.
+  - Ferrel (35–60°): `baselinePrecip=0.42`, westerlies.
+  - Polar (>60°): `baselinePrecip=0.18`, easterlies.
+- Coriolis deflection: rotate `(zonalU, meridionalV)` by angle `arctan(coriolisF · scale)` — NH deflects right, SH left.
+- ITCZ shift: `itczLat = itczOffsetAmp · sin(2π · t / seasonRate)`. Rebake bins within ±15° of equator each season.
+- Monsoon: estimate `landFraction_zone` by sampling 32 longitudinal positions at `continent` scale at fixed `Rng.hash(seed, lat, 991)` offsets. `monsoonIndex = (landFraction - 0.5) · seasonalContrast`. Apply ±50% precip modulation where `monsoonIndex > 0.3`.
+- Replace `Climate.windAt` (line 29) to return `(windX, windY)` from band lookup + Coriolis.
+
+REFERENCES:
+- [Hadley cell — Wikipedia](https://en.wikipedia.org/wiki/Hadley_cell).
+- [Schneider, Bischoff & Haug 2014 Nature](https://www.nature.com/articles/nature13636) — ITCZ migration.
+- [Palubicki Ecoclimates 2022](https://history.siggraph.org/learning/ecoclimates-climate-response-modeling-of-vegetation-by-palubicki-makowski-gajda-hadrich-michels-et-al/).
+
+---
+
+### T-043 — Hotspot point-set + flood-basalt provinces            [tier 6] [med]
+
+GOAL: Static Poisson-disk-distributed hotspot set in mantle reference frame (deterministic from seed). As plates drift over hotspots via existing `geologicTime`, shield-volcano elevation + lava-biome contributions accumulate, producing volcanic chains.
+
+WHY: No intra-plate volcanism currently modelled (only convergent island arcs at worldgen.lua:651-654). Hawaii-Emperor-style trails fall out of existing plate drift mechanics with negligible cost — highest ROI tectonic feature.
+
+WHERE:
+- `src/worldgen.lua:314-378` `WorldGen.new` — add `world.hotspots = []` (Poisson-disk sampled) and `world.hotspotGrid` (spatial index).
+- `src/worldgen.lua:636-637` `baseSample` — after `plate = self:plateAt(wx, wy)`, compute `mantleCell = (wx, wy) - integratedPlateDrift(plate, geologicTime)`, query nearby hotspots from grid, accumulate kernel-weighted contribution.
+- `src/worldgen.lua:656` — add `hotspotContribution` to elevation sum (cap at +0.45).
+- `src/worldgen.lua:10` — append `hotspotContribution:double, hotspotAgeMy:double` to `soaFieldList`; `hotspotId:int32` to `soaInt32FieldList`; `isFloodBasalt:int8` to `soaInt8FieldList`.
+- `src/biomes.lua:42-55` — add `lava_flow`, `shield` biomes when `hotspotContribution > 0.25 && slope < 0.2`.
+
+DEPENDS ON: T-038 (int8/int32 SoA).
+
+ACCEPTANCE:
+- 64 hotspots default; positions deterministic from seed.
+- As `geologicTime` advances, a chain of shields traces back along the plate drift path (Hawaiian-Emperor signature).
+- Flood-basalt cells (`isFloodBasalt = 1`) appear at high-intensity hotspots when `plate.boundary < 0.18`.
+- `testHotspotTrails` runs three geologicTime steps and verifies trail emergence (chain of decreasing elevation).
+- `make test` green after T-056.
+
+NOTES / IMPL HINTS:
+- Poisson-disk sample 64 hotspots in `[0, mantleExtent)²` with `minSeparation = 4096` world units.
+- `world.hotspotGrid[bucketX][bucketY] = [hotspotIds...]` with bucket size 8192 for O(1) candidate lookup.
+- Per cell: `contribution = Σ_{k=0..7} kernel(dist(mantleCell, hotspot - plateVelocity·k·dt)) · decay(k)` summing over 8 past timesteps. `kernel(d) = exp(-d²/σ²), σ = 1024`. `decay(k) = exp(-k/τ), τ = 3`.
+- Use same `tanh`-clamped velocity integration as `plateDrift` (worldgen.lua:154-157) for consistency.
+- `isFloodBasalt = (intensity > floodThreshold) && (plate.boundary < 0.18)`.
+- Existing volcanic-island-arc (worldgen.lua:651-654) stays — hotspots are intra-plate, island arcs are convergent-boundary; they're independent.
+
+REFERENCES:
+- [Hawaii-Emperor chain Nature Comms 2024](https://www.nature.com/articles/s41467-024-51055-9).
+- [Tectonics.js davidson16807](https://davidson16807.github.io/tectonics.js/blog/) — hotspots in procgen.
+- [Flowy 2024 — lava emplacement (optional for T-051)](https://arxiv.org/pdf/2405.20144).
+
+---
+
+### T-044 — Howard-Knutson meandering rivers + oxbow cutoffs      [tier 6] [med]
+
+GOAL: For each river segment above flow threshold, convert grid-locked D8 polyline to a curvature-driven meandering centerline migrating per Howard & Knutson 1984. Detect neck cutoffs to form oxbow lakes.
+
+WHY: Rivers currently lock to 8 D8 directions and never meander. Adding curvature-driven migration transforms planforms into recognizably-real river shapes; oxbows accumulate in floodplain bands.
+
+WHERE:
+- New `src/meander.lua` exposing `Meander.applyRegion(region, options)`.
+- `src/hydrology.lua:553-567` river labelling — for each `cell.river`, group into segments by `channelId`. Build polyline per segment.
+- `src/hydrology.lua:594-605` deltas/floodplain — extend to mark `cell.oxbowLake = true` and `cell.meanderBend` along migrated centerline.
+- New per-cell field `meanderBend:double`; `oxbowLake:int8`. New per-region `region.oxbowPolygons[]` for render.
+
+DEPENDS ON: none new.
+
+ACCEPTANCE:
+- Sinuosity (channel length / valley length) > 1.2 for lowland rivers after migration.
+- Oxbow lakes appear in floodplain band ~3–5·W wide where W = channel width.
+- Same seed → same meander positions.
+- `testMeanderSinuosity` gates expected sinuosity range.
+
+NOTES / IMPL HINTS:
+- Channel width `W = sqrt(flow) · widthScale` (Leopold-Maddock `W ∝ Q^0.5`).
+- Polyline nodes at uniform arc length `ds_target = W/2`.
+- Curvature: `κ_i = 2·cross(r_{i-1}-r_i, r_{i+1}-r_i) / (|r_{i-1}-r_i|·|r_i-r_{i+1}|·|r_{i-1}-r_{i+1}|)`.
+- Smoothed curvature: `ω_i = Σ_j w_{i-j}·κ_j`, `w_k = (ds/L_d)·exp(-k·ds/L_d)`, `L_d = 10·W`, truncate at `5·L_d`.
+- Migration: `r_i += dt · E₀ · ω_i · n_i` (n = outward normal). Tune `E₀` so peak migration ≈ 1% of W per step.
+- Resample to uniform arc length after migration; 3-point moving-average smoothing every 5 steps.
+- Neck cutoff: scan node pairs `(i,j)` with `|i-j|·ds > 5·W`; if `|r_i - r_j| < 1.0·W`, splice — remove nodes between, store removed polyline as oxbow polygon.
+- Pin endpoints at chunk-boundary entry/exit.
+- `dt ≈ 1–5 yr` per step; run once per geologicTime advance, not per frame.
+
+REFERENCES:
+- [Howard & Knutson 1984 WRR](https://doi.org/10.1029/WR020i011p01659).
+- [Ikeda, Parker & Sawai 1981 JFM](https://doi.org/10.1017/S0022112081002231) — upstream influence kernel.
+- [Vimont et al. 2023 TOG](https://dl.acm.org/doi/10.1145/3618350) — modern authoring.
+
+---
+
+### T-045 — Ashton-Murray-Arnoult shoreline instability           [tier 6] [med]
+
+GOAL: Replace exposure-only coast logic (coast.lua:39-80) with AMA 2001 shoreline-instability solver. Run after T-046 GDH1. High-angle wave climate produces capes, spits, cuspate forelands; low-angle smooths.
+
+WHY: Current coast generates only per-cell cliffs and beaches — no spit/tombolo/cape/barrier-island morphology. AMA is a 1D polyline solver, cheap, produces recognizable real coast features.
+
+WHERE:
+- Extend `src/coast.lua:39-80` `Coast.apply` — extract shoreline polyline from `cell.water` transitions, run shoreline-flux divergence per node, advance shoreline normal.
+- New per-region fields `region.shorelines[]`, `region.spits[]`, `region.lagoons[]`.
+- New per-cell `shorelineNode:int32` (index into polyline).
+
+DEPENDS ON: T-038 (int32 SoA), T-046 (GDH1 — depth-of-closure scales with bathymetry).
+
+ACCEPTANCE:
+- High-angle wave fraction `U_hi > 0.5` produces cape spacing 10–100 km.
+- Strongly asymmetric high-angle produces downcoast-migrating spits.
+- Low-angle (`U_hi < 0.3`) smooths perturbations.
+- Lagoons appear behind spits.
+- `testShorelineCapes` runs synthetic straight-coast + perturbation; checks cape emergence under high-angle climate.
+
+NOTES / IMPL HINTS:
+- Shoreline extraction: walk water/land cell boundaries, build ordered polyline per connected component.
+- Resample to uniform alongshore spacing `ds = 4·stride`.
+- Per node: `φ_i = atan2(y_{i+1} - y_{i-1}, x_{i+1} - x_{i-1})`.
+- Sample wave-approach angle `θ_t` per step from climate PDF; `U_hi` per region from latitude band (storm tracks higher at 45–55°).
+- Longshore flux: `Q_s = K · H_b^(12/5) · cos(θ_b)^(6/5) · sin(θ_b)`, `θ_b = θ - φ`. `K = 0.39`, `H_b = 1.5 m`.
+- Shadow zone: walk along shoreline, sweep along wave direction, O(N).
+- Advance: `Δη_i = -(Q_{i+1/2} - Q_{i-1/2}) / (D · ds) · dt`. `D = 10 m`.
+- Self-intersection → splice; new island + lagoon.
+- Stochastic event-based update: 1 storm per step, `dt = days`. Aggregate over geologicTime.
+
+REFERENCES:
+- [Ashton, Murray & Arnoult 2001 Nature](https://doi.org/10.1038/35104541).
+- [Ashton & Murray 2006a JGR](https://doi.org/10.1029/2005JF000422).
+- [ShorelineS Frontiers 2020](https://www.frontiersin.org/journals/marine-science/articles/10.3389/fmars.2020.00535/full).
+
+---
+
+### T-046 — GDH1 crust-age bathymetry                             [tier 6] [low]
+
+GOAL: Replace per-cell `oceanAgeCooling` proxy with Stein & Stein 1992 GDH1: `d(t) = 2600 + 365·√t` for `t < 20 Myr`, `5651 - 2473·exp(-t/36)` for older. Produces canonical mid-ocean-ridge → abyssal-plain depth gradient.
+
+WHY: Current ocean is uniform-depth proxy. GDH1 gives the canonical depth-vs-age curve with no additional state (plate.age already tracked at worldgen.lua:644).
+
+WHERE:
+- `src/worldgen.lua:644-656` `baseSample` — for ocean cells (`plate.crust == "oceanic"`), compute `d_phys = GDH1(plate.age · world.maxOceanAgeMyr)`, convert to elevation contribution `e_age = currentSeaLevel - d_phys / world.zScale`, blend with tectonic `e_tect`.
+- New options `world.zScale` (default 10000 m), `world.maxOceanAgeMyr` (default 180).
+
+DEPENDS ON: none.
+
+ACCEPTANCE:
+- Mid-ocean ridges shallow (~2.6 km below surface); abyssal plains uniform ~5.5 km.
+- Symmetric depth-vs-distance from ridge on both flanks.
+- `testGDH1Profile` samples ocean cells along plate-age gradient, gates against analytical curve within 5%.
+
+NOTES / IMPL HINTS:
+- `plate.age ∈ [0, 1]` → `t_Ma = plate.age · world.maxOceanAgeMyr`.
+- `GDH1(t_Ma) = t_Ma < 20 ? 2600 + 365·√t_Ma : 5651 - 2473·exp(-t_Ma/36)` (continuous at t=20).
+- `e_age = currentSeaLevel - d_phys / world.zScale`.
+- Blend with tectonic elevation: `e_final = (1 - w_ocean) · e_tect + w_ocean · e_age`, `w_ocean = smoothstep(0, 1, oceanicCrustWeight)`.
+- For continental cells: skip (GDH1 oceanic-only).
+- Continental shelf transition: smooth blend over passive margin (~30 cells at continent scale).
+
+REFERENCES:
+- [Stein & Stein 1992 Nature](https://doi.org/10.1038/359123a0) — GDH1 model.
+- [Crosby & McKenzie 2009 GJI](https://doi.org/10.1111/j.1365-246X.2009.04085.x) — thermal subsidence updates.
+
+---
+
+### T-047 — Werner cellular dune CA (replaces aeolian.lua)        [tier 6] [med]
+
+GOAL: Replace sinusoidal dune proxy (aeolian.lua:21-37) with Werner 1995 cellular automaton: random pick → erode if not in shadow → transport L cells downwind → deposit with `p_sand=0.6, p_rock=0.4` → repose-angle slumping at 33°. Wind regime determines morphology (barchan / transverse / seif / star / parabolic).
+
+WHY: Current sinusoid produces only wind-aligned ripples; cannot generate barchans, seif, star, or parabolic dunes. Werner CA reproduces all from a single rule set with deterministic seeding.
+
+WHERE:
+- Replace body of `src/aeolian.lua:17-37` with new `Aeolian.applyRegion(region, options)` iterating `K · cellCount` times.
+- `src/worldgen.lua:830` call site — change from per-cell `applyCell` to per-region invocation after `classifyBiome` for the region (move call into hydrology pipeline post-coast, before per-cell biome finalization).
+
+DEPENDS ON: none. Climate winds available from `cell.windX, windY` (climate.lua:144-145).
+
+ACCEPTANCE:
+- 30% sand cover + unimodal wind + 50k iterations → discrete barchans with horns downwind, wavelength ~10–30 cells.
+- 80% cover + unimodal → transverse ridges, axes perpendicular to wind, wavelength ~20 cells.
+- Bimodal 60/40 split at 90° → linear seifs along resultant.
+- Multimodal wind (3+ directions sampled) → star dunes.
+- `testWernerDuneRegimes` runs 4 wind regimes and gates morphology classifier output.
+
+NOTES / IMPL HINTS:
+- `slabHeight = 0.005` (internal unit, ~0.5% of biome relief).
+- Iterations per "step": `10 · cellCount` for visible morphology.
+- Shadow check: scan upwind cells `(i - k·wx, j - k·wy)` for k=1..k_max=12; cell shadowed if any upwind `n[u] - n[i] > k · tan(15°)`.
+- Repose: BFS from modified cell; if `|n[a] - n[b]| > 1` slab-unit, transfer one slab; iterate until stable.
+- Transport jump `L = 3` cells. If deposition fails (`Rng.unit ≥ p`), continue another L; bound retries at 5 hops.
+- Wind regime: read `(cell.windX, cell.windY)` from climate. Bimodal/multimodal modeled by alternating wind direction across iterations per climate distribution.
+- Determinism: `Rng.unitAt(seed, gx, gy, iteration)` for cell pick — not `math.random`.
+
+REFERENCES:
+- [Werner 1995 Geology](https://doi.org/10.1130/0091-7613(1995)023%3C1107:EDCSAA%3E2.3.CO;2) — cellular dune model.
+- [Real-Time Sand Dune Simulation ACM 2023](https://dl.acm.org/doi/abs/10.1145/3585510) — extended morphologies.
+- [Parteli et al. 2013 arXiv](https://arxiv.org/pdf/1304.6573) — barchan asymmetry.
+
+---
+
+### T-048 — Karst surface overlay (lithology-gated)               [tier 6] [med]
+
+GOAL: For cells with `lithology == carbonate` (T-034), stamp sinkhole (doline), polje (closed depression), and tower-karst pillar features. Modifies elevation; assigns new `karst` biome.
+
+WHY: No karst landforms currently. Distinctive real-world morphology (cone karst, tower karst, sinkhole plains) absent. Cheap stamp-based overlay with high visual ROI.
+
+WHERE:
+- New `src/karst.lua` exposing `Karst.applyRegion(region, options)`.
+- `src/hydrology.lua:282-292` between `Erosion.relax` and `Erosion.glaciate` — call `Karst.applyRegion`.
+- `src/worldgen.lua:10` — append `karstDepth:double, cavePresence:double` to `soaFieldList`; `karstType:int8` to `soaInt8FieldList`.
+- `src/biomes.lua:42-55` — add `karst` biome when `karstType > 0`.
+
+DEPENDS ON: T-034 (lithology), T-038 (int8 SoA).
+
+ACCEPTANCE:
+- Carbonate regions show non-zero doline density (~1–5 per chunk).
+- Humid tropical carbonate regions show tower karst (positive relief inversion).
+- Sinkholes create closed depressions that priority-flood fills as small lakes.
+- `testKarstStamp` asserts non-zero karst-feature count in synthetic carbonate region.
+
+NOTES / IMPL HINTS:
+- Stamp kinds int8: 0=none, 1=doline (sinkhole, negative dz), 2=polje (broad depression), 3=towerKarst (positive dz), 4=karstPlain (flat).
+- Per cell: if `lithology == carbonate`, hash `r = Rng.unitAt(seed, gx, gy, 1009)`; if `r < density · climateMod`, candidate stamp center. Density default 0.04; climateMod = `(rainfall · (1 - latitudeUnit · 0.5))`.
+- Sort candidates by `Rng.hash(seed, gx, gy, 1019)`; Poisson-disk-prune with radius `2·stride`.
+- Per surviving stamp pick kind by context:
+  - Upland (`elevation > seaLevel + 0.2 && rainfall > 0.3`) → doline. Radius 1–2 cells. `elevation -= (0.04 + Rng.unit · 0.06) · cos(π · r / R)`.
+  - Basin (`slope < 0.05 && elevation < 0.3`) → polje. Polygon 3–5 cells. Uniform `elevation -= 0.02`.
+  - Tropical humid (`rainfall > 0.7 && latitudeUnit < 0.35`) → tower. Radius 1 cell. `elevation += 0.18 · (1 - r/R)`.
+- `cavePresence` per carbonate cell uniform 0.2–0.6 from `Rng.unit`.
+- Halo: 2 cells (stamps from neighbor chunks reach into edge cells).
+
+REFERENCES:
+- [Paris et al. 2021 CGF](https://onlinelibrary.wiley.com/doi/10.1111/cgf.14420) — cave network synthesis.
+- [Peytavie/Galin Arches](https://www.semanticscholar.org/paper/Arches:-a-Framework-for-Modeling-Complex-Terrains-Peytavie-Galin/e8b83d99ea6121c13df3570b4f8d3697257b1c2b).
+- [Ford & Williams Karst Hydrogeology 2007](https://onlinelibrary.wiley.com/doi/book/10.1002/9781118684986).
+
+---
+
+### T-049 — Coral reef succession (Darwin 1842)                   [tier 6] [med]
+
+GOAL: For warm shallow tropical coastlines and submerging seamounts, grow fringing → barrier → atoll reef per Darwin 1842 subsidence model. Adds `reef`, `lagoon` biomes.
+
+WHY: No coral reefs currently. Distinctive shallow-tropical morphology — fringing reefs near land, barrier reefs offshore, atolls over subsiding seamounts. Emerges from existing plate.age + hotspot subsidence (T-043).
+
+WHERE:
+- New `src/reef.lua` exposing `Reef.applyRegion(region, options)`.
+- `src/hydrology.lua:608-612` after `Coast.apply` — call `Reef.applyRegion`.
+- `src/worldgen.lua:10` — append `reefAccretion:double, reefAgeMy:double` to `soaFieldList`; `reefStage:int8` to `soaInt8FieldList`.
+- `src/biomes.lua` — add `reef`, `lagoon` biomes.
+
+DEPENDS ON: T-043 (hotspot subsidence drives atoll progression), T-036 (eustatic sea level — subsidence is sea-level relative), T-038.
+
+ACCEPTANCE:
+- Tropical (`latitudeUnit < 0.4 && temperature > 0.62`) shallow coasts develop fringing reefs (`reefStage = 1`).
+- Seamounts subsided since `reefStartTime > 0` show barrier (`reefStage = 2`) or atoll (`reefStage = 3`) geometry.
+- Atolls have central lagoon (`reefStage = 4`).
+- `testReefSuccession` runs synthetic subsiding seamount over geologicTime, asserts fringing → barrier → atoll.
+
+NOTES / IMPL HINTS:
+- Candidate filter: `water && latitudeUnit < 0.4 && temperature > 0.62 && elevation > seaLevel - 0.08`.
+- Reef seed: local elevation max in candidate region. `reefStartTime = Rng.unitAt(seed, seedGx, seedGy, 1061) · geologicTime`.
+- `reefAgeMy = max(0, geologicTime - reefStartTime)`.
+- `accretion = reefAgeMy · reefGrowthRate`; default `reefGrowthRate = 0.05` per Ma in normalized coords.
+- Subsidence `Δsub = thermalSubsidence(plate.age) + hotspotSubsidence(hotspotAgeMy)`. Thermal via GDH1 (T-046); hotspot via `exp` decay over ~30 Ma.
+- Stage rules (Darwin):
+  - `accretion < Δsub - 0.02` → submerged (stage 5).
+  - `Δsub < 0.005` → fringing (stage 1).
+  - `0.005 ≤ Δsub < 0.04` && accretion keeps pace → barrier (stage 2).
+  - `Δsub ≥ 0.04` && accretion keeps pace, substrate well below → atoll ring (stage 3); interior = lagoon (stage 4).
+- Write biome `reef` to ring; `lagoon` to atoll interior. Accreting reef cells: `elevation = max(elevation, currentSeaLevel + 0.002)`.
+
+REFERENCES:
+- [Darwin 1842 Structure & Distribution of Coral Reefs](https://www.gutenberg.org/files/2690/2690-h/2690-h.htm).
+- [Toomey, Ashton & Perron 2013 Geology](https://pubs.geoscienceworld.org/gsa/geology/article/41/7/731/130911).
+
+---
+
+### T-050 — Orometry-conditioned regional priors                  [tier 6] [med]
+
+GOAL: Offline-bake (one-time, `tools/bake_orometry.lua`) per-archetype statistics from SRTM tiles for ~6 mountain archetypes (Alps, Appalachians, Himalaya, Andes, Fjordland, Basin&Range). At runtime, each continental chunk picks an archetype deterministically; noise+plate generator parameters scale toward that archetype.
+
+WHY: Current global noise+plate machinery produces homogeneous mountains everywhere. Real ranges differ dramatically — Alps sharp/glaciated, Appalachians rounded/old, Himalaya extreme/young. Orometry priors keep procedural infinity but eliminate global homogeneity.
+
+WHERE:
+- New `tools/bake_orometry.lua` — offline script (LuaJIT) ingesting SRTM GeoTIFF tiles, writing `assets/orometry/archetypes.lua` as a plain Lua return table.
+- New `src/orometry.lua` — runtime accessor.
+- `src/worldgen.lua:633-712` `baseSample` — at noise contribution step (lines 638-639), multiply `Noise.ridge` and `Noise.fbm` parameters by archetype-derived scales.
+- `src/worldgen.lua:10` — append `archetypeBlend:double` to `soaFieldList`; `archetypeId:int8` to `soaInt8FieldList`.
+
+DEPENDS ON: T-038 (int8 SoA).
+
+ACCEPTANCE:
+- 6 archetype entries baked into `assets/orometry/archetypes.lua`.
+- Chunks in different "regions" of the world have visually distinct mountain morphology.
+- `testOrometryArchetypes` asserts mean slope/relief differ > 30% between two distinct-archetype chunks of the same seed.
+
+NOTES / IMPL HINTS:
+- Per-archetype stats: `{ peakProminenceHist[16], saddleProminenceHist[16], peakDensityPerKm2, ridgelineSpacingMean, ridgelineSpacingStd, meanSlope, reliefP95, reliefP50, peakAmpScale, ridgeFreqScale, slopeBias, reliefScale }`.
+- File format: Lua `return { alps = {...}, appalachians = {...}, himalaya = {...}, andes = {...}, fjordland = {...}, basinrange = {...} }`. Loaded via `dofile()` at world ctor — no JSON parser cost on hot path.
+- Archetype pick: `archetypeIndex = Rng.hash(seed, floorDiv(cx, 4), floorDiv(cy, 4), 1091) % nArchetypes`. Quadrant-stable (4×4 chunks share archetype).
+- Halo 8 cells for blending across 4×4 quadrant boundaries with smoothstep transition.
+- SRTM source: 1° tiles (~3 arcsec), public-domain USGS EarthExplorer; downsample to 30 arcsec before stats.
+
+REFERENCES:
+- [Argudo & Galin 2019 TOG](https://hal.science/hal-02326472/file/2019-orometry.pdf) — orometry-based terrain.
+- [oargudo/orometry-terrains GitHub](https://github.com/oargudo/orometry-terrains) — reference implementation.
+- [USGS EarthExplorer SRTM](https://earthexplorer.usgs.gov/).
+
+---
+
+## Stretch — lower-priority extensions
+
+These provide further fidelity gains but are not gating realism wins. Land after the substrate (T-034 — T-038) when bandwidth allows.
+
+---
+
+### T-051 — Volcanic landform expansion (cones, calderas, lava)   [tier 6] [med]
+
+GOAL: For cells flagged by `volcanicIslandArc > 0.4` (subduction arcs at worldgen.lua:651) or `hotspotContribution > 0.25` (T-043), stamp distinctive volcanic landforms — stratovolcano cones, calderas (collapse depressions), lava-flow tongues following D8 steepest descent.
+
+WHY: Current model produces volcanic *terrain* (uplift) but no distinct volcanic *landforms* (cones, calderas, flows). Stratovolcanoes and shield volcanoes are iconic and emerge naturally from existing tectonic flags + stamp pass.
+
+WHERE: New `src/volcano.lua`. Call site `src/hydrology.lua` after T-048 karst, before T-049 reef. New per-cell `volcanicForm:int8` (0=none,1=stratoCone,2=caldera,3=lavaFlow,4=shield,5=cinderCone), `volcanicAgeMy:double`.
+
+DEPENDS ON: T-038, T-043.
+
+ACCEPTANCE: Volcanic chunks contain visible cones + lava-flow signatures. `testVolcanicLandforms` gates.
+
+NOTES / IMPL HINTS:
+- Cone elevation: `Δz = h_peak · exp(-r/r_scale)`; `h_peak ∈ [0.18, 0.32]`, `r_scale ∈ [2, 4]` cells.
+- Caldera: subtract `0.14 · cos(r·π/R)` at summit if `Rng.unit < 0.3` (collapse probability).
+- Lava flow: D8 steepest descent from summit for `N = 8–16` cells, add `+0.01` thickness per cell, decaying.
+- Strato vs shield: arc + andesitic → strato (steep, `h/r > 0.15`); hotspot + basaltic → shield (gentle, `h/r < 0.05`).
+- Cinder cone: small (`h_peak = 0.04`, `r_scale = 1.5`), in monogenetic fields (cluster of 5–10 stamps).
+
+REFERENCES:
+- [Flowy 2024 arXiv](https://arxiv.org/pdf/2405.20144) — probabilistic lava emplacement.
+- [Volcanic Skies CGF 2024](https://onlinelibrary.wiley.com/doi/full/10.1111/cgf.15034).
+
+---
+
+### T-052 — Periglacial features (pingos, palsas, polygonal)      [tier 6] [low]
+
+GOAL: For cells in cold non-glaciated zones (`temperature < 0.25 && !cell.glaciated`), stamp pingos (ice-cored mounds), palsas (peat mounds), polygonal-patterned-ground texture, solifluction lobes on slopes.
+
+WHY: Tundra biome is currently visually uniform. Periglacial features give Arctic terrain its characteristic surface texture.
+
+WHERE: New `src/periglacial.lua`. Call in chunk-build after biome classification. New per-cell `periglacialFeature:int8`.
+
+DEPENDS ON: T-038.
+
+ACCEPTANCE: Tundra/boreal cells have non-zero periglacial-feature density. `testPeriglacialStamps` gates.
+
+NOTES / IMPL HINTS:
+- Pingo: small mound `Δz = 0.005 + 0.01 · Rng.unit`, `r=1` cell, density ~1 per 20 cells in tundra.
+- Palsa: smaller, in waterlogged wetland-tundra.
+- Polygonal ground: deterministic Voronoi pattern at `~3-cell` cell size, `Δz=0` (texture-only — render hint).
+- Solifluction: on slopes 0.05–0.2 in tundra, add downslope-aligned ridges (small amplitude `±0.003`).
+
+REFERENCES:
+- [Periglacial landforms — AntarcticGlaciers](https://www.antarcticglaciers.org/glacial-geology/glacial-landforms/periglaciation/periglacial-landforms/).
+
+---
+
+### T-053 — Marine bathymetry features                            [tier 6] [med]
+
+GOAL: Populate abyssal-plain noise floor, hadal trenches, seamounts (hotspot residual outside the trail), and submarine canyons (D8 routing extended below sea level seeded at shelf-break).
+
+WHY: Ocean rendering currently shows uniform-depth water. Real ocean has structure — continental shelves, slopes, abyssal plains, mid-ocean ridges (T-046), trenches, seamounts, submarine canyons.
+
+WHERE: Extensions to `src/worldgen.lua:644-656` (abyssal noise, seamount stamps) and `src/hydrology.lua` (submarine-canyon D8 on bathymetry).
+
+DEPENDS ON: T-046 (GDH1).
+
+ACCEPTANCE: Ocean cells exhibit varied depth, recognisable shelf/slope/abyss profile, occasional seamounts. `testBathymetryProfile`.
+
+NOTES / IMPL HINTS:
+- Continental shelf: `+0.02 · plate.continental_distance_within_50_cells` added to ocean elevation.
+- Continental slope: smoothstep from shelf to abyss at 30–60 cells offshore.
+- Seamounts: jittered-grid stamps on oceanic cells, `Δz = 0.08 · exp(-r²/r²_scale)`, `r_scale = 1.5` cells, density ~1 per 100 cells.
+- Submarine canyon: at continental-slope cells, D8-route downhill on bathymetry, incise `-0.015` per path cell.
+- Hadal trench: clamp existing `trench` at worldgen.lua:648 to GDH1 + 1-2 km extra.
+
+REFERENCES:
+- [Stein & Stein 1992](https://doi.org/10.1038/359123a0) (T-046 reference).
+- [Harris & Whiteway 2011 Marine Geology](https://doi.org/10.1016/j.margeo.2011.05.008) — submarine canyon morphology.
+
+---
+
+### T-054 — CLORPT soil classifier + horizons                     [tier 6] [med]
+
+GOAL: After lithology (T-034) and regolith (T-035), classify USDA soil order (Entisol, Inceptisol, Mollisol, Vertisol, Aridisol, Histosol, Spodosol, Oxisol, Andisol, Ultisol) via CLORPT factors (climate, organisms, relief, parent, time).
+
+WHY: Current biomes use Whittaker climate-only LUT. Soil determines vegetation just as much as climate (e.g., serpentine soils host distinct flora; peat blocks tree roots). Adds depth without significant per-cell footprint increase.
+
+WHERE: New `src/soil_classify.lua`. Call in chunk pipeline after biome classification. New per-cell `soilOrder:int8`.
+
+DEPENDS ON: T-034, T-035, T-038.
+
+ACCEPTANCE: Soil-order distribution matches global frequency ±20%. `testSoilOrderDistribution` gates.
+
+NOTES / IMPL HINTS:
+- 10 USDA soil orders → int8.
+- Decision tree using climate (temp, precip), parent lithology (T-034), relief (slope), drainage (flow accumulation), age (`plate.age`).
+- Examples: humid tropical + intense weathering → Oxisol; cool boreal conifer → Spodosol; arid endorheic → Aridisol; volcanic ash parent → Andisol; waterlogged organic → Histosol.
+- Optional layered horizons (O/A/E/B/C/R) as additional SoA fields — defer to v2 unless render uses horizon colors.
+
+REFERENCES:
+- [USDA Soil Taxonomy](https://www.nrcs.usda.gov/resources/guides-and-instructions/keys-to-soil-taxonomy).
+- [Soil formation / CLORPT — Wikipedia](https://en.wikipedia.org/wiki/Soil_formation).
+- [Weigert SoilMachine](https://github.com/weigert/SoilMachine) — particle-transport soil simulator.
+
+---
+
+### T-055 — Vegetation succession + treeline + riparian + fire    [tier 6] [med]
+
+GOAL: Extend `Biomes.lookup` (biomes.lua:42-55) into multi-pass classifier: (a) climate base via Whittaker, (b) treeline via growing-degree-day proxy, (c) riparian galleries along rivers, (d) fire-shaped savanna/chaparral in seasonal-dry biomes, (e) ecotone blending at boundaries.
+
+WHY: Current biome assignment is a hard LUT — no ecotones, no treeline, no riparian, no fire-shaped biomes. Adding these gives recognizable real biome boundaries.
+
+WHERE: Replace `src/biomes.lua` with multi-pass version. New per-cell `treeline:int8`, `riparian:int8`, `fireFrequency:double`.
+
+DEPENDS ON: T-042 (3-cell climate provides seasonality), T-038.
+
+ACCEPTANCE: River corridors in arid regions show riparian biome; alpine treeline visible as elevation ring; savanna spans seasonal-dry regions. `testBiomeRefinement` gates.
+
+NOTES / IMPL HINTS:
+- Treeline: `treeline = (growingDegreeDays < 1100) || (windSpeed > threshold)`. Approximate `GDD ≈ temperature · (1 - latitudeUnit) · 4000`; treeline at `GDD < 1100`.
+- Riparian: 1-cell buffer along rivers in non-water cells; assigns `riparian = 1`. In arid regions, biome overlay → `temperate_forest` even if surrounding is `desert`.
+- Fire: high in summer-dry climates (Mediterranean-type at 30–40° lat with `monsoonIndex < 0`). Reduce forest cover by `fireFrequency`.
+- Ecotone blending: at biome boundary cells, set `cell.biomeSecondary` for transition rendering.
+
+REFERENCES:
+- [Whittaker biome diagram — Wikipedia](https://en.wikipedia.org/wiki/Biome).
+- [Palubicki Ecoclimates 2022](https://history.siggraph.org/learning/ecoclimates-climate-response-modeling-of-vegetation-by-palubicki-makowski-gajda-hadrich-michels-et-al/).
+- [Makowski Synthetic Silviculture 2019](https://www.researchgate.net/publication/334438882_Synthetic_silviculture_multi-scale_modeling_of_plant_ecosystems).
+
+---
+
+### T-056 — Regression fixture rebake + encodeCell append-only    [tier 6] [low]
+
+GOAL: After each TIER 6 task lands, append its new cell fields to `tests/run.lua:encodeCell` (line 37-110) in stated order, and rebake `tests/bench.baseline.json`.
+
+WHY: Test determinism contract requires `encodeCell` to cover all per-cell state. Each new field that affects geometry must enter the encoder; else two seeds-equal worlds could diverge undetected on a non-encoded field.
+
+WHERE: `tests/run.lua:37-110`. Append-only — never reorder existing fields.
+
+DEPENDS ON: Each TIER 6 task above. Run T-056 once per landed task.
+
+ACCEPTANCE: `make test`, `make smoke`, `make diagnostics`, `make regressions`, `make bench-update` all green after each rebake.
+
+NOTES / IMPL HINTS — append in this exact order (one block per landed task):
+- T-034: `tostring(cell.lithology), round(cell.erodibilityK), round(cell.lithologyAge)`.
+- T-035: `round(cell.regolithDepth), round(cell.bedrockElevation)`.
+- T-036: `round(cell.marineTerrace), round(cell.fluvialTerrace), tostring(cell.paleoShoreline)`.
+- T-037: `round(cell.latitudeRadians), round(cell.coriolisF)`.
+- T-038: (no encoder change — infra only).
+- T-039: `round(cell.hillslopeDelta)`.
+- T-040: `round(cell.debrisFlowDelta), tostring(cell.debrisFlow)`.
+- T-041: `round(cell.iceThickness)` (existing `glacialDelta, glacialErosion, glaciated` already encoded).
+- T-042: `tostring(cell.pressureCellId), round(cell.monsoonIndex)`.
+- T-043: `round(cell.hotspotContribution), round(cell.hotspotAgeMy), tostring(cell.hotspotId), tostring(cell.isFloodBasalt)`.
+- T-044: `round(cell.meanderBend), tostring(cell.oxbowLake)`.
+- T-045: `tostring(cell.shorelineNode)`.
+- T-046: (folds into existing `cell.elevation` — no new field).
+- T-047: (replaces dune fields — no new encoder entries).
+- T-048: `tostring(cell.karstType), round(cell.karstDepth), round(cell.cavePresence)`.
+- T-049: `tostring(cell.reefStage), round(cell.reefAccretion), round(cell.reefAgeMy)`.
+- T-050: `tostring(cell.archetypeId), round(cell.archetypeBlend)`.
+- T-051: `tostring(cell.volcanicForm), round(cell.volcanicAgeMy)`.
+- T-052: `tostring(cell.periglacialFeature)`.
+- T-053: `tostring(cell.submarineCanyon), round(cell.shelfDistance)`.
+- T-054: `tostring(cell.soilOrder)`.
+- T-055: `tostring(cell.treeline), tostring(cell.riparian), round(cell.fireFrequency)`.
+
+REFERENCES: (none).
+
+---
+
 # Execution order (recommended)
 
 ```
@@ -132,6 +923,32 @@ Tier 2: T-009 → T-010 → T-011 → T-012 → T-013 → T-014 → T-015 → T-
 Tier 3: T-018 → T-019 → T-020 → T-022 → T-021 → T-023
 Tier 4: T-024 → T-025 → T-026 → T-027 → T-028 → T-029
 Tier 5: T-030, T-031, T-032 (in parallel anywhere)
+Tier 6 substrate (must land first, in this order):
+  T-038 (FFI int8 SoA infra)
+  → T-037 (geographic latitude + Coriolis)
+  → T-036 (eustatic sea level)
+  → T-035 (regolith + bedrock surface)
+  → T-034 (lithology classifier)
+Tier 6 process passes (any order subject to listed DEPENDS ON):
+  T-046 (GDH1 bathymetry) — independent
+  T-042 (3-cell climate) — after T-037, T-038
+  T-039 (Roering hillslope) — after T-034, T-035
+  T-040 (Jain debris-flow) — after T-039
+  T-041 (SIA glaciers) — after T-035
+  T-043 (hotspots) — after T-034, T-038
+  T-044 (meandering rivers) — independent
+  T-045 (Ashton shoreline) — after T-038, T-046
+  T-047 (Werner dunes) — independent (climate winds preferred)
+  T-048 (karst) — after T-034, T-038
+  T-049 (reef succession) — after T-036, T-043
+  T-050 (orometry priors) — after T-038
+Tier 6 stretch (any order, after substrate):
+  T-051 (volcanic landforms) — after T-038, T-043
+  T-052 (periglacial) — after T-038
+  T-053 (marine bathymetry) — after T-046
+  T-054 (CLORPT soil) — after T-034, T-035
+  T-055 (vegetation succession) — after T-042
+T-056 (regression rebake + encodeCell append) — after each Tier 6 task closes.
 T-033 after each tier closes.
 ```
 
@@ -191,3 +1008,65 @@ For any task:
 - [Angled pixelation with palette quantization (Godot Shaders)](https://godotshaders.com/shader/angled-pixelation-with-color-palette-quantization-and-fog/)
 - [LÖVE pixel-perfect rendering thread](https://love2d.org/forums/viewtopic.php?t=91869)
 - [LÖVE pixel-art scaling thread](https://love2d.org/forums/viewtopic.php?t=9374)
+
+**Tier 6 — tectonics & volcanism**
+- [Cortial et al. 2019 — Procedural Tectonic Planets (CGF)](https://onlinelibrary.wiley.com/doi/abs/10.1111/cgf.13614)
+- [Tectonics.js — davidson16807](https://davidson16807.github.io/tectonics.js/blog/)
+- [Wessel & Kroenke 2024 — Hawaii-Emperor hotspot chain (Nature Comms)](https://www.nature.com/articles/s41467-024-51055-9)
+- [Stein & Stein 1992 — GDH1 crust-age bathymetry (Nature)](https://doi.org/10.1038/359123a0)
+- [Crosby & McKenzie 2009 — thermal subsidence (GJI)](https://doi.org/10.1111/j.1365-246X.2009.04085.x)
+- [Anbar & Knoll 2002 — lithology distribution (Science)](https://www.science.org/doi/10.1126/science.1069651)
+- [Flowy 2024 — probabilistic lava emplacement (arXiv)](https://arxiv.org/pdf/2405.20144)
+- [Pretorius et al. 2024 — Volcanic Skies (CGF)](https://onlinelibrary.wiley.com/doi/full/10.1111/cgf.15034)
+
+**Tier 6 — hillslope, debris, fluvial geomorphology**
+- [Roering, Kirchner & Dietrich 1999 — nonlinear hillslope (WRR)](https://doi.org/10.1029/1998WR900090)
+- [Roering, Kirchner & Dietrich 2001 — Gabilan Mesa calibration (JGR)](https://doi.org/10.1029/2001JB000323)
+- [Roering 2008 — review (GSA Bull)](https://doi.org/10.1130/B26283.1)
+- [Heimsath et al. 1997 — bedrock production (Nature)](https://doi.org/10.1038/41056)
+- [Heimsath 2001 — Oregon coast calibration (ESPL)](https://doi.org/10.1002/esp.260)
+- [Yoo & Mudd 2008 — bulking ratio (JGR)](https://doi.org/10.1029/2007JF000846)
+- [Jain et al. 2024 — Debris-flow erosion (TOG)](https://www.cs.purdue.edu/cgvlab/www/resources/papers/Arymaan-ToG-2024-efficient.pdf)
+- [Iverson 1997 — debris-flow physics (Rev Geophys)](https://doi.org/10.1029/97RG00426)
+- [Howard & Knutson 1984 — curvature-driven meander migration (WRR)](https://doi.org/10.1029/WR020i011p01659)
+- [Ikeda, Parker & Sawai 1981 — upstream influence kernel (JFM)](https://doi.org/10.1017/S0022112081002231)
+- [Vimont et al. 2023 — Authoring meandering rivers (TOG)](https://dl.acm.org/doi/10.1145/3618350)
+
+**Tier 6 — glacial & periglacial**
+- [Cordonnier et al. SIGGRAPH 2023 — Glacial Erosion (HAL)](https://inria.hal.science/hal-04090644/file/Sigg23_Glacial_Erosion__author.pdf)
+- [Hallet 1979 — glacial abrasion law (J Glaciol)](https://doi.org/10.3189/S0022143000029798)
+- [Herman et al. 2015 — sliding-velocity² (EPSL)](https://doi.org/10.1016/j.epsl.2015.06.035)
+- [Cuffey & Paterson — Physics of Glaciers 4e](https://www.elsevier.com/books/the-physics-of-glaciers/cuffey/978-0-12-369461-4)
+- [Periglacial landforms — AntarcticGlaciers.org](https://www.antarcticglaciers.org/glacial-geology/glacial-landforms/periglaciation/periglacial-landforms/)
+
+**Tier 6 — aeolian, karst, coastal**
+- [Werner 1995 — cellular dune model (Geology)](https://doi.org/10.1130/0091-7613(1995)023%3C1107:EDCSAA%3E2.3.CO;2)
+- [Real-Time Sand Dune Simulation ACM 2023](https://dl.acm.org/doi/abs/10.1145/3585510)
+- [Parteli et al. 2013 — barchan asymmetry (arXiv)](https://arxiv.org/pdf/1304.6573)
+- [Paris et al. 2021 — Cave network synthesis (CGF)](https://onlinelibrary.wiley.com/doi/10.1111/cgf.14420)
+- [Peytavie/Galin — Arches framework (Semantic Scholar)](https://www.semanticscholar.org/paper/Arches:-a-Framework-for-Modeling-Complex-Terrains-Peytavie-Galin/e8b83d99ea6121c13df3570b4f8d3697257b1c2b)
+- [Ford & Williams 2007 — Karst Hydrogeology](https://onlinelibrary.wiley.com/doi/book/10.1002/9781118684986)
+- [Ashton, Murray & Arnoult 2001 — shoreline instability (Nature)](https://doi.org/10.1038/35104541)
+- [Ashton & Murray 2006a — high/low-angle (JGR)](https://doi.org/10.1029/2005JF000422)
+- [ShorelineS framework (Frontiers 2020)](https://www.frontiersin.org/journals/marine-science/articles/10.3389/fmars.2020.00535/full)
+- [Darwin 1842 — Coral Reef succession](https://www.gutenberg.org/files/2690/2690-h/2690-h.htm)
+- [Toomey, Ashton & Perron 2013 — modern reef dynamics (Geology)](https://pubs.geoscienceworld.org/gsa/geology/article/41/7/731/130911)
+- [Harris & Whiteway 2011 — submarine canyon morphology (Marine Geol)](https://doi.org/10.1016/j.margeo.2011.05.008)
+
+**Tier 6 — climate, soils, vegetation**
+- [Hadley cell — Wikipedia](https://en.wikipedia.org/wiki/Hadley_cell)
+- [Schneider, Bischoff & Haug 2014 — ITCZ migration (Nature)](https://www.nature.com/articles/nature13636)
+- [Palubicki et al. 2022 — Ecoclimates (SIGGRAPH)](https://history.siggraph.org/learning/ecoclimates-climate-response-modeling-of-vegetation-by-palubicki-makowski-gajda-hadrich-michels-et-al/)
+- [Makowski et al. 2019 — Synthetic Silviculture](https://www.researchgate.net/publication/334438882_Synthetic_silviculture_multi-scale_modeling_of_plant_ecosystems)
+- [USDA Soil Taxonomy](https://www.nrcs.usda.gov/resources/guides-and-instructions/keys-to-soil-taxonomy)
+- [Soil formation / CLORPT — Wikipedia](https://en.wikipedia.org/wiki/Soil_formation)
+- [Weigert SoilMachine](https://github.com/weigert/SoilMachine)
+
+**Tier 6 — eustatic sea level**
+- [Haq, Hardenbol & Vail 1987 — eustatic curve (Science)](https://www.science.org/doi/10.1126/science.235.4793.1156)
+- [Miller et al. 2005 — Phanerozoic sea level (Science)](https://www.science.org/doi/10.1126/science.1116412)
+
+**Tier 6 — orometry priors / real-world data fusion**
+- [Argudo & Galin 2019 — Orometry-based terrain (HAL)](https://hal.science/hal-02326472/file/2019-orometry.pdf)
+- [oargudo/orometry-terrains GitHub](https://github.com/oargudo/orometry-terrains)
+- [USGS EarthExplorer SRTM](https://earthexplorer.usgs.gov/)
