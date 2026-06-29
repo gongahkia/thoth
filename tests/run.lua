@@ -17,6 +17,7 @@ local Benchmark = require("src.benchmark")
 local Erosion = require("src.erosion")
 local Climate = require("src.climate")
 local SoilProduction = require("src.soil_production")
+local Hillslope = require("src.hillslope")
 local Biomes = require("src.biomes")
 local Aeolian = require("src.aeolian")
 
@@ -122,6 +123,7 @@ local function encodeCell(cell)
         round(cell.fluvialTerrace),
         round(cell.latitudeRadians),
         round(cell.coriolisF),
+        round(cell.hillslopeDelta),
         tostring(cell.paleoShoreline),
         tostring(cell.riverHistorical),
     }, "|")
@@ -348,7 +350,7 @@ local function testSurveyHistory()
 end
 
 local function testSaveLoadRoundTrip()
-    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001 })
+    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3 })
     local survey = Survey.new()
     Survey.mark(survey, world, -64, -64, "local")
     local viewScale = ViewScale.new(world)
@@ -373,6 +375,7 @@ local function testSaveLoadRoundTrip()
     expect(decoded.camera.yaw == 0.7 and decoded.display.viewScale == "region", "save should round-trip camera and display settings")
     expect(decoded.world.geologicTime == 0.4 and decoded.world.geologicTimeStep == 0.03 and decoded.world.seaLevelAmplitude1 == 0.04, "save should round-trip world sea-level settings")
     expect(decoded.world.legacyLatitude == false and decoded.world.worldCircumference == 1024 and decoded.world.omega == 0.0001, "save should round-trip latitude settings")
+    expect(decoded.world.hillslopeD == 0.02 and decoded.world.hillslopeSc == 0.9 and decoded.world.hillslopeIterations == 3, "save should round-trip hillslope settings")
     expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
     expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.debugPanels and not decoded.display.mouseLook, "save should round-trip display toggles")
     expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
@@ -592,6 +595,40 @@ local function testRegolithProduction()
         end
     end
     expect(produced > 0, "geologic-time chunks should produce regolith")
+end
+
+local function testHillslopeProfile()
+    local region = { cells = {}, stride = 1 }
+    local function put(gx, elevation)
+        local cell = {
+            gx = gx,
+            gy = 0,
+            elevation = elevation,
+            elevationBase = elevation,
+            bedrockElevation = elevation - 4,
+            regolithDepth = 4,
+            lithology = 5,
+            water = false,
+        }
+        region.cells[tostring(gx) .. ":0"] = cell
+        return cell
+    end
+    for gx = -12, 12 do
+        put(gx, math.max(0, 8 - math.abs(gx) * 0.72))
+    end
+    local beforePeak = region.cells["0:0"].elevation
+    local result = Hillslope.diffuse(region, { D = 0.02, Sc = 1.2, dt = 0.05, dtYearsScale = 1, iterations = 80 })
+    local peak = region.cells["0:0"].elevation
+    local shoulder = region.cells["4:0"].elevation
+    local foot = region.cells["9:0"].elevation
+    local curvature = region.cells["-1:0"].elevation - 2 * peak + region.cells["1:0"].elevation
+    expect(result.moved > 0 and result.transitionFaces > 0, "hillslope diffusion should move regolith through Sc transition slopes")
+    expect(peak < beforePeak and peak > shoulder and shoulder > foot, "diffused hillslope should preserve descending ridge profile")
+    expect(curvature < 0, "diffused ridge should keep convex hilltop curvature")
+    for _, cell in pairs(region.cells) do
+        expect(cell.regolithDepth >= 0, "hillslope diffusion should not overdraw regolith")
+        expect(math.abs((cell.bedrockElevation + cell.regolithDepth) - cell.elevation) < 0.000001, "hillslope diffusion should preserve bedrock/regolith surface")
+    end
 end
 
 local function testSeaLevelSeries()
@@ -1442,6 +1479,7 @@ local tests = {
     testLithologyDistribution,
     testLithologyErodibilityScalesStreamPower,
     testRegolithProduction,
+    testHillslopeProfile,
     testSeaLevelSeries,
     testGeographicLatitudeAndCoriolis,
     testPlateMotionGeologicTime,

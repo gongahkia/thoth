@@ -132,42 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-039 — Roering nonlinear hillslope diffusion + soil coupling [tier 6] [med]
-
-GOAL: Add Roering 1999/2001 nonlinear hillslope flux `q = -D∇z / (1 - (|∇z|/Sc)²)` coupled to T-035 regolith. New pass runs between climate and stream-power in the hydrology pipeline.
-
-WHY: Linear diffusion (and current `thermalErosion` slope flag at `src/hydrology.lua:556`) cannot produce the convex-near-crest, planar-near-base hillslope signature characteristic of real soil-mantled slopes. Nonlinear diffusion is the standard physically-based law. Largest realism delta for same per-cell cost.
-
-WHERE:
-- New `src/hillslope.lua` exposing `Hillslope.diffuse(region, options)`.
-- `src/hydrology.lua:269-278` — insert `Hillslope.diffuse(region, { D, Sc, dt, iterations })` between flow accumulation (line 269-274) and `Erosion.relax` (line 278). After diffusion, recompute `streamPowerSlope` for the erosion pass.
-- `src/erosion.lua:149,182` — multiply `k` by `cell.erodibilityK` (T-034); gate diffusion by `cell.regolithDepth > 0` (T-035 — bare bedrock cells use reduced `D = 0.1·D_default`).
-- New per-cell field `hillslopeDelta:double` for diagnostics.
-
-DEPENDS ON: T-035 (regolith), T-034 (erodibilityK).
-
-ACCEPTANCE:
-- Long-time hillslope profiles show convex hilltop, planar mid-slope, characteristic transition near `|s|/Sc ≈ 0.6`.
-- Hilltop curvature anti-correlates with erosion rate.
-- `testHillslopeProfile` plots a synthetic 1D ridge and gates against expected shape (Sc-induced kink within ±10%).
-- Determinism preserved.
-- `make test` green after T-056.
-
-NOTES / IMPL HINTS:
-- Defaults: `D = 0.005 m²/yr`, `Sc = 1.2` (~50°). Per-cell override: arid granular slopes (`cell.lithology == evaporite`) use `Sc = 0.8`.
-- Stencil 4-connected FTCS: face slope `s_face = (z_neighbor - z) / dx`, face flux `q_face = -D · s_face / (1 - (|s_face|/Sc)²)`; divergence `dz/dt = -(qE - qW)/dx - (qN - qS)/dy`.
-- Clamp `|s_face|/Sc ≤ 0.99` to prevent denominator blowup.
-- CFL: `dt ≤ 0.2 · dx² / (4 · D_eff)` where `D_eff = D / (1 - (s_max/Sc)²)²`. Sub-step when `s_max/Sc > 0.9`.
-- Two-layer coupling with T-035: transport `min(regolithDepth, |q|·dt)` per face; subtract from `regolithDepth`, not `bedrockElevation`. If regolith exhausted, expose bedrock; next step's soil production refills.
-- Boundary: zero-flux Neumann at chunk halo edges (mirror cells).
-
-REFERENCES:
-- [Roering, Kirchner & Dietrich 1999 WRR](https://doi.org/10.1029/1998WR900090) — nonlinear flux law.
-- [Roering, Kirchner & Dietrich 2001 JGR](https://doi.org/10.1029/2001JB000323) — Gabilan Mesa calibration.
-- [Roering 2008 GSA Bulletin](https://doi.org/10.1130/B26283.1) — review + Sc literature range.
-
----
-
 ### T-040 — Jain debris-flow erosion on steep slopes               [tier 6] [med]
 
 GOAL: Add Jain et al. 2024 debris-flow regime to `Erosion.relax`. Cells with sediment concentration `C > 0.4` switch from fluvial `E_f = K_f A^m S^n` to debris `E_d = K_d q_w S^β` with `β=2`. Deposition when `S < S_dep = 0.1`.

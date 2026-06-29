@@ -2,6 +2,7 @@ local Erosion = require("src.erosion")
 local Climate = require("src.climate")
 local Coast = require("src.coast")
 local SoilProduction = require("src.soil_production")
+local Hillslope = require("src.hillslope")
 
 local Hydrology = {}
 
@@ -307,6 +308,16 @@ local function solveBasin(world, chunkX, chunkY, info)
             cell.downCell.flow = cell.downCell.flow + cell.flow * 0.985
         end
     end
+    if (world.geologicTimeStep or 0) > 0 and (world.hillslopeIterations or 0) > 0 then
+        region.hillslope = Hillslope.diffuse(region, {
+            D = world.hillslopeD,
+            Sc = world.hillslopeSc,
+            dt = world.geologicTimeStep,
+            iterations = world.hillslopeIterations,
+        })
+    else
+        region.hillslope = { moved = 0, cells = 0, maxSlopeRatio = 0, transitionFaces = 0 }
+    end
 
     region.visitOrder = visitOrder
     region.seaLevel = seaLevel
@@ -335,6 +346,7 @@ local function solveBasin(world, chunkX, chunkY, info)
                 isostaticRebound = cell.isostaticRebound or 0,
                 glacialDelta = cell.glacialDelta or 0,
                 glaciated = cell.glaciated and 1 or 0,
+                hillslopeDelta = cell.hillslopeDelta or 0,
             }
         end
     end
