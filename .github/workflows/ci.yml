@@ -14,106 +14,44 @@ jobs:
       - name: Install Lua runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y luajit love zip xvfb xauth
+          sudo apt-get install -y luajit love
 
-      - name: Run headless tests
+      - name: Run unit tests
         run: make test
 
-      - name: Run asset checks
-        run: make check
+      - name: Run smoke
+        run: make smoke
 
-      - name: Run procgen validator
-        run: make validate
+      - name: Run diagnostics
+        run: make diagnostics
 
-      - name: Run title smoke
+      - name: Run regression seeds
+        run: make regressions
+
+      - name: Run benchmark with baseline
+        run: make bench
+
+      - name: Run render smoke (headless)
         env:
-          SDL_AUDIODRIVER: dummy
-        run: make title-smoke
-
-      - name: Run settings smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make settings-smoke
-
-      - name: Run estate smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make estate-smoke
-
-      - name: Run combat smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make combat-smoke
-
-      - name: Run curio smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make curio-smoke
-
-      - name: Run camp smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make camp-smoke
-
-      - name: Run pause smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make pause-smoke
-
-      - name: Run confirm smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make confirm-smoke
-
-      - name: Run game-over smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make gameover-smoke
-
-      - name: Run credits smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make credits-smoke
-
-      - name: Run journal smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make journal-smoke
-
-      - name: Run tutorial smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make tutorial-smoke
-
-      - name: Run toast smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make toast-smoke
-
-      - name: Run polish smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make polish-smoke
-
-      - name: Run keyboard smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make keyboard-smoke
-
-      - name: Run controller smoke
-        env:
-          SDL_AUDIODRIVER: dummy
-        run: make controller-smoke
-
-      - name: Run render3d smoke
-        env:
+          SDL_VIDEODRIVER: dummy
           SDL_AUDIODRIVER: dummy
         run: make render-smoke
 
-      - name: Run tactical smoke
+      - name: Run walk smoke (headless)
         env:
+          SDL_VIDEODRIVER: dummy
           SDL_AUDIODRIVER: dummy
-        run: make tactical-smoke
+        run: make walk-smoke
 
-      - name: Build love package
-        run: make package
+      - name: Run export smoke (headless)
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+        run: make export-smoke
+
+      - name: Upload benchmark baseline
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-baseline
+          path: tests/bench.baseline.json

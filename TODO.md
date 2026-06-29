@@ -133,28 +133,6 @@ REFERENCES:
 
 ---
 
-### T-029 — CI workflow         [tier 4] [low]
-
-GOAL: GitHub Actions workflow runs `make test`, `make smoke`, `make diagnostics`, `make bench` on every push.
-
-WHY: `.github/` exists (verified `ls -la`) but contents not inspected here. Whether CI runs currently or not, the bench gating in T-027 needs a CI job to be useful.
-
-WHERE: `.github/workflows/ci.yml` (create or update).
-
-DEPENDS ON: T-027.
-
-ACCEPTANCE:
-- Workflow installs `luajit` and `love` on ubuntu-latest.
-- Runs all `make` targets that don't need a display (skip `run`).
-- Bench result is uploaded as a workflow artifact.
-
-NOTES / IMPL HINTS:
-- For LÖVE headless graphics, use `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy` per existing `Makefile` patterns.
-
-REFERENCES: none required.
-
----
-
 # TIER 5 — Engineering hygiene
 
 Small targeted fixes for issues spotted during the audit. Land any time after Tier 1.
