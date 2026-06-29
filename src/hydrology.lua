@@ -628,6 +628,12 @@ local function solveRegion(world, chunkX, chunkY, info)
         end
     end
 
+    if world.refineLithology then
+        for _, cell in ipairs(visitOrder) do
+            world:refineLithology(cell)
+        end
+    end
+
     local stats = {
         rivers = 0,
         lakes = 0,

@@ -112,6 +112,9 @@ local function encodeCell(cell)
         round(cell.duneDelta),
         round(cell.duneAmplitude),
         round(cell.dunePhase),
+        tostring(cell.lithology),
+        round(cell.erodibilityK),
+        round(cell.lithologyAge),
     }, "|")
 end
 
@@ -458,26 +461,100 @@ local function testChunkSoAArrays()
     end
     local mismatches = 0
     local total = 0
+    local firstMismatch
     for y = 1, chunk.size do
         for x = 1, chunk.size do
             local cell = chunk.cells[y][x]
             local index = (y - 1) * chunk.size + (x - 1)
             for _, field in ipairs(doubleFields) do
                 total = total + 1
-                if round(chunk.arrays[field][index]) ~= round(soaValue(cell[field])) then mismatches = mismatches + 1 end
+                if round(chunk.arrays[field][index]) ~= round(soaValue(cell[field])) then
+                    mismatches = mismatches + 1
+                    firstMismatch = firstMismatch or field
+                end
             end
             for _, field in ipairs(int8Fields) do
                 total = total + 1
                 local value = tonumber(chunk.arrays[field][index])
-                if value ~= soaValue(cell[field]) or (value ~= 0 and value ~= 1) then mismatches = mismatches + 1 end
+                local enumOk = field == "lithology" and value >= 0 and value <= 7
+                local boolOk = field ~= "lithology" and (value == 0 or value == 1)
+                if value ~= soaValue(cell[field]) or not (enumOk or boolOk) then
+                    mismatches = mismatches + 1
+                    firstMismatch = firstMismatch or field
+                end
             end
             for _, field in ipairs(int32Fields) do
                 total = total + 1
-                if tonumber(chunk.arrays[field][index]) ~= soaValue(cell[field]) then mismatches = mismatches + 1 end
+                if tonumber(chunk.arrays[field][index]) ~= soaValue(cell[field]) then
+                    mismatches = mismatches + 1
+                    firstMismatch = firstMismatch or field
+                end
             end
         end
     end
-    expect(total > 0 and mismatches == 0, "soa arrays should mirror cell field values")
+    expect(total > 0 and mismatches == 0, "soa arrays should mirror cell field values: " .. tostring(firstMismatch))
+end
+
+local function testLithologyDistribution()
+    local classes, land, unknownLand, invalid, crystalline, oceanicYoung, oceanicOld, carbonate = {}, 0, 0, 0, 0, 0, 0, 0
+    for seed = 1, 32 do
+        local world = WorldGen.new(seed, fastWorldOptions)
+        expect(world.lithologyTable and world.lithologyTable[7].name == "evaporite", "world should expose lithology metadata")
+        for gy = -3, 3 do
+            for gx = -3, 3 do
+                local x = gx * 211 + seed * 17
+                local y = gy * 197 - seed * 13
+                local cell = world:baseSample(x, y, "local")
+                local lithology = cell.lithology
+                classes[lithology] = true
+                if type(lithology) ~= "number" or lithology < 0 or lithology > 7 then invalid = invalid + 1 end
+                if cell.elevation > world.seaLevel then
+                    land = land + 1
+                    if lithology < 1 or lithology > 7 then unknownLand = unknownLand + 1 end
+                end
+                local props = world.lithologyTable[lithology]
+                if not props or round(cell.erodibilityK) ~= round(props.erodibilityK) then invalid = invalid + 1 end
+                if cell.plateCrust == "continental" and (cell.shield or 0) + (cell.craton or 0) > 0.5 then
+                    crystalline = crystalline + 1
+                    if lithology ~= 2 and lithology ~= 3 then invalid = invalid + 1 end
+                end
+                if cell.plateCrust == "oceanic" and (cell.plateAge or 0) < 0.1 then
+                    oceanicYoung = oceanicYoung + 1
+                    if lithology ~= 1 then invalid = invalid + 1 end
+                end
+                if cell.plateCrust == "oceanic" and (cell.plateAge or 0) > 0.7 then
+                    oceanicOld = oceanicOld + 1
+                    if lithology ~= 6 then invalid = invalid + 1 end
+                end
+                local latitude = 0.5 + 0.5 * math.sin(y * 0.00045 + seed * 0.0001)
+                local latitudeUnit = math.abs(latitude * 2 - 1)
+                if cell.plateCrust == "continental" and (cell.plateBoundary or 0) < 0.24 and latitudeUnit < 0.5 and (cell.rainfall or 0) > 0.16 and (cell.shield or 0) + (cell.craton or 0) <= 0.5 then
+                    carbonate = carbonate + 1
+                    if lithology ~= 4 then invalid = invalid + 1 end
+                end
+            end
+        end
+    end
+    local classCount = 0
+    for id = 1, 7 do
+        if classes[id] then classCount = classCount + 1 end
+    end
+    local world = testWorld(20260625)
+    local dryTerminal = { water = false, rainfall = 0.05, lithology = 5, erodibilityK = 0.9, lithologyAge = 0.4 }
+    world:refineLithology(dryTerminal)
+    expect(classCount >= 4 and land > 0 and unknownLand == 0 and invalid == 0, "lithology sweep should produce valid land classes")
+    expect(crystalline > 0 and oceanicYoung > 0 and oceanicOld > 0 and carbonate > 0, "lithology sweep should cover tectonic rules")
+    expect(dryTerminal.lithology == 7 and round(dryTerminal.erodibilityK) == round(world.lithologyTable[7].erodibilityK), "arid terminal land should refine to evaporite")
+end
+
+local function testLithologyErodibilityScalesStreamPower()
+    local function erosionFor(multiplier)
+        local low = { gx = 0, gy = 0, elevationBase = 0, elevation = 0, filledElevation = 0, flow = 1, water = false }
+        local high = { gx = 1, gy = 0, elevationBase = 1, elevation = 1, filledElevation = 1, flow = 100, downCell = low, downDistance = 1, erodibilityK = multiplier, water = false }
+        Erosion.relax({ cells = { low = low, high = high }, seaLevel = -1, stride = 1 }, { iterations = 1, K = 0.01, m = 0.5, n = 1, uplift = false, isostasy = false })
+        return high.streamPowerErosion or 0
+    end
+    expect(erosionFor(1.6) > erosionFor(0.4), "lithology erodibility should scale stream-power erosion")
 end
 
 local function testPlateMotionGeologicTime()
@@ -1290,6 +1367,8 @@ local tests = {
     testCacheBoundsAndCounters,
     testPlateCacheBounds,
     testChunkSoAArrays,
+    testLithologyDistribution,
+    testLithologyErodibilityScalesStreamPower,
     testPlateMotionGeologicTime,
     testRngHashRange,
     testOpenSimplexNoise,

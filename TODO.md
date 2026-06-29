@@ -132,42 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-034 — Lithology SoA channel + tectonic-context classifier   [tier 6] [med]
-
-GOAL: Every chunk cell carries an `int8 lithology` ∈ {basalt, granite, gneiss, carbonate, sandstone, shale, evaporite, unknown} plus `double erodibilityK` derived from existing tectonic fields. Stream-power K scales per-cell with `erodibilityK`.
-
-WHY: Karst (T-048), reef substrate (T-049), differential weathering (modulates stream-power K at `src/erosion.lua:149`), volcanic landform classification (T-051), soil classifier (T-054) all require rock-class. Without it the world is uniform-erodibility everywhere and karst/reef cannot exist.
-
-WHERE:
-- `src/worldgen.lua:10` — extend `soaFieldList` (double `erodibilityK`, `lithologyAge`); add to new `soaInt8FieldList` (`lithology`).
-- `src/worldgen.lua:633-712` `baseSample` — after `plate = self:plateAt(wx, wy)` (line 637), call new `classifyLithology(self, plate, secondary, wx, wy, info)` returning `(lithologyId, erodibilityK, lithologyAge)`. Write to cell.
-- `src/erosion.lua:149-182` — read `cell.erodibilityK` and multiply `k` so per-cell stream-power scales with lithology.
-- New `world.lithologyTable[id] = { name, density, erodibilityK, albedo }`.
-
-DEPENDS ON: T-038 (int8 SoA infra).
-
-ACCEPTANCE:
-- `cell.lithology ∈ {1..7}` for all land cells, 0 only on abyssal far-from-shelf cells.
-- Continental shield + craton > 0.5 → granite/gneiss (deterministic 50/50 split by hash).
-- Oceanic crust `plate.age < 0.1` → basalt; `plate.age > 0.7` → pelagic shale.
-- Continental stable platform + `latitudeUnit < 0.5` (tropical-temperate) → carbonate.
-- Arid endorheic basin (`rainfall < 0.12`, no outlet) → evaporite.
-- New test `testLithologyDistribution` asserts ≥4 classes present in 32-seed sweep.
-- `make test`, `make diagnostics`, `make regressions` green after T-056 rebake.
-
-NOTES / IMPL HINTS:
-- 8 classes int8: 0=unknown, 1=basalt, 2=granite, 3=gneiss, 4=carbonate, 5=sandstone, 6=shale, 7=evaporite.
-- K multipliers (relative to current default 0.0006): basalt 0.6, granite 0.5, gneiss 0.4, carbonate 1.4 (chemically soluble), sandstone 0.9, shale 1.2, evaporite 1.6.
-- Tie-break randomness: `Rng.unitAt(seed, gx, gy, 1031)`.
-- Distance-to-trench / ridge / mountain-range-ridge requires 4-cell halo over chunk; piggyback on existing region halo (`src/hydrology.lua:178-232`).
-- Pure function of `(plate.crust, plate.age, plate.boundary, oceanicSubduction, mountainRangeId, hotspotContribution, latitudeUnit, rainfall)` → determinism automatic.
-
-REFERENCES:
-- [Tectonics.js davidson16807](https://davidson16807.github.io/tectonics.js/blog/) — lithology distribution heuristics in procgen worlds.
-- [Anbar & Knoll 2002 Science](https://www.science.org/doi/10.1126/science.1069651) — global rock-type distribution drivers.
-
----
-
 ### T-035 — Regolith depth SoA + bedrock surface tracking         [tier 6] [med]
 
 GOAL: Every cell tracks `regolithDepth:double` (soil thickness [m]) and `bedrockElevation:double` separately from `elevation = bedrockElevation + regolithDepth`. Bedrock-to-regolith conversion follows Heimsath et al. 1997 exponential `P(h) = P₀ · exp(-h/h*)`.

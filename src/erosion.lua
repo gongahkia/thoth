@@ -179,7 +179,7 @@ function Erosion.relax(region, options)
                 local downElevation = down.elevation or down.elevationBase or old
                 local distance = math.max(1, cell.downDistance or region.stride or 1)
                 local area = math.max(0.01, cell.flow or 0.01)
-                local coeff = k * dt * (area ^ m) / (distance ^ n)
+                local coeff = k * (cell.erodibilityK or 1) * dt * (area ^ m) / (distance ^ n)
                 local uplift = upliftFor(cell, upliftMode) * dt
                 local nextElevation = (old + uplift + coeff * downElevation) / (1 + coeff)
                 local gradeFloor = downElevation + minSlope * distance

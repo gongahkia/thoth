@@ -7,8 +7,8 @@ local Biomes = require("src.biomes")
 local Aeolian = require("src.aeolian")
 local ffi = require("ffi")
 
-local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "isostaticRebound", "streamPowerDelta" }
-local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow" }
+local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge" }
+local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology" }
 local soaInt32FieldList = { "plateId", "secondaryPlateId" }
 local soaDoubleArray = ffi.typeof("double[?]")
 local soaInt8Array = ffi.typeof("int8_t[?]")
@@ -51,6 +51,17 @@ local function buildChunkArrays(rows, size)
     end
     return arrays
 end
+
+local lithologyTable = {
+    [0] = { name = "unknown", density = 2.7, erodibilityK = 1.0, albedo = 0.25 },
+    [1] = { name = "basalt", density = 3.0, erodibilityK = 0.6, albedo = 0.18 },
+    [2] = { name = "granite", density = 2.65, erodibilityK = 0.5, albedo = 0.32 },
+    [3] = { name = "gneiss", density = 2.75, erodibilityK = 0.4, albedo = 0.3 },
+    [4] = { name = "carbonate", density = 2.7, erodibilityK = 1.4, albedo = 0.48 },
+    [5] = { name = "sandstone", density = 2.3, erodibilityK = 0.9, albedo = 0.42 },
+    [6] = { name = "shale", density = 2.4, erodibilityK = 1.2, albedo = 0.24 },
+    [7] = { name = "evaporite", density = 2.2, erodibilityK = 1.6, albedo = 0.62 },
+}
 
 local WorldGen = {}
 WorldGen.__index = WorldGen
@@ -242,6 +253,44 @@ local function classifyBiome(elevation, water, river, temperature, moisture, slo
     return Biomes.lookup(temperature, moisture, elevation, false, slope)
 end
 
+local function lithologyProps(id)
+    return lithologyTable[id] or lithologyTable[0]
+end
+
+local function setLithology(cell, id, age)
+    local props = lithologyProps(id)
+    cell.lithology = id
+    cell.erodibilityK = props.erodibilityK
+    cell.lithologyAge = age or cell.lithologyAge or 0
+end
+
+local function classifyLithology(world, plate, x, y, latitudeUnit, rainfall, elevation, shield, craton, riftValley, islandArc)
+    local age = plate.age or 0
+    local boundary = plate.boundary or 0
+    local seaLevel = world.seaLevel or 0
+    if plate.crust == "oceanic" then
+        if age < 0.1 then return 1, lithologyProps(1).erodibilityK, age end
+        if age > 0.7 then return 6, lithologyProps(6).erodibilityK, age end
+        if elevation < seaLevel - 0.18 and boundary < 0.18 then return 0, lithologyProps(0).erodibilityK, age end
+        if (islandArc or 0) > 0.2 or boundary > 0.45 then return 1, lithologyProps(1).erodibilityK, age end
+        return 5, lithologyProps(5).erodibilityK, age
+    end
+    local stableMass = (shield or 0) + (craton or 0)
+    if stableMass > 0.5 then
+        local roll = Rng.unitAt(world.seed, math.floor(x), math.floor(y), 1031)
+        local id = roll < 0.5 and 2 or 3
+        return id, lithologyProps(id).erodibilityK, age
+    end
+    if boundary < 0.24 and latitudeUnit < 0.5 and (rainfall or 0) > 0.16 then return 4, lithologyProps(4).erodibilityK, age end
+    if (rainfall or 0) < 0.18 and boundary < 0.35 then return 5, lithologyProps(5).erodibilityK, age end
+    if boundary > 0.5 or (riftValley or 0) > 0.28 then
+        local id = Rng.unitAt(world.seed, math.floor(x), math.floor(y), 1031) < 0.55 and 3 or 2
+        return id, lithologyProps(id).erodibilityK, age
+    end
+    local id = (rainfall or 0) > 0.55 and 6 or 5
+    return id, lithologyProps(id).erodibilityK, age
+end
+
 local function copyCell(cell)
     local out = {}
     for k, v in pairs(cell) do out[k] = v end
@@ -342,6 +391,7 @@ function WorldGen.new(seed, options)
         seed = tonumber(seed) or 1,
         chunkSize = option(options.chunkSize, 64),
         seaLevel = option(options.seaLevel, 0),
+        lithologyTable = lithologyTable,
         plateCellSize = option(options.plateCellSize, 640),
         plateCacheEntries = option(options.plateCacheEntries, 4096),
         plateCache = Lru.new(option(options.plateCacheEntries, 4096)),
@@ -684,11 +734,13 @@ function WorldGen:baseSample(x, y, scale)
     local isostaticRebound = (rawIsostaticRebound or 0) * (self.streamPowerDetailScale or 0.45)
     elevation = elevation + streamPowerDelta + sediment + glacialDelta
     local latitude = 0.5 + 0.5 * math.sin(y * 0.00045 + self.seed * 0.0001)
-    local temperature = clamp(1 - math.abs(latitude * 2 - 1) * 1.1 - math.max(0, elevation) * 0.42 + (Noise.fbm(self.seed + 404, x, y, { frequency = 0.002, octaves = 3 }) - 0.5) * 0.18, 0, 1)
+    local latitudeUnit = math.abs(latitude * 2 - 1)
+    local temperature = clamp(1 - latitudeUnit * 1.1 - math.max(0, elevation) * 0.42 + (Noise.fbm(self.seed + 404, x, y, { frequency = 0.002, octaves = 3 }) - 0.5) * 0.18, 0, 1)
     local climate = Climate.sample(self, info, x, y)
     local moistureNoise = Noise.fbm(self.seed + 505, x, y, { frequency = 0.0022, octaves = 4 })
     local fallbackRainfall = clamp(0.08 + moistureNoise * 0.7 + (1 - math.abs(latitude - 0.5) * 2) * 0.16 - math.max(0, elevation) * 0.2 - uplift * 0.16 + islandArc * 0.06, 0, 1)
     local rainfall = clamp((climate and climate.precipitation) or fallbackRainfall, 0, 1)
+    local lithology, erodibilityK, lithologyAge = classifyLithology(self, plate, x, y, latitudeUnit, rainfall, elevation, shield, craton, riftValley, islandArc)
     local slope = clamp(ridge * 0.1 + math.abs(rough - 0.5) * 0.16 * (1 - stableDamping) + plate.boundary * 0.08 + uplift * 0.06 + riftValley * 0.12 + islandArc * 0.18 + trench * 0.08 - shield * 0.025 - craton * 0.035, 0, 1)
     local water = elevation <= self.seaLevel
     local ridgeId = (ridge > 0.62 or plate.boundary > 0.55) and key("ridge", info.id, floorDiv(math.floor(wx), 192 * info.factor), floorDiv(math.floor(wy), 192 * info.factor), plate.id) or nil
@@ -707,6 +759,9 @@ function WorldGen:baseSample(x, y, scale)
         sediment = sediment,
         glacialDelta = glacialDelta,
         glacialErosion = math.max(0, -glacialDelta),
+        lithology = lithology,
+        erodibilityK = erodibilityK,
+        lithologyAge = lithologyAge,
         glaciated = (rawGlaciated or 0) > 0.35 and temperature < self.glacialFreezeTemperature and elevation > self.glacialSnowline,
         coastCliff = false,
         coastBeach = false,
@@ -757,6 +812,13 @@ function WorldGen:baseSample(x, y, scale)
     }
 end
 
+function WorldGen:refineLithology(cell)
+    if cell and not cell.water and not cell.downCell and (cell.rainfall or 0) < 0.12 then
+        setLithology(cell, 7, cell.lithologyAge)
+    end
+    return cell
+end
+
 function WorldGen:baseChunk(chunkX, chunkY, info)
     local size = self.chunkSize
     local rows = {}
@@ -803,6 +865,9 @@ function WorldGen:pendingSample(x, y, info)
         sediment = 0,
         glacialDelta = 0,
         glacialErosion = 0,
+        lithology = 0,
+        erodibilityK = 1,
+        lithologyAge = 0,
         glaciated = false,
         coastCliff = false,
         coastBeach = false,
