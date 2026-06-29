@@ -124,6 +124,8 @@ local function encodeCell(cell)
         round(cell.latitudeRadians),
         round(cell.coriolisF),
         round(cell.hillslopeDelta),
+        tostring(cell.debrisFlow),
+        round(cell.debrisFlowDelta),
         tostring(cell.paleoShoreline),
         tostring(cell.riverHistorical),
     }, "|")
@@ -350,7 +352,7 @@ local function testSurveyHistory()
 end
 
 local function testSaveLoadRoundTrip()
-    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3 })
+    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200 })
     local survey = Survey.new()
     Survey.mark(survey, world, -64, -64, "local")
     local viewScale = ViewScale.new(world)
@@ -376,6 +378,7 @@ local function testSaveLoadRoundTrip()
     expect(decoded.world.geologicTime == 0.4 and decoded.world.geologicTimeStep == 0.03 and decoded.world.seaLevelAmplitude1 == 0.04, "save should round-trip world sea-level settings")
     expect(decoded.world.legacyLatitude == false and decoded.world.worldCircumference == 1024 and decoded.world.omega == 0.0001, "save should round-trip latitude settings")
     expect(decoded.world.hillslopeD == 0.02 and decoded.world.hillslopeSc == 0.9 and decoded.world.hillslopeIterations == 3, "save should round-trip hillslope settings")
+    expect(decoded.world.debrisK == 0.01 and decoded.world.debrisCriticalConcentration == 0.2 and decoded.world.debrisSedimentYield == 1200, "save should round-trip debris-flow settings")
     expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
     expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.debugPanels and not decoded.display.mouseLook, "save should round-trip display toggles")
     expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
@@ -629,6 +632,62 @@ local function testHillslopeProfile()
         expect(cell.regolithDepth >= 0, "hillslope diffusion should not overdraw regolith")
         expect(math.abs((cell.bedrockElevation + cell.regolithDepth) - cell.elevation) < 0.000001, "hillslope diffusion should preserve bedrock/regolith surface")
     end
+end
+
+local function testDebrisFlowSignature()
+    local region = { stride = 1, seaLevel = -10, cells = {} }
+    local previous
+    for gx = 1, 18 do
+        local steep = gx <= 10
+        local elevation = steep and (9 - gx * 0.42) or (4.8 - (gx - 10) * 0.045)
+        local cell = {
+            gx = gx,
+            gy = 0,
+            elevation = elevation,
+            elevationBase = elevation,
+            filledElevation = elevation,
+            flow = 500,
+            erodibilityK = 1.4,
+            lithology = 4,
+            water = false,
+        }
+        region.cells[tostring(gx) .. ":0"] = cell
+        if previous then
+            previous.downCell = cell
+            previous.downDistance = 1
+        end
+        previous = cell
+    end
+    local result = Erosion.relax(region, {
+        iterations = 3,
+        K = 0.002,
+        debrisK = 0.02,
+        debrisSedimentYield = 30,
+        debrisCriticalConcentration = 0.05,
+        debrisDepositSlope = 0.1,
+        debrisInitSlope = 0.3,
+        maxDebrisDeposit = 0.35,
+        uplift = false,
+        isostasy = false,
+    })
+    local scar, cone, debris = 0, 0, 0
+    for gx = 1, 18 do
+        local cell = region.cells[tostring(gx) .. ":0"]
+        if cell.debrisFlow then debris = debris + 1 end
+        if gx <= 10 then scar = scar + math.max(0, -(cell.debrisFlowDelta or 0)) end
+        if gx > 10 then cone = cone + math.max(0, cell.debrisFlowDelta or 0) end
+    end
+    expect(result.debrisFlowCells > 0 and debris == result.debrisFlowCells, "debris-flow regime should flag cells")
+    expect(scar > 0 and cone > 0, "debris-flow profile should erode steep reaches and deposit a low-slope cone")
+    local world = WorldGen.new(41, { hydrologyRegionChunks = 2, hydrologyHaloCells = 0, hydrologyBasinChunks = 8, hydrologyBasinStride = 4, debrisSedimentYield = 1000 })
+    local chunk = world:chunk(0, 0, "local")
+    local chunkDebris = 0
+    for y = 1, chunk.size do
+        for x = 1, chunk.size do
+            if chunk.cells[y][x].debrisFlow then chunkDebris = chunkDebris + 1 end
+        end
+    end
+    expect(chunkDebris > 0, "mountainous chunk should expose debris-flow cells when sediment concentration crosses threshold")
 end
 
 local function testSeaLevelSeries()
@@ -1480,6 +1539,7 @@ local tests = {
     testLithologyErodibilityScalesStreamPower,
     testRegolithProduction,
     testHillslopeProfile,
+    testDebrisFlowSignature,
     testSeaLevelSeries,
     testGeographicLatitudeAndCoriolis,
     testPlateMotionGeologicTime,

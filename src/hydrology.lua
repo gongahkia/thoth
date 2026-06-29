@@ -330,6 +330,9 @@ local function solveBasin(world, chunkX, chunkY, info)
         isostasy = world.streamPowerIsostasy,
         isostasyRatio = world.streamPowerIsostasyRatio,
         isostasyRadius = world.streamPowerIsostasyRadius,
+        debrisK = world.debrisK,
+        debrisCriticalConcentration = world.debrisCriticalConcentration,
+        debrisSedimentYield = world.debrisSedimentYield,
     })
     region.glaciers = Erosion.glaciate(region, {
         freezeTemperature = world.glacialFreezeTemperature,
@@ -347,11 +350,13 @@ local function solveBasin(world, chunkX, chunkY, info)
                 glacialDelta = cell.glacialDelta or 0,
                 glaciated = cell.glaciated and 1 or 0,
                 hillslopeDelta = cell.hillslopeDelta or 0,
+                debrisFlowDelta = cell.debrisFlowDelta or 0,
+                debrisFlow = cell.debrisFlow and 1 or 0,
             }
         end
     end
 
-    local stats = { rivers = 0, basins = 0, maxFlow = 0, streamPowerMaxDelta = region.erosion.maxDelta or 0, streamPowerMeanErosion = region.erosion.meanErosion or 0, maxSediment = region.erosion.maxSediment or 0, glaciatedCells = region.glaciers.glaciatedCells or 0 }
+    local stats = { rivers = 0, basins = 0, maxFlow = 0, streamPowerMaxDelta = region.erosion.maxDelta or 0, streamPowerMeanErosion = region.erosion.meanErosion or 0, maxSediment = region.erosion.maxSediment or 0, debrisFlowCells = region.erosion.debrisFlowCells or 0, glaciatedCells = region.glaciers.glaciatedCells or 0 }
     local basinIds = {}
     for _, cell in ipairs(visitOrder) do
         local root = terminal(cell)
@@ -701,6 +706,7 @@ local function solveRegion(world, chunkX, chunkY, info)
         floodplains = 0,
         deltas = 0,
         sedimentCells = 0,
+        debrisFlowCells = region.erosion and region.erosion.debrisFlowCells or 0,
         glaciatedCells = 0,
         coastCliffs = 0,
         coastBeaches = 0,

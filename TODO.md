@@ -132,41 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-040 — Jain debris-flow erosion on steep slopes               [tier 6] [med]
-
-GOAL: Add Jain et al. 2024 debris-flow regime to `Erosion.relax`. Cells with sediment concentration `C > 0.4` switch from fluvial `E_f = K_f A^m S^n` to debris `E_d = K_d q_w S^β` with `β=2`. Deposition when `S < S_dep = 0.1`.
-
-WHY: Existing stream-power deposits sediment but cannot generate the debris-flow signature (over-deepened scars + alluvial cones at slope breaks) seen on steep first-order channels. Adds recognizably real morphology at ridge bases.
-
-WHERE:
-- `src/erosion.lua:171-206` `Erosion.relax` iteration loop — branch per cell on `C = cell.sedimentFlux / max(cell.flow, 1)`. Replace single-coeff incision (line 182-189) with regime-switched form.
-- New per-cell fields `debrisFlow:int8` (0/1), `debrisFlowDelta:double`.
-
-DEPENDS ON: T-039 (nonlinear hillslope produces the steep gradients), T-034 (erodibilityK modulates `K_d` per lithology).
-
-ACCEPTANCE:
-- `region.erosion.debrisFlowCells > 0` in mountainous chunks.
-- Debris-flow cells show longitudinal profile signature: over-deepened upstream reach, convex alluvial cone where slope drops below `S_dep`.
-- `testDebrisFlowSignature` gates against a synthetic ridge fixture.
-- `make test` green after T-056.
-
-NOTES / IMPL HINTS:
-- Parameters: `K_f = 1e-5`, `K_d = 5e-4` (~50× fluvial), `m = 0.5`, `n = 1`, `β = 2`, `C_crit = 0.4`, `S_init = 0.3`, `S_dep = 0.1`, `L_d = 10 · stride`.
-- `C_eq(S) = max(0, C_crit · (S - S_dep)/(S_init - S_dep))`.
-- Per cell per iter:
-  1. `C = sedimentFlux / max(flow, 1)`.
-  2. If `C > C_crit`: debris. `dE = K_d · flow · S^β · dt · erodibilityK`.
-  3. Else fluvial: `dE = K_f · flow^m · S^n · dt · erodibilityK` (existing form).
-  4. If `C > C_eq(S)`: deposit `dD = (sedimentFlux - C_eq · flow) / L_d · dt`; `z += dD`; `sedimentFlux -= dD · dx²`.
-- Cap `dE` at `0.5 · dx · S` per step (no over-deepening past downstream cell).
-- Topo-sort cells (already done via `orderedCells` at erosion.lua:8-22 + priority-flood) — no extra pit handling needed.
-
-REFERENCES:
-- [Jain, Mukherjee, Cordonnier, Galin, Gain, Guérin 2024 TOG](https://www.cs.purdue.edu/cgvlab/www/resources/papers/Arymaan-ToG-2024-efficient.pdf) — Efficient Debris-Flow Simulation.
-- [Iverson 1997 Rev Geophys](https://doi.org/10.1029/97RG00426) — debris-flow physics.
-
----
-
 ### T-041 — Cordonnier shallow-ice approximation glacial pass     [tier 6] [high]
 
 GOAL: Replace threshold-cut `Erosion.glaciate` (erosion.lua:277-329) with mass-conserving SIA. Ice thickness `H` evolves via `∂H/∂t + ∇·(Γ H^5 |∇h|² ∇h) = b(h)`; erosion `dz/dt = -K_g · u_b²`.

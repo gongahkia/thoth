@@ -6,6 +6,17 @@ local function option(value, fallback)
     return value
 end
 
+local function clamp(value, minValue, maxValue)
+    if value < minValue then return minValue end
+    if value > maxValue then return maxValue end
+    return value
+end
+
+local function debrisEquilibrium(slope, critical, initSlope, depositSlope)
+    if slope <= depositSlope then return 0 end
+    return math.max(0, critical * (slope - depositSlope) / math.max(0.000001, initSlope - depositSlope))
+end
+
 local function orderedCells(region)
     if region.visitOrder then return region.visitOrder end
     local cells = {}
@@ -161,17 +172,31 @@ function Erosion.relax(region, options)
     local index = isostasyRatio > 0 and coordinateIndex(order, region) or nil
     local maxDelta = 0
     local isostaticErosion, isostaticRebound = 0, 0
+    local fluvialK = option(options.debrisFluvialK, k)
+    local debrisK = option(options.debrisK, 5e-4)
+    local debrisBeta = option(options.debrisBeta, 2)
+    local criticalConcentration = option(options.debrisCriticalConcentration, 0.4)
+    local initSlope = option(options.debrisInitSlope, 0.3)
+    local depositSlope = option(options.debrisDepositSlope, 0.1)
+    local debrisSedimentYield = option(options.debrisSedimentYield, options.sedimentYield or 1.0)
+    local debrisTransfer = option(options.debrisTransfer, 0.985)
+    local maxDebrisDeposit = option(options.maxDebrisDeposit, 0.08)
 
     for _, cell in ipairs(order) do
         cell.elevationBase = cell.elevationBase or cell.elevation or 0
         cell.elevation = cell.elevation or cell.elevationBase
         cell.isostaticErosion = 0
         cell.isostaticRebound = 0
+        cell.debrisFlow = false
+        cell.debrisFlowDelta = 0
     end
 
     for _ = 1, iterations do
         maxDelta = 0
         local losses, eroded = {}, 0
+        for _, cell in ipairs(order) do
+            cell.sedimentFlux = 0
+        end
         for index = #order, 1, -1 do
             local cell = order[index]
             local down = cell.downCell
@@ -180,22 +205,47 @@ function Erosion.relax(region, options)
                 local downElevation = down.elevation or down.elevationBase or old
                 local distance = math.max(1, cell.downDistance or region.stride or 1)
                 local area = math.max(0.01, cell.flow or 0.01)
-                local coeff = k * (cell.erodibilityK or 1) * dt * (area ^ m) / (distance ^ n)
+                local slope = math.max(0, (old - downElevation) / distance)
+                local flow = math.max(1, cell.flow or 1)
+                local flux = math.max(0, cell.sedimentFlux or 0)
+                local concentration = flux / flow
+                local erodibility = cell.erodibilityK or 1
+                local debris = concentration > criticalConcentration
+                local incisionK = debris and debrisK or fluvialK
+                local incision = debris
+                    and (incisionK * flow * (slope ^ debrisBeta) * dt * erodibility)
+                    or (incisionK * (area ^ m) * (math.max(slope, minSlope) ^ n) * dt * erodibility)
+                incision = math.min(incision, math.max(0, 0.5 * distance * slope))
+                local equilibrium = debrisEquilibrium(slope, criticalConcentration, initSlope, depositSlope)
+                local deposit = 0
+                if concentration > criticalConcentration and concentration > equilibrium then
+                    local length = math.max(1, option(options.debrisDepositLength, 10 * distance))
+                    deposit = (flux - equilibrium * flow) / length * dt
+                    deposit = clamp(deposit, 0, maxDebrisDeposit)
+                    flux = math.max(0, flux - deposit * distance * distance)
+                end
                 local uplift = upliftFor(cell, upliftMode) * dt
-                local nextElevation = (old + uplift + coeff * downElevation) / (1 + coeff)
+                local nextElevation = old + uplift - incision + deposit
                 local gradeFloor = downElevation + minSlope * distance
                 if old >= gradeFloor then nextElevation = math.max(nextElevation, gradeFloor) end
-                nextElevation = math.min(nextElevation, old + uplift)
+                nextElevation = math.min(nextElevation, old + uplift + deposit)
                 nextElevation = math.max(nextElevation, seaLevel - 0.08)
-                local incision = math.max(0, old + uplift - nextElevation)
-                if isostasyRatio > 0 and incision > 0 then
-                    losses[cell] = incision
-                    cell.isostaticErosion = (cell.isostaticErosion or 0) + incision
-                    eroded = eroded + incision
+                local netIncision = math.max(0, old + uplift - nextElevation)
+                if isostasyRatio > 0 and netIncision > 0 then
+                    losses[cell] = netIncision
+                    cell.isostaticErosion = (cell.isostaticErosion or 0) + netIncision
+                    eroded = eroded + netIncision
                 end
                 local delta = math.abs(nextElevation - old)
                 if delta > maxDelta then maxDelta = delta end
                 cell.elevation = nextElevation
+                local debrisDelta = deposit - netIncision
+                cell.debrisFlowDelta = (cell.debrisFlowDelta or 0) + debrisDelta
+                if debris then cell.debrisFlow = true end
+                if down then
+                    local source = netIncision * flow * debrisSedimentYield
+                    down.sedimentFlux = (down.sedimentFlux or 0) + math.max(0, flux + source) * debrisTransfer
+                end
             end
         end
         if isostasyRatio > 0 and eroded > 0 then
@@ -206,7 +256,7 @@ function Erosion.relax(region, options)
         end
     end
 
-    local erosionSum, upliftSum, maxErosion = 0, 0, 0
+    local erosionSum, upliftSum, maxErosion, debrisFlowCells = 0, 0, 0, 0
     for _, cell in ipairs(order) do
         local base = cell.elevationBase or 0
         local elevation = cell.elevation or base
@@ -223,6 +273,7 @@ function Erosion.relax(region, options)
             cell.streamPowerSlope = 0
         end
         SoilProduction.syncCell(cell)
+        if cell.debrisFlow then debrisFlowCells = debrisFlowCells + 1 end
         erosionSum = erosionSum + erosion
         upliftSum = upliftSum + uplift
         if erosion > maxErosion then maxErosion = erosion end
@@ -273,6 +324,7 @@ function Erosion.relax(region, options)
         isostaticRebound = isostaticRebound,
         meanSediment = sedimentSum / math.max(1, #order),
         maxSediment = maxSediment,
+        debrisFlowCells = debrisFlowCells,
     }
 end
 
