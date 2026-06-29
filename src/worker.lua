@@ -76,6 +76,9 @@ local function workerKey(message)
         options.cacheMaxEntries or "",
         options.geologicTime or "",
         options.geologicTimeStep or "",
+        options.worldCircumference or "",
+        options.omega or "",
+        tostring(options.legacyLatitude),
     }, "|")
 end
 

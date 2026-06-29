@@ -20,6 +20,12 @@ local function latitudeFor(seed, y)
     return 0.5 + 0.5 * math.sin(y * 0.00045 + seed * 0.0001)
 end
 
+local function latitudeRadiansFor(worldOrSeed, y)
+    if type(worldOrSeed) == "table" and worldOrSeed.latitudeAt then return worldOrSeed:latitudeAt(y) end
+    if type(worldOrSeed) == "table" then return (latitudeFor(worldOrSeed.seed or 1, y or 0) * 2 - 1) * (math.pi / 2) end
+    return (latitudeFor(worldOrSeed or 1, y or 0) * 2 - 1) * (math.pi / 2)
+end
+
 local function normalize(x, y)
     local length = math.sqrt(x * x + y * y)
     if length <= 0 then return 1, 0 end
@@ -27,7 +33,7 @@ local function normalize(x, y)
 end
 
 function Climate.windAt(seed, y)
-    local signedLatitude = latitudeFor(seed or 1, y or 0) * 2 - 1
+    local signedLatitude = latitudeRadiansFor(seed or 1, y or 0) / (math.pi / 2)
     local absLatitude = math.abs(signedLatitude)
     local hemisphere = signedLatitude >= 0 and 1 or -1
     if absLatitude < 0.33 then return normalize(-1, 0.18 * hemisphere) end
@@ -107,8 +113,8 @@ function Climate.solveRegion(world, region)
         cell.incomingMoistureCount = 0
     end
     table.sort(cells, function(a, b)
-        local awx, awy = Climate.windAt(world.seed, a.y or a.gy or 0)
-        local bwx, bwy = Climate.windAt(world.seed, b.y or b.gy or 0)
+        local awx, awy = Climate.windAt(world, a.y or a.gy or 0)
+        local bwx, bwy = Climate.windAt(world, b.y or b.gy or 0)
         local ap = (a.gx or 0) * awx + (a.gy or 0) * awy
         local bp = (b.gx or 0) * bwx + (b.gy or 0) * bwy
         if ap == bp then
@@ -121,12 +127,12 @@ function Climate.solveRegion(world, region)
     local maxPrecipitation, shadowCells = 0, 0
     local store = world.climateSamples
     for _, cell in ipairs(cells) do
-        local windX, windY = Climate.windAt(world.seed, cell.y or 0)
+        local windX, windY = Climate.windAt(world, cell.y or 0)
         local gradX, gradY = gradient(region, cell)
         local lift = math.max(0, windX * gradX + windY * gradY)
         local lee = math.max(0, -(windX * gradX + windY * gradY))
-        local latitude = latitudeFor(world.seed, cell.y or 0)
-        local equatorMoisture = 1 - math.abs(latitude * 2 - 1)
+        local latitudeRadians = latitudeRadiansFor(world, cell.y or 0)
+        local equatorMoisture = 1 - math.abs(latitudeRadians / (math.pi / 2))
         local incoming = cell.incomingMoistureCount > 0 and (cell.incomingMoisture / cell.incomingMoistureCount) or nil
         local sourceNoise = Noise.value(world.seed + 808, (cell.x or 0) * 0.0015, (cell.y or 0) * 0.0015, 11)
         local localSource = (cell.water and 0.46 or 0.16) + equatorMoisture * 0.32 + sourceNoise * 0.14

@@ -8,7 +8,7 @@ local Aeolian = require("src.aeolian")
 local SoilProduction = require("src.soil_production")
 local ffi = require("ffi")
 
-local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace" }
+local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF" }
 local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical" }
 local soaInt32FieldList = { "plateId", "secondaryPlateId" }
 local soaDoubleArray = ffi.typeof("double[?]")
@@ -350,6 +350,19 @@ local function buildSeaLevelSeries(config, geologicTime)
     return series, minLevel, maxLevel
 end
 
+local function legacyLatitudeRadians(seed, y)
+    local signed = math.sin((y or 0) * 0.00045 + (seed or 1) * 0.0001)
+    return signed * (math.pi / 2)
+end
+
+local function geographicLatitudeRadians(y, circumference)
+    local yUnit = (y or 0) / (circumference or 4194304)
+    local wrappedY = 2 * math.abs(yUnit - math.floor(yUnit + 0.5))
+    local phase = (yUnit + 0.5) % 1 - 0.5
+    local sign = phase >= 0 and 1 or -1
+    return (1 - wrappedY) * (math.pi / 2) * sign
+end
+
 local function streamPowerSampleAt(store, scale, gx, gy)
     local sample = store[key(scale, gx, gy)]
     if sample == nil then return nil, nil end
@@ -450,6 +463,9 @@ function WorldGen.new(seed, options)
         seaLevelPaleoMin = seaLevelMin,
         seaLevelPaleoMax = seaLevelMax,
         lithologyTable = lithologyTable,
+        worldCircumference = option(options.worldCircumference, 4194304),
+        omega = option(options.omega, 7.2921e-5),
+        legacyLatitude = option(options.legacyLatitude, true),
         plateCellSize = option(options.plateCellSize, 640),
         plateCacheEntries = option(options.plateCacheEntries, 4096),
         plateCache = Lru.new(option(options.plateCacheEntries, 4096)),
@@ -585,6 +601,9 @@ function WorldGen:metadata()
         seaLevelResidualAmplitude = self.seaLevelConfig.residualAmplitude,
         seaLevelPaleoMin = self.seaLevelPaleoMin,
         seaLevelPaleoMax = self.seaLevelPaleoMax,
+        worldCircumference = self.worldCircumference,
+        omega = self.omega,
+        legacyLatitude = self.legacyLatitude,
         hydrologyRegionChunks = self.hydrologyRegionChunks,
         hydrologyHaloCells = self.hydrologyHaloCells,
         hydrologyBasinChunks = self.hydrologyBasinChunks,
@@ -615,6 +634,19 @@ end
 
 function WorldGen:seaLevelAt(t)
     return seaLevelAtConfig(self.seaLevelConfig, t)
+end
+
+function WorldGen:geographicLatitudeAt(y)
+    return geographicLatitudeRadians(y, self.worldCircumference)
+end
+
+function WorldGen:latitudeAt(y)
+    if self.legacyLatitude then return legacyLatitudeRadians(self.seed, y) end
+    return self:geographicLatitudeAt(y)
+end
+
+function WorldGen:coriolisAt(y)
+    return 2 * (self.omega or 7.2921e-5) * math.sin(self:geographicLatitudeAt(y))
 end
 
 function WorldGen:cacheEvict(cacheKey)
@@ -805,12 +837,14 @@ function WorldGen:baseSample(x, y, scale)
     local glacialDelta = (rawGlacialDelta or 0) * (self.glacialDetailScale or 0.8)
     local isostaticRebound = (rawIsostaticRebound or 0) * (self.streamPowerDetailScale or 0.45)
     elevation = elevation + streamPowerDelta + sediment + glacialDelta
-    local latitude = 0.5 + 0.5 * math.sin(y * 0.00045 + self.seed * 0.0001)
-    local latitudeUnit = math.abs(latitude * 2 - 1)
+    local latitudeRadians = self:latitudeAt(y)
+    local latitudeUnit = math.abs(latitudeRadians) / (math.pi / 2)
+    local geographicLatitude = self:geographicLatitudeAt(y)
+    local coriolisF = self:coriolisAt(y)
     local temperature = clamp(1 - latitudeUnit * 1.1 - math.max(0, elevation) * 0.42 + (Noise.fbm(self.seed + 404, x, y, { frequency = 0.002, octaves = 3 }) - 0.5) * 0.18, 0, 1)
     local climate = Climate.sample(self, info, x, y)
     local moistureNoise = Noise.fbm(self.seed + 505, x, y, { frequency = 0.0022, octaves = 4 })
-    local fallbackRainfall = clamp(0.08 + moistureNoise * 0.7 + (1 - math.abs(latitude - 0.5) * 2) * 0.16 - math.max(0, elevation) * 0.2 - uplift * 0.16 + islandArc * 0.06, 0, 1)
+    local fallbackRainfall = clamp(0.08 + moistureNoise * 0.7 + (1 - latitudeUnit) * 0.16 - math.max(0, elevation) * 0.2 - uplift * 0.16 + islandArc * 0.06, 0, 1)
     local rainfall = clamp((climate and climate.precipitation) or fallbackRainfall, 0, 1)
     local lithology, erodibilityK, lithologyAge = classifyLithology(self, plate, x, y, latitudeUnit, rainfall, elevation, shield, craton, riftValley, islandArc)
     local slope = clamp(ridge * 0.1 + math.abs(rough - 0.5) * 0.16 * (1 - stableDamping) + plate.boundary * 0.08 + uplift * 0.06 + riftValley * 0.12 + islandArc * 0.18 + trench * 0.08 - shield * 0.025 - craton * 0.035, 0, 1)
@@ -827,6 +861,8 @@ function WorldGen:baseSample(x, y, scale)
         elevation = elevation,
         bedrockElevation = elevation,
         regolithDepth = 0,
+        latitudeRadians = geographicLatitude,
+        coriolisF = coriolisF,
         marineTerrace = 0,
         fluvialTerrace = 0,
         paleoShoreline = false,
@@ -932,6 +968,8 @@ function WorldGen:pendingSample(x, y, info)
         elevation = 0,
         bedrockElevation = 0,
         regolithDepth = 0,
+        latitudeRadians = 0,
+        coriolisF = 0,
         marineTerrace = 0,
         fluvialTerrace = 0,
         paleoShoreline = false,

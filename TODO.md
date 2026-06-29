@@ -132,39 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-037 — Geographic latitude + Coriolis SoA channels            [tier 6] [low]
-
-GOAL: Replace noise-based `latitudeFor(seed, y)` (climate.lua:19-21, also worldgen.lua:663) with geographic latitude `latitudeRadians ∈ [-π/2, π/2]` derived from `y / world.worldCircumference`. Add `coriolisF:double = 2Ω sin(latitudeRadians)`.
-
-WHY: T-042 (3-cell climate) needs real latitude bands at 0°/30°/60°/90°; current noise-modulated latitude jumbles bands so deserts/forests don't cluster at their canonical latitudes. Coriolis-deflected wind requires real `f`.
-
-WHERE:
-- `src/climate.lua:19-21` — replace `latitudeFor` body.
-- `src/worldgen.lua:663` — replace local `latitude = 0.5 + 0.5 * sin(...)` with `world:latitudeAt(y)`.
-- `src/worldgen.lua:10` — append `latitudeRadians, coriolisF` to `soaFieldList`.
-- `src/worldgen.lua:314-378` `WorldGen.new` — add `worldCircumference` option (default `4194304` = 2^22 world units), `omega` option (default `7.2921e-5 rad/s`).
-
-DEPENDS ON: none.
-
-ACCEPTANCE:
-- `latitudeRadians ∈ [-π/2, π/2]`; sign of `coriolisF` flips at equator.
-- Existing biome distribution shifts: deserts cluster near `|lat| ≈ 30°` after T-042 lands.
-- Backward-compat flag `world.legacyLatitude = true` keeps old behavior until T-056 rebakes fixtures.
-
-NOTES / IMPL HINTS:
-- `y` is unbounded world coord; map to latitude by treating world as a sphere unrolled along meridian:
-  - `yUnit = y / world.worldCircumference`
-  - `wrappedY = 2 · abs(yUnit - floor(yUnit + 0.5))` ∈ [0, 1]
-  - `latitudeRadians = (1 - wrappedY) · (π/2) · sign((yUnit + 0.5) mod 1 - 0.5)`
-- `Ω = 7.2921e-5 rad/s`; `coriolisF = 2 · Ω · sin(latitudeRadians)`.
-- All existing fixtures will diverge — gate via `world.legacyLatitude` until T-056.
-
-REFERENCES:
-- [Hadley cell — Wikipedia](https://en.wikipedia.org/wiki/Hadley_cell).
-- [Coriolis parameter — Wikipedia](https://en.wikipedia.org/wiki/Coriolis_frequency).
-
----
-
 ### T-039 — Roering nonlinear hillslope diffusion + soil coupling [tier 6] [med]
 
 GOAL: Add Roering 1999/2001 nonlinear hillslope flux `q = -D∇z / (1 - (|∇z|/Sc)²)` coupled to T-035 regolith. New pass runs between climate and stream-power in the hydrology pipeline.

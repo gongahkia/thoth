@@ -120,6 +120,8 @@ local function encodeCell(cell)
         round(cell.bedrockElevation),
         round(cell.marineTerrace),
         round(cell.fluvialTerrace),
+        round(cell.latitudeRadians),
+        round(cell.coriolisF),
         tostring(cell.paleoShoreline),
         tostring(cell.riverHistorical),
     }, "|")
@@ -346,7 +348,7 @@ local function testSurveyHistory()
 end
 
 local function testSaveLoadRoundTrip()
-    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0 })
+    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001 })
     local survey = Survey.new()
     Survey.mark(survey, world, -64, -64, "local")
     local viewScale = ViewScale.new(world)
@@ -370,6 +372,7 @@ local function testSaveLoadRoundTrip()
     expect(decoded.seed == 99 and decoded.player.x == 12.5 and decoded.player.y == -7.25, "save should round-trip seed and player position")
     expect(decoded.camera.yaw == 0.7 and decoded.display.viewScale == "region", "save should round-trip camera and display settings")
     expect(decoded.world.geologicTime == 0.4 and decoded.world.geologicTimeStep == 0.03 and decoded.world.seaLevelAmplitude1 == 0.04, "save should round-trip world sea-level settings")
+    expect(decoded.world.legacyLatitude == false and decoded.world.worldCircumference == 1024 and decoded.world.omega == 0.0001, "save should round-trip latitude settings")
     expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
     expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.debugPanels and not decoded.display.mouseLook, "save should round-trip display toggles")
     expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
@@ -534,8 +537,7 @@ local function testLithologyDistribution()
                     oceanicOld = oceanicOld + 1
                     if lithology ~= 6 then invalid = invalid + 1 end
                 end
-                local latitude = 0.5 + 0.5 * math.sin(y * 0.00045 + seed * 0.0001)
-                local latitudeUnit = math.abs(latitude * 2 - 1)
+                local latitudeUnit = math.abs(world:latitudeAt(y)) / (math.pi / 2)
                 if cell.plateCrust == "continental" and (cell.plateBoundary or 0) < 0.24 and latitudeUnit < 0.5 and (cell.rainfall or 0) > 0.16 and (cell.shield or 0) + (cell.craton or 0) <= 0.5 then
                     carbonate = carbonate + 1
                     if lithology ~= 4 then invalid = invalid + 1 end
@@ -611,6 +613,20 @@ local function testSeaLevelSeries()
     end
     expect(terraces > 0, "sea-level history should stamp marine terraces")
     expect(drowned > 0, "sea-level history should stamp drowned river valleys")
+end
+
+local function testGeographicLatitudeAndCoriolis()
+    local world = WorldGen.new(20260625, { legacyLatitude = false, worldCircumference = 400 })
+    expect(math.abs(world:geographicLatitudeAt(0) - math.pi / 2) < 0.000001, "geographic latitude should map meridian pole")
+    expect(math.abs(world:geographicLatitudeAt(200)) < 0.000001, "geographic latitude should reach equator mid-wrap")
+    expect(world:coriolisAt(196) > 0 and world:coriolisAt(204) < 0, "coriolis sign should flip at equator")
+    local cell = world:baseSample(0, 204, "local")
+    expect(cell.latitudeRadians >= -math.pi / 2 and cell.latitudeRadians <= math.pi / 2, "cell latitude should stay bounded")
+    expect(cell.coriolisF < 0, "cell coriolis should follow southern latitude sign")
+    local legacy = WorldGen.new(20260625, { worldCircumference = 400 })
+    local y = 1234
+    local oldSigned = math.sin(y * 0.00045 + 20260625 * 0.0001)
+    expect(round(legacy:latitudeAt(y) / (math.pi / 2)) == round(oldSigned), "legacy latitude should preserve old climate latitude")
 end
 
 local function testPlateMotionGeologicTime()
@@ -1427,6 +1443,7 @@ local tests = {
     testLithologyErodibilityScalesStreamPower,
     testRegolithProduction,
     testSeaLevelSeries,
+    testGeographicLatitudeAndCoriolis,
     testPlateMotionGeologicTime,
     testRngHashRange,
     testOpenSimplexNoise,
