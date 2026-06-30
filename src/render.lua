@@ -1103,7 +1103,13 @@ local function drawMinimap(app, width, height)
     love.graphics.setColor(0.95, 0.92, 0.74, 1)
     local cx = x0 + size * 0.5
     local cy = y0 + size * 0.5
-    love.graphics.polygon("fill", cx, cy - 5, cx + 4, cy + 4, cx - 4, cy + 4)
+    local ux = app.player.travelX
+    local uy = app.player.travelY
+    if not ux or not uy or ux * ux + uy * uy < 0.0001 then
+        ux, uy = math.sin(app.camera.yaw or 0), -math.cos(app.camera.yaw or 0)
+    end
+    local px, py = -uy, ux
+    love.graphics.polygon("fill", cx + ux * 6, cy + uy * 6, cx - ux * 5 + px * 4, cy - uy * 5 + py * 4, cx - ux * 5 - px * 4, cy - uy * 5 - py * 4)
     love.graphics.setColor(0.95, 0.92, 0.74, 0.72)
     love.graphics.rectangle("line", x0 - 0.5, y0 - 0.5, size + 1, size + 1)
     return data
