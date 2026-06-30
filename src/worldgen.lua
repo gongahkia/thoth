@@ -9,8 +9,8 @@ local SoilProduction = require("src.soil_production")
 local Orometry = require("src.orometry")
 local ffi = require("ffi")
 
-local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "oceanDepthMeters", "oceanAgeMyr", "karstDepth", "cavePresence", "reefAccretion", "reefAgeMy", "meanderBend", "hillslopeDelta", "debrisFlowDelta", "archetypeBlend" }
-local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake", "karstType", "reefStage", "archetypeId" }
+local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "oceanDepthMeters", "oceanAgeMyr", "karstDepth", "cavePresence", "reefAccretion", "reefAgeMy", "meanderBend", "hillslopeDelta", "debrisFlowDelta", "archetypeBlend", "volcanicAgeMy" }
+local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake", "karstType", "reefStage", "archetypeId", "volcanicForm" }
 local soaInt32FieldList = { "plateId", "secondaryPlateId", "hotspotId", "shorelineNode" }
 local soaDoubleArray = ffi.typeof("double[?]")
 local soaInt8Array = ffi.typeof("int8_t[?]")
@@ -666,6 +666,8 @@ function WorldGen.new(seed, options)
         hotspotTau = option(options.hotspotTau, 3),
         hotspotElevationScale = option(options.hotspotElevationScale, 0.42),
         floodBasaltThreshold = option(options.floodBasaltThreshold, 0.34),
+        volcanicArcThreshold = option(options.volcanicArcThreshold, 0.04),
+        volcanicHotspotThreshold = option(options.volcanicHotspotThreshold, 0.25),
         meanderWidthScale = option(options.meanderWidthScale, 1.8),
         meanderMigrationScale = option(options.meanderMigrationScale, 0.72),
         orographicLiftScale = option(options.orographicLiftScale, 8.5),
@@ -1124,6 +1126,8 @@ function WorldGen:baseSample(x, y, scale)
         archetypeId = archetypeId,
         archetypeBlend = archetypeBlend,
         archetypeKey = archetype and archetype.key or nil,
+        volcanicForm = 0,
+        volcanicAgeMy = 0,
         meanderBend = 0,
         oxbowLake = false,
         marineTerrace = 0,
@@ -1255,6 +1259,8 @@ function WorldGen:pendingSample(x, y, info)
         reefStage = 0,
         archetypeId = 0,
         archetypeBlend = 0,
+        volcanicForm = 0,
+        volcanicAgeMy = 0,
         meanderBend = 0,
         oxbowLake = false,
         marineTerrace = 0,

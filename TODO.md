@@ -138,31 +138,6 @@ These provide further fidelity gains but are not gating realism wins. Land after
 
 ---
 
-### T-051 — Volcanic landform expansion (cones, calderas, lava)   [tier 6] [med]
-
-GOAL: For cells flagged by `volcanicIslandArc > 0.4` (subduction arcs at worldgen.lua:651) or `hotspotContribution > 0.25` (T-043), stamp distinctive volcanic landforms — stratovolcano cones, calderas (collapse depressions), lava-flow tongues following D8 steepest descent.
-
-WHY: Current model produces volcanic *terrain* (uplift) but no distinct volcanic *landforms* (cones, calderas, flows). Stratovolcanoes and shield volcanoes are iconic and emerge naturally from existing tectonic flags + stamp pass.
-
-WHERE: New `src/volcano.lua`. Call site `src/hydrology.lua` after T-048 karst, before T-049 reef. New per-cell `volcanicForm:int8` (0=none,1=stratoCone,2=caldera,3=lavaFlow,4=shield,5=cinderCone), `volcanicAgeMy:double`.
-
-DEPENDS ON: T-038, T-043.
-
-ACCEPTANCE: Volcanic chunks contain visible cones + lava-flow signatures. `testVolcanicLandforms` gates.
-
-NOTES / IMPL HINTS:
-- Cone elevation: `Δz = h_peak · exp(-r/r_scale)`; `h_peak ∈ [0.18, 0.32]`, `r_scale ∈ [2, 4]` cells.
-- Caldera: subtract `0.14 · cos(r·π/R)` at summit if `Rng.unit < 0.3` (collapse probability).
-- Lava flow: D8 steepest descent from summit for `N = 8–16` cells, add `+0.01` thickness per cell, decaying.
-- Strato vs shield: arc + andesitic → strato (steep, `h/r > 0.15`); hotspot + basaltic → shield (gentle, `h/r < 0.05`).
-- Cinder cone: small (`h_peak = 0.04`, `r_scale = 1.5`), in monogenetic fields (cluster of 5–10 stamps).
-
-REFERENCES:
-- [Flowy 2024 arXiv](https://arxiv.org/pdf/2405.20144) — probabilistic lava emplacement.
-- [Volcanic Skies CGF 2024](https://onlinelibrary.wiley.com/doi/full/10.1111/cgf.15034).
-
----
-
 ### T-052 — Periglacial features (pingos, palsas, polygonal)      [tier 6] [low]
 
 GOAL: For cells in cold non-glaciated zones (`temperature < 0.25 && !cell.glaciated`), stamp pingos (ice-cored mounds), palsas (peat mounds), polygonal-patterned-ground texture, solifluction lobes on slopes.

@@ -25,6 +25,7 @@ local Coast = require("src.coast")
 local Karst = require("src.karst")
 local Reef = require("src.reef")
 local Orometry = require("src.orometry")
+local Volcano = require("src.volcano")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -141,6 +142,8 @@ local function encodeCell(cell)
         tostring(cell.reefStage),
         tostring(cell.archetypeId),
         round(cell.archetypeBlend),
+        tostring(cell.volcanicForm),
+        round(cell.volcanicAgeMy),
         round(cell.regolithDepth),
         round(cell.bedrockElevation),
         round(cell.marineTerrace),
@@ -407,6 +410,49 @@ local function testHotspotTrails()
     expect(active.contribution > 0.1 and active.hotspotId == hotspot.id, "hotspot helper should expose active shield fields")
 end
 
+local function testVolcanicLandforms()
+    local function makeRegion(kind)
+        local region = { cells = {}, seaLevel = -1 }
+        local cx, cy = 16, 16
+        for gy = 1, 32 do
+            for gx = 1, 32 do
+                local dx, dy = gx - cx, gy - cy
+                local dist = math.sqrt(dx * dx + dy * dy)
+                local base = 0.58 - gy * 0.006
+                local cell = {
+                    gx = gx,
+                    gy = gy,
+                    elevationBase = base,
+                    elevation = base,
+                    bedrockElevation = base,
+                    slope = 0.04,
+                    water = false,
+                    lithology = kind == "hotspot" and 1 or 3,
+                    isFloodBasalt = kind == "hotspot",
+                    hotspotAgeMy = 12,
+                    volcanicIslandArc = kind == "arc" and math.max(0, 0.12 - dist * 0.012) or 0,
+                    hotspotContribution = kind == "hotspot" and math.max(0, 0.45 - dist * 0.022) or 0,
+                }
+                region.cells[gx .. ":" .. gy] = cell
+            end
+        end
+        return region
+    end
+    local arc = makeRegion("arc")
+    local arcStats = Volcano.applyRegion(arc, { seed = 20260625, arcThreshold = 0.04, hotspotThreshold = 0.25, density = 1, maxFeatures = 1, minSpacing = 4, forceCaldera = true })
+    expect(arcStats.stratoCones > 0 and arcStats.calderas > 0 and arcStats.lavaFlows > 0, "arc volcano should stamp strato cone, caldera, and lava flow")
+    expect(arcStats.maxDelta > 0.18 and arcStats.lavaFlowCells > 0, "arc volcano should visibly raise cone and route lava")
+    local center = arc.cells["16:16"]
+    expect(center.volcanicForm == 2 and center.volcanicAgeMy > 0, "caldera summit should expose volcanic form and age")
+
+    local hotspot = makeRegion("hotspot")
+    local hotspotStats = Volcano.applyRegion(hotspot, { seed = 20260625, arcThreshold = 0.04, hotspotThreshold = 0.25, density = 1, maxFeatures = 1, minSpacing = 4 })
+    expect(hotspotStats.shields > 0 and hotspotStats.lavaFlows > 0, "hotspot volcano should stamp shield and lava flow")
+    local forms = {}
+    for _, cell in pairs(hotspot.cells) do forms[cell.volcanicForm or 0] = true end
+    expect(forms[3] and forms[4], "hotspot fixture should contain shield and lava-flow cells")
+end
+
 local function testDiscoveryOverlayIds()
     local world = WorldGen.new(99)
     local ridgeIds, rangeIds = {}, {}
@@ -613,8 +659,8 @@ local function testChunkSoAArrays()
             for _, field in ipairs(int8Fields) do
                 total = total + 1
                 local value = tonumber(chunk.arrays[field][index])
-                local enumOk = (field == "lithology" and value >= 0 and value <= 7) or (field == "karstType" and value >= 0 and value <= 4) or (field == "reefStage" and value >= 0 and value <= 5) or (field == "archetypeId" and value >= 0 and value <= 6)
-                local boolOk = field ~= "lithology" and field ~= "karstType" and field ~= "reefStage" and field ~= "archetypeId" and (value == 0 or value == 1)
+                local enumOk = (field == "lithology" and value >= 0 and value <= 7) or (field == "karstType" and value >= 0 and value <= 4) or (field == "reefStage" and value >= 0 and value <= 5) or (field == "archetypeId" and value >= 0 and value <= 6) or (field == "volcanicForm" and value >= 0 and value <= 5)
+                local boolOk = field ~= "lithology" and field ~= "karstType" and field ~= "reefStage" and field ~= "archetypeId" and field ~= "volcanicForm" and (value == 0 or value == 1)
                 if value ~= soaValue(cell[field]) or not (enumOk or boolOk) then
                     mismatches = mismatches + 1
                     firstMismatch = firstMismatch or field
@@ -1959,6 +2005,7 @@ local tests = {
     testTectonicFeatures,
     testOrometryArchetypes,
     testHotspotTrails,
+    testVolcanicLandforms,
     testDiscoveryOverlayIds,
     testNamedTerrainDiscoveries,
     testSurveyHistory,

@@ -42,6 +42,11 @@ local landformColors = {
     islandArc = { 0.45, 0.39, 0.34 },
     shield = { 0.24, 0.34, 0.27 },
     craton = { 0.3, 0.32, 0.25 },
+    stratoCone = { 0.24, 0.22, 0.21 },
+    caldera = { 0.12, 0.1, 0.09 },
+    lavaFlow = { 0.2, 0.12, 0.09 },
+    shieldVolcano = { 0.25, 0.3, 0.23 },
+    cinderCone = { 0.18, 0.14, 0.12 },
 }
 
 local skyTop = { 0.43, 0.55, 0.66 }
@@ -136,6 +141,11 @@ local function baseColor(cell)
     if (cell.shield or 0) > 0.2 then color = mixColor(color, landformColors.shield, 0.26) end
     if (cell.riftValley or 0) > 0.08 then color = mixColor(color, landformColors.rift, 0.4) end
     if (cell.volcanicIslandArc or 0) > 0.04 then color = mixColor(color, landformColors.islandArc, 0.38) end
+    if (cell.volcanicForm or 0) == 1 then color = mixColor(color, landformColors.stratoCone, 0.55) end
+    if (cell.volcanicForm or 0) == 2 then color = mixColor(color, landformColors.caldera, 0.65) end
+    if (cell.volcanicForm or 0) == 3 then color = mixColor(color, landformColors.lavaFlow, 0.62) end
+    if (cell.volcanicForm or 0) == 4 then color = mixColor(color, landformColors.shieldVolcano, 0.5) end
+    if (cell.volcanicForm or 0) == 5 then color = mixColor(color, landformColors.cinderCone, 0.55) end
     if cell.delta then color = mixColor(color, landformColors.delta, 0.55) end
     if cell.coastBeach then color = mixColor(color, landformColors.coastBeach, 0.68) end
     if cell.coastCliff then color = mixColor(color, landformColors.coastCliff, 0.6) end

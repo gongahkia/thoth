@@ -5,6 +5,7 @@ local SoilProduction = require("src.soil_production")
 local Hillslope = require("src.hillslope")
 local Meander = require("src.meander")
 local Karst = require("src.karst")
+local Volcano = require("src.volcano")
 local Reef = require("src.reef")
 
 local Hydrology = {}
@@ -558,6 +559,12 @@ local function solveRegion(world, chunkX, chunkY, info)
         end
     end
     region.karst = Karst.applyRegion(region, { seed = world.seed, seaLevel = seaLevel, stride = 1 })
+    region.volcanoes = Volcano.applyRegion(region, {
+        seed = world.seed,
+        seaLevel = seaLevel,
+        arcThreshold = world.volcanicArcThreshold,
+        hotspotThreshold = world.volcanicHotspotThreshold,
+    })
     for _, cell in pairs(region.cells) do
         cell.filledElevation = cell.elevationBase
     end
