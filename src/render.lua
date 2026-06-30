@@ -51,6 +51,7 @@ local landformColors = {
     palsa = { 0.44, 0.38, 0.3 },
     polygonal = { 0.52, 0.56, 0.52 },
     solifluction = { 0.46, 0.44, 0.38 },
+    submarineCanyon = { 0.02, 0.07, 0.16 },
 }
 
 local skyTop = { 0.43, 0.55, 0.66 }
@@ -154,6 +155,7 @@ local function baseColor(cell)
     if (cell.periglacialFeature or 0) == 2 then color = mixColor(color, landformColors.palsa, 0.42) end
     if (cell.periglacialFeature or 0) == 3 then color = mixColor(color, landformColors.polygonal, 0.32) end
     if (cell.periglacialFeature or 0) == 4 then color = mixColor(color, landformColors.solifluction, 0.38) end
+    if cell.submarineCanyon then color = mixColor(color, landformColors.submarineCanyon, 0.52) end
     if cell.delta then color = mixColor(color, landformColors.delta, 0.55) end
     if cell.coastBeach then color = mixColor(color, landformColors.coastBeach, 0.68) end
     if cell.coastCliff then color = mixColor(color, landformColors.coastCliff, 0.6) end

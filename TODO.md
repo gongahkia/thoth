@@ -138,31 +138,6 @@ These provide further fidelity gains but are not gating realism wins. Land after
 
 ---
 
-### T-053 — Marine bathymetry features                            [tier 6] [med]
-
-GOAL: Populate abyssal-plain noise floor, hadal trenches, seamounts (hotspot residual outside the trail), and submarine canyons (D8 routing extended below sea level seeded at shelf-break).
-
-WHY: Ocean rendering currently shows uniform-depth water. Real ocean has structure — continental shelves, slopes, abyssal plains, mid-ocean ridges (T-046), trenches, seamounts, submarine canyons.
-
-WHERE: Extensions to `src/worldgen.lua:644-656` (abyssal noise, seamount stamps) and `src/hydrology.lua` (submarine-canyon D8 on bathymetry).
-
-DEPENDS ON: T-046 (GDH1).
-
-ACCEPTANCE: Ocean cells exhibit varied depth, recognisable shelf/slope/abyss profile, occasional seamounts. `testBathymetryProfile`.
-
-NOTES / IMPL HINTS:
-- Continental shelf: `+0.02 · plate.continental_distance_within_50_cells` added to ocean elevation.
-- Continental slope: smoothstep from shelf to abyss at 30–60 cells offshore.
-- Seamounts: jittered-grid stamps on oceanic cells, `Δz = 0.08 · exp(-r²/r²_scale)`, `r_scale = 1.5` cells, density ~1 per 100 cells.
-- Submarine canyon: at continental-slope cells, D8-route downhill on bathymetry, incise `-0.015` per path cell.
-- Hadal trench: clamp existing `trench` at worldgen.lua:648 to GDH1 + 1-2 km extra.
-
-REFERENCES:
-- [Stein & Stein 1992](https://doi.org/10.1038/359123a0) (T-046 reference).
-- [Harris & Whiteway 2011 Marine Geology](https://doi.org/10.1016/j.margeo.2011.05.008) — submarine canyon morphology.
-
----
-
 ### T-054 — CLORPT soil classifier + horizons                     [tier 6] [med]
 
 GOAL: After lithology (T-034) and regolith (T-035), classify USDA soil order (Entisol, Inceptisol, Mollisol, Vertisol, Aridisol, Histosol, Spodosol, Oxisol, Andisol, Ultisol) via CLORPT factors (climate, organisms, relief, parent, time).

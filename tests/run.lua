@@ -27,6 +27,7 @@ local Reef = require("src.reef")
 local Orometry = require("src.orometry")
 local Volcano = require("src.volcano")
 local Periglacial = require("src.periglacial")
+local Bathymetry = require("src.bathymetry")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -146,6 +147,8 @@ local function encodeCell(cell)
         tostring(cell.volcanicForm),
         round(cell.volcanicAgeMy),
         tostring(cell.periglacialFeature),
+        tostring(cell.submarineCanyon),
+        round(cell.shelfDistance),
         round(cell.regolithDepth),
         round(cell.bedrockElevation),
         round(cell.marineTerrace),
@@ -964,8 +967,8 @@ local function testDebrisFlowSignature()
     end
     expect(result.debrisFlowCells > 0 and debris == result.debrisFlowCells, "debris-flow regime should flag cells")
     expect(scar > 0 and cone > 0, "debris-flow profile should erode steep reaches and deposit a low-slope cone")
-    local world = WorldGen.new(41, { hydrologyRegionChunks = 2, hydrologyHaloCells = 0, hydrologyBasinChunks = 8, hydrologyBasinStride = 4, debrisSedimentYield = 1000 })
-    local chunk = world:chunk(0, 0, "local")
+    local world = WorldGen.new(41, { hydrologyRegionChunks = 2, hydrologyHaloCells = 0, hydrologyBasinChunks = 8, hydrologyBasinStride = 4, debrisSedimentYield = 1000, debrisCriticalConcentration = 0.01, debrisK = 0.02 })
+    local chunk = world:chunk(0, 1, "local")
     local chunkDebris = 0
     for y = 1, chunk.size do
         for x = 1, chunk.size do
@@ -1030,6 +1033,51 @@ local function testGDH1Profile()
         if matched >= 8 then break end
     end
     expect(matched >= 4, "GDH1 test should sample multiple ocean cells")
+end
+
+local function testBathymetryProfile()
+    local world = WorldGen.new(20260625, { seaLevel = 0.03, seaLevelAmplitude1 = 0, seaLevelAmplitude2 = 0, seaLevelResidualAmplitude = 0, zScale = 10000, hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 4, hydrologyBasinStride = 4 })
+    local seaLevel = world:seaLevelAt(world.geologicTime)
+    local shelfMax, abyssMin, seamounts = -math.huge, math.huge, 0
+    for gy = -1536, 1536, 64 do
+        for gx = -1536, 1536, 64 do
+            local cell = world:baseSample(gx, gy, "local")
+            if cell.water and cell.plateCrust == "oceanic" then
+                if (cell.shelfDistance or 999) < 50 then shelfMax = math.max(shelfMax, cell.elevation) end
+                if (cell.shelfDistance or 999) >= 999 and (cell.plateBoundary or 0) < 0.25 then
+                    abyssMin = math.min(abyssMin, cell.elevation)
+                    local ageElevation = seaLevel - (cell.oceanDepthMeters or 0) / world.zScale
+                    if cell.elevation - ageElevation > 0.025 then seamounts = seamounts + 1 end
+                end
+            end
+        end
+    end
+    expect(shelfMax > abyssMin + 0.04, "bathymetry should distinguish shelf/slope from abyssal plain")
+    expect(seamounts > 0, "bathymetry should include abyssal seamount highs")
+
+    local region = { cells = {}, seaLevel = 0, threshold = 16 }
+    for gy = 1, 16 do
+        for gx = 1, 32 do
+            local water = gx > 4
+            local elevation = water and (-0.02 - (gx - 5) * 0.008 - gy * 0.0005) or 0.08
+            region.cells[gx .. ":" .. gy] = {
+                gx = gx,
+                gy = gy,
+                elevationBase = elevation,
+                elevation = elevation,
+                bedrockElevation = elevation,
+                water = water,
+                lake = false,
+                flow = gx == 5 and 32 or 1,
+                shelfDistance = water and math.min(50, (gx - 5) * 3) or 0,
+            }
+        end
+    end
+    local stats = Bathymetry.applyRegion(region, { seed = 20260625, seaLevel = 0, canyonDensity = 1 })
+    expect(stats.canyons > 0 and stats.canyonCells > 0 and stats.maxIncision > 0, "submarine canyon pass should incise shelf-break paths")
+    local canyonCells = 0
+    for _, cell in pairs(region.cells) do if cell.submarineCanyon then canyonCells = canyonCells + 1 end end
+    expect(canyonCells > 0 and canyonCells <= stats.canyonCells, "submarine canyon cells should expose boolean labels")
 end
 
 local function testGeographicLatitudeAndCoriolis()
@@ -2057,6 +2105,7 @@ local tests = {
     testDebrisFlowSignature,
     testSeaLevelSeries,
     testGDH1Profile,
+    testBathymetryProfile,
     testGeographicLatitudeAndCoriolis,
     testClimateBands,
     testPlateMotionGeologicTime,

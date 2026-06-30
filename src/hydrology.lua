@@ -6,6 +6,7 @@ local Hillslope = require("src.hillslope")
 local Meander = require("src.meander")
 local Karst = require("src.karst")
 local Volcano = require("src.volcano")
+local Bathymetry = require("src.bathymetry")
 local Reef = require("src.reef")
 
 local Hydrology = {}
@@ -702,6 +703,7 @@ local function solveRegion(world, chunkX, chunkY, info)
     end
 
     region.coast = Coast.apply(region, { seaLevel = seaLevel })
+    region.bathymetry = Bathymetry.applyRegion(region, { seed = world.seed, seaLevel = seaLevel })
     region.reefs = Reef.applyRegion(region, {
         seed = world.seed,
         seaLevel = seaLevel,

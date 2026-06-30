@@ -10,8 +10,8 @@ local Orometry = require("src.orometry")
 local Periglacial = require("src.periglacial")
 local ffi = require("ffi")
 
-local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "oceanDepthMeters", "oceanAgeMyr", "karstDepth", "cavePresence", "reefAccretion", "reefAgeMy", "meanderBend", "hillslopeDelta", "debrisFlowDelta", "archetypeBlend", "volcanicAgeMy" }
-local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake", "karstType", "reefStage", "archetypeId", "volcanicForm", "periglacialFeature" }
+local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "oceanDepthMeters", "oceanAgeMyr", "shelfDistance", "karstDepth", "cavePresence", "reefAccretion", "reefAgeMy", "meanderBend", "hillslopeDelta", "debrisFlowDelta", "archetypeBlend", "volcanicAgeMy" }
+local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake", "karstType", "reefStage", "archetypeId", "volcanicForm", "periglacialFeature", "submarineCanyon" }
 local soaInt32FieldList = { "plateId", "secondaryPlateId", "hotspotId", "shorelineNode" }
 local soaDoubleArray = ffi.typeof("double[?]")
 local soaInt8Array = ffi.typeof("int8_t[?]")
@@ -225,6 +225,28 @@ local function oceanAgeElevation(world, plate, seaLevel)
     local ageMyr = clamp(plate.age or 0, 0, 1) * (world.maxOceanAgeMyr or 180)
     local depthMeters = gdh1DepthMeters(ageMyr)
     return (seaLevel or world:seaLevelAt(world.geologicTime)) - depthMeters / (world.zScale or 10000), depthMeters, ageMyr
+end
+
+local function seamountAt(world, x, y, info, plate, shelfProximity)
+    if plate.crust ~= "oceanic" or (shelfProximity or 0) > 0.45 then return 0 end
+    local spacing = 10 * info.factor
+    local ix = floorDiv(math.floor(x), spacing)
+    local iy = floorDiv(math.floor(y), spacing)
+    local contribution = 0
+    for gy = iy - 1, iy + 1 do
+        for gx = ix - 1, ix + 1 do
+            if Rng.unitAt(world.seed, gx, gy, 1411) < 0.18 then
+                local jx = Rng.signed(world.seed, gx, gy, 1413) * spacing * 0.35
+                local jy = Rng.signed(world.seed, gx, gy, 1415) * spacing * 0.35
+                local cx = (gx + 0.5) * spacing + jx
+                local cy = (gy + 0.5) * spacing + jy
+                local dx, dy = x - cx, y - cy
+                local rScale = 1.5 * info.factor
+                contribution = math.max(contribution, 0.08 * math.exp(-(dx * dx + dy * dy) / (rScale * rScale)))
+            end
+        end
+    end
+    return contribution
 end
 
 local function hotspotBucketKey(x, y, bucketSize)
@@ -1051,6 +1073,7 @@ function WorldGen:baseSample(x, y, scale)
     local stableDamping = clamp(shield * 0.35 + craton * 0.35, 0, 0.62)
     local seaLevel = self:seaLevelAt(self.geologicTime)
     local oceanDepthMeters, oceanAgeMyr = 0, 0
+    local shelfDistance, shelfProximity = 999, 0
     local continentalBias
     if plate.crust == "continental" then
         continentalBias = 0.22 + shield * 0.04 + craton * 0.04
@@ -1060,12 +1083,14 @@ function WorldGen:baseSample(x, y, scale)
         local eTect = -0.16
         local marginBlend = plate.secondaryCrust == "continental" and smoothstep(0.05, 0.45, plate.boundary) * 0.35 or 0
         local wOcean = smoothstep(0, 1, 0.46 * (1 - marginBlend))
-        continentalBias = eTect * (1 - wOcean) + eAge * wOcean
+        shelfProximity = plate.secondaryCrust == "continental" and smoothstep(0.04, 0.42, plate.boundary) or 0
+        shelfDistance = shelfProximity > 0 and (1 - shelfProximity) * 50 or 999
+        continentalBias = eTect * (1 - wOcean) + eAge * wOcean + shelfProximity * 0.02
     end
     local uplift = plate.boundary * (plate.convergent * 0.52 * peakAmpScale + ridge * 0.26 * reliefScale)
     local continentalRift = (plate.crust == "continental" and plate.secondaryCrust == "continental") and plate.boundary * plate.divergent or 0
     local riftValley = continentalRift * (0.55 + ridge * 0.45)
-    local trench = plate.subducting and plate.oceanicSubduction * (0.2 + plate.age * 0.12) or 0
+    local trench = plate.subducting and plate.oceanicSubduction * (0.24 + plate.age * 0.2) or 0
     local subductionUplift = (not plate.subducting) and plate.continentOceanSubduction * 0.24 or 0
     local islandArc = 0
     if (not plate.subducting) and plate.oceanOceanSubduction > 0 then
@@ -1073,7 +1098,9 @@ function WorldGen:baseSample(x, y, scale)
         islandArc = plate.oceanOceanSubduction * smoothstep(0.42, 0.82, arcNoise)
     end
     local roughContribution = (rough - 0.5) * 0.24 * (1 - stableDamping) * reliefScale
-    local elevation = continentalBias + (continent - 0.5) * 0.72 + roughContribution + uplift + subductionUplift + islandArc * 0.36 + hotspot.contribution - riftValley * 0.26 - trench
+    local abyssalNoise = plate.crust == "oceanic" and (Noise.fbm(self.seed + 707, wx, wy, { frequency = 0.014 / math.sqrt(info.factor), octaves = 3, salt = 7 }) - 0.5) * 0.025 * (1 - shelfProximity) or 0
+    local seamount = seamountAt(self, wx, wy, info, plate, shelfProximity)
+    local elevation = continentalBias + (continent - 0.5) * 0.72 + roughContribution + uplift + subductionUplift + islandArc * 0.36 + hotspot.contribution + abyssalNoise + seamount - riftValley * 0.26 - trench
     local rawStreamPowerDelta, rawSediment, rawGlacialDelta, rawGlaciated, rawIsostaticRebound, rawHillslopeDelta, rawDebrisFlowDelta, rawDebrisFlow, rawIceThickness = streamPowerAt(self, info, x, y)
     local streamPowerDelta = (rawStreamPowerDelta or 0) * (self.streamPowerDetailScale or 0.45)
     local sediment = (rawSediment or 0) * (self.streamPowerSedimentScale or 0.65)
@@ -1118,6 +1145,8 @@ function WorldGen:baseSample(x, y, scale)
         isFloodBasalt = hotspot.isFloodBasalt,
         oceanDepthMeters = oceanDepthMeters,
         oceanAgeMyr = oceanAgeMyr,
+        shelfDistance = shelfDistance,
+        submarineCanyon = false,
         karstDepth = 0,
         cavePresence = 0,
         karstType = 0,
@@ -1253,6 +1282,8 @@ function WorldGen:pendingSample(x, y, info)
         isFloodBasalt = false,
         oceanDepthMeters = 0,
         oceanAgeMyr = 0,
+        shelfDistance = 999,
+        submarineCanyon = false,
         karstDepth = 0,
         cavePresence = 0,
         karstType = 0,
