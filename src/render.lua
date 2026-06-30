@@ -1064,6 +1064,51 @@ local function drawTopographicMap(app, width)
     return data
 end
 
+local function minimapData(app)
+    local params = viewParams(app)
+    local sampleCount = app.minimapSamples or 48
+    local bucket = app.minimapBucket or 8
+    local cache = app.minimapCache
+    local key = table.concat({
+        params.target,
+        sampleCount,
+        math.floor((app.player.x or 0) / bucket),
+        math.floor((app.player.y or 0) / bucket),
+    }, ":")
+    local time = love.timer and love.timer.getTime and love.timer.getTime() or os.clock()
+    if cache and cache.key == key and time - (cache.time or 0) < (app.minimapInterval or 0.2) then return cache.data end
+    local span = app.topographicSpan
+    app.topographicSpan = app.minimapSpan or 192
+    local data = Render.topographicMapData(app, sampleCount)
+    app.topographicSpan = span
+    app.minimapCache = { key = key, time = time, data = data }
+    return data
+end
+
+local function drawMinimap(app, width, height)
+    local data = minimapData(app)
+    local pixel = math.max(2, math.floor(math.min(width, height) * 0.22 / data.sampleCount))
+    local size = data.sampleCount * pixel
+    local x0 = width - size - 18
+    local y0 = height - size - 70
+    love.graphics.setColor(0.02, 0.025, 0.03, 0.76)
+    love.graphics.rectangle("fill", x0 - 6, y0 - 6, size + 12, size + 12)
+    for row = 1, data.sampleCount do
+        for col = 1, data.sampleCount do
+            local color = topoColor(data.rows[row][col])
+            love.graphics.setColor(color[1], color[2], color[3], 0.96)
+            love.graphics.rectangle("fill", x0 + (col - 1) * pixel, y0 + (row - 1) * pixel, pixel, pixel)
+        end
+    end
+    love.graphics.setColor(0.95, 0.92, 0.74, 1)
+    local cx = x0 + size * 0.5
+    local cy = y0 + size * 0.5
+    love.graphics.polygon("fill", cx, cy - 5, cx + 4, cy + 4, cx - 4, cy + 4)
+    love.graphics.setColor(0.95, 0.92, 0.74, 0.72)
+    love.graphics.rectangle("line", x0 - 0.5, y0 - 0.5, size + 1, size + 1)
+    return data
+end
+
 local debugPanelLines = {
     { id = "plate", label = function(d) return "plates v " .. fmt(d.plate.vx) .. "," .. fmt(d.plate.vy) .. " b " .. fmt(d.plate.boundary) .. " conv " .. fmt(d.plate.convergent) end },
     { id = "drainage", label = function(d) return "drain -> " .. fmt(d.drainage.dx) .. "," .. fmt(d.drainage.dy) .. " flow " .. fmt(d.drainage.flow) .. " river " .. tostring(d.drainage.river) end },
@@ -1125,7 +1170,7 @@ local function drawHud(app, width, height, stats)
     love.graphics.setColor(0.02, 0.025, 0.03, 0.7)
     love.graphics.rectangle("fill", width - 428, height - 52, 416, 34)
     love.graphics.setColor(0.88, 0.9, 0.82, 1)
-    love.graphics.print("WASD walk  mouse/QE look  F mouse  Tab scope  M mark  R seed", width - 416, height - 42)
+    love.graphics.print("WASD move  mouse/E/left look  Tab scope  M map  N mark  Q quit", width - 416, height - 42)
 end
 
 function Render.drawScene(app, width, height)
@@ -1160,6 +1205,11 @@ function Render.drawHud(app, width, height, meshData)
         local topo = drawTopographicMap(app, width)
         meshData.topographicMap = topo.samples
         meshData.topographicContours = topo.contours
+    end
+    if app.minimap then
+        local map = drawMinimap(app, width, height)
+        meshData.minimap = map.samples
+        meshData.minimapContours = map.contours
     end
     do
         local toggles = debugPanelToggles(app)

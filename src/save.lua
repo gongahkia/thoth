@@ -171,6 +171,7 @@ function Save.snapshot(app)
             mouseLook = app.mouseLook == true,
             debugPerf = app.debugPerf == true,
             debugTopo = app.debugTopo == true,
+            minimap = app.minimap == true,
             debugPanels = (function()
                 if type(app.debugPanels) == "table" then
                     return {

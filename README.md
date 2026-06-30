@@ -51,7 +51,7 @@ love . --no-async
 
 `make bench` runs the headless terrain benchmark and gates against `tests/bench.baseline.json`; `make bench-update` rewrites the baseline. Non-zero exit on regressions below tolerance (50% in the default `make bench`; 10% for direct `--baseline-tolerance` runs per CI gating). The `bench-baseline` artifact is uploaded by the CI workflow.
 
-`--debug-perf` prints FPS, raw/clamped dt, update/draw/preload ms, position, visible/preloaded chunks, bounded cache counts, cache hits/misses/evictions, terrain/basin cache misses, and hydrology cell counts. Press `L` in-game to toggle it. `--debug-topo` starts with the optional topographic debug map open; press `T` to toggle it. `--debug-panels` starts with plate, drainage, erosion, and biome debug panels open; press `B` to toggle them. `--export-map <prefix>` writes `<prefix>.png` plus seed/scale metadata JSON. `F5` saves seed, player, survey annotations, and display settings; `F9` loads `--save-path`. Runtime movement clamps simulation dt to reduce jitter after slow terrain loads.
+`--debug-perf` prints FPS, raw/clamped dt, update/draw/preload ms, position, visible/preloaded chunks, bounded cache counts, cache hits/misses/evictions, terrain/basin cache misses, and hydrology cell counts. Press `L` in-game to toggle it. `--debug-topo` starts with the optional topographic debug map open; press `T` to toggle it. `M` toggles the minimap; `N` marks surveyed terrain. `--debug-panels` starts with plate, drainage, erosion, and biome debug panels open; press `B` to toggle them. `--export-map <prefix>` writes `<prefix>.png` plus seed/scale metadata JSON. `F5` saves seed, player, survey annotations, and display settings; `F9` loads `--save-path`. Runtime movement clamps simulation dt to reduce jitter after slow terrain loads.
 
 Runtime initial preload defaults to 64 cells and refresh preload defaults to 72 cells; raise them when you prefer fewer walking stalls over faster first render.
 
@@ -71,14 +71,16 @@ Controls:
 
 - `WASD`: walk / strafe
 - `Shift`: sprint
-- mouse or `Q` / `E`: look
+- mouse or `E` / left arrow: look
 - arrow up/down: pitch
 - `F`: toggle mouse look
 - `B`: toggle all debug panels
 - `1` / `2` / `3` / `4`: toggle plate / drainage / erosion / biome overlay
 - `5`: toggle topographic map overlay
 - `T`: toggle debug topographic map
+- `M`: toggle minimap
+- `N`: mark surveyed terrain
 - `F5` / `F9`: save / load
 - `Tab`: follow terrain scope
-- `M`: mark surveyed terrain
+- `Q` / `Esc`: quit
 - `R`: new seed

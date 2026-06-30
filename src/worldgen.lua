@@ -1034,6 +1034,10 @@ function WorldGen:shutdownAsyncHydrology(waitForExit)
     if self.asyncQueue then self.asyncQueue:push({ quit = true }) end
     if waitForExit and self.asyncThread then self.asyncThread:wait() end
     self.asyncHydrology = false
+    self.asyncQueue = nil
+    self.asyncResponse = nil
+    self.asyncThread = nil
+    self.asyncPending = {}
 end
 
 function WorldGen:queueAsyncChunk(chunkX, chunkY, info)

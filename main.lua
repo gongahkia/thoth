@@ -82,6 +82,11 @@ local function startAsyncHydrology(app)
     if app.asyncHydrology and app.world.startAsyncHydrology then app.world:startAsyncHydrology(app.worldOptions) end
 end
 
+local function exitApp(app)
+    if app and app.world and app.world.shutdownAsyncHydrology then app.world:shutdownAsyncHydrology(false) end
+    love.event.quit(0)
+end
+
 local function replaceWorld(app, seed)
     if app.world and app.world.shutdownAsyncHydrology then app.world:shutdownAsyncHydrology(false) end
     app.world = WorldGen.new(seed, app.worldOptions)
@@ -128,8 +133,10 @@ local function smoke(args)
             for cx = -1, 1 do
                 local chunk = world:chunk(cx, cy, scale.id)
                 totals.chunks = totals.chunks + 1
-                for _, row in ipairs(chunk.cells) do
-                    for _, cell in ipairs(row) do
+                for y = 1, chunk.size do
+                    local row = chunk.cells[y]
+                    for x = 1, chunk.size do
+                        local cell = row[x]
                         if cell.water then totals.water = totals.water + 1 else totals.land = totals.land + 1 end
                         if cell.river then totals.river = totals.river + 1 end
                         if cell.talus then totals.talus = totals.talus + 1 end
@@ -314,6 +321,7 @@ local function applySnapshot(app, snapshot)
     app.mouseLook = display.mouseLook == true
     app.debugPerf = display.debugPerf == true
     app.debugTopo = display.debugTopo == true
+    app.minimap = display.minimap == true
     if type(display.debugPanels) == "table" then
         app.debugPanels = {
             plate = display.debugPanels.plate == true,
@@ -367,6 +375,7 @@ function love.load(args)
         renderSmoke = hasArg(args, "--render-smoke"),
         walkSmoke = hasArg(args, "--walk-smoke"),
         debugTopo = hasArg(args, "--debug-topo"),
+        minimap = hasArg(args, "--minimap"),
         debugPanels = (function()
             local on = hasArg(args, "--debug-panels")
             return { plate = on, drainage = on, erosion = on, biome = on }
@@ -421,7 +430,7 @@ function love.update(dt)
         Atmosphere.update(app.atmosphere, simDt)
         app.atmosphereTime = app.atmosphere.time
     end
-    local turn = (love.keyboard.isDown("e", "right") and 1 or 0) - (love.keyboard.isDown("q", "left") and 1 or 0)
+    local turn = (love.keyboard.isDown("e", "right") and 1 or 0) - (love.keyboard.isDown("left") and 1 or 0)
     local pitch = (love.keyboard.isDown("down") and 1 or 0) - (love.keyboard.isDown("up") and 1 or 0)
     if app.walkSmoke then turn = app.walkSmokeTurn end
     app.camera.yaw = app.camera.yaw + turn * simDt * 1.9
@@ -490,7 +499,10 @@ end
 
 function love.keypressed(key)
     if not app then return end
-    if key == "escape" then love.event.quit(0) end
+    if key == "escape" or key == "q" then
+        exitApp(app)
+        return
+    end
     if app.walkSmoke then return end
     if key == "f" then
         app.mouseLook = not app.mouseLook
@@ -503,6 +515,10 @@ function love.keypressed(key)
     if key == "t" then
         app.debugTopo = not app.debugTopo
         print("[topo] debug=" .. tostring(app.debugTopo))
+    end
+    if key == "m" then
+        app.minimap = not app.minimap
+        print("[minimap] visible=" .. tostring(app.minimap))
     end
     if key == "b" then
         if type(app.debugPanels) ~= "table" then
@@ -549,7 +565,7 @@ function love.keypressed(key)
             print("[save] load_failed=" .. tostring(snapshot))
         end
     end
-    if key == "m" then
+    if key == "n" then
         Survey.mark(app.survey, app.world, app.player.x, app.player.y, ViewScale.activeScale(app.viewScale))
         print("[survey] cells=" .. tostring(app.survey.cellCount) .. " discoveries=" .. tostring(app.survey.discoveryCount))
     end
@@ -569,7 +585,7 @@ function love.keypressed(key)
 end
 
 function love.quit()
-    if app and app.world and app.world.shutdownAsyncHydrology then app.world:shutdownAsyncHydrology(true) end
+    if app and app.world and app.world.shutdownAsyncHydrology then app.world:shutdownAsyncHydrology(false) end
 end
 
 function love.mousemoved(_, _, dx, dy)

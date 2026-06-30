@@ -593,6 +593,7 @@ local function testSaveLoadRoundTrip()
         mouseLook = false,
         debugPerf = true,
         debugTopo = true,
+        minimap = true,
         debugPanels = true,
         atmosphere = Atmosphere.new({ time = 0.4, season = "autumn", dayLength = 90 }),
     }
@@ -612,7 +613,7 @@ local function testSaveLoadRoundTrip()
     expect(decoded.world.hotspotSigma == 768 and decoded.world.hotspotTrailSteps == 5 and decoded.world.hotspotTrailDt == 0.15 and decoded.world.hotspotTau == 2.5 and decoded.world.hotspotElevationScale == 0.33 and decoded.world.floodBasaltThreshold == 0.25, "save should round-trip hotspot physics settings")
     expect(decoded.world.meanderWidthScale == 2.2 and decoded.world.meanderMigrationScale == 0.8, "save should round-trip meander settings")
     expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
-    expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.debugPanels and not decoded.display.mouseLook, "save should round-trip display toggles")
+    expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.minimap and decoded.display.debugPanels and not decoded.display.mouseLook, "save should round-trip display toggles")
     expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
 end
 
@@ -1975,6 +1976,9 @@ local function testTopographicMapData()
     expect(data.samples == 1024 and data.scale == "local", "topographic map should sample local terrain when enabled")
     expect(data.water > 0 and data.water < data.samples, "topographic map should include land and water")
     expect(data.rivers > 0 and data.contours > 0, "topographic map should expose rivers and contours")
+    app.topographicSpan = 192
+    local minimap = Render.topographicMapData(app, 24)
+    expect(minimap.samples == 576 and minimap.span == 192, "minimap-sized topographic data should support compact HUD sampling")
 end
 
 local function testDebugPanelIds()
