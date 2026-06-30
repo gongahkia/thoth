@@ -132,44 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-048 — Karst surface overlay (lithology-gated)               [tier 6] [med]
-
-GOAL: For cells with `lithology == carbonate` (T-034), stamp sinkhole (doline), polje (closed depression), and tower-karst pillar features. Modifies elevation; assigns new `karst` biome.
-
-WHY: No karst landforms currently. Distinctive real-world morphology (cone karst, tower karst, sinkhole plains) absent. Cheap stamp-based overlay with high visual ROI.
-
-WHERE:
-- New `src/karst.lua` exposing `Karst.applyRegion(region, options)`.
-- `src/hydrology.lua:282-292` between `Erosion.relax` and `Erosion.glaciate` — call `Karst.applyRegion`.
-- `src/worldgen.lua:10` — append `karstDepth:double, cavePresence:double` to `soaFieldList`; `karstType:int8` to `soaInt8FieldList`.
-- `src/biomes.lua:42-55` — add `karst` biome when `karstType > 0`.
-
-DEPENDS ON: T-034 (lithology), T-038 (int8 SoA).
-
-ACCEPTANCE:
-- Carbonate regions show non-zero doline density (~1–5 per chunk).
-- Humid tropical carbonate regions show tower karst (positive relief inversion).
-- Sinkholes create closed depressions that priority-flood fills as small lakes.
-- `testKarstStamp` asserts non-zero karst-feature count in synthetic carbonate region.
-
-NOTES / IMPL HINTS:
-- Stamp kinds int8: 0=none, 1=doline (sinkhole, negative dz), 2=polje (broad depression), 3=towerKarst (positive dz), 4=karstPlain (flat).
-- Per cell: if `lithology == carbonate`, hash `r = Rng.unitAt(seed, gx, gy, 1009)`; if `r < density · climateMod`, candidate stamp center. Density default 0.04; climateMod = `(rainfall · (1 - latitudeUnit · 0.5))`.
-- Sort candidates by `Rng.hash(seed, gx, gy, 1019)`; Poisson-disk-prune with radius `2·stride`.
-- Per surviving stamp pick kind by context:
-  - Upland (`elevation > seaLevel + 0.2 && rainfall > 0.3`) → doline. Radius 1–2 cells. `elevation -= (0.04 + Rng.unit · 0.06) · cos(π · r / R)`.
-  - Basin (`slope < 0.05 && elevation < 0.3`) → polje. Polygon 3–5 cells. Uniform `elevation -= 0.02`.
-  - Tropical humid (`rainfall > 0.7 && latitudeUnit < 0.35`) → tower. Radius 1 cell. `elevation += 0.18 · (1 - r/R)`.
-- `cavePresence` per carbonate cell uniform 0.2–0.6 from `Rng.unit`.
-- Halo: 2 cells (stamps from neighbor chunks reach into edge cells).
-
-REFERENCES:
-- [Paris et al. 2021 CGF](https://onlinelibrary.wiley.com/doi/10.1111/cgf.14420) — cave network synthesis.
-- [Peytavie/Galin Arches](https://www.semanticscholar.org/paper/Arches:-a-Framework-for-Modeling-Complex-Terrains-Peytavie-Galin/e8b83d99ea6121c13df3570b4f8d3697257b1c2b).
-- [Ford & Williams Karst Hydrogeology 2007](https://onlinelibrary.wiley.com/doi/book/10.1002/9781118684986).
-
----
-
 ### T-049 — Coral reef succession (Darwin 1842)                   [tier 6] [med]
 
 GOAL: For warm shallow tropical coastlines and submerging seamounts, grow fringing → barrier → atoll reef per Darwin 1842 subsidence model. Adds `reef`, `lagoon` biomes.

@@ -8,8 +8,8 @@ local Aeolian = require("src.aeolian")
 local SoilProduction = require("src.soil_production")
 local ffi = require("ffi")
 
-local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "oceanDepthMeters", "oceanAgeMyr", "meanderBend", "hillslopeDelta", "debrisFlowDelta" }
-local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake" }
+local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "oceanDepthMeters", "oceanAgeMyr", "karstDepth", "cavePresence", "meanderBend", "hillslopeDelta", "debrisFlowDelta" }
+local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake", "karstType" }
 local soaInt32FieldList = { "plateId", "secondaryPlateId", "hotspotId", "shorelineNode" }
 local soaDoubleArray = ffi.typeof("double[?]")
 local soaInt8Array = ffi.typeof("int8_t[?]")
@@ -97,6 +97,7 @@ local biomeIds = {
     rock = true,
     lava_flow = true,
     shield = true,
+    karst = true,
 }
 
 local billboardKinds = {
@@ -378,7 +379,7 @@ local function classifyBiome(elevation, water, river, temperature, moisture, slo
         return elevation > -0.06 and "coast" or "ocean"
     end
     if river then return "river" end
-    return Biomes.lookup(temperature, moisture, elevation, false, slope, cell and cell.hotspotContribution or 0, cell and cell.isFloodBasalt)
+    return Biomes.lookup(temperature, moisture, elevation, false, slope, cell and cell.hotspotContribution or 0, cell and cell.isFloodBasalt, cell and cell.karstType or 0)
 end
 
 local function lithologyProps(id)
@@ -1096,6 +1097,9 @@ function WorldGen:baseSample(x, y, scale)
         isFloodBasalt = hotspot.isFloodBasalt,
         oceanDepthMeters = oceanDepthMeters,
         oceanAgeMyr = oceanAgeMyr,
+        karstDepth = 0,
+        cavePresence = 0,
+        karstType = 0,
         meanderBend = 0,
         oxbowLake = false,
         marineTerrace = 0,
@@ -1163,7 +1167,7 @@ function WorldGen:baseSample(x, y, scale)
         river = false,
         lake = false,
         lakeDepth = 0,
-        biome = Biomes.lookup(temperature, rainfall, elevation, water, slope, hotspot.contribution, hotspot.isFloodBasalt),
+        biome = Biomes.lookup(temperature, rainfall, elevation, water, slope, hotspot.contribution, hotspot.isFloodBasalt, 0),
     }
 end
 
@@ -1219,6 +1223,9 @@ function WorldGen:pendingSample(x, y, info)
         isFloodBasalt = false,
         oceanDepthMeters = 0,
         oceanAgeMyr = 0,
+        karstDepth = 0,
+        cavePresence = 0,
+        karstType = 0,
         meanderBend = 0,
         oxbowLake = false,
         marineTerrace = 0,

@@ -24,6 +24,7 @@ local biomeColors = {
     rock = { 0.35, 0.33, 0.3 },
     lava_flow = { 0.18, 0.13, 0.11 },
     shield = { 0.28, 0.32, 0.25 },
+    karst = { 0.55, 0.58, 0.46 },
 }
 
 local landformColors = {

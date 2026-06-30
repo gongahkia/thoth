@@ -4,6 +4,7 @@ local Coast = require("src.coast")
 local SoilProduction = require("src.soil_production")
 local Hillslope = require("src.hillslope")
 local Meander = require("src.meander")
+local Karst = require("src.karst")
 
 local Hydrology = {}
 
@@ -555,6 +556,10 @@ local function solveRegion(world, chunkX, chunkY, info)
             region.cells[key(gx, gy)] = cell
         end
     end
+    region.karst = Karst.applyRegion(region, { seed = world.seed, seaLevel = seaLevel, stride = 1 })
+    for _, cell in pairs(region.cells) do
+        cell.filledElevation = cell.elevationBase
+    end
 
     local heap = Heap.new()
     local visitOrder = {}
@@ -739,6 +744,8 @@ local function solveRegion(world, chunkX, chunkY, info)
         shorelineCapes = region.coast and region.coast.capes or 0,
         shorelineSpits = region.coast and region.coast.spits or 0,
         shorelineLagoons = region.coast and region.coast.lagoons or 0,
+        karstFeatures = region.karst and region.karst.features or 0,
+        karstCells = region.karst and region.karst.affectedCells or 0,
         meanderSegments = region.meanders and region.meanders.segments or 0,
         maxMeanderSinuosity = region.meanders and region.meanders.maxSinuosity or 0,
         oxbowLakes = 0,

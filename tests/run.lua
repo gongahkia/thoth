@@ -22,6 +22,7 @@ local Meander = require("src.meander")
 local Biomes = require("src.biomes")
 local Aeolian = require("src.aeolian")
 local Coast = require("src.coast")
+local Karst = require("src.karst")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -130,6 +131,9 @@ local function encodeCell(cell)
         tostring(cell.lithology),
         round(cell.erodibilityK),
         round(cell.lithologyAge),
+        round(cell.karstDepth),
+        round(cell.cavePresence),
+        tostring(cell.karstType),
         round(cell.regolithDepth),
         round(cell.bedrockElevation),
         round(cell.marineTerrace),
@@ -548,8 +552,8 @@ local function testChunkSoAArrays()
             for _, field in ipairs(int8Fields) do
                 total = total + 1
                 local value = tonumber(chunk.arrays[field][index])
-                local enumOk = field == "lithology" and value >= 0 and value <= 7
-                local boolOk = field ~= "lithology" and (value == 0 or value == 1)
+                local enumOk = (field == "lithology" and value >= 0 and value <= 7) or (field == "karstType" and value >= 0 and value <= 4)
+                local boolOk = field ~= "lithology" and field ~= "karstType" and (value == 0 or value == 1)
                 if value ~= soaValue(cell[field]) or not (enumOk or boolOk) then
                     mismatches = mismatches + 1
                     firstMismatch = firstMismatch or field
@@ -616,6 +620,46 @@ local function testLithologyDistribution()
     expect(classCount >= 4 and land > 0 and unknownLand == 0 and invalid == 0, "lithology sweep should produce valid land classes")
     expect(crystalline > 0 and oceanicYoung > 0 and oceanicOld > 0 and carbonate > 0, "lithology sweep should cover tectonic rules")
     expect(dryTerminal.lithology == 7 and round(dryTerminal.erodibilityK) == round(world.lithologyTable[7].erodibilityK), "arid terminal land should refine to evaporite")
+end
+
+local function testKarstStamp()
+    local function makeRegion(tropical, forceKind)
+        local region = { seed = 20260625, stride = 1, seaLevel = 0, cells = {} }
+        for gy = 0, 15 do
+            for gx = 0, 15 do
+                region.cells[gx .. ":" .. gy] = {
+                    gx = gx,
+                    gy = gy,
+                    x = gx,
+                    y = gy,
+                    elevationBase = tropical and 0.28 or 0.34,
+                    elevation = tropical and 0.28 or 0.34,
+                    bedrockElevation = tropical and 0.28 or 0.34,
+                    slope = tropical and 0.02 or 0.08,
+                    rainfall = tropical and 0.9 or 0.55,
+                    latitudeRadians = tropical and 0.1 or 0.45,
+                    lithology = 4,
+                    water = false,
+                }
+            end
+        end
+        local stats = Karst.applyRegion(region, { seed = 20260625, seaLevel = 0, density = 1, forceKind = forceKind })
+        return region, stats
+    end
+    local dolineRegion, dolineStats = makeRegion(false, 1)
+    local towerRegion, towerStats = makeRegion(true, 3)
+    local dolineCells, towerCells, caves = 0, 0, 0
+    for _, cell in pairs(dolineRegion.cells) do
+        if (cell.karstDepth or 0) > 0 then dolineCells = dolineCells + 1 end
+        if (cell.cavePresence or 0) >= 0.2 then caves = caves + 1 end
+    end
+    for _, cell in pairs(towerRegion.cells) do
+        if cell.karstType == 3 and cell.elevationBase > 0.28 then towerCells = towerCells + 1 end
+    end
+    expect(dolineStats.features > 0 and dolineStats.dolines > 0 and dolineCells > 0, "karst pass should stamp carbonate dolines")
+    expect(towerStats.features > 0 and towerStats.towers > 0 and towerCells > 0, "humid tropical carbonate should stamp tower karst")
+    expect(caves > 0, "carbonate cells should expose cave presence")
+    expect(Biomes.lookup(0.7, 0.6, 0.2, false, 0.03, 0, false, 1) == "karst", "karst cells should route to karst biome")
 end
 
 local function testLithologyErodibilityScalesStreamPower()
@@ -1815,6 +1859,7 @@ local tests = {
     testPlateCacheBounds,
     testChunkSoAArrays,
     testLithologyDistribution,
+    testKarstStamp,
     testLithologyErodibilityScalesStreamPower,
     testRegolithProduction,
     testHillslopeProfile,
