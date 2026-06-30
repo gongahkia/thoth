@@ -132,39 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-050 — Orometry-conditioned regional priors                  [tier 6] [med]
-
-GOAL: Offline-bake (one-time, `tools/bake_orometry.lua`) per-archetype statistics from SRTM tiles for ~6 mountain archetypes (Alps, Appalachians, Himalaya, Andes, Fjordland, Basin&Range). At runtime, each continental chunk picks an archetype deterministically; noise+plate generator parameters scale toward that archetype.
-
-WHY: Current global noise+plate machinery produces homogeneous mountains everywhere. Real ranges differ dramatically — Alps sharp/glaciated, Appalachians rounded/old, Himalaya extreme/young. Orometry priors keep procedural infinity but eliminate global homogeneity.
-
-WHERE:
-- New `tools/bake_orometry.lua` — offline script (LuaJIT) ingesting SRTM GeoTIFF tiles, writing `assets/orometry/archetypes.lua` as a plain Lua return table.
-- New `src/orometry.lua` — runtime accessor.
-- `src/worldgen.lua:633-712` `baseSample` — at noise contribution step (lines 638-639), multiply `Noise.ridge` and `Noise.fbm` parameters by archetype-derived scales.
-- `src/worldgen.lua:10` — append `archetypeBlend:double` to `soaFieldList`; `archetypeId:int8` to `soaInt8FieldList`.
-
-DEPENDS ON: T-038 (int8 SoA).
-
-ACCEPTANCE:
-- 6 archetype entries baked into `assets/orometry/archetypes.lua`.
-- Chunks in different "regions" of the world have visually distinct mountain morphology.
-- `testOrometryArchetypes` asserts mean slope/relief differ > 30% between two distinct-archetype chunks of the same seed.
-
-NOTES / IMPL HINTS:
-- Per-archetype stats: `{ peakProminenceHist[16], saddleProminenceHist[16], peakDensityPerKm2, ridgelineSpacingMean, ridgelineSpacingStd, meanSlope, reliefP95, reliefP50, peakAmpScale, ridgeFreqScale, slopeBias, reliefScale }`.
-- File format: Lua `return { alps = {...}, appalachians = {...}, himalaya = {...}, andes = {...}, fjordland = {...}, basinrange = {...} }`. Loaded via `dofile()` at world ctor — no JSON parser cost on hot path.
-- Archetype pick: `archetypeIndex = Rng.hash(seed, floorDiv(cx, 4), floorDiv(cy, 4), 1091) % nArchetypes`. Quadrant-stable (4×4 chunks share archetype).
-- Halo 8 cells for blending across 4×4 quadrant boundaries with smoothstep transition.
-- SRTM source: 1° tiles (~3 arcsec), public-domain USGS EarthExplorer; downsample to 30 arcsec before stats.
-
-REFERENCES:
-- [Argudo & Galin 2019 TOG](https://hal.science/hal-02326472/file/2019-orometry.pdf) — orometry-based terrain.
-- [oargudo/orometry-terrains GitHub](https://github.com/oargudo/orometry-terrains) — reference implementation.
-- [USGS EarthExplorer SRTM](https://earthexplorer.usgs.gov/).
-
----
-
 ## Stretch — lower-priority extensions
 
 These provide further fidelity gains but are not gating realism wins. Land after the substrate (T-034 — T-038) when bandwidth allows.

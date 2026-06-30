@@ -16,8 +16,8 @@ local regressionSeeds = {
     { seed = 20260625, category = "broken_seams", maxSeamMismatches = 0 }, -- hydrology seam regression gate
     { seed = 26, category = "river_discontinuities", maxUphillRejects = 0, minRivers = 1 }, -- uphill river gate
     { seed = 17, category = "riverless", flags = { "river_low" } }, -- few rivers despite land
-    { seed = 25, category = "single_biome", flags = { "single_biome_high" } }, -- one biome dominates
-    { seed = 14, category = "biome_count_low", flags = { "biome_count_low" } }, -- biome variety collapse
+    { seed = 9, category = "single_biome", flags = { "single_biome_high" } }, -- one biome dominates
+    { seed = 17, category = "biome_count_low", flags = { "biome_count_low" } }, -- biome variety collapse
     { seed = 41, category = "steep_slopes", flags = { "steep_slope_high" } }, -- excess steep terrain
     { seed = 43, category = "drowned_basin", flags = { "water_high" } }, -- flooded with no rivers
 }

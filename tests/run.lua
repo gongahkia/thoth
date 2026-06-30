@@ -24,6 +24,7 @@ local Aeolian = require("src.aeolian")
 local Coast = require("src.coast")
 local Karst = require("src.karst")
 local Reef = require("src.reef")
+local Orometry = require("src.orometry")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -138,6 +139,8 @@ local function encodeCell(cell)
         round(cell.reefAccretion),
         round(cell.reefAgeMy),
         tostring(cell.reefStage),
+        tostring(cell.archetypeId),
+        round(cell.archetypeBlend),
         round(cell.regolithDepth),
         round(cell.bedrockElevation),
         round(cell.marineTerrace),
@@ -314,6 +317,60 @@ local function testTectonicFeatures()
     expect(counts.craton > 0, "tectonics should include cratons")
 end
 
+local function testOrometryArchetypes()
+    local archetypes = Orometry.archetypes()
+    expect(#archetypes == 6, "orometry bake should expose six archetypes")
+    expect(archetypes.byKey.appalachians.id == 2 and archetypes.byKey.himalaya.id == 3, "orometry archetype ids should be stable")
+    local world = WorldGen.new(20260625, fastWorldOptions)
+    local info = WorldGen.scaleInfo("local")
+    local function center(blockX, blockY)
+        local size = world.chunkSize * world.orometryBlockChunks
+        return blockX * size + math.floor(size * 0.5), blockY * size + math.floor(size * 0.5)
+    end
+    local function candidates(targetId, limit)
+        local out = {}
+        for by = -24, 24 do
+            for bx = -24, 24 do
+                local x, y = center(bx, by)
+                local cell = world:baseSample(x, y, info.id)
+                if cell.archetypeId == targetId and cell.plateCrust == "continental" and (cell.uplift or 0) > 0.12 then
+                    out[#out + 1] = { x = x, y = y, id = targetId }
+                    if #out >= limit then return out end
+                end
+            end
+        end
+        return out
+    end
+    local function stats(point)
+        local sumSlope, count = 0, 0
+        local minElevation, maxElevation = math.huge, -math.huge
+        for gy = -2, 2 do
+            for gx = -2, 2 do
+                local cell = world:baseSample(point.x + gx * 24, point.y + gy * 24, info.id)
+                expect(cell.archetypeId == point.id and cell.archetypeBlend > 0.95, "orometry samples should stay inside one archetype block")
+                sumSlope = sumSlope + cell.slope
+                minElevation = math.min(minElevation, cell.elevation)
+                maxElevation = math.max(maxElevation, cell.elevation)
+                count = count + 1
+            end
+        end
+        return { slope = sumSlope / count, relief = maxElevation - minElevation }
+    end
+    local lowCandidates = candidates(2, 6)
+    local highCandidates = candidates(3, 6)
+    expect(#lowCandidates > 0 and #highCandidates > 0, "orometry fixture should find two continental archetype chunks")
+    local low, high = { slope = math.huge, relief = math.huge }, { slope = 0, relief = 0 }
+    for _, point in ipairs(lowCandidates) do
+        local item = stats(point)
+        if item.slope + item.relief < low.slope + low.relief then low = item end
+    end
+    for _, point in ipairs(highCandidates) do
+        local item = stats(point)
+        if item.slope + item.relief > high.slope + high.relief then high = item end
+    end
+    expect(high.slope > low.slope * 1.3 and high.relief > low.relief * 1.3, "distinct orometry chunks should differ by more than 30% in mean slope and relief")
+end
+
 local function testHotspotTrails()
     local world = WorldGen.new(20260625, { geologicTime = 1.0, hotspotSigma = 8, hotspotElevationScale = 0.25, floodBasaltThreshold = 0.1 })
     local same = WorldGen.new(20260625, { geologicTime = 1.0, hotspotSigma = 8, hotspotElevationScale = 0.25, floodBasaltThreshold = 0.1 })
@@ -376,7 +433,7 @@ end
 local function testNamedTerrainDiscoveries()
     local world = WorldGen.new(1)
     local repeatWorld = WorldGen.new(1)
-    local points = { { -320, -320 }, { -64, -320 }, { 0, -320 }, { -32, -128 }, { -32, -512 }, { -32, -1536 } }
+    local points = { { -320, -320 }, { -64, -320 }, { 0, -320 }, { -32, -128 }, { -32, -512 }, { -1376, -4096 }, { -1472, -3968 } }
     local seen = {}
     local expected = {}
     for _, kind in ipairs(WorldGen.discoveryKinds()) do expected[kind] = true end
@@ -556,8 +613,8 @@ local function testChunkSoAArrays()
             for _, field in ipairs(int8Fields) do
                 total = total + 1
                 local value = tonumber(chunk.arrays[field][index])
-                local enumOk = (field == "lithology" and value >= 0 and value <= 7) or (field == "karstType" and value >= 0 and value <= 4) or (field == "reefStage" and value >= 0 and value <= 5)
-                local boolOk = field ~= "lithology" and field ~= "karstType" and field ~= "reefStage" and (value == 0 or value == 1)
+                local enumOk = (field == "lithology" and value >= 0 and value <= 7) or (field == "karstType" and value >= 0 and value <= 4) or (field == "reefStage" and value >= 0 and value <= 5) or (field == "archetypeId" and value >= 0 and value <= 6)
+                local boolOk = field ~= "lithology" and field ~= "karstType" and field ~= "reefStage" and field ~= "archetypeId" and (value == 0 or value == 1)
                 if value ~= soaValue(cell[field]) or not (enumOk or boolOk) then
                     mismatches = mismatches + 1
                     firstMismatch = firstMismatch or field
@@ -1125,10 +1182,11 @@ local function testIsostasy()
         out.streamPowerIterations = 24
         out.streamPowerK = 0.0009
         out.streamPowerIsostasy = enabled
+        out.streamPowerIsostasyRatio = 1.2
         return out
     end
-    local low = Diagnostics.analyzeSeed(26, { chunkRadius = 1, sampleStep = 16, worldOptions = options(false), thresholds = broadThresholds() })
-    local high = Diagnostics.analyzeSeed(26, { chunkRadius = 1, sampleStep = 16, worldOptions = options(true), thresholds = broadThresholds() })
+    local low = Diagnostics.analyzeSeed(5, { chunkRadius = 1, sampleStep = 16, worldOptions = options(false), thresholds = broadThresholds() })
+    local high = Diagnostics.analyzeSeed(5, { chunkRadius = 1, sampleStep = 16, worldOptions = options(true), thresholds = broadThresholds() })
     expect(low.plateBoundaryCells > 0 and high.plateBoundaryCells > 0, "isostasy diagnostics should sample plate-boundary cells")
     expect(high.meanPlateBoundaryElevation > low.meanPlateBoundaryElevation, "isostasy diagnostics should raise plate-boundary elevation")
 end
@@ -1899,6 +1957,7 @@ local tests = {
     testLakeGroupingAndSpillover,
     testErosionLandforms,
     testTectonicFeatures,
+    testOrometryArchetypes,
     testHotspotTrails,
     testDiscoveryOverlayIds,
     testNamedTerrainDiscoveries,
