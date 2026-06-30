@@ -1924,6 +1924,8 @@ local function testBiomePalette()
     expect(colorDistance(palette.desert, palette.grassland) > 0.35, "dry and grass biomes should have distinct colors")
     expect(colorDistance(palette.rainforest, palette.boreal_forest) > 0.16, "forest biomes should avoid a single green ramp")
     expect(colorDistance(palette.snow, palette.rock) > 0.75, "high terrain palette should separate snow and rock")
+    expect(Render.biomeDisplayName("temperate_forest") == "TEMPERATE FOREST", "biome banner should format ids as readable labels")
+    expect(Render.bannerAlpha(0.4, 3, 0.8) > 0 and Render.bannerAlpha(3.1, 3, 0.8) == 0, "biome banner alpha should fade in and out")
 end
 
 local function testSkyDomeColors()

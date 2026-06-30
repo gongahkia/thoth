@@ -55,6 +55,8 @@ love . --no-async
 
 Runtime initial preload defaults to 64 cells and refresh preload defaults to 72 cells; raise them when you prefer fewer walking stalls over faster first render.
 
+Biome entry banners use BigBlue Terminal by VileR, bundled under CC BY-SA 4.0 in `assets/fonts/`.
+
 Terrain diagnostics:
 
 ```sh

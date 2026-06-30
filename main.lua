@@ -32,6 +32,29 @@ local function perfLine(app, message)
     if app and app.debugPerf then print("[perf] " .. message) end
 end
 
+local function updateBiomeBanner(app, dt)
+    local cell = app.world:sample(math.floor(app.player.x), math.floor(app.player.y), "local")
+    local biome = cell and not cell.pendingHydrology and cell.biome
+    if biome then
+        if not app.currentBiome then
+            app.currentBiome = biome
+        elseif biome ~= app.currentBiome then
+            app.currentBiome = biome
+            app.biomeBanner = {
+                biome = biome,
+                label = Render.biomeDisplayName(biome),
+                age = 0,
+                duration = 3.0,
+                fade = 0.75,
+            }
+        end
+    end
+    if app.biomeBanner then
+        app.biomeBanner.age = (app.biomeBanner.age or 0) + dt
+        if app.biomeBanner.age >= (app.biomeBanner.duration or 0) then app.biomeBanner = nil end
+    end
+end
+
 local function frustumRadius(app)
     local renderRadius = app.camera.renderRadius or 62
     return math.ceil(math.sqrt(renderRadius * renderRadius + (renderRadius * 0.82) * (renderRadius * 0.82)))
@@ -90,6 +113,8 @@ end
 local function replaceWorld(app, seed)
     if app.world and app.world.shutdownAsyncHydrology then app.world:shutdownAsyncHydrology(false) end
     app.world = WorldGen.new(seed, app.worldOptions)
+    app.currentBiome = nil
+    app.biomeBanner = nil
     startAsyncHydrology(app)
 end
 
@@ -447,6 +472,7 @@ function love.update(dt)
     app.perf.sprint = input.sprint
     Player.update(app.player, simDt, input, app.world)
     ViewScale.update(app.viewScale, simDt, app.world, app.player.x, app.player.y)
+    updateBiomeBanner(app, simDt)
     refreshPreloadIfNeeded(app)
     app.camera.x = app.camera.x + (app.player.x - app.camera.x) * math.min(1, simDt * 10)
     app.camera.y = app.camera.y + (app.player.y - app.camera.y) * math.min(1, simDt * 10)

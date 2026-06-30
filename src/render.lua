@@ -5,6 +5,7 @@ local Atmosphere = require("src.atmosphere")
 local ffi = require("ffi")
 
 local terrainScale = 18
+local biomeBannerFontPath = "assets/fonts/BigBlue_Terminal_437TT.TTF"
 
 local biomeColors = {
     ocean = { 0.035, 0.12, 0.28 },
@@ -106,6 +107,29 @@ local function shade(color, amount)
         clamp(color[2] * amount, 0, 1),
         clamp(color[3] * amount, 0, 1),
     }
+end
+
+function Render.biomeDisplayName(id)
+    return string.upper((tostring(id or "unknown"):gsub("_", " ")))
+end
+
+function Render.bannerAlpha(age, duration, fade)
+    age = age or 0
+    duration = duration or 3
+    fade = fade or 0.75
+    if age < 0 or age >= duration then return 0 end
+    return math.min(1, age / fade, (duration - age) / fade)
+end
+
+local function fontCache(app, path, size)
+    app.fonts = app.fonts or {}
+    local key = tostring(path) .. ":" .. tostring(size)
+    if not app.fonts[key] then
+        local font = love.filesystem.getInfo(path) and love.graphics.newFont(path, size) or love.graphics.newFont(size)
+        if font.setFilter then font:setFilter("nearest", "nearest") end
+        app.fonts[key] = font
+    end
+    return app.fonts[key]
 end
 
 local function tintColor(color, tint)
@@ -1115,6 +1139,27 @@ local function drawMinimap(app, width, height)
     return data
 end
 
+local function drawBiomeBanner(app, width, height)
+    local banner = app.biomeBanner
+    if not banner then return nil end
+    local alpha = Render.bannerAlpha(banner.age, banner.duration, banner.fade)
+    if alpha <= 0 then return nil end
+    local font = fontCache(app, biomeBannerFontPath, app.biomeBannerFontSize or 32)
+    local previous = love.graphics.getFont()
+    love.graphics.setFont(font)
+    local text = banner.label or Render.biomeDisplayName(banner.biome)
+    local x = math.floor((width - font:getWidth(text)) * 0.5)
+    local y = math.floor(height * 0.42)
+    love.graphics.setColor(0.02, 0.025, 0.03, 0.72 * alpha)
+    love.graphics.rectangle("fill", x - 18, y - 10, font:getWidth(text) + 36, font:getHeight() + 20)
+    love.graphics.setColor(0, 0, 0, 0.55 * alpha)
+    love.graphics.print(text, x + 3, y + 3)
+    love.graphics.setColor(0.95, 0.92, 0.74, alpha)
+    love.graphics.print(text, x, y)
+    love.graphics.setFont(previous)
+    return alpha
+end
+
 local debugPanelLines = {
     { id = "plate", label = function(d) return "plates v " .. fmt(d.plate.vx) .. "," .. fmt(d.plate.vy) .. " b " .. fmt(d.plate.boundary) .. " conv " .. fmt(d.plate.convergent) end },
     { id = "drainage", label = function(d) return "drain -> " .. fmt(d.drainage.dx) .. "," .. fmt(d.drainage.dy) .. " flow " .. fmt(d.drainage.flow) .. " river " .. tostring(d.drainage.river) end },
@@ -1217,6 +1262,8 @@ function Render.drawHud(app, width, height, meshData)
         meshData.minimap = map.samples
         meshData.minimapContours = map.contours
     end
+    local biomeBannerAlpha = drawBiomeBanner(app, width, height)
+    if biomeBannerAlpha then meshData.biomeBannerAlpha = biomeBannerAlpha end
     do
         local toggles = debugPanelToggles(app)
         local any = false
