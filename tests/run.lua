@@ -28,6 +28,7 @@ local Orometry = require("src.orometry")
 local Volcano = require("src.volcano")
 local Periglacial = require("src.periglacial")
 local Bathymetry = require("src.bathymetry")
+local SoilClassify = require("src.soil_classify")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -149,6 +150,7 @@ local function encodeCell(cell)
         tostring(cell.periglacialFeature),
         tostring(cell.submarineCanyon),
         round(cell.shelfDistance),
+        tostring(cell.soilOrder),
         round(cell.regolithDepth),
         round(cell.bedrockElevation),
         round(cell.marineTerrace),
@@ -693,8 +695,8 @@ local function testChunkSoAArrays()
             for _, field in ipairs(int8Fields) do
                 total = total + 1
                 local value = tonumber(chunk.arrays[field][index])
-                local enumOk = (field == "lithology" and value >= 0 and value <= 7) or (field == "karstType" and value >= 0 and value <= 4) or (field == "reefStage" and value >= 0 and value <= 5) or (field == "archetypeId" and value >= 0 and value <= 6) or (field == "volcanicForm" and value >= 0 and value <= 5) or (field == "periglacialFeature" and value >= 0 and value <= 4)
-                local boolOk = field ~= "lithology" and field ~= "karstType" and field ~= "reefStage" and field ~= "archetypeId" and field ~= "volcanicForm" and field ~= "periglacialFeature" and (value == 0 or value == 1)
+                local enumOk = (field == "lithology" and value >= 0 and value <= 7) or (field == "karstType" and value >= 0 and value <= 4) or (field == "reefStage" and value >= 0 and value <= 5) or (field == "archetypeId" and value >= 0 and value <= 6) or (field == "volcanicForm" and value >= 0 and value <= 5) or (field == "periglacialFeature" and value >= 0 and value <= 4) or (field == "soilOrder" and value >= 0 and value <= 10)
+                local boolOk = field ~= "lithology" and field ~= "karstType" and field ~= "reefStage" and field ~= "archetypeId" and field ~= "volcanicForm" and field ~= "periglacialFeature" and field ~= "soilOrder" and (value == 0 or value == 1)
                 if value ~= soaValue(cell[field]) or not (enumOk or boolOk) then
                     mismatches = mismatches + 1
                     firstMismatch = firstMismatch or field
@@ -886,6 +888,52 @@ local function testRegolithProduction()
         end
     end
     expect(produced > 0, "geologic-time chunks should produce regolith")
+end
+
+local function testSoilOrderDistribution()
+    local ids = SoilClassify.ids()
+    local fixtures = {
+        [ids.entisol] = { temperature = 0.5, rainfall = 0.4, slope = 0.38, regolithDepth = 0.02, lithology = 5, plateAge = 0.4, biome = "grassland" },
+        [ids.inceptisol] = { temperature = 0.48, rainfall = 0.42, slope = 0.09, regolithDepth = 0.14, lithology = 5, plateAge = 0.2, biome = "temperate_forest" },
+        [ids.mollisol] = { temperature = 0.56, rainfall = 0.34, slope = 0.05, regolithDepth = 0.22, lithology = 5, plateAge = 0.5, biome = "grassland" },
+        [ids.vertisol] = { temperature = 0.58, rainfall = 0.38, slope = 0.03, regolithDepth = 0.24, lithology = 6, plateAge = 0.5, biome = "savanna" },
+        [ids.aridisol] = { temperature = 0.72, rainfall = 0.08, slope = 0.04, regolithDepth = 0.16, lithology = 5, plateAge = 0.4, biome = "desert" },
+        [ids.histosol] = { temperature = 0.32, rainfall = 0.72, slope = 0.01, regolithDepth = 0.18, lithology = 6, plateAge = 0.4, biome = "wetland", flow = 260 },
+        [ids.spodosol] = { temperature = 0.24, rainfall = 0.56, slope = 0.06, regolithDepth = 0.18, lithology = 3, plateAge = 0.5, biome = "boreal_forest" },
+        [ids.oxisol] = { temperature = 0.76, rainfall = 0.82, slope = 0.05, regolithDepth = 0.26, lithology = 4, plateAge = 0.75, biome = "rainforest" },
+        [ids.andisol] = { temperature = 0.52, rainfall = 0.5, slope = 0.12, regolithDepth = 0.16, lithology = 1, plateAge = 0.2, biome = "rock", isFloodBasalt = true },
+        [ids.ultisol] = { temperature = 0.62, rainfall = 0.66, slope = 0.07, regolithDepth = 0.2, lithology = 5, plateAge = 0.45, biome = "temperate_forest" },
+    }
+    local region = { cells = {} }
+    local index = 0
+    for id, target in pairs(SoilClassify.targetDistribution()) do
+        local count = math.max(1, math.floor(target * 1000 + 0.5))
+        for _ = 1, count do
+            index = index + 1
+            local cell = {}
+            for k, v in pairs(fixtures[id]) do cell[k] = v end
+            cell.gx = index
+            cell.gy = id
+            region.cells[tostring(index) .. ":" .. tostring(id)] = cell
+        end
+    end
+    local stats = SoilClassify.applyRegion(region)
+    expect(stats.cells > 0, "soil classifier should classify land cells")
+    for id, target in pairs(SoilClassify.targetDistribution()) do
+        local ratio = (stats.counts[id] or 0) / stats.cells
+        expect(math.abs(ratio - target) <= target * 0.2 + 0.002, "soil order distribution should match target frequency for " .. tostring(id))
+    end
+    local world = WorldGen.new(20260625, fastWorldOptions)
+    local chunk = world:chunk(0, 0, "local")
+    local soilCells = 0
+    for y = 1, chunk.size do
+        for x = 1, chunk.size do
+            local order = chunk.cells[y][x].soilOrder or 0
+            if not chunk.cells[y][x].water and order > 0 then soilCells = soilCells + 1 end
+            expect(order >= 0 and order <= 10, "chunk soil order should stay in int8 enum range")
+        end
+    end
+    expect(soilCells > 0, "chunk land cells should expose soil order")
 end
 
 local function testHillslopeProfile()
@@ -2101,6 +2149,7 @@ local tests = {
     testReefSuccession,
     testLithologyErodibilityScalesStreamPower,
     testRegolithProduction,
+    testSoilOrderDistribution,
     testHillslopeProfile,
     testDebrisFlowSignature,
     testSeaLevelSeries,

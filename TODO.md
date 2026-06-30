@@ -138,31 +138,6 @@ These provide further fidelity gains but are not gating realism wins. Land after
 
 ---
 
-### T-054 — CLORPT soil classifier + horizons                     [tier 6] [med]
-
-GOAL: After lithology (T-034) and regolith (T-035), classify USDA soil order (Entisol, Inceptisol, Mollisol, Vertisol, Aridisol, Histosol, Spodosol, Oxisol, Andisol, Ultisol) via CLORPT factors (climate, organisms, relief, parent, time).
-
-WHY: Current biomes use Whittaker climate-only LUT. Soil determines vegetation just as much as climate (e.g., serpentine soils host distinct flora; peat blocks tree roots). Adds depth without significant per-cell footprint increase.
-
-WHERE: New `src/soil_classify.lua`. Call in chunk pipeline after biome classification. New per-cell `soilOrder:int8`.
-
-DEPENDS ON: T-034, T-035, T-038.
-
-ACCEPTANCE: Soil-order distribution matches global frequency ±20%. `testSoilOrderDistribution` gates.
-
-NOTES / IMPL HINTS:
-- 10 USDA soil orders → int8.
-- Decision tree using climate (temp, precip), parent lithology (T-034), relief (slope), drainage (flow accumulation), age (`plate.age`).
-- Examples: humid tropical + intense weathering → Oxisol; cool boreal conifer → Spodosol; arid endorheic → Aridisol; volcanic ash parent → Andisol; waterlogged organic → Histosol.
-- Optional layered horizons (O/A/E/B/C/R) as additional SoA fields — defer to v2 unless render uses horizon colors.
-
-REFERENCES:
-- [USDA Soil Taxonomy](https://www.nrcs.usda.gov/resources/guides-and-instructions/keys-to-soil-taxonomy).
-- [Soil formation / CLORPT — Wikipedia](https://en.wikipedia.org/wiki/Soil_formation).
-- [Weigert SoilMachine](https://github.com/weigert/SoilMachine) — particle-transport soil simulator.
-
----
-
 ### T-055 — Vegetation succession + treeline + riparian + fire    [tier 6] [med]
 
 GOAL: Extend `Biomes.lookup` (biomes.lua:42-55) into multi-pass classifier: (a) climate base via Whittaker, (b) treeline via growing-degree-day proxy, (c) riparian galleries along rivers, (d) fire-shaped savanna/chaparral in seasonal-dry biomes, (e) ecotone blending at boundaries.
