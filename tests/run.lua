@@ -51,128 +51,155 @@ local function testWorld(seed)
     return WorldGen.new(seed, fastWorldOptions)
 end
 
-local function encodeCell(cell)
+local soaInt8EnumFields = { lithology = true, pressureCellId = true, karstType = true, reefStage = true, archetypeId = true, volcanicForm = true, periglacialFeature = true, soilOrder = true }
+local soaInt8BoolFields = {}
+for _, field in ipairs(WorldGen.soaInt8Fields()) do
+    if not soaInt8EnumFields[field] then soaInt8BoolFields[field] = true end
+end
+
+local function encodeFields(get)
     return table.concat({
-        cell.x,
-        cell.y,
-        cell.scale,
-        round(cell.filledElevation),
-        round(cell.elevation),
-        round(cell.flow),
-        round(cell.erosion),
-        round(cell.deposition),
-        round(cell.thermalErosion),
-        round(cell.lakeDepth),
-        round(cell.rainfall),
-        round(cell.temperature),
-        cell.biome,
-        tostring(cell.river),
-        tostring(cell.riverBank),
-        tostring(cell.lake),
-        tostring(cell.water),
-        tostring(cell.lakeId),
-        tostring(cell.lakeGroupSize),
-        tostring(cell.lakeOutletX),
-        tostring(cell.lakeOutletY),
-        round(cell.spilloverElevation),
-        round(cell.spilloverFlow),
-        tostring(cell.spillover),
-        tostring(cell.spilloverLakeId),
-        tostring(cell.talus),
-        tostring(cell.alluvialFan),
-        tostring(cell.floodplain),
-        tostring(cell.delta),
-        tostring(cell.plateId),
-        tostring(cell.secondaryPlateId),
-        round(cell.plateAge),
-        round(cell.secondaryPlateAge),
-        tostring(cell.plateCrust),
-        tostring(cell.secondaryPlateCrust),
-        round(cell.oceanicSubduction),
-        round(cell.subductionBias),
-        round(cell.riftValley),
-        round(cell.volcanicIslandArc),
-        round(cell.shield),
-        round(cell.craton),
-        tostring(cell.ridgeId),
-        tostring(cell.mountainRangeId),
-        tostring(cell.basinId),
-        tostring(cell.watershedId),
-        tostring(cell.macroBasinId),
-        tostring(cell.macroChannelId),
-        round(cell.streamPowerDelta),
-        round(cell.streamPowerErosion),
-        round(cell.streamPowerUplift),
-        round(cell.isostaticRebound),
-        round(cell.sediment),
-        round(cell.sedimentFlux),
-        round(cell.sedimentCapacity),
-        round(cell.precipitation),
-        round(cell.rainShadowScore),
-        tostring(cell.rainShadow),
-        round(cell.windX),
-        round(cell.windY),
-        round(cell.baselinePrecip),
-        tostring(cell.pressureCellId),
-        round(cell.monsoonIndex),
-        round(cell.hotspotContribution),
-        round(cell.hotspotAgeMy),
-        tostring(cell.hotspotId),
-        tostring(cell.isFloodBasalt),
-        round(cell.meanderBend),
-        tostring(cell.oxbowLake),
-        round(cell.glacialDelta),
-        round(cell.glacialErosion),
-        round(cell.iceThickness),
-        tostring(cell.glaciated),
-        tostring(cell.coastCliff),
-        tostring(cell.coastBeach),
-        round(cell.coastExposure),
-        round(cell.coastErosion),
-        round(cell.coastDeposition),
-        tostring(cell.shorelineNode),
-        round(cell.duneDelta),
-        round(cell.duneAmplitude),
-        round(cell.dunePhase),
-        tostring(cell.lithology),
-        round(cell.erodibilityK),
-        round(cell.lithologyAge),
-        round(cell.karstDepth),
-        round(cell.cavePresence),
-        tostring(cell.karstType),
-        round(cell.reefAccretion),
-        round(cell.reefAgeMy),
-        tostring(cell.reefStage),
-        tostring(cell.archetypeId),
-        round(cell.archetypeBlend),
-        tostring(cell.volcanicForm),
-        round(cell.volcanicAgeMy),
-        tostring(cell.periglacialFeature),
-        tostring(cell.submarineCanyon),
-        round(cell.shelfDistance),
-        tostring(cell.soilOrder),
-        tostring(cell.treeline),
-        tostring(cell.riparian),
-        round(cell.fireFrequency),
-        round(cell.regolithDepth),
-        round(cell.bedrockElevation),
-        round(cell.marineTerrace),
-        round(cell.fluvialTerrace),
-        round(cell.latitudeRadians),
-        round(cell.coriolisF),
-        round(cell.hillslopeDelta),
-        tostring(cell.debrisFlow),
-        round(cell.debrisFlowDelta),
-        tostring(cell.paleoShoreline),
-        tostring(cell.riverHistorical),
+        get("x"),
+        get("y"),
+        get("scale"),
+        round(get("filledElevation")),
+        round(get("elevation")),
+        round(get("flow")),
+        round(get("erosion")),
+        round(get("deposition")),
+        round(get("thermalErosion")),
+        round(get("lakeDepth")),
+        round(get("rainfall")),
+        round(get("temperature")),
+        get("biome"),
+        tostring(get("river")),
+        tostring(get("riverBank")),
+        tostring(get("lake")),
+        tostring(get("water")),
+        tostring(get("lakeId")),
+        tostring(get("lakeGroupSize")),
+        tostring(get("lakeOutletX")),
+        tostring(get("lakeOutletY")),
+        round(get("spilloverElevation")),
+        round(get("spilloverFlow")),
+        tostring(get("spillover")),
+        tostring(get("spilloverLakeId")),
+        tostring(get("talus")),
+        tostring(get("alluvialFan")),
+        tostring(get("floodplain")),
+        tostring(get("delta")),
+        tostring(get("plateId")),
+        tostring(get("secondaryPlateId")),
+        round(get("plateAge")),
+        round(get("secondaryPlateAge")),
+        tostring(get("plateCrust")),
+        tostring(get("secondaryPlateCrust")),
+        round(get("oceanicSubduction")),
+        round(get("subductionBias")),
+        round(get("riftValley")),
+        round(get("volcanicIslandArc")),
+        round(get("shield")),
+        round(get("craton")),
+        tostring(get("ridgeId")),
+        tostring(get("mountainRangeId")),
+        tostring(get("basinId")),
+        tostring(get("watershedId")),
+        tostring(get("macroBasinId")),
+        tostring(get("macroChannelId")),
+        round(get("streamPowerDelta")),
+        round(get("streamPowerErosion")),
+        round(get("streamPowerUplift")),
+        round(get("isostaticRebound")),
+        round(get("sediment")),
+        round(get("sedimentFlux")),
+        round(get("sedimentCapacity")),
+        round(get("precipitation")),
+        round(get("rainShadowScore")),
+        tostring(get("rainShadow")),
+        round(get("windX")),
+        round(get("windY")),
+        round(get("baselinePrecip")),
+        tostring(get("pressureCellId")),
+        round(get("monsoonIndex")),
+        round(get("hotspotContribution")),
+        round(get("hotspotAgeMy")),
+        tostring(get("hotspotId")),
+        tostring(get("isFloodBasalt")),
+        round(get("meanderBend")),
+        tostring(get("oxbowLake")),
+        round(get("glacialDelta")),
+        round(get("glacialErosion")),
+        round(get("iceThickness")),
+        tostring(get("glaciated")),
+        tostring(get("coastCliff")),
+        tostring(get("coastBeach")),
+        round(get("coastExposure")),
+        round(get("coastErosion")),
+        round(get("coastDeposition")),
+        tostring(get("shorelineNode")),
+        round(get("duneDelta")),
+        round(get("duneAmplitude")),
+        round(get("dunePhase")),
+        tostring(get("lithology")),
+        round(get("erodibilityK")),
+        round(get("lithologyAge")),
+        round(get("karstDepth")),
+        round(get("cavePresence")),
+        tostring(get("karstType")),
+        round(get("reefAccretion")),
+        round(get("reefAgeMy")),
+        tostring(get("reefStage")),
+        tostring(get("archetypeId")),
+        round(get("archetypeBlend")),
+        tostring(get("volcanicForm")),
+        round(get("volcanicAgeMy")),
+        tostring(get("periglacialFeature")),
+        tostring(get("submarineCanyon")),
+        round(get("shelfDistance")),
+        tostring(get("soilOrder")),
+        tostring(get("treeline")),
+        tostring(get("riparian")),
+        round(get("fireFrequency")),
+        round(get("regolithDepth")),
+        round(get("bedrockElevation")),
+        round(get("marineTerrace")),
+        round(get("fluvialTerrace")),
+        round(get("latitudeRadians")),
+        round(get("coriolisF")),
+        round(get("hillslopeDelta")),
+        tostring(get("debrisFlow")),
+        round(get("debrisFlowDelta")),
+        tostring(get("paleoShoreline")),
+        tostring(get("riverHistorical")),
     }, "|")
+end
+
+local function encodeCell(cell)
+    return encodeFields(function(field) return cell[field] end)
+end
+
+local function encodeChunkCell(chunk, x, y)
+    local index = (y - 1) * chunk.size + (x - 1)
+    local ref = chunk.refs and chunk.refs[index]
+    local cell
+    return encodeFields(function(field)
+        local array = chunk.arrays and chunk.arrays[field]
+        if array then
+            local value = tonumber(array[index]) or 0
+            if soaInt8BoolFields[field] then return value ~= 0 end
+            return value
+        end
+        if ref and ref[field] ~= nil then return ref[field] end
+        cell = cell or chunk.cells[y][x]
+        return cell[field]
+    end)
 end
 
 local function encodeChunk(chunk)
     local parts = { chunk.x, chunk.y, chunk.scale, chunk.scaleFactor }
     for y = 1, chunk.size do
         for x = 1, chunk.size do
-            parts[#parts + 1] = encodeCell(chunk.cells[y][x])
+            parts[#parts + 1] = encodeChunkCell(chunk, x, y)
         end
     end
     return table.concat(parts, "\n")
@@ -678,6 +705,8 @@ local function testChunkSoAArrays()
     local fields = WorldGen.soaFields()
     expect(#fields > 0 and chunk.arrays, "chunk should expose ffi-backed SoA arrays")
     expect(#doubleFields > 0 and #int8Fields > 0 and #int32Fields > 0, "soa field groups should cover double, int8, and int32 arrays")
+    expect(chunk.refs and chunk.cells and not chunk.rawCells, "chunk should keep sparse refs plus a lazy cell proxy")
+    expect(chunk.refs[0] and chunk.refs[0].elevation == nil and chunk.refs[0].water == nil and chunk.refs[0].downCell == nil, "chunk refs should not duplicate SoA fields or hydrology graph links")
     for _, field in ipairs(fields) do
         expect(chunk.arrays[field] ~= nil, "soa array should exist for " .. field)
     end

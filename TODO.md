@@ -94,30 +94,6 @@ These extend the world's reach and the engine's ability to handle long sessions.
 
 ---
 
-### T-025 — Struct-of-arrays cell storage via LuaJIT FFI         [tier 4] [high]
-
-STATUS: **Partial**. `chunk.arrays = { elevation, slope, flow, temperature, rainfall, sediment, glacialDelta, isostaticRebound, streamPowerDelta }` are now `ffi.new("double[?]", size²)` flat arrays populated alongside `chunk.cells` at chunk finalization (sync + async hydrology paths). `WorldGen.soaFields()` enumerates the available SoA fields. `testChunkSoAArrays` gates array/table consistency.
-
-REMAINING:
-- Migrate hot read sites in `src/render.lua`, `src/hydrology.lua`, `src/erosion.lua`, `src/climate.lua` to read `chunk.arrays.field[index]` instead of `cell.field`. This is the actual perf win — currently arrays are populated but consumers still read tables.
-- Extend SoA to booleans (water, river, lake, talus, etc.) as `int8` arrays.
-- Move string-keyed IDs (biome, basinId, watershedId, etc.) into a parallel sparse ref table per chunk; or accept that strings stay in `cell` tables.
-- Remove `chunk.cells` table allocation once consumers are migrated, so memory per chunk actually drops.
-- Update encoder in `tests/run.lua:encodeCell` to read from arrays.
-
-ACCEPTANCE (full):
-- A `Chunk` is a set of parallel FFI arrays (`elevation`, `temperature`, `rainfall`, `slope`, `flow`, etc.) of size `chunkSize²`. *(double fields landed; boolean + string fields pending.)*
-- `cell.field` access replaced with `chunk.field[index]`. *(arrays exposed but consumers not migrated.)*
-- Tests still pass (encoder updated to iterate FFI arrays). *(test added but encoder still uses cell tables.)*
-- Memory per chunk drops measurably. *(currently goes up because arrays are duplicated; will drop once `chunk.cells` is removed.)*
-
-REFERENCES:
-- [LuaJIT FFI Semantics](https://luajit.org/ext_ffi_semantics.html)
-- [LuaJIT FFI API](https://luajit.org/ext_ffi_api.html)
-- [FFI array performance — luajit mailing list](https://www.freelists.org/post/luajit/FFI-array-performance)
-
----
-
 # TIER 5 — Engineering hygiene
 
 Small targeted fixes for issues spotted during the audit. Land any time after Tier 1.

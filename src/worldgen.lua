@@ -17,6 +17,13 @@ local soaInt32FieldList = { "plateId", "secondaryPlateId", "hotspotId", "shoreli
 local soaDoubleArray = ffi.typeof("double[?]")
 local soaInt8Array = ffi.typeof("int8_t[?]")
 local soaInt32Array = ffi.typeof("int32_t[?]")
+local soaInt8FieldSet = {}
+local soaInt8EnumFieldSet = { lithology = true, pressureCellId = true, karstType = true, reefStage = true, archetypeId = true, volcanicForm = true, periglacialFeature = true, soilOrder = true }
+local refSkipFieldSet = { downCell = true }
+
+for _, field in ipairs(soaInt8FieldList) do
+    soaInt8FieldSet[field] = true
+end
 
 local function soaValue(value)
     if value == true then return 1 end
@@ -54,6 +61,80 @@ local function buildChunkArrays(rows, size)
         end
     end
     return arrays
+end
+
+local function buildChunkRefs(rows, size)
+    local refs = {}
+    for y = 1, size do
+        local row = rows[y]
+        local base = (y - 1) * size
+        for x = 1, size do
+            local ref = row[x]
+            for _, field in ipairs(soaFieldList) do ref[field] = nil end
+            for _, field in ipairs(soaInt8FieldList) do ref[field] = nil end
+            for _, field in ipairs(soaInt32FieldList) do ref[field] = nil end
+            for field in pairs(refSkipFieldSet) do ref[field] = nil end
+            refs[base + (x - 1)] = ref
+        end
+    end
+    return refs
+end
+
+local function chunkCellIndex(chunk, x, y)
+    if not chunk or x < 1 or y < 1 or x > chunk.size or y > chunk.size then return nil end
+    return (y - 1) * chunk.size + (x - 1)
+end
+
+local function readChunkArrayValue(chunk, field, index)
+    local array = chunk.arrays and chunk.arrays[field]
+    if not array then return nil end
+    local value = tonumber(array[index]) or 0
+    if soaInt8FieldSet[field] and not soaInt8EnumFieldSet[field] then return value ~= 0 end
+    return value
+end
+
+local function chunkCellAt(chunk, x, y)
+    local index = chunkCellIndex(chunk, x, y)
+    if not index then return nil end
+    local cell = {}
+    local ref = chunk.refs and chunk.refs[index]
+    if ref then
+        for field, value in pairs(ref) do cell[field] = value end
+    elseif chunk.rawCells then
+        for field, value in pairs(chunk.rawCells[y][x]) do cell[field] = value end
+    end
+    for _, field in ipairs(soaFieldList) do cell[field] = readChunkArrayValue(chunk, field, index) end
+    for _, field in ipairs(soaInt8FieldList) do cell[field] = readChunkArrayValue(chunk, field, index) end
+    for _, field in ipairs(soaInt32FieldList) do cell[field] = readChunkArrayValue(chunk, field, index) end
+    return cell
+end
+
+local function chunkCellsProxy(chunk)
+    return setmetatable({}, {
+        __index = function(_, y)
+            if type(y) ~= "number" or y < 1 or y > chunk.size then return nil end
+            chunk.rowProxies = chunk.rowProxies or {}
+            local row = chunk.rowProxies[y]
+            if row then return row end
+            row = setmetatable({}, {
+                __index = function(_, x)
+                    if type(x) ~= "number" or x < 1 or x > chunk.size then return nil end
+                    return chunkCellAt(chunk, x, y)
+                end,
+            })
+            chunk.rowProxies[y] = row
+            return row
+        end,
+    })
+end
+
+local function packChunkCells(chunk, rows)
+    chunk.arrays = buildChunkArrays(rows, chunk.size)
+    chunk.refs = buildChunkRefs(rows, chunk.size)
+    chunk.rawCells = nil
+    chunk.rowProxies = nil
+    chunk.cells = chunkCellsProxy(chunk)
+    return chunk
 end
 
 local lithologyTable = {
@@ -981,7 +1062,7 @@ function WorldGen:pollAsyncHydrology(limit)
         self.asyncPending[message.key] = nil
         if message.ok and message.chunk then
             message.chunk.pendingHydrology = false
-            message.chunk.arrays = buildChunkArrays(message.chunk.cells, message.chunk.size)
+            packChunkCells(message.chunk, message.chunk.cells)
             self:cachePut(key(message.chunk.x, message.chunk.y, message.chunk.scale), message.chunk, "chunk")
             self.metrics.asyncHydrologyCompleted = (self.metrics.asyncHydrologyCompleted or 0) + 1
         else
@@ -1255,15 +1336,15 @@ function WorldGen:baseChunk(chunkX, chunkY, info)
             rows[y][x] = cell
         end
     end
-    return {
+    local chunk = {
         x = chunkX,
         y = chunkY,
         scale = info.id,
         scaleFactor = info.factor,
         size = size,
-        cells = rows,
         pendingHydrology = true,
     }
+    return packChunkCells(chunk, rows)
 end
 
 function WorldGen:pendingSample(x, y, info)
@@ -1399,9 +1480,8 @@ function WorldGen:chunk(chunkX, chunkY, scale)
         scale = info.id,
         scaleFactor = info.factor,
         size = size,
-        cells = rows,
-        arrays = buildChunkArrays(rows, size),
     }
+    packChunkCells(chunk, rows)
     return self:cachePut(cacheKey, chunk, "chunk")
 end
 
@@ -1551,11 +1631,11 @@ function WorldGen:sample(x, y, scale)
     if self.asyncHydrology then
         local cacheKey = key(chunkX, chunkY, info.id)
         local chunk = self:cacheGet(cacheKey)
-        if chunk and not chunk.pendingHydrology then return chunk.cells[ly + 1][lx + 1] end
+        if chunk and not chunk.pendingHydrology then return chunkCellAt(chunk, lx + 1, ly + 1) end
         self:queueAsyncChunk(chunkX, chunkY, info)
         return self:pendingSample(gx * info.factor, gy * info.factor, info)
     end
-    return self:chunk(chunkX, chunkY, info.id).cells[ly + 1][lx + 1]
+    return chunkCellAt(self:chunk(chunkX, chunkY, info.id), lx + 1, ly + 1)
 end
 
 local function hasLandWaterEdge(world, cell, scale)
