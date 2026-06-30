@@ -5,6 +5,7 @@ local SoilProduction = require("src.soil_production")
 local Hillslope = require("src.hillslope")
 local Meander = require("src.meander")
 local Karst = require("src.karst")
+local Reef = require("src.reef")
 
 local Hydrology = {}
 
@@ -694,6 +695,12 @@ local function solveRegion(world, chunkX, chunkY, info)
     end
 
     region.coast = Coast.apply(region, { seaLevel = seaLevel })
+    region.reefs = Reef.applyRegion(region, {
+        seed = world.seed,
+        seaLevel = seaLevel,
+        geologicTime = world.geologicTime,
+        zScale = world.zScale,
+    })
 
     for _, cell in ipairs(visitOrder) do
         if cell.river then
@@ -746,6 +753,10 @@ local function solveRegion(world, chunkX, chunkY, info)
         shorelineLagoons = region.coast and region.coast.lagoons or 0,
         karstFeatures = region.karst and region.karst.features or 0,
         karstCells = region.karst and region.karst.affectedCells or 0,
+        reefFringing = region.reefs and region.reefs.fringing or 0,
+        reefBarrier = region.reefs and region.reefs.barrier or 0,
+        reefAtoll = region.reefs and region.reefs.atoll or 0,
+        reefLagoon = region.reefs and region.reefs.lagoon or 0,
         meanderSegments = region.meanders and region.meanders.segments or 0,
         maxMeanderSinuosity = region.meanders and region.meanders.maxSinuosity or 0,
         oxbowLakes = 0,

@@ -23,6 +23,7 @@ local Biomes = require("src.biomes")
 local Aeolian = require("src.aeolian")
 local Coast = require("src.coast")
 local Karst = require("src.karst")
+local Reef = require("src.reef")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -134,6 +135,9 @@ local function encodeCell(cell)
         round(cell.karstDepth),
         round(cell.cavePresence),
         tostring(cell.karstType),
+        round(cell.reefAccretion),
+        round(cell.reefAgeMy),
+        tostring(cell.reefStage),
         round(cell.regolithDepth),
         round(cell.bedrockElevation),
         round(cell.marineTerrace),
@@ -552,8 +556,8 @@ local function testChunkSoAArrays()
             for _, field in ipairs(int8Fields) do
                 total = total + 1
                 local value = tonumber(chunk.arrays[field][index])
-                local enumOk = (field == "lithology" and value >= 0 and value <= 7) or (field == "karstType" and value >= 0 and value <= 4)
-                local boolOk = field ~= "lithology" and field ~= "karstType" and (value == 0 or value == 1)
+                local enumOk = (field == "lithology" and value >= 0 and value <= 7) or (field == "karstType" and value >= 0 and value <= 4) or (field == "reefStage" and value >= 0 and value <= 5)
+                local boolOk = field ~= "lithology" and field ~= "karstType" and field ~= "reefStage" and (value == 0 or value == 1)
                 if value ~= soaValue(cell[field]) or not (enumOk or boolOk) then
                     mismatches = mismatches + 1
                     firstMismatch = firstMismatch or field
@@ -660,6 +664,54 @@ local function testKarstStamp()
     expect(towerStats.features > 0 and towerStats.towers > 0 and towerCells > 0, "humid tropical carbonate should stamp tower karst")
     expect(caves > 0, "carbonate cells should expose cave presence")
     expect(Biomes.lookup(0.7, 0.6, 0.2, false, 0.03, 0, false, 1) == "karst", "karst cells should route to karst biome")
+end
+
+local function testReefSuccession()
+    local function makeRegion(kind)
+        local region = { seed = 20260625, seaLevel = 0, geologicTime = 1, cells = {} }
+        for gy = 0, 20 do
+            for gx = 0, 20 do
+                local dx, dy = gx - 10, gy - 10
+                local dist = math.sqrt(dx * dx + dy * dy)
+                local water = true
+                local elevation = -0.04
+                if kind == "fringing" and gx <= 5 then
+                    water = false
+                    elevation = 0.08
+                elseif kind == "atoll" then
+                    elevation = dist < 3 and -0.065 or (dist >= 5 and dist <= 7 and -0.03 or -0.09)
+                end
+                region.cells[gx .. ":" .. gy] = {
+                    gx = gx,
+                    gy = gy,
+                    x = gx,
+                    y = gy,
+                    elevationBase = elevation,
+                    elevation = elevation,
+                    water = water,
+                    lake = false,
+                    temperature = 0.78,
+                    latitudeRadians = 0.1,
+                    oceanDepthMeters = kind == "fringing" and 2605 or (kind == "barrier" and 2860 or 3300),
+                    hotspotContribution = kind == "atoll" and 0.35 or 0,
+                    hotspotAgeMy = kind == "atoll" and 60 or 0,
+                }
+            end
+        end
+        return region
+    end
+    local fringing = makeRegion("fringing")
+    local fringingStats = Reef.applyRegion(fringing, { seed = 20260625, seaLevel = 0, geologicTimeMyr = 40 })
+    local barrier = makeRegion("barrier")
+    local barrierStats = Reef.applyRegion(barrier, { seed = 20260625, seaLevel = 0, geologicTimeMyr = 40 })
+    local atoll = makeRegion("atoll")
+    local atollStats = Reef.applyRegion(atoll, { seed = 20260625, seaLevel = 0, geologicTimeMyr = 80 })
+    expect(fringingStats.fringing > 0, "warm shallow coasts should develop fringing reefs")
+    expect(barrierStats.barrier > 0, "moderate subsidence should develop barrier reefs")
+    expect(atollStats.atoll > 0 and atollStats.lagoon > 0, "strong subsidence should produce atoll rings and lagoons")
+    expect(atoll.cells["10:10"].reefStage == 4, "atoll interiors should be lagoon stage")
+    expect(Biomes.lookup(0.7, 0.6, -0.02, true, 0, 0, false, 0, 3) == "reef", "reef stages should route to reef biome")
+    expect(Biomes.lookup(0.7, 0.6, -0.04, true, 0, 0, false, 0, 4) == "lagoon", "atoll interiors should route to lagoon biome")
 end
 
 local function testLithologyErodibilityScalesStreamPower()
@@ -1860,6 +1912,7 @@ local tests = {
     testChunkSoAArrays,
     testLithologyDistribution,
     testKarstStamp,
+    testReefSuccession,
     testLithologyErodibilityScalesStreamPower,
     testRegolithProduction,
     testHillslopeProfile,

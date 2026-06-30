@@ -8,8 +8,8 @@ local Aeolian = require("src.aeolian")
 local SoilProduction = require("src.soil_production")
 local ffi = require("ffi")
 
-local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "oceanDepthMeters", "oceanAgeMyr", "karstDepth", "cavePresence", "meanderBend", "hillslopeDelta", "debrisFlowDelta" }
-local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake", "karstType" }
+local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "oceanDepthMeters", "oceanAgeMyr", "karstDepth", "cavePresence", "reefAccretion", "reefAgeMy", "meanderBend", "hillslopeDelta", "debrisFlowDelta" }
+local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake", "karstType", "reefStage" }
 local soaInt32FieldList = { "plateId", "secondaryPlateId", "hotspotId", "shorelineNode" }
 local soaDoubleArray = ffi.typeof("double[?]")
 local soaInt8Array = ffi.typeof("int8_t[?]")
@@ -98,6 +98,8 @@ local biomeIds = {
     lava_flow = true,
     shield = true,
     karst = true,
+    reef = true,
+    lagoon = true,
 }
 
 local billboardKinds = {
@@ -375,6 +377,8 @@ end
 
 local function classifyBiome(elevation, water, river, temperature, moisture, slope, lake, cell)
     if lake then return "lake" end
+    if cell and (cell.reefStage or 0) == 4 then return "lagoon" end
+    if cell and (cell.reefStage or 0) > 0 and (cell.reefStage or 0) < 4 then return "reef" end
     if water then
         return elevation > -0.06 and "coast" or "ocean"
     end
@@ -1100,6 +1104,9 @@ function WorldGen:baseSample(x, y, scale)
         karstDepth = 0,
         cavePresence = 0,
         karstType = 0,
+        reefAccretion = 0,
+        reefAgeMy = 0,
+        reefStage = 0,
         meanderBend = 0,
         oxbowLake = false,
         marineTerrace = 0,
@@ -1226,6 +1233,9 @@ function WorldGen:pendingSample(x, y, info)
         karstDepth = 0,
         cavePresence = 0,
         karstType = 0,
+        reefAccretion = 0,
+        reefAgeMy = 0,
+        reefStage = 0,
         meanderBend = 0,
         oxbowLake = false,
         marineTerrace = 0,

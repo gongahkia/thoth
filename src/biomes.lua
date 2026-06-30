@@ -39,11 +39,13 @@ for t = 1, bins do
     end
 end
 
-function Biomes.lookup(temperature, precipitation, elevation, water, slope, hotspotContribution, isFloodBasalt, karstType)
+function Biomes.lookup(temperature, precipitation, elevation, water, slope, hotspotContribution, isFloodBasalt, karstType, reefStage)
     temperature = clamp(temperature or 0.5, 0, 1)
     precipitation = clamp(precipitation or 0.5, 0, 1)
     elevation = elevation or 0
     slope = slope or 0
+    if (reefStage or 0) == 4 then return "lagoon" end
+    if (reefStage or 0) > 0 and (reefStage or 0) < 4 then return "reef" end
     if water then return elevation > -0.06 and "coast" or "ocean" end
     if isFloodBasalt then return "lava_flow" end
     if (karstType or 0) > 0 then return "karst" end

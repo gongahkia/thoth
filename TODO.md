@@ -132,45 +132,6 @@ Current pass order (verified at `src/hydrology.lua:237-294, 612`): `baseSample` 
 
 ---
 
-### T-049 — Coral reef succession (Darwin 1842)                   [tier 6] [med]
-
-GOAL: For warm shallow tropical coastlines and submerging seamounts, grow fringing → barrier → atoll reef per Darwin 1842 subsidence model. Adds `reef`, `lagoon` biomes.
-
-WHY: No coral reefs currently. Distinctive shallow-tropical morphology — fringing reefs near land, barrier reefs offshore, atolls over subsiding seamounts. Emerges from existing plate.age + hotspot subsidence (T-043).
-
-WHERE:
-- New `src/reef.lua` exposing `Reef.applyRegion(region, options)`.
-- `src/hydrology.lua:608-612` after `Coast.apply` — call `Reef.applyRegion`.
-- `src/worldgen.lua:10` — append `reefAccretion:double, reefAgeMy:double` to `soaFieldList`; `reefStage:int8` to `soaInt8FieldList`.
-- `src/biomes.lua` — add `reef`, `lagoon` biomes.
-
-DEPENDS ON: T-043 (hotspot subsidence drives atoll progression), T-036 (eustatic sea level — subsidence is sea-level relative), T-038.
-
-ACCEPTANCE:
-- Tropical (`latitudeUnit < 0.4 && temperature > 0.62`) shallow coasts develop fringing reefs (`reefStage = 1`).
-- Seamounts subsided since `reefStartTime > 0` show barrier (`reefStage = 2`) or atoll (`reefStage = 3`) geometry.
-- Atolls have central lagoon (`reefStage = 4`).
-- `testReefSuccession` runs synthetic subsiding seamount over geologicTime, asserts fringing → barrier → atoll.
-
-NOTES / IMPL HINTS:
-- Candidate filter: `water && latitudeUnit < 0.4 && temperature > 0.62 && elevation > seaLevel - 0.08`.
-- Reef seed: local elevation max in candidate region. `reefStartTime = Rng.unitAt(seed, seedGx, seedGy, 1061) · geologicTime`.
-- `reefAgeMy = max(0, geologicTime - reefStartTime)`.
-- `accretion = reefAgeMy · reefGrowthRate`; default `reefGrowthRate = 0.05` per Ma in normalized coords.
-- Subsidence `Δsub = thermalSubsidence(plate.age) + hotspotSubsidence(hotspotAgeMy)`. Thermal via GDH1 (T-046); hotspot via `exp` decay over ~30 Ma.
-- Stage rules (Darwin):
-  - `accretion < Δsub - 0.02` → submerged (stage 5).
-  - `Δsub < 0.005` → fringing (stage 1).
-  - `0.005 ≤ Δsub < 0.04` && accretion keeps pace → barrier (stage 2).
-  - `Δsub ≥ 0.04` && accretion keeps pace, substrate well below → atoll ring (stage 3); interior = lagoon (stage 4).
-- Write biome `reef` to ring; `lagoon` to atoll interior. Accreting reef cells: `elevation = max(elevation, currentSeaLevel + 0.002)`.
-
-REFERENCES:
-- [Darwin 1842 Structure & Distribution of Coral Reefs](https://www.gutenberg.org/files/2690/2690-h/2690-h.htm).
-- [Toomey, Ashton & Perron 2013 Geology](https://pubs.geoscienceworld.org/gsa/geology/article/41/7/731/130911).
-
----
-
 ### T-050 — Orometry-conditioned regional priors                  [tier 6] [med]
 
 GOAL: Offline-bake (one-time, `tools/bake_orometry.lua`) per-archetype statistics from SRTM tiles for ~6 mountain archetypes (Alps, Appalachians, Himalaya, Andes, Fjordland, Basin&Range). At runtime, each continental chunk picks an archetype deterministically; noise+plate generator parameters scale toward that archetype.

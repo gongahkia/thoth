@@ -25,6 +25,8 @@ local biomeColors = {
     lava_flow = { 0.18, 0.13, 0.11 },
     shield = { 0.28, 0.32, 0.25 },
     karst = { 0.55, 0.58, 0.46 },
+    reef = { 0.12, 0.62, 0.62 },
+    lagoon = { 0.06, 0.42, 0.58 },
 }
 
 local landformColors = {
@@ -129,7 +131,7 @@ local function baseColor(cell)
     end
     if cell.lake then return biomeColors.lake end
     local color = biomeColors[cell.biome] or biomeColors.grassland
-    if cell.water then color = cell.biome == "coast" and biomeColors.coast or biomeColors.ocean end
+    if cell.water then color = (cell.biome == "coast" or cell.biome == "reef" or cell.biome == "lagoon") and biomeColors[cell.biome] or biomeColors.ocean end
     if (cell.craton or 0) > 0.12 then color = mixColor(color, landformColors.craton, 0.34) end
     if (cell.shield or 0) > 0.2 then color = mixColor(color, landformColors.shield, 0.26) end
     if (cell.riftValley or 0) > 0.08 then color = mixColor(color, landformColors.rift, 0.4) end
