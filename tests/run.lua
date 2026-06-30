@@ -26,6 +26,7 @@ local Karst = require("src.karst")
 local Reef = require("src.reef")
 local Orometry = require("src.orometry")
 local Volcano = require("src.volcano")
+local Periglacial = require("src.periglacial")
 
 local function expect(value, message)
     if not value then error(message or "expectation failed", 2) end
@@ -144,6 +145,7 @@ local function encodeCell(cell)
         round(cell.archetypeBlend),
         tostring(cell.volcanicForm),
         round(cell.volcanicAgeMy),
+        tostring(cell.periglacialFeature),
         round(cell.regolithDepth),
         round(cell.bedrockElevation),
         round(cell.marineTerrace),
@@ -453,6 +455,35 @@ local function testVolcanicLandforms()
     expect(forms[3] and forms[4], "hotspot fixture should contain shield and lava-flow cells")
 end
 
+local function testPeriglacialStamps()
+    local region = { cells = {} }
+    for gy = 1, 24 do
+        for gx = 1, 24 do
+            local base = 0.22 + gy * 0.001
+            region.cells[gx .. ":" .. gy] = {
+                gx = gx,
+                gy = gy,
+                elevationBase = base,
+                elevation = base,
+                bedrockElevation = base,
+                temperature = gx <= 12 and 0.16 or 0.22,
+                rainfall = gx <= 12 and 0.35 or 0.62,
+                moisture = gx <= 12 and 0.35 or 0.62,
+                slope = gy <= 8 and 0.03 or (gy <= 16 and 0.07 or 0.14),
+                water = false,
+                glaciated = false,
+                biome = gx <= 12 and "tundra" or "boreal_forest",
+            }
+        end
+    end
+    local stats = Periglacial.applyRegion(region, { seed = 20260625, pingoDensity = 1, palsaDensity = 1 })
+    expect(stats.coldCells > 0 and stats.pingos > 0 and stats.polygons > 0 and stats.solifluction > 0, "cold terrain should stamp pingos, polygons, and solifluction")
+    expect(stats.palsas > 0 and stats.affectedCells > 0, "wet cold terrain should stamp palsas")
+    local seen = {}
+    for _, cell in pairs(region.cells) do seen[cell.periglacialFeature or 0] = true end
+    expect(seen[1] and seen[2] and seen[3] and seen[4], "periglacial fixture should expose all feature ids")
+end
+
 local function testDiscoveryOverlayIds()
     local world = WorldGen.new(99)
     local ridgeIds, rangeIds = {}, {}
@@ -659,8 +690,8 @@ local function testChunkSoAArrays()
             for _, field in ipairs(int8Fields) do
                 total = total + 1
                 local value = tonumber(chunk.arrays[field][index])
-                local enumOk = (field == "lithology" and value >= 0 and value <= 7) or (field == "karstType" and value >= 0 and value <= 4) or (field == "reefStage" and value >= 0 and value <= 5) or (field == "archetypeId" and value >= 0 and value <= 6) or (field == "volcanicForm" and value >= 0 and value <= 5)
-                local boolOk = field ~= "lithology" and field ~= "karstType" and field ~= "reefStage" and field ~= "archetypeId" and field ~= "volcanicForm" and (value == 0 or value == 1)
+                local enumOk = (field == "lithology" and value >= 0 and value <= 7) or (field == "karstType" and value >= 0 and value <= 4) or (field == "reefStage" and value >= 0 and value <= 5) or (field == "archetypeId" and value >= 0 and value <= 6) or (field == "volcanicForm" and value >= 0 and value <= 5) or (field == "periglacialFeature" and value >= 0 and value <= 4)
+                local boolOk = field ~= "lithology" and field ~= "karstType" and field ~= "reefStage" and field ~= "archetypeId" and field ~= "volcanicForm" and field ~= "periglacialFeature" and (value == 0 or value == 1)
                 if value ~= soaValue(cell[field]) or not (enumOk or boolOk) then
                     mismatches = mismatches + 1
                     firstMismatch = firstMismatch or field
@@ -2006,6 +2037,7 @@ local tests = {
     testOrometryArchetypes,
     testHotspotTrails,
     testVolcanicLandforms,
+    testPeriglacialStamps,
     testDiscoveryOverlayIds,
     testNamedTerrainDiscoveries,
     testSurveyHistory,

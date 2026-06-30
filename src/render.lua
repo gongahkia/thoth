@@ -47,6 +47,10 @@ local landformColors = {
     lavaFlow = { 0.2, 0.12, 0.09 },
     shieldVolcano = { 0.25, 0.3, 0.23 },
     cinderCone = { 0.18, 0.14, 0.12 },
+    pingo = { 0.62, 0.66, 0.62 },
+    palsa = { 0.44, 0.38, 0.3 },
+    polygonal = { 0.52, 0.56, 0.52 },
+    solifluction = { 0.46, 0.44, 0.38 },
 }
 
 local skyTop = { 0.43, 0.55, 0.66 }
@@ -146,6 +150,10 @@ local function baseColor(cell)
     if (cell.volcanicForm or 0) == 3 then color = mixColor(color, landformColors.lavaFlow, 0.62) end
     if (cell.volcanicForm or 0) == 4 then color = mixColor(color, landformColors.shieldVolcano, 0.5) end
     if (cell.volcanicForm or 0) == 5 then color = mixColor(color, landformColors.cinderCone, 0.55) end
+    if (cell.periglacialFeature or 0) == 1 then color = mixColor(color, landformColors.pingo, 0.42) end
+    if (cell.periglacialFeature or 0) == 2 then color = mixColor(color, landformColors.palsa, 0.42) end
+    if (cell.periglacialFeature or 0) == 3 then color = mixColor(color, landformColors.polygonal, 0.32) end
+    if (cell.periglacialFeature or 0) == 4 then color = mixColor(color, landformColors.solifluction, 0.38) end
     if cell.delta then color = mixColor(color, landformColors.delta, 0.55) end
     if cell.coastBeach then color = mixColor(color, landformColors.coastBeach, 0.68) end
     if cell.coastCliff then color = mixColor(color, landformColors.coastCliff, 0.6) end

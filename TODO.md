@@ -138,29 +138,6 @@ These provide further fidelity gains but are not gating realism wins. Land after
 
 ---
 
-### T-052 — Periglacial features (pingos, palsas, polygonal)      [tier 6] [low]
-
-GOAL: For cells in cold non-glaciated zones (`temperature < 0.25 && !cell.glaciated`), stamp pingos (ice-cored mounds), palsas (peat mounds), polygonal-patterned-ground texture, solifluction lobes on slopes.
-
-WHY: Tundra biome is currently visually uniform. Periglacial features give Arctic terrain its characteristic surface texture.
-
-WHERE: New `src/periglacial.lua`. Call in chunk-build after biome classification. New per-cell `periglacialFeature:int8`.
-
-DEPENDS ON: T-038.
-
-ACCEPTANCE: Tundra/boreal cells have non-zero periglacial-feature density. `testPeriglacialStamps` gates.
-
-NOTES / IMPL HINTS:
-- Pingo: small mound `Δz = 0.005 + 0.01 · Rng.unit`, `r=1` cell, density ~1 per 20 cells in tundra.
-- Palsa: smaller, in waterlogged wetland-tundra.
-- Polygonal ground: deterministic Voronoi pattern at `~3-cell` cell size, `Δz=0` (texture-only — render hint).
-- Solifluction: on slopes 0.05–0.2 in tundra, add downslope-aligned ridges (small amplitude `±0.003`).
-
-REFERENCES:
-- [Periglacial landforms — AntarcticGlaciers](https://www.antarcticglaciers.org/glacial-geology/glacial-landforms/periglaciation/periglacial-landforms/).
-
----
-
 ### T-053 — Marine bathymetry features                            [tier 6] [med]
 
 GOAL: Populate abyssal-plain noise floor, hadal trenches, seamounts (hotspot residual outside the trail), and submarine canyons (D8 routing extended below sea level seeded at shelf-break).

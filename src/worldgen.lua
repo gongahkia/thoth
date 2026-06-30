@@ -7,10 +7,11 @@ local Biomes = require("src.biomes")
 local Aeolian = require("src.aeolian")
 local SoilProduction = require("src.soil_production")
 local Orometry = require("src.orometry")
+local Periglacial = require("src.periglacial")
 local ffi = require("ffi")
 
 local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "oceanDepthMeters", "oceanAgeMyr", "karstDepth", "cavePresence", "reefAccretion", "reefAgeMy", "meanderBend", "hillslopeDelta", "debrisFlowDelta", "archetypeBlend", "volcanicAgeMy" }
-local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake", "karstType", "reefStage", "archetypeId", "volcanicForm" }
+local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake", "karstType", "reefStage", "archetypeId", "volcanicForm", "periglacialFeature" }
 local soaInt32FieldList = { "plateId", "secondaryPlateId", "hotspotId", "shorelineNode" }
 local soaDoubleArray = ffi.typeof("double[?]")
 local soaInt8Array = ffi.typeof("int8_t[?]")
@@ -1128,6 +1129,7 @@ function WorldGen:baseSample(x, y, scale)
         archetypeKey = archetype and archetype.key or nil,
         volcanicForm = 0,
         volcanicAgeMy = 0,
+        periglacialFeature = 0,
         meanderBend = 0,
         oxbowLake = false,
         marineTerrace = 0,
@@ -1261,6 +1263,7 @@ function WorldGen:pendingSample(x, y, info)
         archetypeBlend = 0,
         volcanicForm = 0,
         volcanicAgeMy = 0,
+        periglacialFeature = 0,
         meanderBend = 0,
         oxbowLake = false,
         marineTerrace = 0,
@@ -1342,6 +1345,7 @@ function WorldGen:chunk(chunkX, chunkY, scale)
         end
     end
     Aeolian.applyRegion(duneRegion, { seed = self.seed })
+    Periglacial.applyRegion(duneRegion, { seed = self.seed })
     for y = 1, size do
         for x = 1, size do
             SoilProduction.syncCell(rows[y][x])
