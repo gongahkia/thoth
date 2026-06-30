@@ -138,46 +138,6 @@ These provide further fidelity gains but are not gating realism wins. Land after
 
 ---
 
-### T-056 — Regression fixture rebake + encodeCell append-only    [tier 6] [low]
-
-GOAL: After each TIER 6 task lands, append its new cell fields to `tests/run.lua:encodeCell` (line 37-110) in stated order, and rebake `tests/bench.baseline.json`.
-
-WHY: Test determinism contract requires `encodeCell` to cover all per-cell state. Each new field that affects geometry must enter the encoder; else two seeds-equal worlds could diverge undetected on a non-encoded field.
-
-WHERE: `tests/run.lua:37-110`. Append-only — never reorder existing fields.
-
-DEPENDS ON: Each TIER 6 task above. Run T-056 once per landed task.
-
-ACCEPTANCE: `make test`, `make smoke`, `make diagnostics`, `make regressions`, `make bench-update` all green after each rebake.
-
-NOTES / IMPL HINTS — append in this exact order (one block per landed task):
-- T-034: `tostring(cell.lithology), round(cell.erodibilityK), round(cell.lithologyAge)`.
-- T-035: `round(cell.regolithDepth), round(cell.bedrockElevation)`.
-- T-036: `round(cell.marineTerrace), round(cell.fluvialTerrace), tostring(cell.paleoShoreline)`.
-- T-037: `round(cell.latitudeRadians), round(cell.coriolisF)`.
-- T-038: (no encoder change — infra only).
-- T-039: `round(cell.hillslopeDelta)`.
-- T-040: `round(cell.debrisFlowDelta), tostring(cell.debrisFlow)`.
-- T-041: `round(cell.iceThickness)` (existing `glacialDelta, glacialErosion, glaciated` already encoded).
-- T-042: `tostring(cell.pressureCellId), round(cell.monsoonIndex)`.
-- T-043: `round(cell.hotspotContribution), round(cell.hotspotAgeMy), tostring(cell.hotspotId), tostring(cell.isFloodBasalt)`.
-- T-044: `round(cell.meanderBend), tostring(cell.oxbowLake)`.
-- T-045: `tostring(cell.shorelineNode)`.
-- T-046: (folds into existing `cell.elevation` — no new field).
-- T-047: (replaces dune fields — no new encoder entries).
-- T-048: `tostring(cell.karstType), round(cell.karstDepth), round(cell.cavePresence)`.
-- T-049: `tostring(cell.reefStage), round(cell.reefAccretion), round(cell.reefAgeMy)`.
-- T-050: `tostring(cell.archetypeId), round(cell.archetypeBlend)`.
-- T-051: `tostring(cell.volcanicForm), round(cell.volcanicAgeMy)`.
-- T-052: `tostring(cell.periglacialFeature)`.
-- T-053: `tostring(cell.submarineCanyon), round(cell.shelfDistance)`.
-- T-054: `tostring(cell.soilOrder)`.
-- T-055: `tostring(cell.treeline), tostring(cell.riparian), round(cell.fireFrequency)`.
-
-REFERENCES: (none).
-
----
-
 # Execution order (recommended)
 
 ```
