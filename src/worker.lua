@@ -19,9 +19,11 @@ end
 
 local function simpleChunk(chunk)
     local rows = {}
-    for y, row in ipairs(chunk.cells) do
+    for y = 1, chunk.size do
+        local row = chunk.cells[y]
         rows[y] = {}
-        for x, cell in ipairs(row) do
+        for x = 1, chunk.size do
+            local cell = row[x]
             rows[y][x] = simpleCell(cell)
         end
     end
