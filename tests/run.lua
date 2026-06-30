@@ -151,6 +151,9 @@ local function encodeCell(cell)
         tostring(cell.submarineCanyon),
         round(cell.shelfDistance),
         tostring(cell.soilOrder),
+        tostring(cell.treeline),
+        tostring(cell.riparian),
+        round(cell.fireFrequency),
         round(cell.regolithDepth),
         round(cell.bedrockElevation),
         round(cell.marineTerrace),
@@ -1537,6 +1540,24 @@ local function testWhittakerBins()
     expect(Biomes.lookup(0.2, 0.6, 0.8, false, 0.02) == "snow", "high cold Whittaker override should be snow")
 end
 
+local function testBiomeRefinement()
+    local riparian = { biome = "desert", water = false, riverBank = true, temperature = 0.72, rainfall = 0.18, elevation = 0.1, slope = 0.03, latitudeRadians = 0, windX = 0, windY = 0 }
+    Biomes.refineCell(riparian)
+    expect(riparian.riparian == 1 and riparian.biome == "temperate_forest", "arid river corridors should receive riparian gallery overlay")
+
+    local treeline = { biome = "temperate_forest", water = false, temperature = 0.34, rainfall = 0.62, elevation = 0.56, slope = 0.08, latitudeRadians = math.rad(55), windX = 0.2, windY = 0.1 }
+    Biomes.refineCell(treeline)
+    expect(treeline.treeline == 1 and (treeline.biome == "alpine" or treeline.biome == "tundra"), "low-GDD high terrain should expose treeline")
+
+    local fire = { biome = "temperate_forest", water = false, temperature = 0.74, rainfall = 0.36, elevation = 0.1, slope = 0.04, latitudeRadians = math.rad(34), monsoonIndex = 0, windX = 0, windY = 0 }
+    Biomes.refineCell(fire)
+    expect(fire.fireFrequency > 0.3 and fire.biome == "savanna", "summer-dry warm forest should shift toward savanna under fire")
+
+    local ecotone = { biome = "grassland", water = false, temperature = 0.6, rainfall = 0.46, elevation = 0.1, slope = 0.04, latitudeRadians = 0, windX = 0, windY = 0 }
+    Biomes.refineCell(ecotone)
+    expect(ecotone.biomeSecondary ~= nil, "ecotone cells should expose a secondary biome")
+end
+
 local function testWhittakerDiagnostics()
     local sweep = Diagnostics.sweep({
         seeds = Diagnostics.defaultSeeds(),
@@ -2168,6 +2189,7 @@ local tests = {
     testBasinChannelsSpanDetailRegions,
     testBiomes,
     testWhittakerBins,
+    testBiomeRefinement,
     testWhittakerDiagnostics,
     testGlacialSIA,
     testGlacialFeatures,

@@ -11,8 +11,8 @@ local Periglacial = require("src.periglacial")
 local SoilClassify = require("src.soil_classify")
 local ffi = require("ffi")
 
-local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "oceanDepthMeters", "oceanAgeMyr", "shelfDistance", "karstDepth", "cavePresence", "reefAccretion", "reefAgeMy", "meanderBend", "hillslopeDelta", "debrisFlowDelta", "archetypeBlend", "volcanicAgeMy" }
-local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake", "karstType", "reefStage", "archetypeId", "volcanicForm", "periglacialFeature", "submarineCanyon", "soilOrder" }
+local soaFieldList = { "elevation", "slope", "flow", "temperature", "rainfall", "sediment", "glacialDelta", "glacialErosion", "iceThickness", "isostaticRebound", "streamPowerDelta", "erodibilityK", "lithologyAge", "regolithDepth", "bedrockElevation", "marineTerrace", "fluvialTerrace", "latitudeRadians", "coriolisF", "baselinePrecip", "monsoonIndex", "hotspotContribution", "hotspotAgeMy", "oceanDepthMeters", "oceanAgeMyr", "shelfDistance", "karstDepth", "cavePresence", "reefAccretion", "reefAgeMy", "meanderBend", "hillslopeDelta", "debrisFlowDelta", "archetypeBlend", "volcanicAgeMy", "fireFrequency" }
+local soaInt8FieldList = { "water", "river", "riverBank", "lake", "glaciated", "coastCliff", "coastBeach", "talus", "alluvialFan", "floodplain", "delta", "spillover", "rainShadow", "lithology", "paleoShoreline", "riverHistorical", "debrisFlow", "pressureCellId", "isFloodBasalt", "oxbowLake", "karstType", "reefStage", "archetypeId", "volcanicForm", "periglacialFeature", "submarineCanyon", "soilOrder", "treeline", "riparian" }
 local soaInt32FieldList = { "plateId", "secondaryPlateId", "hotspotId", "shorelineNode" }
 local soaDoubleArray = ffi.typeof("double[?]")
 local soaInt8Array = ffi.typeof("int8_t[?]")
@@ -1161,6 +1161,9 @@ function WorldGen:baseSample(x, y, scale)
         volcanicAgeMy = 0,
         periglacialFeature = 0,
         soilOrder = 0,
+        treeline = 0,
+        riparian = 0,
+        fireFrequency = 0,
         meanderBend = 0,
         oxbowLake = false,
         marineTerrace = 0,
@@ -1298,6 +1301,9 @@ function WorldGen:pendingSample(x, y, info)
         volcanicAgeMy = 0,
         periglacialFeature = 0,
         soilOrder = 0,
+        treeline = 0,
+        riparian = 0,
+        fireFrequency = 0,
         meanderBend = 0,
         oxbowLake = false,
         marineTerrace = 0,
@@ -1374,6 +1380,7 @@ function WorldGen:chunk(chunkX, chunkY, scale)
             local gy = chunkY * size + y - 1
             local cell = copyCell(Hydrology.cell(region, gx, gy))
             cell.biome = classifyBiome(cell.elevation, cell.water, cell.river, cell.temperature, cell.moisture, cell.slope, cell.lake, cell)
+            Biomes.refineCell(cell)
             duneRegion.cells[key(gx, gy)] = cell
             rows[y][x] = cell
         end

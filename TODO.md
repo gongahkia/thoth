@@ -138,31 +138,6 @@ These provide further fidelity gains but are not gating realism wins. Land after
 
 ---
 
-### T-055 — Vegetation succession + treeline + riparian + fire    [tier 6] [med]
-
-GOAL: Extend `Biomes.lookup` (biomes.lua:42-55) into multi-pass classifier: (a) climate base via Whittaker, (b) treeline via growing-degree-day proxy, (c) riparian galleries along rivers, (d) fire-shaped savanna/chaparral in seasonal-dry biomes, (e) ecotone blending at boundaries.
-
-WHY: Current biome assignment is a hard LUT — no ecotones, no treeline, no riparian, no fire-shaped biomes. Adding these gives recognizable real biome boundaries.
-
-WHERE: Replace `src/biomes.lua` with multi-pass version. New per-cell `treeline:int8`, `riparian:int8`, `fireFrequency:double`.
-
-DEPENDS ON: T-042 (3-cell climate provides seasonality), T-038.
-
-ACCEPTANCE: River corridors in arid regions show riparian biome; alpine treeline visible as elevation ring; savanna spans seasonal-dry regions. `testBiomeRefinement` gates.
-
-NOTES / IMPL HINTS:
-- Treeline: `treeline = (growingDegreeDays < 1100) || (windSpeed > threshold)`. Approximate `GDD ≈ temperature · (1 - latitudeUnit) · 4000`; treeline at `GDD < 1100`.
-- Riparian: 1-cell buffer along rivers in non-water cells; assigns `riparian = 1`. In arid regions, biome overlay → `temperate_forest` even if surrounding is `desert`.
-- Fire: high in summer-dry climates (Mediterranean-type at 30–40° lat with `monsoonIndex < 0`). Reduce forest cover by `fireFrequency`.
-- Ecotone blending: at biome boundary cells, set `cell.biomeSecondary` for transition rendering.
-
-REFERENCES:
-- [Whittaker biome diagram — Wikipedia](https://en.wikipedia.org/wiki/Biome).
-- [Palubicki Ecoclimates 2022](https://history.siggraph.org/learning/ecoclimates-climate-response-modeling-of-vegetation-by-palubicki-makowski-gajda-hadrich-michels-et-al/).
-- [Makowski Synthetic Silviculture 2019](https://www.researchgate.net/publication/334438882_Synthetic_silviculture_multi-scale_modeling_of_plant_ecosystems).
-
----
-
 ### T-056 — Regression fixture rebake + encodeCell append-only    [tier 6] [low]
 
 GOAL: After each TIER 6 task lands, append its new cell fields to `tests/run.lua:encodeCell` (line 37-110) in stated order, and rebake `tests/bench.baseline.json`.
