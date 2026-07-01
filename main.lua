@@ -601,6 +601,7 @@ local function applySnapshot(app, snapshot)
     app.minimap = display.minimap == true
     app.showWorldLabels = display.showWorldLabels ~= false
     app.showAreaLabels = display.showAreaLabels ~= false
+    app.showPlayerHud = display.showPlayerHud ~= false
     if type(display.debugPanels) == "table" then
         app.debugPanels = {
             plate = display.debugPanels.plate == true,
@@ -670,9 +671,10 @@ local function loadGame(args)
         renderSmoke = hasArg(args, "--render-smoke"),
         walkSmoke = hasArg(args, "--walk-smoke"),
         debugTopo = hasArg(args, "--debug-topo") or settings.debug.topo == true,
-        minimap = hasArg(args, "--minimap") or settings.debug.minimap == true,
+        minimap = hasArg(args, "--minimap") or settings.debug.minimap == true or settings.display.showPlayerHud ~= false,
         showWorldLabels = settings.display.showWorldLabels ~= false,
         showAreaLabels = settings.display.showAreaLabels ~= false,
+        showPlayerHud = settings.display.showPlayerHud ~= false,
         debugPanels = (function()
             local on = hasArg(args, "--debug-panels") or settings.debug.panels == true
             return { plate = on, drainage = on, erosion = on, biome = on }
@@ -926,6 +928,11 @@ function love.keypressed(key)
     end
     if action == "dropPin" then
         dropPin(app)
+        return
+    end
+    if action == "togglePlayerHud" then
+        app.showPlayerHud = not app.showPlayerHud
+        print("[hud] player=" .. tostring(app.showPlayerHud))
         return
     end
     if app.journalOpen then return end

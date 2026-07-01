@@ -407,6 +407,9 @@ local function drawSettings(menu, x, y, w)
         local area, areaChanged = UI.Checkbox(ui, settings.display.showAreaLabels ~= false, "Area Labels", rx, y + 360, rw, 28, { id = "settings:area-labels", size = 14 })
         settings.display.showAreaLabels = area
         if areaChanged then Settings.save(settings) end
+        local hud, hudChanged = UI.Checkbox(ui, settings.display.showPlayerHud ~= false, "Player HUD", rx, y + 394, rw, 28, { id = "settings:player-hud", size = 14 })
+        settings.display.showPlayerHud = hud
+        if hudChanged then Settings.save(settings) end
     elseif state.tab == "Audio" then
         for index, item in ipairs({ { "Master", "master" }, { "SFX", "sfx" }, { "Ambient", "ambient" } }) do
             local rowY = y + 58 + (index - 1) * 72

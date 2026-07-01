@@ -18,6 +18,7 @@ local defaults = {
         quitAlt = "q",
         toggleMouseLook = "f",
         togglePerf = "l",
+        togglePlayerHud = "h",
         toggleTopo = "t",
         toggleMinimap = "m",
         togglePanels = "b",
@@ -45,6 +46,7 @@ local defaults = {
         cameraSway = false,
         showWorldLabels = true,
         showAreaLabels = true,
+        showPlayerHud = true,
     },
     audio = {
         master = 1,
@@ -73,6 +75,7 @@ local labels = {
     quitAlt = "Quit Alt",
     toggleMouseLook = "Mouse Look",
     togglePerf = "Perf HUD",
+    togglePlayerHud = "Player HUD",
     toggleTopo = "Topo",
     toggleMinimap = "Minimap",
     togglePanels = "Panels",
@@ -94,7 +97,7 @@ local labels = {
 local controlOrder = {
     "forward", "back", "left", "right", "sprint",
     "lookRight", "lookLeft", "pitchUp", "pitchDown",
-    "toggleMouseLook", "togglePerf", "toggleTopo", "toggleMinimap", "togglePanels",
+    "toggleMouseLook", "togglePerf", "togglePlayerHud", "toggleTopo", "toggleMinimap", "togglePanels",
     "panelPlate", "panelDrainage", "panelErosion", "panelBiome", "toggleTopoAlt",
     "seasonPrev", "seasonNext", "save", "load", "markSurvey", "toggleJournal", "dropPin", "newSeed", "quit", "quitAlt",
 }

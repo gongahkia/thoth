@@ -3,6 +3,7 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 local Player = require("src.player")
 local Atmosphere = require("src.atmosphere")
 local Render = require("src.render")
+local HUD = require("src.hud")
 local Journal = require("src.journal")
 local Clipmap = require("src.clipmap")
 local Rng = require("src.rng")
@@ -617,6 +618,7 @@ local function testSaveLoadRoundTrip()
         debugTopo = true,
         minimap = true,
         showAreaLabels = false,
+        showPlayerHud = false,
         debugPanels = true,
         pixelScale = 3,
         atmosphere = Atmosphere.new({ time = 0.4, season = "autumn", dayLength = 90 }),
@@ -639,7 +641,7 @@ local function testSaveLoadRoundTrip()
     expect(decoded.world.hotspotSigma == 768 and decoded.world.hotspotTrailSteps == 5 and decoded.world.hotspotTrailDt == 0.15 and decoded.world.hotspotTau == 2.5 and decoded.world.hotspotElevationScale == 0.33 and decoded.world.floodBasaltThreshold == 0.25, "save should round-trip hotspot physics settings")
     expect(decoded.world.meanderWidthScale == 2.2 and decoded.world.meanderMigrationScale == 0.8, "save should round-trip meander settings")
     expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
-    expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.minimap and decoded.display.debugPanels and decoded.display.pixelScale == 3 and not decoded.display.mouseLook and decoded.display.showAreaLabels == false, "save should round-trip display toggles")
+    expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.minimap and decoded.display.debugPanels and decoded.display.pixelScale == 3 and not decoded.display.mouseLook and decoded.display.showAreaLabels == false and decoded.display.showPlayerHud == false, "save should round-trip display toggles")
     expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount and restoredSurvey.pinCount == survey.pinCount, "save should round-trip survey annotations")
 end
 
@@ -2000,6 +2002,13 @@ local function testRenderStats()
     local header = Render.areaHeaderLines({ showAreaLabels = true, currentArea = { featureName = "High Range", biome = "rainforest", biomeLabel = "RAINFOREST", koppen = "Af" } })
     expect(header and header[1] == "High Range" and header[2] == "RAINFOREST / Af", "area header should show feature plus biome and Koppen")
     expect(Render.areaHeaderLines({ showAreaLabels = false, currentArea = { featureName = "High Range", biome = "rainforest", koppen = "Af" } }) == nil, "area header setting should hide labels")
+    local hudData = HUD.data({ world = world, player = Player.new(0, 0), camera = { yaw = 0 }, currentArea = { featureName = "High Range", biomeLabel = "ALPINE" }, weatherState = { precipitation = "snow" }, survey = { discoveryCount = 4, pinCount = 2 } })
+    expect(hudData.area == "High Range" and hudData.weather == "S" and hudData.discoveries == 4 and hudData.pins == 2, "player HUD data should expose area, weather glyph, and counts")
+    local ticks = HUD.compassTicks(0)
+    local northCentered = false
+    for _, tick in ipairs(ticks) do if tick.label == "N" and math.abs(tick.offset) < 0.00001 then northCentered = true end end
+    expect(northCentered, "player HUD compass should center north at yaw zero")
+    expect(HUD.weatherGlyph({ storm = "thunderstorm", precipitation = "rain" }) == "!", "player HUD weather glyph should prioritize storms")
     local regionWorld = WorldGen.new(3, { scope = "region", hydrologyRegionChunks = 2, hydrologyHaloCells = 0, hydrologyBasinChunks = 8, hydrologyBasinStride = 8 })
     local regionApp = { world = regionWorld, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(regionWorld) }
     local regionStats = Render.visibleStats(regionApp, 1280, 720)

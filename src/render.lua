@@ -2,6 +2,7 @@ local Render = {}
 local ViewScale = require("src.viewscale")
 local Clipmap = require("src.clipmap")
 local Atmosphere = require("src.atmosphere")
+local HUD = require("src.hud")
 local Survey = require("src.survey")
 local Weather = require("src.weather")
 local Rng = require("src.rng")
@@ -1621,7 +1622,7 @@ function Render.drawHud(app, width, height, meshData)
         meshData.topographicMap = topo.samples
         meshData.topographicContours = topo.contours
     end
-    if app.minimap then
+    if app.minimap and app.showPlayerHud ~= false then
         local map = drawMinimap(app, width, height)
         meshData.minimap = map.samples
         meshData.minimapContours = map.contours
@@ -1640,7 +1641,11 @@ function Render.drawHud(app, width, height, meshData)
             meshData.debugPanelScale = panels.scale
         end
     end
-    drawHud(app, width, height, meshData)
+    if app.debugPerf then
+        drawHud(app, width, height, meshData)
+        meshData.debugHud = 1
+    end
+    HUD.draw(app, width, height, meshData)
     return meshData
 end
 

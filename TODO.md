@@ -84,31 +84,7 @@ User attached two Minecraft "Create World" screenshots (Bedrock modern + Pocket 
 
 Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) unblocks the settings page (Task 3) and the fixed-scale change; HUD + labels + banner (Tasks 8, 9, 11) sit above the new UI. Numbered per user request; execution order recommended below each.
 
----
-
-### Task 11 — Player-facing HUD (distinct from debug HUD)
-
-**STATUS:** pending
-**RECOMMENDED ORDER:** 14th (last — depends on Tasks 8, 9, and weather signals).
-
-**SCOPE:** Minimal diegetic HUD for players. Explicitly not a debug panel.
-
-**FILES:**
-- New `src/hud.lua` — draws: compass ribbon (top-center), area name (top-left, from Task 9), biome banner (existing, top-center below compass), weather glyph + temperature (top-right), minimap (bottom-right, existing), pin count / discovery count (bottom-left).
-- `src/render.lua:1251` (`drawHud`) — call `HUD.draw` alongside existing debug draws; HUD.draw gated by `app.showPlayerHud` (default true).
-
-**RULES:**
-- **No numeric perf data** (that's debug HUD's job).
-- **No hex coords** (world-space labels serve that need).
-- Palette-quantize consistently with world (postfx applies uniformly).
-- Toggle via setting + hotkey (default `H`).
-
-**ACCEPTANCE:**
-- Debug HUD (`L`) and player HUD (`H`) toggle independently; both visible does not overlap.
-- Compass ticks show cardinal directions; needle points to yaw.
-- Weather glyph matches current weather state.
-
-**REMAINING:** —
+All listed tasks are complete.
 
 ---
 

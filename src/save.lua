@@ -347,6 +347,7 @@ function Save.snapshot(app)
             minimap = app.minimap == true,
             showWorldLabels = app.showWorldLabels ~= false,
             showAreaLabels = app.showAreaLabels ~= false,
+            showPlayerHud = app.showPlayerHud ~= false,
             debugPanels = (function()
                 if type(app.debugPanels) == "table" then
                     return {
