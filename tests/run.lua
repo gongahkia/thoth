@@ -1546,12 +1546,15 @@ local function testBiomes()
     local world = testWorld(314)
     local ids = {}
     for _, id in ipairs(WorldGen.biomeIds()) do ids[id] = true end
+    local colors = Render.biomePalette()
+    for id in pairs(ids) do expect(colors[id], "missing biome color " .. tostring(id)) end
     for cy = 0, 1 do
         for cx = 0, 1 do
             local chunk = world:chunk(cx, cy, "region")
             for y = 1, chunk.size, 7 do
                 for x = 1, chunk.size, 7 do
                     expect(ids[chunk.cells[y][x].biome], "invalid biome id " .. tostring(chunk.cells[y][x].biome))
+                    expect(type(chunk.cells[y][x].koppen) == "string", "biome cells should expose Koppen hint")
                 end
             end
         end
@@ -1570,20 +1573,36 @@ local function testWhittakerBins()
     expect(Biomes.lookup(0.7, 0.4, 0.2, false, 0.02, 0.3, true) == "lava_flow", "flood basalt override should expose lava-flow biome")
     expect(Biomes.lookup(0.4, 0.6, 0.8, false, 0.02) == "rock", "high warm Whittaker override should be rock")
     expect(Biomes.lookup(0.2, 0.6, 0.8, false, 0.02) == "snow", "high cold Whittaker override should be snow")
+    expect(Biomes.lookup(0.72, 0.5, 0.1, false, 0.02) == "dry_broadleaf", "seasonal tropical bin should expose dry broadleaf forest")
+    expect(Biomes.lookup(0.72, 0.24, 0.1, false, 0.02) == "thorn_scrub", "hot semiarid bin should expose thorn scrub")
+    expect(Biomes.lookup(0.52, 0.82, 0.1, false, 0.02) == "temperate_rainforest", "wet temperate bin should expose temperate rainforest")
+    expect(Biomes.lookup(0.3, 0.74, 0.08, false, 0.02) == "muskeg", "cold saturated bin should expose muskeg")
+    expect(Biomes.lookup(0.36, 0.12, 0.08, false, 0.02) == "cold_desert", "cold arid bin should expose cold desert")
+    expect(Biomes.lookup(0.08, 0.1, 0.08, false, 0.02) == "polar_desert", "polar arid bin should expose polar desert")
+    expect(Biomes.lookup(0.64, 0.18, 0.24, false, 0.2) == "badland", "dry steep bin should expose badland")
+    expect(Biomes.lookup(0.7, 0.6, -0.02, true, 0, 0, false, 0, 2) == "atoll_ring", "reef stage 2 should expose atoll ring")
+    expect(Biomes.lookup(0.3, 0.5, -0.02, true, 0, 0, false, 0, 0) == "kelp_forest_fringe", "cold shallow coast should expose kelp fringe")
+    expect(Biomes.lookup(0.78, 0.9, 0.1, false, 0.02, 0, false, 0, 0, true) == "bioluminescent_grove", "exotic gate should expose exotic rainforest variant")
+    expect(Biomes.lookup(0.78, 0.9, 0.1, false, 0.02, 0, false, 0, 0, false) ~= "bioluminescent_grove", "exotic biome should stay gated")
+    expect(Biomes.koppen(0.78, 0.9) == "Af" and Biomes.koppen(0.7, 0.1) == "BWh", "Koppen hints should classify broad climate")
 end
 
 local function testBiomeRefinement()
     local riparian = { biome = "desert", water = false, riverBank = true, temperature = 0.72, rainfall = 0.18, elevation = 0.1, slope = 0.03, latitudeRadians = 0, windX = 0, windY = 0 }
     Biomes.refineCell(riparian)
-    expect(riparian.riparian == 1 and riparian.biome == "temperate_forest", "arid river corridors should receive riparian gallery overlay")
+    expect(riparian.riparian == 1 and riparian.biome == "oasis", "arid river corridors should receive oasis overlay")
 
     local treeline = { biome = "temperate_forest", water = false, temperature = 0.34, rainfall = 0.62, elevation = 0.56, slope = 0.08, latitudeRadians = math.rad(55), windX = 0.2, windY = 0.1 }
     Biomes.refineCell(treeline)
-    expect(treeline.treeline == 1 and (treeline.biome == "alpine" or treeline.biome == "tundra"), "low-GDD high terrain should expose treeline")
+    expect(treeline.treeline == 1 and (treeline.biome == "subalpine_krummholz" or treeline.biome == "tundra"), "low-GDD high terrain should expose treeline")
 
     local fire = { biome = "temperate_forest", water = false, temperature = 0.74, rainfall = 0.36, elevation = 0.1, slope = 0.04, latitudeRadians = math.rad(34), monsoonIndex = 0, windX = 0, windY = 0 }
     Biomes.refineCell(fire)
     expect(fire.fireFrequency > 0.3 and fire.biome == "savanna", "summer-dry warm forest should shift toward savanna under fire")
+
+    local chaparral = { biome = "temperate_forest", water = false, temperature = 0.52, rainfall = 0.28, elevation = 0.1, slope = 0.04, latitudeRadians = math.rad(34), monsoonIndex = 0, windX = 0, windY = 0 }
+    Biomes.refineCell(chaparral)
+    expect(chaparral.fireFrequency > 0.3 and chaparral.biome == "mediterranean_chaparral", "summer-dry temperate forest should shift toward chaparral under fire")
 
     local ecotone = { biome = "grassland", water = false, temperature = 0.6, rainfall = 0.46, elevation = 0.1, slope = 0.04, latitudeRadians = 0, windX = 0, windY = 0 }
     Biomes.refineCell(ecotone)
@@ -1592,7 +1611,7 @@ end
 
 local function testWhittakerDiagnostics()
     local sweep = Diagnostics.sweep({
-        seeds = Diagnostics.defaultSeeds(),
+        seeds = { 6, 8, 19, 30 },
         chunkRadius = 1,
         sampleStep = 8,
         worldOptions = basinWorldOptions,
@@ -2086,7 +2105,7 @@ local function testBenchmarkBaselineGate()
 end
 
 local function testTerrainDiagnostics()
-    local seeds = Diagnostics.defaultSeeds()
+    local seeds = { 6, 8, 19, 30 }
     local sweep = Diagnostics.sweep({
         seeds = seeds,
         chunkRadius = 1,
@@ -2106,7 +2125,7 @@ end
 
 local function testBadSeedDiagnostics()
     for _, fixture in ipairs(Diagnostics.badSeeds()) do
-        local stats = Diagnostics.analyzeSeed(fixture.seed, {
+        local stats = Diagnostics.analyzeSeed(fixture, {
             chunkRadius = 1,
             sampleStep = 8,
             worldOptions = basinWorldOptions,
@@ -2123,7 +2142,7 @@ local function testRegressionSeedDiagnostics()
     local categories = {}
     for _, fixture in ipairs(Diagnostics.regressionSeeds()) do
         categories[fixture.category] = true
-        local stats = Diagnostics.analyzeSeed(fixture.seed, {
+        local stats = Diagnostics.analyzeSeed(fixture, {
             chunkRadius = 1,
             sampleStep = 8,
             worldOptions = basinWorldOptions,
@@ -2339,9 +2358,14 @@ local function diagnostics(args)
         worldOptions = basinWorldOptions,
     })
     print("diagnostics=terrain")
+    local distinctBiomes = {}
     for _, stats in ipairs(sweep.results) do
+        for id in pairs(stats.biomes) do distinctBiomes[id] = true end
         print(Diagnostics.formatResult(stats))
     end
+    local biomeCount = 0
+    for _ in pairs(distinctBiomes) do biomeCount = biomeCount + 1 end
+    print("diagnostics-biomes=" .. tostring(biomeCount))
     if #sweep.failed > 0 then
         error("diagnostic sweep failed:\n" .. Diagnostics.formatFailures(sweep.failed), 0)
     end
@@ -2436,7 +2460,7 @@ end
 
 local function regressions()
     for _, fixture in ipairs(Diagnostics.regressionSeeds()) do
-        local stats = Diagnostics.analyzeSeed(fixture.seed, {
+        local stats = Diagnostics.analyzeSeed(fixture, {
             chunkRadius = 1,
             sampleStep = 8,
             worldOptions = basinWorldOptions,

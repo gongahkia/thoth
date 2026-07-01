@@ -106,6 +106,7 @@ local function chunkCellAt(chunk, x, y)
     for _, field in ipairs(soaFieldList) do cell[field] = readChunkArrayValue(chunk, field, index) end
     for _, field in ipairs(soaInt8FieldList) do cell[field] = readChunkArrayValue(chunk, field, index) end
     for _, field in ipairs(soaInt32FieldList) do cell[field] = readChunkArrayValue(chunk, field, index) end
+    cell.koppen = Biomes.koppen(cell.temperature, cell.rainfall or cell.precipitation, cell)
     return cell
 end
 
@@ -170,13 +171,35 @@ local biomeIds = {
     river = true,
     wetland = true,
     desert = true,
+    cold_desert = true,
+    polar_desert = true,
+    semiarid_shrubland = true,
+    playa_salt_flat = true,
+    dune_sea_erg = true,
+    badland = true,
+    oasis = true,
     grassland = true,
     savanna = true,
     temperate_forest = true,
+    temperate_rainforest = true,
+    mixed_forest = true,
+    conifer_forest = true,
     rainforest = true,
+    monsoon_forest = true,
+    dry_broadleaf = true,
+    cloud_forest = true,
+    thorn_scrub = true,
+    mediterranean_chaparral = true,
+    mangrove = true,
+    riparian_gallery_forest = true,
     boreal_forest = true,
+    muskeg = true,
+    subalpine_krummholz = true,
     tundra = true,
+    permafrost_polygon = true,
     alpine = true,
+    alpine_scree = true,
+    nival_zone = true,
     snow = true,
     rock = true,
     lava_flow = true,
@@ -184,6 +207,16 @@ local biomeIds = {
     karst = true,
     reef = true,
     lagoon = true,
+    kelp_forest_fringe = true,
+    atoll_ring = true,
+    seamount_cap = true,
+    fumarole_field = true,
+    hot_spring_travertine = true,
+    ash_plain = true,
+    bioluminescent_grove = true,
+    red_algal_shore = true,
+    salt_cathedral = true,
+    blue_ice_field = true,
 }
 
 local billboardKinds = {
@@ -485,15 +518,10 @@ local function twoNearestPlates(seed, x, y, cellSize, cache, time)
     return first, second
 end
 
-local function classifyBiome(elevation, water, river, temperature, moisture, slope, lake, cell)
+local function classifyBiome(elevation, water, river, temperature, moisture, slope, lake, cell, allowExotic)
     if lake then return "lake" end
-    if cell and (cell.reefStage or 0) == 4 then return "lagoon" end
-    if cell and (cell.reefStage or 0) > 0 and (cell.reefStage or 0) < 4 then return "reef" end
-    if water then
-        return elevation > -0.06 and "coast" or "ocean"
-    end
     if river then return "river" end
-    return Biomes.lookup(temperature, moisture, elevation, false, slope, cell and cell.hotspotContribution or 0, cell and cell.isFloodBasalt, cell and cell.karstType or 0)
+    return Biomes.lookup(temperature, moisture, elevation, water, slope, cell and cell.hotspotContribution or 0, cell and cell.isFloodBasalt, cell and cell.karstType or 0, cell and cell.reefStage or 0, allowExotic, cell)
 end
 
 local function lithologyProps(id)
@@ -1329,7 +1357,7 @@ function WorldGen:baseSample(x, y, scale)
         river = false,
         lake = false,
         lakeDepth = 0,
-        biome = Biomes.lookup(temperature, rainfall, elevation, water, slope, hotspot.contribution, hotspot.isFloodBasalt, 0),
+        biome = Biomes.lookup(temperature, rainfall, elevation, water, slope, hotspot.contribution, hotspot.isFloodBasalt, 0, 0, self.allowExoticBiomes == true),
     }
 end
 
@@ -1477,8 +1505,8 @@ function WorldGen:chunk(chunkX, chunkY, scale)
             local gx = chunkX * size + x - 1
             local gy = chunkY * size + y - 1
             local cell = copyCell(Hydrology.cell(region, gx, gy))
-            cell.biome = classifyBiome(cell.elevation, cell.water, cell.river, cell.temperature, cell.moisture, cell.slope, cell.lake, cell)
-            Biomes.refineCell(cell)
+            cell.biome = classifyBiome(cell.elevation, cell.water, cell.river, cell.temperature, cell.moisture, cell.slope, cell.lake, cell, self.allowExoticBiomes == true)
+            Biomes.refineCell(cell, self.allowExoticBiomes == true)
             duneRegion.cells[key(gx, gy)] = cell
             rows[y][x] = cell
         end
@@ -1737,6 +1765,44 @@ function WorldGen:normalAt(x, y)
     return { x = nx / length, y = ny / length, z = nz / length }
 end
 
+local billboardForestBiomes = {
+    temperate_forest = true,
+    rainforest = true,
+    boreal_forest = true,
+    temperate_rainforest = true,
+    cloud_forest = true,
+    monsoon_forest = true,
+    dry_broadleaf = true,
+    mixed_forest = true,
+    conifer_forest = true,
+    subalpine_krummholz = true,
+    riparian_gallery_forest = true,
+    mangrove = true,
+}
+
+local billboardDryBiomes = {
+    grassland = true,
+    savanna = true,
+    thorn_scrub = true,
+    semiarid_shrubland = true,
+    mediterranean_chaparral = true,
+    badland = true,
+}
+
+local billboardRockBiomes = {
+    rock = true,
+    alpine = true,
+    alpine_scree = true,
+    nival_zone = true,
+}
+
+local billboardDesertBiomes = {
+    desert = true,
+    cold_desert = true,
+    playa_salt_flat = true,
+    dune_sea_erg = true,
+}
+
 local function billboardSpecFor(seed, cell)
     if cell.water or cell.river then return nil end
     local chance = Rng.unitAt(seed, cell.x, cell.y, 701)
@@ -1747,21 +1813,21 @@ local function billboardSpecFor(seed, cell)
         kind, width, height, color = "ridge", 1.7, 2.2, { 0.42, 0.4, 0.36 }
     elseif cell.elevation > 0.08 and cell.slope > 0.12 and chance < 0.07 then
         kind, width, height, color = "outcrop", 1.4, 1.4, { 0.34, 0.33, 0.29 }
-    elseif (cell.biome == "temperate_forest" or cell.biome == "rainforest" or cell.biome == "boreal_forest") and cell.slope < 0.18 and chance < 0.18 then
-        if cell.biome == "boreal_forest" then
+    elseif billboardForestBiomes[cell.biome] and cell.slope < 0.18 and chance < 0.18 then
+        if cell.biome == "boreal_forest" or cell.biome == "conifer_forest" or cell.biome == "subalpine_krummholz" then
             kind, width, height, color = "tree_conifer", 1.2, 3.5, { 0.09, 0.26, 0.18 }
         else
             kind, width, height, color = "tree_deciduous", 1.4, 3.2, { 0.08, 0.28, 0.12 }
         end
-    elseif (cell.biome == "grassland" or cell.biome == "savanna") and (cell.rainfall or 0) < 0.34 and chance < 0.035 then
+    elseif billboardDryBiomes[cell.biome] and (cell.rainfall or 0) < 0.34 and chance < 0.035 then
         kind, width, height, color = "tree_dead", 1.0, 2.6, { 0.42, 0.35, 0.25 }
-    elseif cell.biome == "wetland" and chance < 0.16 then
+    elseif (cell.biome == "wetland" or cell.biome == "muskeg") and chance < 0.16 then
         kind, width, height, color = "reed", 0.7, 1.8, { 0.28, 0.34, 0.16 }
-    elseif (cell.biome == "rock" or cell.biome == "alpine") and chance < 0.12 then
+    elseif billboardRockBiomes[cell.biome] and chance < 0.12 then
         kind, width, height, color = "rock", 1.4, 1.3, { 0.36, 0.34, 0.32 }
-    elseif cell.biome == "desert" and chance < 0.1 then
+    elseif billboardDesertBiomes[cell.biome] and chance < 0.1 then
         kind, width, height, color = "shrub", 0.9, 1.2, { 0.34, 0.28, 0.12 }
-    elseif cell.biome == "snow" and chance < 0.08 then
+    elseif (cell.biome == "snow" or cell.biome == "blue_ice_field" or cell.biome == "polar_desert") and chance < 0.08 then
         kind, width, height, color = "snow_tuft", 0.9, 1.1, { 0.86, 0.88, 0.82 }
     else
         return nil

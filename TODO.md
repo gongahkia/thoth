@@ -82,40 +82,14 @@ User attached two Minecraft "Create World" screenshots (Bedrock modern + Pocket 
 
 ## Tasks
 
-Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) unblocks the settings page (Task 3) and the fixed-scale change; HUD + labels + banner (Tasks 8, 9, 11) sit above the new UI; biomes/weather (Tasks 5, 10) extend generation; content additions (Task 4) piggyback on generation. Numbered per user request; execution order recommended below each.
-
----
-
-### Task 5 — Expand biomes (WWF + Köppen + extreme)
-
-**STATUS:** pending
-**RECOMMENDED ORDER:** 8th (depends on Task 6 for `allowExoticBiomes` gate).
-
-**SCOPE:** Grow biome set from current inventory (~20–25) to ~50 per R2. Include fantastical biomes behind a world-option gate.
-
-**FILES:**
-- `src/biomes.lua` — expand Whittaker grid + special-case block. Add Köppen subtype hinting from `climate.lua` outputs (add subtype field to cell struct).
-- `src/render.lua:10–31` — colors for new biomes.
-- `src/worldgen.lua` — surface `allowExoticBiomes` flag to biome resolver.
-- `tests/run.lua` — extend biome-count bounds and diagnostic fixtures.
-
-**MINIMUM NEW BIOMES** (verify each does not already exist):
-- Cloud forest, monsoon forest, thorn scrub, Mediterranean chaparral, temperate rainforest, subalpine krummholz, muskeg, cold desert, semiarid shrubland, playa/salt flat, badland, oasis, polar desert, permafrost polygon, alpine scree, nival zone, kelp forest fringe, atoll ring, seamount cap, fumarole field, hot spring travertine, ash plain.
-- **Exotic (gated):** bioluminescent grove, red algal shore, salt cathedral, blue-ice field.
-
-**ACCEPTANCE:**
-- `make diagnostics` reports >= 30 distinct biomes across 32-seed sweep.
-- Exotic biomes appear only when `allowExoticBiomes = true`.
-- `make regressions` `single_biome`/`biome_count_low` fixtures still pass with adjusted bounds.
-
-**REMAINING:** —
+Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) unblocks the settings page (Task 3) and the fixed-scale change; HUD + labels + banner (Tasks 8, 9, 11) sit above the new UI; weather (Task 10) extends generation; content additions (Task 4) piggyback on generation. Numbered per user request; execution order recommended below each.
 
 ---
 
 ### Task 4 — Terrain generation additions
 
 **STATUS:** pending
-**RECOMMENDED ORDER:** 9th (piggybacks on Task 5's cell-struct changes).
+**RECOMMENDED ORDER:** 9th (piggybacks on expanded generation cell fields).
 
 **SCOPE:** Add high-ROI features from R1: braided rivers, alluvial terraces, multi-lobe fans, playas, sinkholes.
 

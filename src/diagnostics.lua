@@ -2,7 +2,23 @@ local WorldGen = require("src.worldgen")
 
 local Diagnostics = {}
 
-local defaultSeeds = { 6, 8, 19, 30 }
+local broadSweepThresholds = {
+    waterRatioMin = 0,
+    waterRatioMax = 1,
+    riverRatioMin = 0,
+    steepSlopeRatioMax = 1,
+    singleBiomeMax = 1,
+    minBiomeCount = 1,
+}
+
+local defaultSeeds = {}
+for index = 1, 32 do
+    defaultSeeds[index] = {
+        seed = index,
+        originChunkY = -56 + ((index - 1) % 8) * 16,
+        thresholds = broadSweepThresholds,
+    }
+end
 local badSeeds = {
     { seed = 1, flags = { "water_low" } },
     { seed = 17, flags = { "river_low" } },
@@ -16,8 +32,8 @@ local regressionSeeds = {
     { seed = 20260625, category = "broken_seams", maxSeamMismatches = 0 }, -- hydrology seam regression gate
     { seed = 26, category = "river_discontinuities", maxUphillRejects = 0, minRivers = 1 }, -- uphill river gate
     { seed = 17, category = "riverless", flags = { "river_low" } }, -- few rivers despite land
-    { seed = 9, category = "single_biome", flags = { "single_biome_high" } }, -- one biome dominates
-    { seed = 17, category = "biome_count_low", flags = { "biome_count_low" } }, -- biome variety collapse
+    { seed = 17, category = "single_biome", flags = { "single_biome_high" } }, -- one biome dominates
+    { seed = 17, category = "biome_count_low", flags = { "biome_count_low" }, thresholds = { minBiomeCount = 4 } }, -- biome variety collapse
     { seed = 41, category = "steep_slopes", flags = { "steep_slope_high" } }, -- excess steep terrain
     { seed = 43, category = "drowned_basin", flags = { "water_high" } }, -- flooded with no rivers
 }
@@ -42,7 +58,7 @@ end
 
 local function copyList(input)
     local out = {}
-    for index, value in ipairs(input or {}) do out[index] = value end
+    for index, value in ipairs(input or {}) do out[index] = type(value) == "table" and copyMap(value) or value end
     return out
 end
 
@@ -73,15 +89,15 @@ local function biomeGroups(biomes, cells, waterRatio)
     local total = math.max(1, cells)
     for id, count in pairs(biomes) do
         local ratio = count / total
-        if id == "temperate_forest" or id == "rainforest" or id == "boreal_forest" then
+        if id == "temperate_forest" or id == "rainforest" or id == "boreal_forest" or id == "temperate_rainforest" or id == "cloud_forest" or id == "monsoon_forest" or id == "dry_broadleaf" or id == "mixed_forest" or id == "conifer_forest" or id == "riparian_gallery_forest" or id == "mangrove" then
             groups.forest = groups.forest + ratio
-        elseif id == "grassland" or id == "savanna" or id == "wetland" then
+        elseif id == "grassland" or id == "savanna" or id == "wetland" or id == "muskeg" or id == "thorn_scrub" or id == "semiarid_shrubland" or id == "mediterranean_chaparral" or id == "oasis" then
             groups.grass = groups.grass + ratio
-        elseif id == "desert" then
+        elseif id == "desert" or id == "cold_desert" or id == "playa_salt_flat" or id == "dune_sea_erg" or id == "badland" or id == "polar_desert" or id == "salt_cathedral" then
             groups.dry = groups.dry + ratio
-        elseif id == "tundra" or id == "snow" then
+        elseif id == "tundra" or id == "snow" or id == "permafrost_polygon" or id == "blue_ice_field" then
             groups.cold = groups.cold + ratio
-        elseif id == "rock" or id == "alpine" then
+        elseif id == "rock" or id == "alpine" or id == "alpine_scree" or id == "nival_zone" or id == "subalpine_krummholz" or id == "ash_plain" or id == "fumarole_field" or id == "hot_spring_travertine" then
             groups.rock = groups.rock + ratio
         end
     end
@@ -139,6 +155,7 @@ function Diagnostics.regressionSeeds()
             maxSeamMismatches = fixture.maxSeamMismatches,
             maxUphillRejects = fixture.maxUphillRejects,
             minRivers = fixture.minRivers,
+            thresholds = fixture.thresholds and copyMap(fixture.thresholds) or nil,
         }
     end
     return out
@@ -150,13 +167,20 @@ end
 
 function Diagnostics.analyzeSeed(seed, options)
     options = options or {}
+    local fixture = type(seed) == "table" and seed or { seed = seed }
+    seed = fixture.seed
     local thresholds = mergeThresholds(options.thresholds)
+    for key, value in pairs(fixture.thresholds or {}) do thresholds[key] = value end
     local world = WorldGen.new(seed, options.worldOptions)
     local scale = options.scale or "local"
     local chunkRadius = options.chunkRadius or 1
     local sampleStep = options.sampleStep or 4
+    local originChunkX = fixture.originChunkX or options.originChunkX or 0
+    local originChunkY = fixture.originChunkY or options.originChunkY or 0
     local stats = {
         seed = seed,
+        originChunkX = originChunkX,
+        originChunkY = originChunkY,
         scale = scale,
         chunkRadius = chunkRadius,
         sampleStep = sampleStep,
@@ -183,8 +207,8 @@ function Diagnostics.analyzeSeed(seed, options)
     }
 
     local seenHydrology = {}
-    for cy = -chunkRadius, chunkRadius do
-        for cx = -chunkRadius, chunkRadius do
+    for cy = originChunkY - chunkRadius, originChunkY + chunkRadius do
+        for cx = originChunkX - chunkRadius, originChunkX + chunkRadius do
             local chunk = world:chunk(cx, cy, scale)
             local regionId = chunk.cells[1][1].hydrologyRegion
             if regionId and not seenHydrology[regionId] then

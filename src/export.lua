@@ -16,8 +16,7 @@ end
 
 local function colorFor(cell, palette)
     if cell.river then return palette.river end
-    if cell.water and (cell.biome == "reef" or cell.biome == "lagoon") then return palette[cell.biome] end
-    if cell.water then return cell.lake and palette.lake or palette.ocean end
+    if cell.water then return cell.lake and palette.lake or (palette[cell.biome] or palette.ocean) end
     local base = palette[cell.biome] or palette.grassland
     if cell.coastBeach then base = { 0.76, 0.68, 0.42 } end
     if cell.coastCliff then base = { 0.34, 0.33, 0.32 } end

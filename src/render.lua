@@ -14,13 +14,35 @@ local biomeColors = {
     river = { 0.1, 0.43, 0.72 },
     wetland = { 0.16, 0.34, 0.2 },
     desert = { 0.72, 0.63, 0.36 },
+    cold_desert = { 0.55, 0.52, 0.42 },
+    polar_desert = { 0.68, 0.7, 0.66 },
+    semiarid_shrubland = { 0.48, 0.48, 0.24 },
+    playa_salt_flat = { 0.82, 0.8, 0.66 },
+    dune_sea_erg = { 0.78, 0.66, 0.34 },
+    badland = { 0.56, 0.34, 0.25 },
+    oasis = { 0.12, 0.44, 0.32 },
     grassland = { 0.34, 0.54, 0.22 },
     savanna = { 0.58, 0.52, 0.22 },
     temperate_forest = { 0.12, 0.36, 0.16 },
+    temperate_rainforest = { 0.08, 0.32, 0.22 },
+    mixed_forest = { 0.16, 0.34, 0.18 },
+    conifer_forest = { 0.09, 0.28, 0.2 },
     rainforest = { 0.025, 0.29, 0.12 },
+    monsoon_forest = { 0.1, 0.38, 0.14 },
+    dry_broadleaf = { 0.34, 0.42, 0.18 },
+    cloud_forest = { 0.14, 0.42, 0.28 },
+    thorn_scrub = { 0.44, 0.4, 0.18 },
+    mediterranean_chaparral = { 0.36, 0.44, 0.22 },
+    mangrove = { 0.06, 0.28, 0.18 },
+    riparian_gallery_forest = { 0.08, 0.36, 0.24 },
     boreal_forest = { 0.11, 0.27, 0.28 },
+    muskeg = { 0.22, 0.28, 0.22 },
+    subalpine_krummholz = { 0.2, 0.32, 0.24 },
     tundra = { 0.48, 0.52, 0.46 },
+    permafrost_polygon = { 0.44, 0.5, 0.48 },
     alpine = { 0.49, 0.47, 0.41 },
+    alpine_scree = { 0.42, 0.4, 0.36 },
+    nival_zone = { 0.78, 0.8, 0.76 },
     snow = { 0.86, 0.88, 0.84 },
     rock = { 0.35, 0.33, 0.3 },
     lava_flow = { 0.18, 0.13, 0.11 },
@@ -28,6 +50,16 @@ local biomeColors = {
     karst = { 0.55, 0.58, 0.46 },
     reef = { 0.12, 0.62, 0.62 },
     lagoon = { 0.06, 0.42, 0.58 },
+    kelp_forest_fringe = { 0.05, 0.24, 0.22 },
+    atoll_ring = { 0.16, 0.68, 0.6 },
+    seamount_cap = { 0.12, 0.48, 0.56 },
+    fumarole_field = { 0.34, 0.32, 0.26 },
+    hot_spring_travertine = { 0.74, 0.68, 0.52 },
+    ash_plain = { 0.28, 0.26, 0.24 },
+    bioluminescent_grove = { 0.08, 0.52, 0.48 },
+    red_algal_shore = { 0.5, 0.12, 0.16 },
+    salt_cathedral = { 0.86, 0.84, 0.72 },
+    blue_ice_field = { 0.52, 0.72, 0.9 },
 }
 
 local landformColors = {
@@ -165,7 +197,7 @@ local function baseColor(cell)
     end
     if cell.lake then return biomeColors.lake end
     local color = biomeColors[cell.biome] or biomeColors.grassland
-    if cell.water then color = (cell.biome == "coast" or cell.biome == "reef" or cell.biome == "lagoon") and biomeColors[cell.biome] or biomeColors.ocean end
+    if cell.water then color = biomeColors[cell.biome] or biomeColors.ocean end
     if (cell.craton or 0) > 0.12 then color = mixColor(color, landformColors.craton, 0.34) end
     if (cell.shield or 0) > 0.2 then color = mixColor(color, landformColors.shield, 0.26) end
     if (cell.riftValley or 0) > 0.08 then color = mixColor(color, landformColors.rift, 0.4) end
