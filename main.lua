@@ -9,6 +9,7 @@ local PostFX = require("src.postfx")
 local Render = require("src.render")
 local Save = require("src.save")
 local Survey = require("src.survey")
+local Thumbnail = require("src.thumbnail")
 local ViewScale = require("src.viewscale")
 local WorldGen = require("src.worldgen")
 
@@ -196,6 +197,39 @@ local function smoke(args)
     love.event.quit(0)
 end
 
+local function librarySmoke(args)
+    love.graphics.setDefaultFilter("nearest", "nearest")
+    local worldOptions = runtimeWorldOptions(args)
+    local world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625)), worldOptions)
+    local smokeApp = {
+        world = world,
+        worldOptions = worldOptions,
+        survey = Survey.new(),
+        viewScale = ViewScale.new(world),
+        player = Player.new(0, 0),
+        camera = Render.defaultCamera(),
+        pixelScale = 2,
+        atmosphere = Atmosphere.new(),
+    }
+    local id = Save.writeWorld(nil, Save.snapshot(smokeApp), { name = "Smoke World" }, Thumbnail.png(world, { scale = world:metadata().scope }))
+    local listed = false
+    for _, item in ipairs(Save.listWorlds()) do
+        if item.id == id then listed = true break end
+    end
+    Save.renameWorld(id, "Smoke Renamed")
+    local renamed = Save.readWorld(id)
+    local exportPath = Save.exportWorld(id)
+    local exportBytes = exportPath and love.filesystem.read(exportPath)
+    Save.deleteWorld(id)
+    print("library-smoke=worlds")
+    print("library-smoke-id=" .. tostring(id))
+    print("library-smoke-listed=" .. tostring(listed))
+    print("library-smoke-renamed=" .. tostring(renamed and renamed.meta and renamed.meta.name))
+    print("library-smoke-export=" .. tostring(exportPath))
+    print("library-smoke-export-zip=" .. tostring(exportBytes and string.sub(exportBytes, 1, 4) == "PK\003\004"))
+    love.event.quit(0)
+end
+
 local function preloadApp(app, reason)
     local started = now()
     local view = ViewScale.params(app.viewScale, app.world)
@@ -347,6 +381,8 @@ local function applySnapshot(app, snapshot)
     app.worldOptionsHashMismatch = expectedHash and expectedHash ~= actualHash
     if app.worldOptionsHashMismatch then print("[save] world_hash_mismatch expected=" .. tostring(expectedHash) .. " actual=" .. tostring(actualHash)) end
     app.survey = Survey.fromSnapshot(snapshot.survey)
+    app.saveSlotId = snapshot.meta and snapshot.meta.id or app.saveSlotId
+    app.worldName = snapshot.meta and snapshot.meta.name or app.worldName
     app.player.x = snapshot.player and tonumber(snapshot.player.x) or 0
     app.player.y = snapshot.player and tonumber(snapshot.player.y) or 0
     app.camera = Render.defaultCamera()
@@ -385,6 +421,10 @@ local function loadGame(args)
     end
     if hasArg(args, "--smoke") then
         smoke(args)
+        return
+    end
+    if hasArg(args, "--library-smoke") then
+        librarySmoke(args)
         return
     end
     love.graphics.setDefaultFilter("nearest", "nearest")
@@ -479,9 +519,23 @@ local function startGame(args)
     loadGame(Game.addArg(args or {}, "--skip-menu"))
 end
 
+local function thumbnailFor(app)
+    return Thumbnail.png(app.world, { scale = ViewScale.activeScale(app.viewScale), x = app.player.x, y = app.player.y })
+end
+
 local function handleMenuAction(action)
     if type(action) == "table" and action.kind == "play-create" then
         startGame(action.args or {})
+        app.worldName = action.name or "New World"
+        app.saveSlotId = Save.writeWorld(nil, Save.snapshot(app), { name = app.worldName }, thumbnailFor(app))
+    elseif type(action) == "table" and action.kind == "play-world" then
+        local snapshot = Save.readWorld(action.id)
+        if snapshot then
+            startGame({})
+            applySnapshot(app, snapshot)
+            app.saveSlotId = action.id
+            app.worldName = snapshot.meta and snapshot.meta.name or app.worldName
+        end
     elseif action == "quit" then
         love.event.quit(0)
     elseif action == "play-default" then
@@ -657,14 +711,22 @@ function love.keypressed(key)
         print("[season] " .. tostring(season))
     end
     if key == "f5" then
-        Save.write(app.savePath, Save.snapshot(app))
-        print("[save] wrote=" .. tostring(app.savePath))
+        if app.saveSlotId then
+            Save.writeWorld(app.saveSlotId, Save.snapshot(app), { name = app.worldName or "World" }, thumbnailFor(app))
+            print("[save] wrote_slot=" .. tostring(app.saveSlotId))
+        else
+            Save.write(app.savePath, Save.snapshot(app))
+            print("[save] wrote=" .. tostring(app.savePath))
+        end
     end
     if key == "f9" then
-        local ok, snapshot = pcall(Save.read, app.savePath)
+        local ok, snapshot = pcall(function()
+            if app.saveSlotId then return Save.readWorld(app.saveSlotId) end
+            return Save.read(app.savePath)
+        end)
         if ok then
             applySnapshot(app, snapshot)
-            print("[save] loaded=" .. tostring(app.savePath))
+            print("[save] loaded=" .. tostring(app.saveSlotId or app.savePath))
         else
             print("[save] load_failed=" .. tostring(snapshot))
         end

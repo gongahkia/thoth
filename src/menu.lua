@@ -1,4 +1,5 @@
 local Export = require("src.export")
+local Save = require("src.save")
 local UI = require("src.ui")
 local WorldGen = require("src.worldgen")
 
@@ -152,11 +153,19 @@ local function createArgs(create)
 end
 
 function Menu.new(args)
+    pcall(Save.migrateLegacy, "thoth-save.json")
     local backdrop, metadata = buildBackdrop()
     return {
         state = "title",
         args = args or {},
         create = createDefaults(args or {}),
+        library = {
+            worlds = Save.listWorlds(),
+            renameId = nil,
+            renameText = "",
+            confirmDelete = nil,
+            status = nil,
+        },
         ui = UI.new(theme()),
         backdrop = backdrop,
         backdropMetadata = metadata,
@@ -168,6 +177,7 @@ end
 local function setState(menu, state)
     menu.state = state
     menu.ui.focus = nil
+    if state == "library" then menu.library.worlds = Save.listWorlds() end
 end
 
 function Menu.update(menu, dt)
@@ -227,10 +237,50 @@ local function backButton(menu, x, y)
 end
 
 local function drawLibrary(menu, x, y, w)
-    UI.Label(menu.ui, "MY WORLDS", x, y, { size = 30 })
-    UI.List(menu.ui, "worlds", { { label = "Default Seed" } }, x, y + 50, math.min(320, w), 76, { rowH = 38 })
-    if UI.Button(menu.ui, "Play Default", x, y + 144, math.min(220, w), 40, { id = "library:default" }) then menu.action = "play-default" end
-    backButton(menu, x, y + 202)
+    local ui = menu.ui
+    local library = menu.library
+    UI.Label(ui, "MY WORLDS", x, y, { size = 30 })
+    if #library.worlds == 0 then UI.Label(ui, "No Worlds", x, y + 58, { size = 18, muted = true }) end
+    local rowH = 72
+    local listH = math.min(220, math.max(72, #library.worlds * rowH))
+    love.graphics.setScissor(x, y + 46, w, listH)
+    for index, world in ipairs(library.worlds) do
+        local rowY = y + 48 + (index - 1) * rowH
+        UI.Label(ui, world.name, x + 8, rowY + 4, { size = 18 })
+        UI.Label(ui, tostring(world.scope) .. " / seed " .. tostring(world.seed), x + 8, rowY + 28, { size = 13, muted = true })
+        if UI.Button(ui, "Play", x + w - 222, rowY + 8, 54, 28, { id = "world:play:" .. world.id, size = 13 }) then menu.action = { kind = "play-world", id = world.id } end
+        if UI.Button(ui, "Rename", x + w - 164, rowY + 8, 72, 28, { id = "world:rename:" .. world.id, size = 13 }) then
+            library.renameId = world.id
+            library.renameText = world.name
+        end
+        if UI.Button(ui, "Export", x + w - 88, rowY + 8, 64, 28, { id = "world:export:" .. world.id, size = 13 }) then
+            local path = Save.exportWorld(world.id)
+            library.status = path and ("exported " .. path) or "export failed"
+        end
+        if UI.Button(ui, "Delete", x + w - 88, rowY + 40, 64, 24, { id = "world:delete:" .. world.id, size = 12, danger = true }) then library.confirmDelete = world end
+    end
+    love.graphics.setScissor()
+    if library.renameId then
+        UI.Label(ui, "Rename", x, y + listH + 60, { size = 16, muted = true })
+        library.renameText = UI.TextField(ui, library.renameText, x + 76, y + listH + 54, math.min(180, w - 200), 30, { id = "library:rename", size = 14 })
+        if UI.Button(ui, "Save", x + w - 118, y + listH + 54, 54, 30, { id = "library:rename-save", size = 13 }) then
+            Save.renameWorld(library.renameId, library.renameText)
+            library.renameId = nil
+            library.worlds = Save.listWorlds()
+        end
+        if UI.Button(ui, "Cancel", x + w - 60, y + listH + 54, 60, 30, { id = "library:rename-cancel", size = 13 }) then library.renameId = nil end
+    elseif library.confirmDelete then
+        UI.Label(ui, "Delete " .. tostring(library.confirmDelete.name), x, y + listH + 60, { size = 16, muted = true })
+        if UI.Button(ui, "Delete", x + w - 132, y + listH + 54, 64, 30, { id = "library:delete-confirm", size = 13, danger = true }) then
+            Save.deleteWorld(library.confirmDelete.id)
+            library.confirmDelete = nil
+            library.worlds = Save.listWorlds()
+        end
+        if UI.Button(ui, "Cancel", x + w - 64, y + listH + 54, 64, 30, { id = "library:delete-cancel", size = 13 }) then library.confirmDelete = nil end
+    elseif library.status then
+        UI.Label(ui, library.status, x, y + listH + 60, { size = 13, muted = true })
+    end
+    backButton(menu, x, y + 330)
 end
 
 local function drawCreate(menu, x, y, w)
@@ -288,7 +338,7 @@ local function drawCreate(menu, x, y, w)
     else
         UI.Label(ui, "preview", rx + math.max(0, rw - 128), y + 92, { size = 16, muted = true })
     end
-    if UI.Button(ui, "Create", rx, y + 346, math.min(160, rw), 38, { id = "create:launch" }) then menu.action = { kind = "play-create", args = createArgs(create) } end
+    if UI.Button(ui, "Create", rx, y + 346, math.min(160, rw), 38, { id = "create:launch" }) then menu.action = { kind = "play-create", args = createArgs(create), name = create.name } end
 end
 
 local function drawSettings(menu, x, y, w)
@@ -306,7 +356,7 @@ function Menu.draw(menu)
     local width, height = love.graphics.getDimensions()
     drawBackdrop(menu, width, height)
     UI.begin(menu.ui)
-    local panelW = menu.state == "create" and math.min(760, width - 32) or math.min(360, width - 32)
+    local panelW = menu.state == "create" and math.min(760, width - 32) or (menu.state == "library" and math.min(620, width - 32) or math.min(360, width - 32))
     local panelH = menu.state == "create" and math.min(500, height - 40) or math.min(430, height - 40)
     local x = math.floor(math.max(16, width * 0.08))
     local y = math.floor((height - panelH) * 0.5)

@@ -104,29 +104,6 @@ Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) u
 
 ---
 
-### Task 12 — "My Worlds" library + multi-slot save
-
-**STATUS:** pending
-**RECOMMENDED ORDER:** 3rd.
-
-**SCOPE:** Replace single-slot `thoth-save.json` with a directory of named saves; add library page listing them with thumbnails.
-
-**FILES:**
-- `src/save.lua` — support directory (default `~/.local/share/love/thoth/worlds/` via `love.filesystem`), one JSON per world, metadata (name, seed, scope, created-at, last-played, thumbnail path).
-- `src/menu.lua` — new `library` subpage: scrollable list, per-entry buttons `Play`, `Rename`, `Delete`, `Export`.
-- `main.lua` — deprecate `--save-path`/`--load-save` as single-file flags; keep them working (import single-file into library on first launch).
-- New `src/thumbnail.lua` — snapshot mini-map PNG on world creation via `Export.renderMap` at 128×128.
-
-**ACCEPTANCE:**
-- Create → world appears in list with thumbnail.
-- Delete asks confirmation, removes JSON + thumbnail.
-- Existing `thoth-save.json` migrates on first run.
-- Export button writes a portable `.thoth-world` bundle (JSON + PNG in a zip via `love.data.compress`).
-
-**REMAINING:** — thumbnail generation must be deterministic and cheap (< 200 ms); if too slow, defer to first `Play`.
-
----
-
 ### Task 3 — Settings page + reconfigurable keybinds
 
 **STATUS:** pending
