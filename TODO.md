@@ -104,36 +104,6 @@ Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) u
 
 ---
 
-### Task 14 — Menu screen (Proteus × Minecraft hybrid)
-
-**STATUS:** pending
-**RECOMMENDED ORDER:** 1st (blocks Tasks 3, 6, 12).
-
-**SCOPE:** Add a title/menu state distinct from in-game state. Palette-quantized backdrop of a slowly panning generated world thumbnail. Buttons: `Play` (opens world library — Task 12), `Create World` (Task 6), `Settings` (Task 3), `Quit`.
-
-**FILES:**
-- New `src/menu.lua` — state machine (`menu.state ∈ {title, create, library, settings}`), draw + input.
-- New `src/ui.lua` — shared immediate-mode widgets (button, textfield, slider, list, radio). ~300 LOC target.
-- `main.lua` — introduce `app.mode ∈ {menu, play}`; `love.load` starts in `menu` unless `--skip-menu` or `--load-save` given; `love.update`/`love.draw`/`love.keypressed`/`love.mousemoved` dispatch on mode.
-- `conf.lua` — no change unless enabling `love.window.setMode` differently.
-
-**STEPS:**
-1. Extract current in-game input/draw into `src/game.lua` (thin wrapper — do not rewrite logic).
-2. Add `src/ui.lua` with `Button`, `TextField`, `Slider`, `RadioGroup`, `List`, `Label`. Immediate-mode: each returns interaction result this frame.
-3. Add `src/menu.lua`. Title panel renders BigBlue Terminal `THOTH` header + version + button column. Backdrop = pre-rendered `Export.renderMap` at menu scale, palette-quantized.
-4. Wire `Play → library`, `Create World → create`, `Settings → settings`, `Quit → love.event.quit`.
-5. Preserve `--skip-menu` for smoke/bench targets so CI does not stall.
-
-**ACCEPTANCE:**
-- Launching `love .` shows menu, not world.
-- `make render-smoke walk-smoke smoke bench` still pass (add `--skip-menu` to their invocations if needed).
-- Backdrop is deterministic for a fixed thumbnail seed.
-- Escape from any submenu returns to title.
-
-**REMAINING:** —
-
----
-
 ### Task 6 — World creation page + fix scale at gen time
 
 **STATUS:** pending

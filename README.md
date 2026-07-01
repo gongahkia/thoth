@@ -32,6 +32,7 @@ Tests include a terrain-first guard that rejects runtime ruins, lore, quests, co
 Runtime performance logging:
 
 ```sh
+love . --skip-menu
 love . --debug-perf
 love . --walk-smoke --walk-smoke-frames 240 --perf-interval 0.5
 love . --preload-radius 128 --refresh-preload-radius 96
@@ -44,6 +45,8 @@ love . --geologic-time 0.5
 love . --pixel-scale 2 --time-of-day 0.25 --season summer --day-length 60
 love . --no-async
 ```
+
+`love .` opens the title menu. Use `--skip-menu` to launch directly into the current default world.
 
 `--geologic-time` drifts every plate along its velocity vector (clamped via tanh below 80% of half plate-cell, so plates never collide). `0` keeps the static contract; the `(seed, geologicTime)` pair is the new determinism contract.
 

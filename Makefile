@@ -28,15 +28,15 @@ bench-update:
 	$(LUAJIT) tests/run.lua --benchmark --chunk-radius 1 --update-baseline tests/bench.baseline.json
 
 render-smoke:
-	SDL_AUDIODRIVER=dummy $(LOVE) . --render-smoke
+	SDL_AUDIODRIVER=dummy $(LOVE) . --skip-menu --render-smoke
 
 walk-smoke:
-	SDL_AUDIODRIVER=dummy $(LOVE) . --walk-smoke --walk-smoke-frames 240 --perf-interval 0.5
+	SDL_AUDIODRIVER=dummy $(LOVE) . --skip-menu --walk-smoke --walk-smoke-frames 240 --perf-interval 0.5
 
 export-smoke:
 	rm -rf dist/export-smoke
 	mkdir -p dist/export-smoke
-	SDL_AUDIODRIVER=dummy $(LOVE) . --export-map dist/export-smoke/map --export-size 64
+	SDL_AUDIODRIVER=dummy $(LOVE) . --skip-menu --export-map dist/export-smoke/map --export-size 64
 
 clean:
 	rm -rf dist

@@ -3,6 +3,8 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 local Player = require("src.player")
 local Atmosphere = require("src.atmosphere")
 local Export = require("src.export")
+local Game = require("src.game")
+local Menu = require("src.menu")
 local PostFX = require("src.postfx")
 local Render = require("src.render")
 local Save = require("src.save")
@@ -370,7 +372,7 @@ local function applySnapshot(app, snapshot)
     preloadApp(app, "save_load")
 end
 
-function love.load(args)
+local function loadGame(args)
     if hasArg(args, "--export-map") then
         exportMap(args)
         return
@@ -382,6 +384,7 @@ function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     local worldOptions = runtimeWorldOptions(args)
     app = {
+        mode = "play",
         world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625)), worldOptions),
         worldOptions = worldOptions,
         asyncHydrology = not (hasArg(args, "--no-async") or hasArg(args, "--render-smoke")),
@@ -441,10 +444,52 @@ function love.load(args)
     if loadPath then applySnapshot(app, Save.read(loadPath)) end
     preloadApp(app, "load")
     if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(app.mouseLook) end
+    return app
+end
+
+local function menuArgs(args)
+    return {
+        seed = tonumber(argValue(args, "--seed", 20260625)) or 20260625,
+    }
+end
+
+local function startMenu(args)
+    love.graphics.setDefaultFilter("nearest", "nearest")
+    app = {
+        mode = "menu",
+        args = args or {},
+        menu = Menu.new(menuArgs(args or {})),
+        menuSmoke = hasArg(args or {}, "--menu-smoke"),
+    }
+    if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(false) end
+end
+
+local function startGame(args)
+    loadGame(Game.addArg(args or {}, "--skip-menu"))
+end
+
+local function handleMenuAction(action)
+    if action == "quit" then
+        love.event.quit(0)
+    elseif action == "play-default" then
+        startGame(app and app.args or {})
+    end
+end
+
+function love.load(args)
+    if Game.startsInPlay(args) then
+        loadGame(args)
+    else
+        startMenu(args)
+    end
 end
 
 function love.update(dt)
     if not app then return end
+    if app.mode == "menu" then
+        handleMenuAction(Menu.update(app.menu, dt))
+        return
+    end
     local started = now()
     app.perf.preloadMsThisFrame = 0
     if app.world.pollAsyncHydrology then app.world:pollAsyncHydrology(16) end
@@ -481,6 +526,16 @@ end
 
 function love.draw()
     if not app then return end
+    if app.mode == "menu" then
+        Menu.draw(app.menu)
+        if app.menuSmoke and not app.menuSmokePrinted then
+            app.menuSmokePrinted = true
+            print("menu-smoke=" .. tostring(app.menu.state))
+            print("menu-smoke-seed=" .. tostring(app.menu.backdropMetadata and app.menu.backdropMetadata.seed))
+            love.event.quit(0)
+        end
+        return
+    end
     local started = now()
     local stats = PostFX.draw(app, function(width, height)
         return Render.drawScene(app, width, height)
@@ -520,11 +575,15 @@ function love.draw()
 end
 
 function love.resize(width, height)
-    if app then PostFX.resize(app, width, height) end
+    if app and app.mode == "play" then PostFX.resize(app, width, height) end
 end
 
 function love.keypressed(key)
     if not app then return end
+    if app.mode == "menu" then
+        handleMenuAction(Menu.keypressed(app.menu, key))
+        return
+    end
     if key == "escape" or key == "q" then
         exitApp(app)
         return
@@ -615,7 +674,23 @@ function love.quit()
 end
 
 function love.mousemoved(_, _, dx, dy)
-    if not (app and app.mouseLook) or app.walkSmoke then return end
+    if not app or app.mode ~= "play" or not app.mouseLook or app.walkSmoke then return end
     app.camera.yaw = app.camera.yaw + dx * 0.0025
     app.camera.pitch = math.max(-0.42, math.min(0.38, app.camera.pitch - dy * 0.0018))
+end
+
+function love.mousepressed(x, y, button)
+    if app and app.mode == "menu" then Menu.mousepressed(app.menu, x, y, button) end
+end
+
+function love.mousereleased(x, y, button)
+    if app and app.mode == "menu" then Menu.mousereleased(app.menu, x, y, button) end
+end
+
+function love.textinput(text)
+    if app and app.mode == "menu" then Menu.textinput(app.menu, text) end
+end
+
+function love.wheelmoved(x, y)
+    if app and app.mode == "menu" then Menu.wheelmoved(app.menu, x, y) end
 end
