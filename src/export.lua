@@ -15,11 +15,14 @@ local function byte(value)
 end
 
 local function colorFor(cell, palette)
-    if cell.river then return palette.river end
-    if cell.water then return cell.lake and palette.lake or (palette[cell.biome] or palette.ocean) end
+    if cell.river then return cell.braidedRiver and { 0.28, 0.5, 0.52 } or palette.river end
+    if cell.water then return (cell.lake or cell.cenote) and palette.lake or (palette[cell.biome] or palette.ocean) end
     local base = palette[cell.biome] or palette.grassland
     if cell.coastBeach then base = { 0.76, 0.68, 0.42 } end
     if cell.coastCliff then base = { 0.34, 0.33, 0.32 } end
+    if cell.playa then base = { 0.86, 0.82, 0.64 } end
+    if cell.alluvialFanLobe then base = { 0.64, 0.54, 0.34 } end
+    if cell.sinkhole then base = { 0.24, 0.22, 0.2 } end
     if (cell.duneAmplitude or 0) > 0 then base = cell.duneDelta >= 0 and { 0.82, 0.73, 0.43 } or { 0.5, 0.42, 0.22 } end
     local t = clamp(((cell.elevation or 0) + 0.12) / 0.86, 0, 1)
     return {

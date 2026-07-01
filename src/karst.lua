@@ -57,7 +57,7 @@ local function applyDelta(cell, delta, kind)
 end
 
 local function applyStamp(region, center, kind, seed, radius, baseDelta)
-    local affected = 0
+    local affected, sinkholes, cenotes = 0, 0, 0
     local gx0, gy0 = center.gx or 0, center.gy or 0
     local minX, maxX = math.floor(gx0 - radius), math.ceil(gx0 + radius)
     local minY, maxY = math.floor(gy0 - radius), math.ceil(gy0 + radius)
@@ -73,12 +73,20 @@ local function applyStamp(region, center, kind, seed, radius, baseDelta)
                     if kind == 1 then delta = baseDelta * (1 + math.cos(math.pi * t)) * 0.5 end
                     if kind == 3 then delta = baseDelta * (1 - t) end
                     applyDelta(cell, delta, kind)
+                    if kind == 1 and t <= 0.38 then
+                        cell.sinkhole = true
+                        sinkholes = sinkholes + 1
+                        if t <= 0.18 and (cell.karstDepth or 0) > 0.055 and (cell.rainfall or cell.precipitation or 0) > 0.22 then
+                            cell.cenote = true
+                            cenotes = cenotes + 1
+                        end
+                    end
                     affected = affected + 1
                 end
             end
         end
     end
-    return affected
+    return affected, sinkholes, cenotes
 end
 
 local function pruneCandidates(candidates, radius)
@@ -109,6 +117,8 @@ function Karst.applyRegion(region, options)
         cell.karstDepth = 0
         cell.cavePresence = 0
         cell.karstType = 0
+        cell.sinkhole = false
+        cell.cenote = false
         if carbonate(cell) then
             carbonateCells = carbonateCells + 1
             local gx, gy = cell.gx or cell.x or 0, cell.gy or cell.y or 0
@@ -128,16 +138,18 @@ function Karst.applyRegion(region, options)
         return ah < bh
     end)
     candidates = pruneCandidates(candidates, 2 * stride)
-    local stats = { carbonateCells = carbonateCells, candidates = #candidates, features = 0, dolines = 0, poljes = 0, towers = 0, plains = 0, affectedCells = 0, maxDepth = 0 }
+    local stats = { carbonateCells = carbonateCells, candidates = #candidates, features = 0, dolines = 0, poljes = 0, towers = 0, plains = 0, sinkholes = 0, cenotes = 0, affectedCells = 0, maxDepth = 0 }
     for _, center in ipairs(candidates) do
         local gx, gy = center.gx or 0, center.gy or 0
         local kind = options.forceKind or candidateKind(center, seaLevel)
         local radius = stampRadius(kind, seed, gx, gy, stride)
         local delta = stampDelta(kind, seed, gx, gy)
-        local affected = applyStamp(region, center, kind, seed, radius, delta)
+        local affected, sinkholes, cenotes = applyStamp(region, center, kind, seed, radius, delta)
         if affected > 0 then
             stats.features = stats.features + 1
             stats.affectedCells = stats.affectedCells + affected
+            stats.sinkholes = stats.sinkholes + sinkholes
+            stats.cenotes = stats.cenotes + cenotes
             if kind == 1 then stats.dolines = stats.dolines + 1 end
             if kind == 2 then stats.poljes = stats.poljes + 1 end
             if kind == 3 then stats.towers = stats.towers + 1 end

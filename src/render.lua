@@ -65,8 +65,13 @@ local biomeColors = {
 local landformColors = {
     talus = { 0.46, 0.44, 0.4 },
     alluvial = { 0.58, 0.49, 0.31 },
+    fanLobe = { 0.64, 0.54, 0.34 },
     floodplain = { 0.2, 0.42, 0.22 },
     delta = { 0.42, 0.48, 0.28 },
+    braided = { 0.46, 0.58, 0.42 },
+    playa = { 0.86, 0.82, 0.64 },
+    sinkhole = { 0.24, 0.22, 0.2 },
+    terrace = { 0.52, 0.48, 0.38 },
     coastBeach = { 0.76, 0.68, 0.42 },
     coastCliff = { 0.34, 0.33, 0.32 },
     duneLight = { 0.82, 0.73, 0.43 },
@@ -191,11 +196,12 @@ end
 local function baseColor(cell)
     if cell.river then
         local color = biomeColors.river
+        if cell.braidedRiver then color = mixColor(color, landformColors.braided, 0.45) end
         if cell.delta then color = mixColor(color, landformColors.delta, 0.45) end
         if cell.floodplain then color = mixColor(color, landformColors.floodplain, 0.22) end
         return color
     end
-    if cell.lake then return biomeColors.lake end
+    if cell.lake then return cell.cenote and mixColor(biomeColors.lake, landformColors.sinkhole, 0.25) or biomeColors.lake end
     local color = biomeColors[cell.biome] or biomeColors.grassland
     if cell.water then color = biomeColors[cell.biome] or biomeColors.ocean end
     if (cell.craton or 0) > 0.12 then color = mixColor(color, landformColors.craton, 0.34) end
@@ -219,6 +225,10 @@ local function baseColor(cell)
     if (cell.duneAmplitude or 0) > 0 then color = mixColor(color, (cell.duneDelta or 0) >= 0 and landformColors.duneLight or landformColors.duneShade, clamp((cell.duneAmplitude or 0) * 12, 0.18, 0.42)) end
     if cell.floodplain then color = mixColor(color, landformColors.floodplain, 0.5) end
     if cell.alluvialFan then color = mixColor(color, landformColors.alluvial, 0.45) end
+    if cell.alluvialFanLobe then color = mixColor(color, landformColors.fanLobe, 0.35) end
+    if cell.playa then color = mixColor(color, landformColors.playa, 0.68) end
+    if cell.sinkhole then color = mixColor(color, landformColors.sinkhole, 0.38) end
+    if (cell.marineTerrace or 0) > 0 or (cell.fluvialTerrace or 0) > 0 then color = mixColor(color, landformColors.terrace, 0.3) end
     if cell.talus then color = mixColor(color, landformColors.talus, 0.38) end
     if cell.riverBank then color = mixColor(color, biomeColors.river, 0.28) end
     return color
@@ -1111,8 +1121,14 @@ function Render.debugPanelData(app)
             thermal = cell.thermalErosion or 0,
             talus = cell.talus == true,
             alluvialFan = cell.alluvialFan == true,
+            alluvialFanLobe = cell.alluvialFanLobe == true,
             floodplain = cell.floodplain == true,
             delta = cell.delta == true,
+            braidedRiver = cell.braidedRiver == true,
+            playa = cell.playa == true,
+            sinkhole = cell.sinkhole == true,
+            cenote = cell.cenote == true,
+            terrace = (cell.marineTerrace or 0) > 0 or (cell.fluvialTerrace or 0) > 0,
         },
         biome = {
             id = cell.biome,

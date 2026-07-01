@@ -82,31 +82,7 @@ User attached two Minecraft "Create World" screenshots (Bedrock modern + Pocket 
 
 ## Tasks
 
-Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) unblocks the settings page (Task 3) and the fixed-scale change; HUD + labels + banner (Tasks 8, 9, 11) sit above the new UI; weather (Task 10) extends generation; content additions (Task 4) piggyback on generation. Numbered per user request; execution order recommended below each.
-
----
-
-### Task 4 — Terrain generation additions
-
-**STATUS:** pending
-**RECOMMENDED ORDER:** 9th (piggybacks on expanded generation cell fields).
-
-**SCOPE:** Add high-ROI features from R1: braided rivers, alluvial terraces, multi-lobe fans, playas, sinkholes.
-
-**FILES:**
-- `src/hydrology.lua` — braided-river flag when `slope > s_braid AND sedimentLoad > l_braid`.
-- `src/erosion.lua` — alluvial terrace shelves at sea-level drop events (needs sea-level history buffer; already in `seaLevelOscillation`).
-- `src/hydrology.lua` (or new `src/fans.lua`) — multi-lobe fan geometry at mountain-front cells.
-- `src/climate.lua` + `src/hydrology.lua` — playa detection: endorheic basin + rainfall < threshold + evaporation > inflow.
-- `src/karst.lua` — sinkhole discrete-collapse cell type + cenote water pool.
-- `tests/run.lua` — smoke asserts non-zero counts for each new landform when seeded on a fixture that should exhibit it.
-
-**ACCEPTANCE:**
-- `make smoke` prints new counters: `braided_rivers=`, `terraces=`, `fan_lobes=`, `playas=`, `sinkholes=`.
-- No regression on existing `broken_seams` or `river_discontinuities` fixtures.
-- Bench delta < +15% or explain in commit body.
-
-**REMAINING:** — debris flow / loess / salt tectonics postponed unless time permits.
+Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) unblocks the settings page (Task 3) and the fixed-scale change; HUD + labels + banner (Tasks 8, 9, 11) sit above the new UI; weather (Task 10) extends generation. Numbered per user request; execution order recommended below each.
 
 ---
 

@@ -163,7 +163,7 @@ local function smoke(args)
     local world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625)))
     local player = Player.new(0, 0)
     local renderStats = Render.visibleStats({ world = world, player = player, camera = Render.defaultCamera() }, 1280, 720)
-    local totals = { land = 0, water = 0, river = 0, talus = 0, alluvial = 0, floodplain = 0, delta = 0, chunks = 0 }
+    local totals = { land = 0, water = 0, river = 0, talus = 0, alluvial = 0, fanLobe = 0, floodplain = 0, delta = 0, braided = 0, terrace = 0, playa = 0, sinkhole = 0, chunks = 0 }
     for _, scale in ipairs(world:metadata().scales) do
         for cy = -1, 1 do
             for cx = -1, 1 do
@@ -177,8 +177,13 @@ local function smoke(args)
                         if cell.river then totals.river = totals.river + 1 end
                         if cell.talus then totals.talus = totals.talus + 1 end
                         if cell.alluvialFan then totals.alluvial = totals.alluvial + 1 end
+                        if cell.alluvialFanLobe then totals.fanLobe = totals.fanLobe + 1 end
                         if cell.floodplain then totals.floodplain = totals.floodplain + 1 end
                         if cell.delta then totals.delta = totals.delta + 1 end
+                        if cell.braidedRiver then totals.braided = totals.braided + 1 end
+                        if (cell.marineTerrace or 0) > 0 or (cell.fluvialTerrace or 0) > 0 then totals.terrace = totals.terrace + 1 end
+                        if cell.playa then totals.playa = totals.playa + 1 end
+                        if cell.sinkhole then totals.sinkhole = totals.sinkhole + 1 end
                     end
                 end
             end
@@ -191,8 +196,13 @@ local function smoke(args)
     print("rivers=" .. totals.river)
     print("talus=" .. totals.talus)
     print("alluvial_fans=" .. totals.alluvial)
+    print("fan_lobes=" .. totals.fanLobe)
     print("floodplains=" .. totals.floodplain)
     print("deltas=" .. totals.delta)
+    print("braided_rivers=" .. totals.braided)
+    print("terraces=" .. totals.terrace)
+    print("playas=" .. totals.playa)
+    print("sinkholes=" .. totals.sinkhole)
     print("mesh_tiles=" .. renderStats.visibleTiles)
     print("triangles=" .. renderStats.triangles)
     print("river_strips=" .. renderStats.riverStrips)

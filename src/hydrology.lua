@@ -119,7 +119,69 @@ local function applyPaleoSeaLevel(world, visitOrder, threshold, seaLevel)
             local drop = math.max(0, elevation - (cell.downCell.elevation or cell.downCell.elevationBase or elevation))
             cell.fluvialTerrace = math.max(0, drop - 0.0005 * distance + seaDrop * 0.15)
         end
+        if not cell.water and (cell.floodplain or cell.alluvialFan or cell.riverBank) and seaDrop > 0 and elevation > seaLevel + 0.02 and elevation < paleoMax + 0.18 then
+            cell.fluvialTerrace = math.max(cell.fluvialTerrace, seaDrop * 0.08 + (cell.sediment or 0) * 0.2)
+            cell.riverHistorical = true
+        end
     end
+end
+
+local function unitStep(value)
+    if value > 0 then return 1 end
+    if value < 0 then return -1 end
+    return 0
+end
+
+local function markFanLobe(region, target)
+    if not target or target.water then return 0 end
+    if (target.slope or 0) > 0.18 then return 0 end
+    if target.alluvialFanLobe then return 0 end
+    target.alluvialFanLobe = true
+    target.deposition = math.max(target.deposition or 0, (target.sediment or 0) * 1.35)
+    return 1
+end
+
+local function applyFanLobes(region, visitOrder)
+    local lobes = 0
+    for _, cell in ipairs(visitOrder) do
+        if cell.alluvialFan then
+            lobes = lobes + markFanLobe(region, cell)
+            local dx, dy = 0, 1
+            if cell.downCell then
+                dx = unitStep((cell.downCell.gx or cell.gx) - cell.gx)
+                dy = unitStep((cell.downCell.gy or cell.gy) - cell.gy)
+                if dx == 0 and dy == 0 then dy = 1 end
+            end
+            local px, py = -dy, dx
+            local candidates = {
+                { dx, dy },
+                { dx + px, dy + py },
+                { dx - px, dy - py },
+                { px, py },
+                { -px, -py },
+            }
+            for _, offset in ipairs(candidates) do
+                local target = region.cells[key(cell.gx + offset[1], cell.gy + offset[2])]
+                lobes = lobes + markFanLobe(region, target)
+            end
+        end
+    end
+    return lobes
+end
+
+local function applyBraidedRivers(visitOrder, threshold)
+    local braided = 0
+    for _, cell in ipairs(visitOrder) do
+        local sedimentLoad = (cell.sedimentFlux or 0) + (cell.sediment or 0)
+        local capacity = math.max(cell.sedimentCapacity or 0, 0.0001)
+        local overloaded = sedimentLoad > capacity * 1.15 and sedimentLoad > 0.0012
+        cell.braidedRiver = cell.river and not cell.water and overloaded and (cell.slope or 0) >= 0.025 and (cell.slope or 0) < 0.2 and (cell.flow or 0) > threshold * 0.85
+        if cell.braidedRiver then
+            braided = braided + 1
+            cell.deposition = math.max(cell.deposition or 0, (cell.sediment or 0) * 1.2)
+        end
+    end
+    return braided
 end
 
 local function regionIndex(chunkCoord, regionChunks)
@@ -549,8 +611,11 @@ local function solveRegion(world, chunkX, chunkY, info)
             cell.thermalErosion = 0
             cell.talus = false
             cell.alluvialFan = false
+            cell.alluvialFanLobe = false
             cell.floodplain = false
             cell.delta = false
+            cell.braidedRiver = false
+            cell.playa = false
             cell.river = false
             cell.riverBank = false
             cell.lake = false
@@ -628,8 +693,13 @@ local function solveRegion(world, chunkX, chunkY, info)
         local ocean = cell.elevationBase <= seaLevel
         cell.lakeDepth = math.max(0, cell.filledElevation - cell.elevationBase)
         cell.lake = (not ocean) and cell.lakeDepth > lakeMinDepth and cell.filledElevation > seaLevel + 0.006
+        if cell.cenote and not ocean then
+            cell.lakeDepth = math.max(cell.lakeDepth, 0.012)
+            cell.lake = true
+            cell.lakeSurface = math.max(cell.filledElevation, cell.elevationBase + cell.lakeDepth)
+        end
         if cell.lake then
-            cell.lakeSurface = cell.filledElevation
+            cell.lakeSurface = math.max(cell.lakeSurface or cell.filledElevation, cell.filledElevation)
         end
         local flowPower = math.log(cell.flow + 1)
         cell.thermalErosion = clamp((cell.slope - 0.24) * 0.12, 0, 0.07)
@@ -684,6 +754,8 @@ local function solveRegion(world, chunkX, chunkY, info)
             end
         end
     end
+    applyFanLobes(region, visitOrder)
+    applyBraidedRivers(visitOrder, threshold)
 
     region.meanders = Meander.applyRegion(region, {
         threshold = threshold,
@@ -748,8 +820,16 @@ local function solveRegion(world, chunkX, chunkY, info)
         lakeGroups = #lakeGroups,
         talusSlopes = 0,
         alluvialFans = 0,
+        fanLobes = 0,
         floodplains = 0,
         deltas = 0,
+        braidedRivers = 0,
+        terraces = 0,
+        marineTerraces = 0,
+        fluvialTerraces = 0,
+        playas = 0,
+        sinkholes = 0,
+        cenotes = 0,
         sedimentCells = 0,
         debrisFlowCells = region.erosion and region.erosion.debrisFlowCells or 0,
         glaciatedCells = 0,
@@ -788,8 +868,19 @@ local function solveRegion(world, chunkX, chunkY, info)
             if cell.macroChannelId then stats.macroChannels = stats.macroChannels + 1 end
             if cell.talus then stats.talusSlopes = stats.talusSlopes + 1 end
             if cell.alluvialFan then stats.alluvialFans = stats.alluvialFans + 1 end
+            if cell.alluvialFanLobe then stats.fanLobes = stats.fanLobes + 1 end
             if cell.floodplain then stats.floodplains = stats.floodplains + 1 end
             if cell.delta then stats.deltas = stats.deltas + 1 end
+            if cell.braidedRiver then stats.braidedRivers = stats.braidedRivers + 1 end
+            if not cell.playa and not cell.water and (cell.rainfall or cell.precipitation or 0) < 0.18 and ((cell.temperature or 0.5) - (cell.rainfall or 0)) > 0.22 and (cell.slope or 0) < 0.12 and (cell.flow or 0) < threshold * 0.9 and (cell.elevationBase or 0) < seaLevel + 0.38 then
+                cell.playa = true
+            end
+            if cell.playa then stats.playas = stats.playas + 1 end
+            if cell.sinkhole then stats.sinkholes = stats.sinkholes + 1 end
+            if cell.cenote then stats.cenotes = stats.cenotes + 1 end
+            if (cell.marineTerrace or 0) > 0 then stats.marineTerraces = stats.marineTerraces + 1 end
+            if (cell.fluvialTerrace or 0) > 0 then stats.fluvialTerraces = stats.fluvialTerraces + 1 end
+            if (cell.marineTerrace or 0) > 0 or (cell.fluvialTerrace or 0) > 0 then stats.terraces = stats.terraces + 1 end
             if cell.oxbowLake then stats.oxbowLakes = stats.oxbowLakes + 1 end
             if (cell.sediment or 0) > 0 then stats.sedimentCells = stats.sedimentCells + 1 end
             if cell.glaciated then stats.glaciatedCells = stats.glaciatedCells + 1 end

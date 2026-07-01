@@ -119,7 +119,7 @@ function Biomes.lookup(temperature, precipitation, elevation, water, slope, hots
     if elevation > 0.36 and temperature > 0.58 and precipitation > 0.74 then return "cloud_forest" end
     if temperature < 0.14 and precipitation >= 0.18 then return "snow" end
     if precipitation > 0.82 and elevation < 0.12 then return "wetland" end
-    if cell and precipitation < 0.12 and slope < 0.04 and elevation < 0.16 then return "playa_salt_flat" end
+    if cell and (cell.playa or (precipitation < 0.12 and slope < 0.04 and elevation < 0.16)) then return "playa_salt_flat" end
     if precipitation < 0.28 and slope > 0.16 and elevation > 0.12 then return "badland" end
     local t = clamp(math.floor(temperature * bins) + 1, 1, bins)
     local p = clamp(math.floor(precipitation * bins) + 1, 1, bins)

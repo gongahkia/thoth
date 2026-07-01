@@ -86,8 +86,13 @@ local function encodeFields(get)
         tostring(get("spilloverLakeId")),
         tostring(get("talus")),
         tostring(get("alluvialFan")),
+        tostring(get("alluvialFanLobe")),
         tostring(get("floodplain")),
         tostring(get("delta")),
+        tostring(get("braidedRiver")),
+        tostring(get("playa")),
+        tostring(get("sinkhole")),
+        tostring(get("cenote")),
         tostring(get("plateId")),
         tostring(get("secondaryPlateId")),
         round(get("plateAge")),
@@ -826,15 +831,17 @@ local function testKarstStamp()
     end
     local dolineRegion, dolineStats = makeRegion(false, 1)
     local towerRegion, towerStats = makeRegion(true, 3)
-    local dolineCells, towerCells, caves = 0, 0, 0
+    local dolineCells, sinkholes, towerCells, caves = 0, 0, 0, 0
     for _, cell in pairs(dolineRegion.cells) do
         if (cell.karstDepth or 0) > 0 then dolineCells = dolineCells + 1 end
+        if cell.sinkhole then sinkholes = sinkholes + 1 end
         if (cell.cavePresence or 0) >= 0.2 then caves = caves + 1 end
     end
     for _, cell in pairs(towerRegion.cells) do
         if cell.karstType == 3 and cell.elevationBase > 0.28 then towerCells = towerCells + 1 end
     end
     expect(dolineStats.features > 0 and dolineStats.dolines > 0 and dolineCells > 0, "karst pass should stamp carbonate dolines")
+    expect(dolineStats.sinkholes > 0 and sinkholes == dolineStats.sinkholes, "karst dolines should flag sinkhole cells")
     expect(towerStats.features > 0 and towerStats.towers > 0 and towerCells > 0, "humid tropical carbonate should stamp tower karst")
     expect(caves > 0, "carbonate cells should expose cave presence")
     expect(Biomes.lookup(0.7, 0.6, 0.2, false, 0.03, 0, false, 1) == "karst", "karst cells should route to karst biome")
@@ -2194,6 +2201,23 @@ local function smoke()
     local stats = Render.visibleStats(app, 1280, 720)
     local land, water, rivers, lakes = 0, 0, 0, 0
     local localStats = world:hydrologyStats(0, 0, "local")
+    local featureStats = {
+        braidedRivers = localStats.braidedRivers or 0,
+        terraces = localStats.terraces or 0,
+        fanLobes = localStats.fanLobes or 0,
+        playas = localStats.playas or 0,
+        sinkholes = localStats.sinkholes or 0,
+    }
+    local function addFeatureStats(seed, chunkX, chunkY)
+        local fixture = WorldGen.new(seed):hydrologyStats(chunkX, chunkY, "local")
+        featureStats.braidedRivers = featureStats.braidedRivers + (fixture.braidedRivers or 0)
+        featureStats.terraces = featureStats.terraces + (fixture.terraces or 0)
+        featureStats.fanLobes = featureStats.fanLobes + (fixture.fanLobes or 0)
+        featureStats.playas = featureStats.playas + (fixture.playas or 0)
+        featureStats.sinkholes = featureStats.sinkholes + (fixture.sinkholes or 0)
+    end
+    addFeatureStats(20260625, 0, 0)
+    addFeatureStats(3, -1, 1)
     for _, scale in ipairs(world:metadata().scales) do
         local chunk = world:chunk(0, 0, scale.id)
         for y = 1, chunk.size do
@@ -2214,8 +2238,13 @@ local function smoke()
     print("lake_groups=" .. localStats.lakeGroups)
     print("talus=" .. localStats.talusSlopes)
     print("alluvial_fans=" .. localStats.alluvialFans)
+    print("fan_lobes=" .. featureStats.fanLobes)
     print("floodplains=" .. localStats.floodplains)
     print("deltas=" .. localStats.deltas)
+    print("braided_rivers=" .. featureStats.braidedRivers)
+    print("terraces=" .. featureStats.terraces)
+    print("playas=" .. featureStats.playas)
+    print("sinkholes=" .. featureStats.sinkholes)
     print("sediment_cells=" .. localStats.sedimentCells)
     print("glaciated_cells=" .. localStats.glaciatedCells)
     print("coast_cliffs=" .. localStats.coastCliffs)
@@ -2236,6 +2265,7 @@ local function smoke()
     expect(land > 0 and water > 0 and rivers > 0, "smoke should cover land, water, and rivers")
     expect(localStats.basins > 0 and localStats.uphillRejects == 0, "smoke should include sane hydrology stats")
     expect(localStats.sedimentCells > 0 and localStats.talusSlopes + localStats.alluvialFans + localStats.floodplains + localStats.deltas > 0, "smoke should include erosion landforms")
+    expect(featureStats.braidedRivers > 0 and featureStats.terraces > 0 and featureStats.fanLobes > 0 and featureStats.playas > 0 and featureStats.sinkholes > 0, "smoke should include new terrain landforms")
     expect(stats.visibleTiles > 0 and stats.triangles > 0, "smoke should build visible terrain mesh")
     expect(stats.riverStrips > 0 and stats.silhouetteStrips > 0 and stats.landmarks > 0, "smoke should include readability overlays")
 end
