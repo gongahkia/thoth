@@ -88,27 +88,7 @@ User attached two Minecraft "Create World" screenshots (Bedrock modern + Pocket 
 
 ## Tasks
 
-Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) unblocks the settings page (Task 3) and the fixed-scale change; zoom (Task 2) is independent; HUD + labels + banner (Tasks 8, 9, 11) sit above the new UI; biomes/weather/palette (Tasks 5, 10, 13) extend generation; content additions (Task 4) piggyback on generation. Numbered per user request; execution order recommended below each.
-
----
-
-### Task 2 — Mouse-scroll camera zoom
-
-**STATUS:** pending
-**RECOMMENDED ORDER:** 6th (independent).
-
-**SCOPE:** Scroll wheel adjusts camera zoom (FOV or render radius). **Not** scale-switch — Task 6 removes runtime scale change.
-
-**FILES:**
-- `main.lua` — implement `love.wheelmoved(x, y)`; adjust `app.camera.zoom` (new field, default 1.0, range [0.5, 2.5]).
-- `src/render.lua` — `defaultCamera()` includes `zoom`; scene draw multiplies effective render radius / vertical FOV factor by zoom.
-
-**ACCEPTANCE:**
-- Scroll up → tighter view (higher effective FOV or closer clip radius).
-- Zoom persists across a session; not saved to world (session-only).
-- Min/max clamped; wheel outside range is no-op.
-
-**REMAINING:** — decide FOV vs render-radius as the zoom axis; `[Inference]` render-radius simpler in current clipmap.
+Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) unblocks the settings page (Task 3) and the fixed-scale change; HUD + labels + banner (Tasks 8, 9, 11) sit above the new UI; biomes/weather/palette (Tasks 5, 10, 13) extend generation; content additions (Task 4) piggyback on generation. Numbered per user request; execution order recommended below each.
 
 ---
 

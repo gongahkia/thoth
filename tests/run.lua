@@ -1924,6 +1924,14 @@ local function testRenderStats()
     expect(stats.clipmapSteps == "1,2,4,8,16,32" and stats.clipmapMorphBands == stats.clipmapRings - 1, "clipmap should expose nested densities and morph bands")
     expect(stats.clipmapTileCapacity > 0 and stats.clipmapVertexCapacity == stats.clipmapTileCapacity * 6, "clipmap should keep fixed tile and vertex capacities")
     expect(stats.clipmapMorphTiles > 0 and stats.terrainRadius >= stats.clipmapRadius, "clipmap should draw morphed far terrain")
+    local zoomApp = { world = world, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(world) }
+    local baseZoomStats = Render.visibleStats(zoomApp, 1280, 720)
+    zoomApp.camera.zoom = 2
+    local zoomedStats = Render.visibleStats(zoomApp, 1280, 720)
+    expect(zoomedStats.zoom == 2 and zoomedStats.effectiveFov > baseZoomStats.effectiveFov, "camera zoom should increase effective focal length")
+    expect(zoomedStats.terrainRadius < baseZoomStats.terrainRadius, "camera zoom should tighten terrain radius")
+    zoomApp.camera.zoom = 99
+    expect(Render.visibleStats(zoomApp, 1280, 720).zoom == 2.5, "camera zoom should clamp to max")
     local reusedStats = Render.visibleStats(app, 1280, 720)
     expect(reusedStats.clipmapReusedRings == reusedStats.clipmapRings and reusedStats.clipmapSamplesRefilled == 0, "static camera should reuse clipmap rings")
     app.player.x = app.player.x + 1

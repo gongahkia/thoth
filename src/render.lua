@@ -201,8 +201,25 @@ function Render.defaultCamera()
         eyeHeight = 1.7,
         fov = 620,
         renderRadius = 50,
+        zoom = 1,
         step = 2.25,
     }
+end
+
+function Render.clampZoom(value)
+    return clamp(tonumber(value) or 1, 0.5, 2.5)
+end
+
+local function cameraZoom(camera)
+    return Render.clampZoom(camera and camera.zoom or 1)
+end
+
+local function cameraFov(camera)
+    return (camera.fov or 620) * cameraZoom(camera)
+end
+
+local function scaledRadius(camera, radius)
+    return (radius or 86) / cameraZoom(camera)
 end
 
 function Render.biomePalette()
@@ -256,7 +273,7 @@ local function project(app, width, height, lateral, depth, z)
     local near = 1.2
     if depth <= near then return nil end
     local camera = app.camera
-    local fov = camera.fov or 620
+    local fov = cameraFov(camera)
     local horizon = height * 0.46 + (camera.pitch or 0) * fov
     local sx = width * 0.5 + lateral / depth * fov
     local sy = horizon - (z - camera.eyeZ) / depth * fov
@@ -279,7 +296,7 @@ end
 
 local function frustumState(camera, width, radius, lateralRange, step)
     return {
-        xPerDepth = width * 0.5 / (camera.fov or 620),
+        xPerDepth = width * 0.5 / cameraFov(camera),
         radius = radius,
         lateralRange = lateralRange,
         sampleMargin = step * 1.5,
@@ -422,7 +439,7 @@ local function buildGridTerrainMeshData(app, width, height, params)
     local silhouetteVertices = vertexStream(app, "silhouette")
     local camera = app.camera
     local step = camera.step or 2
-    local radius = camera.renderRadius or 86
+    local radius = scaledRadius(camera, camera.renderRadius or 86)
     local lateralRange = radius * 0.82
     local basis = cameraBasis(camera.yaw or 0)
     local frustum = frustumState(camera, width, radius, lateralRange, step)
@@ -507,7 +524,7 @@ local function buildGridTerrainMeshData(app, width, height, params)
                         local bx, by, bd = projectWorld(app, width, height, bxWorld, byWorld, downZ + 0.08)
                         if ax and bx then
                             local stripDepth = math.max(1, (ad + bd) * 0.5)
-                            local stripWidth = clamp((1.15 + math.log((cell.flow or 0) + 1) * 0.12) / stripDepth * (camera.fov or 620), 1.2, 5.2)
+                            local stripWidth = clamp((1.15 + math.log((cell.flow or 0) + 1) * 0.12) / stripDepth * cameraFov(camera), 1.2, 5.2)
                             if pushLineQuad(riverVertices, ax, ay, bx, by, stripWidth, biomeColors.river, 1, stripDepth) then
                                 riverStrips = riverStrips + 1
                             end
@@ -573,7 +590,7 @@ local function buildClipmapTerrainMeshData(app, width, height, params)
     local camera = app.camera
     local clipmap = terrainClipmap(app)
     local _, clipStats = Clipmap.update(clipmap, app.player.x, app.player.y, clipmapSampleFn(app, params), { scaleId = params.target })
-    local radius = math.max(camera.renderRadius or 86, clipStats.radius)
+    local radius = scaledRadius(camera, math.max(camera.renderRadius or 86, clipStats.radius))
     local frustum = frustumState(camera, width, radius, radius * 0.82, 1)
     local basis = cameraBasis(camera.yaw or 0)
     local sun = Atmosphere.sunDirection(app.atmosphere)
@@ -630,7 +647,7 @@ local function buildClipmapTerrainMeshData(app, width, height, params)
                         local bx, by, bd = projectWorld(app, width, height, bxWorld, byWorld, downZ + 0.08)
                         if ax and bx then
                             local stripDepth = math.max(1, (ad + bd) * 0.5)
-                            local stripWidth = clamp((1.15 + math.log((cell.flow or 0) + 1) * 0.12) / stripDepth * (camera.fov or 620), 1.2, 5.2)
+                            local stripWidth = clamp((1.15 + math.log((cell.flow or 0) + 1) * 0.12) / stripDepth * cameraFov(camera), 1.2, 5.2)
                             if pushLineQuad(riverVertices, ax, ay, bx, by, stripWidth, biomeColors.river, 1, stripDepth) then
                                 riverStrips = riverStrips + 1
                             end
@@ -689,7 +706,7 @@ function Render.billboardDrawList(app, width, height)
     if params.factor > 2.1 then return {} end
     app.camera.eyeZ = app.camera.eyeZ or cameraHeight(app)
     local size = app.world:metadata().chunkSize
-    local radius = app.camera.renderRadius or 62
+    local radius = scaledRadius(app.camera, app.camera.renderRadius or 62)
     local minChunkX = chunkCoord(app.player.x - radius, size)
     local maxChunkX = chunkCoord(app.player.x + radius, size)
     local minChunkY = chunkCoord(app.player.y - radius, size)
@@ -704,7 +721,7 @@ function Render.billboardDrawList(app, width, height)
                     local bx, by = project(app, width, height, lateral, depth, baseZ)
                     local tx, ty = project(app, width, height, lateral, depth, baseZ + spec.height * terrainScale * 0.45)
                     if bx and tx then
-                        local screenW = math.max(2, spec.width / depth * (app.camera.fov or 620))
+                        local screenW = math.max(2, spec.width / depth * cameraFov(app.camera))
                         list[#list + 1] = {
                             x = bx,
                             baseY = by,
@@ -744,6 +761,8 @@ function Render.visibleStats(app, width, height)
         swayBillboards = swayBillboards,
         landmarks = landmarks,
         cameraHeight = mesh.cameraHeight,
+        zoom = cameraZoom(app.camera),
+        effectiveFov = cameraFov(app.camera),
         viewScale = mesh.viewScale,
         viewFactor = mesh.viewFactor,
         viewProgress = mesh.viewProgress,

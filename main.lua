@@ -33,6 +33,10 @@ local function flag(value)
     return value and "1" or "0"
 end
 
+local function cameraZoom(camera)
+    return Render.clampZoom(camera and camera.zoom or 1)
+end
+
 local function perfLine(app, message)
     if app and app.debugPerf then print("[perf] " .. message) end
 end
@@ -61,7 +65,7 @@ local function updateBiomeBanner(app, dt)
 end
 
 local function frustumRadius(app)
-    local renderRadius = app.camera.renderRadius or 62
+    local renderRadius = (app.camera.renderRadius or 62) / cameraZoom(app.camera)
     return math.ceil(math.sqrt(renderRadius * renderRadius + (renderRadius * 0.82) * (renderRadius * 0.82)))
 end
 
@@ -285,6 +289,19 @@ local function preloadApp(app, reason)
     ))
 end
 
+local function adjustCameraZoom(app, wheelY)
+    if not (app and app.camera) then return false end
+    wheelY = tonumber(wheelY) or 0
+    if wheelY == 0 then return false end
+    local old = cameraZoom(app.camera)
+    local nextZoom = Render.clampZoom(old * (1.15 ^ wheelY))
+    app.camera.zoom = nextZoom
+    if math.abs(nextZoom - old) <= 0.000001 then return false end
+    if app.perf then app.perf.preloadMsThisFrame = 0 end
+    preloadApp(app, "zoom")
+    return true
+end
+
 local function refreshPreloadIfNeeded(app)
     local view = ViewScale.params(app.viewScale, app.world)
     local size = app.world:metadata().chunkSize
@@ -319,7 +336,7 @@ local function perfSnapshot(app)
     local stats = app.perf.renderStats or {}
     local view = ViewScale.params(app.viewScale, app.world)
     return string.format(
-        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s bob=%.3f phase=%.2f mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d/%s chunks=%d hydro=%d basins=%d billboard_cache=%d hits=%d cmiss=%d evict=%d evict_kind=c%d/h%d/m%d/b%d async=q%d/d%d/f%d/p%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
+        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f zoom=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s bob=%.3f phase=%.2f mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d/%s chunks=%d hydro=%d basins=%d billboard_cache=%d hits=%d cmiss=%d evict=%d evict_kind=c%d/h%d/m%d/b%d async=q%d/d%d/f%d/p%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
         app.perf.frame or 0,
         love.timer.getFPS(),
         (app.perf.lastDt or 0) * 1000,
@@ -329,6 +346,7 @@ local function perfSnapshot(app)
         app.perf.preloadMsThisFrame or 0,
         view.target,
         view.factor,
+        cameraZoom(app.camera),
         app.player.x,
         app.player.y,
         chunkX,
@@ -497,10 +515,11 @@ local function loadGame(args)
         slowFrameMs = tonumber(argValue(args, "--slow-frame-ms", 24)) or 24,
         lastLogAt = now(),
     }
-    perfLine(app, string.format("load seed=%s scale=%s render_radius=%d preload_radius=%d refresh_radius=%d preload_stride=%d hydrology_regions=%d hydrology_halo=%d basin_chunks=%d basin_stride=%d slow_ms=%.1f interval=%.2f",
+    perfLine(app, string.format("load seed=%s scale=%s render_radius=%d zoom=%.2f preload_radius=%d refresh_radius=%d preload_stride=%d hydrology_regions=%d hydrology_halo=%d basin_chunks=%d basin_stride=%d slow_ms=%.1f interval=%.2f",
         tostring(app.world:metadata().seed),
         ViewScale.activeScale(app.viewScale),
         app.camera.renderRadius or 0,
+        cameraZoom(app.camera),
         app.preloadRadius,
         app.refreshPreloadRadius,
         preloadStride,
@@ -514,6 +533,23 @@ local function loadGame(args)
     local loadPath = argValue(args, "--load-save", nil)
     if loadPath then applySnapshot(app, Save.read(loadPath)) end
     preloadApp(app, "load")
+    if hasArg(args, "--zoom-smoke") then
+        local before = cameraZoom(app.camera)
+        local changedUp = adjustCameraZoom(app, 1)
+        local up = cameraZoom(app.camera)
+        adjustCameraZoom(app, 100)
+        local maxZoom = cameraZoom(app.camera)
+        local maxNoop = not adjustCameraZoom(app, 1)
+        adjustCameraZoom(app, -100)
+        local minZoom = cameraZoom(app.camera)
+        local minNoop = not adjustCameraZoom(app, -1)
+        print("zoom-smoke=zoom")
+        print("zoom-smoke-before=" .. string.format("%.2f", before))
+        print("zoom-smoke-up=" .. tostring(changedUp) .. ":" .. string.format("%.2f", up))
+        print("zoom-smoke-max=" .. string.format("%.2f", maxZoom) .. ":" .. tostring(maxNoop))
+        print("zoom-smoke-min=" .. string.format("%.2f", minZoom) .. ":" .. tostring(minNoop))
+        love.event.quit(0)
+    end
     if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(app.mouseLook) end
     return app
 end
@@ -658,6 +694,7 @@ function love.draw()
         print("render-smoke-silhouettes=" .. tostring(stats.silhouetteStrips))
         print("render-smoke-billboards=" .. tostring(stats.billboards))
         print("render-smoke-landmarks=" .. tostring(stats.landmarks))
+        print("render-smoke-zoom=" .. string.format("%.2f", stats.zoom or 1))
         print("render-smoke-sway=" .. tostring(stats.swayBillboards or 0) .. ":" .. string.format("%.3f", stats.swayTime or 0))
         print("render-smoke-pixel-scale=" .. tostring(stats.pixelScale))
         print("render-smoke-lowres=" .. tostring(stats.lowResCanvasWidth) .. "x" .. tostring(stats.lowResCanvasHeight))
@@ -799,5 +836,10 @@ function love.textinput(text)
 end
 
 function love.wheelmoved(x, y)
-    if app and app.mode == "menu" then Menu.wheelmoved(app.menu, x, y) end
+    if not app then return end
+    if app.mode == "menu" then
+        Menu.wheelmoved(app.menu, x, y)
+        return
+    end
+    if app.mode == "play" then adjustCameraZoom(app, y) end
 end
