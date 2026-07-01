@@ -4,6 +4,7 @@ local Player = require("src.player")
 local Atmosphere = require("src.atmosphere")
 local Export = require("src.export")
 local Game = require("src.game")
+local Journal = require("src.journal")
 local Menu = require("src.menu")
 local PostFX = require("src.postfx")
 local Render = require("src.render")
@@ -412,6 +413,35 @@ local function preloadApp(app, reason)
     ))
 end
 
+local function setJournalOpen(app, open)
+    app.journalOpen = open == true
+    if app.journalOpen then
+        app.mouseLook = false
+        if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(false) end
+    end
+end
+
+local function dropPin(app)
+    local pin = Survey.dropPin(app.survey, app.world, app.player.x, app.player.y, ViewScale.activeScale(app.viewScale))
+    app.minimapCache = nil
+    print("[pin] dropped=" .. tostring(pin.id) .. " pins=" .. tostring(app.survey.pinCount or 0))
+end
+
+local function handleJournalAction(app, action)
+    if not action then return end
+    if action.type == "delete_pin" then
+        if Survey.deletePin(app.survey, action.key) then
+            app.minimapCache = nil
+            print("[pin] deleted=" .. tostring(action.key) .. " pins=" .. tostring(app.survey.pinCount or 0))
+        end
+        return
+    end
+    if action.type == "teleport" and Journal.teleport(app, action.target, preloadApp) then
+        setJournalOpen(app, false)
+        print("[journal] teleport=" .. tostring(action.key) .. " pos=" .. string.format("%.2f,%.2f", app.player.x, app.player.y))
+    end
+end
+
 local function adjustCameraZoom(app, wheelY)
     if not (app and app.camera) then return false end
     wheelY = tonumber(wheelY) or 0
@@ -458,8 +488,9 @@ local function perfSnapshot(app)
     local chunkY = math.floor(app.player.y / size)
     local stats = app.perf.renderStats or {}
     local view = ViewScale.params(app.viewScale, app.world)
+    local survey = app.survey or {}
     local line = string.format(
-        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f zoom=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s bob=%.3f phase=%.2f mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d/%s chunks=%d hydro=%d basins=%d billboard_cache=%d hits=%d cmiss=%d evict=%d evict_kind=c%d/h%d/m%d/b%d async=q%d/d%d/f%d/p%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
+        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f zoom=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s bob=%.3f phase=%.2f mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d/%s chunks=%d hydro=%d basins=%d billboard_cache=%d hits=%d cmiss=%d evict=%d evict_kind=c%d/h%d/m%d/b%d async=q%d/d%d/f%d/p%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d survey=%d:%d:%d",
         app.perf.frame or 0,
         love.timer.getFPS(),
         (app.perf.lastDt or 0) * 1000,
@@ -510,7 +541,10 @@ local function perfSnapshot(app)
         metrics.basinMisses,
         metrics.billboardMisses,
         metrics.hydrologyCells,
-        metrics.basinCells
+        metrics.basinCells,
+        survey.cellCount or 0,
+        survey.discoveryCount or 0,
+        survey.pinCount or 0
     )
     local weather = app.weatherState or {}
     return line .. string.format(
@@ -551,6 +585,8 @@ local function applySnapshot(app, snapshot)
     app.worldOptionsHashMismatch = expectedHash and expectedHash ~= actualHash
     if app.worldOptionsHashMismatch then print("[save] world_hash_mismatch expected=" .. tostring(expectedHash) .. " actual=" .. tostring(actualHash)) end
     app.survey = Survey.fromSnapshot(snapshot.survey)
+    app.journal = Journal.new()
+    app.journalOpen = false
     app.saveSlotId = snapshot.meta and snapshot.meta.id or app.saveSlotId
     app.worldName = snapshot.meta and snapshot.meta.name or app.worldName
     app.player.x = snapshot.player and tonumber(snapshot.player.x) or 0
@@ -614,6 +650,8 @@ local function loadGame(args)
         settings = settings,
         asyncHydrology = not (hasArg(args, "--no-async") or hasArg(args, "--render-smoke")),
         survey = Survey.new(),
+        journal = Journal.new(),
+        journalOpen = false,
         viewScale = nil,
         player = Player.new(0, 0),
         camera = Render.defaultCamera(),
@@ -774,14 +812,16 @@ function love.update(dt)
     local turn = (Keybinds.isDown(app.settings, "lookRight") and 1 or 0) - (Keybinds.isDown(app.settings, "lookLeft") and 1 or 0)
     local pitch = (Keybinds.isDown(app.settings, "pitchDown") and 1 or 0) - (Keybinds.isDown(app.settings, "pitchUp") and 1 or 0)
     if app.walkSmoke then turn = app.walkSmokeTurn end
+    if app.journalOpen then turn, pitch = 0, 0 end
     app.camera.yaw = app.camera.yaw + turn * simDt * 1.9
     app.camera.pitch = math.max(-0.42, math.min(0.38, app.camera.pitch + pitch * simDt * 0.85))
+    local inputBlocked = app.journalOpen == true
     local input = {
-        forward = app.walkSmoke or Keybinds.isDown(app.settings, "forward"),
-        back = Keybinds.isDown(app.settings, "back"),
-        left = Keybinds.isDown(app.settings, "left"),
-        right = Keybinds.isDown(app.settings, "right"),
-        sprint = app.walkSmoke and true or Keybinds.isDown(app.settings, "sprint"),
+        forward = app.walkSmoke or (not inputBlocked and Keybinds.isDown(app.settings, "forward")),
+        back = not inputBlocked and Keybinds.isDown(app.settings, "back"),
+        left = not inputBlocked and Keybinds.isDown(app.settings, "left"),
+        right = not inputBlocked and Keybinds.isDown(app.settings, "right"),
+        sprint = app.walkSmoke and true or (not inputBlocked and Keybinds.isDown(app.settings, "sprint")),
         yaw = app.camera.yaw,
         scope = ViewScale.activeScale(app.viewScale),
         headBob = app.settings.display.headBob,
@@ -827,6 +867,9 @@ function love.draw()
     end)
     app.perf.drawMs = msSince(started)
     app.perf.renderStats = stats
+    if app.journalOpen then
+        handleJournalAction(app, Journal.draw(app.journal, app, love.graphics.getDimensions()))
+    end
     app.perf.frame = (app.perf.frame or 0) + 1
     maybeLogPerf(app)
     if app.renderSmoke and not app.renderSmokePrinted then
@@ -876,6 +919,16 @@ function love.keypressed(key)
         return
     end
     if app.walkSmoke then return end
+    if action == "toggleJournal" then
+        setJournalOpen(app, not app.journalOpen)
+        print("[journal] open=" .. tostring(app.journalOpen))
+        return
+    end
+    if action == "dropPin" then
+        dropPin(app)
+        return
+    end
+    if app.journalOpen then return end
     if action == "toggleMouseLook" then
         app.mouseLook = not app.mouseLook
         if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(app.mouseLook) end
@@ -952,6 +1005,8 @@ function love.keypressed(key)
     if action == "newSeed" then
         replaceWorld(app, os.time() % 1000000)
         app.survey = Survey.new()
+        app.journal = Journal.new()
+        app.journalOpen = false
         app.viewScale = ViewScale.new(app.world)
         app.player.x, app.player.y = 0, 0
         app.perf.preloadMsThisFrame = 0
@@ -971,10 +1026,12 @@ end
 
 function love.mousepressed(x, y, button)
     if app and app.mode == "menu" then Menu.mousepressed(app.menu, x, y, button) end
+    if app and app.mode == "play" and app.journalOpen then Journal.mousepressed(app.journal, x, y, button) end
 end
 
 function love.mousereleased(x, y, button)
     if app and app.mode == "menu" then Menu.mousereleased(app.menu, x, y, button) end
+    if app and app.mode == "play" and app.journalOpen then Journal.mousereleased(app.journal, x, y, button) end
 end
 
 function love.textinput(text)
@@ -985,6 +1042,10 @@ function love.wheelmoved(x, y)
     if not app then return end
     if app.mode == "menu" then
         Menu.wheelmoved(app.menu, x, y)
+        return
+    end
+    if app.mode == "play" and app.journalOpen then
+        Journal.wheelmoved(app.journal, x, y)
         return
     end
     if app.mode == "play" then adjustCameraZoom(app, y) end

@@ -31,6 +31,8 @@ local defaults = {
         save = "f5",
         load = "f9",
         markSurvey = "n",
+        toggleJournal = "j",
+        dropPin = "p",
         newSeed = "r",
     },
     display = {
@@ -84,6 +86,8 @@ local labels = {
     save = "Save",
     load = "Load",
     markSurvey = "Mark",
+    toggleJournal = "Journal",
+    dropPin = "Drop Pin",
     newSeed = "New Seed",
 }
 
@@ -92,7 +96,7 @@ local controlOrder = {
     "lookRight", "lookLeft", "pitchUp", "pitchDown",
     "toggleMouseLook", "togglePerf", "toggleTopo", "toggleMinimap", "togglePanels",
     "panelPlate", "panelDrainage", "panelErosion", "panelBiome", "toggleTopoAlt",
-    "seasonPrev", "seasonNext", "save", "load", "markSurvey", "newSeed", "quit", "quitAlt",
+    "seasonPrev", "seasonNext", "save", "load", "markSurvey", "toggleJournal", "dropPin", "newSeed", "quit", "quitAlt",
 }
 
 local function copy(value)

@@ -86,32 +86,6 @@ Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) u
 
 ---
 
-### Task 7 — List UI + map pins + teleport + expanded minimap
-
-**STATUS:** pending
-**RECOMMENDED ORDER:** 13th.
-
-**SCOPE:** In-game journal listing surveyed features and dropped pins; click-to-teleport; minimap shows pins.
-
-**FILES:**
-- New `src/journal.lua` — in-game overlay listing `app.survey.discoveries` + user-dropped pins; scrollable; per-entry `Teleport` and `Delete pin`.
-- `src/survey.lua` — extend with `pins` collection (user-placed, distinct from `discoveries`); persist via `Save.snapshot`.
-- `main.lua` — new key (default `J`) toggles journal; new key (default `P`) drops pin at current location.
-- `src/render.lua` (`minimapData`) — draw pin markers + discovery markers with distinct glyphs; hover tooltip when journal open.
-
-**TELEPORT:**
-- Set `app.player.x = pin.x`, `.y = pin.y`; camera snaps; call `preloadApp(app, "teleport")`; reset velocity to 0 to avoid stumble artifacts.
-- Optional confirmation dialog behind a setting (default off).
-
-**ACCEPTANCE:**
-- Drop 3 pins, open journal, teleport to first → position matches, minimap centers.
-- Pins persist through save/load.
-- Journal shows counts matching `--debug-perf`'s `survey` line.
-
-**REMAINING:** — hotkey conflict check with Task 3 rebindings.
-
----
-
 ### Task 11 — Player-facing HUD (distinct from debug HUD)
 
 **STATUS:** pending

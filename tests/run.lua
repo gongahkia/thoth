@@ -3,6 +3,7 @@ package.path = "./?.lua;./?/init.lua;./src/?.lua;./src/?/init.lua;" .. package.p
 local Player = require("src.player")
 local Atmosphere = require("src.atmosphere")
 local Render = require("src.render")
+local Journal = require("src.journal")
 local Clipmap = require("src.clipmap")
 local Rng = require("src.rng")
 local Noise = require("src.noise")
@@ -581,12 +582,28 @@ local function testSurveyHistory()
     expect(history.cellCount == cellsAfterFirst and history.discoveryCount == discoveriesAfterFirst, "survey should dedupe repeated marks")
     Survey.mark(history, world, -16, 16, "local")
     expect(history.cellCount > cellsAfterFirst and history.discoveryCount >= discoveriesAfterFirst, "survey should grow when marking new cells")
+    local firstPin = Survey.dropPin(history, world, 4.2, -8.7, "local")
+    Survey.dropPin(history, world, 12, 16, "local")
+    Survey.dropPin(history, world, -24, 32, "local")
+    expect(history.pinCount == 3 and #Survey.pinEntries(history) == 3, "survey should track user pins separately")
+    local entries = Journal.entries(history)
+    expect(#entries == history.pinCount + history.discoveryCount, "journal entries should match survey pin and discovery counts")
+    local jumpApp = { player = Player.new(0, 0), camera = Render.defaultCamera(), minimapCache = { stale = true } }
+    jumpApp.player.vx, jumpApp.player.vy, jumpApp.player.stumbleCooldown = 4, -3, 1
+    local preloadReason
+    expect(Journal.teleport(jumpApp, firstPin, function(_, reason) preloadReason = reason end), "journal teleport should accept pin targets")
+    expect(jumpApp.player.x == firstPin.x and jumpApp.player.y == firstPin.y and jumpApp.player.vx == 0 and jumpApp.player.vy == 0 and jumpApp.minimapCache == nil and preloadReason == "teleport", "journal teleport should snap position, reset velocity, and preload")
+    local snapshot = Survey.snapshot(history)
+    local restored = Survey.fromSnapshot(snapshot)
+    expect(restored.pinCount == 3 and restored.nextPinId == 4, "survey pins should persist through snapshot")
+    expect(Survey.deletePin(restored, firstPin.id) and restored.pinCount == 2, "survey should delete pins by id")
 end
 
 local function testSaveLoadRoundTrip()
     local world = WorldGen.new(99, { scope = "region", allowExoticBiomes = true, geologicTime = 0.4, geologicTimeStep = 0.03, hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 4, hydrologyBasinStride = 4, cacheMaxEntries = 256, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, zScale = 12000, maxOceanAgeMyr = 160, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200, glacialGamma = 6e-9, glacialBeta = 0.01, glacialBmax = 1.5, glacialKg = 7e-5, glacialSiaIterations = 5, seasonRate = 2, itczOffsetAmp = 0.1, monsoonSeasonalContrast = 1.4, windCoriolisScale = 0.3, hotspotCount = 12, hotspotMantleExtent = 32768, hotspotMinSeparation = 2048, hotspotBucketSize = 4096, hotspotSigma = 768, hotspotTrailSteps = 5, hotspotTrailDt = 0.15, hotspotTau = 2.5, hotspotElevationScale = 0.33, floodBasaltThreshold = 0.25, meanderWidthScale = 2.2, meanderMigrationScale = 0.8 })
     local survey = Survey.new()
     Survey.mark(survey, world, -64, -64, "local")
+    Survey.dropPin(survey, world, 22, -9, "local")
     local viewScale = ViewScale.new(world)
     ViewScale.update(viewScale, 1, world, -64, -64)
     local app = {
@@ -623,7 +640,7 @@ local function testSaveLoadRoundTrip()
     expect(decoded.world.meanderWidthScale == 2.2 and decoded.world.meanderMigrationScale == 0.8, "save should round-trip meander settings")
     expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
     expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.minimap and decoded.display.debugPanels and decoded.display.pixelScale == 3 and not decoded.display.mouseLook and decoded.display.showAreaLabels == false, "save should round-trip display toggles")
-    expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
+    expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount and restoredSurvey.pinCount == survey.pinCount, "save should round-trip survey annotations")
 end
 
 local function testViewScaleTransitions()

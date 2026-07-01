@@ -2,6 +2,7 @@ local Render = {}
 local ViewScale = require("src.viewscale")
 local Clipmap = require("src.clipmap")
 local Atmosphere = require("src.atmosphere")
+local Survey = require("src.survey")
 local Weather = require("src.weather")
 local Rng = require("src.rng")
 local ffi = require("ffi")
@@ -1381,6 +1382,59 @@ local function minimapData(app)
     return data
 end
 
+local function minimapMarkerPosition(app, data, x, y, x0, y0, size)
+    local span = data.span or app.minimapSpan or 192
+    local tx = ((x or 0) - ((app.player.x or 0) - span * 0.5)) / math.max(1, span)
+    local ty = ((y or 0) - ((app.player.y or 0) - span * 0.5)) / math.max(1, span)
+    if tx < 0 or tx > 1 or ty < 0 or ty > 1 then return nil end
+    return x0 + tx * size, y0 + ty * size
+end
+
+local function minimapMarkers(app, data, x0, y0, size)
+    local markers = {}
+    for _, discovery in ipairs(Survey.discoveryEntries(app.survey)) do
+        local sx, sy = minimapMarkerPosition(app, data, discovery.x, discovery.y, x0, y0, size)
+        if sx then
+            markers[#markers + 1] = { type = "discovery", x = sx, y = sy, label = discovery.name or tostring(discovery.kind or "feature") }
+        end
+    end
+    for _, pin in ipairs(Survey.pinEntries(app.survey)) do
+        local sx, sy = minimapMarkerPosition(app, data, pin.x, pin.y, x0, y0, size)
+        if sx then
+            markers[#markers + 1] = { type = "pin", x = sx, y = sy, label = pin.label or ("Pin " .. tostring(pin.id)) }
+        end
+    end
+    return markers
+end
+
+local function drawMinimapMarkers(app, data, x0, y0, size)
+    local markers = minimapMarkers(app, data, x0, y0, size)
+    local mx, my = love.mouse.getPosition()
+    local tooltip
+    for _, marker in ipairs(markers) do
+        if marker.type == "pin" then
+            love.graphics.setColor(0.95, 0.72, 0.26, 1)
+            love.graphics.polygon("fill", marker.x, marker.y - 5, marker.x + 5, marker.y, marker.x, marker.y + 5, marker.x - 5, marker.y)
+            love.graphics.setColor(0.05, 0.04, 0.02, 0.9)
+            love.graphics.rectangle("line", marker.x - 4.5, marker.y - 4.5, 9, 9)
+        else
+            love.graphics.setColor(0.72, 0.88, 0.78, 0.92)
+            love.graphics.rectangle("line", marker.x - 3.5, marker.y - 3.5, 7, 7)
+        end
+        if app.journalOpen and math.abs(mx - marker.x) <= 7 and math.abs(my - marker.y) <= 7 then tooltip = marker.label end
+    end
+    if tooltip then
+        local font = fontCache(app, biomeBannerFontPath, 11)
+        love.graphics.setFont(font)
+        local w = font:getWidth(tooltip) + 12
+        love.graphics.setColor(0.02, 0.025, 0.03, 0.9)
+        love.graphics.rectangle("fill", mx + 10, my + 8, w, font:getHeight() + 8)
+        love.graphics.setColor(0.95, 0.92, 0.74, 1)
+        love.graphics.print(tooltip, mx + 16, my + 12)
+    end
+    return #markers
+end
+
 local function drawMinimap(app, width, height)
     local data = minimapData(app)
     local pixel = math.max(2, math.floor(math.min(width, height) * 0.22 / data.sampleCount))
@@ -1419,6 +1473,7 @@ local function drawMinimap(app, width, height)
         ux, uy = math.sin(app.camera.yaw or 0), -math.cos(app.camera.yaw or 0)
     end
     local px, py = -uy, ux
+    data.markers = drawMinimapMarkers(app, data, x0, y0, size)
     love.graphics.polygon("fill", cx + ux * 6, cy + uy * 6, cx - ux * 5 + px * 4, cy - uy * 5 + py * 4, cx - ux * 5 - px * 4, cy - uy * 5 - py * 4)
     love.graphics.setColor(0.95, 0.92, 0.74, 0.72)
     love.graphics.rectangle("line", x0 - 0.5, y0 - 0.5, size + 1, size + 1)
@@ -1516,7 +1571,7 @@ local function drawHud(app, width, height, stats)
     love.graphics.print("rain " .. fmt(cell.rainfall) .. " flow " .. fmt(cell.flow) .. " river " .. tostring(cell.river), 24, 110)
     love.graphics.print("weather " .. Weather.label(weather) .. " vis " .. fmt(weather.visibility or 1) .. " wind " .. fmt(weather.windSpeed or 0) .. " cue " .. tostring(weather.audioCue or "none"), 24, 132)
     local survey = app.survey or {}
-    love.graphics.print("mesh " .. tostring(stats.visibleTiles) .. " tiles / " .. tostring(stats.triangles) .. " tris / rivers " .. tostring(stats.riverStrips or 0) .. " / survey " .. tostring(survey.cellCount or 0) .. ":" .. tostring(survey.discoveryCount or 0), 24, 154)
+    love.graphics.print("mesh " .. tostring(stats.visibleTiles) .. " tiles / " .. tostring(stats.triangles) .. " tris / rivers " .. tostring(stats.riverStrips or 0) .. " / survey " .. tostring(survey.cellCount or 0) .. ":" .. tostring(survey.discoveryCount or 0) .. ":" .. tostring(survey.pinCount or 0), 24, 154)
     local anchor = app.viewScale and app.viewScale.anchor
     love.graphics.print("anchor " .. tostring(anchor and anchor.name or "terrain labels") .. " / labels " .. tostring(#labels), 24, 176)
     for index, label in ipairs(labels) do
@@ -1570,6 +1625,7 @@ function Render.drawHud(app, width, height, meshData)
         local map = drawMinimap(app, width, height)
         meshData.minimap = map.samples
         meshData.minimapContours = map.contours
+        meshData.minimapMarkers = map.markers or 0
     end
     local biomeBannerAlpha = drawBiomeBanner(app, width, height)
     if biomeBannerAlpha then meshData.biomeBannerAlpha = biomeBannerAlpha end
