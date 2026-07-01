@@ -104,38 +104,6 @@ Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) u
 
 ---
 
-### Task 6 — World creation page + fix scale at gen time
-
-**STATUS:** pending
-**RECOMMENDED ORDER:** 2nd (blocks Tasks 8, 9, 11 assumptions; removes `Tab` UX).
-
-**SCOPE:** Replace runtime `Tab` scale-cycling with a **world-scope** picked once at generation. Add a Minecraft-style "Create World" page.
-
-**FILES:**
-- `src/menu.lua` — new `create` subpage.
-- `src/worldgen.lua` — accept `worldOptions.scope` ∈ `{local, region, continent}` and treat it as the sole active scale; keep the other scales as internal LOD tiers if render.lua needs them, else compile out.
-- `src/viewscale.lua` — collapse cycle behavior: `advanceDiegetic` becomes no-op or removed; `activeScale` returns `worldOptions.scope`. Keep multi-scale sampling as an internal LOD helper only.
-- `main.lua` — remove `Tab` key handler (main.lua:598–602); remove `--geologic-time` cycling assumptions if any; keep `ViewScale.new` for label caching.
-- `src/save.lua` — persist `scope` in `world` snapshot block.
-
-**CREATE-WORLD FIELDS** (mirror screenshot 1's left-sidebar / right-main layout):
-- General: `name` (text), `seed` (text, blank = random), `scope` (radio: Local / Region / Continent), `allowExoticBiomes` (checkbox, gates R2 fantastical set), `geologicTime` (slider 0.0–1.0).
-- Advanced: `hydrologyRegionChunks`, `hydrologyHaloCells`, `hydrologyBasinChunks`, `hydrologyBasinStride`, `cacheMaxEntries`, `pixelScale`, `dayLength`, `startSeason`.
-- Preview: live 128×128 `Export.renderMap` regenerated on-change (debounce 500 ms).
-- Buttons: `Create` (persists via Task 12 library, launches game), `Back`.
-
-**DETERMINISM UPDATE:** contract becomes `(seed, geologicTime, scope, allowExoticBiomes, advanced_hydrology_fields)`. Add hash to save snapshot for detecting mismatch on load.
-
-**ACCEPTANCE:**
-- No `Tab` in-game action.
-- Creating a world at `scope = continent` produces continent-factor sampling from frame 1; player never sees `local` unless created there.
-- `make regressions` still passes (fixtures may need scope pinned in test harness).
-- Snapshot round-trip preserves all creation fields.
-
-**REMAINING:** — decide if internal multi-scale LOD is retained for render distance falloff or fully removed; recommend retained but not player-visible.
-
----
-
 ### Task 12 — "My Worlds" library + multi-slot save
 
 **STATUS:** pending

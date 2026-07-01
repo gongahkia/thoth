@@ -117,14 +117,50 @@ function Save.decode(text)
     return parser(text)
 end
 
+local hashKeys = {
+    "seed",
+    "geologicTime",
+    "scope",
+    "allowExoticBiomes",
+    "hydrologyRegionChunks",
+    "hydrologyHaloCells",
+    "hydrologyBasinChunks",
+    "hydrologyBasinStride",
+    "hydrologyBasinHaloCells",
+    "hydrologyBasinFlowScale",
+    "cacheMaxEntries",
+}
+
+local function stableHash(text)
+    local h = 5381
+    for index = 1, #text do h = (h * 33 + string.byte(text, index)) % 2147483647 end
+    return string.format("%08x", h)
+end
+
+function Save.worldOptionsHash(metadata)
+    local source = {}
+    for _, key in ipairs(hashKeys) do source[key] = metadata and metadata[key] end
+    return stableHash(Save.encode(source))
+end
+
 function Save.snapshot(app)
     local metadata = app.world:metadata()
     return {
         version = 1,
         seed = metadata.seed,
         world = {
+            scope = metadata.scope,
+            allowExoticBiomes = metadata.allowExoticBiomes == true,
+            optionsHash = Save.worldOptionsHash(metadata),
             geologicTime = metadata.geologicTime,
             geologicTimeStep = metadata.geologicTimeStep,
+            hydrologyRegionChunks = metadata.hydrologyRegionChunks,
+            hydrologyHaloCells = metadata.hydrologyHaloCells,
+            hydrologyBasinChunks = metadata.hydrologyBasinChunks,
+            hydrologyBasinStride = metadata.hydrologyBasinStride,
+            hydrologyBasinHaloCells = metadata.hydrologyBasinHaloCells,
+            hydrologyBasinFlowScale = metadata.hydrologyBasinFlowScale,
+            cacheMaxEntries = metadata.cacheMaxEntries,
             seaLevel = metadata.baseSeaLevel or metadata.seaLevel,
             seaLevelAmplitude1 = metadata.seaLevelAmplitude1,
             seaLevelPeriod1 = metadata.seaLevelPeriod1,
@@ -168,6 +204,7 @@ function Save.snapshot(app)
         camera = { yaw = app.camera.yaw, pitch = app.camera.pitch },
         atmosphere = Atmosphere.snapshot(app.atmosphere),
         display = {
+            pixelScale = app.pixelScale,
             mouseLook = app.mouseLook == true,
             debugPerf = app.debugPerf == true,
             debugTopo = app.debugTopo == true,

@@ -91,6 +91,8 @@ end
 
 local function runtimeWorldOptions(args)
     return {
+        scope = WorldGen.validScope(argValue(args, "--scope", "local")),
+        allowExoticBiomes = hasArg(args, "--allow-exotic-biomes"),
         hydrologyRegionChunks = tonumber(argValue(args, "--hydrology-region-chunks", 1)) or 1,
         hydrologyHaloCells = tonumber(argValue(args, "--hydrology-halo", 0)) or 0,
         hydrologyBasinChunks = tonumber(argValue(args, "--hydrology-basin-chunks", 8)) or 8,
@@ -332,19 +334,25 @@ local function maybeLogPerf(app)
 end
 
 local function applySnapshot(app, snapshot)
+    local display = snapshot.display or {}
     if type(snapshot.world) == "table" then
         for key, value in pairs(snapshot.world) do
             if value ~= nil then app.worldOptions[key] = value end
         end
     end
+    if (not snapshot.world or snapshot.world.scope == nil) and display.viewScale then app.worldOptions.scope = display.viewScale end
     replaceWorld(app, tonumber(snapshot.seed) or app.world:metadata().seed)
+    local expectedHash = snapshot.world and snapshot.world.optionsHash
+    local actualHash = Save.worldOptionsHash(app.world:metadata())
+    app.worldOptionsHashMismatch = expectedHash and expectedHash ~= actualHash
+    if app.worldOptionsHashMismatch then print("[save] world_hash_mismatch expected=" .. tostring(expectedHash) .. " actual=" .. tostring(actualHash)) end
     app.survey = Survey.fromSnapshot(snapshot.survey)
     app.player.x = snapshot.player and tonumber(snapshot.player.x) or 0
     app.player.y = snapshot.player and tonumber(snapshot.player.y) or 0
     app.camera = Render.defaultCamera()
     app.camera.yaw = snapshot.camera and tonumber(snapshot.camera.yaw) or app.camera.yaw
     app.camera.pitch = snapshot.camera and tonumber(snapshot.camera.pitch) or app.camera.pitch
-    local display = snapshot.display or {}
+    app.pixelScale = PostFX.parsePixelScale(display.pixelScale or app.pixelScale or 2)
     app.mouseLook = display.mouseLook == true
     app.debugPerf = display.debugPerf == true
     app.debugTopo = display.debugTopo == true
@@ -363,11 +371,9 @@ local function applySnapshot(app, snapshot)
     app.atmosphere = Atmosphere.new(snapshot.atmosphere or { time = display.atmosphereTime or 0.25, season = display.season or "summer" })
     app.atmosphereTime = app.atmosphere.time
     app.viewScale = ViewScale.new(app.world)
-    if display.viewScale then
-        ViewScale.set(app.viewScale, app.world, display.viewScale, app.player.x, app.player.y)
-        ViewScale.update(app.viewScale, 1, app.world, app.player.x, app.player.y)
-    end
+    ViewScale.update(app.viewScale, 1, app.world, app.player.x, app.player.y)
     if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(app.mouseLook) end
+    PostFX.resize(app, love.graphics.getDimensions())
     app.perf.preloadMsThisFrame = 0
     preloadApp(app, "save_load")
 end
@@ -449,7 +455,8 @@ end
 
 local function menuArgs(args)
     return {
-        seed = tonumber(argValue(args, "--seed", 20260625)) or 20260625,
+        seed = argValue(args, "--seed", ""),
+        randomSeed = os.time() % 100000000,
     }
 end
 
@@ -460,7 +467,11 @@ local function startMenu(args)
         args = args or {},
         menu = Menu.new(menuArgs(args or {})),
         menuSmoke = hasArg(args or {}, "--menu-smoke"),
+        menuSmokeFrames = tonumber(argValue(args or {}, "--menu-smoke-frames", 1)) or 1,
+        menuSmokeFrame = 0,
     }
+    local smokeState = argValue(args or {}, "--menu-smoke-state", nil)
+    if smokeState then app.menu.state = smokeState end
     if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(false) end
 end
 
@@ -469,7 +480,9 @@ local function startGame(args)
 end
 
 local function handleMenuAction(action)
-    if action == "quit" then
+    if type(action) == "table" and action.kind == "play-create" then
+        startGame(action.args or {})
+    elseif action == "quit" then
         love.event.quit(0)
     elseif action == "play-default" then
         startGame(app and app.args or {})
@@ -529,9 +542,15 @@ function love.draw()
     if app.mode == "menu" then
         Menu.draw(app.menu)
         if app.menuSmoke and not app.menuSmokePrinted then
+            app.menuSmokeFrame = (app.menuSmokeFrame or 0) + 1
+            if app.menuSmokeFrame < (app.menuSmokeFrames or 1) then return end
             app.menuSmokePrinted = true
             print("menu-smoke=" .. tostring(app.menu.state))
             print("menu-smoke-seed=" .. tostring(app.menu.backdropMetadata and app.menu.backdropMetadata.seed))
+            if app.menu.state == "create" then
+                print("menu-smoke-create-scope=" .. tostring(app.menu.create and app.menu.create.scope))
+                print("menu-smoke-create-preview=" .. tostring(app.menu.create and app.menu.create.preview ~= nil))
+            end
             love.event.quit(0)
         end
         return
@@ -653,11 +672,6 @@ function love.keypressed(key)
     if key == "n" then
         Survey.mark(app.survey, app.world, app.player.x, app.player.y, ViewScale.activeScale(app.viewScale))
         print("[survey] cells=" .. tostring(app.survey.cellCount) .. " discoveries=" .. tostring(app.survey.discoveryCount))
-    end
-    if key == "tab" then
-        local anchor = ViewScale.advanceDiegetic(app.viewScale, app.world, app.player.x, app.player.y)
-        print("[scale] " .. tostring(anchor.target) .. " via " .. tostring(anchor.name))
-        preloadApp(app, "scale")
     end
     if key == "r" then
         replaceWorld(app, os.time() % 1000000)

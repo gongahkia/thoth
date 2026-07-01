@@ -20,13 +20,9 @@ local function scaleInfo(world, scaleId)
     return { id = "local", factor = 1, label = "local" }
 end
 
-local function scaleIndex(world, scaleId)
+local function fixedScope(world)
     local metadata = world and world:metadata() or {}
-    local scales = metadata.scales or {}
-    for index, scale in ipairs(scales) do
-        if scale.id == scaleId then return index end
-    end
-    return 1
+    return scaleInfo(world, metadata.scope or "local").id
 end
 
 local function labelKey(scaleId, item)
@@ -76,7 +72,7 @@ local function terrainAnchor(world, x, y, scaleId)
 end
 
 function ViewScale.new(world)
-    local initial = scaleInfo(world, "local").id
+    local initial = fixedScope(world)
     return {
         from = initial,
         target = initial,
@@ -146,36 +142,26 @@ end
 
 function ViewScale.set(view, world, scaleId, x, y)
     if not view then return "local" end
-    local target = scaleInfo(world, scaleId).id
-    if view.target == target and (view.progress or 1) >= 1 then
-        ViewScale.collectLabels(view, world, x or 0, y or 0, target, true)
-        return target
-    end
-    view.from = view.target or view.current or "local"
+    local target = fixedScope(world)
+    view.from = target
     view.target = target
-    view.current = view.from
-    view.progress = 0
-    ViewScale.collectLabels(view, world, x or 0, y or 0, view.from, true)
+    view.current = target
+    view.progress = 1
     ViewScale.collectLabels(view, world, x or 0, y or 0, view.target, true)
     return target
 end
 
 function ViewScale.shift(view, world, delta, x, y)
-    local metadata = world and world:metadata() or {}
-    local scales = metadata.scales or { { id = "local" } }
-    local index = scaleIndex(world, view and view.target or "local")
-    index = clamp(index + delta, 1, #scales)
-    return ViewScale.set(view, world, scales[index].id, x, y)
+    return ViewScale.set(view, world, nil, x, y)
 end
 
 function ViewScale.diegeticAnchor(view, world, x, y)
-    local current = ViewScale.activeScale(view)
-    local route = routes[current] or routes["local"]
+    local current = fixedScope(world)
     local anchor = terrainAnchor(world, x or 0, y or 0, current)
     return {
         from = current,
-        target = route.target,
-        mode = route.mode,
+        target = current,
+        mode = "fixed",
         kind = anchor.kind,
         id = anchor.id,
         name = anchor.name,
@@ -187,7 +173,7 @@ end
 function ViewScale.advanceDiegetic(view, world, x, y)
     local anchor = ViewScale.diegeticAnchor(view, world, x or 0, y or 0)
     ViewScale.collectLabels(view, world, x or 0, y or 0, anchor.from, true)
-    ViewScale.set(view, world, anchor.target, x or 0, y or 0)
+    ViewScale.set(view, world, nil, x or 0, y or 0)
     view.anchor = anchor
     return anchor
 end
@@ -214,7 +200,6 @@ function ViewScale.preloadScales(view)
         seen[scaleId] = true
         result[#result + 1] = scaleId
     end
-    add(view and view.from)
     add(view and view.target)
     return result
 end

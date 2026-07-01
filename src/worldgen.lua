@@ -271,6 +271,10 @@ local function scaleInfo(scale)
     return scaleById[scale or "local"] or scales[1]
 end
 
+local function validScope(scope)
+    return scaleInfo(scope).id
+end
+
 local function plateCacheKey(gx, gy)
     return tostring(gx) .. ":" .. tostring(gy)
 end
@@ -696,11 +700,14 @@ function WorldGen.new(seed, options)
     local maxEntries = option(options.cacheMaxEntries, totalCacheLimit(limits))
     local numericSeed = tonumber(seed) or 1
     local geologicTime = option(options.geologicTime, 0)
+    local scope = validScope(options.scope)
     local seaLevelConfig = buildSeaLevelConfig(numericSeed, options)
     local seaLevelSeries, seaLevelMin, seaLevelMax = buildSeaLevelSeries(seaLevelConfig, geologicTime)
     local currentSeaLevel = seaLevelAtConfig(seaLevelConfig, geologicTime)
     local world = setmetatable({
         seed = numericSeed,
+        scope = scope,
+        allowExoticBiomes = options.allowExoticBiomes == true,
         chunkSize = option(options.chunkSize, 64),
         baseSeaLevel = seaLevelConfig.base,
         seaLevel = currentSeaLevel,
@@ -846,6 +853,10 @@ function WorldGen.scaleInfo(scale)
     return scaleInfo(scale)
 end
 
+function WorldGen.validScope(scope)
+    return validScope(scope)
+end
+
 function WorldGen.biomeIds()
     local result = {}
     for id in pairs(biomeIds) do result[#result + 1] = id end
@@ -883,6 +894,8 @@ function WorldGen:metadata()
     return {
         version = "terrain_proto_v1",
         seed = self.seed,
+        scope = self.scope,
+        allowExoticBiomes = self.allowExoticBiomes == true,
         chunkSize = self.chunkSize,
         seaLevel = self.seaLevel,
         baseSeaLevel = self.baseSeaLevel,

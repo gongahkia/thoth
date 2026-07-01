@@ -1221,7 +1221,7 @@ local function drawHud(app, width, height, stats)
     love.graphics.setColor(0.02, 0.025, 0.03, 0.7)
     love.graphics.rectangle("fill", width - 428, height - 52, 416, 34)
     love.graphics.setColor(0.88, 0.9, 0.82, 1)
-    love.graphics.print("WASD move  mouse/E/left look  Tab scope  M map  N mark  Q quit", width - 416, height - 42)
+    love.graphics.print("WASD move  mouse/E/left look  M map  N mark  Q quit", width - 416, height - 42)
 end
 
 function Render.drawScene(app, width, height)

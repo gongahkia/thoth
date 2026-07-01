@@ -213,6 +213,26 @@ function UI.RadioGroup(ui, value, items, x, y, w, rowH, options)
     return nextValue, changed
 end
 
+function UI.Checkbox(ui, value, label, x, y, w, h, options)
+    options = options or {}
+    local id = options.id or UI.id(ui, "checkbox")
+    local inside = contains(x, y, w, h, ui.mouseX, ui.mouseY)
+    local nextValue = value == true
+    local changed = false
+    if inside and ui.mousePressed then
+        nextValue = not nextValue
+        changed = true
+    end
+    drawRect(ui.theme, x, y, h - 6, h - 6, "fill", inside and "borderHot" or "border")
+    if nextValue then
+        love.graphics.setColor(color(ui.theme, "accent"))
+        love.graphics.rectangle("fill", x + 5, y + 5, h - 16, h - 16)
+    end
+    UI.Label(ui, label, x + h, y + 2, { size = options.size or 18 })
+    ui.hot = inside and id or ui.hot
+    return nextValue, changed
+end
+
 function UI.List(ui, id, items, x, y, w, h, options)
     options = options or {}
     local rowH = options.rowH or 30

@@ -578,11 +578,10 @@ local function testSurveyHistory()
 end
 
 local function testSaveLoadRoundTrip()
-    local world = WorldGen.new(99, { geologicTime = 0.4, geologicTimeStep = 0.03, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, zScale = 12000, maxOceanAgeMyr = 160, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200, glacialGamma = 6e-9, glacialBeta = 0.01, glacialBmax = 1.5, glacialKg = 7e-5, glacialSiaIterations = 5, seasonRate = 2, itczOffsetAmp = 0.1, monsoonSeasonalContrast = 1.4, windCoriolisScale = 0.3, hotspotCount = 12, hotspotMantleExtent = 32768, hotspotMinSeparation = 2048, hotspotBucketSize = 4096, hotspotSigma = 768, hotspotTrailSteps = 5, hotspotTrailDt = 0.15, hotspotTau = 2.5, hotspotElevationScale = 0.33, floodBasaltThreshold = 0.25, meanderWidthScale = 2.2, meanderMigrationScale = 0.8 })
+    local world = WorldGen.new(99, { scope = "region", allowExoticBiomes = true, geologicTime = 0.4, geologicTimeStep = 0.03, hydrologyRegionChunks = 1, hydrologyHaloCells = 0, hydrologyBasinChunks = 4, hydrologyBasinStride = 4, cacheMaxEntries = 256, seaLevel = 0.02, seaLevelAmplitude1 = 0.04, seaLevelAmplitude2 = 0.01, seaLevelResidualAmplitude = 0, zScale = 12000, maxOceanAgeMyr = 160, legacyLatitude = false, worldCircumference = 1024, omega = 0.0001, hillslopeD = 0.02, hillslopeSc = 0.9, hillslopeIterations = 3, debrisK = 0.01, debrisCriticalConcentration = 0.2, debrisSedimentYield = 1200, glacialGamma = 6e-9, glacialBeta = 0.01, glacialBmax = 1.5, glacialKg = 7e-5, glacialSiaIterations = 5, seasonRate = 2, itczOffsetAmp = 0.1, monsoonSeasonalContrast = 1.4, windCoriolisScale = 0.3, hotspotCount = 12, hotspotMantleExtent = 32768, hotspotMinSeparation = 2048, hotspotBucketSize = 4096, hotspotSigma = 768, hotspotTrailSteps = 5, hotspotTrailDt = 0.15, hotspotTau = 2.5, hotspotElevationScale = 0.33, floodBasaltThreshold = 0.25, meanderWidthScale = 2.2, meanderMigrationScale = 0.8 })
     local survey = Survey.new()
     Survey.mark(survey, world, -64, -64, "local")
     local viewScale = ViewScale.new(world)
-    ViewScale.set(viewScale, world, "region", -64, -64)
     ViewScale.update(viewScale, 1, world, -64, -64)
     local app = {
         world = world,
@@ -595,6 +594,7 @@ local function testSaveLoadRoundTrip()
         debugTopo = true,
         minimap = true,
         debugPanels = true,
+        pixelScale = 3,
         atmosphere = Atmosphere.new({ time = 0.4, season = "autumn", dayLength = 90 }),
     }
     local encoded = Save.encode(Save.snapshot(app))
@@ -602,6 +602,8 @@ local function testSaveLoadRoundTrip()
     local restoredSurvey = Survey.fromSnapshot(decoded.survey)
     expect(decoded.seed == 99 and decoded.player.x == 12.5 and decoded.player.y == -7.25, "save should round-trip seed and player position")
     expect(decoded.camera.yaw == 0.7 and decoded.display.viewScale == "region", "save should round-trip camera and display settings")
+    expect(decoded.world.scope == "region" and decoded.world.allowExoticBiomes == true and decoded.world.optionsHash == Save.worldOptionsHash(world:metadata()), "save should round-trip deterministic world scope hash")
+    expect(decoded.world.hydrologyRegionChunks == 1 and decoded.world.hydrologyHaloCells == 0 and decoded.world.hydrologyBasinChunks == 4 and decoded.world.hydrologyBasinStride == 4 and decoded.world.cacheMaxEntries == 256, "save should round-trip creation hydrology settings")
     expect(decoded.world.geologicTime == 0.4 and decoded.world.geologicTimeStep == 0.03 and decoded.world.seaLevelAmplitude1 == 0.04, "save should round-trip world sea-level settings")
     expect(decoded.world.zScale == 12000 and decoded.world.maxOceanAgeMyr == 160, "save should round-trip bathymetry settings")
     expect(decoded.world.legacyLatitude == false and decoded.world.worldCircumference == 1024 and decoded.world.omega == 0.0001, "save should round-trip latitude settings")
@@ -613,25 +615,25 @@ local function testSaveLoadRoundTrip()
     expect(decoded.world.hotspotSigma == 768 and decoded.world.hotspotTrailSteps == 5 and decoded.world.hotspotTrailDt == 0.15 and decoded.world.hotspotTau == 2.5 and decoded.world.hotspotElevationScale == 0.33 and decoded.world.floodBasaltThreshold == 0.25, "save should round-trip hotspot physics settings")
     expect(decoded.world.meanderWidthScale == 2.2 and decoded.world.meanderMigrationScale == 0.8, "save should round-trip meander settings")
     expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
-    expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.minimap and decoded.display.debugPanels and not decoded.display.mouseLook, "save should round-trip display toggles")
+    expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.minimap and decoded.display.debugPanels and decoded.display.pixelScale == 3 and not decoded.display.mouseLook, "save should round-trip display toggles")
     expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
 end
 
 local function testViewScaleTransitions()
-    local world = WorldGen.new(99)
+    local world = WorldGen.new(99, { scope = "continent" })
     local view = ViewScale.new(world)
     ViewScale.update(view, 0, world, -64, -64)
-    expect(ViewScale.activeScale(view) == "local", "view scale should start local")
+    expect(ViewScale.activeScale(view) == "continent", "view scale should start at world scope")
     local labelsAfterLocal = #ViewScale.visibleLabels(view, 16)
     ViewScale.shift(view, world, 1, -64, -64)
     local mid = ViewScale.params(view, world)
-    expect(mid.target == "region" and mid.factor == 1, "view scale should begin region transition from local")
+    expect(mid.target == "continent" and mid.factor == 16 and not mid.transitioning, "view scale shift should be fixed at world scope")
     ViewScale.update(view, 0.28, world, -64, -64)
     mid = ViewScale.params(view, world)
-    expect(mid.factor > 1 and mid.factor < 4 and mid.transitioning, "view scale should ease between local and region")
+    expect(mid.factor == 16 and not mid.transitioning, "view scale should not ease between scopes")
     ViewScale.update(view, 1, world, -64, -64)
     local region = ViewScale.params(view, world)
-    expect(region.target == "region" and region.factor == 4 and not region.transitioning, "view scale should finish at region")
+    expect(region.target == "continent" and region.factor == 16 and not region.transitioning, "view scale should remain fixed")
     ViewScale.shift(view, world, 1, -16, 16)
     ViewScale.update(view, 1, world, -16, 16)
     local continent = ViewScale.params(view, world)
@@ -639,22 +641,22 @@ local function testViewScaleTransitions()
     local scales = {}
     for _, label in ipairs(labels) do scales[label.scale] = true end
     expect(continent.target == "continent" and continent.factor == 16, "view scale should reach continent")
-    expect(#labels >= labelsAfterLocal and scales["local"] and scales.region and scales.continent, "view labels should persist across nested scales")
+    expect(#labels >= labelsAfterLocal and scales.continent, "view labels should persist at fixed scope")
 end
 
 local function testDiegeticScaleTransitions()
-    local world = WorldGen.new(99)
+    local world = WorldGen.new(99, { scope = "region" })
     local view = ViewScale.new(world)
     local localAnchor = ViewScale.advanceDiegetic(view, world, -64, -64)
-    expect(localAnchor.from == "local" and localAnchor.target == "region" and localAnchor.name, "local scope should use a terrain anchor")
+    expect(localAnchor.from == "region" and localAnchor.target == "region" and localAnchor.mode == "fixed" and localAnchor.name, "fixed scope should use a terrain anchor")
     ViewScale.update(view, 1, world, -64, -64)
     local regionAnchor = ViewScale.advanceDiegetic(view, world, -16, 16)
-    expect(regionAnchor.from == "region" and regionAnchor.target == "continent" and regionAnchor.name, "region scope should use a terrain anchor")
+    expect(regionAnchor.from == "region" and regionAnchor.target == "region" and regionAnchor.name, "region scope should remain fixed")
     ViewScale.update(view, 1, world, -16, 16)
     local returnAnchor = ViewScale.advanceDiegetic(view, world, -16, 16)
     ViewScale.update(view, 1, world, -16, 16)
-    expect(returnAnchor.from == "continent" and returnAnchor.target == "local", "continent scope should return to local terrain")
-    expect(ViewScale.params(view, world).target == "local" and view.anchor.name == returnAnchor.name, "diegetic scope anchor should persist on the view")
+    expect(returnAnchor.from == "region" and returnAnchor.target == "region", "diegetic advance should not change world scope")
+    expect(ViewScale.params(view, world).target == "region" and view.anchor.name == returnAnchor.name, "diegetic scope anchor should persist on the view")
 end
 
 local function testBasinHydrologyBudget()
@@ -1900,9 +1902,9 @@ local function testRenderStats()
     expect(stats.riverStrips > 0, "render stats should include river strips")
     expect(stats.silhouetteStrips > 0, "render stats should include slope silhouettes")
     expect(stats.landmarks > 0, "render stats should include terrain landmarks")
-    ViewScale.shift(app.viewScale, world, 1, 0, 0)
-    ViewScale.update(app.viewScale, 1, world, 0, 0)
-    local regionStats = Render.visibleStats(app, 1280, 720)
+    local regionWorld = WorldGen.new(3, { scope = "region", hydrologyRegionChunks = 2, hydrologyHaloCells = 0, hydrologyBasinChunks = 8, hydrologyBasinStride = 8 })
+    local regionApp = { world = regionWorld, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(regionWorld) }
+    local regionStats = Render.visibleStats(regionApp, 1280, 720)
     expect(regionStats.viewScale == "region" and regionStats.viewFactor == 4 and regionStats.visibleTiles > 0, "render stats should follow region view scale")
     for _, pose in ipairs({ { math.pi * 0.5, -0.36 }, { math.pi, 0.34 }, { -math.pi * 0.75, 0.02 } }) do
         app.camera = Render.defaultCamera()
