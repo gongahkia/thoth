@@ -473,6 +473,7 @@ local function applySnapshot(app, snapshot)
     app.debugPerf = display.debugPerf == true
     app.debugTopo = display.debugTopo == true
     app.minimap = display.minimap == true
+    app.showWorldLabels = display.showWorldLabels ~= false
     if type(display.debugPanels) == "table" then
         app.debugPanels = {
             plate = display.debugPanels.plate == true,
@@ -541,6 +542,7 @@ local function loadGame(args)
         walkSmoke = hasArg(args, "--walk-smoke"),
         debugTopo = hasArg(args, "--debug-topo") or settings.debug.topo == true,
         minimap = hasArg(args, "--minimap") or settings.debug.minimap == true,
+        showWorldLabels = settings.display.showWorldLabels ~= false,
         debugPanels = (function()
             local on = hasArg(args, "--debug-panels") or settings.debug.panels == true
             return { plate = on, drainage = on, erosion = on, biome = on }
@@ -746,6 +748,7 @@ function love.draw()
         print("render-smoke-landmarks=" .. tostring(stats.landmarks))
         print("render-smoke-zoom=" .. string.format("%.2f", stats.zoom or 1))
         print("render-smoke-sway=" .. tostring(stats.swayBillboards or 0) .. ":" .. string.format("%.3f", stats.swayTime or 0))
+        print("world-labels=" .. tostring(stats.worldLabels or 0))
         print("render-smoke-pixel-scale=" .. tostring(stats.pixelScale))
         print("render-smoke-lowres=" .. tostring(stats.lowResCanvasWidth) .. "x" .. tostring(stats.lowResCanvasHeight))
         print("render-smoke-palette=" .. tostring(stats.paletteId) .. ":" .. tostring(stats.paletteSize))

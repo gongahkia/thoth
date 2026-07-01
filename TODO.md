@@ -86,27 +86,6 @@ Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) u
 
 ---
 
-### Task 8 — Discovery labels rendered at world scale
-
-**STATUS:** pending
-**RECOMMENDED ORDER:** 11th.
-
-**SCOPE:** Currently `WorldGen:discoveriesAt` produces named features but they are not billboarded into the world. Render them as world-space text (billboarded, palette-quantized) at feature centroids.
-
-**FILES:**
-- `src/render.lua` — new `drawWorldLabels(app, meshData)` pass after billboard pass; iterates `ViewScale.visibleLabels` restricted to visible bounds; projects centroid to screen, draws BigBlue Terminal text with 1px outline.
-- `src/viewscale.lua` — expose `label.x, label.y` (already collected) plus a `priority` field (already exists as `anchorRanks`).
-- `main.lua` — new setting `showWorldLabels` (Task 3 Display tab).
-
-**ACCEPTANCE:**
-- Standing near a labeled mountain range shows its name floating above the peak.
-- Label z-orders by priority + distance; deduplication prevents overlap.
-- `--render-smoke` prints `world-labels=<count>` line.
-
-**REMAINING:** — label style (all-caps? subtitle biome?) is a design choice; propose all-caps for major (mountain_range, ridge) + title-case for others.
-
----
-
 ### Task 9 — Expanded biome banner + area name over minimap
 
 **STATUS:** pending

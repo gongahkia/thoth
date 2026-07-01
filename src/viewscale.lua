@@ -44,6 +44,10 @@ local anchorRanks = {
     rain_shadow = 7,
 }
 
+function ViewScale.labelPriority(kind)
+    return anchorRanks[kind] or 99
+end
+
 local routes = {
     ["local"] = { target = "region", mode = "outlook" },
     region = { target = "continent", mode = "horizon" },
@@ -108,6 +112,7 @@ function ViewScale.collectLabels(view, world, x, y, scaleId, force)
                 name = item.name,
                 x = item.x,
                 y = item.y,
+                priority = ViewScale.labelPriority(item.kind),
                 seen = 0,
             }
             view.labelOrder[#view.labelOrder + 1] = key

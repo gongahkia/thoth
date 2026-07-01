@@ -645,7 +645,10 @@ local function testViewScaleTransitions()
     local continent = ViewScale.params(view, world)
     local labels = ViewScale.visibleLabels(view, 32)
     local scales = {}
-    for _, label in ipairs(labels) do scales[label.scale] = true end
+    for _, label in ipairs(labels) do
+        scales[label.scale] = true
+        expect(type(label.x) == "number" and type(label.y) == "number" and type(label.priority) == "number", "view labels should expose world centroid and priority")
+    end
     expect(continent.target == "continent" and continent.factor == 16, "view scale should reach continent")
     expect(#labels >= labelsAfterLocal and scales.continent, "view labels should persist at fixed scope")
 end
@@ -1968,6 +1971,14 @@ local function testRenderStats()
     expect(stats.riverStrips > 0, "render stats should include river strips")
     expect(stats.silhouetteStrips > 0, "render stats should include slope silhouettes")
     expect(stats.landmarks > 0, "render stats should include terrain landmarks")
+    local labelApp = { world = world, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(world), worldLabelScan = false }
+    labelApp.viewScale.labels.major = { scale = "local", kind = "mountain_range", name = "High Range", x = 0, y = -30, priority = 1 }
+    labelApp.viewScale.labels.minor = { scale = "local", kind = "basin", name = "Low Basin", x = 0, y = -30, priority = 5 }
+    labelApp.viewScale.labelOrder = { "major", "minor" }
+    local worldLabels = Render.worldLabelDrawList(labelApp, 1280, 720, 8)
+    expect(#worldLabels == 1 and worldLabels[1].text == "HIGH RANGE", "world labels should project, uppercase major features, and dedupe overlaps by priority")
+    labelApp.showWorldLabels = false
+    expect(#Render.worldLabelDrawList(labelApp, 1280, 720, 8) == 0, "world label setting should hide labels")
     local regionWorld = WorldGen.new(3, { scope = "region", hydrologyRegionChunks = 2, hydrologyHaloCells = 0, hydrologyBasinChunks = 8, hydrologyBasinStride = 8 })
     local regionApp = { world = regionWorld, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(regionWorld) }
     local regionStats = Render.visibleStats(regionApp, 1280, 720)

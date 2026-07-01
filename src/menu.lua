@@ -401,6 +401,9 @@ local function drawSettings(menu, x, y, w)
         local sway, swayChanged = UI.Checkbox(ui, settings.display.cameraSway, "Camera Sway", rx, y + 292, rw, 28, { id = "settings:sway", size = 14 })
         settings.display.cameraSway = sway
         if swayChanged then Settings.save(settings) end
+        local labels, labelsChanged = UI.Checkbox(ui, settings.display.showWorldLabels ~= false, "World Labels", rx, y + 326, rw, 28, { id = "settings:labels", size = 14 })
+        settings.display.showWorldLabels = labels
+        if labelsChanged then Settings.save(settings) end
     elseif state.tab == "Audio" then
         for index, item in ipairs({ { "Master", "master" }, { "SFX", "sfx" }, { "Ambient", "ambient" } }) do
             local rowY = y + 58 + (index - 1) * 72

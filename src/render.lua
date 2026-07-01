@@ -803,6 +803,7 @@ end
 function Render.visibleStats(app, width, height)
     local mesh = Render.buildTerrainMeshData(app, width or 1280, height or 720)
     local billboards = Render.billboardDrawList(app, width or 1280, height or 720)
+    local worldLabels = Render.worldLabelDrawList(app, width or 1280, height or 720, 28)
     local landmarks, swayBillboards = 0, 0
     for _, item in ipairs(billboards) do
         if item.kind == "peak" or item.kind == "ridge" or item.kind == "outcrop" then landmarks = landmarks + 1 end
@@ -843,6 +844,7 @@ function Render.visibleStats(app, width, height)
         weather = app.weatherState and app.weatherState.precipitation or "clear",
         weatherStorm = app.weatherState and app.weatherState.storm or "none",
         weatherVisibility = weatherVisibility(app),
+        worldLabels = #worldLabels,
     }
 end
 
@@ -1108,6 +1110,111 @@ local function drawWeatherOverlay(app, width, height)
         love.graphics.line(x, y, x - 5, y + len)
     end
     return count
+end
+
+local function worldLabelText(label)
+    local text = tostring(label and label.name or "")
+    if label and (label.kind == "mountain_range" or label.kind == "ridge") then return string.upper(text) end
+    return text
+end
+
+local function rectOverlaps(a, b, margin)
+    margin = margin or 0
+    return a.x0 - margin < b.x1 and a.x1 + margin > b.x0 and a.y0 - margin < b.y1 and a.y1 + margin > b.y0
+end
+
+function Render.worldLabelDrawList(app, width, height, limit)
+    if app.showWorldLabels == false then return {} end
+    local params = viewParams(app)
+    app.camera.eyeZ = app.camera.eyeZ or cameraHeight(app)
+    local radius = scaledRadius(app.camera, app.camera.renderRadius or 62)
+    if app.worldLabelScan ~= false then
+        local basis = cameraBasis(app.camera.yaw or 0)
+        for _, depth in ipairs({ radius * 0.25, radius * 0.5, radius * 0.75 }) do
+            for _, lateral in ipairs({ 0, -radius * 0.28, radius * 0.28 }) do
+                local wx = app.player.x + (basis.rightX * lateral + basis.forwardX * depth) * (params.factor or 1)
+                local wy = app.player.y + (basis.rightY * lateral + basis.forwardY * depth) * (params.factor or 1)
+                ViewScale.collectLabels(app.viewScale, app.world, wx, wy, params.target)
+            end
+        end
+    end
+    local candidates = {}
+    for _, label in ipairs(ViewScale.visibleLabels(app.viewScale, limit or 32)) do
+        local lx, ly = label.x or label.lastX, label.y or label.lastY
+        if lx and ly then
+            local cell, z = viewCell(app, lx, ly, params)
+            local sx, sy, depth = projectWorld(app, width, height, lx, ly, z + 2.2 + math.max(0, (cell.elevation or 0)) * 2.8)
+            if sx and sy and depth > 2 and depth < radius then
+                local text = worldLabelText(label)
+                local size = label.priority and label.priority <= 2 and 16 or 13
+                local textWidth = #text * size * 0.58
+                candidates[#candidates + 1] = {
+                    label = label,
+                    text = text,
+                    x = sx,
+                    y = sy,
+                    depth = depth,
+                    priority = label.priority or ViewScale.labelPriority(label.kind),
+                    width = textWidth,
+                    height = size,
+                    alpha = clamp(1 - depth / math.max(1, radius), 0.28, 1),
+                }
+            end
+        end
+    end
+    table.sort(candidates, function(a, b)
+        if a.priority == b.priority then return a.depth < b.depth end
+        return a.priority < b.priority
+    end)
+    local selected, rects = {}, {}
+    for _, item in ipairs(candidates) do
+        local rect = {
+            x0 = item.x - item.width * 0.5 - 5,
+            x1 = item.x + item.width * 0.5 + 5,
+            y0 = item.y - item.height * 0.5 - 4,
+            y1 = item.y + item.height * 0.5 + 4,
+        }
+        local blocked = false
+        for _, existing in ipairs(rects) do
+            if rectOverlaps(rect, existing, 6) then blocked = true break end
+        end
+        if not blocked then
+            item.rect = rect
+            selected[#selected + 1] = item
+            rects[#rects + 1] = rect
+        end
+    end
+    table.sort(selected, function(a, b)
+        if a.priority == b.priority then return a.depth > b.depth end
+        return a.priority > b.priority
+    end)
+    return selected
+end
+
+local function drawWorldLabels(app, width, height)
+    local list = Render.worldLabelDrawList(app, width, height, app.worldLabelLimit or 28)
+    if #list == 0 then return 0 end
+    local previous = love.graphics.getFont()
+    local fonts = {}
+    for _, item in ipairs(list) do
+        local size = item.priority <= 2 and 16 or 13
+        fonts[size] = fonts[size] or fontCache(app, biomeBannerFontPath, size)
+        local font = fonts[size]
+        love.graphics.setFont(font)
+        local textWidth = font:getWidth(item.text)
+        local x = math.floor(item.x - textWidth * 0.5)
+        local y = math.floor(item.y - font:getHeight() * 0.5)
+        local alpha = item.alpha
+        love.graphics.setColor(0.02, 0.025, 0.03, 0.72 * alpha)
+        love.graphics.print(item.text, x + 1, y)
+        love.graphics.print(item.text, x - 1, y)
+        love.graphics.print(item.text, x, y + 1)
+        love.graphics.print(item.text, x, y - 1)
+        love.graphics.setColor(0.95, 0.92, 0.74, alpha)
+        love.graphics.print(item.text, x, y)
+    end
+    love.graphics.setFont(previous)
+    return #list
 end
 
 local function fmt(value)
@@ -1394,6 +1501,7 @@ function Render.drawScene(app, width, height)
     drawStream(app, "river", meshData.riverVertices, 0.55, 0, meshData.terrainRadius)
     local billboards = Render.billboardDrawList(app, width, height)
     drawBillboards(app, billboards)
+    meshData.worldLabels = drawWorldLabels(app, width, height)
     meshData.weatherParticles = drawWeatherOverlay(app, width, height)
     meshData.weatherVisibility = weatherVisibility(app)
     meshData.weather = app.weatherState and app.weatherState.precipitation or "clear"

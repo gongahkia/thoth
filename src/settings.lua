@@ -41,6 +41,7 @@ local defaults = {
         mouseSensitivityY = 0.0018,
         headBob = false,
         cameraSway = false,
+        showWorldLabels = true,
     },
     audio = {
         master = 1,
