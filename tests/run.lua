@@ -10,6 +10,7 @@ local Save = require("src.save")
 local Survey = require("src.survey")
 local PostFX = require("src.postfx")
 local ViewScale = require("src.viewscale")
+local Weather = require("src.weather")
 local WorldGen = require("src.worldgen")
 local Diagnostics = require("src.diagnostics")
 local Export = require("src.export")
@@ -2016,6 +2017,20 @@ local function testAtmosphereCycle()
     expect(Atmosphere.shiftSeason(state, 1) == "spring" and Atmosphere.shiftSeason(state, -1) == "winter", "atmosphere season shift should wrap")
 end
 
+local function testAtmosphereSolarRealism()
+    local summer = Atmosphere.new({ time = 0.25, season = "summer", latitudeRadians = math.rad(50) })
+    local winter = Atmosphere.new({ time = 0.25, season = "winter", latitudeRadians = math.rad(50) })
+    local summerSolar = Atmosphere.solarState(summer)
+    local winterSolar = Atmosphere.solarState(winter)
+    expect(summerSolar.elevationDegrees > winterSolar.elevationDegrees, "summer noon sun should be higher than winter at mid-latitudes")
+    expect(Atmosphere.daylightWindow(summer, 0) > Atmosphere.daylightWindow(winter, 0), "season should change day length by latitude")
+    expect(Atmosphere.daylightWindow(summer, -18) > Atmosphere.daylightWindow(summer, -12) and Atmosphere.daylightWindow(summer, -12) > Atmosphere.daylightWindow(summer, -6), "twilight bands should have distinct lengths")
+    local moon = Atmosphere.new({ time = 0.25, season = "summer", dayLength = 1, elapsedDays = 0 })
+    local before = Atmosphere.moonPhase(moon)
+    Atmosphere.update(moon, 2.1)
+    expect(math.abs(Atmosphere.moonPhase(moon) - before) > 0.01, "moon phase should advance over in-game days")
+end
+
 local function testAtmosphereSunDirection()
     local noon = Atmosphere.sunDirection(Atmosphere.new({ time = 0.25 }))
     local midnight = Atmosphere.sunDirection(Atmosphere.new({ time = 0.75 }))
@@ -2026,6 +2041,25 @@ local function testAtmosphereSunDirection()
     expect(noon.daylight > midnight.daylight, "daylight should be greater at noon than midnight")
     expect(math.abs(noon.x) < 0.01, "sun should be near zenith east-west at noon")
     expect(dusk.x < 0, "sun should swing west at dusk")
+end
+
+local function testWeatherStateMachine()
+    local world = WorldGen.new(20260625, fastWorldOptions)
+    local cell = { x = 128, y = -64, temperature = 0.76, rainfall = 0.82, moisture = 0.82, slope = 0.08, windX = 0.7, windY = 0.2, pressureCellId = 2, koppen = "Af", water = false }
+    local first = Weather.sample(world, cell, { x = cell.x, y = cell.y, bucket = 17 })
+    local second = Weather.sample(world, cell, { x = cell.x, y = cell.y, bucket = 17 })
+    expect(Save.encode(first) == Save.encode(second), "weather should be deterministic for seed/geologicTime/bucket")
+    expect(first.eventDuration >= 30 and first.eventDuration <= 1200, "weather events should stay within persistence bounds")
+    expect(first.visibility <= 1 and first.visibility >= 0.18 and type(first.koppen) == "string", "weather should expose visibility and Koppen state")
+    local wetEvents, stormEvents = 0, 0
+    for bucket = 0, 95 do
+        local state = Weather.sample(world, cell, { x = cell.x + bucket * 13, y = cell.y - bucket * 7, bucket = bucket })
+        if state.precipitation ~= "clear" then wetEvents = wetEvents + 1 end
+        if state.storm ~= "none" then stormEvents = stormEvents + 1 end
+    end
+    expect(wetEvents > 0 and stormEvents < wetEvents, "storms should be rarer than rain events")
+    local dry = Weather.sample(world, { x = 32, y = 32, temperature = 0.82, rainfall = 0.08, windX = 1, windY = 0, slope = 0.2, pressureCellId = 1, koppen = "BWh" }, { x = 32, y = 32, bucket = 11 })
+    expect(Weather.particleCount(dry, 1280, 720) >= 0 and dry.eventDuration >= 30, "dry weather should remain renderable")
 end
 
 local function testPostFxPixelScale()
@@ -2333,7 +2367,9 @@ local tests = {
     testBiomePalette,
     testSkyDomeColors,
     testAtmosphereCycle,
+    testAtmosphereSolarRealism,
     testAtmosphereSunDirection,
+    testWeatherStateMachine,
     testPostFxPixelScale,
     testTopographicMapData,
     testDebugPanelIds,

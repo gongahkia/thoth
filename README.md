@@ -69,7 +69,7 @@ make diagnostics
 luajit tests/run.lua --diagnostics --seed-start 1 --seed-count 32
 luajit tests/run.lua --diagnostics --seeds 1,42,99,20260625 --chunk-radius 2 --sample-step 8
 luajit tests/run.lua --regressions
-luajit tests/run.lua --benchmark --chunk-radius 1 --scales local,region,continent
+luajit tests/bench.lua --chunk-radius 1 --scales local,region,continent
 ```
 
 Diagnostics report land/water/river/lake/slope/biome ratios, seam mismatches, and uphill drainage rejects. Fixture sweeps cover ten regression categories: ugly_terrain, all_water, all_land, riverless, single_biome, biome_count_low, steep_slopes, drowned_basin, broken_seams, and river_discontinuities. Bounds are broad Earth-inspired calibration gates, not strict geoscience targets.

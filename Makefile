@@ -19,13 +19,13 @@ regressions:
 	$(LUAJIT) tests/run.lua --regressions
 
 benchmark:
-	$(LUAJIT) tests/run.lua --benchmark --chunk-radius 1
+	$(LUAJIT) tests/bench.lua --chunk-radius 1
 
 bench:
-	$(LUAJIT) tests/run.lua --benchmark --chunk-radius 1 --baseline tests/bench.baseline.json --baseline-tolerance 0.5
+	$(LUAJIT) tests/bench.lua --chunk-radius 1 --baseline tests/bench.baseline.json --baseline-tolerance 0.5
 
 bench-update:
-	$(LUAJIT) tests/run.lua --benchmark --chunk-radius 1 --update-baseline tests/bench.baseline.json
+	$(LUAJIT) tests/bench.lua --chunk-radius 1 --update-baseline tests/bench.baseline.json
 
 render-smoke:
 	SDL_AUDIODRIVER=dummy $(LOVE) . --skip-menu --render-smoke

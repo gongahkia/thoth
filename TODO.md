@@ -82,37 +82,7 @@ User attached two Minecraft "Create World" screenshots (Bedrock modern + Pocket 
 
 ## Tasks
 
-Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) unblocks the settings page (Task 3) and the fixed-scale change; HUD + labels + banner (Tasks 8, 9, 11) sit above the new UI; weather (Task 10) extends generation. Numbered per user request; execution order recommended below each.
-
----
-
-### Task 10 — Weather + realistic day/night
-
-**STATUS:** pending — day/night partly present via `atmosphere.lua`; weather absent.
-**RECOMMENDED ORDER:** 10th.
-
-**SCOPE:** Add weather state machine per R3. Verify day/night cycle is realistic (sun angle latitude-aware, twilight length).
-
-**FILES:**
-- New `src/weather.lua` — front + precipitation + storm state per active region; deterministic from `(seed, geologicTime, wallclock_bucket)`.
-- `src/atmosphere.lua` — accept weather state as tint modifier (overcast dulls palette, storm reduces sun intensity, night moon-phase adjusts ambient).
-- `src/render.lua` — rain streaks / snow particles / fog volume as post-fx layer; visibility falloff.
-- `src/climate.lua` — expose Köppen zone per cell (add `cell.koppen`).
-- `main.lua` — poll weather each frame; expose to HUD (Task 11) and audio hook.
-
-**DAY/NIGHT REALISM CHECKLIST:**
-- Sun elevation = f(latitude proxy from world y, day-of-year, hour). Currently `[Inference]` sun direction is fixed per phase — verify.
-- Civil / nautical / astronomical twilight durations distinct.
-- Moon phase varies over in-game days.
-- Season affects day length by latitude proxy.
-
-**ACCEPTANCE:**
-- `--debug-perf` shows current weather + Köppen zone.
-- Rain persists 30 s – 20 min bounded per event; storms rarer than rain.
-- Visibility drops in storms; verify perf HUD `visible_tiles` doesn't need increase because of new draw layers.
-- Same `(seed, geologicTime, wallclock_bucket)` → same weather.
-
-**REMAINING:** — sound cues stub only.
+Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) unblocks the settings page (Task 3) and the fixed-scale change; HUD + labels + banner (Tasks 8, 9, 11) sit above the new UI. Numbered per user request; execution order recommended below each.
 
 ---
 
@@ -145,7 +115,7 @@ Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) u
 **SCOPE:** Banner currently fires only on biome change. Extend triggers + surface persistent "current area" label above the minimap.
 
 **FILES:**
-- `main.lua:35–55` (`updateBiomeBanner`) — add triggers: entering named feature (watershed, basin, mountain range), elevation-zone crossings (montane → subalpine → alpine → nival), Köppen-zone crossings (via Task 10).
+- `main.lua:35–55` (`updateBiomeBanner`) — add triggers: entering named feature (watershed, basin, mountain range), elevation-zone crossings (montane → subalpine → alpine → nival), Köppen-zone crossings.
 - `src/render.lua:1091–1113` — minimap header: two lines: (1) largest-scope feature name (mountain range or watershed), (2) current biome + Köppen shorthand.
 - `src/render.lua` banner draw — layered lines: primary (biome), secondary (feature entered, if any this frame).
 
@@ -187,12 +157,12 @@ Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) u
 ### Task 11 — Player-facing HUD (distinct from debug HUD)
 
 **STATUS:** pending
-**RECOMMENDED ORDER:** 14th (last — depends on Tasks 8, 9, 10 signals).
+**RECOMMENDED ORDER:** 14th (last — depends on Tasks 8, 9, and weather signals).
 
 **SCOPE:** Minimal diegetic HUD for players. Explicitly not a debug panel.
 
 **FILES:**
-- New `src/hud.lua` — draws: compass ribbon (top-center), area name (top-left, from Task 9), biome banner (existing, top-center below compass), weather glyph + temperature (top-right, from Task 10), minimap (bottom-right, existing), pin count / discovery count (bottom-left).
+- New `src/hud.lua` — draws: compass ribbon (top-center), area name (top-left, from Task 9), biome banner (existing, top-center below compass), weather glyph + temperature (top-right), minimap (bottom-right, existing), pin count / discovery count (bottom-left).
 - `src/render.lua:1251` (`drawHud`) — call `HUD.draw` alongside existing debug draws; HUD.draw gated by `app.showPlayerHud` (default true).
 
 **RULES:**
@@ -204,7 +174,7 @@ Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) u
 **ACCEPTANCE:**
 - Debug HUD (`L`) and player HUD (`H`) toggle independently; both visible does not overlap.
 - Compass ticks show cardinal directions; needle points to yaw.
-- Weather glyph matches Task 10 state.
+- Weather glyph matches current weather state.
 
 **REMAINING:** —
 

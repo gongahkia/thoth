@@ -12,6 +12,7 @@ local Settings = require("src.settings")
 local Survey = require("src.survey")
 local Thumbnail = require("src.thumbnail")
 local ViewScale = require("src.viewscale")
+local Weather = require("src.weather")
 local WorldGen = require("src.worldgen")
 local Keybinds = require("src.keybinds")
 
@@ -114,6 +115,28 @@ end
 
 local function startAsyncHydrology(app)
     if app.asyncHydrology and app.world.startAsyncHydrology then app.world:startAsyncHydrology(app.worldOptions) end
+end
+
+local function updateWeather(app, dt)
+    if not (app and app.world and app.viewScale) then return nil end
+    Weather.update(app.weatherRuntime, dt or 0)
+    local params = ViewScale.params(app.viewScale, app.world)
+    local cell = app.world:sample(math.floor(app.player.x), math.floor(app.player.y), params.target)
+    local bucket = app.weatherRuntime and app.weatherRuntime.fixedBucket or Weather.bucketFor(app.weatherRuntime and app.weatherRuntime.clock or 0)
+    app.weatherClock = app.weatherRuntime and app.weatherRuntime.clock or 0
+    app.weatherState = Weather.sample(app.world, cell, {
+        x = app.player.x,
+        y = app.player.y,
+        bucket = bucket,
+        scale = params.target,
+    })
+    app.currentKoppen = cell and cell.koppen or app.weatherState.koppen
+    app.weatherAudioCue = app.weatherState.audioCue
+    if app.atmosphere then
+        app.atmosphere.latitudeRadians = cell and cell.latitudeRadians or app.atmosphere.latitudeRadians or 0
+        app.atmosphere.weather = app.weatherState
+    end
+    return app.weatherState
 end
 
 local function exitApp(app)
@@ -345,7 +368,7 @@ local function perfSnapshot(app)
     local chunkY = math.floor(app.player.y / size)
     local stats = app.perf.renderStats or {}
     local view = ViewScale.params(app.viewScale, app.world)
-    return string.format(
+    local line = string.format(
         "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f zoom=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s bob=%.3f phase=%.2f mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d/%s chunks=%d hydro=%d basins=%d billboard_cache=%d hits=%d cmiss=%d evict=%d evict_kind=c%d/h%d/m%d/b%d async=q%d/d%d/f%d/p%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
         app.perf.frame or 0,
         love.timer.getFPS(),
@@ -398,6 +421,16 @@ local function perfSnapshot(app)
         metrics.billboardMisses,
         metrics.hydrologyCells,
         metrics.basinCells
+    )
+    local weather = app.weatherState or {}
+    return line .. string.format(
+        " weather=%s precip=%s storm=%s vis=%.2f koppen=%s cue=%s",
+        Weather.label(weather),
+        tostring(weather.precipitation or "clear"),
+        tostring(weather.storm or "none"),
+        weather.visibility or 1,
+        tostring(app.currentKoppen or weather.koppen or "??"),
+        tostring(app.weatherAudioCue or weather.audioCue or "none")
     )
 end
 
@@ -455,6 +488,7 @@ local function applySnapshot(app, snapshot)
     app.atmosphereTime = app.atmosphere.time
     app.viewScale = ViewScale.new(app.world)
     ViewScale.update(app.viewScale, 1, app.world, app.player.x, app.player.y)
+    updateWeather(app, 0)
     if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(app.mouseLook) end
     PostFX.resize(app, love.graphics.getDimensions())
     app.perf.preloadMsThisFrame = 0
@@ -497,6 +531,10 @@ local function loadGame(args)
             season = argValue(args, "--season", settings.display.startSeason or "summer"),
             dayLength = tonumber(argValue(args, "--day-length", settings.display.dayLength or 60)) or 60,
         }),
+        weatherRuntime = Weather.new({
+            bucket = tonumber(argValue(args, "--weather-bucket", nil)),
+            clock = tonumber(argValue(args, "--weather-clock", 0)) or 0,
+        }),
         paused = false,
         mouseLook = true,
         renderSmoke = hasArg(args, "--render-smoke"),
@@ -519,6 +557,7 @@ local function loadGame(args)
     app.viewScale = ViewScale.new(app.world)
     startAsyncHydrology(app)
     ViewScale.update(app.viewScale, 0, app.world, app.player.x, app.player.y)
+    updateWeather(app, 0)
     app.perf = {
         frame = 0,
         interval = tonumber(argValue(args, "--perf-interval", 1)) or 1,
@@ -660,6 +699,7 @@ function love.update(dt)
     app.camera.eyeHeight = app.player.eyeHeight or app.camera.eyeHeight
     app.camera.swayAngle = app.player.swayAngle or 0
     ViewScale.update(app.viewScale, simDt, app.world, app.player.x, app.player.y)
+    updateWeather(app, app.paused and 0 or simDt)
     updateBiomeBanner(app, simDt)
     refreshPreloadIfNeeded(app)
     app.camera.x = app.camera.x + (app.player.x - app.camera.x) * math.min(1, simDt * 10)
@@ -710,6 +750,7 @@ function love.draw()
         print("render-smoke-lowres=" .. tostring(stats.lowResCanvasWidth) .. "x" .. tostring(stats.lowResCanvasHeight))
         print("render-smoke-palette=" .. tostring(stats.paletteId) .. ":" .. tostring(stats.paletteSize))
         print("render-smoke-sky=" .. tostring(stats.skyDome) .. ":" .. string.format("%.3f", stats.skyTime or 0) .. ":" .. tostring(stats.skySeason))
+        print("render-smoke-weather=" .. tostring(stats.weather) .. ":" .. tostring(stats.weatherStorm) .. ":" .. string.format("%.2f", stats.weatherVisibility or 1) .. ":" .. tostring(stats.weatherParticles or 0))
         if stats.clipmap then
             print("render-smoke-clipmap=" .. tostring(stats.clipmapRings or 0) .. ":" .. tostring(stats.clipmapRadius or 0) .. ":" .. tostring(stats.clipmapSteps or "") .. ":" .. tostring(stats.clipmapSamplesRefilled or 0))
         end
