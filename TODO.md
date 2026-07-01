@@ -66,12 +66,6 @@ Persist per-region weather to keep determinism: seed(x, y, geologicTime, wallclo
 
 `[Inference]` Cloud cover, wind speed, visibility, ambient sound cue are the four minimum runtime signals.
 
-### R4. Palette 32 → 64 (Task 13)
-
-`[Verified]` `postfx.lua` quantizes to 32-color biome palette. Search consensus: 32–64 both acceptable for pixel art; 64 preserves more detail with ~2–5 dB PSNR gain vs 32. No hard technical blocker; LUT/shader constant array size doubles.
-
-`[Inference]` Palette selection per active biome/scale — will need re-tuning of biome palette tables (`render.lua:10–56`). Consider OkLab distance for palette build if artifacts appear.
-
 ### R6. GUI toolkit (Tasks 3, 6, 12, 14)
 
 `[Verified]` Options: **Slab** (fuller-featured, menubars/list-boxes/dialogs) vs **SUIT** (minimal, immediate-mode).
@@ -88,33 +82,7 @@ User attached two Minecraft "Create World" screenshots (Bedrock modern + Pocket 
 
 ## Tasks
 
-Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) unblocks the settings page (Task 3) and the fixed-scale change; HUD + labels + banner (Tasks 8, 9, 11) sit above the new UI; biomes/weather/palette (Tasks 5, 10, 13) extend generation; content additions (Task 4) piggyback on generation. Numbered per user request; execution order recommended below each.
-
----
-
-### Task 13 — Palette 32 → 64
-
-**STATUS:** pending
-**RECOMMENDED ORDER:** 7th (small, unblocks visual work).
-
-**SCOPE:** Widen palette quantization from 32 to 64 colors.
-
-**FILES:**
-- `src/postfx.lua` — palette LUT + shader constant.
-- `src/render.lua:10–56` — biome + landform palette tables extended.
-- `assets/orometry/archetypes.lua` — verify no palette-index-bound values; unlikely but check.
-
-**STEPS:**
-1. Bump `PALETTE_SIZE = 64`.
-2. Extend palette per active scope: sample OkLab-distance-farthest 32 additional colors from a superset drawn from biome + weather + atmosphere tints.
-3. Update `render-smoke` output line `palette=` assertion in `tests/run.lua` if hardcoded.
-
-**ACCEPTANCE:**
-- `make render-smoke` prints `palette=<id>:64`.
-- Visual A/B (pixel-perfect diff or manual) shows finer gradients on sunset skies and water depth.
-- Regression fixtures unchanged (palette does not affect generation).
-
-**REMAINING:** —
+Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) unblocks the settings page (Task 3) and the fixed-scale change; HUD + labels + banner (Tasks 8, 9, 11) sit above the new UI; biomes/weather (Tasks 5, 10) extend generation; content additions (Task 4) piggyback on generation. Numbered per user request; execution order recommended below each.
 
 ---
 
@@ -140,7 +108,7 @@ Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) u
 - Exotic biomes appear only when `allowExoticBiomes = true`.
 - `make regressions` `single_biome`/`biome_count_low` fixtures still pass with adjusted bounds.
 
-**REMAINING:** — palette re-tuning may spill into Task 13; if Task 13 lands first this is cleaner.
+**REMAINING:** —
 
 ---
 
