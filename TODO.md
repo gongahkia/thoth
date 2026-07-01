@@ -86,27 +86,6 @@ Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) u
 
 ---
 
-### Task 9 — Expanded biome banner + area name over minimap
-
-**STATUS:** pending
-**RECOMMENDED ORDER:** 12th.
-
-**SCOPE:** Banner currently fires only on biome change. Extend triggers + surface persistent "current area" label above the minimap.
-
-**FILES:**
-- `main.lua:35–55` (`updateBiomeBanner`) — add triggers: entering named feature (watershed, basin, mountain range), elevation-zone crossings (montane → subalpine → alpine → nival), Köppen-zone crossings.
-- `src/render.lua:1091–1113` — minimap header: two lines: (1) largest-scope feature name (mountain range or watershed), (2) current biome + Köppen shorthand.
-- `src/render.lua` banner draw — layered lines: primary (biome), secondary (feature entered, if any this frame).
-
-**ACCEPTANCE:**
-- Walking into a named mountain range shows both a banner and a persistent header label.
-- Header updates without flicker (debounce 250 ms).
-- Off-toggle via Task 3.
-
-**REMAINING:** —
-
----
-
 ### Task 7 — List UI + map pins + teleport + expanded minimap
 
 **STATUS:** pending

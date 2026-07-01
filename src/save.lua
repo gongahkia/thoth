@@ -346,6 +346,7 @@ function Save.snapshot(app)
             debugTopo = app.debugTopo == true,
             minimap = app.minimap == true,
             showWorldLabels = app.showWorldLabels ~= false,
+            showAreaLabels = app.showAreaLabels ~= false,
             debugPanels = (function()
                 if type(app.debugPanels) == "table" then
                     return {

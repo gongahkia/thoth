@@ -404,6 +404,9 @@ local function drawSettings(menu, x, y, w)
         local labels, labelsChanged = UI.Checkbox(ui, settings.display.showWorldLabels ~= false, "World Labels", rx, y + 326, rw, 28, { id = "settings:labels", size = 14 })
         settings.display.showWorldLabels = labels
         if labelsChanged then Settings.save(settings) end
+        local area, areaChanged = UI.Checkbox(ui, settings.display.showAreaLabels ~= false, "Area Labels", rx, y + 360, rw, 28, { id = "settings:area-labels", size = 14 })
+        settings.display.showAreaLabels = area
+        if areaChanged then Settings.save(settings) end
     elseif state.tab == "Audio" then
         for index, item in ipairs({ { "Master", "master" }, { "SFX", "sfx" }, { "Ambient", "ambient" } }) do
             local rowY = y + 58 + (index - 1) * 72

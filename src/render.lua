@@ -161,6 +161,16 @@ function Render.bannerAlpha(age, duration, fade)
     return math.min(1, age / fade, (duration - age) / fade)
 end
 
+function Render.areaHeaderLines(app)
+    if not app or app.showAreaLabels == false then return nil end
+    local area = app.currentArea
+    if not area then return nil end
+    local primary = area.featureName or area.elevationZoneLabel
+    local secondary = (area.biomeLabel or Render.biomeDisplayName(area.biome)) .. " / " .. tostring(area.koppen or "??")
+    if not primary or primary == "" then primary = secondary end
+    return { primary, secondary }
+end
+
 local function fontCache(app, path, size)
     app.fonts = app.fonts or {}
     local key = tostring(path) .. ":" .. tostring(size)
@@ -1377,8 +1387,22 @@ local function drawMinimap(app, width, height)
     local size = data.sampleCount * pixel
     local x0 = width - size - 18
     local y0 = height - size - 70
+    local header = Render.areaHeaderLines(app)
+    local headerHeight = header and 34 or 0
     love.graphics.setColor(0.02, 0.025, 0.03, 0.76)
-    love.graphics.rectangle("fill", x0 - 6, y0 - 6, size + 12, size + 12)
+    love.graphics.rectangle("fill", x0 - 6, y0 - 6 - headerHeight, size + 12, size + 12 + headerHeight)
+    if header then
+        local previous = love.graphics.getFont()
+        local primaryFont = fontCache(app, biomeBannerFontPath, 13)
+        local secondaryFont = fontCache(app, biomeBannerFontPath, 11)
+        love.graphics.setColor(0.95, 0.92, 0.74, 1)
+        love.graphics.setFont(primaryFont)
+        love.graphics.print(header[1], x0, y0 - 36)
+        love.graphics.setColor(0.72, 0.78, 0.68, 0.92)
+        love.graphics.setFont(secondaryFont)
+        love.graphics.print(header[2], x0, y0 - 18)
+        love.graphics.setFont(previous)
+    end
     for row = 1, data.sampleCount do
         for col = 1, data.sampleCount do
             local color = topoColor(data.rows[row][col])
@@ -1402,22 +1426,38 @@ local function drawMinimap(app, width, height)
 end
 
 local function drawBiomeBanner(app, width, height)
+    if app.showAreaLabels == false then return nil end
     local banner = app.biomeBanner
     if not banner then return nil end
     local alpha = Render.bannerAlpha(banner.age, banner.duration, banner.fade)
     if alpha <= 0 then return nil end
     local font = fontCache(app, biomeBannerFontPath, app.biomeBannerFontSize or 32)
+    local secondaryFont = fontCache(app, biomeBannerFontPath, 16)
     local previous = love.graphics.getFont()
     love.graphics.setFont(font)
     local text = banner.label or Render.biomeDisplayName(banner.biome)
-    local x = math.floor((width - font:getWidth(text)) * 0.5)
+    local secondary = banner.secondary
+    local textWidth = font:getWidth(text)
+    local secondaryWidth = secondary and secondaryFont:getWidth(secondary) or 0
+    local boxWidth = math.max(textWidth, secondaryWidth)
+    local boxHeight = font:getHeight() + (secondary and secondaryFont:getHeight() + 8 or 0)
+    local x = math.floor((width - textWidth) * 0.5)
     local y = math.floor(height * 0.42)
     love.graphics.setColor(0.02, 0.025, 0.03, 0.72 * alpha)
-    love.graphics.rectangle("fill", x - 18, y - 10, font:getWidth(text) + 36, font:getHeight() + 20)
+    love.graphics.rectangle("fill", math.floor((width - boxWidth) * 0.5) - 18, y - 10, boxWidth + 36, boxHeight + 20)
     love.graphics.setColor(0, 0, 0, 0.55 * alpha)
     love.graphics.print(text, x + 3, y + 3)
     love.graphics.setColor(0.95, 0.92, 0.74, alpha)
     love.graphics.print(text, x, y)
+    if secondary then
+        love.graphics.setFont(secondaryFont)
+        local sx = math.floor((width - secondaryWidth) * 0.5)
+        local sy = y + font:getHeight() + 6
+        love.graphics.setColor(0, 0, 0, 0.46 * alpha)
+        love.graphics.print(secondary, sx + 2, sy + 2)
+        love.graphics.setColor(0.72, 0.78, 0.68, alpha)
+        love.graphics.print(secondary, sx, sy)
+    end
     love.graphics.setFont(previous)
     return alpha
 end

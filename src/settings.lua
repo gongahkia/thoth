@@ -42,6 +42,7 @@ local defaults = {
         headBob = false,
         cameraSway = false,
         showWorldLabels = true,
+        showAreaLabels = true,
     },
     audio = {
         master = 1,

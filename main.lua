@@ -42,17 +42,104 @@ local function perfLine(app, message)
     if app and app.debugPerf then print("[perf] " .. message) end
 end
 
+local featureRank = { mountain_range = 1, watershed = 2, basin = 3 }
+
+local elevationZoneLabels = {
+    montane = "Montane Zone",
+    subalpine = "Subalpine Zone",
+    alpine = "Alpine Zone",
+    nival = "Nival Zone",
+}
+
+local function elevationZone(cell)
+    if not cell or cell.water then return nil end
+    local biome = cell.biome
+    local elevation = cell.elevation or 0
+    if biome == "nival_zone" or (biome == "snow" and elevation > 0.72) then return "nival" end
+    if biome == "alpine" or biome == "alpine_scree" or (biome == "rock" and elevation > 0.64) then return "alpine" end
+    if biome == "subalpine_krummholz" or (elevation > 0.48 and (cell.temperature or 0.5) < 0.48) then return "subalpine" end
+    if elevation > 0.28 then return "montane" end
+    return "lowland"
+end
+
+local function currentFeature(app, cell)
+    local best
+    for _, item in ipairs(app.world:discoveriesAt(cell.x, cell.y, "local")) do
+        local rank = featureRank[item.kind]
+        if rank and (not best or rank < best.rank) then
+            best = { kind = item.kind, id = item.id, name = item.name, rank = rank }
+        end
+    end
+    return best
+end
+
+local function areaKey(area)
+    return table.concat({
+        area and area.featureKey or "",
+        area and area.biome or "",
+        area and area.koppen or "",
+        area and area.elevationZone or "",
+    }, "|")
+end
+
+local function areaSnapshot(app, cell, biome)
+    local feature = currentFeature(app, cell)
+    local zone = elevationZone(cell)
+    return {
+        biome = biome,
+        biomeLabel = Render.biomeDisplayName(biome),
+        koppen = cell.koppen or app.currentKoppen or "??",
+        elevationZone = zone,
+        elevationZoneLabel = elevationZoneLabels[zone],
+        feature = feature,
+        featureName = feature and feature.name or nil,
+        featureKey = feature and (feature.kind .. ":" .. tostring(feature.id)) or nil,
+    }
+end
+
+local function updateCurrentArea(app, area, dt)
+    local key = areaKey(area)
+    if not app.currentArea then
+        app.currentArea = area
+        app.currentAreaKey = key
+        app.pendingArea = nil
+        return false, nil
+    end
+    if key == app.currentAreaKey then
+        app.pendingArea = nil
+        return false, app.currentArea
+    end
+    if not app.pendingArea or app.pendingArea.key ~= key then
+        app.pendingArea = { key = key, area = area, age = 0 }
+        return false, app.currentArea
+    end
+    app.pendingArea.age = app.pendingArea.age + (dt or 0)
+    if app.pendingArea.age < (app.areaDebounce or 0.25) then return false, app.currentArea end
+    local previous = app.currentArea
+    app.currentArea = app.pendingArea.area
+    app.currentAreaKey = app.pendingArea.key
+    app.pendingArea = nil
+    return true, previous
+end
+
+local function bannerSecondary(current, previous)
+    if current.featureKey ~= (previous and previous.featureKey) and current.featureName then return current.featureName end
+    if current.elevationZone ~= (previous and previous.elevationZone) and current.elevationZoneLabel then return current.elevationZoneLabel end
+    if current.koppen ~= (previous and previous.koppen) then return "Koppen " .. tostring(current.koppen) end
+    return nil
+end
+
 local function updateBiomeBanner(app, dt)
     local cell = app.world:sample(math.floor(app.player.x), math.floor(app.player.y), "local")
     local biome = cell and not cell.pendingHydrology and cell.biome
     if biome then
-        if not app.currentBiome then
-            app.currentBiome = biome
-        elseif biome ~= app.currentBiome then
-            app.currentBiome = biome
+        local changed, previous = updateCurrentArea(app, areaSnapshot(app, cell, biome), dt)
+        app.currentBiome = app.currentArea and app.currentArea.biome or biome
+        if changed and app.showAreaLabels ~= false then
             app.biomeBanner = {
-                biome = biome,
-                label = Render.biomeDisplayName(biome),
+                biome = app.currentArea.biome,
+                label = app.currentArea.biomeLabel,
+                secondary = bannerSecondary(app.currentArea, previous),
                 age = 0,
                 duration = 3.0,
                 fade = 0.75,
@@ -148,6 +235,9 @@ local function replaceWorld(app, seed)
     if app.world and app.world.shutdownAsyncHydrology then app.world:shutdownAsyncHydrology(false) end
     app.world = WorldGen.new(seed, app.worldOptions)
     app.currentBiome = nil
+    app.currentArea = nil
+    app.currentAreaKey = nil
+    app.pendingArea = nil
     app.biomeBanner = nil
     startAsyncHydrology(app)
 end
@@ -474,6 +564,7 @@ local function applySnapshot(app, snapshot)
     app.debugTopo = display.debugTopo == true
     app.minimap = display.minimap == true
     app.showWorldLabels = display.showWorldLabels ~= false
+    app.showAreaLabels = display.showAreaLabels ~= false
     if type(display.debugPanels) == "table" then
         app.debugPanels = {
             plate = display.debugPanels.plate == true,
@@ -543,6 +634,7 @@ local function loadGame(args)
         debugTopo = hasArg(args, "--debug-topo") or settings.debug.topo == true,
         minimap = hasArg(args, "--minimap") or settings.debug.minimap == true,
         showWorldLabels = settings.display.showWorldLabels ~= false,
+        showAreaLabels = settings.display.showAreaLabels ~= false,
         debugPanels = (function()
             local on = hasArg(args, "--debug-panels") or settings.debug.panels == true
             return { plate = on, drainage = on, erosion = on, biome = on }

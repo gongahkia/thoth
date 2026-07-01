@@ -599,6 +599,7 @@ local function testSaveLoadRoundTrip()
         debugPerf = true,
         debugTopo = true,
         minimap = true,
+        showAreaLabels = false,
         debugPanels = true,
         pixelScale = 3,
         atmosphere = Atmosphere.new({ time = 0.4, season = "autumn", dayLength = 90 }),
@@ -621,7 +622,7 @@ local function testSaveLoadRoundTrip()
     expect(decoded.world.hotspotSigma == 768 and decoded.world.hotspotTrailSteps == 5 and decoded.world.hotspotTrailDt == 0.15 and decoded.world.hotspotTau == 2.5 and decoded.world.hotspotElevationScale == 0.33 and decoded.world.floodBasaltThreshold == 0.25, "save should round-trip hotspot physics settings")
     expect(decoded.world.meanderWidthScale == 2.2 and decoded.world.meanderMigrationScale == 0.8, "save should round-trip meander settings")
     expect(decoded.atmosphere.time == 0.4 and decoded.atmosphere.season == "autumn" and decoded.atmosphere.dayLength == 90, "save should round-trip atmosphere state")
-    expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.minimap and decoded.display.debugPanels and decoded.display.pixelScale == 3 and not decoded.display.mouseLook, "save should round-trip display toggles")
+    expect(decoded.display.debugPerf and decoded.display.debugTopo and decoded.display.minimap and decoded.display.debugPanels and decoded.display.pixelScale == 3 and not decoded.display.mouseLook and decoded.display.showAreaLabels == false, "save should round-trip display toggles")
     expect(restoredSurvey.cellCount == survey.cellCount and restoredSurvey.discoveryCount == survey.discoveryCount, "save should round-trip survey annotations")
 end
 
@@ -1979,6 +1980,9 @@ local function testRenderStats()
     expect(#worldLabels == 1 and worldLabels[1].text == "HIGH RANGE", "world labels should project, uppercase major features, and dedupe overlaps by priority")
     labelApp.showWorldLabels = false
     expect(#Render.worldLabelDrawList(labelApp, 1280, 720, 8) == 0, "world label setting should hide labels")
+    local header = Render.areaHeaderLines({ showAreaLabels = true, currentArea = { featureName = "High Range", biome = "rainforest", biomeLabel = "RAINFOREST", koppen = "Af" } })
+    expect(header and header[1] == "High Range" and header[2] == "RAINFOREST / Af", "area header should show feature plus biome and Koppen")
+    expect(Render.areaHeaderLines({ showAreaLabels = false, currentArea = { featureName = "High Range", biome = "rainforest", koppen = "Af" } }) == nil, "area header setting should hide labels")
     local regionWorld = WorldGen.new(3, { scope = "region", hydrologyRegionChunks = 2, hydrologyHaloCells = 0, hydrologyBasinChunks = 8, hydrologyBasinStride = 8 })
     local regionApp = { world = regionWorld, player = Player.new(0, 0), camera = Render.defaultCamera(), viewScale = ViewScale.new(regionWorld) }
     local regionStats = Render.visibleStats(regionApp, 1280, 720)
