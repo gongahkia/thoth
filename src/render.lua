@@ -198,7 +198,7 @@ function Render.defaultCamera()
         y = 0,
         yaw = 0,
         pitch = 0.02,
-        eyeHeight = 3.2,
+        eyeHeight = 1.7,
         fov = 620,
         renderRadius = 50,
         step = 2.25,
@@ -249,7 +249,7 @@ end
 local function cameraHeight(app)
     local params = viewParams(app)
     local _, z = viewCell(app, app.player.x, app.player.y, params)
-    return z + (app.camera.eyeHeight or 3.2) * (1 + math.log(params.factor or 1) * 0.34)
+    return z + ((app.camera.eyeHeight or 1.7) + ((app.player and app.player.bobOffset) or 0)) * (1 + math.log(params.factor or 1) * 0.34)
 end
 
 local function project(app, width, height, lateral, depth, z)
@@ -260,6 +260,14 @@ local function project(app, width, height, lateral, depth, z)
     local horizon = height * 0.46 + (camera.pitch or 0) * fov
     local sx = width * 0.5 + lateral / depth * fov
     local sy = horizon - (z - camera.eyeZ) / depth * fov
+    local roll = camera.swayAngle or 0
+    if roll ~= 0 then
+        local cx, cy = width * 0.5, height * 0.5
+        local rx, ry = sx - cx, sy - cy
+        local c, s = math.cos(roll), math.sin(roll)
+        sx = cx + rx * c - ry * s
+        sy = cy + rx * s + ry * c
+    end
     return sx, sy
 end
 

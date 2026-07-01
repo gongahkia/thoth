@@ -1783,14 +1783,45 @@ local function testWernerDuneRegimes()
 end
 
 local function testPlayer()
-    local world = testWorld(88)
+    local function fakeWorld(sampleCell)
+        return {
+            sample = function(_, x, y, scope) return sampleCell(x, y, scope) end,
+            metadata = function() return { scope = "local" } end,
+        }
+    end
+    local flat = fakeWorld(function()
+        return { elevation = 0, slope = 0, water = false, biome = "grassland" }
+    end)
     local player = Player.new(0, 0)
-    Player.update(player, 1, { right = true }, world)
+    Player.update(player, 0.25, { right = true }, flat)
     expect(player.x > 0 and player.y == 0 and player.travelX > 0 and player.travelY == 0, "player should move right and expose traversal direction")
-    Player.update(player, 1, { forward = true, yaw = math.pi * 0.5 }, world)
+    Player.update(player, 0.25, { forward = true, yaw = math.pi * 0.5 }, flat)
     expect(player.travelX > 0.99 and math.abs(player.travelY) < 0.000001, "player traversal direction should follow yaw-relative movement")
-    Player.update(player, 0.5, { left = true, up = true, sprint = true }, world)
+    Player.update(player, 0.5, { left = true, up = true, sprint = true }, flat)
     expect(player.x == player.x and player.y == player.y, "player position should stay finite")
+
+    local cliff = fakeWorld(function(_, y)
+        return { elevation = y < 0 and 1 or 0, slope = 0, water = false, biome = "rock" }
+    end)
+    local climber = Player.new(0, 0)
+    Player.update(climber, 0.25, { forward = true, yaw = 0 }, cliff)
+    expect(climber.y == 0 and climber.vy == 0, "player should not cross cliffs taller than max step")
+
+    local deepWater = fakeWorld(function(_, y)
+        return { elevation = 0, slope = 0, water = y < 0, lakeDepth = y < 0 and 0.8 or 0, biome = y < 0 and "lake" or "grassland" }
+    end)
+    local wader = Player.new(0, 0)
+    Player.update(wader, 0.25, { forward = true, yaw = 0 }, deepWater)
+    expect(wader.y == 0 and wader.vy == 0, "player should stop at water deeper than wade limit")
+
+    local bobber = Player.new(0, 0)
+    for _ = 1, 60 do Player.update(bobber, 1 / 60, { right = true, headBob = true, cameraSway = true }, flat) end
+    expect((bobber.footstepTotal or 0) > 0 and (bobber.footsteps or 0) > 0, "player footstep phase should advance while moving")
+    expect((bobber.bobOffset or 0) <= 0 and math.abs(bobber.swayAngle or 0) > 0, "player should expose bob and sway when enabled")
+
+    local steady = Player.new(0, 0)
+    for _ = 1, 30 do Player.update(steady, 1 / 60, { right = true, headBob = false, cameraSway = false }, flat) end
+    expect((steady.footstepTotal or 0) > 0 and steady.bobOffset == 0 and steady.swayAngle == 0, "player should disable bob and sway cleanly")
 end
 
 local function testHeightInterpolationAndNormal()

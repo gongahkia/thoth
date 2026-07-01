@@ -72,18 +72,6 @@ Persist per-region weather to keep determinism: seed(x, y, geologicTime, wallclo
 
 `[Inference]` Palette selection per active biome/scale — will need re-tuning of biome palette tables (`render.lua:10–56`). Consider OkLab distance for palette build if artifacts appear.
 
-### R5. FPS controller (Task 1)
-
-`[Verified]` Current `player.lua`: instantaneous velocity, no acceleration, no head-bob, no elevation, no collision.
-
-**Design decisions:**
-- **Acceleration model:** exponential approach — `v += (target_v − v) * (1 − exp(−k·dt))` with `k ≈ 8` for walk, `k ≈ 5` for sprint start, `k ≈ 12` for stop. `[Inference]` Feels responsive without snappy.
-- **Head-bob:** curve-based, not sine — two-key spline per step; magnitude scales with speed. Bob dip triggers footstep event.
-- **Footstep cadence:** ~2.1 Hz walk, ~3.4 Hz sprint. Surface tag from `cell.biome` selects sound (currently no audio pipeline — Task 1.5 stubs the hook).
-- **Body elevation:** camera y-offset = `cell.elevation + eyeHeight` where `eyeHeight ≈ 1.7`. Sample the terrain per frame.
-- **Collision:** vertical only — clamp movement into water below waterline and above cliffs beyond slope threshold. `[Inference]` No jump; do not "teleport up cliff" — reject move if elevation delta > `maxStepUp = 0.5`.
-- **Camera sway:** optional, tied to setting; ±0.5° roll on stride, 0 on standstill.
-
 ### R6. GUI toolkit (Tasks 3, 6, 12, 14)
 
 `[Verified]` Options: **Slab** (fuller-featured, menubars/list-boxes/dialogs) vs **SUIT** (minimal, immediate-mode).
@@ -100,38 +88,7 @@ User attached two Minecraft "Create World" screenshots (Bedrock modern + Pocket 
 
 ## Tasks
 
-Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) unblocks the settings page (Task 3) and the fixed-scale change; traversal + zoom (Tasks 1, 2) are independent; HUD + labels + banner (Tasks 8, 9, 11) sit above the new UI; biomes/weather/palette (Tasks 5, 10, 13) extend generation; content additions (Task 4) piggyback on generation. Numbered per user request; execution order recommended below each.
-
----
-
-### Task 1 — Traversal physics (accel / stumble / footsteps / elevation / collision / sway)
-
-**STATUS:** pending
-**RECOMMENDED ORDER:** 5th (independent, can parallel with 2, 3).
-
-**SCOPE:** Replace `player.lua` instantaneous movement with a fuller controller. Design per R5.
-
-**FILES:**
-- `src/player.lua` — expand from 33 → ~120 LOC. Add `player.vx`, `player.vy`, `player.eyeHeight`, `player.footstepPhase`, `player.bobOffset`.
-- `main.lua` — pass camera struct + settings toggles to `Player.update`.
-- `src/render.lua` — apply `bobOffset` and optional roll `swayAngle` to camera transform.
-
-**IMPLEMENTATION NOTES:**
-- **Acceleration:** `v += (targetV − v) * (1 − exp(−k*dt))`; k table by state (walk-start 8, sprint-start 5, stop 12, water 3).
-- **Elevation:** sample `world:sample(floor(x), floor(y), scope)` each frame; camera y = `cell.elevation + eyeHeight`.
-- **Collision:** compute prospective cell; if `newCell.elevation − currentCell.elevation > maxStepUp` (0.5), reject horizontal component into blocked direction (slide along tangent). If `cell.water` and depth > `wadeMax` (0.3), reject or slow to 0.15×.
-- **Stumble:** if attempted step-up between 0.25 and 0.5, apply `stumbleCooldown = 0.4 s` where speed × 0.5. `[Speculation]` Feels like tripping without full ragdoll.
-- **Head-bob:** two-key spline peak-to-peak amplitude `walkBob = 0.08`, `sprintBob = 0.14`; phase increments at `bobHz * speed / walkSpeed`.
-- **Footstep:** phase crossing `π` and `2π` fire `player.onFootstep(cell)` event; consumer is a stub logging surface tag until audio ships.
-- **Camera sway:** optional roll ±0.5° tied to bob phase, gated by setting.
-
-**ACCEPTANCE:**
-- Player cannot cross a cliff face of Δelev > 0.5 in one step.
-- Walking into water above `wadeMax` stops the player.
-- Footstep phase increments visibly when `--debug-perf` is on (add `bob=` field to perf line).
-- Bob and sway disable cleanly via Task 3 settings toggles.
-
-**REMAINING:** — audio pipeline (out of scope; footstep event is a stub).
+Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) unblocks the settings page (Task 3) and the fixed-scale change; zoom (Task 2) is independent; HUD + labels + banner (Tasks 8, 9, 11) sit above the new UI; biomes/weather/palette (Tasks 5, 10, 13) extend generation; content additions (Task 4) piggyback on generation. Numbered per user request; execution order recommended below each.
 
 ---
 

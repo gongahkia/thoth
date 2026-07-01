@@ -319,7 +319,7 @@ local function perfSnapshot(app)
     local stats = app.perf.renderStats or {}
     local view = ViewScale.params(app.viewScale, app.world)
     return string.format(
-        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d/%s chunks=%d hydro=%d basins=%d billboard_cache=%d hits=%d cmiss=%d evict=%d evict_kind=c%d/h%d/m%d/b%d async=q%d/d%d/f%d/p%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
+        "frame=%d fps=%d dt=%.2fms sim_dt=%.2fms update=%.2fms draw=%.2fms preload=%.2fms scale=%s factor=%.2f pos=%.2f,%.2f chunk=%d,%d band=%d,%d yaw=%.3f pitch=%.3f moving=%s sprint=%s bob=%.3f phase=%.2f mesh=%s tris=%s billboards=%s rivers=%s silhouettes=%s landmarks=%s cache=%d/%s chunks=%d hydro=%d basins=%d billboard_cache=%d hits=%d cmiss=%d evict=%d evict_kind=c%d/h%d/m%d/b%d async=q%d/d%d/f%d/p%d misses=c%d/h%d/m%d/b%d cells=h%d/m%d",
         app.perf.frame or 0,
         love.timer.getFPS(),
         (app.perf.lastDt or 0) * 1000,
@@ -339,6 +339,8 @@ local function perfSnapshot(app)
         app.camera.pitch or 0,
         flag(app.perf.moving),
         flag(app.perf.sprint),
+        app.player.bobOffset or 0,
+        app.player.footstepPhase or 0,
         tostring(stats.visibleTiles),
         tostring(stats.triangles),
         tostring(stats.billboards),
@@ -602,10 +604,15 @@ function love.update(dt)
         right = Keybinds.isDown(app.settings, "right"),
         sprint = app.walkSmoke and true or Keybinds.isDown(app.settings, "sprint"),
         yaw = app.camera.yaw,
+        scope = ViewScale.activeScale(app.viewScale),
+        headBob = app.settings.display.headBob,
+        cameraSway = app.settings.display.cameraSway,
     }
     app.perf.moving = input.forward or input.back or input.left or input.right
     app.perf.sprint = input.sprint
     Player.update(app.player, simDt, input, app.world)
+    app.camera.eyeHeight = app.player.eyeHeight or app.camera.eyeHeight
+    app.camera.swayAngle = app.player.swayAngle or 0
     ViewScale.update(app.viewScale, simDt, app.world, app.player.x, app.player.y)
     updateBiomeBanner(app, simDt)
     refreshPreloadIfNeeded(app)
