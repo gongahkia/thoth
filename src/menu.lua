@@ -1,5 +1,7 @@
 local Export = require("src.export")
+local Keybinds = require("src.keybinds")
 local Save = require("src.save")
+local Settings = require("src.settings")
 local UI = require("src.ui")
 local WorldGen = require("src.worldgen")
 
@@ -165,6 +167,12 @@ function Menu.new(args)
             renameText = "",
             confirmDelete = nil,
             status = nil,
+        },
+        settings = {
+            data = Settings.load(),
+            tab = "Controls",
+            rebindAction = nil,
+            warning = nil,
         },
         ui = UI.new(theme()),
         backdrop = backdrop,
@@ -342,21 +350,79 @@ local function drawCreate(menu, x, y, w)
 end
 
 local function drawSettings(menu, x, y, w)
-    UI.Label(menu.ui, "SETTINGS", x, y, { size = 30 })
-    UI.List(menu.ui, "settings-tabs", {
-        { label = "Controls" },
-        { label = "Display" },
-        { label = "Audio" },
-        { label = "Debug" },
-    }, x, y + 50, math.min(260, w), 156, { rowH = 38 })
-    backButton(menu, x, y + 226)
+    local ui = menu.ui
+    local state = menu.settings
+    local settings = state.data
+    UI.Label(ui, "SETTINGS", x, y, { size = 30 })
+    local sidebarW = 112
+    for index, tab in ipairs({ "Controls", "Display", "Audio", "Debug" }) do
+        if UI.Button(ui, tab, x, y + 48 + (index - 1) * 40, sidebarW, 32, { id = "settings:tab:" .. tab, size = 14 }) then state.tab = tab end
+    end
+    backButton(menu, x, y + 224)
+    local rx = x + sidebarW + 24
+    local rw = w - sidebarW - 24
+    if state.tab == "Controls" then
+        local order = Settings.controlOrder()
+        local rowH = 24
+        local maxRows = math.min(#order, 12)
+        for index = 1, maxRows do
+            local action = order[index]
+            local rowY = y + 50 + (index - 1) * rowH
+            UI.Label(ui, Settings.label(action), rx, rowY + 4, { size = 13, muted = state.rebindAction == action })
+            UI.Label(ui, tostring(settings.controls[action]), rx + 138, rowY + 4, { size = 13 })
+            if UI.Button(ui, "Rebind", rx + rw - 72, rowY, 72, 22, { id = "settings:rebind:" .. action, size = 11 }) then
+                state.rebindAction = action
+                state.warning = "press key"
+            end
+        end
+        if state.warning then UI.Label(ui, state.warning, rx, y + 348, { size = 14, muted = true }) end
+    elseif state.tab == "Display" then
+        UI.Label(ui, "Pixel " .. tostring(settings.display.pixelScale), rx, y + 54, { size = 14, muted = true })
+        local pixel, pixelChanged = UI.Slider(ui, settings.display.pixelScale, 2, 4, rx, y + 80, math.min(220, rw), 28, { id = "settings:pixel" })
+        if pixelChanged then
+            settings.display.pixelScale = math.floor(pixel + 0.5)
+            Settings.save(settings)
+        end
+        UI.Label(ui, "Day " .. tostring(math.floor(settings.display.dayLength or 60)), rx, y + 122, { size = 14, muted = true })
+        local day, dayChanged = UI.Slider(ui, settings.display.dayLength, 10, 240, rx, y + 148, math.min(220, rw), 28, { id = "settings:day" })
+        if dayChanged then
+            settings.display.dayLength = math.floor(day + 0.5)
+            Settings.save(settings)
+        end
+        UI.Label(ui, "Mouse X", rx, y + 190, { size = 14, muted = true })
+        local mx, mxChanged = UI.Slider(ui, settings.display.mouseSensitivityX, 0.001, 0.006, rx, y + 214, math.min(220, rw), 28, { id = "settings:mx" })
+        if mxChanged then
+            settings.display.mouseSensitivityX = mx
+            Settings.save(settings)
+        end
+        local bob, bobChanged = UI.Checkbox(ui, settings.display.headBob, "Head Bob", rx, y + 258, rw, 28, { id = "settings:bob", size = 14 })
+        settings.display.headBob = bob
+        if bobChanged then Settings.save(settings) end
+        local sway, swayChanged = UI.Checkbox(ui, settings.display.cameraSway, "Camera Sway", rx, y + 292, rw, 28, { id = "settings:sway", size = 14 })
+        settings.display.cameraSway = sway
+        if swayChanged then Settings.save(settings) end
+    elseif state.tab == "Audio" then
+        for index, item in ipairs({ { "Master", "master" }, { "SFX", "sfx" }, { "Ambient", "ambient" } }) do
+            local rowY = y + 58 + (index - 1) * 72
+            UI.Label(ui, item[1] .. " " .. string.format("%.2f", settings.audio[item[2]] or 1), rx, rowY, { size = 14, muted = true })
+            local value, changed = UI.Slider(ui, settings.audio[item[2]], 0, 1, rx, rowY + 24, math.min(220, rw), 28, { id = "settings:audio:" .. item[2] })
+            settings.audio[item[2]] = value
+            if changed then Settings.save(settings) end
+        end
+    else
+        for index, item in ipairs({ { "Perf HUD", "perf" }, { "Topo", "topo" }, { "Minimap", "minimap" }, { "Panels", "panels" } }) do
+            local value, changed = UI.Checkbox(ui, settings.debug[item[2]], item[1], rx, y + 58 + (index - 1) * 36, rw, 28, { id = "settings:debug:" .. item[2], size = 14 })
+            settings.debug[item[2]] = value
+            if changed then Settings.save(settings) end
+        end
+    end
 end
 
 function Menu.draw(menu)
     local width, height = love.graphics.getDimensions()
     drawBackdrop(menu, width, height)
     UI.begin(menu.ui)
-    local panelW = menu.state == "create" and math.min(760, width - 32) or (menu.state == "library" and math.min(620, width - 32) or math.min(360, width - 32))
+    local panelW = menu.state == "create" and math.min(760, width - 32) or ((menu.state == "library" or menu.state == "settings") and math.min(620, width - 32) or math.min(360, width - 32))
     local panelH = menu.state == "create" and math.min(500, height - 40) or math.min(430, height - 40)
     local x = math.floor(math.max(16, width * 0.08))
     local y = math.floor((height - panelH) * 0.5)
@@ -376,6 +442,22 @@ end
 
 function Menu.keypressed(menu, key)
     UI.keypressed(menu.ui, key)
+    if menu.state == "settings" and menu.settings.rebindAction then
+        if key == "escape" then
+            menu.settings.rebindAction = nil
+            menu.settings.warning = nil
+            return
+        end
+        local ok, duplicate = Keybinds.rebind(menu.settings.data, menu.settings.rebindAction, key)
+        if ok then
+            Settings.save(menu.settings.data)
+            menu.settings.warning = "saved"
+            menu.settings.rebindAction = nil
+        else
+            menu.settings.warning = "duplicate " .. Settings.label(duplicate)
+        end
+        return
+    end
     if key == "escape" then
         if menu.state == "title" then return "quit" end
         setState(menu, "title")

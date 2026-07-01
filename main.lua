@@ -8,10 +8,12 @@ local Menu = require("src.menu")
 local PostFX = require("src.postfx")
 local Render = require("src.render")
 local Save = require("src.save")
+local Settings = require("src.settings")
 local Survey = require("src.survey")
 local Thumbnail = require("src.thumbnail")
 local ViewScale = require("src.viewscale")
 local WorldGen = require("src.worldgen")
+local Keybinds = require("src.keybinds")
 
 local app
 local terrainPreloadPadding = 0
@@ -230,6 +232,21 @@ local function librarySmoke(args)
     love.event.quit(0)
 end
 
+local function settingsSmoke()
+    local original = Settings.load()
+    local settings = Settings.load()
+    local ok = Keybinds.rebind(settings, "forward", "z")
+    Settings.save(settings)
+    local reloaded = Settings.load()
+    local duplicateOk, duplicate = Keybinds.rebind(reloaded, "back", "z")
+    Settings.save(original)
+    print("settings-smoke=settings")
+    print("settings-smoke-rebind=" .. tostring(ok))
+    print("settings-smoke-forward=" .. tostring(reloaded.controls.forward))
+    print("settings-smoke-duplicate=" .. tostring(not duplicateOk and duplicate == "forward"))
+    love.event.quit(0)
+end
+
 local function preloadApp(app, reason)
     local started = now()
     local view = ViewScale.params(app.viewScale, app.world)
@@ -427,31 +444,37 @@ local function loadGame(args)
         librarySmoke(args)
         return
     end
+    if hasArg(args, "--settings-smoke") then
+        settingsSmoke()
+        return
+    end
     love.graphics.setDefaultFilter("nearest", "nearest")
     local worldOptions = runtimeWorldOptions(args)
+    local settings = Settings.load()
     app = {
         mode = "play",
         world = WorldGen.new(tonumber(argValue(args, "--seed", 20260625)), worldOptions),
         worldOptions = worldOptions,
+        settings = settings,
         asyncHydrology = not (hasArg(args, "--no-async") or hasArg(args, "--render-smoke")),
         survey = Survey.new(),
         viewScale = nil,
         player = Player.new(0, 0),
         camera = Render.defaultCamera(),
-        pixelScale = PostFX.parsePixelScale(argValue(args, "--pixel-scale", 2)),
+        pixelScale = PostFX.parsePixelScale(argValue(args, "--pixel-scale", settings.display.pixelScale or 2)),
         atmosphere = Atmosphere.new({
             time = tonumber(argValue(args, "--time-of-day", 0.25)) or 0.25,
-            season = argValue(args, "--season", "summer"),
-            dayLength = tonumber(argValue(args, "--day-length", 60)) or 60,
+            season = argValue(args, "--season", settings.display.startSeason or "summer"),
+            dayLength = tonumber(argValue(args, "--day-length", settings.display.dayLength or 60)) or 60,
         }),
         paused = false,
         mouseLook = true,
         renderSmoke = hasArg(args, "--render-smoke"),
         walkSmoke = hasArg(args, "--walk-smoke"),
-        debugTopo = hasArg(args, "--debug-topo"),
-        minimap = hasArg(args, "--minimap"),
+        debugTopo = hasArg(args, "--debug-topo") or settings.debug.topo == true,
+        minimap = hasArg(args, "--minimap") or settings.debug.minimap == true,
         debugPanels = (function()
-            local on = hasArg(args, "--debug-panels")
+            local on = hasArg(args, "--debug-panels") or settings.debug.panels == true
             return { plate = on, drainage = on, erosion = on, biome = on }
         end)(),
         walkSmokeFrames = tonumber(argValue(args, "--walk-smoke-frames", 240)) or 240,
@@ -459,7 +482,7 @@ local function loadGame(args)
         preloadRadius = tonumber(argValue(args, "--preload-radius", 64)) or 64,
         refreshPreloadRadius = tonumber(argValue(args, "--refresh-preload-radius", 72)) or 72,
         savePath = argValue(args, "--save-path", "thoth-save.json"),
-        debugPerf = hasArg(args, "--debug-perf") or hasArg(args, "--log-fps") or hasArg(args, "--walk-smoke"),
+        debugPerf = hasArg(args, "--debug-perf") or hasArg(args, "--log-fps") or hasArg(args, "--walk-smoke") or settings.debug.perf == true,
     }
     app.atmosphereTime = app.atmosphere.time
     PostFX.resize(app, love.graphics.getDimensions())
@@ -567,17 +590,17 @@ function love.update(dt)
         Atmosphere.update(app.atmosphere, simDt)
         app.atmosphereTime = app.atmosphere.time
     end
-    local turn = (love.keyboard.isDown("e", "right") and 1 or 0) - (love.keyboard.isDown("left") and 1 or 0)
-    local pitch = (love.keyboard.isDown("down") and 1 or 0) - (love.keyboard.isDown("up") and 1 or 0)
+    local turn = (Keybinds.isDown(app.settings, "lookRight") and 1 or 0) - (Keybinds.isDown(app.settings, "lookLeft") and 1 or 0)
+    local pitch = (Keybinds.isDown(app.settings, "pitchDown") and 1 or 0) - (Keybinds.isDown(app.settings, "pitchUp") and 1 or 0)
     if app.walkSmoke then turn = app.walkSmokeTurn end
     app.camera.yaw = app.camera.yaw + turn * simDt * 1.9
     app.camera.pitch = math.max(-0.42, math.min(0.38, app.camera.pitch + pitch * simDt * 0.85))
     local input = {
-        forward = app.walkSmoke or love.keyboard.isDown("w"),
-        back = love.keyboard.isDown("s"),
-        left = love.keyboard.isDown("a", "left"),
-        right = love.keyboard.isDown("d", "right"),
-        sprint = app.walkSmoke and true or love.keyboard.isDown("lshift", "rshift"),
+        forward = app.walkSmoke or Keybinds.isDown(app.settings, "forward"),
+        back = Keybinds.isDown(app.settings, "back"),
+        left = Keybinds.isDown(app.settings, "left"),
+        right = Keybinds.isDown(app.settings, "right"),
+        sprint = app.walkSmoke and true or Keybinds.isDown(app.settings, "sprint"),
         yaw = app.camera.yaw,
     }
     app.perf.moving = input.forward or input.back or input.left or input.right
@@ -657,28 +680,29 @@ function love.keypressed(key)
         handleMenuAction(Menu.keypressed(app.menu, key))
         return
     end
-    if key == "escape" or key == "q" then
+    local action = Keybinds.actionForKey(app.settings, key)
+    if action == "quit" or action == "quitAlt" then
         exitApp(app)
         return
     end
     if app.walkSmoke then return end
-    if key == "f" then
+    if action == "toggleMouseLook" then
         app.mouseLook = not app.mouseLook
         if love.mouse and love.mouse.setRelativeMode then love.mouse.setRelativeMode(app.mouseLook) end
     end
-    if key == "l" then
+    if action == "togglePerf" then
         app.debugPerf = not app.debugPerf
         print("[perf] debug=" .. tostring(app.debugPerf))
     end
-    if key == "t" then
+    if action == "toggleTopo" then
         app.debugTopo = not app.debugTopo
         print("[topo] debug=" .. tostring(app.debugTopo))
     end
-    if key == "m" then
+    if action == "toggleMinimap" then
         app.minimap = not app.minimap
         print("[minimap] visible=" .. tostring(app.minimap))
     end
-    if key == "b" then
+    if action == "togglePanels" then
         if type(app.debugPanels) ~= "table" then
             app.debugPanels = { plate = false, drainage = false, erosion = false, biome = false }
         end
@@ -692,8 +716,8 @@ function love.keypressed(key)
         print("[panels] all=" .. tostring(nextValue))
     end
     do
-        local panelByKey = { ["1"] = "plate", ["2"] = "drainage", ["3"] = "erosion", ["4"] = "biome" }
-        local id = panelByKey[key]
+        local panelByAction = { panelPlate = "plate", panelDrainage = "drainage", panelErosion = "erosion", panelBiome = "biome" }
+        local id = panelByAction[action]
         if id then
             if type(app.debugPanels) ~= "table" then
                 app.debugPanels = { plate = false, drainage = false, erosion = false, biome = false }
@@ -701,16 +725,16 @@ function love.keypressed(key)
             app.debugPanels[id] = not app.debugPanels[id]
             print("[panel] " .. id .. "=" .. tostring(app.debugPanels[id]))
         end
-        if key == "5" then
+        if action == "toggleTopoAlt" then
             app.debugTopo = not app.debugTopo
             print("[topo] debug=" .. tostring(app.debugTopo))
         end
     end
-    if key == "[" or key == "]" then
-        local season = Atmosphere.shiftSeason(app.atmosphere, key == "]" and 1 or -1)
+    if action == "seasonPrev" or action == "seasonNext" then
+        local season = Atmosphere.shiftSeason(app.atmosphere, action == "seasonNext" and 1 or -1)
         print("[season] " .. tostring(season))
     end
-    if key == "f5" then
+    if action == "save" then
         if app.saveSlotId then
             Save.writeWorld(app.saveSlotId, Save.snapshot(app), { name = app.worldName or "World" }, thumbnailFor(app))
             print("[save] wrote_slot=" .. tostring(app.saveSlotId))
@@ -719,7 +743,7 @@ function love.keypressed(key)
             print("[save] wrote=" .. tostring(app.savePath))
         end
     end
-    if key == "f9" then
+    if action == "load" then
         local ok, snapshot = pcall(function()
             if app.saveSlotId then return Save.readWorld(app.saveSlotId) end
             return Save.read(app.savePath)
@@ -731,11 +755,11 @@ function love.keypressed(key)
             print("[save] load_failed=" .. tostring(snapshot))
         end
     end
-    if key == "n" then
+    if action == "markSurvey" then
         Survey.mark(app.survey, app.world, app.player.x, app.player.y, ViewScale.activeScale(app.viewScale))
         print("[survey] cells=" .. tostring(app.survey.cellCount) .. " discoveries=" .. tostring(app.survey.discoveryCount))
     end
-    if key == "r" then
+    if action == "newSeed" then
         replaceWorld(app, os.time() % 1000000)
         app.survey = Survey.new()
         app.viewScale = ViewScale.new(app.world)
@@ -751,8 +775,8 @@ end
 
 function love.mousemoved(_, _, dx, dy)
     if not app or app.mode ~= "play" or not app.mouseLook or app.walkSmoke then return end
-    app.camera.yaw = app.camera.yaw + dx * 0.0025
-    app.camera.pitch = math.max(-0.42, math.min(0.38, app.camera.pitch - dy * 0.0018))
+    app.camera.yaw = app.camera.yaw + dx * (app.settings.display.mouseSensitivityX or 0.0025)
+    app.camera.pitch = math.max(-0.42, math.min(0.38, app.camera.pitch - dy * (app.settings.display.mouseSensitivityY or 0.0018)))
 end
 
 function love.mousepressed(x, y, button)

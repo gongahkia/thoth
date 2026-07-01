@@ -104,38 +104,6 @@ Ordering rationale: menu/world-creation infrastructure (Tasks 14 → 6 → 12) u
 
 ---
 
-### Task 3 — Settings page + reconfigurable keybinds
-
-**STATUS:** pending
-**RECOMMENDED ORDER:** 4th (needs Task 14 infra).
-
-**SCOPE:** Settings subpage under menu. Persists to `settings.json` (LOVE save dir). Rebindable keys.
-
-**FILES:**
-- `src/menu.lua` — `settings` subpage (tabs: Controls / Display / Audio / Debug).
-- New `src/settings.lua` — load/save `settings.json`; schema with defaults; validation.
-- New `src/keybinds.lua` — action → key map; `keybinds.isDown("forward")` replaces raw `love.keyboard.isDown("w")` in `main.lua:463–468` and `player.lua`.
-- `main.lua` — swap key checks to `Keybinds.isDown`; `love.keypressed` dispatches through action lookup.
-
-**DEFAULT BINDINGS:** mirror current README controls table.
-
-**CONTROLS TAB:** each action row shows current binding + `Rebind` button that enters capture mode (next key press assigns; Esc cancels; conflict warns).
-
-**DISPLAY TAB:** pixel-scale, day-length, start-season, mouse-look sensitivity, head-bob toggle, camera-sway toggle (feeds Task 1).
-
-**AUDIO TAB:** master/sfx/ambient sliders (stubs OK if no audio yet).
-
-**DEBUG TAB:** toggles for perf HUD, topo overlay, minimap, debug panels — same set currently keybound.
-
-**ACCEPTANCE:**
-- Rebinding `W` to `Z` reflects in-game immediately and persists across restart.
-- Invalid bindings (duplicate) surface a warning.
-- Deleting `settings.json` restores defaults on next launch.
-
-**REMAINING:** —
-
----
-
 ### Task 1 — Traversal physics (accel / stumble / footsteps / elevation / collision / sway)
 
 **STATUS:** pending

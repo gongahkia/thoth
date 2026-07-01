@@ -48,6 +48,7 @@ love . --no-async
 ```
 
 `love .` opens the title menu. Use `--skip-menu` to launch directly into the current default world.
+Settings persist to `settings.json` in the LOVE save directory; deleting it restores defaults.
 
 `--geologic-time` drifts every plate along its velocity vector (clamped via tanh below 80% of half plate-cell, so plates never collide). `0` keeps the static contract; the `(seed, geologicTime)` pair is the new determinism contract.
 

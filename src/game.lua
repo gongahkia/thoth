@@ -20,6 +20,7 @@ function Game.startsInPlay(args)
         or Game.hasArg(args, "--render-smoke")
         or Game.hasArg(args, "--walk-smoke")
         or Game.hasArg(args, "--library-smoke")
+        or Game.hasArg(args, "--settings-smoke")
         or Game.hasArg(args, "--export-map")
         or Game.hasArg(args, "--smoke")
 end
