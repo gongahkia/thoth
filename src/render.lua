@@ -2,6 +2,8 @@ local Render = {}
 local ViewScale = require("src.viewscale")
 local Clipmap = require("src.clipmap")
 local Atmosphere = require("src.atmosphere")
+local Weather = require("src.weather")
+local Rng = require("src.rng")
 local ffi = require("ffi")
 
 local terrainScale = 18
@@ -109,6 +111,7 @@ extern vec3 skyHorizon;
 extern vec3 fogColor;
 extern vec2 skySize;
 extern number timeOfDay;
+extern number cloudCover;
 
 vec4 effect(vec4 color, Image texture, vec2 textureCoords, vec2 screenCoords)
 {
@@ -120,7 +123,7 @@ vec4 effect(vec4 color, Image texture, vec2 textureCoords, vec2 screenCoords)
     number daylight = clamp(sin(timeOfDay * 6.2831853), 0.0, 1.0);
     number band = smoothstep(0.2, 0.36, y) * (1.0 - smoothstep(0.48, 0.64, y));
     number wave = sin(screenCoords.x * 0.026 + timeOfDay * 6.2831853) * 0.5 + 0.5;
-    number cloud = smoothstep(0.72, 0.96, wave) * band * daylight * 0.22;
+    number cloud = smoothstep(0.72 - cloudCover * 0.28, 0.96, wave) * band * daylight * (0.18 + cloudCover * 0.42);
     sky = mix(sky, vec3(0.88, 0.9, 0.84), cloud);
     return vec4(sky, 1.0);
 }
@@ -173,8 +176,9 @@ local function tintColor(color, tint)
     return { clamp(color[1] * tint[1], 0, 1), clamp(color[2] * tint[2], 0, 1), clamp(color[3] * tint[3], 0, 1) }
 end
 
-function Render.skyColors(timeOfDay, season)
+function Render.skyColors(timeOfDay, season, weather)
     if type(timeOfDay) == "table" then
+        weather = season
         season = timeOfDay.season
         timeOfDay = timeOfDay.time
     end
@@ -185,12 +189,21 @@ function Render.skyColors(timeOfDay, season)
     local nightHorizon = { 0.16, 0.12, 0.2 }
     local nightFog = { 0.18, 0.2, 0.26 }
     local tint = seasonSkyTints[season or "summer"] or seasonSkyTints.summer
-    return {
+    local colors = {
         top = tintColor(mixColor(nightTop, skyTop, daylight), tint.top),
         horizon = tintColor(mixColor(nightHorizon, skyHorizon, daylight), tint.horizon),
         fog = tintColor(mixColor(nightFog, fogColor, daylight * 0.85 + dusk * 0.18), tint.fog),
         daylight = daylight,
     }
+    if weather then
+        local cloud = clamp(weather.cloudCover or 0, 0, 1)
+        local lowVisibility = clamp(1 - (weather.visibility or 1), 0, 1)
+        local gray = { 0.36, 0.39, 0.42 }
+        colors.top = mixColor(colors.top, gray, cloud * 0.36 + lowVisibility * 0.18)
+        colors.horizon = mixColor(colors.horizon, { 0.5, 0.52, 0.52 }, cloud * 0.42 + lowVisibility * 0.24)
+        colors.fog = mixColor(colors.fog, { 0.48, 0.5, 0.5 }, cloud * 0.4 + lowVisibility * 0.45)
+    end
+    return colors
 end
 
 local function baseColor(cell)
@@ -258,6 +271,10 @@ end
 
 local function cameraFov(camera)
     return (camera.fov or 620) * cameraZoom(camera)
+end
+
+local function weatherVisibility(app)
+    return clamp(app and app.weatherState and app.weatherState.visibility or 1, 0.18, 1)
 end
 
 local function scaledRadius(camera, radius)
@@ -823,6 +840,9 @@ function Render.visibleStats(app, width, height)
         clipmapMorphBands = mesh.clipmapMorphBands,
         clipmapMorphTiles = mesh.clipmapMorphTiles,
         labels = #(ViewScale.visibleLabels(app.viewScale, 8)),
+        weather = app.weatherState and app.weatherState.precipitation or "clear",
+        weatherStorm = app.weatherState and app.weatherState.storm or "none",
+        weatherVisibility = weatherVisibility(app),
     }
 end
 
@@ -835,13 +855,14 @@ end
 local function drawSky(app, width, height)
     local atmosphere = app.atmosphere
     local timeOfDay = (atmosphere and atmosphere.time) or app.atmosphereTime or 0.25
-    local colors = Render.skyColors(atmosphere or timeOfDay)
+    local colors = Render.skyColors(atmosphere or timeOfDay, app.weatherState)
     local shader = skyShader(app)
     shader:send("skyTop", colors.top)
     shader:send("skyHorizon", colors.horizon)
     shader:send("fogColor", colors.fog)
     shader:send("skySize", { width, height })
     shader:send("timeOfDay", timeOfDay % 1)
+    shader:send("cloudCover", app.weatherState and app.weatherState.cloudCover or 0)
     love.graphics.setShader(shader)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.rectangle("fill", 0, 0, width, height)
@@ -991,11 +1012,12 @@ end
 local function drawStream(app, id, vertices, fogAmount, lightAmount, radiusOverride)
     if vertexCount(vertices) <= 0 then return end
     local radius = radiusOverride or app.camera.renderRadius or 50
+    local visibility = weatherVisibility(app)
     local shader = terrainShader(app)
     shader:send("fogColor", fogColor)
-    shader:send("fogNear", 24)
-    shader:send("fogFar", math.max(25, radius))
-    shader:send("fogAmount", fogAmount)
+    shader:send("fogNear", 18 * visibility)
+    shader:send("fogFar", math.max(20, radius * visibility))
+    shader:send("fogAmount", clamp(fogAmount + (1 - visibility) * 0.45, 0, 1))
     shader:send("lightAmount", lightAmount)
     love.graphics.setShader(shader)
     love.graphics.setColor(1, 1, 1, 1)
@@ -1029,6 +1051,63 @@ local function drawBillboards(app, list)
     love.graphics.setShader(shader)
     love.graphics.draw(batch)
     love.graphics.setShader()
+end
+
+local function drawWeatherOverlay(app, width, height)
+    local state = app.weatherState
+    if not state then return 0 end
+    local count = Weather.particleCount(state, width, height)
+    local visibility = weatherVisibility(app)
+    if visibility < 0.82 then
+        local fogAlpha = clamp((0.82 - visibility) * 0.34, 0, 0.28)
+        love.graphics.setColor(0.48, 0.5, 0.5, fogAlpha)
+        love.graphics.rectangle("fill", 0, 0, width, height)
+    end
+    if count <= 0 then return 0 end
+    local seed = app.world and app.world.metadata and app.world:metadata().seed or 1
+    local bucket = state.bucket or 0
+    local time = app.weatherClock or 0
+    local precip = state.precipitation or "clear"
+    if state.storm == "sandstorm" then
+        love.graphics.setLineWidth(1)
+        love.graphics.setColor(0.78, 0.62, 0.34, 0.2 + (state.intensity or 0) * 0.22)
+        love.graphics.rectangle("fill", 0, 0, width, height)
+        love.graphics.setColor(0.9, 0.74, 0.42, 0.42)
+        for index = 1, count do
+            local x = (Rng.unitAt(seed + 501, bucket, index, 1, 0) * width + time * 90) % width
+            local y = Rng.unitAt(seed + 503, bucket, index, 2, 0) * height
+            local len = 12 + Rng.unitAt(seed + 505, bucket, index, 3, 0) * 30
+            love.graphics.line(x, y, x + len, y - 3)
+        end
+        return count
+    end
+    if precip == "snow" then
+        love.graphics.setColor(0.86, 0.9, 0.92, 0.72)
+        for index = 1, count do
+            local x = (Rng.unitAt(seed + 601, bucket, index, 1, 0) * width + math.sin(time + index) * 8) % width
+            local y = (Rng.unitAt(seed + 603, bucket, index, 2, 0) * height + time * (18 + (state.windSpeed or 0) * 24)) % height
+            love.graphics.rectangle("fill", x, y, 1, 1)
+        end
+        return count
+    end
+    love.graphics.setLineWidth(1)
+    if precip == "sleet" or precip == "hail" then
+        love.graphics.setColor(0.82, 0.88, 0.9, 0.62)
+        for index = 1, count do
+            local x = (Rng.unitAt(seed + 701, bucket, index, 1, 0) * width + time * 24) % width
+            local y = (Rng.unitAt(seed + 703, bucket, index, 2, 0) * height + time * 140) % height
+            love.graphics.rectangle("fill", x, y, 2, 2)
+        end
+        return count
+    end
+    love.graphics.setColor(0.64, 0.74, 0.84, precip == "downpour" and 0.6 or 0.42)
+    for index = 1, count do
+        local x = (Rng.unitAt(seed + 801, bucket, index, 1, 0) * width + time * 42) % width
+        local y = (Rng.unitAt(seed + 803, bucket, index, 2, 0) * height + time * (220 + (state.intensity or 0) * 220)) % height
+        local len = 8 + (state.intensity or 0) * 18
+        love.graphics.line(x, y, x - 5, y + len)
+    end
+    return count
 end
 
 local function fmt(value)
@@ -1132,6 +1211,7 @@ function Render.debugPanelData(app)
         },
         biome = {
             id = cell.biome,
+            koppen = cell.koppen,
             elevation = cell.elevation or 0,
             rainfall = cell.rainfall or 0,
             moisture = cell.moisture or 0,
@@ -1239,7 +1319,7 @@ local debugPanelLines = {
     { id = "plate", label = function(d) return "plates v " .. fmt(d.plate.vx) .. "," .. fmt(d.plate.vy) .. " b " .. fmt(d.plate.boundary) .. " conv " .. fmt(d.plate.convergent) end },
     { id = "drainage", label = function(d) return "drain -> " .. fmt(d.drainage.dx) .. "," .. fmt(d.drainage.dy) .. " flow " .. fmt(d.drainage.flow) .. " river " .. tostring(d.drainage.river) end },
     { id = "erosion", label = function(d) return "erosion e " .. fmt(d.erosion.erosion) .. " d " .. fmt(d.erosion.deposition) .. " t " .. fmt(d.erosion.thermal) .. " talus " .. tostring(d.erosion.talus) end },
-    { id = "biome", label = function(d) return "biome " .. tostring(d.biome.id) .. " temp " .. fmt(d.biome.temperature) .. " moist " .. fmt(d.biome.moisture) .. " slope " .. fmt(d.biome.slope) end },
+    { id = "biome", label = function(d) return "biome " .. tostring(d.biome.id) .. " koppen " .. tostring(d.biome.koppen) .. " temp " .. fmt(d.biome.temperature) .. " moist " .. fmt(d.biome.moisture) .. " slope " .. fmt(d.biome.slope) end },
 }
 
 function Render.debugPanelIds()
@@ -1278,20 +1358,22 @@ local function drawHud(app, width, height, stats)
     local params = viewParams(app)
     local cell = app.world:sample(math.floor(app.player.x), math.floor(app.player.y), params.target)
     local labels = ViewScale.visibleLabels(app.viewScale, 4)
+    local weather = app.weatherState or {}
     love.graphics.setColor(0.02, 0.025, 0.03, 0.78)
-    love.graphics.rectangle("fill", 12, 12, 456, 214)
+    love.graphics.rectangle("fill", 12, 12, 476, 236)
     love.graphics.setColor(0.88, 0.9, 0.82, 1)
     love.graphics.print("Thoth terrain proto / first-person heightfield", 24, 24)
     love.graphics.print("seed " .. tostring(app.world:metadata().seed) .. "  fps " .. tostring(love.timer.getFPS()) .. "  scope " .. tostring(params.target) .. " x" .. string.format("%.1f", params.factor), 24, 44)
-    love.graphics.print("pos " .. math.floor(app.player.x) .. ", " .. math.floor(app.player.y) .. "  biome " .. tostring(cell.biome), 24, 66)
+    love.graphics.print("pos " .. math.floor(app.player.x) .. ", " .. math.floor(app.player.y) .. "  biome " .. tostring(cell.biome) .. "  koppen " .. tostring(cell.koppen), 24, 66)
     love.graphics.print("elev " .. fmt(cell.elevation) .. " slope " .. fmt(cell.slope) .. " erosion " .. fmt(cell.erosion), 24, 88)
     love.graphics.print("rain " .. fmt(cell.rainfall) .. " flow " .. fmt(cell.flow) .. " river " .. tostring(cell.river), 24, 110)
+    love.graphics.print("weather " .. Weather.label(weather) .. " vis " .. fmt(weather.visibility or 1) .. " wind " .. fmt(weather.windSpeed or 0) .. " cue " .. tostring(weather.audioCue or "none"), 24, 132)
     local survey = app.survey or {}
-    love.graphics.print("mesh " .. tostring(stats.visibleTiles) .. " tiles / " .. tostring(stats.triangles) .. " tris / rivers " .. tostring(stats.riverStrips or 0) .. " / survey " .. tostring(survey.cellCount or 0) .. ":" .. tostring(survey.discoveryCount or 0), 24, 132)
+    love.graphics.print("mesh " .. tostring(stats.visibleTiles) .. " tiles / " .. tostring(stats.triangles) .. " tris / rivers " .. tostring(stats.riverStrips or 0) .. " / survey " .. tostring(survey.cellCount or 0) .. ":" .. tostring(survey.discoveryCount or 0), 24, 154)
     local anchor = app.viewScale and app.viewScale.anchor
-    love.graphics.print("anchor " .. tostring(anchor and anchor.name or "terrain labels") .. " / labels " .. tostring(#labels), 24, 154)
+    love.graphics.print("anchor " .. tostring(anchor and anchor.name or "terrain labels") .. " / labels " .. tostring(#labels), 24, 176)
     for index, label in ipairs(labels) do
-        love.graphics.print(tostring(label.scaleLabel) .. " " .. tostring(label.name), 24, 154 + index * 16)
+        love.graphics.print(tostring(label.scaleLabel) .. " " .. tostring(label.name), 24, 176 + index * 16)
     end
     love.graphics.setColor(0.02, 0.025, 0.03, 0.7)
     love.graphics.rectangle("fill", width - 428, height - 52, 416, 34)
@@ -1312,6 +1394,10 @@ function Render.drawScene(app, width, height)
     drawStream(app, "river", meshData.riverVertices, 0.55, 0, meshData.terrainRadius)
     local billboards = Render.billboardDrawList(app, width, height)
     drawBillboards(app, billboards)
+    meshData.weatherParticles = drawWeatherOverlay(app, width, height)
+    meshData.weatherVisibility = weatherVisibility(app)
+    meshData.weather = app.weatherState and app.weatherState.precipitation or "clear"
+    meshData.weatherStorm = app.weatherState and app.weatherState.storm or "none"
     meshData.billboards = #billboards
     meshData.swayBillboards = 0
     meshData.landmarks = 0
