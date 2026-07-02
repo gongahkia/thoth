@@ -7,6 +7,10 @@
 [Research-backed](#research) infinite walking simulator in a
 [procedurally generated world](#terrain-generation-techniques).
 
+<div align="center">
+    <img src="./assets/screenshots/gameplay.gif" width="70%">
+</div>
+
 ## Stack
 
 * *Scripting*: [Lua](https://www.lua.org/), [LÖVE2D](https://love2d.org/)
@@ -17,7 +21,7 @@
 * *Font*: [BigBlue Terminal](https://int10h.org/blog/2015/12/bigblue-terminal-oldschool-fixed-width-font/)
 * *Sprites*: [Custom billboard texture atlas](./assets/billboards.png)
 
-## Screenshots / GIFs
+## Screenshots
 
 <div align="center">
     <img src="./assets/screenshots/01-alpine.png" width="45%">
@@ -30,9 +34,6 @@
 <div align="center">
     <img src="./assets/screenshots/05-wetland.png" width="45%">
     <img src="./assets/screenshots/06-volcanic.png" width="45%">
-</div>
-<div align="center">
-    <img src="./assets/screenshots/gameplay.gif" width="80%">
 </div>
 
 ## Usage
