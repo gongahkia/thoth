@@ -110,7 +110,7 @@ $ love . --no-async
 
 ### Terrain generation techniques
 
-`Thoth` is a deterministic pipeline: the `(seed, geologicTime)` pair is the entire determinism contract, and every stage below is reproducible for a given pair.
+`Thoth`'s terrain generation follows an 8-layer deterministic pipeline where every `(seed, geologicTime)` pair creates a unique world.
 
 #### Layer 1: Noise base
 
@@ -145,19 +145,19 @@ To simulate erosion in `Thoth`, I referenced the research in [stream-power incis
 
 #### Layer 6: Glacial erosion
 
-Ice-sheet abrasion + pluck in [`src/erosion.lua`](./src/erosion.lua) is driven by the [Shallow Ice Approximation (SIA)](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2021RG000754) with basal sliding — velocity-scaled abrasion, thickness persistence between passes, and gradient-driven flow.
+Ice-sheet abrasion is roughly driven by the ideas covered in [Shallow Ice Approximation (SIA)](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2021RG000754) to attempt a rudimentary simulation of basal sliding and gradient-driven flow.
 
 #### Layer 7: Hillslopes and periglacial
 
-[`src/hillslope.lua`](./src/hillslope.lua) uses non-linear critical-slope diffusion (Culling-style linear diffusion regularised by a critical-slope singularity) with separate regolith / bedrock diffusivities. [`src/periglacial.lua`](./src/periglacial.lua) stamps pingos, palsas, and polygonal ground in cold cells and adds solifluction lobes.
+To add some degree of slopes, `Thoth` implements a non-linear critical-slope diffusion. Geographical difference are simulated via 2 separate regolith and bedrock diffusivities. 
 
 #### Layer 8: Climate and biomes
 
-[`src/climate.lua`](./src/climate.lua) resolves orographic precipitation with wind-gradient lift + lee rain-shadow drying, in the spirit of the [Smith & Barstad 2004 linear theory of orographic precipitation](https://journals.ametsoc.org/view/journals/atsc/61/12/1520-0469_2004_061_1377_altoop_2.0.co_2.xml). [`src/biomes.lua`](./src/biomes.lua) maps temperature × precipitation onto a Whittaker-style grid and cross-references [Köppen-Geiger](https://www.britannica.com/science/Koppen-climate-classification) letters. [`src/soil_classify.lua`](./src/soil_classify.lua) assigns USDA soil orders (entisol, inceptisol, mollisol, vertisol, aridisol, histosol, spodosol, oxisol, andisol, ultisol) from climate + slope + lithology + age.
+Given I really wanted `Thoth` to be a somewhat accurate simulation of earth's actual terrain and weather mechanics, I referenced [Smith & Barstad 2004 linear theory of orographic precipitation](https://journals.ametsoc.org/view/journals/atsc/61/12/1520-0469_2004_061_1377_altoop_2.0.co_2.xml) to map temperature against precipitation onto a Whittaker-style grid. 
 
-#### Layer 9: Specialist landforms
+Furthering this notion of realistic weather, `Thoth` carried over [Köppen-Geiger](https://www.britannica.com/science/Koppen-climate-classification) letters to resolve orographic precipitation with wind-gradient lift. 
 
-Coastal cliffs / capes / spits / lagoons ([`src/coast.lua`](./src/coast.lua)); karst sinkholes, cenotes, and dissolution over carbonate lithology ([`src/karst.lua`](./src/karst.lua)); latitude-driven fringing / barrier / atoll reefs ([`src/reef.lua`](./src/reef.lua)); Werner-style unimodal / bimodal / multimodal dune migration ([`src/aeolian.lua`](./src/aeolian.lua), following [Werner 1995](https://www.semanticscholar.org/paper/Eolian-dunes%3A-Computer-simulations-and-attractor-Werner/f4bcbb6796fd011e2f36d7cff373fc6ec486ea18)); stratovolcano vs. shield cone stamping ([`src/volcano.lua`](./src/volcano.lua)); shelf-distance + shelf-edge detection ([`src/bathymetry.lua`](./src/bathymetry.lua)); meander detection + oxbow marking ([`src/meander.lua`](./src/meander.lua)).
+Finally, some sembelance of soil realism is implemented via USDA soil orders *(entisol, inceptisol, mollisol, vertisol, aridisol, histosol, spodosol, oxisol, andisol, ultisol)*, which directly ties into the aforementioned erosion mechanics.
 
 ### Rendering 
 
@@ -167,50 +167,24 @@ Heightfields are drawn through [GPU-based geometry clipmaps (Losasso & Hoppe 200
 
 #### Streaming and LOD
 
-Geometry clipmaps in [`src/clipmap.lua`](./src/clipmap.lua) cache nested regular grids around the camera, so only ring-buffer edges are re-uploaded as the player walks — the [Losasso & Hoppe 2004](https://hhoppe.com/proj/gpugcm/) invariant that keeps rendering rate steady regardless of world size. Runtime initial preload defaults to 64 cells; refresh preload defaults to 72 cells. Raise them to trade first-render latency for fewer walking stalls.
+`Thoth` implements geometry clipmaps to cache nested regular grids around the camera. This means that only ring-buffer edges are re-uploaded as the player walks to keep the rendering rate steady even at large world sizes. 
 
-#### Bounded caches
-
-[`src/lru.lua`](./src/lru.lua) is an O(1) doubly-linked-list LRU used for chunk-region, basin, and hydrology caches. Hits / misses / evictions surface in the `--debug-perf` overlay so cache thrash is visible. `--cache-max-entries` caps memory use for long sessions.
+As with everything above, this is taken from the [Losasso & Hoppe 2004](https://hhoppe.com/proj/gpugcm/) invariant, and is not an idea that came to me naturally. 
 
 #### Async hydrology worker
 
-[`src/worker.lua`](./src/worker.lua) offloads Priority-Flood + D8 + climate solves to a background LÖVE thread over a job / response channel, so the render thread never blocks on a basin fill. `--no-async` collapses this back onto the main thread (useful for determinism debugging).
+Getting into the nitty-gritty, `Thoth`'s worker offloads priority-flood and climate rendering to a background LÖVE2D thread over a job-to-response channel to ensure that the render thread never blocks.
 
 #### Two-tier hydrology resolution
 
-Fine-grained region passes (default `--hydrology-region-chunks 2 --hydrology-halo 8`) resolve local flow, while a coarser basin pass (`--hydrology-basin-chunks 8 --hydrology-basin-stride 4/8`) preserves large river corridors and inter-basin spillover cheaply. Interactive defaults drop region-halo to `0` and basin-stride to `8` to keep first render bounded.
-
-#### Regression benchmarking
-
-[`tests/bench.lua`](./tests/bench.lua) with `tests/bench.baseline.json` gates commits against a checked-in baseline (`make bench` at 50% tolerance for local dev, direct `--baseline-tolerance 0.1` for CI). `make bench-update` rewrites the baseline. The `bench-baseline` artefact is uploaded from CI.
-
-#### Dt clamping
-
-Runtime clamps simulation `dt` after slow terrain loads so movement doesn't jitter — a "hitch swallower" between world-gen frames and steady state.
-
-#### Runtime diagnostics
-
-`--debug-perf` (toggle `L` in-game) prints FPS, raw + clamped `dt`, update / draw / preload ms, visible / preloaded chunk counts, cache hit / miss / eviction counts, terrain and basin cache misses, and hydrology cell counts. `--debug-panels` starts with plate / drainage / erosion / biome panels open (`B` toggles them).
+Since water is often the most graphically intensive element of real-world games, especially when it comes to realistic terrain generation, `Thoth` has a dual-workflow system that allows for both fine-grained regions to pass *(on local flows)* while a coarser basin pass simultaneously preserves large river corridors and inter-basin spillovers cheaply. 
 
 ### Benchmarks
 
 `Thoth` currently has 2 different benchmarking layers.
 
-1. **Micro-benchmarks** — [`tests/bench.lua`](./tests/bench.lua) generates worlds at scope × chunk-radius combinations, times region / basin / erosion / climate solves, and gates against [`tests/bench.baseline.json`](./tests/bench.baseline.json). `make bench` fails on regressions worse than the tolerance (50% locally, 10% in CI).
-2. **Runtime smoke** — `make walk-smoke` runs a headless `love . --walk-smoke --walk-smoke-frames 240 --perf-interval 0.5` traversal, streaming perf samples every half-second so first-render + walk-hitch regressions surface without a monitor. `make render-smoke` and `make export-smoke` cover render init + map-export paths respectively.
-
-Terrain diagnostics report land / water / river / lake / slope / biome ratios, seam mismatches, and uphill-drainage rejects:
-
-```sh
-make diagnostics
-luajit tests/run.lua --diagnostics --seed-start 1 --seed-count 32
-luajit tests/run.lua --diagnostics --seeds 1,42,99,20260625 --chunk-radius 2 --sample-step 8
-luajit tests/run.lua --regressions
-luajit tests/bench.lua --chunk-radius 1 --scales local,region,continent
-```
-
-Fixture sweeps cover ten regression categories: `ugly_terrain`, `all_water`, `all_land`, `riverless`, `single_biome`, `biome_count_low`, `steep_slopes`, `drowned_basin`, `broken_seams`, and `river_discontinuities`. Bounds are broad Earth-inspired calibration gates, not strict geoscience targets — the terrain-first guard rejects runtime ruins, lore, quests, collectibles, combat, or survival systems until landform generation is coherent.
+1. **Micro-benchmarks**: [`tests/bench.lua`](./tests/bench.lua) generates worlds at scope $\times$ chunk-radius combinations $\times$ region / basin / erosion / climate solves. This also gates against [`tests/bench.baseline.json`](./tests/bench.baseline.json) while `make bench` fails on regressions worse than the tolerance *(50% locally, 10% in CI)*.
+2. **Runtime smoke**: `make walk-smoke` runs a headless `love . --walk-smoke --walk-smoke-frames 240 --perf-interval 0.5` traversal. Seperately, streaming perf samples every 0.5 seconds so first-render and walk-hitch regressions surface without a monitor. Finally, `make render-smoke` and `make export-smoke` cover render init + map-export paths respectively.
 
 ## Research
 
