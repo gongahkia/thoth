@@ -31,27 +31,11 @@ The below commands are for locally running `Thoth`.
 $ git clone https://github.com/gongahkia/thoth && cd thoth
 ```
 
-2. Then run any of the below to start `Thoth`.
+2. Then run any of the below to start `Thoth`. 
 
 ```console
 make run
 ```
-
-3. Finally, optionally execute the below to interact with `Thoth`'s functionality.
-
-```console
-make test
-make smoke
-make diagnostics
-make regressions
-make benchmark
-make bench
-make bench-update
-make render-smoke
-make walk-smoke
-make export-smoke
-```
-
 
 Controls:
 
@@ -69,6 +53,21 @@ Controls:
 - `F5` / `F9`: save / load
 - `Q` / `Esc`: quit
 - `R`: new seed
+
+3. Finally, optionally execute the below to interact with `Thoth`'s functionality.
+
+```console
+make test
+make smoke
+make diagnostics
+make regressions
+make benchmark
+make bench
+make bench-update
+make render-smoke
+make walk-smoke
+make export-smoke
+```
 
 ## Nerd stuff 
 
