@@ -5,7 +5,7 @@
 # `Thoth`
 
 [Research-backed](#research) infinite walking simulator in a
-[procedurally generated world](#terrain-generation-techniques).
+[procedurally generated world](#terrain-generation-techniques) that's as close to [earth](https://en.wikipedia.org/wiki/Earth)'s as possible.
 
 <div align="center">
     <img src="./assets/screenshots/gameplay.gif" width="70%">
@@ -114,23 +114,34 @@ $ love . --no-async
 
 #### Layer 1: Noise base
 
-[OpenSimplex2](https://github.com/KdotJPG/OpenSimplex2) — [Kurt Spencer's successor](https://en.wikipedia.org/wiki/OpenSimplex_noise) to Perlin/simplex noise, chosen for visual isotropy and lack of directional artefacts — is implemented from scratch in [`src/noise.lua`](./src/noise.lua) together with fBm, ridge, and domain-warp modulators. Multi-octave sampling feeds the tectonic mask, uplift, and continental heightfield.
+[Kurt Spencer's successor](https://en.wikipedia.org/wiki/OpenSimplex_noise) to Perlin and Simplex noise, [OpenSimplex2](https://github.com/KdotJPG/OpenSimplex2) was chosen for `Thoth` given its visual isotropy and lack of directional artefacts.
+
+Aside from OpenSimplex2, other noise functions implemented were fBm, ridge, and domain-warp modulators. Multi-octave sampling also fed the tectonic mask and were used for uplift and continental heightfield when generating the base terrain fold.
 
 #### Layer 2: Plate tectonics
 
-[`src/worldgen.lua`](./src/worldgen.lua) builds a plate mosaic with per-plate velocities, age, and boundary flags (subduction, rift, transform), driving uplift belts, island arcs, shields/cratons, and passive-margin shelves. This follows the [PlaTec / Viitanen (2012) approach to physically based plate-tectonic terrain synthesis](https://www.theseus.fi/bitstream/handle/10024/40422/Viitanen_Lauri_2012_03_30.pdf) and the [large-scale uplift + fluvial model of Cordonnier et al. 2016](https://onlinelibrary.wiley.com/doi/10.1111/cgf.12820). `--geologic-time` advances plates along their velocity vectors (tanh-clamped below 80% of half plate-cell so plates never collide).
+To simulate proper tectonic movement, `Thoth` implemented a plate mosaic layer with [per-plate velocities, age, and boundary flags](./src/worldgen.lua) to drive uplift belts, island arcs and and passive-margin shelves. 
+
+This general approach was taken from [PlaTec / Viitanen (2012) approach to physically based plate-tectonic terrain synthesis](https://www.theseus.fi/bitstream/handle/10024/40422/Viitanen_Lauri_2012_03_30.pdf) and the [large-scale uplift + fluvial model of Cordonnier et al. 2016](https://onlinelibrary.wiley.com/doi/10.1111/cgf.12820).
 
 #### Layer 3: Mountain orometry
 
-[`src/orometry.lua`](./src/orometry.lua) blends six archetypes (alps, appalachians, himalaya, andes, fjordland, basinrange) via peak-amplitude, ridge-frequency, and relief scales. Orometric descriptors (prominence, isolation, ridges, saddles) are exposed through `WorldGen:discoveriesAt(x, y, scale)` and used for discovery labels, echoing the [orometry-based terrain analysis + synthesis framework of Argudo et al. 2019](https://dl.acm.org/doi/10.1145/3355089.3356535) and the prominence/isolation definitions from [Kirmse & de Ferranti 2017](https://journals.sagepub.com/doi/abs/10.1177/0309133317738163).
+`Thoth`'s orometry currently blends 6 archetypes *(alps, appalachians, himalaya, andes, fjordland, basinrange)* with standard techniques that include the below. This reference is supported by the approach taken in [orometry-based terrain analysis + synthesis framework of Argudo et al. 2019](https://dl.acm.org/doi/10.1145/3355089.3356535) and [Kirmse & de Ferranti 2017](https://journals.sagepub.com/doi/abs/10.1177/0309133317738163).
+
+* Peak-amplitude
+* Ridge-frequency
+* Relief scales
+* Orometric descriptors *(prominence, isolation, ridges, saddles)*
 
 #### Layer 4: Hydrology
 
-[`src/hydrology.lua`](./src/hydrology.lua) implements a heap-based [Priority-Flood depression filling pass (Barnes, Lehman & Mulla 2014)](https://rbarnes.org/sci/2014_depressions.pdf) followed by [D8 downstream routing (O'Callaghan & Mark 1984)](https://www.sciencedirect.com/science/article/pii/0734189X84800110). Flow accumulation is computed in reverse-topological order; basins, watersheds, terminal cells, and lake surfaces are labelled in the same sweep. Endorheic basins get grouped fill/spillover so drainage never terminates in an interior pit.
+`Thoth` attempts to implement hydrology via a heap-based system, which is a straight rip-off of [Priority-Flood depression filling pass (Barnes, Lehman & Mulla 2014)](https://rbarnes.org/sci/2014_depressions.pdf) and [D8 downstream routing (O'Callaghan & Mark 1984)](https://www.sciencedirect.com/science/article/pii/0734189X84800110).
+
+***TLDR***, we added flow accumulation *(computed in reverse-topological order)* to allow for natural generation of waterbodies that include basins, watersheds, terminal cells and lake surfaces.
 
 #### Layer 5: Fluvial erosion
 
-[`src/erosion.lua`](./src/erosion.lua) applies the [stream-power incision law (Whipple & Tucker 1999)](http://geosci.uchicago.edu/~kite/doc/Whipple_and_Tucker_1999.pdf) — `E = K · A^m · S^n` — with a debris-flow branch that switches to a critical-slope equilibrium above a sediment-concentration threshold. An isostatic-rebound Gaussian kernel and an incision floor prevent runaway carving.
+To simulate erosion in `Thoth`, I referenced the research in [stream-power incision law (Whipple & Tucker 1999)](http://geosci.uchicago.edu/~kite/doc/Whipple_and_Tucker_1999.pdf) that integrated a debris-flow branch. This branch switches to a critical-slope equilibrium above a sediment-concentration threshold to allow for relatively realistic *(albeit unoptimised)* erosion mechanics.
 
 #### Layer 6: Glacial erosion
 
@@ -203,7 +214,7 @@ Fixture sweeps cover ten regression categories: `ugly_terrain`, `all_water`, `al
 
 ## Research
 
-`Thoth `
+`Thoth` heavily drew on the below papers when crafting its [terrain generation](#terrain-generation-techniques).
 
 * [Priority-flood: An optimal depression-filling and watershed-labeling algorithm for digital elevation models](https://rbarnes.org/sci/2014_depressions.pdf) by Richard Barnes, Clarence Lehman and David Mulla
 * [Dynamics of the stream-power river incision model: Implications for height limits of mountain ranges, landscape response timescales, and research needs](https://agupubs.onlinelibrary.wiley.com/doi/10.1029/1999JB900120) by Kelin X Whipple and Gregory E Tucker
