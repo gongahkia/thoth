@@ -1,4 +1,4 @@
-[![](https://img.shields.io/badge/thoth_1.0-passing-dark_green)](https://github.com/gongahkia/thoth/releases/tag/1.0)
+[![](https://img.shields.io/badge/thoth_1.0.0-passing-dark_green)](https://github.com/gongahkia/thoth/releases/tag/1.0.0)
 ![](https://github.com/gongahkia/thoth/actions/workflows/ci.yml/badge.svg)
 ![](https://github.com/gongahkia/thoth/actions/workflows/release-build.yml/badge.svg)
 

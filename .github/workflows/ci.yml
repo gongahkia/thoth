@@ -14,7 +14,7 @@ jobs:
       - name: Install Lua runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y luajit love
+          sudo apt-get install -y luajit love xvfb xauth
 
       - name: Run unit tests
         run: make test
@@ -33,21 +33,18 @@ jobs:
 
       - name: Run render smoke (headless)
         env:
-          SDL_VIDEODRIVER: dummy
           SDL_AUDIODRIVER: dummy
-        run: make render-smoke
+        run: xvfb-run -a make render-smoke
 
       - name: Run walk smoke (headless)
         env:
-          SDL_VIDEODRIVER: dummy
           SDL_AUDIODRIVER: dummy
-        run: make walk-smoke
+        run: xvfb-run -a make walk-smoke
 
       - name: Run export smoke (headless)
         env:
-          SDL_VIDEODRIVER: dummy
           SDL_AUDIODRIVER: dummy
-        run: make export-smoke
+        run: xvfb-run -a make export-smoke
 
       - name: Upload benchmark baseline
         if: always()

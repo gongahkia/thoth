@@ -44,11 +44,9 @@ jobs:
       - name: Stage release source
         run: |
           rm -rf build/love-src release
-          mkdir -p build/love-src/vendor/g3d release
-          rsync -a main.lua conf.lua TODO.md build/love-src/
-          rsync -a src assets docs build/love-src/
-          rsync -a vendor/g3d/g3d build/love-src/vendor/g3d/
-          rsync -a vendor/g3d/LICENSE build/love-src/vendor/g3d/
+          mkdir -p build/love-src release
+          rsync -a main.lua conf.lua build/love-src/
+          rsync -a src assets build/love-src/
           rm -rf build/love-src/assets/previews build/love-src/assets/replays
 
       - name: Build release packages
